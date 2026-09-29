@@ -1,0 +1,32 @@
+name: conditional-required-step
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  translation:
+    runs-on: ubuntu-latest
+    steps:
+      - id: translation_elan
+        run: bash install-elan.sh
+      - id: translation_seed
+        name: Clone the Lake dependencies from local mirrors (self-hosted only)
+        if: runner.environment == 'self-hosted'
+        run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
+      - id: translation_build
+        run: lake build
+      - id: translation_proof
+        run: bash no-sorry.sh
+      - if: github.event_name == 'pull_request'
+        uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation
+          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_build=${{ steps.translation_build.outcome }},translation_proof=${{ steps.translation_proof.outcome }}"
+      - if: github.event_name == 'push'
+        uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation
+          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_seed=${{ steps.translation_seed.outcome }},translation_build=${{ steps.translation_build.outcome }},translation_proof=${{ steps.translation_proof.outcome }}"

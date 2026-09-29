@@ -40,6 +40,22 @@ the Rust they were generated from is the Rust in the tree now. What it cannot
 say is that the toolchain was run honestly, or run at all: a reader who wants
 that runs `run-aeneas.sh` themselves and diffs, which `REPRODUCING.md` describes.
 
+The generated axioms also have a second record in
+`manifests/translation-axiom-allowlist.json`: for each generated file, every
+`axiom` it declares, by fully qualified name (the enclosing `namespace`
+applied) and by the text of its type, one entry per declaration. `--check`
+compares the text scan with it as a multiset, so a second declaration under a
+name that is already listed, a declaration in another namespace, or a changed
+type is a difference. Refreshing the translation attestation does not write
+that file, and `--refresh-translation` refuses to record a tree the file does
+not describe. The only writer is `--write-axiom-allowlist`, which prints what
+it added and removed and refuses to run in CI. What this does not do: it does
+not make a change to the file reviewed (there is no CODEOWNERS file, so
+nothing in this tree routes a change to it to a named reviewer and the diff is
+the only visibility), and it reads the text of the generated files, so it is not a
+check of the elaborated environment; `no-sorry.sh` compares that environment
+with the recorded names, and the type text is not compared there.
+
 ## What it deliberately does not claim
 
 That the listed theorems are the *right* theorems, or that they add up to a
@@ -50,22 +66,29 @@ because that part needs an argument rather than a field.
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFESTS = ROOT / "tacenta-proofs" / "manifests"
 TRANSLATION_MANIFEST = MANIFESTS / "translation-attestation.json"
+TRANSLATION_AXIOM_ALLOWLIST = MANIFESTS / "translation-axiom-allowlist.json"
 RUN_AENEAS = ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh"
 
 SCHEMA_VERSION = 1
 # The translation attestation's own schema: 2 added `workspace_sha256` to every
 # record, so a manifest without it is refused rather than read as complete;
 # 3 added `assembly` to the records of zones that are generated rather than
-# written, so a manifest without it cannot claim to have covered their sources.
-TRANSLATION_SCHEMA_VERSION = 3
+# written, so a manifest without it cannot claim to have covered their sources;
+# 4 records each axiom by its fully qualified name, one entry per declaration,
+# where 3 recorded the name as written and collapsed repeats.
+TRANSLATION_SCHEMA_VERSION = 4
+# The axiom allowlist's schema: 2 lists each declaration as a name and a type.
+AXIOM_ALLOWLIST_SCHEMA_VERSION = 2
 
 # The crates the proofs are about. A proof about translated Rust is a proof
 # about *these* bytes, so their hashes belong in the attestation.
@@ -209,16 +232,34 @@ def compiler_axiom(name):
 GENERATED = ROOT / "tacenta-proofs" / "translation" / "Translation"
 
 
-def lean_code(text):
+# A Lean character literal: `'a'`, `'"'`, `'\n'`, `'\x41'`, `'\u{1F600}'`.
+_CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^\\'\n])'")
+# The characters that can continue an identifier, for telling `r"..."`, `'a'`
+# and `«...»` at the start of a token from the same characters inside one.
+_IDENT_CHARS = re.compile(r"[\w'!?«»]")
+
+
+def lean_code(text, keep_names=False):
     """`text` with `--` line comments, `/- ... -/` block comments (docstrings
-    included, and nested blocks) and `"..."` string literals replaced by
-    spaces, newlines kept, so that what remains is code and line numbers
-    survive. Shared by every scan below: a keyword in prose or in a string is
-    not a declaration, and a declaration is one wherever it sits on a line.
-    The same stripper as `scripts/check-lean-constructs.sh`."""
+    included, and nested blocks), `"..."` and raw `r#"..."#` string literals
+    and `'x'` character literals replaced by spaces, newlines kept, so that
+    what remains is code and line numbers and offsets survive. Shared by every
+    scan below: a keyword in prose or in a string is not a declaration, and a
+    declaration is one wherever it sits on a line.
+
+    An identifier written in guillemets (`«a b»`) is one token whatever it
+    contains: a comment opener, a quote or a keyword inside it is part of the
+    name. Its contents are replaced by `_` so a keyword scan does not see
+    them, or kept as written when `keep_names` is set so the name can be read
+    back. The output is the same length as the input, character for
+    character, so an offset in one is an offset in the other.
+
+    The same stripper as `scripts/check-lean-constructs.sh`, which keeps its
+    own copy."""
     out = []
     i, n, depth = 0, len(text), 0
     while i < n:
+        ch = text[i]
         two = text[i:i + 2]
         if depth == 0 and two == "--":
             j = text.find("\n", i)
@@ -236,27 +277,127 @@ def lean_code(text):
             out.append("  ")
             i += 2
             continue
-        if depth == 0 and text[i] == '"':
+        if depth > 0:
+            out.append("\n" if ch == "\n" else " ")
+            i += 1
+            continue
+        prev = text[i - 1] if i else " "
+        if ch == "«":
+            j = text.find("»", i)
+            j = n if j < 0 else j + 1
+            inner = text[i:j]
+            out.append(inner if keep_names else "".join(
+                c if c in "«»\n" else "_" for c in inner))
+            i = j
+            continue
+        if ch == '"':
             j = i + 1
             while j < n and text[j] != '"':
                 j += 2 if text[j] == "\\" else 1
             j = min(j + 1, n)
-            out.append("".join("\n" if ch == "\n" else " " for ch in text[i:j]))
+            out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
             i = j
             continue
-        out.append(text[i] if depth == 0 or text[i] == "\n" else " ")
+        if ch == "r" and not _IDENT_CHARS.match(prev):
+            raw = re.compile(r'r(#*)"').match(text, i)
+            if raw:
+                close = '"' + raw.group(1)
+                j = text.find(close, raw.end())
+                j = n if j < 0 else j + len(close)
+                out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+                i = j
+                continue
+        if ch == "'" and not _IDENT_CHARS.match(prev):
+            lit = _CHAR_LITERAL.match(text, i)
+            if lit:
+                out.append(" " * (lit.end() - i))
+                i = lit.end()
+                continue
+        out.append(ch)
         i += 1
     return "".join(out)
 
 
-# The `axiom` keyword as a token, wherever it sits: at the start of a line as
-# Aeneas writes it, behind an attribute or `private`, after `set_option ... in`
-# or `namespace X` on the same line, or after another command's last token.
-# `axiom` is a reserved word, so outside a comment or a string (which
-# `lean_code` has removed) a token of that spelling is the keyword. The name
-# is what follows it, as written: inside `namespace tacenta_braid` the file
-# says `axiom tacenta_kdf.hkdf_sha256`, and that is what is recorded.
-AXIOM_DECL = re.compile(r"(?<![\w.«])axiom\s+([^\s:({\[]+)")
+# The keywords that decide what an `axiom` is called and where it ends. Read
+# from the comment-stripped text, so a keyword in prose or in a string is not
+# one. `axiom` is a reserved word, so outside a comment, a string or a
+# guillemet identifier a token of that spelling is the keyword; it is one
+# wherever it sits on a line (at the start as Aeneas writes it, behind an
+# attribute or `private`, after `set_option ... in`, after another command's
+# last token) and it needs no whitespace after it (`axiom«x»`).
+_SCOPE_TOKEN = re.compile(r"(?<![\w.«'])(?P<kw>namespace|section|end|axiom)(?![\w.'])")
+# A name as written: dotted components, each plain or in guillemets.
+_NAME = r"(?:«[^»\n]*»|[^\s:({\[«»])+"
+_INLINE_NAME = re.compile(r"[ \t]*(" + _NAME + r")")
+_ANY_NAME = re.compile(r"\s*(" + _NAME + r")")
+
+
+def axiom_declarations(path):
+    """`[(qualified name, type text)]` for every `axiom` the file declares,
+    one entry per declaration and in source order.
+
+    The qualified name is the name as written with the enclosing `namespace`
+    applied (an `axiom tacenta_kdf.hkdf_sha256` inside `namespace tacenta_braid`
+    is `tacenta_braid.tacenta_kdf.hkdf_sha256`, which is what the elaborated
+    environment calls it), or as written after `_root_.`. A `private` axiom is
+    marked, so it cannot be mistaken for a public one of the same name. The
+    type text is everything after the name up to the end of the declaration
+    (the next keyword below, or the next line that starts in column 0), with
+    whitespace collapsed. Nothing is merged: two declarations of one name are
+    two entries.
+
+    A file this reading cannot follow (an `end` that closes nothing, a
+    `namespace` with no name, an `axiom` with no name) yields an entry whose
+    name starts with `<unreadable:`, which no record or allowlist contains, so
+    the file fails the comparison rather than passing on what was understood.
+    """
+    text = path.read_text()
+    words = lean_code(text)
+    names = lean_code(text, keep_names=True)
+    tokens = list(_SCOPE_TOKEN.finditer(words))
+    frames = []  # (kind, name) for every open `namespace` and `section`
+    declarations = []
+
+    def unreadable(why):
+        declarations.append(("<unreadable: %s>" % why, ""))
+
+    for index, token in enumerate(tokens):
+        kind, after = token.group("kw"), token.end()
+        if kind == "namespace":
+            match = _INLINE_NAME.match(names, after)
+            if match is None:
+                unreadable("namespace without a name at offset %d" % token.start())
+                continue
+            frames.append(("namespace", match.group(1)))
+        elif kind == "section":
+            match = _INLINE_NAME.match(names, after)
+            frames.append(("section", match.group(1) if match else ""))
+        elif kind == "end":
+            match = _INLINE_NAME.match(names, after)
+            name = match.group(1) if match else ""
+            if not frames or frames[-1][1] != name:
+                unreadable("end %s does not close the innermost scope at offset %d"
+                           % (name or "(anonymous)", token.start()))
+            if frames:
+                frames.pop()
+        else:
+            match = _ANY_NAME.match(names, after)
+            if match is None:
+                unreadable("axiom without a name at offset %d" % token.start())
+                continue
+            name = match.group(1)
+            prefix = ".".join(n for k, n in frames if k == "namespace")
+            if name.startswith("_root_."):
+                qualified = name[len("_root_."):]
+            else:
+                qualified = prefix + "." + name if prefix else name
+            if re.search(r"\bprivate\s*$", words[max(0, token.start() - 40):token.start()]):
+                qualified = "private " + qualified
+            limit = tokens[index + 1].start() if index + 1 < len(tokens) else len(words)
+            column_zero = re.compile(r"\n(?=\S)").search(words, match.end(), limit)
+            stop = column_zero.start() if column_zero else limit
+            declarations.append((qualified, " ".join(names[match.end():stop].split())))
+    return declarations
 
 
 def generated_files():
@@ -264,7 +405,8 @@ def generated_files():
 
 
 def axioms_declared(path):
-    return sorted(set(AXIOM_DECL.findall(lean_code(path.read_text()))))
+    """The qualified names `axiom_declarations` finds, sorted, repeats kept."""
+    return sorted(name for name, _ in axiom_declarations(path))
 
 
 def opaque_externals():
@@ -275,11 +417,15 @@ def opaque_externals():
 
 
 def is_external(name, externals):
-    """`#print axioms` prints an external fully qualified (`tacenta_triple.
-    tacenta_kdf.hkdf_sha256`) where the generated file declares it inside a
-    `namespace` (`axiom tacenta_kdf.hkdf_sha256`), so match on the declared
-    name as a dotted suffix rather than on equality alone."""
-    return any(name == e or name.endswith("." + e) for e in externals)
+    """Whether a name a pin prints is one of the declared externals.
+
+    Only for the trust label a pin gets. `#print axioms` shortens a name by the
+    namespaces the proof file has open (`zeroize.Zeroizing.new` for
+    `tacenta_ratchet.zeroize.Zeroizing.new`), so a pin's name is the declared
+    qualified name or the tail of one. Nothing that decides whether an axiom is
+    allowed uses this: the allowlist and the audit comparison use the qualified
+    names, exactly."""
+    return any(name == e or e.endswith("." + name) for e in externals)
 
 
 def classify(axioms, externals):
@@ -877,8 +1023,9 @@ def translation_attestation():
             "compared against by every other mode. A green `attest.py --check` "
             "establishes that each generated Translation/Tacenta*.lean is a module "
             "run-aeneas.sh produces, is byte for byte the file recorded here, declares "
-            "exactly the axioms recorded here (as text; no-sorry.sh compares the same "
-            "record with what the axiom audit saw in the built environment), and that "
+            "exactly the axioms recorded here (fully qualified names read from the "
+            "text, one per declaration; no-sorry.sh compares the same record with "
+            "what the axiom audit saw in the built environment), and that "
             "the Rust verified zone it was generated from, and the workspace inputs "
             "that shape every zone's extraction (Cargo.toml and its profiles, "
             "Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed "
@@ -902,20 +1049,179 @@ def translation_attestation():
     }
 
 
+def _reject_duplicate_keys(pairs):
+    seen = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError("duplicate key %r" % key)
+        seen[key] = value
+    return seen
+
+
+ALLOWLIST_NAME = re.compile(r"[A-Za-z0-9_.']+")
+ALLOWLIST_RELATIVE = TRANSLATION_AXIOM_ALLOWLIST.relative_to(ROOT)
+
+
+def translation_axiom_allowlist():
+    """Read the recorded set of generated axioms: `{file: [(name, type)]}`,
+    with the problems found in the file itself.
+
+    ``translation-attestation.json`` is refreshable after a toolchain run, so
+    it cannot on its own tell a newly emitted external from an axiom planted
+    in a generated file before that refresh. This file is the second record:
+    refreshing a translation never writes it, so a new declaration has to
+    appear in a change to this file, which shows in the diff as a name and a
+    type. Each entry is one declaration; two entries with the same name and
+    type are two declarations.
+    """
+    if not TRANSLATION_AXIOM_ALLOWLIST.exists():
+        return None, [
+            f"{ALLOWLIST_RELATIVE} is missing: create it from the generated "
+            "translation with `attest.py --write-axiom-allowlist`, then rerun the "
+            "attestation gate"
+        ]
+    try:
+        data = json.loads(
+            TRANSLATION_AXIOM_ALLOWLIST.read_text(),
+            object_pairs_hook=_reject_duplicate_keys,
+        )
+    except (OSError, ValueError) as exc:
+        return None, [f"{ALLOWLIST_RELATIVE} is not valid JSON: {exc}"]
+    if not isinstance(data, dict) or data.get("schema_version") != AXIOM_ALLOWLIST_SCHEMA_VERSION:
+        return None, [
+            f"{ALLOWLIST_RELATIVE} has unsupported schema_version "
+            f"{data.get('schema_version') if isinstance(data, dict) else None!r}; "
+            f"this script reads {AXIOM_ALLOWLIST_SCHEMA_VERSION}"
+        ]
+    files = data.get("generated_files")
+    if not isinstance(files, dict):
+        return None, [f"{ALLOWLIST_RELATIVE} has no generated_files object"]
+    problems, entries = [], {}
+    for rel, items in files.items():
+        if not isinstance(items, list):
+            problems.append(f"{rel} is not a list of declarations in the allowlist")
+            continue
+        pairs = []
+        for item in items:
+            if (not isinstance(item, dict) or set(item) != {"name", "type"}
+                    or not isinstance(item["name"], str) or not isinstance(item["type"], str)):
+                problems.append(f"{rel} has an allowlist entry that is not a name and a type")
+                break
+            if not ALLOWLIST_NAME.fullmatch(item["name"]):
+                problems.append(
+                    f"{rel} has an allowlist name with characters outside "
+                    f"[A-Za-z0-9_.']: {item['name']!r}"
+                )
+            pairs.append((item["name"], item["type"]))
+        else:
+            if pairs != sorted(pairs):
+                problems.append(f"{rel} has unsorted declarations in the allowlist")
+            entries[rel] = pairs
+    return entries, problems
+
+
+def typed_declarations(path):
+    return sorted(axiom_declarations(path))
+
+
+def describe_declaration(pair):
+    name, type_text = pair
+    return name if not type_text else f"{name} {type_text[:110]}" + ("..." if len(type_text) > 110 else "")
+
+
+def check_axiom_allowlist(current):
+    """The generated files' declarations against the allowlist, as multisets of
+    (qualified name, type text): what a file declares that the allowlist does
+    not list, and what the allowlist lists that the file no longer declares."""
+    allowlist, problems = translation_axiom_allowlist()
+    if allowlist is None:
+        return problems
+    want_files = set(current["generated_files"])
+    allowed_files = set(allowlist)
+    for rel in sorted(allowed_files - want_files):
+        problems.append(f"{rel} is in translation-axiom-allowlist.json but is not a generated file")
+    for rel in sorted(want_files - allowed_files):
+        problems.append(f"{rel} is a generated file with no entry in translation-axiom-allowlist.json")
+    for rel in sorted(want_files & allowed_files):
+        actual = Counter(typed_declarations(ROOT / rel))
+        expected = Counter(allowlist[rel])
+        added = sorted((actual - expected).elements())
+        removed = sorted((expected - actual).elements())
+        if added or removed:
+            problems.append(
+                f"{rel} declares axioms that differ from the allowlist "
+                f"(added: {'; '.join(describe_declaration(a) for a in added) or 'none'}; "
+                f"removed: {'; '.join(describe_declaration(r) for r in removed) or 'none'}): "
+                "a change to the generated axioms needs a change to "
+                "translation-axiom-allowlist.json (attest.py --write-axiom-allowlist), "
+                "and refreshing translation-attestation.json does not supply one"
+            )
+    return problems
+
+
+def write_axiom_allowlist():
+    """Rewrite the allowlist from the generated files' text and say what
+    changed. Refused in CI, where nothing may write a baseline."""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print("attest: --write-axiom-allowlist does not run in CI", file=sys.stderr)
+        return 2
+    previous, _ = translation_axiom_allowlist()
+    files = {}
+    for path in generated_files():
+        files[str(path.relative_to(ROOT))] = [
+            {"name": name, "type": type_text} for name, type_text in typed_declarations(path)
+        ]
+    unreadable = sorted(
+        f"{rel}: {item['name']}" for rel, items in files.items()
+        for item in items if item["name"].startswith("<unreadable")
+    )
+    if unreadable:
+        report(unreadable, "refusing to record a file whose axioms cannot be read")
+        return 1
+    document = {
+        "schema_version": AXIOM_ALLOWLIST_SCHEMA_VERSION,
+        "_note": (
+            "Every axiom the generated Translation/Tacenta*.lean files declare, one "
+            "entry per declaration, by fully qualified name and type text. Written "
+            "only by `attest.py --write-axiom-allowlist`, which prints what it added "
+            "and removed; `attest.py --check` compares the generated files with it "
+            "as a multiset, and neither --refresh-translation nor any other mode "
+            "writes it. A change to this file is a change to the generated "
+            "translation's trust boundary and is meant to be its own commit."
+        ),
+        "generated_files": files,
+    }
+    changed = False
+    for rel, items in files.items():
+        old = Counter((previous or {}).get(rel, []))
+        new = Counter((i["name"], i["type"]) for i in items)
+        for pair in sorted((new - old).elements()):
+            print(f"attest: allowlist + {rel.rsplit('/', 1)[-1]}: {describe_declaration(pair)}")
+            changed = True
+        for pair in sorted((old - new).elements()):
+            print(f"attest: allowlist - {rel.rsplit('/', 1)[-1]}: {describe_declaration(pair)}")
+            changed = True
+    TRANSLATION_AXIOM_ALLOWLIST.write_text(json.dumps(document, indent=2) + "\n")
+    print(f"attest: wrote {ALLOWLIST_RELATIVE} ({'changed' if changed else 'unchanged'})")
+    return 0
+
+
 def check_translation(current):
     """The tree against the recorded translation attestation.
 
-    Seven questions, each its own failure: is every file named like a
-    generated one a module `run-aeneas.sh` produces; is every generated file
-    the bytes that were recorded; does each declare exactly the axioms that
-    were recorded (compared as sets, so a removed axiom fails as an added one
-    does); is the Rust each was generated from still the Rust in the tree; for
-    a zone that is assembled rather than written, are the assembly script and
-    all three leaf trees still what they were; and are the workspace inputs
-    that shape every zone's extraction still what they were. The last three are
-    the ones that go stale by ordinary work, and their messages say what to do.
+    Each question is its own failure: does each generated file declare exactly
+    the axioms the allowlist lists, by qualified name and type; is every file
+    named like a generated one a module `run-aeneas.sh` produces; is every
+    generated file the bytes that were recorded; does each declare exactly the
+    axioms that were recorded (compared as multisets of qualified names, so a
+    removed axiom fails as an added one does); is the Rust each was generated
+    from still the Rust in the tree; for a zone that is assembled rather than
+    written, are the assembly script and all its leaf trees still what they
+    were; and are the workspace inputs that shape every zone's extraction still
+    what they were. The last three are the ones that go stale by ordinary work,
+    and their messages say what to do.
     """
-    problems = []
+    problems = check_axiom_allowlist(current)
     for rel, w in current["generated_files"].items():
         if w["zone"] is None:
             problems.append(
@@ -1001,8 +1307,8 @@ def check_translation(current):
                 "running scripts/run-aeneas.sh on the pinned toolchain, followed by "
                 "attest.py --refresh-translation"
             )
-        added = sorted(set(w["axioms"]) - set(r.get("axioms", [])))
-        removed = sorted(set(r.get("axioms", [])) - set(w["axioms"]))
+        added = sorted((Counter(w["axioms"]) - Counter(r.get("axioms", []))).elements())
+        removed = sorted((Counter(r.get("axioms", [])) - Counter(w["axioms"])).elements())
         if added or removed:
             problems.append(
                 f"{rel} declares a different axiom set from the recorded one "
@@ -1113,9 +1419,9 @@ def check_translation(current):
 
 # What `Model.AxiomAudit.run` prints for every axiom it finds in a generated
 # module, fully qualified: `audit-axiom: Translation.TacentaBraid
-# tacenta_braid.tacenta_kdf.hkdf_sha256`. The file records the name as
-# declared (`tacenta_kdf.hkdf_sha256`, inside `namespace tacenta_braid`), so
-# the two are matched as a declared name against a qualified one.
+# tacenta_braid.tacenta_kdf.hkdf_sha256`. The record holds the same thing (the
+# name as declared, `tacenta_kdf.hkdf_sha256`, with its `namespace` applied),
+# so the two are compared for equality, as multisets.
 # Not anchored at the line start: Lake prefixes the first line of a message
 # with `info: <file>:<line>:<col>: `, and the rest follow verbatim.
 AUDIT_LINE = re.compile(r"\baudit-axiom:\s+(\S+)\s+(\S+)\s*$", re.M)
@@ -1128,33 +1434,46 @@ AUDIT_NATIVE_LINE = re.compile(r"\baudit-native:\s+(\S+)\s+(\S+)\s*$", re.M)
 
 def compare_audit(log_path):
     """The axiom audit's list of generated axioms, read from a `lake build` log
-    of the translation package, against the recorded per-file sets.
+    of the translation package, against the recorded per-file lists and the
+    allowlist.
 
-    `axioms_declared` reads the text; the audit reads the environment the text
-    elaborated to. A declaration the text scan does not recognise as an axiom
-    (one produced by a macro, or added by a command) is an axiom to the audit,
-    and a recorded axiom the environment no longer holds is missing to it. Both
-    audit modules' output must be in the log: `Translation.AxiomAudit` covers
-    the compatible generated modules; the Triple, Braid, Session, and lifecycle
-    translations each have a separate audit because their generated names
-    cannot share an environment with the other modules.
+    `axiom_declarations` reads the text; the audit reads the environment the
+    text elaborated to. A declaration the text scan does not recognise as an
+    axiom (one produced by a macro, or added by a command) is an axiom to the
+    audit, and a recorded axiom the environment no longer holds is missing to
+    it. Names are compared for equality, fully qualified, and as multisets: a
+    name in another namespace, or one that merely ends in a recorded name, is
+    a different axiom. Both audit modules' output must be in the log:
+    `Translation.AxiomAudit` covers the compatible generated modules; the
+    Triple, Braid, Session, and lifecycle translations each have a separate
+    audit because their generated names cannot share an environment with the
+    other modules. The type of an axiom is not in the audit's output, so it is
+    not compared here.
     """
     problems = []
     log = Path(log_path).read_text(errors="replace")
     seen = {}
     for module, name in AUDIT_LINE.findall(log):
-        seen.setdefault(module, set()).add(name)
+        seen.setdefault(module, Counter())[name] += 1
     native = {(m, n) for m, n in AUDIT_NATIVE_LINE.findall(log)}
     if not TRANSLATION_MANIFEST.exists():
         return [f"{TRANSLATION_MANIFEST.relative_to(ROOT)} is missing"], 0
     recorded = json.loads(TRANSLATION_MANIFEST.read_text()).get("generated_files", {})
-    by_module = {r["module"]: (rel, set(r.get("axioms", []))) for rel, r in recorded.items()}
+    allowlist, allowlist_problems = translation_axiom_allowlist()
+    problems.extend(allowlist_problems)
+    by_module = {
+        r["module"]: (rel, {"recorded": Counter(r.get("axioms", [])),
+                            "allowlist": Counter(
+                                name for name, _ in (allowlist or {}).get(rel, []))
+                            if allowlist is not None else None})
+        for rel, r in recorded.items()
+    }
     expected_modules = {f"Translation.{m}" for m in by_module}
     for module in sorted(expected_modules - set(seen)):
         # A module recorded with no axioms (the wire parser translates with
         # none) prints no lines; one recorded with some and printing none
         # was not audited, or its output was not captured.
-        if by_module[module.split(".", 1)[1]][1]:
+        if sum(by_module[module.split(".", 1)[1]][1]["recorded"].values()):
             problems.append(
                 f"the build log carries no audit-axiom lines for {module}: the axiom "
                 "audit did not run over it, or its output was not captured"
@@ -1165,23 +1484,20 @@ def compare_audit(log_path):
             "translation-attestation.json"
         )
     for module in sorted(set(seen) & expected_modules):
-        rel, declared = by_module[module.split(".", 1)[1]]
-        qualified = seen[module]
-        unrecorded = sorted(
-            q for q in qualified
-            if not any(q == d or q.endswith("." + d) for d in declared)
-        )
-        missing = sorted(
-            d for d in declared
-            if not any(q == d or q.endswith("." + d) for q in qualified)
-        )
-        if unrecorded or missing:
-            problems.append(
-                f"{rel}: the axiom audit saw a different axiom set in the built "
-                f"environment from the recorded one (in the environment but not "
-                f"recorded: {', '.join(unrecorded) or 'none'}; recorded but not in the "
-                f"environment: {', '.join(missing) or 'none'})"
-            )
+        rel, baselines = by_module[module.split(".", 1)[1]]
+        environment = seen[module]
+        for label, baseline in baselines.items():
+            if baseline is None:
+                continue
+            unrecorded = sorted((environment - baseline).elements())
+            missing = sorted((baseline - environment).elements())
+            if unrecorded or missing:
+                problems.append(
+                    f"{rel}: the axiom audit saw a different axiom list in the built "
+                    f"environment from the {label} one (in the environment but not in "
+                    f"the {label} list: {', '.join(unrecorded) or 'none'}; in the "
+                    f"{label} list but not in the environment: {', '.join(missing) or 'none'})"
+                )
     return problems, len(native)
 
 
@@ -1252,7 +1568,7 @@ def report(problems, heading):
 
 
 USAGE = """usage: attest.py [--check | --check-translation | --refresh-translation
-                 | --compare-audit <lake build log>]
+                 | --write-axiom-allowlist | --compare-audit <lake build log>]
 
   (no flag)              regenerate verification-manifest.json and
                          source-commit-attestation.json; verify the generated
@@ -1266,11 +1582,19 @@ USAGE = """usage: attest.py [--check | --check-translation | --refresh-translati
                          it records whatever the generated files are, and its
                          value is that nobody runs it at any other time. It
                          refuses a Tacenta*.lean that run-aeneas.sh does not
-                         produce.
+                         produce, and one whose axioms the allowlist does not
+                         list, in which case it writes nothing.
+  --write-axiom-allowlist
+                         rewrite manifests/translation-axiom-allowlist.json
+                         from the generated files and print each declaration
+                         it added or removed. Not for CI; run it after
+                         --refresh-translation when a regeneration changed
+                         the axioms, and commit the result on its own.
   --compare-audit <log>  compare the `audit-axiom:` lines the axiom audit
                          printed into a translation-package build log with the
-                         per-file axiom sets recorded in
-                         translation-attestation.json (no-sorry.sh runs this)
+                         per-file axiom lists recorded in
+                         translation-attestation.json and the allowlist
+                         (no-sorry.sh runs this)
 """
 
 
@@ -1293,10 +1617,13 @@ def main():
         )
         return 0
     args = set(argv)
-    known = {"--check", "--check-translation", "--refresh-translation"}
+    known = {"--check", "--check-translation", "--refresh-translation",
+             "--write-axiom-allowlist"}
     if args - known or len(args) > 1:
         print(USAGE, file=sys.stderr)
         return 2
+    if "--write-axiom-allowlist" in args:
+        return write_axiom_allowlist()
     check = "--check" in args
     check_only_translation = "--check-translation" in args
     refresh = "--refresh-translation" in args
@@ -1315,6 +1642,12 @@ def main():
                 ],
                 "refusing to record a file the translation script does not produce",
             )
+            return 1
+        # Decide before writing: a record is never written from a tree the
+        # allowlist refuses, so a refused refresh leaves the last good record.
+        refused = check_axiom_allowlist(current)
+        if refused:
+            report(refused, "refusing to record a translation the allowlist does not describe")
             return 1
         MANIFESTS.mkdir(parents=True, exist_ok=True)
         write(current, TRANSLATION_MANIFEST)

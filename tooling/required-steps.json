@@ -1,0 +1,754 @@
+{
+  "schema_version": 1,
+  "_note": "The expected form of the required workflow and of the receipt action: every key of every job and step, except the step `name:` labels. tooling/check-workflows.sh fails when a file named here differs from it. Rewritten by `bash tooling/check-workflows.sh --write-required-steps`; the change to this file is the record of a change to a required command, and is meant to be read.",
+  "files": {
+    ".github/workflows/ci.yml": {
+      "name": "ci",
+      "on": {
+        "push": {
+          "branches": [
+            "main"
+          ]
+        },
+        "pull_request": null
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "concurrency": {
+        "group": "${{ github.workflow }}-${{ github.ref }}",
+        "cancel-in-progress": "${{ github.event_name == 'pull_request' }}"
+      },
+      "env": {
+        "ELAN_VERSION": "v4.2.4",
+        "ELAN_SHA256": "42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63",
+        "MSRV": "1.87"
+      },
+      "jobs": {
+        "rust": {
+          "runs-on": "ubuntu-latest",
+          "defaults": {
+            "run": {
+              "working-directory": "tacenta-core"
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
+              "with": {
+                "toolchain": "stable",
+                "components": "clippy, rustfmt"
+              }
+            },
+            {
+              "uses": "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+              "with": {
+                "workspaces": "tacenta-core"
+              }
+            },
+            {
+              "id": "rust_fmt",
+              "run": "cargo fmt --check"
+            },
+            {
+              "id": "rust_clippy",
+              "run": "cargo clippy --locked --workspace --all-targets -- -D warnings"
+            },
+            {
+              "id": "rust_test",
+              "run": "cargo test --locked --workspace",
+              "env": {
+                "PROPTEST_CASES": 2048
+              }
+            },
+            {
+              "id": "rust_spqr_erasure",
+              "run": "cargo test --locked --features private-erasure-review --test spqr_erasure_public -- --test-threads=1"
+            },
+            {
+              "id": "rust_target",
+              "run": "rustup target add aarch64-unknown-linux-gnu"
+            },
+            {
+              "id": "rust_ct_asm",
+              "run": "bash ../tooling/check-constant-time-asm.sh"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "rust",
+                "classification": "required",
+                "command": "cargo-test-clippy-format-and-constant-time",
+                "required-outcomes": "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
+              }
+            }
+          ]
+        },
+        "msrv": {
+          "runs-on": "ubuntu-latest",
+          "defaults": {
+            "run": {
+              "working-directory": "tacenta-core"
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
+              "with": {
+                "toolchain": "${{ env.MSRV }}"
+              }
+            },
+            {
+              "uses": "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+              "with": {
+                "workspaces": "tacenta-core"
+              }
+            },
+            {
+              "id": "msrv_check",
+              "run": "cargo check --locked --workspace --all-targets"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "msrv",
+                "classification": "required",
+                "command": "cargo-check-msrv",
+                "required-outcomes": "msrv_check=${{ steps.msrv_check.outcome }}"
+              }
+            }
+          ]
+        },
+        "armv7": {
+          "runs-on": "ubuntu-latest",
+          "defaults": {
+            "run": {
+              "working-directory": "tacenta-core"
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
+              "with": {
+                "toolchain": "stable",
+                "targets": "armv7-linux-androideabi"
+              }
+            },
+            {
+              "uses": "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+              "with": {
+                "workspaces": "tacenta-core"
+              }
+            },
+            {
+              "id": "armv7_check",
+              "run": "cargo check --locked --workspace --target armv7-linux-androideabi"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "armv7",
+                "classification": "required",
+                "command": "cargo-check-armv7",
+                "required-outcomes": "armv7_check=${{ steps.armv7_check.outcome }}"
+              }
+            }
+          ]
+        },
+        "vectors": {
+          "runs-on": "ubuntu-latest",
+          "defaults": {
+            "run": {
+              "working-directory": "tacenta-test-vectors/runners/rust"
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
+              "with": {
+                "toolchain": "stable",
+                "components": "clippy, rustfmt"
+              }
+            },
+            {
+              "uses": "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+              "with": {
+                "workspaces": "tacenta-test-vectors/runners/rust"
+              }
+            },
+            {
+              "id": "vectors_fmt",
+              "run": "cargo fmt --check"
+            },
+            {
+              "id": "vectors_clippy",
+              "run": "cargo clippy --locked --workspace --all-targets -- -D warnings"
+            },
+            {
+              "id": "vectors_elan",
+              "working-directory": ".",
+              "run": "bash tooling/install-elan.sh"
+            },
+            {
+              "id": "vectors_model",
+              "working-directory": "tacenta-model",
+              "run": "lake build"
+            },
+            {
+              "id": "vectors_test",
+              "run": "cargo test --locked --workspace",
+              "env": {
+                "TACENTA_DIFFTEST_REQUIRED": "1"
+              }
+            },
+            {
+              "id": "vectors_reader",
+              "run": "python3 ../independent/reader/run.py | tail -n 22",
+              "shell": "bash"
+            },
+            {
+              "id": "vectors_skip",
+              "run": "python3 ../independent/reader/test_skip_allowlist.py"
+            },
+            {
+              "id": "vectors_session_sweep",
+              "run": "python3 ../independent/reader/test_session_e2e_sweep.py"
+            },
+            {
+              "id": "vectors_session_reader",
+              "run": "cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "vectors",
+                "classification": "required",
+                "command": "conformance-and-independent-readers",
+                "required-outcomes": "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+              }
+            }
+          ]
+        },
+        "audit": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
+              "with": {
+                "toolchain": "stable"
+              }
+            },
+            {
+              "id": "audit_install",
+              "run": "cargo install --locked cargo-audit"
+            },
+            {
+              "id": "audit_run",
+              "run": "cargo audit",
+              "working-directory": "tacenta-core"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "audit",
+                "classification": "required",
+                "command": "cargo-audit",
+                "required-outcomes": "audit_install=${{ steps.audit_install.outcome }},audit_run=${{ steps.audit_run.outcome }}"
+              }
+            }
+          ]
+        },
+        "proofs": {
+          "runs-on": "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('[\"self-hosted\", \"tacenta-core\"]') || 'ubuntu-latest' }}",
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "id": "proofs_elan",
+              "run": "bash tooling/install-elan.sh"
+            },
+            {
+              "if": "github.event_name == 'pull_request'",
+              "uses": "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+              "with": {
+                "path": "tacenta-model/.lake/build\ntacenta-proofs/.lake/build\ntacenta-proofs/translation/.lake/build\ntacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build\n",
+                "key": "lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.event.pull_request.base.sha }}",
+                "restore-keys": "lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-\n"
+              }
+            },
+            {
+              "id": "proofs_model",
+              "run": "(cd tacenta-model && lake build)"
+            },
+            {
+              "id": "proofs_verify",
+              "run": "bash tacenta-proofs/scripts/verify.sh"
+            },
+            {
+              "id": "proofs_vectors",
+              "run": "bash tacenta-test-vectors/regenerate-vectors.sh\nvector_status=\"$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)\"\nif [ -n \"$vector_status\" ]; then\n  printf '%s\\n' \"$vector_status\" >&2\n  exit 1\nfi\n"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "proofs",
+                "classification": "required",
+                "command": "model-proofs-and-vector-currency",
+                "required-outcomes": "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }}"
+              }
+            }
+          ]
+        },
+        "translation": {
+          "runs-on": "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('[\"self-hosted\", \"tacenta-core\"]') || 'ubuntu-latest' }}",
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "id": "translation_elan",
+              "run": "bash tooling/install-elan.sh"
+            },
+            {
+              "id": "mathlib-files",
+              "uses": "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+              "with": {
+                "path": "${{ github.workspace }}/.cache/tacenta-mathlib",
+                "key": "mathlib-files-v2-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}",
+                "lookup-only": "${{ runner.environment == 'self-hosted' }}"
+              }
+            },
+            {
+              "id": "translation_seed",
+              "if": "runner.environment == 'self-hosted'",
+              "run": "bash tooling/seed-lake-packages.sh tacenta-proofs/translation"
+            },
+            {
+              "id": "translation_fetch",
+              "working-directory": "tacenta-proofs/translation",
+              "shell": "bash",
+              "run": "export MATHLIB_CACHE_DIR=\"$GITHUB_WORKSPACE/.cache/tacenta-mathlib\"\nlake exe cache get\n"
+            },
+            {
+              "if": "github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'",
+              "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+              "with": {
+                "path": "${{ github.workspace }}/.cache/tacenta-mathlib",
+                "key": "mathlib-files-v2-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}"
+              }
+            },
+            {
+              "if": "github.event_name == 'pull_request'",
+              "uses": "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+              "with": {
+                "path": "tacenta-model/.lake/build\ntacenta-proofs/.lake/build\ntacenta-proofs/translation/.lake/build\ntacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build\n",
+                "key": "lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.event.pull_request.base.sha }}",
+                "restore-keys": "lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-\n"
+              }
+            },
+            {
+              "id": "translation_no_sorry",
+              "shell": "bash",
+              "run": "bash tacenta-proofs/scripts/no-sorry.sh"
+            },
+            {
+              "if": "github.event_name == 'push'",
+              "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+              "with": {
+                "path": "tacenta-model/.lake/build\ntacenta-proofs/.lake/build\ntacenta-proofs/translation/.lake/build\ntacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build\n",
+                "key": "lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.sha }}"
+              }
+            },
+            {
+              "if": "github.event_name == 'pull_request'",
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "translation",
+                "classification": "required",
+                "command": "translation-proofs-and-no-sorry",
+                "required-outcomes": "translation_elan=${{ steps.translation_elan.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+              }
+            },
+            {
+              "if": "github.event_name == 'push'",
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "translation",
+                "classification": "required",
+                "command": "translation-proofs-and-no-sorry",
+                "required-outcomes": "translation_elan=${{ steps.translation_elan.outcome }},translation_seed=${{ steps.translation_seed.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+              }
+            }
+          ]
+        },
+        "checks": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "fetch-depth": 0,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "id": "checks_01",
+              "run": "python3 -m pip install --user pyyaml"
+            },
+            {
+              "id": "checks_02",
+              "run": "bash tooling/check-workflows.sh"
+            },
+            {
+              "id": "checks_03",
+              "run": "bash tooling/tests/run-check-workflows-cases.sh"
+            },
+            {
+              "id": "checks_04",
+              "run": "bash tooling/install-actionlint.sh \"$RUNNER_TEMP/actionlint\""
+            },
+            {
+              "id": "checks_05",
+              "run": "ACTIONLINT_BIN=\"$RUNNER_TEMP/actionlint/actionlint\" bash tooling/check-actionlint.sh"
+            },
+            {
+              "id": "checks_06",
+              "run": "ACTIONLINT_BIN=\"$RUNNER_TEMP/actionlint/actionlint\" bash tooling/tests/run-check-actionlint-cases.sh"
+            },
+            {
+              "id": "checks_07",
+              "run": "bash tooling/tests/run-check-constant-time-asm-cases.sh"
+            },
+            {
+              "id": "checks_08",
+              "run": "bash tooling/check-proof-hygiene.sh"
+            },
+            {
+              "id": "checks_09",
+              "run": "bash tooling/check-conflict-markers.sh"
+            },
+            {
+              "id": "checks_10",
+              "run": "python3 tooling/check-lifecycle-boundary-surface.py"
+            },
+            {
+              "id": "checks_11",
+              "run": "bash tooling/tests/run-check-lifecycle-boundary-surface-cases.sh"
+            },
+            {
+              "id": "checks_12",
+              "run": "python3 tooling/check-precondition-shapes.py"
+            },
+            {
+              "id": "checks_13",
+              "run": "bash tooling/tests/run-check-precondition-shapes-cases.sh"
+            },
+            {
+              "id": "checks_14",
+              "run": "sh tacenta-proofs/scripts/assemble-triple-unit.sh --check"
+            },
+            {
+              "id": "checks_15",
+              "run": "sh tacenta-proofs/scripts/assemble-braid-unit.sh --check"
+            },
+            {
+              "id": "checks_16",
+              "run": "bash tacenta-proofs/scripts/port-unit-proofs.sh --check"
+            },
+            {
+              "id": "checks_17",
+              "run": "sh tacenta-proofs/scripts/assemble-session-unit.sh --check"
+            },
+            {
+              "id": "checks_18",
+              "run": "bash tacenta-proofs/scripts/port-session-unit-proofs.sh --check"
+            },
+            {
+              "id": "checks_19",
+              "run": "bash tacenta-proofs/scripts/port-session-pqxdh-proof.sh --check"
+            },
+            {
+              "id": "checks_20",
+              "run": "bash tacenta-proofs/scripts/port-session-erasure-proof.sh --check"
+            },
+            {
+              "id": "checks_21",
+              "run": "bash tacenta-proofs/scripts/port-session-braid-proof.sh --check"
+            },
+            {
+              "id": "checks_22",
+              "run": "bash tacenta-proofs/scripts/port-session-braid-refinement.sh --check"
+            },
+            {
+              "id": "checks_23",
+              "run": "bash tacenta-proofs/scripts/port-session-ratchet-import-proof.sh --check"
+            },
+            {
+              "id": "checks_24",
+              "run": "bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check"
+            },
+            {
+              "id": "checks_25",
+              "run": "bash tooling/check-labels.sh"
+            },
+            {
+              "id": "checks_26",
+              "run": "bash tooling/tests/run-check-labels-cases.sh"
+            },
+            {
+              "id": "checks_27",
+              "run": "python3 tooling/check-traceability.py"
+            },
+            {
+              "id": "checks_28",
+              "run": "bash tooling/tests/run-check-traceability-cases.sh"
+            },
+            {
+              "id": "checks_29",
+              "run": "python3 tooling/check_authentication_boundary.py"
+            },
+            {
+              "id": "checks_30",
+              "run": "python3 tooling/check-vectors.py"
+            },
+            {
+              "id": "checks_31",
+              "run": "bash tooling/tests/run-check-vectors-cases.sh"
+            },
+            {
+              "id": "checks_32",
+              "run": "python3 tooling/check-session-operation-traces.py"
+            },
+            {
+              "id": "checks_33",
+              "run": "bash tooling/tests/run-check-session-operation-traces-cases.sh"
+            },
+            {
+              "id": "checks_34",
+              "run": "bash tooling/tests/run-build-assurance-manifest-cases.sh"
+            },
+            {
+              "id": "checks_35",
+              "run": "bash tooling/tests/run-collect-assurance-receipts-cases.sh"
+            },
+            {
+              "id": "checks_36",
+              "run": "bash tooling/tests/run-check-signoff-cases.sh"
+            },
+            {
+              "id": "checks_37",
+              "run": "bash tooling/tests/run-build-evidence-pack-cases.sh"
+            },
+            {
+              "id": "checks_38",
+              "run": "bash tooling/tests/run-check-ledger-review-receipt-cases.sh"
+            },
+            {
+              "id": "checks_39",
+              "if": "github.event_name == 'push'",
+              "env": {
+                "BASE_SHA": "${{ github.event.before }}"
+              },
+              "run": "bash tooling/check-signoff.sh \"$BASE_SHA\""
+            },
+            {
+              "id": "checks_40",
+              "run": "python3 tacenta-proofs/scripts/attest.py --check\nbash tacenta-proofs/scripts/check-attest-negatives.sh\n"
+            },
+            {
+              "if": "github.event_name == 'pull_request'",
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "checks",
+                "classification": "required",
+                "command": "source-and-assurance-checks",
+                "required-outcomes": "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_40=${{ steps.checks_40.outcome }}"
+              }
+            },
+            {
+              "if": "github.event_name == 'push'",
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "checks",
+                "classification": "required",
+                "command": "source-and-assurance-checks",
+                "required-outcomes": "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_39=${{ steps.checks_39.outcome }},checks_40=${{ steps.checks_40.outcome }}"
+              }
+            }
+          ]
+        },
+        "sign-off": {
+          "if": "github.event_name == 'pull_request'",
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "fetch-depth": 0,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "id": "signoff_check",
+              "env": {
+                "BASE_REF": "${{ github.base_ref }}"
+              },
+              "run": "bash tooling/check-signoff.sh \"origin/${BASE_REF}\""
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "sign-off",
+                "classification": "conditional",
+                "command": "tooling-check-signoff",
+                "required-outcomes": "signoff_check=${{ steps.signoff_check.outcome }}"
+              }
+            }
+          ]
+        },
+        "assurance-receipts": {
+          "needs": [
+            "rust",
+            "msrv",
+            "armv7",
+            "vectors",
+            "audit",
+            "proofs",
+            "translation",
+            "checks",
+            "sign-off"
+          ],
+          "if": "always()",
+          "runs-on": "ubuntu-latest",
+          "env": {
+            "PYTHONDONTWRITEBYTECODE": "1"
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+              "with": {
+                "pattern": "assurance-receipt-*",
+                "path": ".assurance/receipts",
+                "merge-multiple": true
+              }
+            },
+            {
+              "run": "python3 tooling/collect-assurance-receipts.py --event '${{ github.event_name }}' --input-dir .assurance/receipts --output .assurance/assurance-receipts.json"
+            },
+            {
+              "run": "python3 tooling/build-assurance-manifest.py --receipts .assurance/assurance-receipts.json --output .assurance/assurance-manifest.json"
+            },
+            {
+              "run": "python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json"
+            },
+            {
+              "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "with": {
+                "name": "assurance-receipts",
+                "path": ".assurance/assurance-receipts.json\n.assurance/assurance-manifest.json\n",
+                "if-no-files-found": "error",
+                "retention-days": 7
+              }
+            }
+          ]
+        }
+      }
+    },
+    ".github/actions/assurance-receipt/action.yml": {
+      "name": "assurance receipt",
+      "description": "Write and retain one successful candidate-check receipt.",
+      "inputs": {
+        "id": {
+          "required": true
+        },
+        "classification": {
+          "required": true
+        },
+        "command": {
+          "required": true
+        },
+        "required-outcomes": {
+          "description": "Comma-separated step_id=outcome assertions for required commands.",
+          "required": false
+        }
+      },
+      "runs": {
+        "using": "composite",
+        "steps": [
+          {
+            "shell": "bash",
+            "env": {
+              "RECEIPT_ID": "${{ inputs.id }}",
+              "RECEIPT_CLASSIFICATION": "${{ inputs.classification }}",
+              "RECEIPT_COMMAND": "${{ inputs.command }}",
+              "REQUIRED_OUTCOMES": "${{ inputs.required-outcomes }}"
+            },
+            "run": "cd \"$GITHUB_WORKSPACE\" && python3 -I tooling/write-assurance-receipt.py --id \"$RECEIPT_ID\" --classification \"$RECEIPT_CLASSIFICATION\" --command \"$RECEIPT_COMMAND\" --required-outcomes \"$REQUIRED_OUTCOMES\" --output \".assurance/${RECEIPT_ID}.json\""
+          },
+          {
+            "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "with": {
+              "name": "assurance-receipt-${{ inputs.id }}",
+              "path": ".assurance/${{ inputs.id }}.json",
+              "if-no-files-found": "error",
+              "retention-days": 7
+            }
+          }
+        ]
+      }
+    }
+  }
+}

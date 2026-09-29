@@ -1,0 +1,17 @@
+# expect: the receipt action's `command` input is not a literal string
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: 42
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

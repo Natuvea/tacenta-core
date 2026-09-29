@@ -1,0 +1,19 @@
+# expect: runs the local action './.github/actions/other'
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test
+      - if: ${{ github.event_name == 'never' }}
+        uses: ./.github/actions/other
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: c
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

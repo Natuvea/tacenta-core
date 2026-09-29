@@ -1,0 +1,11 @@
+# expect: has a step unconditionally disabled by `if: false`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ false && github.run_id > 0 }}
+        run: make test

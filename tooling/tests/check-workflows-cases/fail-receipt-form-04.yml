@@ -1,0 +1,17 @@
+# expect: the receipt action's `classification` input is not a literal string
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: ${{ 'required' }}
+          command: c
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

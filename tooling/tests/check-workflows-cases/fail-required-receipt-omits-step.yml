@@ -1,0 +1,17 @@
+# expect: required receipt omits command step 'work'
+name: required-receipt-omits-step
+on: push
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - id: work
+        run: echo work
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: check
+          classification: required
+          command: work
+          required-outcomes: "other=${{ steps.other.outcome }}"

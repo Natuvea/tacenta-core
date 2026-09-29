@@ -68,8 +68,9 @@ python3 tacenta-proofs/scripts/attest.py --refresh-translation
 ```
 
 This rewrites `manifests/translation-attestation.json`: for each generated
-`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares (the
-keyword read from the comment-stripped text wherever it sits on a line), the
+`Translation/Tacenta*.lean`, its SHA-256, the axioms it declares (each by fully
+qualified name, the enclosing `namespace` applied, read from the
+comment-stripped text wherever the keyword sits, one entry per declaration), the
 SHA-256 of the Rust crate it was generated from, and the SHA-256 of the
 workspace inputs that shape what Charon extracts from every crate -- the
 workspace `Cargo.toml` and its `[profile]` tables, `Cargo.lock`, `.cargo/`
@@ -84,7 +85,7 @@ Every other `attest.py` mode, and `scripts/check-generated-files.sh` (which
 runs `attest.py --check-translation` and nothing else), compares the tree
 against that record and fails on a file named like a generated one that the
 script does not produce, on a generated file that differs from the record,
-on an axiom set that gained or lost a name, or on a Rust crate or a
+on an axiom list that gained or lost a declaration, or on a Rust crate or a
 workspace input whose hash has moved since the translation was made -- the
 message names the crate and says to regenerate. Running
 `--refresh-translation` before committing the source changes fails closed,
@@ -96,6 +97,20 @@ step in the private verification workflow is the stronger check: it
 regenerates with the pinned toolchain and fails on any difference, which
 also catches a recorded generation the toolchain would no longer produce.
 The recorded manifest is what the public tree holds in its place.
+
+`manifests/translation-axiom-allowlist.json` is a second record of the same
+declarations, with the type text of each. `attest.py --check` compares every
+generated file's `axiom` declarations with it, by qualified name and type, as a
+multiset, so a declaration in another namespace, a repeated one, or one with a
+different type is a difference. `--refresh-translation` never writes it and
+refuses to record a tree it does not describe. When a regeneration changes the
+generated axioms, the order is: run `scripts/run-aeneas.sh`, then
+`python3 tacenta-proofs/scripts/attest.py --write-axiom-allowlist`, which
+prints each declaration it added or removed (read them), then
+`--refresh-translation`. Commit the allowlist on its own, with the added and
+removed declarations in the commit message. Nothing in the tree makes that
+commit reviewed: there is no CODEOWNERS file, and the tool only shows the
+difference.
 
 ```sh
 cd tacenta-proofs/translation && lake exe cache get && lake build
@@ -132,12 +147,12 @@ module, stating that a compiled Boolean evaluation returned `true`; a
 `<f>._unsafe_rec` only as the partial definition the compiler makes for a
 recursive `<f>` in the same module, because the code generator would call a
 hand-written one in place of `<f>`). The generated `Translation/Tacenta*.lean`
-are exempt from the axiom rule only: `attest.py` holds their axiom sets to
-the recorded manifest from the text, and the audit prints every axiom it
+are exempt from the axiom rule only: `attest.py` holds their axiom declarations
+to the recorded manifest and the allowlist from the text, and the audit prints every axiom it
 finds in them in the built environment (`audit-axiom:` lines, with the
 compiler-trust ones Aeneas's `toStr` introduces apart as `audit-native:`),
 which `no-sorry.sh` hands to `attest.py --compare-audit` to check against
-the same manifest. After the builds it runs four checks --
+the same manifest and the allowlist, name for name and fully qualified. After the builds it runs four checks --
 `check-translation-coverage.sh`, that every `Translation/*.lean` produced an
 olean; that comparison; `check-lean-constructs.sh`, the textual second
 line of the audit, which strips comments and strings, refuses the keywords
@@ -235,9 +250,10 @@ you do:
   cross-references those, and delegates *checking that they are true* to the
   build. So a green `attest` says the ledger is consistent with what the files
   claim; only a green heavy gate says the files are telling the truth. The one
-  place the two meet is the generated files' axiom sets: `attest.py --check`
-  reads them from the text, and `no-sorry.sh` reads the same sets out of the
-  built environment and fails if they differ.
+  place the two meet is the generated files' axioms: `attest.py --check`
+  reads them from the text, and `no-sorry.sh` reads the names out of the
+  built environment and fails if they differ (the type of an axiom is compared
+  with the allowlist from the text and not with the environment).
 
   The ledger check is exact by name. Every theorem a claim bullet names --
   every backticked identifier in the bullet's leading run, not only the

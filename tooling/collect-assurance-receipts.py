@@ -4,8 +4,10 @@
 Jobs write one JSON object containing the fields the assurance manifest records.
 This collector supplies the selected HEAD commit/tree and the explicit
 conditional ``sign-off`` receipt, then refuses duplicate, missing or
-cross-candidate job records. It is deterministic: timestamps and run IDs are
-inputs in the job receipts, never generated here.
+cross-candidate job records, and a record whose command steps are not exactly
+the ones the workflow runs for it, each with a ``success`` outcome. It is
+deterministic: timestamps and run IDs are inputs in the job receipts, never
+generated here.
 """
 from __future__ import annotations
 
@@ -15,9 +17,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from assurance_validation import CONDITIONAL_CHECKS, REQUIRED_CHECKS, check_step_outcomes
+
 ROOT = Path(__file__).resolve().parents[1]
-REQUIRED = {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks"}
-KNOWN = REQUIRED | {"sign-off"}
+REQUIRED = REQUIRED_CHECKS
+KNOWN = REQUIRED | CONDITIONAL_CHECKS
 
 
 def git(*args: str) -> str:
@@ -70,6 +74,8 @@ def main() -> int:
             environment = check.get("environment")
             if not isinstance(environment, dict) or environment.get("event") != args.event:
                 fail(f"receipt {cid} event does not match selected event {args.event}")
+            if check.get("applicable") is True:
+                check_step_outcomes(check)
             seen.add(cid)
             checks.append(check)
         missing = REQUIRED - seen

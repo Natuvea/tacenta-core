@@ -142,14 +142,20 @@ fi
 
 # python3 for the stripping: a block comment spans lines, and the repository
 # already needs python3 for attest.py. Standard library only.
-found=$(LEAN_FILES="$lean_files" ALL_LEAN_FILES="$all_lean_files" LAKEFILES="$lakefiles" python3 - <<'PY'
+# The program is written out first and run after, not embedded in the command
+# substitution: a shell that reads a heredoc inside $( ) as shell text (bash 3.2
+# does) would pair the quotes and parentheses in a program that has to spell
+# out Lean's quote characters.
+program="$(mktemp)"
+trap 'rm -f "$program"' EXIT
+cat > "$program" <<'PY'
 import os, re, sys
 
-# A reserved word as a token: not glued to an identifier character, a dot
+# A reserved word as a token: not glued to an identifier character or a dot
 # (`Foo.axiom` would be a name, not the keyword, though no such name exists
-# here) or a guillemet.
+# here). A guillemet identifier may follow it directly.
 def keyword(word):
-    return re.compile(r"(?<![\w.«])" + word + r"(?![\w.'«])")
+    return re.compile(r"(?<![\w.«])" + word + r"(?![\w.'])")
 
 # An identifier as a token, allowing a following dot (`Lean.Elab`, `addDecl.go`).
 def ident(word):
@@ -237,13 +243,20 @@ LAKEFILE_RULES = [
         r"serverOptions)\b")),
 ]
 
+CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^\\'\n])'")
+IDENT_CHARS = re.compile(r"[\w'!?\u00ab\u00bb]")
+
 def strip_lean(text):
-    """Remove `--` line comments, `/- ... -/` block comments (docstrings
-    included, and nested blocks) and `"..."` string literals, replacing them
-    with spaces so that line numbers survive."""
+    """Remove line comments, block comments (docstrings included, and nested
+    blocks), string literals (plain and raw) and character literals, replacing
+    them with spaces so that line numbers survive. An identifier written in
+    guillemets is one token whatever it contains: its contents become
+    underscores, so a keyword or a comment opener inside it is not read.
+    Kept in step with lean_code in attest.py, which is a separate copy."""
     out = []
     i, n, depth = 0, len(text), 0
     while i < n:
+        ch = text[i]
         two = text[i:i+2]
         if depth == 0 and two == "--":
             j = text.find("\n", i)
@@ -253,15 +266,33 @@ def strip_lean(text):
             depth += 1; out.append("  "); i += 2; continue
         if depth > 0 and two == "-/":
             depth -= 1; out.append("  "); i += 2; continue
-        if depth == 0 and text[i] == "\"":
+        if depth > 0:
+            out.append("\n" if ch == "\n" else " "); i += 1; continue
+        prev = text[i-1] if i else " "
+        if ch == "\u00ab":
+            j = text.find("\u00bb", i)
+            j = n if j < 0 else j + 1
+            out.append("".join(c if c in "\u00ab\u00bb\n" else "_" for c in text[i:j])); i = j; continue
+        if ch == "\"":
             j = i + 1
             while j < n and text[j] != "\"":
                 j += 2 if text[j] == "\\" else 1
             j = min(j + 1, n)
-            out.append("".join("\n" if ch == "\n" else " " for ch in text[i:j]))
+            out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
             i = j; continue
-        out.append(text[i] if depth == 0 or text[i] == "\n" else " ")
-        i += 1
+        if ch == "r" and not IDENT_CHARS.match(prev):
+            raw = re.compile(r'r(#*)"').match(text, i)
+            if raw:
+                close = '"' + raw.group(1)
+                j = text.find(close, raw.end())
+                j = n if j < 0 else j + len(close)
+                out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+                i = j; continue
+        if ch == "'" and not IDENT_CHARS.match(prev):
+            lit = CHAR_LITERAL.match(text, i)
+            if lit:
+                out.append(" " * (lit.end() - i)); i = lit.end(); continue
+        out.append(ch); i += 1
     return "".join(out)
 
 def strip_toml(text):
@@ -334,7 +365,7 @@ for path in lake_paths.split():
                 hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
 print("\n".join(hits))
 PY
-)
+found=$(LEAN_FILES="$lean_files" ALL_LEAN_FILES="$all_lean_files" LAKEFILES="$lakefiles" python3 "$program")
 
 status=0
 if [ -n "$found" ]; then
