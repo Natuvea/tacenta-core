@@ -2044,4 +2044,167 @@ mod tests {
             Err(Error::Malformed)
         );
     }
+
+    // Each rule of the specification applies to every entry of a list, not
+    // only to the first or only one. The tests below use lists in which the
+    // entry that breaks a rule is not the first, so a rule applied to the
+    // first entry alone fails them.
+
+    /// A descent that does not involve the first entry of a list is refused,
+    /// in both lists.
+    #[test]
+    fn a_descent_after_the_first_entry_is_refused() {
+        let unsorted_active = InventoryStatement {
+            active: vec![binding(1), binding(3), binding(2)],
+            ..make_statement(vec![])
+        };
+        assert_eq!(unsorted_active.encode_unsigned(), Err(Error::NonCanonical));
+        let mut unsorted_revoked = with_revoked(
+            make_statement(vec![]),
+            vec![binding(1), binding(2), binding(3)],
+        );
+        unsorted_revoked.revoked.swap(1, 2);
+        assert_eq!(unsorted_revoked.encode_unsigned(), Err(Error::NonCanonical));
+    }
+
+    /// The capability rule reaches a second entry of either list.
+    #[test]
+    fn the_capability_rule_reaches_every_entry() {
+        let bad = DeviceBinding {
+            capabilities: 2,
+            ..binding(2)
+        };
+        let active = make_statement(vec![binding(1), bad.clone()]);
+        assert_eq!(active.encode_unsigned(), Err(Error::Unsupported));
+        let revoked = with_revoked(make_statement(vec![]), vec![binding(1), bad]);
+        assert_eq!(revoked.encode_unsigned(), Err(Error::Unsupported));
+    }
+
+    /// The terminal generation range reaches a second revoked entry, above the
+    /// statement's generation and at the floor.
+    #[test]
+    fn the_terminal_generation_range_reaches_every_revoked_entry() {
+        let mut statement = statement_for(7, ALICE, 5, vec![]);
+        statement.revocation_floor_generation = 1;
+        statement.revoked = vec![
+            Revocation {
+                binding: binding(1),
+                terminal_generation: 3,
+            },
+            Revocation {
+                binding: binding(2),
+                terminal_generation: 99,
+            },
+        ];
+        assert_eq!(statement.encode_unsigned(), Err(Error::Malformed));
+        statement.revoked[1].terminal_generation = 1;
+        assert_eq!(statement.encode_unsigned(), Err(Error::Malformed));
+    }
+
+    /// The rule that a binding is in one list only reaches a second entry of
+    /// either list.
+    #[test]
+    fn the_both_lists_rule_reaches_every_entry() {
+        // The second active entry is also revoked.
+        let statement = with_revoked(
+            make_statement(vec![binding(1), binding(2)]),
+            vec![binding(2)],
+        );
+        assert_eq!(statement.encode_unsigned(), Err(Error::NonCanonical));
+        // The second revoked entry is also active.
+        let statement = with_revoked(
+            make_statement(vec![binding(2)]),
+            vec![binding(1), binding(2)],
+        );
+        assert_eq!(statement.encode_unsigned(), Err(Error::NonCanonical));
+    }
+
+    /// Check 5 finds a repeated device id wherever it sits in the list, and
+    /// with three or more entries.
+    #[test]
+    fn check_5_reaches_every_active_entry() {
+        let policy = policy();
+        for ids in [
+            vec![(1, 0x21), (2, 0x22), (2, 0x23)],
+            vec![(1, 0x21), (1, 0x22), (2, 0x23)],
+            vec![(1, 0x21), (2, 0x22), (3, 0x23), (3, 0x24)],
+        ] {
+            let statement = make_statement(
+                ids.into_iter()
+                    .map(|(id, key)| keyed(id, honest(key)))
+                    .collect(),
+            );
+            assert_eq!(
+                accept_alice(&statement, &policy),
+                Err(Error::DuplicateDevice)
+            );
+        }
+    }
+
+    /// Check 6 examines a revoked entry that is neither the first nor the
+    /// last.
+    #[test]
+    fn check_6_reaches_every_revoked_entry() {
+        let policy = policy();
+        let statement = with_revoked(
+            make_statement(vec![binding(9)]),
+            vec![keyed(1, [0; 32]), binding(2)],
+        );
+        assert_eq!(
+            accept_alice(&statement, &policy),
+            Err(Error::NonContributory)
+        );
+        let statement = with_revoked(
+            make_statement(vec![binding(9)]),
+            vec![binding(1), keyed(2, [0; 32]), binding(3)],
+        );
+        assert_eq!(
+            accept_alice(&statement, &policy),
+            Err(Error::NonContributory)
+        );
+    }
+
+    /// Check 5 is over `active` only: two different revoked bindings may share
+    /// a device id (a device whose key was replaced twice).
+    #[test]
+    fn two_revoked_bindings_may_share_a_device_id() {
+        let policy = policy();
+        let statement = with_revoked(
+            make_statement(vec![keyed(1, honest(5))]),
+            vec![keyed(1, honest(3)), keyed(1, honest(4))],
+        );
+        assert!(accept_alice(&statement, &policy).is_ok());
+    }
+
+    /// Numeric fields are ordered by their big-endian bytes, so 255 comes
+    /// before 256 for a device id and for a terminal generation. A
+    /// little-endian comparison orders them the other way.
+    #[test]
+    fn device_ids_and_terminal_generations_are_ordered_big_endian() {
+        let ascending = InventoryStatement {
+            active: vec![binding(255), binding(256)],
+            ..make_statement(vec![])
+        };
+        assert!(ascending.encode_unsigned().is_ok());
+        let descending = InventoryStatement {
+            active: vec![binding(256), binding(255)],
+            ..make_statement(vec![])
+        };
+        assert_eq!(descending.encode_unsigned(), Err(Error::NonCanonical));
+
+        let mut statement = statement_for(7, ALICE, 400, vec![]);
+        statement.revoked = vec![
+            Revocation {
+                binding: binding(1),
+                terminal_generation: 255,
+            },
+            Revocation {
+                binding: binding(1),
+                terminal_generation: 256,
+            },
+        ];
+        assert!(statement.encode_unsigned().is_ok());
+        statement.revoked.reverse();
+        assert_eq!(statement.encode_unsigned(), Err(Error::NonCanonical));
+    }
 }
