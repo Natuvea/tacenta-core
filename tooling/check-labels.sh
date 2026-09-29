@@ -16,7 +16,7 @@
 # refuses any new one.
 #
 # **What counts as a label, and where it is looked for.** Any `const` or
-# `static` byte-string whose name ends in `INFO` or `LABEL`, `pub` or not, in
+# `static` byte-string whose name ends in `INFO`, `LABEL` or `DOMAIN`, `pub` or not, in
 # every `.rs` file under `tacenta-core/src` and under each leaf crate's `src`,
 # so that the root crate's own labels -- the application signing label and the
 # last-resort handshake fingerprint label -- are inside the registry along with
@@ -66,7 +66,7 @@ done
 # Source of truth: the constants themselves. One extraction, used by both
 # halves below, so the two cannot disagree about what a label is.
 extract_labels() {
-  grep -rhoE '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(const|static)[[:space:]]+[A-Z_]*(INFO|LABEL):[[:space:]]*&('\''static[[:space:]]+)?\[u8\][[:space:]]*=[[:space:]]*b"[^"]*"' \
+  grep -rhoE '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(const|static)[[:space:]]+[A-Z_]*(INFO|LABEL|DOMAIN):[[:space:]]*&('\''static[[:space:]]+)?\[u8\][[:space:]]*=[[:space:]]*b"[^"]*"' \
     --include='*.rs' "${scan_dirs[@]}" 2>/dev/null \
     | sed 's/.*b"//; s/"$//'
 }

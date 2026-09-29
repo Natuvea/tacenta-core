@@ -5,17 +5,22 @@ written to test whether the specification alone is enough to build from.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
-**Specification revision.** Seventh pass, against the tree as found:
+**Specification revision.** Twelfth pass, against the tree as found:
 
-- `SOURCE-REVISION` `5ae44427d17d0e8bfa1d314780305690000ee770`;
+- `SOURCE-REVISION` `1cac363f11305d675844af590a0840774a87656f`;
 - `VERSION` `0.2.0`;
-- every change under `CHANGELOG.md` `[Unreleased]`, whose Added section begins
-  "`protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth
-  rule, that every stored signature verifies under `identity_public`".
+- every change under `CHANGELOG.md` `[Unreleased]`, whose first entry begins
+  "`identities-and-devices.md`, hosted device-inventory statements: state what a
+  verifier must check before it relies on a signed statement, as seven ordered
+  checks".
 
-The sixth pass read `c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
+The seventh pass, the last full clean-room pass before this one, read
+`5ae44427d17d0e8bfa1d314780305690000ee770`; passes 8 to 10 were maintenance
+re-runs (`../GAPS-8.md` to `../GAPS-10.md`). The sixth pass read
+`c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
 `1dd174609bc5b008564bddef45bee43d71589761` and the fourth
-`24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`).
+`24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`). This pass is
+numbered 12 because another branch may use 11.
 
 ## Provenance
 
@@ -35,8 +40,8 @@ vector runner, libsignal or anything else.
 
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
-`../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth) or
-`../GAPS-7.md` (seventh).
+`../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth),
+`../GAPS-7.md` (seventh) or `../GAPS-12.md` (twelfth).
 A hypothesis that matches a vector is still recorded as a gap.
 
 ## Isolation
@@ -177,6 +182,109 @@ was used.
   available. None of it was opened, and nothing in it was used for any reading
   or decision here -- in particular nothing about the prekey store, the
   signature rule or the two new vector files.
+
+### Isolation, pass 12
+
+- **Reads.** Inside the clean-room directory:
+  - `tacenta-spec/`: `protocol/identities-and-devices.md` in full;
+    `error-handling.md` in full; `message-format.md`, Curve public keys and
+    Rejection; the relevant rows and sections of `CONSTANTS.md`; `CHANGELOG.md`
+    `[Unreleased]`; and, to re-assess the open gaps, the passages of
+    `session-persistence.md` (Prekey store, Session's semantic rules,
+    Rejection, the leaf formats' rules), `session-establishment.md` (Receiving
+    the initial message, the replay identity), `ratchet.md` (Sending and
+    receiving), `sparse-pq-ratchet.md` (Receiving, the total bound, retiring
+    epochs), `triple-ratchet.md` (the commit rules), `key-deletion.md` (the
+    prekey paragraphs), `threat-model/` (ADV-01, ADV-06, the exclusions'
+    bounds, ASM-13, ASM-19), `security-properties/` (LIM-21, REQ-AUTH-11, the
+    opening of `evidence-index-format.md`, and the top-level keys of
+    `evidence-index.json`). No ADR was opened.
+  - `tacenta-test-vectors/`: `README.md` (the directory list, the prekey
+    store's, session's and inventory layout sections, Status),
+    `conformance-manifest.md` (Hosted device-inventory statements), the five
+    files under `vectors/groups/` in full, and the ids, comments and version
+    bytes of `persistence/prekey-store-state.json` and `session-state.json`.
+  - `reader/`; `GAPS-7.md`, `GAPS-8.md`, `GAPS-9.md`, `GAPS-10.md`; the G5-04
+    to G5-10 entries of `GAPS-5.md`; `SOURCE-REVISION`. `GAPS.md`,
+    `GAPS-2.md`, `GAPS-3.md`, `GAPS-4.md` and `GAPS-6.md` were not opened.
+- **Outside this directory.** Nothing outside it was read, listed or searched,
+  with two facts to record:
+  - the first command of the pass was `ls -la` of the clean-room directory
+    itself, which prints the standard `.` and `..` entries; the `..` line
+    showed that entry's permissions, owner, size and date, and nothing inside
+    it;
+  - the deliberate-fault runs were started as background commands with their
+    output redirected into `../work/`, and two waits on them used a watch
+    command. Each background command and each watch also left an output file
+    outside this directory; none was opened. Results were read from
+    `../work/` only;
+  - **one attempted read outside this directory.** Near the end of the pass, a
+    command piped a copy of `../work/faults12_table.py` into Python through
+    standard input, to compare two fault runs. Run that way the script took its
+    root from the working directory's parent rather than from its own file, and
+    tried to open `work/faults12-second-run.txt` one level above the clean-room
+    directory, next to it. No such file existed; the open failed with "No such
+    file or directory" and nothing was read. The comparison was redone with a
+    script file inside `../work/`.
+- **Names treated as text.** The pages, the vectors README, the manifest and
+  `CONSTANTS.md` name implementation files and records: `groups/inventory.rs`,
+  `tacenta_core::groups::inventory`, `tacenta-core/tests/group_commitments.rs`,
+  `generate-inventory-vectors.py`, `tooling/check-vectors.py`,
+  `tacenta-core/LABELS.md`, `HL-R1-SPARSE-TRANSLATION`,
+  `session-operation-trace.md` and the evidence index's paths. None was looked
+  for.
+- **Writes.** Only inside the clean-room directory:
+  - this reader: the new `tacenta_reader/inventory.py` and
+    `tacenta_reader/inventory_vectors.py`, the new `cases_inventory.py`, CR-21
+    appended to `cases_ratchet.py`, SE-08 appended to `cases_curvekeys.py`,
+    `run.py` (the registration only) and this file;
+  - `../GAPS-12.md`;
+  - `../work/`: `accept_dump12.txt`, run outputs, `check_new_vectors12.py` and
+    its output, `faults12.py`, `faults12_table.py`, `faults12.txt`,
+    `faults12-first-run.txt` and `faults12-second-run.txt`.
+
+  The per-fault copies were made under `../work/faults12/`, each reaching the
+  vectors through a symbolic link inside this directory, and were removed after
+  each run. Python wrote its usual `__pycache__` directories inside `reader/`.
+- **Not consulted.** No implementation, no git history, no vector generator,
+  no other scratch files, no web search, and no libsignal material. RFC 7748
+  section 5, RFC 8032 section 5.1, the XEdDSA document's revision 1 and the
+  UTF-8 definition Python's strict codec implements (RFC 3629) were used from
+  knowledge. Nothing was fetched.
+- **Unrelated notes, not used.** An index of notes from other work, and a list
+  of further material, were available alongside the directory. None of it was
+  opened, and nothing in it was used for any reading or decision here.
+
+## What changed in pass 12
+
+- **`tacenta_reader/inventory.py`, new: the hosted device-inventory
+  statements** (identities-and-devices.md, Hosted device-inventory statements
+  and Accepting a signed statement). The unsigned preimage, `DeviceBinding` and
+  `Revocation`; every encoding rule, applied alike to bytes and to a statement
+  built in memory; `binding_commitment`; the signed statement and its signing
+  input; check 6's three-step identity-key test; the seven checks in the
+  page's order, with the verifier's issuer binding, freshness rule, binding
+  policy and statement policy supplied as a policy object, and a hook for
+  recording a generation after check 7; the issuer's duty (`sign_statement`);
+  three refusal kinds, each naming the check that refused.
+- **`tacenta_reader/inventory_vectors.py`, new.** The four closed layouts of
+  the vectors README, "The hosted-inventory statements", and its scripted
+  policy with the hook-call strings. An acceptance case passes only when both
+  `refusal` and `hook_calls` agree; the issuer signature is verified by this
+  reader's own XEdDSA.
+- **`run.py`: registration only.** One import, the four schemas in
+  `GROUP_SCHEMAS`, and `cases_inventory` in `CASE_MODULES`. The earlier
+  `h_inventory_statement` and its helpers (`_u32`, `_u64`,
+  `_inventory_binding`, `_canonical_bindings`), which no pass record describes,
+  are left in place but no longer registered.
+- **Cases:** the new `cases_inventory.py` (IV-01 to IV-22); CR-21 in
+  `cases_ratchet.py` (the sparse store's total bound, G12-05); SE-08 in
+  `cases_curvekeys.py` (a repeat's agreement class, G12-06). IV-02 was
+  strengthened during the fault run (F12-07).
+
+**No existing protocol module changed.** `pqxdh.accept_repeated_initial`'s
+docstring still quotes a sentence the current text has replaced
+(`../GAPS-12.md`, G12-06).
 
 ## What changed in pass 7
 
@@ -338,6 +446,8 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 | `protobuf.py`: the bounded protobuf profile, both message types | protobuf-profile.md, CONSTANTS.md | `protobuf/protobuf-ratchet-body.json`, `protobuf-prekey-envelope.json` |
 | `prekeys.py`: the two prekey-store rotations, each signing under `identity_public` and refusing any other identity, each stopping silently at `u32::MAX`, `rotate_kem` dropping the wiped key's record entries (pass 7) | key-deletion.md, session-persistence.md Prekey store Semantic rules | no vectors |
 | `identity.py`: the identity secret, application signatures | identities-and-devices.md | no vectors |
+| `inventory.py` (pass 12): the hosted device-inventory statement, its encoding rules for bytes and for built statements, `binding_commitment`, the signed form, check 6's identity-key test, the seven checks with a caller-supplied policy, the issuer's duty | identities-and-devices.md Hosted device-inventory statements, Accepting a signed statement; CONSTANTS.md | `groups/inventory-statements-v1.json`, `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`, `inventory-acceptance-v1.json`. Not pinned by any: the issuer's duty, recording a generation after check 7, a statement built in memory, the re-encode refusal (`../GAPS-12.md`, section 3) |
+| `inventory_vectors.py` (pass 12): the four inventory layouts and the scripted policy | tacenta-test-vectors/README.md, The hosted-inventory statements | the same four files |
 
 **The eight vector files new in pass 3 needed no module change.** Their 106
 vectors pass on the modules pass 2 wrote. The runner gained handlers for them;
@@ -351,7 +461,7 @@ and each is a row in the runner's table.
 | Module | Cases | Covers |
 |---|---|---|
 | `negative_cases.py` | 59 | wire decoders and refusals, bundle signatures, non-contributory DH, ratchet and sparse ratchet basics, field |
-| `cases_ratchet.py` | 20 | counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18); the sparse store's total bound as the page now states its evidence (CR-19, pass 6); the `Nr = u32::MAX` stale/exhaustion overlap and its adjacent cases (CR-20) |
+| `cases_ratchet.py` | 21 | the sparse store's total bound counted before and after the purge, on a stored state the two counts disagree about (CR-21, pass 12); counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18); the sparse store's total bound as the page now states its evidence (CR-19, pass 6); the `Nr = u32::MAX` stale/exhaustion overlap and its adjacent cases (CR-20) |
 | `cases_triple.py` | 11 | split halves, expansion of the combination, commit rules, AD binding, non-contributory check order, eviction retry, epoch advance; the Triple Ratchet's own send and receive, and the epoch the agreement names against the state's own (TR-11, pass 6) |
 | `cases_aead.py` | 13 | FIPS 197 KAT, round trips, padding, tag input, every refusal, one failure kind, no decryption before the tag, key and IV positions and the IV not sent (AE-12) |
 | `cases_erasure.py` | 13 | table arithmetic, chunking, codewords, decoding from any `k`, first copy wins, exhaustion; an encoder for zero bytes (EC-11) and over 65,536 chunks (EC-12); which chunks that encoder holds, and its stored form (EC-13, pass 5) |
@@ -359,8 +469,9 @@ and each is a row in the runner's table.
 | `cases_protobuf.py` | 9 | varints, tags, bounds, both field tables, free order |
 | `cases_identity.py` | 19 | application signatures, clamping on use, the repeated-initial comparisons (SE-01, both fields, rewritten in pass 4), non-contributory definition; `DecodeEC` and the initial decoder's refusal (SE-03), X25519's masking against the decoders' refusals (SE-04), the section 7.2 KEM prekey check (SE-05); XEdDSA signing and the six verifier rules (XS-01 to XS-04); the fingerprint and replay record (LR-01 to LR-07, LR-06 through the bytes) |
 | `cases_braid.py` | 18 | derivation bytes, authenticator and MACs, sizes and holdings, initialisation, the send table, epoch completion and roles, send and receive epochs, what a receive ignores, all thirteen transitions, MAC and validation failures, KEM failures and `Failed`, the epoch ceiling, encoder exhaustion, persistence of all twelve tags, the composite header, the Triple Ratchet over the Braid with `session-persistence.md`'s relations, `AgreementFailed` |
-| `cases_curvekeys.py` | 7 | pass 4. The canonical-key rule at p and every value up to 2^255 - 1 (CK-01); the composite header's `dh`, including a live session refusing at decode (CK-02); the bundle's three keys, refused though signed, with low-order canonical keys left to the contributory check (CK-03); the initial message's two keys, and `DecodeEC` accepting every key the decoder returns (CK-04); why a second spelling is a second identity (CK-05); a repeat must first decode (SE-06); the repeated initial message over a live Triple Ratchet half: ignored fields, yield once, already-read messages, refusals before decryption, the initiator's session (SE-07) |
+| `cases_curvekeys.py` | 8 | a repeat's agreement class is the same under the signed-prekey secret and under the session's ratchet private key (SE-08, pass 12); pass 4. The canonical-key rule at p and every value up to 2^255 - 1 (CK-01); the composite header's `dh`, including a live session refusing at decode (CK-02); the bundle's three keys, refused though signed, with low-order canonical keys left to the contributory check (CK-03); the initial message's two keys, and `DecodeEC` accepting every key the decoder returns (CK-04); why a second spelling is a second identity (CK-05); a repeat must first decode (SE-06); the repeated initial message over a live Triple Ratchet half: ignored fields, yield once, already-read messages, refusals before decryption, the initiator's session (SE-07) |
 | `cases_stored.py` | 15 | pass 5. Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). The Rejection table's six persisted formats for the short-buffer/unknown-version overlap, plus the adjacent empty, recognised-version truncation and long enough unknown-version cases (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01, rewritten in pass 7) and REQ-AUTH-11 against the protocol pages (TM-02). BK-01 and SK-08 rewritten in pass 7 for the scoped `key_pair` clause and for `p - 1` as `identity_public` |
+| `cases_inventory.py` | 22 | pass 12. The hosted device-inventory statements: the preimage (IV-01), both sort orders, byte boundaries included (IV-02), exact bindings (IV-03), generation ranges (IV-04), the UTF-8 handle (IV-22), a statement built in memory (IV-05), the three refusal kinds (IV-06), the issuer's duty (IV-07), check 4 having no effect of its own and the compare-and-advance (IV-08, IV-09), check 6 from its definition, its five low-order values, the twist, mixed torsion and single spelling (IV-10 to IV-14), check 6 before any policy (IV-15), check 5 (IV-16), check 7 (IV-17), checks 1 and 2 (IV-18), the signature input and the page's verifier (IV-19), `binding_commitment` (IV-20), the unchecked properties (IV-21) |
 | `cases_signed.py` | 12 | pass 7. The prekey store's sixth semantic rule: every signed position (PK-01), what it does not bind (PK-02), `incoherent` as a kind of its own and the other five as malformed (PK-03), its place last of all in the order of checks (PK-04), the flipped byte at offset 69 and the two readers that disagree about it (PK-05), the rule across all five versions (PK-06). The obligation on the operations, and both rotations (PK-07), and forty rotations none of whose states is refused (PK-08). Rejection's paragraph on which format gives which refusal (RJ-02). The Principles' exception to the inductive invariant (IN-03). ADR-0006's point 7 against ASM-05 and AS-12 (TM-03). The epoch relation's boundary, all twelve tags under both readings (EP-01) |
 
 ## Deliberate faults
@@ -613,11 +724,117 @@ vector, and cannot be.
 **C7-01, the control**, checks the store's length before its version byte and
 fails nothing, as Rejection allows (GAPS-5.md G5-03).
 
+**Pass 12.** Seventy-two faults and two controls (`../work/faults12.py`), each a
+textual change to a fresh copy of the reader, then the full runner. Where the
+reader states a rule in two places (the decoder's field read, and the encoding
+rules a built statement is held to) the fault breaks both, and says so.
+**66 were caught, 61 of them by a vector file.** `../work/faults12.txt` is the
+recorded run, against the final reader; `../work/faults12-first-run.txt` is the
+first, which tried 66 and caught 58 (see below).
+
+| Fault | Vectors that failed | Cases that failed |
+|---|---|---|
+| F12-01 active's order not checked | 7: inventory-acceptance-v1, inventory-decode-refusals-v1 | 3: IV-02, IV-05, IV-07 |
+| F12-02 revoked's order not checked | 4: inventory-decode-refusals-v1 | 2: IV-02, IV-04 |
+| F12-03 both orders non-strict: a repeated entry allowed | 2: inventory-decode-refusals-v1 | 1: IV-04 |
+| F12-04 revoked ordered by binding alone, terminal_generation ignored | 2: inventory-acceptance-v1, inventory-statements-v1 | 3: IV-02, IV-04, IV-21 |
+| F12-05 both orders descending | 77: inventory-acceptance-v1, inventory-decode-refusals-v1, inventory-statements-v1 | 10: IV-01, IV-02, IV-04, IV-05, IV-07, IV-08, ... |
+| F12-06 a predecessor sorts before no predecessor (tag byte compared inverted) | 2: inventory-decode-refusals-v1, inventory-statements-v1 | 1: IV-16 |
+| F12-07 order compared with device_id little-endian | **none** | 1: IV-02 |
+| F12-08 order compared on device_id and key only, the rest ignored | 4: inventory-acceptance-v1, inventory-statements-v1 | 4: IV-02, IV-04, IV-16, IV-21 |
+| F12-09 a tag other than 0 or 1 read as present | **none** | **none** |
+| F12-10 a tag other than 0 or 1 read as absent | **none** | **none** |
+| F12-09b a tag other than 0 or 1 read as present, and the re-encode check dropped | 2: inventory-acceptance-v1, inventory-decode-refusals-v1 | **none** |
+| F12-10b a tag other than 0 or 1 read as absent, and the re-encode check dropped | 1: inventory-decode-refusals-v1 | **none** |
+| F12-11 the predecessor read as 31 bytes | 10: inventory-acceptance-v1, inventory-statements-v1 | 4: IV-01, IV-07, IV-16, IV-21 |
+| F12-12 capability word: only non-zero required (other bits allowed), decoder and encoder | 12: inventory-acceptance-v1, inventory-binding-commitments-v1, inventory-decode-refusals-v1 | 2: IV-05, IV-20 |
+| F12-13 capability word: bit 0 set suffices, decoder and encoder | 5: inventory-binding-commitments-v1, inventory-decode-refusals-v1 | 2: IV-05, IV-20 |
+| F12-14 capability rule dropped, decoder and encoder | 15: inventory-acceptance-v1, inventory-binding-commitments-v1, inventory-decode-refusals-v1 | 2: IV-05, IV-20 |
+| F12-14e capability rule dropped from the encoder alone (so from binding_commitment and in-memory statements) | 4: inventory-binding-commitments-v1 | 2: IV-05, IV-20 |
+| F12-15 capability word zero allowed (no other bit), decoder and encoder | 3: inventory-binding-commitments-v1, inventory-decode-refusals-v1 | 2: IV-05, IV-20 |
+| F12-16 account bound off by one: 256 bytes refused, decoder and encoder | 3: inventory-acceptance-v1, inventory-statements-v1 | 1: IV-22 |
+| F12-16b account bound dropped, decoder and encoder | 2: inventory-decode-refusals-v1 | 2: IV-22, IV-05 |
+| F12-17 account UTF-8 not checked | 6: inventory-decode-refusals-v1 | 2: IV-22, IV-05 |
+| F12-18 floor above generation allowed | 1: inventory-decode-refusals-v1 | 2: IV-04, IV-05 |
+| F12-19 a terminal generation equal to the floor allowed | 2: inventory-decode-refusals-v1 | 2: IV-04, IV-05 |
+| F12-20 a terminal generation above the generation allowed | 1: inventory-decode-refusals-v1 | 1: IV-04 |
+| F12-21 an exact binding in both lists allowed | 1: inventory-decode-refusals-v1 | 2: IV-03, IV-05 |
+| F12-22 "exact binding" compared on device_id and key only | **none** | 2: IV-03, IV-21 |
+| F12-23 trailing bytes accepted | **none** | **none** |
+| F12-23b trailing bytes accepted, and the re-encode check dropped | 3: inventory-acceptance-v1, inventory-decode-refusals-v1 | 1: IV-06 |
+| F12-24 active_count above 8 accepted, decoder and encoder | 1: inventory-decode-refusals-v1 | 1: IV-05 |
+| F12-24r revoked_count above 8 accepted, decoder and encoder | 1: inventory-decode-refusals-v1 | 1: IV-05 |
+| F12-25 the re-encode check dropped | **none** | **none** |
+| F12-26 check 1 dropped | 13: inventory-acceptance-v1 | 4: IV-22, IV-05, IV-06, IV-18 |
+| F12-27 check 1 by prefix, not byte for byte | 3: inventory-acceptance-v1 | 1: IV-18 |
+| F12-28 check 1 case-insensitive | 1: inventory-acceptance-v1 | 1: IV-18 |
+| F12-29 check 2 resolves the asked account rather than the statement's (after check 1 they agree) | **none** | **none** |
+| F12-30 check 2: an unbound issuer is not refused, and the signature is then not checked | 7: inventory-acceptance-v1 | 2: IV-06, IV-18 |
+| F12-31 check 3 dropped | 19: inventory-acceptance-v1 | 2: IV-06, IV-19 |
+| F12-32 check 4 dropped | 97: inventory-acceptance-v1 | 3: IV-06, IV-08, IV-09 |
+| F12-33 check 5 dropped | 5: inventory-acceptance-v1 | 3: IV-07, IV-08, IV-16 |
+| F12-34 check 5 over active and revoked together | 4: inventory-acceptance-v1 | 5: IV-07, IV-15, IV-16, IV-17, IV-21 |
+| F12-35 check 6 dropped | 55: inventory-acceptance-v1 | 3: IV-07, IV-08, IV-15 |
+| F12-36 check 7's binding policy dropped | 28: inventory-acceptance-v1 | 3: IV-06, IV-08, IV-17 |
+| F12-37 check 7's statement policy dropped | 22: inventory-acceptance-v1 | 3: IV-06, IV-08, IV-17 |
+| F12-38 check 2 before check 1 | 13: inventory-acceptance-v1 | 1: IV-18 |
+| F12-39 check 4 before check 3 | 109: inventory-acceptance-v1 | 1: IV-09 |
+| F12-40 check 6 before check 5 | 3: inventory-acceptance-v1 | 1: IV-16 |
+| F12-41 check 6 interleaved with the binding policy: each key checked just before its binding's policy, not all keys first | 31: inventory-acceptance-v1 | 1: IV-15 |
+| F12-42 check 6 after check 7 | 55: inventory-acceptance-v1 | 3: IV-07, IV-08, IV-15 |
+| F12-43 the statement policy before the binding policy | 30: inventory-acceptance-v1 | 1: IV-17 |
+| F12-44 binding policy: revoked before active | 8: inventory-acceptance-v1 | 1: IV-17 |
+| F12-45 binding policy: active entries in reverse encoded order | 12: inventory-acceptance-v1 | 1: IV-17 |
+| F12-46 binding policy: does not stop at the first refusal | 3: inventory-acceptance-v1 | 1: IV-17 |
+| F12-47 binding policy told every entry is active | 8: inventory-acceptance-v1 | 1: IV-17 |
+| F12-48 check 6: the subgroup test dropped (canonical only) | 31: inventory-acceptance-v1 | 7: IV-07, IV-08, IV-10, IV-11, IV-12, IV-13, ... |
+| F12-49 check 6: small order refused (8P), mixed torsion accepted | 17: inventory-acceptance-v1 | 4: IV-10, IV-12, IV-13, IV-15 |
+| F12-50 check 6: a u with no point accepted | 6: inventory-acceptance-v1 | 3: IV-07, IV-12, IV-15 |
+| F12-51 check 6: u = p - 1 not excluded | **none** | **none** |
+| F12-52 check 6: the canonical rule dropped, u read as X25519 reads it | 6: inventory-acceptance-v1 | 2: IV-07, IV-14 |
+| F12-53 check 6 over active only | 25: inventory-acceptance-v1 | 2: IV-07, IV-15 |
+| F12-54 check 6 over revoked only | 30: inventory-acceptance-v1 | 3: IV-07, IV-08, IV-15 |
+| F12-55 check 6: the five listed low-order values accepted | 16: inventory-acceptance-v1 | 4: IV-07, IV-08, IV-11, IV-15 |
+| F12-56 signed without the label | 98: inventory-acceptance-v1 | 1: IV-19 |
+| F12-57 the label without its 0xFF terminator | 98: inventory-acceptance-v1 | 1: IV-19 |
+| F12-58 the application-signature label | 98: inventory-acceptance-v1 | 1: IV-19 |
+| F12-59 the signature taken from the front of the input | 136: inventory-acceptance-v1 | 11: IV-22, IV-06, IV-07, IV-08, IV-09, IV-15, ... |
+| F12-60 revision 1's s bound: s below 2^253 rather than below q | 2: inventory-acceptance-v1, primitives/xeddsa | 2: XS-04, IV-19 |
+| F12-61 revision 1's sign: A always taken with sign 0 | 3: inventory-acceptance-v1, primitives/xeddsa | 2: XS-02, IV-19 |
+| F12-62 commitment label without its terminator | 6: inventory-binding-commitments-v1 | 1: IV-20 |
+| F12-63 commitment over the binding without its predecessor | 4: inventory-binding-commitments-v1 | 1: IV-20 |
+| F12-64 the generation recorded when check 4 accepts, before checks 5 to 7 | **none** | 2: IV-08, IV-17 |
+| F12-65 the issuer signs without applying check 6 | **none** | 1: IV-07 |
+| F12-66 a statement built in memory not held to the encoding rules | **none** | 2: IV-05, IV-07 |
+| C12-01 control: check 6 walks revoked before active (the page fixes active first; no outcome depends on it) | **none** | **none** |
+| C12-02 control: the signed input parsed from the front, then exactly 64 bytes required | **none** | **none** |
+
+- **Not caught, six.** F12-09, F12-10 and F12-23 are each masked by the
+  re-encode rule, which refuses any input whose re-encoding differs; with that
+  check removed too (F12-09b, F12-10b, F12-23b) each is caught by vectors.
+  F12-25, the re-encode check alone, is clean for the converse reason. F12-29
+  is an equivalent change, check 1 having made the two accounts equal. F12-51
+  is equivalent in this reader's arithmetic: without the explicit step,
+  u = p - 1 gives y = 0 (1/0 is taken as 0), a point of order four, which the
+  subgroup step refuses.
+- **F12-07 was missed on the first run**: no vector and no case put two
+  entries of one list on either side of a byte boundary. IV-02 was extended and
+  now catches it (`../GAPS-12.md`, section 3).
+- **F12-41 was written wrong on the first run** (it left check 6 in place), and
+  the capability, account-length and count faults broke only the encoder's copy
+  of their rule. All were rewritten; F12-14e keeps the encoder-only version.
+- **Caught by cases only:** F12-07, F12-22, F12-64, F12-65, F12-66.
+- **C12-01 and C12-02**, the controls, fail nothing: check 6's own order and
+  the way a signed input is split change no outcome.
+
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
 - The end-to-end `Session`: the handshake with a real KEM, `pending_initial`
   resend, `established_ephemeral`, and export/import over live states.
+- Group messaging beyond the two fan-out commitments and the hosted inventory
+  statement (pass 12), and device management, which identities-and-devices.md
+  leaves outside itself.
 - Prekey store operations other than the two rotations `prekeys.py` adds:
   `create_prekeys`'s numbering, `replenish`, `publish` selection,
   `establish_responder`. The rotations were added in pass 7 because the store's
@@ -644,10 +861,9 @@ allowlist.
 
 ```
 python3 reader/run.py              # from the clean-room directory
-python3 work/faults7.py                # the pass-7 deliberate faults and control
-python3 work/check_new_vectors7.py     # pass 7: the 30 new vectors pass for the stated reasons
-python3 work/xref7.py                  # pass 7: threat-model numbering, and the two files' coverage statements
-# the pass-4 to pass-6 scripts were not in the tree this pass was read from
+python3 work/faults12.py               # the pass-12 deliberate faults and controls
+python3 work/check_new_vectors12.py    # pass 12: the 237 inventory vectors pass for the stated reasons
+# the pass-4 to pass-7 scripts were not in the tree pass 12 was read from
 ```
 
 The runner prints:
@@ -657,15 +873,15 @@ The runner prints:
 3. a per-file table with a vectors subtotal, a derived-cases subtotal and a total.
 
 The exit status is non-zero on any FAIL, or when the observed skips differ from
-the checked allowlist in `run.py`. A full run takes about five seconds.
+the checked allowlist in `run.py`. A full run takes about twenty seconds.
 
-Current result:
+Current result (pass 12):
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (37 files) | 427 | 426 | 0 | 1 |
-| Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 647 | 646 | 0 | 1 |
+| Vectors (42 files) | 666 | 665 | 0 | 1 |
+| Derived cases (13 modules) | 244 | 244 | 0 | 0 |
+| **Total** | 910 | 909 | 0 | 1 |
 
 ## In this repository
 
@@ -697,7 +913,10 @@ Each gap report re-assesses its predecessors against the revision it names:
 - `../GAPS-3.md`: the third pass.
 - `../GAPS-4.md`: the fourth pass.
 - `../GAPS-5.md`: the fifth pass.
-- `../GAPS-6.md`: this pass.
+- `../GAPS-6.md`: the sixth pass.
+- `../GAPS-7.md`: the seventh pass.
+- `../GAPS-8.md` to `../GAPS-10.md`: maintenance records (below).
+- `../GAPS-12.md`: the twelfth pass, the hosted device-inventory statements.
 
 A gap is closed by changing the specification. Its entry is marked closed when
 the reader is next updated from the new text.
@@ -723,3 +942,11 @@ handlers report
 the new vector as one explicit skip because its documented boundary excludes
 real ML-KEM and a live end-to-end session. It makes no claim of a new
 clean-room implementation or independent review.
+
+### Pass 12
+
+`../GAPS-12.md` is a clean-room pass, the first since pass 7. It extends this
+reader from the specification and the vectors alone to read the four
+`vectors/groups/inventory-*.json` files, re-assesses every gap left open, and
+records the deliberate-fault run. It is numbered 12 because another branch may
+use 11.

@@ -6,7 +6,10 @@
 # Each temporary root has the real checker, schemas, Rust runner dispatch
 # source, and one valid known-answer file.  The mutations cover a schema
 # refusal, a checker-only duplicate-ID refusal, and the fail-loudly rule for a
-# schema constraint this validator does not implement.
+# schema constraint this validator does not implement.  The group cases add
+# the hosted-inventory files, whose shapes are closed in the checker itself:
+# an unread field at the top of a case, inside a nested object, a binding
+# with an extra field, and a refusal class the acceptance vectors do not name.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -82,4 +85,48 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail unsupported-schema-keyword "schema uses keyword(s) this validator does not implement: maxItems"
 
-echo 'check-vectors-cases: pass case and 3 refusal cases gave the expected result'
+# The hosted-inventory group files: the real files, then one change each.
+make_group_case() {
+  local name="$1"
+  make_case "$name"
+  mkdir -p "$work/$name/tacenta-test-vectors/vectors/groups"
+  cp "$root"/tacenta-test-vectors/vectors/groups/inventory-*.json \
+    "$work/$name/tacenta-test-vectors/vectors/groups/"
+}
+
+edit_group_file() {
+  local name="$1" file="$2" edit="$3"
+  python3 - "$work/$name/tacenta-test-vectors/vectors/groups/$file" "$edit" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+exec(sys.argv[2])
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+}
+
+make_group_case group-pass
+python3 "$work/group-pass/tooling/check-vectors.py"
+
+make_group_case group-unread-field
+edit_group_file group-unread-field inventory-acceptance-v1.json \
+  'data["cases"][0]["note"] = "a field no runner reads"'
+expect_fail group-unread-field "fields do not match the tacenta-inventory-acceptance-v1 schema"
+
+make_group_case group-nested-unread-field
+edit_group_file group-nested-unread-field inventory-acceptance-v1.json \
+  'data["cases"][0]["policy"]["skip_freshness"] = True'
+expect_fail group-nested-unread-field "policy: fields do not match the schema"
+
+make_group_case group-binding-unread-field
+edit_group_file group-binding-unread-field inventory-statements-v1.json \
+  'data["cases"][1]["active"] = [{"device_id": 1, "identity_hex": "00" * 32, "capabilities": 1, "sort": 2}]'
+expect_fail group-binding-unread-field "binding fields do not match the schema"
+
+make_group_case group-unknown-refusal
+edit_group_file group-unknown-refusal inventory-acceptance-v1.json \
+  'data["cases"][0]["refusal"] = "unlucky"'
+expect_fail group-unknown-refusal "refusal: neither null nor one of"
+
+echo 'check-vectors-cases: pass cases and 7 refusal cases gave the expected result'
+
