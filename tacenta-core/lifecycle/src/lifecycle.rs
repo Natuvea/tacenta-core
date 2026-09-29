@@ -2959,8 +2959,10 @@ impl Session {
     /// (session-establishment.md, Receiving the initial message): `ephemeral`
     /// must be in the same X25519 agreement class as `established_ephemeral`
     /// under the responder's signed-prekey secret, and `identity` must equal
-    /// the `EncodeEC` of the peer's identity key byte for byte. Canonical
-    /// encodings can still have distinct torsion-equivalent agreement
+    /// the `EncodeEC` of the peer's identity key byte for byte. That comparison
+    /// is enough for `identity` because the session holds only an identity
+    /// key ([`is_valid_identity_key`]), which has one canonical spelling.
+    /// Canonical encodings can still have distinct torsion-equivalent agreement
     /// spellings, so comparing the agreement rather than the public bytes is
     /// required for a genuine repeat to survive a harmless re-encoding. The
     /// inner message authenticates under this session's keys and associated

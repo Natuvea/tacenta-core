@@ -876,8 +876,9 @@ mod tests {
             );
             accepted_by_revision_1 += usize::from(got);
             // A `rule-3-only` vector is refused by rule 3 of
-            // identities-and-devices.md, Verifying a signature (`A` is not of
-            // small order), and by no other rule: `u` is canonical with an
+            // identities-and-devices.md, Verifying a signature (`A` is a point
+            // of the prime-order subgroup; here it is of small order), and by no
+            // other rule: `u` is canonical with an
             // Edwards image, the sign bit is clear, `s < l`, the equation holds
             // without the cofactor (the second oracle accepts it), and `R` is
             // not of small order. So a verifier missing rule 3 accepts it,

@@ -453,6 +453,49 @@ fn bundle_naming(world: &World, identity: [u8; 32]) -> tacenta_core::sessions::P
     bundle
 }
 
+/// The inventory profile's validator (Accepting a signed statement, check 6) and
+/// the rule the session boundaries apply are one rule written twice. The same
+/// keys pass, and the refusal classes line up, over the table and over keys of
+/// no particular form, so the two cannot drift without this test saying so.
+#[test]
+fn the_inventory_validator_and_the_session_rule_agree() {
+    use tacenta_core::groups::inventory::{Error as InventoryError, validate_identity_key};
+    for (id, key, class) in rows() {
+        let inventory = validate_identity_key(&key);
+        assert_eq!(
+            inventory.is_ok(),
+            is_valid_identity_key(&public(key)),
+            "{id}"
+        );
+        match class {
+            Class::Prime => assert_eq!(inventory, Ok(()), "{id}"),
+            Class::NonCanonical => assert_eq!(inventory, Err(InventoryError::NonCanonical), "{id}"),
+            Class::LowOrder => assert_eq!(inventory, Err(InventoryError::NonContributory), "{id}"),
+            Class::Mixed => assert_eq!(inventory, Err(InventoryError::NotPrimeOrder), "{id}"),
+            Class::OffCurve => assert!(inventory.is_err(), "{id}"),
+        }
+    }
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0x1d);
+    let mut accepted = 0;
+    for _ in 0..3000 {
+        let mut key = [0u8; 32];
+        rng.fill_bytes(&mut key);
+        if rng.next_u32() % 2 == 0 {
+            key[31] &= 0x7f;
+        }
+        let both = (
+            validate_identity_key(&key).is_ok(),
+            is_valid_identity_key(&public(key)),
+        );
+        assert_eq!(both.0, both.1, "{key:02x?}");
+        accepted += usize::from(both.0);
+    }
+    assert!(
+        accepted > 20,
+        "the sample reaches accepted keys: {accepted}"
+    );
+}
+
 #[test]
 fn verify_bundle_over_the_table() {
     let world = world();
