@@ -42,7 +42,7 @@ compares with the vector:
 - on the last-resort path: the replay identity and the single record entry, the
   refusal of a replay in each spelling and its acceptance by a store without the
   record, the refusal of a low-order copy, the acceptance of the torsion-spelled
-  repeat, and the refusal of the three wrappers an established session must
+  repeat, and the refusal of the four wrappers an established session must
   refuse, with the session object unchanged afterwards.
 
 ## What it does not derive

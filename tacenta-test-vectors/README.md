@@ -135,11 +135,14 @@ persisted result with the committed vector.
   non-contributory agreement. The initiator's second message arrives as
   `repeat_initial`; `torsion_repeat` is the same message with a torsion-spelled
   ephemeral and is accepted as a repeat, yielding `repeat_plaintext` and
-  `bob_session_after_repeat`. The established responder session refuses three
+  `bob_session_after_repeat`. The established responder session refuses four
   wrappers as `NotARepeatedInitial`, each leaving it unchanged:
   `low_order_repeat`; `unrelated_repeat`, whose ephemeral is the public key of
   the input `unrelated_ephemeral_secret` and is contributory but outside the
-  established agreement class; and `low_order_repeat` again against
+  established agreement class; `changed_identity_repeat`, whose identity is the
+  public key of the input `other_identity_secret`, another valid key, because
+  the identity must be the initiator's byte for byte; and `low_order_repeat`
+  again against
   `bob_session_low_order_established`, a session whose `established_ephemeral`
   has been replaced by the zero key (it imports), where the two ephemerals are
   byte-equal and both agreements are non-contributory. The message that

@@ -60,7 +60,7 @@ FIELDS = {
     "one-time-prekeys-first-message": COMMON_FIELDS | {"dh4"},
     "last-resort-first-message": COMMON_FIELDS | {
         "bob_session_low_order_established", "low_order_initial", "replay_identity",
-        "torsion_repeat", "unrelated_repeat"},
+        "changed_identity_repeat", "torsion_repeat", "unrelated_repeat"},
 }
 COMMON_INPUTS = {
     "alice_braid_keygen_d_z", "alice_ephemeral_secret", "alice_identity_secret",
@@ -73,7 +73,7 @@ INPUTS = {
     "one-time-prekeys-first-message": COMMON_INPUTS | {
         "bob_one_time_curve_secret", "bob_one_time_kem_d_z",
         "bob_one_time_kem_signature_nonce"},
-    "last-resort-first-message": COMMON_INPUTS | {"unrelated_ephemeral_secret"},
+    "last-resort-first-message": COMMON_INPUTS | {"other_identity_secret", "unrelated_ephemeral_secret"},
 }
 
 # Inputs this module never reads, so that changing one cannot change its
@@ -440,6 +440,15 @@ def check(v):
         unrelated_repeat = replace(repeat_message, ephemeral=wire.encode_ec(unrelated))
         _field(f, "unrelated_repeat", wire.encode_initial(unrelated_repeat))
         refused("an unrelated contributory ephemeral", responder, bx(f["unrelated_repeat"]))
+
+        # The identity must be the peer's, byte for byte: another valid key is
+        # not a repeat of the message that established the session.
+        other = curve25519.x25519_public(bx(i["other_identity_secret"]))
+        if other == alice_ik:
+            raise Mismatch("changed_identity_repeat: the other identity is the initiator's")
+        changed = replace(repeat_message, identity=wire.encode_ec(other))
+        _field(f, "changed_identity_repeat", wire.encode_initial(changed))
+        refused("an identity that is another key", responder, bx(f["changed_identity_repeat"]))
 
         # Not only the spelling the vector records. Every canonical spelling of
         # the initiator's ephemeral is the same agreement, so each replays the

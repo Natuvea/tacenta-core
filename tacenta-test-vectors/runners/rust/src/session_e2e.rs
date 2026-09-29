@@ -140,6 +140,7 @@ fn torsion_spellings(ephemeral: [u8; 32]) -> Vec<[u8; 32]> {
 /// An initial message is `version(1) || type(1) || EncodeEC(identity) ||
 /// EncodeEC(ephemeral) || ...` (message-format.md, Initial message), and
 /// `EncodeEC` is a curve byte and a 32-byte key.
+const IDENTITY_KEY: core::ops::Range<usize> = 3..35;
 const EPHEMERAL_KEY: core::ops::Range<usize> = 36..68;
 
 fn replace_at(message: &[u8], at: core::ops::Range<usize>, key: [u8; 32]) -> Vec<u8> {
@@ -728,6 +729,13 @@ fn observed(v: &Vector, flow: Flow) -> Result<BTreeMap<String, Vec<u8>>, String>
                 dh::PrivateKey::from_bytes(array32(&input(v, "unrelated_ephemeral_secret")?)?);
             let unrelated_repeat =
                 replace_ephemeral(&repeat_initial, *unrelated.public_key().as_bytes());
+            let other_identity =
+                dh::PrivateKey::from_bytes(array32(&input(v, "other_identity_secret")?)?);
+            let changed_identity_repeat = replace_at(
+                &repeat_initial,
+                IDENTITY_KEY,
+                *other_identity.public_key().as_bytes(),
+            );
             expect_not_a_repeat(
                 &mut bob_session,
                 "a low-order repeated initial",
@@ -739,6 +747,11 @@ fn observed(v: &Vector, flow: Flow) -> Result<BTreeMap<String, Vec<u8>>, String>
                 &unrelated_repeat,
             )?;
 
+            expect_not_a_repeat(
+                &mut bob_session,
+                "a repeated initial whose identity is another key",
+                &changed_identity_repeat,
+            )?;
             expect_no_plaintext(
                 v,
                 &mut bob_session,
@@ -822,6 +835,11 @@ fn observed(v: &Vector, flow: Flow) -> Result<BTreeMap<String, Vec<u8>>, String>
             put(&mut out, "torsion_repeat", &torsion_repeat);
             put(&mut out, "low_order_repeat", &low_order_repeat);
             put(&mut out, "unrelated_repeat", &unrelated_repeat);
+            put(
+                &mut out,
+                "changed_identity_repeat",
+                &changed_identity_repeat,
+            );
             put(&mut out, "repeat_plaintext", repeated_recovered);
             put(&mut out, "alice_session_after_first_send", &*alice_state);
             put(&mut out, "bob_session_after_receipt", &*bob_state);

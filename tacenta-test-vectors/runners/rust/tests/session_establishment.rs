@@ -96,7 +96,7 @@ fn session_end_to_end_runner_compares_every_field() {
             swept += 1;
         }
     }
-    assert_eq!(swept, 27 + 31, "fields swept");
+    assert_eq!(swept, 27 + 32, "fields swept");
     tacenta_vectors_rust::check_file(&file).expect("the restored vector passes");
 }
 
@@ -139,5 +139,5 @@ fn session_end_to_end_runner_depends_on_every_input() {
             swept += 1;
         }
     }
-    assert_eq!(swept, 17 + 15, "inputs swept");
+    assert_eq!(swept, 17 + 16, "inputs swept");
 }
