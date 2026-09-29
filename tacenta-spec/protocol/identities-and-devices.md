@@ -158,8 +158,9 @@ In this section "must" and "must not" state a requirement on the party named,
 and "is refused" means the decoder or verifier stops and returns a refusal. A
 refusal by an encoding rule is a decode failure, and a refusal by check 3
 below is an authentication failure (error-handling.md). The other checks
-refuse a statement that is well formed and authentic. A statement that breaks
-an encoding rule is refused before check 1, whether it arrived as bytes or was
+refuse a statement that decodes: checks 1 and 2 before its signature has been
+examined, checks 4 to 7 after it has verified. A statement that breaks an
+encoding rule is refused before check 1, whether it arrived as bytes or was
 built in memory.
 
 The unsigned preimage is the following concatenation, all integer fields in
