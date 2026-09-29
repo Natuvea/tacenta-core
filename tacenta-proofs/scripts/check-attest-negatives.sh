@@ -42,8 +42,11 @@ make_case() {
   fi
 }
 
+# The cases must give the same result on a developer's machine and on the CI
+# runner, where GITHUB_ACTIONS is set and the allowlist writer refuses to run;
+# only the case that tests that refusal sets it.
 attest() {
-  (cd "$work" && python3 tacenta-proofs/scripts/attest.py "$@" 2>&1)
+  (cd "$work" && env -u GITHUB_ACTIONS python3 tacenta-proofs/scripts/attest.py "$@" 2>&1)
 }
 
 expect_fail() {
@@ -90,7 +93,7 @@ record="tacenta-proofs/manifests/translation-attestation.json"
 
 # Run another script of this directory in the worktree; the same shape as attest.
 run_script() {
-  (cd "$work" && bash "tacenta-proofs/scripts/$1" 2>&1)
+  (cd "$work" && env -u GITHUB_ACTIONS bash "tacenta-proofs/scripts/$1" 2>&1)
 }
 
 expect_script_fail() {
