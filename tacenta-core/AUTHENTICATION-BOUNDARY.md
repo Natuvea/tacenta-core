@@ -128,10 +128,10 @@ what the boundary is about, even though there is nothing for them to corrupt.
 
 | function | how |
 |---|---|
-| `tacenta-core/lifecycle/src/lib.rs::verify_bundle` | verifies both prekey signatures under the bundle's identity key; returns `Result`, mutates nothing. |
-| `tacenta-core/lifecycle/src/lib.rs::verify_under_identity` | verifies a caller-supplied signature under a published identity key; pure. |
+| `tacenta-core/lifecycle/src/lib.rs::verify_bundle` | requires the bundle's identity key to be an identity key, then verifies both prekey signatures under it; returns `Result`, mutates nothing. |
+| `tacenta-core/lifecycle/src/lib.rs::verify_under_identity` | verifies a caller-supplied signature under a published identity key; a key that is not an identity key verifies nothing; pure. |
 | `tacenta-core/lifecycle/src/lib.rs::initiator_shared_secret` | verifies the bundle, then folds the Diffie-Hellman and encapsulated secrets into `SK`; returns the key, holds no state. Named to the gate explicitly because it carries no consuming verb. |
-| `tacenta-core/lifecycle/src/lib.rs::responder_shared_secret` | the responder's side of the same derivation, over keys that arrive in an unauthenticated initial message; pure. Named explicitly for the same reason. |
+| `tacenta-core/lifecycle/src/lib.rs::responder_shared_secret` | the responder's side of the same derivation, over keys that arrive in an unauthenticated initial message, after requiring the initiator's identity to be an identity key; pure. Named explicitly for the same reason. |
 
 ### Orchestration, persisted-state decoders
 

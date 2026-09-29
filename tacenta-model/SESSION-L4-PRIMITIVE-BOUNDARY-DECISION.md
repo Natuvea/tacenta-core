@@ -71,11 +71,27 @@ forty-eight bytes longer than the plaintext, which the framing headroom needs),
 Aeneas leaves opaque. `LIMITATIONS.md` and `UnitSatisfiabilitySession.lean`
 (`all_twelve_contracts_satisfiable`) carry the twelve.
 
+Note, 2026-09-29: the identity-key rule (identities-and-devices.md, Identity
+keys) makes the lifecycle call one more boundary operation,
+`tacenta_boundary.dh.is_prime_order_public`, from `verify_bundle` and
+`responder_shared_secret` and so from the establishment roots. It gets its own
+contract, `DhIdentityTotal` (the call returns for every key), a thirteenth, and
+this note reopens the cap and recuts it at thirteen. The contract is kept apart
+from `DhCodecTotal` so that the codec's joint witness and its projections do
+not change; its own witness (`dh_identity_satisfiable`) interprets the key type
+by itself, and the coverage theorem now carries thirteen names
+(`all_thirteen_contracts_satisfiable`, renamed from the twelve-name theorem
+above). Nothing in Lean says what the predicate computes: the contract is
+totality only. What it computes is stated by `Model.IdentityKey.valid`, written
+from the page, and pinned by the identity-key vectors and by the differential;
+the refinement contract binds the model's `identityValid` oracle to the
+translated `is_valid_identity_key`.
 The complete translation requires ten new primitive contracts. Existing KDF
 and unit-composition contracts are inherited and named separately; the one
 fixed-width RNG contract above replaces a generic new RNG assumption. More
-than twelve new session contracts requires this decision to be reopened and
-the boundary to be recut before proof work continues.
+than thirteen new session contracts requires this decision to be reopened and
+the boundary to be recut before proof work continues (twelve until the note of
+2026-09-29).
 
 ## Consequences and validation
 
@@ -86,7 +102,7 @@ the boundary to be recut before proof work continues.
   evidence.
 - The Phase 0 spike record records the reachable opaque-call inventory for the
   five proof roots. Adding a reachable primitive call without adding it to one
-  of the ten contracts is a review finding.
+  of the contracts is a review finding.
 - Reopen this decision if Charon traverses the boundary implementation, if a
   complete call cannot be represented by these functions, or if the
   assumption cap is exceeded.
