@@ -41,6 +41,6 @@
     { "id": "noncanonical-p-plus-1", "comment": "u = p + 1: not canonical", "result": "invalid", "refusal": "invalid-identity-key", "inputs": { "key": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f" } },
     { "id": "noncanonical-max", "comment": "all 256 bits set: not canonical", "result": "invalid", "refusal": "invalid-identity-key", "inputs": { "key": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" } },
     { "id": "noncanonical-honest-h1-bit255", "comment": "honest-h1 with bit 255 set: not canonical", "result": "invalid", "refusal": "invalid-identity-key", "inputs": { "key": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a289" } },
-    { "id": "noncanonical-alias-bit255", "comment": "a torsion translate with bit 255 set: not canonical", "result": "invalid", "refusal": "invalid-identity-key", "inputs": { "key": "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac7530cb" } }
+    { "id": "noncanonical-torsion-bit255", "comment": "a torsion translate with bit 255 set: not canonical", "result": "invalid", "refusal": "invalid-identity-key", "inputs": { "key": "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac7530cb" } }
   ]
 }

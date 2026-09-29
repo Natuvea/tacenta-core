@@ -2831,7 +2831,7 @@ def identityKeyRows : List IdentityKeyRow := [
       note := "all 256 bits set" },
     { name := "noncanonical-honest-h1-bit255", key := "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a289", cls := "noncanonical",
       note := "honest-h1 with bit 255 set" },
-    { name := "noncanonical-alias-bit255", key := "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac7530cb", cls := "noncanonical",
+    { name := "noncanonical-torsion-bit255", key := "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac7530cb", cls := "noncanonical",
       note := "a torsion translate with bit 255 set" }
   ]
 
