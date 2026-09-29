@@ -326,8 +326,6 @@ theorem establish_initiator_for_no_panic {R : Type}
   all_goals simp only [hopt]
   all_goals (try (step with is_canonical_key_no_panic hdh))
   all_goals (try split <;> try simp)
-  all_goals (step with is_valid_identity_key_no_panic hdh hid theirBundle.bundle.identity_key)
-  all_goals (split <;> try simp)
   all_goals (try (step with is_canonical_key_no_panic hdh))
   all_goals (try split <;> try simp)
   all_goals (try (step with is_canonical_key_no_panic hdh))
@@ -1086,7 +1084,6 @@ theorem message_key_material_deref_spec {z : zeroize.Zeroizing MessageKeyMateria
 structure DecryptRatchetContracts {R : Type}
     (rc : rand_core_1.RngCore R) : Prop where
   dhCodec : DhCodecTotal
-  dhIdentity : DhIdentityTotal
   dhAgree : DhAgreeTotal
   aeadOpen : AeadOpenTotal
   random32 : Random32Total rc
@@ -1314,6 +1311,7 @@ theorem decrypt_ratchet_no_panic {R : Type}
 structure EstablishResponderContracts {R : Type}
     (rngCore : rand_core_1.RngCore R) where
   decrypt : DecryptRatchetContracts rngCore
+  dhIdentity : DhIdentityTotal
   kemDecapsulate : KemDecapsulateTotal
   sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
   sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
@@ -1465,7 +1463,7 @@ theorem establish_responder_no_panic {R : Type}
         rcases kemValue with ⟨kemSlot, lastResort⟩
         simp only [copy_bool_eq]
         step with responder_curve_inputs_no_panic contracts.decrypt.dhCodec
-          contracts.decrypt.dhIdentity
+          contracts.dhIdentity
           decoded.identity.deref decoded.ephemeral.deref
         rename_i curveResult
         rcases curveResult with curveInputs | curveError
@@ -1496,12 +1494,12 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ss_post
               all_goals first
                 | step with responder_shared_secret_no_panic contracts.decrypt.dhCodec
-                    contracts.decrypt.dhIdentity
+                    contracts.dhIdentity
                     contracts.decrypt.dhAgree
                     contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
                     signed_prekey none initiatorIdentity initiatorEphemeral x
                 | step with responder_shared_secret_no_panic contracts.decrypt.dhCodec
-                    contracts.decrypt.dhIdentity
+                    contracts.dhIdentity
                     contracts.decrypt.dhAgree
                     contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
                     signed_prekey (some oneTimeKey) initiatorIdentity initiatorEphemeral x

@@ -239,10 +239,10 @@ theorem vec_pop_satisfiable : ∃ f : VecPopFn, VecPopShape f := by
 /-! ## Coverage
 
 This conjunction is intentionally repetitive.  It makes the module depend on
-all twelve named witnesses, so deleting one witness makes the kernel build fail
+all thirteen named witnesses, so deleting one witness makes the kernel build fail
 instead of silently reducing the recorded assumption coverage. -/
 
-theorem all_twelve_contracts_satisfiable :
+theorem all_thirteen_contracts_satisfiable :
     (∃ (D P : Type) (W : Type → Type)
       (privateFromBytes : DhPrivateFromBytesFn D)
       (publicKey : DhPublicFn D P)
@@ -252,6 +252,8 @@ theorem all_twelve_contracts_satisfiable :
       (eq : DhEqFn P),
       DhCodecShape D P W privateFromBytes publicKey privateToBytes
         publicFromBytes publicAsBytes eq) ∧
+    (∃ (P : Type) (isPrimeOrder : P → Result Bool),
+      DhIdentityShape isPrimeOrder) ∧
     (∃ (D P : Type) (f : DhAgreeFn D P), DhAgreeShape f) ∧
     (∃ f : AeadSealFn, AeadSealBoundedShape f) ∧
     (∃ f : AeadOpenFn, AeadOpenShape f) ∧
@@ -265,7 +267,7 @@ theorem all_twelve_contracts_satisfiable :
       (deref : MessageKeyMaterialDerefFn W),
       MessageKeyMaterialRoundTripShape W new deref) ∧
     (∃ f : VecPopFn, VecPopShape f) :=
-  ⟨dh_codec_satisfiable, dh_agree_satisfiable,
+  ⟨dh_codec_satisfiable, dh_identity_satisfiable, dh_agree_satisfiable,
     aead_seal_bounded_satisfiable, aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
     xeddsa_verify_satisfiable, xeddsa_sign_satisfiable,
