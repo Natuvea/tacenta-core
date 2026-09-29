@@ -34,10 +34,16 @@ structure Oracle where
   braidKem : Model.Braid.Kem
   dhPublic : Key → Key
   dhAgree : Key → Key → Option Key
-  /-- Whether a raw identity public-key byte string satisfies the stricter
-      identity admission rule.  This is separate from canonical decoding:
-      identity keys are long-lived names and must also be in the prime-order
-      subgroup. -/
+  /-- The admission rule for an identity key beyond canonical decoding
+      (identities-and-devices.md, "Accepting a signed statement", check 6).
+      The model evaluates it only on keys that passed canonical decoding, after
+      that check. The refinement contract binds it to the translated Rust
+      `is_valid_identity_key`, which also contains the canonical test, so the
+      two agree on every key the model evaluates it on.
+      `Model.IdentityKey.valid` states the same rule as an executable function.
+      No theorem here assumes that an oracle agrees with it, because the
+      theorems quantify over every oracle; its verdicts are pinned by the
+      identity-key vectors, which the runner checks `tacenta-core` against. -/
   identityValid : Key → Bool
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
   aeadOpen : Key → Key → Iv → Bytes → Bytes → Option Bytes
@@ -243,9 +249,9 @@ inductive TripleRefusal where
   deriving Repr, DecidableEq, Inhabited
 
 inductive HandshakeRefusal where
-  | invalidIdentityKey
   | badSignedPrekeySignature | badKemPrekeySignature
   | nonContributoryAgreement
+  | invalidIdentityKey
   deriving Repr, DecidableEq, Inhabited
 
 abbrev DecodeRefusal := Model.Messages.DecodeRefusal
@@ -575,12 +581,12 @@ def establishInitiator (oracle : Oracle) (identity : Identity) (bundle : Bundle)
     { result := .error .unexpectedIdentity, oracle }
   else if bundle.oneTimePrekey.isSome != (bundle.oneTimeId != absentId) then
     { result := .error .inconsistentBundle, oracle }
-  else if !oracle.identityValid bundle.identityKey then
-    { result := .error (.handshake .invalidIdentityKey), oracle }
   else if !(Model.Messages.canonicalKey bundle.identityKey)
       || !(Model.Messages.canonicalKey bundle.signedPrekey)
       || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey) then
     { result := .error .badEncoding, oracle }
+  else if !oracle.identityValid bundle.identityKey then
+    { result := .error (.handshake .invalidIdentityKey), oracle }
   else if !(oracle.sigVerify bundle.identityKey
       (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
       bundle.signedPrekeySig) then
@@ -667,13 +673,13 @@ theorem establishInitiator_presence_mismatch (oracle : Oracle) (identity : Ident
       { result := .error .inconsistentBundle, oracle } := by
   simp [establishInitiator, hi, hp]
 
-/-- A bundle with any non-canonical curve key is rejected before signatures,
-    draws or agreement. -/
+/-- A bundle with any non-canonical curve key is rejected as a bad encoding
+    before the identity-key rule is consulted and before signatures, draws or
+    agreement. -/
 theorem establishInitiator_noncanonical (oracle : Oracle) (identity : Identity)
     (bundle : Bundle) (expectedIdentity : Key)
     (hi : bundle.identityKey = expectedIdentity)
     (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
-    (hv : oracle.identityValid bundle.identityKey = true)
     (hc : (!(Model.Messages.canonicalKey bundle.identityKey)
       || !(Model.Messages.canonicalKey bundle.signedPrekey)
       || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey)) = true) :
@@ -681,6 +687,22 @@ theorem establishInitiator_noncanonical (oracle : Oracle) (identity : Identity)
       { result := .error .badEncoding, oracle } := by
   subst expectedIdentity
   grind [establishInitiator]
+
+/-- A bundle whose curve keys are canonical and whose identity key the oracle
+    refuses is rejected as an invalid identity key, before signatures, draws
+    or agreement, leaving the oracle unchanged. -/
+theorem establishInitiator_invalid_identity (oracle : Oracle) (identity : Identity)
+    (bundle : Bundle) (expectedIdentity : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hv : oracle.identityValid bundle.identityKey = false) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error (.handshake .invalidIdentityKey), oracle } := by
+  subst expectedIdentity
+  simp [establishInitiator, hp, hc, hs, ho, hv]
 
 /-- A failed signed-prekey signature is rejected before any random draw or
     agreement. -/
@@ -1627,6 +1649,9 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
               -- one-time identifier is refused as `unknownPrekeyId`, not `kem`.
               let initiatorIdentity := initial.identity.drop 1
               let initiatorEphemeral := initial.ephemeral.drop 1
+              -- The decoder has accepted the identity as a canonical key. The
+              -- identity-key rule is applied to it here, after the
+              -- signed-prekey and KEM lookups and before the one-time lookup.
               if !oracle.identityValid initiatorIdentity then
                 .error (.handshake .invalidIdentityKey)
               else match responderOneTimeSecret store initial.oneTimeId.toNat with
@@ -1677,6 +1702,25 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
                                             kemId := initial.kemPrekeyId.toNat
                                             lastResort
                                             fingerprint }
+
+/-- An initial message whose decoded identity the oracle refuses is rejected as
+    an invalid identity key once the signed-prekey and KEM lookups have
+    succeeded, before the one-time lookup, any decapsulation or agreement. -/
+theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (initial : Model.Messages.Initial) (signedSecret : Key) (kemPair : Bytes)
+    (lastResort : Bool)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = false) :
+    prepareResponder oracle identity store initialMessage =
+      .error (.handshake .invalidIdentityKey) := by
+  -- `simp` writes `drop 1` as `tail`, so give it the hypothesis in that form.
+  have hv' : oracle.identityValid initial.identity.tail = false := by simpa using hv
+  simp [prepareResponder, hd, hs, hk, hv']
 
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
@@ -1926,6 +1970,62 @@ example :
                     && responded.store.state.kemOneTime.isEmpty
                     && responded.store.state.seen.isEmpty) = true := by
   native_decide
+
+/-- The toy oracle with an identity-key rule that refuses one key and accepts
+    every other: not `toyOracle`'s accept-all, and not a refuse-all either. -/
+def refuseIdentityOracle (refused : Key) (draws : List Key) : Oracle :=
+  { toyOracle draws with identityValid := fun key => key != refused }
+
+/-- An initial message from `toyAliceIdentity` to the toy responder store's
+    signed prekey (1) and KEM prekey (2), naming the one-time prekey `oneTimeId`.
+    The ratchet message and the KEM ciphertext are empty: the responder is
+    refused before either is read. -/
+def toyInitialMessage (oneTimeId : Nat) : Bytes :=
+  Model.Messages.encodeInitial
+    (Model.PersistedState.SessionState.encodeEc toyAliceIdentity.publicKey)
+    (Model.PersistedState.SessionState.encodeEc (List.replicate 32 0x33))
+    [] (UInt32.ofNat 1) (UInt32.ofNat oneTimeId) (UInt32.ofNat 2) []
+
+/-- The initiator refuses a bundle whose identity key the oracle refuses, as an
+    invalid identity key and with the oracle untouched; the same oracle accepts
+    another key, so the refusal is the rule's and not a blanket one. -/
+example :
+    let refused := establishInitiator
+      (refuseIdentityOracle toyBobIdentity.publicKey [toyAgreementDraw])
+      toyAliceIdentity toyBundle toyBobIdentity.publicKey
+    (match refused.result with
+      | .error reason => reason == .handshake .invalidIdentityKey
+      | .ok _ => false) = true
+      ∧ refused.oracle.draws = [toyAgreementDraw]
+      ∧ (refuseIdentityOracle toyBobIdentity.publicKey []).identityValid
+          toyAliceIdentity.publicKey = true := by
+  decide +kernel
+
+/-- A non-canonical curve key is a bad encoding whatever the oracle says of the
+    identity key: the canonical check comes first. -/
+example :
+    let bundle := { toyBundle with signedPrekey := List.replicate 32 0xff }
+    (match (establishInitiator
+        (refuseIdentityOracle toyBobIdentity.publicKey [toyAgreementDraw])
+        toyAliceIdentity bundle toyBobIdentity.publicKey).result with
+      | .error reason => reason == .badEncoding
+      | .ok _ => false) = true := by
+  decide +kernel
+
+/-- The responder refuses an initial message whose identity the oracle refuses,
+    as an invalid identity key. The check comes before the one-time lookup, so
+    an unknown one-time prekey does not change the answer; under the accept-all
+    toy oracle the same message is refused for the unknown prekey. -/
+example :
+    (match prepareResponder (refuseIdentityOracle toyAliceIdentity.publicKey [])
+        toyBobIdentity toyResponderStore (toyInitialMessage 99) with
+      | .error reason => reason == .handshake .invalidIdentityKey
+      | .ok _ => false) = true
+      ∧ (match prepareResponder (toyOracle []) toyBobIdentity toyResponderStore
+        (toyInitialMessage 99) with
+      | .error reason => reason == .unknownPrekeyId
+      | .ok _ => false) = true := by
+  decide +kernel
 
 end Examples
 
