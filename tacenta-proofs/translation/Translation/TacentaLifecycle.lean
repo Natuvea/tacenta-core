@@ -877,14 +877,14 @@ axiom tacenta_session.decode_ec
   : Slice Std.U8 → Result (Option (Array Std.U8 32#usize))
 
 /-- [tacenta_spqr::MAX_SKIPPED_STORE]
-    Source: 'spqr/src/lib.rs', lines 58:0-58:34
+    Source: 'spqr/src/lib.rs', lines 170:0-170:34
     Name pattern: [tacenta_spqr::MAX_SKIPPED_STORE]
     Visibility: public -/
 @[rust_const "tacenta_spqr::MAX_SKIPPED_STORE"]
 axiom tacenta_spqr.MAX_SKIPPED_STORE : Result Std.Usize
 
 /-- [tacenta_spqr::Output]
-    Source: 'spqr/src/lib.rs', lines 87:0-87:17
+    Source: 'spqr/src/lib.rs', lines 199:0-199:17
     Name pattern: [tacenta_spqr::Output]
     Visibility: public -/
 @[rust_type "tacenta_spqr::Output"]
@@ -893,7 +893,7 @@ structure tacenta_spqr.Output where
   key : Array Std.U8 32#usize
 
 /-- [tacenta_spqr::{tacenta_spqr::Output}::new]:
-    Source: 'spqr/src/lib.rs', lines 94:4-94:50
+    Source: 'spqr/src/lib.rs', lines 206:4-206:50
     Name pattern: [tacenta_spqr::{tacenta_spqr::Output}::new]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::Output}::new"]
@@ -901,7 +901,7 @@ axiom tacenta_spqr.Output.new
   : Std.U64 → Array Std.U8 32#usize → Result tacenta_spqr.Output
 
 /-- [tacenta_spqr::Direction]
-    Source: 'spqr/src/lib.rs', lines 101:0-101:18
+    Source: 'spqr/src/lib.rs', lines 213:0-213:18
     Name pattern: [tacenta_spqr::Direction]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_spqr::Direction"]
@@ -910,7 +910,7 @@ inductive tacenta_spqr.Direction where
 | B2a : tacenta_spqr.Direction
 
 /-- [tacenta_spqr::{impl core::cmp::PartialEq<tacenta_spqr::Direction> for tacenta_spqr::Direction}::eq]:
-    Source: 'spqr/src/lib.rs', lines 100:22-100:31
+    Source: 'spqr/src/lib.rs', lines 212:22-212:31
     Name pattern: [tacenta_spqr::{core::cmp::PartialEq<tacenta_spqr::Direction, tacenta_spqr::Direction>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -919,7 +919,7 @@ axiom tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection.eq
   : tacenta_spqr.Direction → tacenta_spqr.Direction → Result Bool
 
 /-- [tacenta_spqr::SpqrError]
-    Source: 'spqr/src/lib.rs', lines 114:0-114:18
+    Source: 'spqr/src/lib.rs', lines 226:0-226:18
     Name pattern: [tacenta_spqr::SpqrError]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_spqr::SpqrError"]

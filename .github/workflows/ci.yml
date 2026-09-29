@@ -87,6 +87,12 @@ jobs:
         run: cargo test --locked --workspace
         env:
           PROPTEST_CASES: 2048
+      # The SPQR follow-up has a semantic allocator-spy regression through the
+      # public Session API. Keep it feature-gated so the review instrumentation
+      # is never part of the normal library surface, but run it in CI so a
+      # skipped feature cannot make the evidence vacuous.
+      - name: SPQR erasure regression through Session
+        run: cargo test --locked --features private-erasure-review --test spqr_erasure_public -- --test-threads=1
       # The two hand-written constant-time functions, read in the release
       # assembly for the runner's own x86_64 and for aarch64: any conditional
       # branch beyond `mac_eq`'s public length compare fails, as does a symbol
