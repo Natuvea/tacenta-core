@@ -5,17 +5,24 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-- `identities-and-devices.md`: state what a verifier must check before it
-  relies on a signed hosted-inventory statement (account match, issuer
-  binding, signature, freshness, duplicate active `device_id`, canonical and
-  non-low-order identity keys, then its own binding and statement policy), in
-  that order, and what the format deliberately leaves unchecked: the chain of
-  custody of a `replacement_predecessor`, key uniqueness and reactivation,
-  off-curve and mixed-torsion keys, and equivocation. It also states that a
-  verifier must not refuse a statement solely because a replacement's named
-  predecessor is absent from `revoked`. The one-owner rule for duplicate
-  `device_id` values replaces the earlier statement that the product must
-  reject them. The encoding and the signature input are unchanged.
+- `identities-and-devices.md`, hosted device-inventory statements: state what a
+  verifier must check before it relies on a signed statement, as seven ordered
+  checks (account match, issuer binding, signature, freshness, duplicate active
+  `device_id`, identity keys, then its own binding and statement policy), and
+  what the format leaves unchecked: the chain of custody of a
+  `replacement_predecessor`, key uniqueness and reactivation, and equivocation.
+  Check 6 requires each identity key to be canonical and a point of the
+  prime-order subgroup, which refuses low-order, off-curve and mixed-torsion
+  keys, so each key has one spelling and a policy can compare identity keys as
+  bytes. The section also states the sort order of both lists (strictly
+  ascending byte order of the encodings), what an exact binding is, that a
+  predecessor tag other than 0 or 1 is refused, that a binding without a valid
+  capability word has no commitment, the order in which the binding and
+  statement policies run, and that a verifier records a generation as seen only
+  after acceptance. It restores, as the issuer's duty, the earlier statement
+  that keys are checked before signing. Check 5 replaces the earlier statement
+  that the product must reject duplicate `device_id` values. The encoding and
+  the signature input are unchanged.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
