@@ -76,7 +76,7 @@ theorem braid_kdf_contracts_of_session
 
 /-! ## Primitive oracle agreement
 
-The lifecycle model has nine primitive functions.  Each clause below names
+The lifecycle model has ten primitive functions.  Each clause below names
 the complete translated argument list.  Randomness is one ordered trace:
 `random_secret`, KEM encapsulation and signing must each consume exactly its
 head and return a state interpreted by the tail. -/
@@ -117,7 +117,7 @@ def encapsulationOf :
       Option (Bytes × Model.Lifecycle.Key) :=
   resultOptionOf (fun value => (vecOf value.1, arrayOf value.2))
 
-/-- Agreement between all nine translated primitive calls and one executable
+/-- Agreement between all ten translated primitive calls and one executable
 model oracle.  `trace` interprets the threaded RNG state; the three random
 clauses make call order observable rather than allowing a fresh existential
 draw at each call. -/
