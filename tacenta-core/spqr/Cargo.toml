@@ -7,6 +7,11 @@ rust-version = "1.87"
 description = "The Sparse Post-Quantum Ratchet: a key schedule over epochs a sparse continuous key agreement supplies."
 publish = false
 
+[features]
+# Private diagnostic instrumentation for the allocator/compaction regression.
+# It is disabled in normal and release builds and is not part of translation.
+private-erasure-review = []
+
 # The verified zone, alone in its own crate for the same reason the Double
 # Ratchet is: T1 translates this and nothing else, so orchestration cannot drag
 # constructs Aeneas does not model into the translation. The agreement beneath

@@ -817,11 +817,11 @@ fn skipped_replacement_allocates_its_final_capacity() {
     assert_eq!(b.skipped.capacity(), 4);
 }
 
-/// The custom removal path preserves order and the source guard pins the
-/// security-relevant wipe-before-pop sequence. Replacing it with
-/// `Vec::remove` keeps the functional assertions green but fails this guard.
+/// The custom removal path preserves order. The security-sensitive wipe is
+/// covered by the public allocator-spy tests in `tests/spqr_erasure_public.rs`;
+/// this unit test stays functional and does not inspect source text.
 #[test]
-fn skipped_removal_wipes_before_shortening() {
+fn skipped_removal_preserves_order() {
     let mut skipped = vec![
         Skipped {
             epoch: 0,
@@ -842,15 +842,6 @@ fn skipped_removal_wipes_before_shortening() {
     let key = State::remove_skipped_at(&mut skipped, 1);
     assert_eq!(key, [0x22; 32]);
     assert_eq!(skipped.iter().map(|s| s.n).collect::<Vec<_>>(), [1, 3]);
-
-    let source = include_str!("lib.rs");
-    let start = source.find("fn remove_skipped_at(").expect("helper exists");
-    let body = &source[start..];
-    let end = body.find("\n    }\n").expect("helper ends");
-    let body = &body[..end];
-    assert!(body.contains("skipped[i].zeroize();"));
-    assert!(body.contains("skipped.pop()"));
-    assert!(!body.contains("skipped.remove("));
 }
 
 #[test]

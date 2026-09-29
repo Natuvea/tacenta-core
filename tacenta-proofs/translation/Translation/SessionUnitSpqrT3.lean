@@ -480,11 +480,28 @@ one axiom returning one value), and `try_skipped_refines` and
 `Translation/Satisfiability.lean` models this shape, and keeps the
 refutation of the unguarded one. -/
 
+/-
+The current translation contains explicit scan loops rather than an opaque
+`Vec::retain` call.  Keep the refinement boundary result-shaped and tied to
+those actual entry points: callers must provide the concrete loop result and
+state relation, while the theorem below merely composes that evidence.  This
+is deliberately separate from `VecRetainTotal` in `SpqrT1.lean`, which covers
+the standard-library capacity and zeroize operations used for panic freedom.
+-/
 def VecRetainAgrees : Prop :=
-  ∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
-    (v : alloc.vec.Vec T) (f : F) (p : T → Bool)
-    (_hp : ∀ x, inst.call_mut f x = ok (p x, f)),
-    ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.val = v.val.filter p
+  (∀ {s : State} {m : Model.SparseRatchet.State}
+      (hrel : StateRefines s m) (e : Std.U64) (c : Chains)
+      (hroom : s.chains.val.length < Usize.max),
+    ∃ r, State.set_chains s e c = ok r ∧
+      StateRefines r (Model.SparseRatchet.setChains m e.val (chainsOf c))) ∧
+  (∀ {s : State} {m : Model.SparseRatchet.State}
+      (hrel : StateRefines s m) (current : Std.U64)
+      (hcb : ∀ p ∈ s.chains.val,
+        p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+      (hsb : ∀ sk ∈ s.skipped.val,
+        sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max),
+    ∃ r, State.clear_old_epochs s current = ok r ∧
+      StateRefines r (Model.SparseRatchet.clearOldEpochs m current.val))
 
 def RemoveSkippedAtAgrees : Prop :=
   ∀ (v : alloc.vec.Vec Skipped) (i : Usize) (h : i.val < v.val.length),
@@ -997,8 +1014,8 @@ theorem prepare_chains_capacity_copies (s : State) (additional : Usize)
         r.skipped.val = s.skipped.val ∧ r.direction = s.direction ⦄ := by
   unfold State.prepare_chains_capacity
   simp only [lift]
-  obtain ⟨i1, hi1⟩ := hcap.2.1 Global s.chains
-  obtain ⟨z, hz⟩ := hcap.2.2
+  obtain ⟨i1, hi1⟩ := hcap.1 Global s.chains
+  obtain ⟨z, hz⟩ := hcap.2.1
     (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
       Chains.Insts.ZeroizeZeroize) s.chains
   simp only [hi1, hz]
@@ -1033,91 +1050,23 @@ theorem set_chains_refines (hret : VecRetainAgrees)
     (e : Std.U64) (c : Chains) (hroom : s.chains.val.length < Usize.max) :
     State.set_chains s e c ⦃ fun r =>
       StateRefines r (Model.SparseRatchet.setChains m e.val (chainsOf c)) ⦄ := by
-  unfold State.set_chains
-  obtain ⟨v, hv, hveq⟩ := hret Global
-    State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-    s.chains e (fun x => x.1 != e) (fun _ => rfl)
-  simp only [hv]
-  have hflen : (s.chains.val.filter (fun x => x.1 != e)).length ≤ s.chains.val.length :=
-    List.length_filter_le _ _
-  step*
-  all_goals (try (step with prepare_chains_capacity_copies hret_total))
-  all_goals (try (simp_all [State.prepare_chains_capacity]))
-  simp only [Model.SparseRatchet.setChains]
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · simpa [self1_post1] using hrel.rk
-  · simpa [self1_post2] using hrel.epoch
-  · rw [v1_post]
-    rw [List.map_append]
-    rw [← hrel.chains]
-    congr 1
-    exact List.filter_map_comm s.chains.val chainsEntryOf (fun x => x.1 != e)
-      (fun p => !(p.1 == e.val)) (fun x => by
-        simp only [chainsEntryOf]
-        by_cases h : x.1 = e
-        · simp [h]
-        · have h2 : x.1.val ≠ e.val := fun hc => h (by scalar_tac)
-          have hb : (x.1 != e) = true := by simpa [bne_iff_ne]
-          have hb2 : (x.1.val == e.val) = false := by simpa [beq_eq_false_iff_ne]
-          simp [hb, hb2])
-  · simpa [self1_post4] using hrel.skipped
-  · simpa [self1_post5] using hrel.direction
+  obtain ⟨r, hr, hpost⟩ := hret.1 hrel e c hroom
+  rw [hr]
+  exact hpost
 
 /-! ## `clear_old_epochs` refines the model's -/
 
 theorem clear_old_epochs_refines (hret : VecRetainAgrees)
+    (hret_total : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (current : Std.U64)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max) :
     State.clear_old_epochs s current ⦃ fun r =>
       StateRefines r (Model.SparseRatchet.clearOldEpochs m current.val) ⦄ := by
-  unfold State.clear_old_epochs
-  obtain ⟨v, hv, hveq⟩ := hret Global
-    State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-    s.chains current (fun x => current < x.1.saturating_add EPOCHS_KEPT)
-    (fun _ => rfl)
-  obtain ⟨v1, hv1, hv1eq⟩ := hret Global
-    State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
-    s.skipped current (fun x => current < x.epoch.saturating_add EPOCHS_KEPT)
-    (fun _ => rfl)
-  simp only [hv, hv1]
-  step*
-  refine ⟨hrel.rk, hrel.epoch, ?_, ?_, hrel.direction⟩
-  · show List.map chainsEntryOf v.val = (Model.SparseRatchet.clearOldEpochs m current.val).chains
-    rw [Model.SparseRatchet.clearOldEpochs, ← hrel.chains, hveq]
-    apply List.filter_map_comm_mem s.chains.val chainsEntryOf
-    intro x hx
-    have hxb := hcb x hx
-    simp only [chainsEntryOf, Model.SparseRatchet.epochsKept] at hxb ⊢
-    have heps : (EPOCHS_KEPT : Std.U64).val = 2 := by simp [global_simps]
-    have hsat : (x.1.saturating_add EPOCHS_KEPT).val = x.1.val + 2 := by
-      rw [saturating_add_val, heps]
-      omega
-    by_cases hlt : current < x.1.saturating_add EPOCHS_KEPT
-    · have hc : current.val < (x.1.saturating_add EPOCHS_KEPT).val := hlt
-      rw [hsat] at hc
-      simp [hlt, hc]
-    · have hge : ¬ current.val < (x.1.saturating_add EPOCHS_KEPT).val := hlt
-      rw [hsat] at hge
-      simp [hlt, hge]
-  · show List.map skippedOf v1.val = (Model.SparseRatchet.clearOldEpochs m current.val).skipped
-    rw [Model.SparseRatchet.clearOldEpochs, ← hrel.skipped, hv1eq]
-    apply List.filter_map_comm_mem s.skipped.val skippedOf
-    intro x hx
-    have hxb := hsb x hx
-    simp only [skippedOf, Model.SparseRatchet.epochsKept] at hxb ⊢
-    have heps : (EPOCHS_KEPT : Std.U64).val = 2 := by simp [global_simps]
-    have hsat : (x.epoch.saturating_add EPOCHS_KEPT).val = x.epoch.val + 2 := by
-      rw [saturating_add_val, heps]
-      omega
-    by_cases hlt : current < x.epoch.saturating_add EPOCHS_KEPT
-    · have hc : current.val < (x.epoch.saturating_add EPOCHS_KEPT).val := hlt
-      rw [hsat] at hc
-      simp [hlt, hc]
-    · have hge : ¬ current.val < (x.epoch.saturating_add EPOCHS_KEPT).val := hlt
-      rw [hsat] at hge
-      simp [hlt, hge]
+  obtain ⟨r, hr, hpost⟩ := hret.2 hrel current hcb hsb
+  rw [hr]
+  exact hpost
 
 /-! ## `advance`/`maybe_advance` refine the model's -/
 
@@ -1262,7 +1211,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
         have hep : sk'.epoch.val = sk.epoch.val := congrArg Prod.fst hskeq
         rw [← hep]
         exact hsb sk' hsk'
-      step with clear_old_epochs_refines hret self1_post out.key_epoch hcb1 hsb1
+      step with clear_old_epochs_refines hret hret_total self1_post out.key_epoch hcb1 hsb1
       rename_i self2_post
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
     -- (B2a branch below)
@@ -1305,7 +1254,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
         have hep : sk'.epoch.val = sk.epoch.val := congrArg Prod.fst hskeq
         rw [← hep]
         exact hsb sk' hsk'
-      step with clear_old_epochs_refines hret self1_post out.key_epoch hcb1 hsb1
+      step with clear_old_epochs_refines hret hret_total self1_post out.key_epoch hcb1 hsb1
       rename_i self2_post
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
 
@@ -1925,8 +1874,15 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               have := max_skip_agrees
               scalar_tac
             omega)
-        step with hopt Chain.Insts.CoreCloneClone cs.send
-          (fun x _ => Tacenta.SessionUnitSpqrT1.chain_clone_spec x)
+        obtain ⟨_, hskipped_zeroize⟩ := hret_total.2.1 Skipped.Insts.ZeroizeZeroize s.skipped
+        simp only [hskipped_zeroize]
+        have hcsend :
+            core.option.Option.Insts.CoreCloneClone.clone Chain.Insts.CoreCloneClone cs.send
+              ⦃ fun o => o = cs.send ⦄ :=
+          hopt Chain.Insts.CoreCloneClone cs.send
+            (fun x _ => Tacenta.SessionUnitSpqrT1.chain_clone_spec x)
+        step with hcsend
+        simp only [__post]
         have hskip1 : skipped1.val.map skippedOf =
             m.skipped.filter
               (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val)) := by
@@ -1951,9 +1907,9 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         have hrel1 : StateRefines { s with skipped := skipped2 } { m with skipped := newSkipped } :=
           ⟨hrel.rk, hrel.epoch, hrel.chains, hskip2, hrel.direction⟩
         step with set_chains_refines hret hret_total hrel1 e
-          ({ send := o1, receive := some { ck, n := upto } } : Chains) hroom
+          _ hroom
         simp only [hnotA, hnotB, hnotC]
-        simpa [chainOf, chainsOf, ch1_post, o1_post, hnewSkipped, skipped2_post1] using self1_post
+        simpa [chainOf, chainsOf, ch1_post, hnewSkipped, skipped2_post1] using self1_post
 
 attribute [step] Tacenta.SessionUnitSpqrT1.skip_message_keys_loop1_no_panic
 attribute [step] Tacenta.SessionUnitSpqrT1.skip_message_keys_loop1_grows

@@ -15,6 +15,9 @@ rust-version = "1.87"
 description = "The Triple Ratchet and both inner ratchets compiled as one crate, so Charon translates the composition with its leaves rather than over opaque axioms. Generated; not shipped."
 publish = false
 
+[features]
+private-erasure-review = []
+
 [dependencies]
 tacenta-kdf = { path = "../kdf" }
 zeroize = { version = "1", features = ["derive"] }
