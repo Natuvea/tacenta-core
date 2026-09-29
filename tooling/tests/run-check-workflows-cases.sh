@@ -161,7 +161,10 @@ fi
 # and stops if that is gone. The unchanged copy, after the same round trip
 # through the parser, must be accepted: otherwise a refusal below could be the
 # round trip and not the change.
-real_total="$(python3 - "$root" "$work" "$checker" <<'PY'
+# The program is written to a file and run, rather than read from a heredoc
+# inside $( ): a shell that scans a command substitution as shell text (bash
+# 3.2 does) would pair the quotes in it.
+cat > "$work/real-tree-cases.py" <<'PY'
 import copy, os, pathlib, shutil, subprocess, sys
 import yaml
 
@@ -240,6 +243,14 @@ def m24(w): w["jobs"]["proofs"]["runs-on"] = "ubuntu-latest"; w["jobs"]["proofs"
 def a01(action): action["runs"]["steps"][0]["run"] = action["runs"]["steps"][0]["run"].replace("python3 -I", "python3")
 def a02(action): action["runs"]["steps"][0]["env"]["RECEIPT_ID"] = "fixed"
 
+# Changes that must be accepted: a step's `name:` is a label, and is not part
+# of the expected form.
+def l01(w): step(w, "rust", "rust_fmt")["name"] = "Check formatting"
+def l02(w): w["jobs"]["rust"]["steps"][0]["name"] = "Check the sources out"
+def l03(action): action["runs"]["steps"][0]["name"] = "Write the receipt"
+
+accepted = [("workflow-label-01", l01, False), ("workflow-label-02", l02, False), ("action-label-01", l03, True)]
+
 cases = [("workflow-form-%02d" % i, fn) for i, fn in enumerate(
     [m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, m21, m22, m23, m24], 1)]
 cases += [("action-form-%02d" % i, fn) for i, fn in enumerate([a01, a02], 1)]
@@ -268,6 +279,11 @@ def check(repo):
 
 
 wrong = 0
+for name, change, is_action in accepted:
+    rc, out = check(build(name, change, is_action))
+    if rc != 0:
+        print("WRONG  real-tree %s: a relabelled step was refused:\n%s" % (name, out), file=sys.stderr)
+        wrong += 1
 rc, out = check(build("control", None, False))
 if rc != 0:
     print("WRONG  real-tree control: the unchanged workflow was refused:\n" + out, file=sys.stderr)
@@ -283,8 +299,11 @@ for name, change in cases:
         wrong += 1
 if wrong:
     sys.exit(1)
-print(len(cases))
+print(len(cases) + len(accepted))
 PY
-)" || { echo "check-workflows-cases: the real-tree cases gave the wrong result" >&2; exit 1; }
+real_total="$(python3 "$work/real-tree-cases.py" "$root" "$work" "$checker")" || {
+  echo "check-workflows-cases: the changes to the repository's own workflow gave the wrong result" >&2
+  exit 1
+}
 
-echo "check-workflows-cases: $total file cases, $real_total real-tree changes and the empty-tree refusal gave the expected result"
+echo "check-workflows-cases: $total file cases, $real_total changes to the repository's own workflow and the empty-tree refusal gave the expected result"
