@@ -11,11 +11,17 @@ by itself. Someone who can push to the repository, or who runs a mirror, can
 publish a different key here. Before you trust a fingerprint below, compare it
 with a source outside this repository tree.
 
-As of 2026-09-29 the only such public source is GitHub's key listing for the
-maintainer account, <https://github.com/will-natuvea.keys>, which lists the
-same key as an *authentication* key. GitHub shows these tags as "Unverified"
-because the key is not registered as a signing key. That badge is expected and
+Public sources outside the tree are GitHub's key listing for the maintainer
+account, <https://github.com/will-natuvea.keys>, which lists the same key as an
+*authentication* key, and, once the key is registered as a signing key,
+<https://api.github.com/users/will-natuvea/ssh_signing_keys>. Until the key is
+registered as a signing key, GitHub shows these tags as "Unverified". That badge
 does not mean the signature is bad.
+
+Tags named `tacenta-assurance-*` and `tacenta-spec-*` are covered by a
+repository ruleset that blocks deleting or updating them. Anyone can read it at
+<https://api.github.com/repos/Natuvea/tacenta-core/rulesets>. The name check
+below still applies, because a ruleset is a setting and this file is a copy.
 
 ## Maintainer key
 
