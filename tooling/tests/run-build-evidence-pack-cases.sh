@@ -169,6 +169,16 @@ cp -R "$work/pass-push" "$work/deleted"
 rm "$work/deleted/source/ASSURANCE.md"
 expect_fail deleted 'pack digest mismatch: source/ASSURANCE.md' "$work/deleted"
 
+cp -R "$work/pass-push" "$work/tampered-same-size"
+python3 - "$work/tampered-same-size/source/ASSURANCE.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = bytearray(path.read_bytes())
+data[-2] = ord("X") if data[-2] != ord("X") else ord("Y")
+path.write_bytes(bytes(data))
+PY
+expect_fail tampered-same-size 'pack digest mismatch: source/ASSURANCE.md' "$work/tampered-same-size"
+
 refuse escape 'invalid pack file path: ../source/evidence.txt' push "d['entries'] = lambda e: e[0].update(path='../source/evidence.txt')"
 refuse absolute-path 'invalid pack file path: /etc/hosts' push "d['entries'] = lambda e: e[0].update(path='/etc/hosts')"
 refuse repeated-path 'invalid pack file path: source/ASSURANCE-OBLIGATIONS.md' push "d['entries'] = lambda e: e.append(dict(e[0]))"
@@ -200,6 +210,7 @@ expect_fail array-manifest 'must be an object' "$work/array-manifest"
 refuse missing-manifest-document 'pack is missing required evidence documents: assurance-manifest.json' push "d['skip_documents'] = ['assurance-manifest.json']"
 refuse missing-receipts-document 'pack is missing required evidence documents: assurance-receipts.json' push "d['skip_documents'] = ['assurance-receipts.json']"
 refuse missing-source 'pack is missing required source evidence: source/tacenta-proofs/CLAIMS.md' push "d['skip_sources'] = ['tacenta-proofs/CLAIMS.md']"
+refuse missing-manifest-source 'pack is missing required source evidence: source/GAP-REGISTER.md' push "d['skip_sources'] = ['GAP-REGISTER.md']"
 refuse missing-step-list 'pack is missing required source evidence: source/tooling/required-steps.json' push "d['skip_sources'] = ['tooling/required-steps.json']"
 refuse manifest-lists-fewer-sources 'packed assurance manifest source inventory is incomplete or not repository-owned' push "d['manifest']['sources'] = [{'path': p, 'sha256': '0', 'bytes': 0} for p in SOURCES[1:]]"
 refuse manifest-lists-more-sources 'packed assurance manifest source inventory is incomplete or not repository-owned' push "d['manifest']['sources'] = [{'path': p, 'sha256': '0', 'bytes': 0} for p in SOURCES + ['tooling/other.py']]"

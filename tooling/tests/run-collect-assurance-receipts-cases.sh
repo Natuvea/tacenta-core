@@ -299,5 +299,12 @@ expect_fail signoff-classification 'pull-request sign-off receipt must be an app
 cp -R "$work/pass-push" "$work/push-with-signoff"
 write_one "$work/push-with-signoff" sign-off pull_request conditional
 expect_fail push-with-signoff 'receipt sign-off event does not match selected event push' "$work/push-with-signoff" push
+cp -R "$work/pass-push" "$work/push-with-inapplicable-signoff"
+write_one "$work/push-with-inapplicable-signoff" sign-off pull_request conditional
+printf "%s\n" "data['environment']['event'] = 'push'; data['applicable'] = False; data['status'] = 'not_applicable'" > "$work/push-with-inapplicable-signoff.py"
+mutate "$work/push-with-inapplicable-signoff/sign-off.json" "$work/push-with-inapplicable-signoff.py"
+expect_fail push-with-inapplicable-signoff 'push receipt set must not supply sign-off' "$work/push-with-inapplicable-signoff" push
+refuse receipt-without-an-id 'has no check id' rust "data['id'] = ''"
+refuse receipt-with-a-numeric-id 'has no check id' rust "data['id'] = 7"
 
 echo "collect-assurance-receipts-cases: $cases cases gave the expected result (honest push and pull-request sets collected; the writer and the collector refuse a failed, skipped, missing, extra or absent command outcome)"

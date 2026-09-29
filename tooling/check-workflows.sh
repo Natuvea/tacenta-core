@@ -92,6 +92,8 @@
 #    inputs to the receipt is a difference from that file, and is made by
 #    editing that file in the same change. `--write-required-steps` rewrites
 #    the file from the tree; the diff of the file is what a reader reviews.
+#    Another workflow in the root workflow directory may not have a job with the
+#    name of one of those jobs, since a check is known by that name.
 #
 # What this script does not do, said plainly. It runs from the tree it is
 # checking. A pull request runs its own copy of the workflow, of this script and
@@ -611,6 +613,35 @@ def check_required_steps():
     for path in present:
         if path not in data["files"]:
             complain("%s does not describe %s" % (REQUIRED_STEPS_FILE, path))
+    # A check is known by its job's name, so another workflow that GitHub runs
+    # (one in the root workflow directory) with a job of the same name would
+    # report under the name of a required job.
+    required_names = set()
+    for path, expected in data["files"].items():
+        jobs = expected.get("jobs") if isinstance(expected, dict) else None
+        if isinstance(jobs, dict):
+            for job_id, job in jobs.items():
+                required_names.add(job_id)
+                if isinstance(job, dict) and isinstance(job.get("name"), str):
+                    required_names.add(job["name"])
+    for path in files:
+        if path in data["files"] or not path.startswith(".github/workflows/"):
+            continue
+        try:
+            other = load_yaml(path)
+        except yaml.YAMLError:
+            continue
+        jobs = other.get("jobs") if isinstance(other, dict) else None
+        if not isinstance(jobs, dict):
+            continue
+        for job_id, job in jobs.items():
+            names = {job_id}
+            if isinstance(job, dict) and isinstance(job.get("name"), str):
+                names.add(job["name"])
+            for shared in sorted(names & required_names):
+                complain("%s job '%s' is named '%s', the name of a job in a workflow "
+                         "%s describes -- a check with that name would count for it"
+                         % (path, job_id, shared, REQUIRED_STEPS_FILE))
     for path, expected in data["files"].items():
         if not os.path.isfile(path):
             complain("%s describes %s, which is not in the tree" % (REQUIRED_STEPS_FILE, path))
@@ -741,8 +772,6 @@ for f in files:
         # workflow's token.
         if isinstance(job.get("uses"), str):
             check_pin(f, name, "calls reusable workflow", job["uses"])
-            if uses_local_path(job["uses"]) is not None:
-                local_actions.append(job["uses"])
 
         # Rule 5. The job's own container, as a bare image string or a
         # mapping with `image:`, and each service container.
