@@ -1429,6 +1429,12 @@ impl PrekeyStore {
     ///   `PrekeyStoreDecodeError::Incoherent` for which stores and why the
     ///   version is not bumped.
     ///
+    /// A store whose `identity_public` is not an identity key
+    /// ([`is_valid_identity_key`]) is refused as `Malformed`, before any
+    /// signature is checked. No store a release of this library wrote holds
+    /// one; [`scan_stored_prekey_identity`] tells a caller, before it rolls a
+    /// release out, whether a stored store does.
+    ///
     /// **What it does not catch.** The rule binds the signatures, the identity
     /// key and the signed prekey's secret; it does not bind the KEM key pairs'
     /// secret material, which no stored value authenticates. A single flipped
@@ -1594,11 +1600,12 @@ impl PrekeyStore {
     ///   wipes the key; and `to_bytes` never writes anything else. A file
     ///   whose entries exceed one key's budget is refused here, which is the
     ///   only place the tags are available to count by.
-    /// - **The identity key is canonical** (session-persistence.md, Stored
-    ///   curve public keys). Every bundle the store publishes carries it, and
-    ///   a peer's bundle decoder refuses any other spelling. `create_prekeys`
-    ///   takes it from the identity's secret, so X25519 computed it, and no
-    ///   operation changes it.
+    /// - **The identity key is an identity key** ([`is_valid_identity_key`]:
+    ///   canonical, and of the prime-order subgroup; session-persistence.md,
+    ///   Stored curve public keys). Every bundle the store publishes carries
+    ///   it, and an initiator refuses a bundle whose identity key is not one.
+    ///   `create_prekeys` takes it from the identity's secret, so X25519
+    ///   computed it, and no operation changes it.
     #[allow(clippy::manual_map)] // Explicit matches remain translatable by Aeneas.
     pub fn invariant(&self) -> bool {
         if !is_valid_identity_key(&self.identity_public) {
@@ -2197,7 +2204,10 @@ pub enum Error {
     /// variant carries which.
     Triple(tacenta_triple::TripleError),
     /// A check on the handshake's keys refused, and the [`SessionError`] says
-    /// which. Either a prekey signature in the bundle did not verify
+    /// which. Either the identity key is not an identity key
+    /// (`InvalidIdentityKey`, [`is_valid_identity_key`]: reported for a bundle
+    /// and for an initial message once their curve keys are known to be
+    /// canonical), or a prekey signature in the bundle did not verify
     /// (`BadSignedPrekeySignature`, `BadKemPrekeySignature`), or a
     /// Diffie-Hellman agreement was not contributory
     /// (`NonContributoryAgreement`).
@@ -2211,7 +2221,10 @@ pub enum Error {
     Kem,
     /// A message did not decode.
     Decode(DecodeError),
-    /// A curve public key on the wire was not a recognised encoding.
+    /// A curve public key was not the canonical encoding of a curve public key
+    /// (message-format.md, Curve public keys): the identity key, signed prekey
+    /// or one-time prekey of a bundle, or a key an initial message carries.
+    /// A canonical key that is not an identity key is `Handshake(InvalidIdentityKey)`.
     BadEncoding,
     /// A bundle's one-time prekey and its identifier disagree on presence: one
     /// is present and the other absent. A directory that serves such a bundle
@@ -2482,7 +2495,7 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
         None => true,
         Some(k) => is_canonical_key(k),
     };
-    if !is_valid_identity_key(&bundle.identity_key)
+    if !is_canonical_key(&bundle.identity_key)
         || !is_canonical_key(&bundle.signed_prekey)
         || !one_time_canonical
     {
@@ -2490,8 +2503,12 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     }
     // PQXDH §3.3 verifies the bundle's signatures before anything else, and
     // so does this, rather than spending a KEM encapsulation against a prekey
-    // nobody has vouched for. `initiator_shared_secret` still verifies for its
-    // own callers; the second check is cheap beside the encapsulation.
+    // nobody has vouched for. `verify_bundle` first requires the identity key
+    // to be an identity key (identities-and-devices.md, Identity keys), so a
+    // bundle that fails that is refused as `InvalidIdentityKey` before a
+    // signature is checked and before a random value is drawn.
+    // `initiator_shared_secret` still verifies for its own callers; the second
+    // check is cheap beside the encapsulation.
     match super::verify_bundle(bundle) {
         Ok(()) => {}
         Err(error) => return Err(Error::Handshake(error)),
@@ -2649,7 +2666,7 @@ fn responder_curve_inputs(
         None => return Err(Error::BadEncoding),
     };
     if !is_valid_identity_key(&initiator_identity) {
-        return Err(Error::BadEncoding);
+        return Err(Error::Handshake(SessionError::InvalidIdentityKey));
     }
     let initiator_ephemeral = match decode_ec(ephemeral) {
         Some(value) => value,
@@ -3230,7 +3247,61 @@ pub enum SessionDecodeError {
     /// accepted, does not fail at import but on some later message, and in
     /// the first two cases for good. Refused here so that a session which
     /// imports is one that can go on.
+    ///
+    /// One clause is a rule about a key rather than a relation between
+    /// fields: `our_identity_public` and `peer_identity_public` must each be
+    /// an identity key ([`is_valid_identity_key`]). A session an earlier
+    /// release exported can break it only if its peer presented such a key;
+    /// [`scan_stored_session_identities`] tells a caller which of the two
+    /// keys a stored session fails, before it rolls a release out.
     Inconsistent,
+}
+
+/// Which of a stored session's two identity keys are identity keys.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct StoredSessionIdentities {
+    /// `our_identity_public` is an identity key ([`is_valid_identity_key`]).
+    pub ours: bool,
+    /// `peer_identity_public` is an identity key.
+    pub peer: bool,
+}
+
+/// Read the two identity keys of a stored session and report whether each is an
+/// identity key, without importing the session.
+///
+/// A scan for a caller that means to roll out a release that refuses a session
+/// whose identity key is not one (`SessionDecodeError::Inconsistent`,
+/// session-persistence.md, Stored curve public keys): run it over the stored
+/// sessions first. It reads the fields as [`Session::import`] does and checks
+/// only the identity keys, so a session can pass it and still be refused for
+/// another reason, and one it reports `false` for is refused by `import`.
+/// Bytes that do not decode are refused as `import` refuses them.
+pub fn scan_stored_session_identities(
+    bytes: &[u8],
+) -> Result<StoredSessionIdentities, SessionDecodeError> {
+    match Session::import_unchecked(bytes) {
+        Ok(session) => Ok(StoredSessionIdentities {
+            ours: is_valid_identity_key(&session.our_identity_public),
+            peer: is_valid_identity_key(&session.peer_identity_public),
+        }),
+        Err(error) => Err(error),
+    }
+}
+
+/// Read the identity key of a stored prekey store and report whether it is an
+/// identity key ([`is_valid_identity_key`]), without importing the store.
+///
+/// The counterpart of [`scan_stored_session_identities`] for
+/// [`PrekeyStore::from_bytes`], which refuses a store whose `identity_public`
+/// is not one. It reads the store's head, in any version `from_bytes` reads,
+/// and checks nothing else.
+pub fn scan_stored_prekey_identity(bytes: &[u8]) -> Result<bool, PrekeyStoreDecodeError> {
+    match decode_prekey_head(bytes) {
+        Ok(head) => Ok(is_valid_identity_key(&dh::PublicKeyBytes::from_bytes(
+            head.identity_public,
+        ))),
+        Err(error) => Err(error),
+    }
 }
 
 fn push_len_prefixed(out: &mut Vec<u8>, bytes: &[u8]) {
@@ -3582,17 +3653,20 @@ impl Session {
 
         // (h) Every curve public key the session stores is its canonical
         // encoding, as (f) holds the established ephemeral's to
-        // (session-persistence.md, Stored curve public keys). Each is used as
-        // its bytes: (c) compares the associated data with `EncodeEC` of the
-        // two identities, a repeat's `identity` is compared with the peer's,
+        // (session-persistence.md, Stored curve public keys), and the two
+        // identities are identity keys: canonical and of the prime-order
+        // subgroup ([`is_valid_identity_key`]). Each is used as its bytes:
+        // (c) compares the associated data with `EncodeEC` of the two
+        // identities, a repeat's `identity` is compared with the peer's,
         // `peer_identity()` reports it, and every repeat of the initial
         // message carries our identity and the pending ephemeral, which the
         // peer's decoder refuses in any other spelling. Every constructor
         // stores keys X25519 computed, keys a decoder accepted, or a bundle's
-        // keys, which `establish_initiator_for` checks. The ratchet's own
-        // keys are its crate's invariant's, reached through (g). Lettered
-        // after (g), which was there first, and checked before it because
-        // (g) is the function's last expression.
+        // keys, which `establish_initiator_for` checks, and the responder
+        // stores an initiator identity `responder_curve_inputs` admitted. The
+        // ratchet's own keys are its crate's invariant's, reached through
+        // (g). Lettered after (g), which was there first, and checked before
+        // it because (g) is the function's last expression.
         if !is_valid_identity_key(&self.our_identity_public)
             || !is_valid_identity_key(&self.peer_identity_public)
         {
@@ -4945,5 +5019,130 @@ mod tests {
             challenge,
             &tampered
         ));
+    }
+}
+
+#[cfg(test)]
+mod identity_admission_tests {
+    //! Initial messages that authenticate under the identity they name, offered
+    //! to the responder with an identity the library refuses. The control builds
+    //! the same way from an unmodified session and establishes, so a refusal
+    //! below is a refusal of the identity and not of the fixture.
+
+    use super::*;
+    use rand::SeedableRng;
+
+    const ALICE_SECRET: [u8; 32] = [1u8; 32];
+    const ALICE: &str = "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209";
+    /// Canonical keys of mixed order.
+    const ALTERNATES: [&str; 7] = [
+        "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac75304b",
+        "6722174dbc997c555d35183ae1f5b54d718517e2012641580dc06bf48b5cc67b",
+        "e8d38dcb16f648d07445eec3ca82323dba82357310085fbf9bb0345ce823e87e",
+        "cc80c67924df11225baa5ff7838b65ef4747fc514b11a810fb951106ab3d620a",
+        "9111bc7d044c267035bca4a9de062fe4f353e2ee88a3ef9ea32429678b585b7d",
+        "a142bda181923458bf441949108fdcb0bc0765d479086b8f520a6592c8f92619",
+        "17f500d43bb2ac86183a9b80e83d701445cfbd68042222600acb81b7096d0974",
+    ];
+
+    fn key(text: &str) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        for (i, byte) in out.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&text[2 * i..2 * i + 2], 16).unwrap();
+        }
+        out
+    }
+
+    fn replace_all(bytes: &[u8], from: &[u8; 32], to: &[u8; 32]) -> (Vec<u8>, usize) {
+        let mut out = bytes.to_vec();
+        let mut count = 0;
+        let mut at = 0;
+        while at + 32 <= out.len() {
+            if out[at..at + 32] == from[..] {
+                out[at..at + 32].copy_from_slice(to);
+                count += 1;
+                at += 32;
+            } else {
+                at += 1;
+            }
+        }
+        (out, count)
+    }
+
+    struct Fixture {
+        bob: Identity,
+        store: PrekeyStore,
+        export: Vec<u8>,
+    }
+
+    fn fixture(seed: u64) -> Fixture {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let alice = Identity::from_secret(ALICE_SECRET);
+        assert_eq!(*alice.public().as_bytes(), key(ALICE));
+        let bob = Identity::from_secret([0xa5u8; 32]);
+        let store = bob.create_prekeys(1, &mut rng);
+        let session = establish_initiator(&alice, &store.publish(), &mut rng).unwrap();
+        Fixture {
+            bob,
+            store,
+            export: session.export().to_vec(),
+        }
+    }
+
+    #[test]
+    fn the_control_message_authenticates_and_establishes() {
+        let fixture = fixture(11);
+        let mut rng = rand::rngs::StdRng::seed_from_u64(12);
+        let mut session = Session::import_unchecked(&fixture.export).unwrap();
+        assert!(session.invariant());
+        let message = session.encrypt(b"first", &mut rng).unwrap();
+        let mut store = PrekeyStore::from_bytes(&fixture.store.to_bytes()).unwrap();
+        let (_, plaintext) =
+            establish_responder(&fixture.bob, &mut store, &message, &mut rng).unwrap();
+        assert_eq!(plaintext, b"first");
+    }
+
+    #[test]
+    fn an_initial_message_naming_a_refused_identity_is_refused() {
+        let fixture = fixture(21);
+        for (index, alternate) in ALTERNATES.iter().enumerate() {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(22 + index as u64);
+            let (patched, count) = replace_all(&fixture.export, &key(ALICE), &key(alternate));
+            assert_eq!(
+                count, 2,
+                "the identity is stored as a field and inside the associated data"
+            );
+            let mut session = Session::import_unchecked(&patched).unwrap();
+            assert!(
+                !session.invariant(),
+                "the library refuses to import this session"
+            );
+            assert_eq!(
+                Session::import(&patched).err(),
+                Some(SessionDecodeError::Inconsistent)
+            );
+            let message = session.encrypt(b"first", &mut rng).unwrap();
+            let named = crate::serialization::decode_initial(&message).unwrap();
+            assert_eq!(
+                named.identity,
+                encode_ec(&dh::PublicKeyBytes::from_bytes(key(alternate)))
+            );
+
+            let mut store = PrekeyStore::from_bytes(&fixture.store.to_bytes()).unwrap();
+            let before = store.to_bytes();
+            let result = establish_responder(&fixture.bob, &mut store, &message, &mut rng);
+            assert!(
+                matches!(
+                    result,
+                    Err(Error::Handshake(SessionError::InvalidIdentityKey))
+                ),
+                "variant {index}"
+            );
+            assert_eq!(
+                &*store.to_bytes(),
+                &*before,
+                "variant {index}: the store is as it was"
+            );
+        }
     }
 }

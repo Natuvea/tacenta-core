@@ -98,7 +98,7 @@ fn calculate_key_pair(secret: &[u8; 32]) -> ([u8; 32], Zeroizing<Scalar>) {
 /// so a directory serving a non-canonical encoding would produce a session
 /// that verifies, agrees, and mismatches the peer's fingerprint. Not a
 /// forgery; a canonicality rule the specification states, enforced here.
-fn is_canonical_field_element(u: &[u8; 32]) -> bool {
+pub(crate) fn is_canonical_field_element(u: &[u8; 32]) -> bool {
     if u[31] & 0x80 != 0 {
         return false;
     }

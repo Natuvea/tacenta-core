@@ -44,8 +44,9 @@ use zeroize::Zeroizing;
 mod lifecycle;
 pub use lifecycle::{
     Error as LifecycleError, Identity, PrekeyStore, PrekeyStoreDecodeError, PublicState,
-    PublishedBundle, Session, SessionDecodeError, establish_initiator, establish_initiator_for,
-    establish_responder,
+    PublishedBundle, Session, SessionDecodeError, StoredSessionIdentities, establish_initiator,
+    establish_initiator_for, establish_responder, scan_stored_prekey_identity,
+    scan_stored_session_identities,
 };
 
 /// The derivation itself lives in the `tacenta-session` leaf crate, which is
@@ -83,12 +84,17 @@ pub(crate) fn is_canonical_key(pk: &dh::PublicKeyBytes) -> bool {
     tacenta_session::is_canonical_x25519(pk.as_bytes())
 }
 
-/// Identity keys have a stricter admission rule than ephemeral agreement
-/// inputs.  The latter may be compared by X25519 agreement class; a long-lived
-/// identity is also a byte-keyed name used by signatures, revocation and peer
-/// records, so torsion-equivalent spellings must be refused at identity
-/// boundaries rather than silently treated as aliases.
-pub(crate) fn is_valid_identity_key(pk: &dh::PublicKeyBytes) -> bool {
+/// Whether `pk` is an identity key: the canonical encoding of a point of the
+/// prime-order subgroup of Curve25519 (identities-and-devices.md, Accepting a
+/// signed statement, check 6). Every boundary that admits a long-lived identity
+/// applies it: a published bundle, an initial message, a stored session, a
+/// stored prekey store, and a signature checked under an identity.
+///
+/// It is the rule a caller applies to an identity key it learns some other way,
+/// such as one it reads from its own records. An honest key is the X25519
+/// public key of a clamped secret, which passes, and `Identity::public` always
+/// returns one.
+pub fn is_valid_identity_key(pk: &dh::PublicKeyBytes) -> bool {
     is_canonical_key(pk) && dh::is_prime_order_public(pk)
 }
 
@@ -122,6 +128,9 @@ pub fn decode_kem(bytes: &[u8]) -> Option<Vec<u8>> {
 /// two halves must agree with each other rather than merely behave alike: a
 /// client signing under one implementation and a server verifying under another
 /// rejects every connection.
+///
+/// A key that [`is_valid_identity_key`] refuses verifies nothing: the answer is
+/// `false` for every signature, as it is for a signature that does not verify.
 pub fn verify_under_identity(
     identity: &dh::PublicKeyBytes,
     message: &[u8],
@@ -187,8 +196,6 @@ pub struct PreKeyBundle {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum SessionError {
-    /// The identity key was not a canonical prime-order identity key.
-    InvalidIdentityKey,
     /// The signature over the signed curve prekey did not verify.
     BadSignedPrekeySignature,
     /// The signature over the KEM prekey did not verify.
@@ -197,12 +204,18 @@ pub enum SessionError {
     /// low-order public key, which forces the shared secret to zero whatever
     /// our private key is. Rejected rather than used (`dh::PrivateKey::agree`).
     NonContributoryAgreement,
+    /// The identity key is not an identity key: [`is_valid_identity_key`]
+    /// refuses it. Reported before any signature is checked and before any
+    /// agreement is computed with it.
+    InvalidIdentityKey,
 }
 
-/// Verify both prekey signatures under the bundle's identity key. Alice must do
-/// this before using a bundle: without it a malicious server could serve forged
-/// prekeys and later compromise the identity key to recover the secret, which
-/// would defeat forward secrecy.
+/// Verify both prekey signatures under the bundle's identity key, after
+/// checking that the identity key is one ([`is_valid_identity_key`]; a bundle
+/// that fails it is `InvalidIdentityKey`, whatever its signatures). Alice must
+/// do this before using a bundle: without it a malicious server could serve
+/// forged prekeys and later compromise the identity key to recover the secret,
+/// which would defeat forward secrecy.
 #[allow(clippy::redundant_pattern_matching)] // Explicit branches keep translated refusal paths stable.
 pub fn verify_bundle(bundle: &PreKeyBundle) -> Result<(), SessionError> {
     if !is_valid_identity_key(&bundle.identity_key) {
@@ -266,6 +279,9 @@ pub fn initiator_shared_secret(
 /// The responder's side: the same four agreements, computed from the other
 /// direction's private keys, plus the secret decapsulated from the ciphertext.
 /// Pass the one-time prekey private key exactly when the initiator used it.
+///
+/// The initiator's identity key is checked first ([`is_valid_identity_key`];
+/// `InvalidIdentityKey`), before any agreement is computed with it.
 pub fn responder_shared_secret(
     identity_private: &dh::PrivateKey,
     signed_prekey_private: &dh::PrivateKey,

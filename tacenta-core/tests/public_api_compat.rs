@@ -89,6 +89,12 @@ fn moved_surface_still_type_checks<R: RngCore + CryptoRng>(
     let _ = tacenta_core::sessions::encode_kem(bytes);
     let _ = tacenta_core::sessions::decode_kem(bytes);
     let _ = tacenta_core::sessions::verify_under_identity(peer_identity, bytes, signature);
+    let _: bool = tacenta_core::sessions::is_valid_identity_key(peer_identity);
+    let _: bool = dh::is_prime_order_public(peer_identity);
+    let _: Result<tacenta_core::sessions::StoredSessionIdentities, SessionDecodeError> =
+        tacenta_core::sessions::scan_stored_session_identities(bytes);
+    let _: Result<bool, PrekeyStoreDecodeError> =
+        tacenta_core::sessions::scan_stored_prekey_identity(bytes);
     let _ = tacenta_core::sessions::verify_bundle(bundle);
     let _ = tacenta_core::sessions::initiator_shared_secret(private, private, bundle, &[0; 32]);
     let _ = tacenta_core::sessions::responder_shared_secret(
@@ -119,6 +125,7 @@ fn moved_surface_still_type_checks<R: RngCore + CryptoRng>(
     let _: Option<PrekeyStoreDecodeError> = None;
     let _: Option<SessionDecodeError> = None;
     let _: Option<SessionError> = None;
+    let _ = SessionError::InvalidIdentityKey;
 }
 
 #[test]
