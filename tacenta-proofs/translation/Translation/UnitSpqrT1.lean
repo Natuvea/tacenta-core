@@ -700,7 +700,7 @@ theorem receive_no_panic (hret : VecRetainTotal)
   have hupto1 : (core.num.U64.saturating_sub n 1#u64).val < U64.max := by
     unfold core.num.U64.saturating_sub UScalar.saturating_sub UScalar.val
     simp only [BitVec.toNat_ofNat]
-    have h1 : (1#u64 : U64).bv.toNat = 1 := by native_decide
+    have h1 : (1#u64 : U64).bv.toNat = 1 := by decide
     rw [h1]
     simp only [Nat.zero_max]
     have h2 : n.bv.toNat < 2 ^ UScalarTy.U64.numBits := n.bv.isLt
@@ -790,7 +790,11 @@ Aeneas becomes one assumption per translated crate that touches it. -/
 
 -- The trust base of the two entry points, held by the build. The copy of this
 -- file generated onto the three-leaf unit leaves these out; `UnitPins.lean`
--- restates them against the unit's names. `receive_no_panic` is not
--- kernel-only: one closed numeric fact in its proof is settled by `native_decide`.
+-- restates them against the unit's names. The copy generated onto the
+-- eight-leaf Session unit has no pin of its own: a compiler-trust axiom added
+-- to its `send_no_panic` would change the pin of `encrypt_no_panic`, and one
+-- added to its `receive_no_panic` would change the pins of `decrypt_no_panic`,
+-- `decrypt_ratchet_no_panic` and `establish_responder_no_panic`, all in
+-- `UnitLifecyclePublicT1.lean`.
 
 end Tacenta.UnitSpqrT1

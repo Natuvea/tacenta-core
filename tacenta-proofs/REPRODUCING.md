@@ -258,6 +258,13 @@ you do:
   built environment and fails if they differ (the type of an axiom is compared
   with the allowlist from the text and not with the environment).
 
+  The script also holds two lists that a regeneration cannot change. A theorem
+  on `REQUIRED_PINS` must have a pin, so deleting its pin block fails both
+  `attest.py` and `attest.py --check`, as does a pin block left inside a
+  comment, and a pin that lists a compiler-trust axiom
+  fails unless `COMPILER_TRUSTED_PINS` names its theorem. A theorem pinned twice
+  fails as well. Editing either list is a change to `attest.py`.
+
   The ledger check is exact by name. Every theorem a claim bullet names --
   every backticked identifier in the bullet's leading run, not only the
   first -- must exist, fully qualified by its `namespace`, in a file the

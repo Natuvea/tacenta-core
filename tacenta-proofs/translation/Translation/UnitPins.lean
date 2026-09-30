@@ -36,12 +36,13 @@ inside a leaf, where nothing changed. And a `_native` axiom appearing where the
 leaf had none would mean a proof that was kernel-only became
 compiler-trusted. `#guard_msgs` refuses each of these at build time.
 
-The sparse ratchet's `receive_no_panic` carries a `native_decide` axiom in the
-leaf as well; `LIMITATIONS.md` records why, under "The proofs are trusted by
-evaluation, not only by the kernel". Of the panic-freedom pins it is the one
-that is not kernel-only, and it is not kernel-only in the leaf either. The
-sparse ratchet's refinements and the Triple's discharged refinements carry more
-such axioms, each stated where it is pinned.
+The sparse ratchet's `receive_no_panic` carries no compiler-trust axiom, in the
+leaf or in the unit. Until 2026-09-30 it carried a `native_decide` axiom for one
+closed numeric fact (that `(1 : U64)` has value one), which `decide` now
+settles; `LIMITATIONS.md` records it under "The proofs are trusted by
+evaluation, not only by the kernel". No panic-freedom pin below lists a
+compiler-trust axiom. The sparse ratchet's refinements and the Triple's
+discharged refinements do carry such axioms, each stated where it is pinned.
 -/
 
 /--
@@ -114,7 +115,6 @@ info: 'Tacenta.UnitSpqrT1.receive_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
@@ -131,44 +131,37 @@ its whole point is that the seventeen `*Total` bundles the standalone
 `TripleT1.lean` assumed are theorems here, so the trust base *does* change, and these pins are where
 that change is recorded rather than described.
 
-**Report it honestly, because one half of it is a regression.**
+**Report it, because the trust base changes.**
 The standalone `Tacenta.TripleT1.State.receive_no_panic`, deleted after
-2a89a7f, depended on twelve axioms and was kernel-only. The ported theorem below depends on eighteen and is **not**
-kernel-only: it inherits
-`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the one
-compiler-trusted numeric fact the sparse ratchet's own `receive` proof rests
-on (`LIMITATIONS.md`, "The proofs are trusted by evaluation, not only by the
-kernel").
+2a89a7f, depended on twelve axioms. The ported theorem below depends on
+seventeen axioms, and none is a compiler-trust axiom: the one closed numeric fact in the
+sparse ratchet's own `receive_no_panic` proof (that `(1 : U64)` has value one) was settled
+by `native_decide` until 2026-09-30 and is now settled by `decide`, so the Lean
+compiler's evaluation is no longer trusted for it (`LIMITATIONS.md`, "The proofs
+are trusted by evaluation, not only by the kernel").
 
-Both halves belong in the same sentence. The standalone theorem was kernel-only
-because it *assumed* the sparse ratchet's receive is total instead of proving
-it -- its kernel-only status was bought by assuming the hard part. The ported
-one proves that part, and inherits the one compiler-trusted fact proving it
-rests on. Which is the better trade is the reader's to judge; what is not
-open to judgement is that the axiom count went from twelve to eighteen and
-that a kernel-only proof stopped being kernel-only.
+Both halves belong in the same sentence. The standalone theorem had fewer axioms
+because it *assumed* the sparse ratchet's receive is total instead of proving it.
+The ported one proves that part, and the boundary axioms that proving it needs
+are the extra. Which is the better trade is the reader's to judge; what is not
+open to judgement is that the axiom count went from twelve to seventeen.
 
-Six axioms go and twelve arrive. What goes is the bare operation axioms --
+Six axioms go and eleven arrive. What goes is the bare operation axioms --
 `tacenta_ratchet.State`, `tacenta_ratchet.receive`, `tacenta_spqr.State`,
 `tacenta_spqr.State.receive` and the two states' clones, six constants standing
 for "this call returns, because we say so".
 
-Eleven of the twelve that arrive are a substitution rather than an addition in
-kind: KDF, `zeroize` and `Vec` boundary axioms that other proofs in this tree
+All eleven that arrive are a substitution rather than an addition in kind: KDF,
+`zeroize`, `Vec` and `Option` boundary axioms that other proofs in this tree
 already carry. They are `hmac_sha256` beside the `hkdf_sha256` that was already
 there; `zeroize.Zeroizing` with its constructor and its two projections;
-`Vec.append`, `Vec.remove` and `Vec.retain`; the `Zeroize` instances for `Pair`
-and `Vec`; and `Option`'s clone. `Array`'s `Zeroize` instance and the blanket
-one are on both sides and arrive nowhere; naming them here would repeat the
-miscount this paragraph was rewritten to fix.
+`Vec.capacity` and `Vec.pop`; `Option`'s `as_mut`; the `Zeroize` instances for
+`Pair` and `Vec`; and `Option`'s clone. `Array`'s `Zeroize` instance and the blanket one are on both
+sides and arrive nowhere.
 
-The twelfth is the `native_decide` axiom named above. It is neither a boundary
-axiom nor shared with the rest of the tree, and it is the whole of the
-regression. Counting it among the others would be the kind of summary that
-contradicts its own evidence.
-
-`send` is the quieter case: twelve axioms before and twelve after, kernel-only
-on both sides, with the same substitution underneath.
+`send` is the quieter case: twelve axioms before (measured on 2026-09-10) and
+sixteen after, none of them compiler-trusted. Six go and ten arrive, the same
+substitution as for `receive` without `Zeroizing`'s mutable projection.
 -/
 
 /--
@@ -206,7 +199,6 @@ info: 'Tacenta.UnitTripleT1.State.receive_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,

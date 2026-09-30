@@ -595,21 +595,17 @@ length-prefixed framing are their own proof obligations, unrelated to the
 crate boundary this file removes.
 
 **What the trust base became.** `TripleT1.lean`'s `State.receive_no_panic`
-depended on twelve axioms and was kernel-only, measured on 2026-09-10 before its
-deletion. This file's depends on eighteen
-and is not: it inherits
-`Tacenta.SessionUnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the one
-compiler-trusted numeric fact the sparse ratchet's own receive proof rests on.
-Both halves of that are worth stating plainly, and `Translation/UnitPins.lean`
-states them: the standalone theorem was kernel-only because it *assumed* the
-sparse ratchet's receive is total rather than proving it, so its kernel-only
-status was bought by assuming the hard part; this one proves that part and
-inherits what proving it costs. Underneath, six axioms go and twelve arrive:
-the bare operation axioms (`tacenta_ratchet.receive`,
-`tacenta_spqr.State.receive`, the two states and their clones) are replaced by
-KDF, zeroize and `Vec` boundary axioms already shared with other proofs in this
-tree. That accounts for eleven of the twelve. The twelfth is the
-`native_decide` axiom named above, which is neither, and saying otherwise would
-be a summary at odds with its own lead. -/
+depended on twelve axioms, measured on 2026-09-10 before its deletion. This
+file's depends on seventeen. None is a compiler-trust axiom: the one closed
+numeric fact in the sparse ratchet's own `receive_no_panic` proof that used to be settled by
+`native_decide` (that `(1 : U64)` has value one) is now settled by `decide`.
+Both halves of the change are worth stating plainly, and
+`Translation/UnitPins.lean` states them: the standalone theorem had fewer axioms
+because it *assumed* the sparse ratchet's receive is total rather than proving
+it; this one proves that part and inherits the boundary axioms proving it needs.
+Underneath, six axioms go and eleven arrive: the bare operation axioms
+(`tacenta_ratchet.receive`, `tacenta_spqr.State.receive`, the two states and
+their clones) are replaced by KDF, zeroize, `Vec` and `Option` boundary axioms already
+shared with other proofs in this tree. -/
 
 end Tacenta.SessionUnitTripleT1
