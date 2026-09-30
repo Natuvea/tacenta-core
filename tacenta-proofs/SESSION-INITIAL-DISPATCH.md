@@ -4,6 +4,14 @@
 wrapper around the ratchet receive. This does **not** close the full Session
 T3 or end-to-end encryption/decryption plan.
 
+Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts` or
+`BraidReceiveContracts`, directly or through `InitialRatchetBraidEvidenceContracts`
+(`decrypt_ratchet_refines_of_t1`, `braid_receive_evidence` and the
+`initial_ratchet_refines_of_t1` family), is vacuous as stated, because
+`BraidReceiveContracts` contains a false field (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`). The obligations listed below as discharged are discharged under
+that record, and stay open until it is repaired.
+
 ## What the theorem establishes
 
 `initial_dispatch_route_from_ratchet` constructs the six routes from the

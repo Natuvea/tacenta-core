@@ -242,6 +242,26 @@ PY
   fi
 done
 
+vacuity_pins="tacenta-proofs/translation/Translation/SessionBraidReceiveVacuity.lean"
+for n in decoderMessage_not_total braidReceiveContracts_false decryptRatchetContracts_false \
+         establishResponderContracts_empty message_eq_messageP all_tr_refute; do
+  make_case
+  python3 - "$work/$vacuity_pins" "Tacenta.SessionBraidReceiveVacuity.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-vacuity-$n" "\`Tacenta.SessionBraidReceiveVacuity.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys
