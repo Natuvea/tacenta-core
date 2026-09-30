@@ -13,7 +13,9 @@ this section says in one place what is not proved.
 - **`Session::encrypt` and `Session::decrypt` are not proved end to end.** They
   are the functions a product actually calls. On the eight-leaf session unit
   their orchestration now has panic-freedom theorems (T1, below), conditional
-  on thirteen named boundary contracts and explicit headroom, and a set of
+  on the contract records named in their statements (15 to 44 named hypotheses
+  each, which include eleven of the thirteen boundary contracts of `LIMITATIONS.md`)
+  and explicit headroom, and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
   (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
   composed with the leaf theorems). No theorem says what the two functions
@@ -2132,16 +2134,25 @@ Location: `Translation/UnitLifecyclePublicT1.lean`.
 The five operations a
 product calls, translated inside `tacenta-core/session-unit` where the
 ratchets, the Braid, the wire codecs and the PQXDH derivation are real
-bodies rather than axioms. Each theorem is conditional on the thirteen boundary
-contracts (`LIMITATIONS.md`, "The Session unit's primitive contracts") and on
-an explicit headroom record; `invariant_gives_preconditions` derives the
+bodies rather than axioms. Each theorem is conditional on the contract record named in its
+statement and on an explicit headroom record. The records are `EncryptContracts`
+(25 named hypotheses), `DecryptRatchetContracts` (38, taken by `decrypt_no_panic`
+and `decrypt_ratchet_no_panic`), `EstablishInitiatorContracts` (15) and
+`EstablishResponderContracts` (44), counting the fields of nested records. Eleven
+of the thirteen boundary contracts of `LIMITATIONS.md` ("The Session unit's
+primitive contracts") appear among those fields; `KemCiphertextLenTotal` and
+`XeddsaSignTotal` appear in none of the four records. The others are contracts
+on the ratchets, the Braid, the Triple Ratchet and the session layer; `invariant_gives_preconditions` derives the
 leaf preconditions from `Session::invariant`. Nothing here relates a result
 to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
 which are not listed as claims.
 
 - `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`:
-  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, for a
-  session satisfying `Session::invariant` with room in its counters.
+  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, given the
+  headroom records in their statements (`EncryptHeadroom`,
+  `DecryptRatchetHeadroom`). `Session::invariant` yields two of the three
+  receive-headroom fields; the third, a bound on the associated data length, is
+  not derived from it.
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
   establishment entry points return, the responder's with room in its
   last-resort record.

@@ -534,8 +534,10 @@ on a revoked entry that is not the last, and the big-endian order through its
 derived cases (`cases_inventory.py`), not through the vector files. Reader edits
 that apply the terminal generation range to the first revoked entry only, or the
 rule that an exact binding is in one list only to the first active entry only or
-to the first revoked entry only, pass the vector files and the derived cases
-alike (checked by hand on 2026-09-29; the edits are not kept in the tree).
+to the first revoked entry only, passed the vector files and the derived cases
+alike (checked by hand on 2026-09-29). The derived case IV-23, added in #205,
+now fails all three (checked by hand on 2026-09-30; the edits are not kept in
+the tree).
 
 No vector pins the error variants of an implementation (error-handling.md).
 

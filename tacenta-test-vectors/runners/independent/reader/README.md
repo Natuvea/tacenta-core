@@ -1,7 +1,9 @@
-# tacenta_reader: a clean-room reading of tacenta-spec
+# tacenta_reader: a specification-only reading of tacenta-spec
 
-An independent implementation of parts of the Tacenta protocol specification,
-written to test whether the specification alone is enough to build from.
+An implementation of parts of the Tacenta protocol specification, written to
+test whether the specification alone is enough to build from. Passes 1 to 7 were
+clean-room; later changes were made with the implementation in view, as this
+file records below.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 

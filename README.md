@@ -48,7 +48,8 @@ Every phrase is a constraint, and each is meant to be falsifiable:
 
 - **Small.** Only security-critical protocol functionality is in the core.
 - **Stable.** Tacenta owns and versions its public API.
-- **Verification-first.** Specifications, models, and evidence precede claims.
+- **Verification-first.** Specifications, models, and evidence are meant to precede claims;
+  `ASSURANCE.md`, practice 1, says where that has not yet been true.
 - **Interoperable on the wire.** Match another implementation's protocol
   *behaviour*, not its API architecture. What that covers today is stated below.
 - **Explicitly supported versions.** Compatibility is tested and bounded, never
@@ -66,14 +67,16 @@ Two of the constraints above carry limits worth stating plainly.
   (ADR-0004). Ongoing messages are not exchanged across implementations: the
   key-derivation constants sit upstream of
   every message byte, no published specification carries test vectors for them,
-  and black-box observation cannot recover them. The release gate is scoped to
-  the bundle layer accordingly.
+  and black-box observation cannot recover them. The target is scoped to the
+  bundle layer accordingly, and no cross-implementation run is recorded in this
+  tree.
 - **Stable is a goal, not a state.** There is no versioning policy, deprecation
   policy, or supported-target matrix yet.
 
-The other four constraints can be checked today, and
-`tacenta-proofs/CLAIMS.md` is the precise record of what is proven. Where this
-README and that document ever disagree, that document is right.
+Each of the other four constraints is stated so that it can be checked, and
+`ASSURANCE.md` says where each stands. `tacenta-proofs/CLAIMS.md` is the precise
+record of what is proven. Where this README and that document ever disagree,
+that document is right.
 
 ## Components
 
@@ -90,10 +93,12 @@ README and that document ever disagree, that document is right.
 
 ## Status
 
-Seven crates ship with T1 panic-freedom and T3 refinement proofs: the ratchet,
-the session zone, `tacenta-spqr`, `tacenta-braid`, `tacenta-triple`,
-`tacenta-protobuf`, and `tacenta-erasure` (the last over its field arithmetic;
-its decoder has T1 and no refinement). The post-quantum ratchet is in the
+Eight crates carry Lean theorems over their translated Rust: `tacenta-wire` (the
+decoders), `tacenta-ratchet`, `tacenta-session` (the PQXDH derivation only),
+`tacenta-spqr`, `tacenta-braid`, `tacenta-triple`, `tacenta-protobuf` and
+`tacenta-erasure` (T1 for the coder, T3 for the field arithmetic only). The
+Braid's T3 theorems take a live-encoder and an unspliced-stream precondition.
+`Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
 `ASSURANCE.md` records where the project stands against the expectations in

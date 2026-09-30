@@ -202,8 +202,11 @@ excludes it.
   step.
 - The cryptographic primitives are trusted. tacenta-core uses vetted crates for
   X25519, HKDF, HMAC, SHA-256, AES-256-CBC, and Ed25519, and ML-KEM-1024 from
-  libcrux-ml-kem, which is itself formally verified, its source carrying hax and
-  F* contracts. XEdDSA is the one exception: it is implemented here over
+  libcrux-ml-kem. The crate's top-level ML-KEM-1024 functions carry hax and F*
+  annotations by its own account, and this project has not checked which are
+  discharged. The incremental interface that `tacenta-kem` uses for the Braid
+  carries no such annotations in the pinned version 0.0.10. Both are trusted,
+  not verified. XEdDSA is the one exception: it is implemented here over
   curve25519-dalek and ed25519-dalek rather than taken from a vetted crate, the
   deliberate exception recorded in ADR-0002. The model computes SHA-256, HMAC, and HKDF
   itself only to serve as the vector oracle, and those are anchored to RFC and
@@ -349,9 +352,12 @@ key schedule, not on guaranteed erasure of every in-memory copy.
 
 ## Undefined behaviour: forbidden statically, checked dynamically where it can be
 
-Every crate in `tacenta-core` carries `#![forbid(unsafe_code)]`. None
-contains `unsafe`, and the attribute is what keeps that true rather than merely
-observed. It bounds our own crates only; the primitives are the trusted
+Every library crate in `tacenta-core` carries `#![forbid(unsafe_code)]`, except
+that `tacenta-spqr` lifts it under the non-default `private-erasure-review`
+feature. None contains `unsafe` in the default feature set, and the attribute is
+what keeps that true rather than merely observed. One test target,
+`tests/timing.rs`, has an `unsafe` inline-assembly block on aarch64 macOS
+(`ASSURANCE.md`, practice 3). It bounds our own crates only; the primitives are the trusted
 boundary and are unaffected.
 
 `tooling/miri.sh` is the dynamic half. Miri interprets MIR and reports
@@ -2002,8 +2008,8 @@ binding is a statement of intent about the oracle and not an assurance.
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
 thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`). The negative control removes each of two
-witnesses in turn, the first one the theorem listed and the identity-key
-contract's, and requires elaboration to fail each time. This establishes only that the assumptions are
+witnesses in turn, `random32_satisfiable` and `dh_identity_satisfiable`, and
+requires elaboration to fail each time. This establishes only that the assumptions are
 consistent; it does not prove that the real primitive implementations satisfy
 their value-level specifications.
 

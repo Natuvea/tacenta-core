@@ -19,12 +19,12 @@ only to name the published protocols and the third-party software they refer to.
 
 Status: the implementation is live. What ships: PQXDH session establishment, the classical Double Ratchet, the sparse
 post-quantum ratchet and the ML-KEM Braid beneath it, their composition as the
-Triple Ratchet, the wire and storage formats, and a protobuf profile. Seven
+Triple Ratchet, the wire and storage formats, and a protobuf profile. Eight
 crates carry T1 panic-freedom and T3 refinement proofs (the erasure crate's T3
 covers its field arithmetic only, not the encoder or decoder; the Braid's T3
 takes a liveness and an unspliced-stream precondition besides its boundary
-assumptions; the Triple's T1 is conditional on totality assumptions no leaf
-theorem discharges); see
+assumptions; the Triple's T1 holds on the three-leaf unit under four size
+preconditions that nothing on the unit discharges, and the boundary assumptions); see
 `../tacenta-proofs/CLAIMS.md` for the ledger and `../tacenta-proofs/LIMITATIONS.md`
 for what is not covered.
 

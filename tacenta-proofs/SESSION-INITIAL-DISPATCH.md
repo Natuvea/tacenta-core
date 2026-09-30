@@ -103,8 +103,10 @@ Session unit's axiom-audit closure and kernel replay.
 
 ## Current composition boundary (2026-09-23)
 
-The public result-shaped bridge is now exposed by
-`decrypt_initial_refines_of_t1_with_nonterminal_route`. It splits the actual
+The public result-shaped bridge was exposed on this date by
+`decrypt_initial_refines_of_t1_with_nonterminal_route`. That name no longer
+exists: `0a684fc` (2026-09-24) removed it, and the public bridge is now
+`decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`. It splits the actual
 `decrypt_ratchet` result, derives terminal and malformed-message evidence from
 the generated call, and accepts a typed refusal route for the remaining
 nonterminal families. `InitialRatchetRefusalRoute` is indexed by the exact
@@ -182,7 +184,8 @@ added: 2,318 translation/T1/T3 jobs, 37 model proof jobs, 64 model/property
 jobs, all kernel replays, audit negatives, reachability, and dispatcher
 mutation controls. Hosted run `35818611209` for `0de9430` has armv7, rust,
 vectors, proofs, msrv, sign-off, audit, and checks green; `translation` is
-still in progress, so no hosted-green claim is made.
+still in progress, so no hosted-green claim is made. This run belongs to the private working
+repository and cannot be opened from this one.
 
 ## Verification record (2026-09-20)
 
@@ -219,7 +222,8 @@ head `no-sorry.sh` replay is clean: translation/T1/T3 replayed 68 modules,
 model proofs 11, model/property proofs 34; all 13 audit negatives, construct
 checks, reachability, and the dispatcher mutation controls passed. Hosted CI
 run `35827850983` is on this exact SHA; rust, proofs, audit, checks, msrv,
-armv7, and sign-off are green while vectors and translation finish.
+armv7, and sign-off are green while vectors and translation finish. This run
+belongs to the private working repository and cannot be opened from this one.
 
 ## Checkpoint — 2026-09-23 (AEAD early refusal inversion)
 

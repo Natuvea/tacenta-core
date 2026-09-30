@@ -185,25 +185,27 @@ public item are still translated; `scripts/check-lifecycle-translation-coverage.
 fails the run if any of the thirty public operations has no generated
 definition, and its negative control shows that it can.
 
-Expected tail:
+Expected tail (the counts below were read from a tree at `dea57eaf` by counting
+files and by running `check-lean-constructs.sh`; the `audit-reach` line was not
+re-run for this update, and every count moves with the tree):
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 67 Translation/*.lean modules are in the build target and built
+translation-coverage: all 68 Translation/*.lean modules are in the build target and built
 lifecycle-translation-coverage: all 30 public operations generated
 lifecycle-translation-coverage-negatives: missing-root mutation refused
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (338 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 103 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 113 first-party modules (tacenta-model 34, tacenta-proofs 11, tacenta-proofs/translation 68)
+check-lean-constructs: 106 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 116 first-party modules (tacenta-model 36, tacenta-proofs 11, tacenta-proofs/translation 69)
 audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (67 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (68 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
-no-sorry: the model and its property theorems replays clean (34 modules)
+no-sorry: the model and its property theorems replays clean (36 modules)
 ```
 
 ## Replaying through the kernel
@@ -282,7 +284,7 @@ you do:
   things *together*: every compiler-namespace declaration the audit saw has
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
-  the audit's own implementation and its four invocations, by path and
+  the audit's own implementation and its seven invocations, by path and
   exact line); and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole
