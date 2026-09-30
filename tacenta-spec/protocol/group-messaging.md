@@ -86,17 +86,21 @@ different part of the problem.
 
 - The bounded fan-out commitment helper is `ours`.
 - The mechanism outline at the top is `nominated`, on WhatsApp's white paper
-  (Published material). It is the only published description this page relies
-  on, and only for that outline. Its authors describe their own deployment;
-  it is not a third party's reconstruction from another implementation's
-  source (second rule above).
-- The open questions are `ours`. The comparison between fan-out and sender
-  keys reasons from properties of the one-to-one sessions and states no
-  finding taken from a paper.
-- The other items under Published material, and the paper named in the last
-  open question, are cited for what they cover. No wire detail, label,
-  constant or derivation on this page is taken from them.
-- The page relies on no analysis of another implementation's source code.
+  (Published material), and it is the only item the outline is cited to. The
+  white paper's authors are the operator of the deployment it describes. What
+  the document itself was based on has not been checked (second rule above),
+  so the outline is not treated as more than `nominated`.
+- The open questions are questions, not choices. Where one says what a
+  published item covers, that comes from the item's row under Published
+  material: the fan-out description from the 2014 post, and the Private Group
+  System's scope from the 2019 post and paper. The paper named in the last open
+  question has no row; it is cited only for the layer it says it addresses.
+- No wire detail, label, constant or derivation on this page is taken from any
+  of these items.
+- The repository records no check of what any item under Published material, or
+  the paper named in the last open question, was based on beyond who wrote it,
+  and records no finding that any of them was based on another
+  implementation's source.
 
 ## Open questions
 

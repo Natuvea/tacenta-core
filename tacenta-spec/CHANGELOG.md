@@ -17,9 +17,10 @@ is SemVer against the specified protocol (not the implementation).
   outline is marked tier `nominated` and cited to WhatsApp's white paper, and it
   says in plain words how a sender key is shared instead of using a fixed
   message name. A new section, "What this page rests on", says which parts of
-  the page are `nominated` and which are `ours`, and that the page relies on no
-  analysis of another implementation's source code. No byte, label, constant,
-  derivation or refusal changes.
+  the page are `nominated` and that the open questions are questions, not
+  choices. It states what the repository records: no check of what any cited
+  item was based on beyond who wrote it, and no finding that any of them was
+  based on another implementation's source.
 
 - `identities-and-devices.md`, hosted device-inventory statements: state what a
   verifier must check before it relies on a signed statement, as seven ordered
