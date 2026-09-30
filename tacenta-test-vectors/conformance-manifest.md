@@ -292,7 +292,7 @@ provenance in `tacenta-spec/CONSTANTS.md` rather than chosen here.
   so this is composition evidence rather than an independent implementation. It
   is a regression and composition oracle, not an external implementation. The
   independent reader derives the same fields from the inputs with its own code
-  (so a value the vector should have derived cannot merely be echoed), except
+  (so a value the reader derives cannot merely be echoed; the reader's sweep of 764 corrupted bytes notices 660, and the other 104 lie in inputs it does not read or regions `GAPS-11.md` lists as not checked), except
   for ML-KEM-1024 and the Braid's key generation, which are boundaries;
   `runners/independent/reader/README.md` lists what it derives and what it does
   not.

@@ -103,9 +103,10 @@ Session unit's axiom-audit closure and kernel replay.
 
 ## Current composition boundary (2026-09-23)
 
-The public result-shaped bridge was exposed on this date by
-`decrypt_initial_refines_of_t1_with_nonterminal_route`. That name no longer
-exists: `0a684fc` (2026-09-24) removed it, and the public bridge is now
+The public result-shaped bridge was described on this date as
+`decrypt_initial_refines_of_t1_with_nonterminal_route`. That name was used on the
+pull-request branch only and was replaced before the squash merge `0a684fc`
+(2026-09-24); no Lean file on `main` has declared it. The public bridge is
 `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`. It splits the actual
 `decrypt_ratchet` result, derives terminal and malformed-message evidence from
 the generated call, and accepts a typed refusal route for the remaining
@@ -198,7 +199,7 @@ zero-second timeout and an unavailable compiler; both returned nonzero without
 reporting a passing control. These are local results, not hosted CI results.
 
 After the first-DH adapter landed in `48610c0` (manifests refreshed in
-`8a0aeaf`), the focused 1,733-job build and the complete `no-sorry.sh` gate
+`8a0aeaf`; both are commits of a pull-request branch, not on `main`), the focused 1,733-job build and the complete `no-sorry.sh` gate
 again finished with exit code 0. Kernel replay again covered 68 translation,
 11 model-layer proof, and 34 model/property modules.
 

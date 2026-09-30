@@ -68,6 +68,10 @@ annotated but carry no signature, and `git tag -v` reports `no signature
 found` for them. An unsigned tag has no authenticity beyond access to the
 repository. `tacenta-assurance-v0.3.0` was tagged by a different account.
 
+The newest tag is listed only after it exists, because a tag object cannot be
+named inside the commit it tags. A tag newer than the last row above has no
+recorded mapping here; treat it as unchecked until a later commit adds its row.
+
 The key signs the tag objects, not the tagged commits. Those commits are
 either unsigned or carry GitHub's own signature from a squash merge.
 

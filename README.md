@@ -52,8 +52,8 @@ Every phrase is a constraint, and each is meant to be falsifiable:
   `ASSURANCE.md`, practice 1, says where that has not yet been true.
 - **Interoperable on the wire.** Match another implementation's protocol
   *behaviour*, not its API architecture. What that covers today is stated below.
-- **Explicitly supported versions.** Compatibility is tested and bounded, never
-  universal.
+- **Explicitly supported versions.** Compatibility is bounded, never
+  universal, and no compatibility test against another implementation is recorded yet.
 - **No product coupling.** Storage and device abstractions belong; application
   policy and unrelated services do not.
 
@@ -73,8 +73,10 @@ Two of the constraints above carry limits worth stating plainly.
 - **Stable is a goal, not a state.** There is no versioning policy, deprecation
   policy, or supported-target matrix yet.
 
-Each of the other four constraints is stated so that it can be checked, and
-`ASSURANCE.md` says where each stands. `tacenta-proofs/CLAIMS.md` is the precise
+`ASSURANCE.md` says where the project stands on two of the other four
+constraints, Small and Verification-first (practices 3 and 1). The other two,
+explicitly supported versions and no product coupling, have no assurance row yet.
+`tacenta-proofs/CLAIMS.md` is the precise
 record of what is proven. Where this README and that document ever disagree,
 that document is right.
 
@@ -93,11 +95,13 @@ that document is right.
 
 ## Status
 
-Eight crates carry Lean theorems over their translated Rust: `tacenta-wire` (the
-decoders), `tacenta-ratchet`, `tacenta-session` (the PQXDH derivation only),
-`tacenta-spqr`, `tacenta-braid`, `tacenta-triple`, `tacenta-protobuf` and
-`tacenta-erasure` (T1 for the coder, T3 for the field arithmetic only). The
-Braid's T3 theorems take a live-encoder and an unspliced-stream precondition.
+Eight crates carry T1 panic-freedom and T3 refinement theorems over their
+translated Rust: `tacenta-wire` (the decoders), `tacenta-ratchet`,
+`tacenta-session` (the PQXDH derivation only), `tacenta-spqr`, `tacenta-braid`,
+`tacenta-triple`, `tacenta-protobuf` and `tacenta-erasure` (T1 for the coder, T3
+for the field arithmetic only). A ninth, `tacenta-lifecycle`, has conditional
+panic-freedom theorems on the eight-leaf session unit and no refinement theorem.
+The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
@@ -106,8 +110,10 @@ ADR-0008, component by component, and what comes next.
 
 ## Verify it yourself
 
-The point of a verification-first library is that you do not have to take its
-word for it. `tacenta-proofs/CLAIMS.md` states each claim;
+The aim of a verification-first library is that you do not have to take its
+word for it. This one does not yet meet that aim in full:
+`tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
+`ASSURANCE.md` lists what no one outside the project has checked. `tacenta-proofs/CLAIMS.md` states each claim;
 `tacenta-proofs/REPRODUCING.md` is how to rebuild the proofs, and
 `tacenta-test-vectors/README.md` ("Regenerating the protocol vectors") is how
 to check the committed vectors against the model. The model and the
@@ -156,9 +162,11 @@ read), and the translation build (the translation's Mathlib cache, which is
 the heavy one). In the other direction
 the script runs two steps the workflow does not: the interoperability
 harness, which is not in this public tree and skips here, and the fuzz smoke
-run, which needs `cargo-fuzz` and a nightly toolchain. So a green local run
-is the gate above less the steps it printed a skip line for, and a run with
-nothing skipped means the same thing here as a green workflow.
+run, which needs `cargo-fuzz` and a nightly toolchain. The workflow also runs steps the
+script does not: the SPQR erasure regression (`rust_spqr_erasure`), the receipt
+writers and the aggregation job. So a green local run is the gate above less the
+steps it printed a skip line for, and it has not run the steps only the
+workflow runs.
 
 | Prerequisite | Version | Used by |
 | --- | --- | --- |

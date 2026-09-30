@@ -194,7 +194,7 @@ no-sorry: the translation and its T1/T3 proofs is complete
 translation-coverage: all 68 Translation/*.lean modules are in the build target and built
 lifecycle-translation-coverage: all 30 public operations generated
 lifecycle-translation-coverage-negatives: missing-root mutation refused
-attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (338 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (346 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
 check-lean-constructs: 106 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
