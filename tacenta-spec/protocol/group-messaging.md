@@ -6,13 +6,16 @@ placeholder for work that is not yet scheduled. The bounded fan-out commitment
 helper below is an explicit exception: it is specified first for the product's
 one-authority validation profile, without selecting a sender-key mechanism.
 
-The mechanism, in outline: each member holds a sender key for the group (a chain
-key that ratchets forward per message, plus a signing key so recipients can
-authenticate the sender). A member shares its sender key with the others by
-sending a sender-key distribution message over the one-to-one sessions. Group
-messages are encrypted with the sender's current sender key and signed. When
-membership changes, sender keys rotate into a new epoch so a removed member
-cannot read later messages.
+The mechanism, in outline (tier `nominated`: this is the shape of sender keys
+that WhatsApp's white paper describes, listed under Published material): each
+member holds a sender key for the group (a chain key that ratchets forward per
+message, plus a signing key so recipients can authenticate the sender). A
+member shares its sender key with the others over the one-to-one sessions.
+Group messages are encrypted with the sender's current sender key and signed.
+When membership changes, the sender keys are replaced so a removed member
+cannot read later messages. The outline fixes no byte, label, constant,
+derivation or state, and it is not a design decision: a decision record
+settles the mechanism when the work is scheduled.
 
 ## Bounded fan-out commitment helper (version one)
 
@@ -63,8 +66,7 @@ different part of the problem.
 |---|---|---|
 | Signal, "Private Group Messaging" (blog post, 5 May 2014) | Groups as pairwise fan-out: each message is encrypted to each member over the one-to-one sessions, and a large attachment is encrypted once under a fresh key that is then sent pairwise. Group management travels in pairwise messages, so the server holds no group state. | Sender keys. The post describes the alternative, and gives no wire format or derivation. |
 | Signal, "Technology Preview: Signal Private Group System" (blog post, 9 December 2019); Chase, Perrin and Zaverucha, "The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption" (IACR ePrint 2019/1416; ACM CCS 2020) | Group state and membership, stored by the server encrypted. Members authenticate with keyed-verification anonymous credentials, so the server enforces access control without learning who is in a group. | Encrypting messages to the group. |
-| WhatsApp, "WhatsApp Encryption Overview" (technical white paper, edition of 4 April 2016) | One deployment's description of sender keys, which it calls a component of the Signal Protocol: a chain key ratcheted per message, a signature key, a distribution message sent over the pairwise sessions, one ciphertext that the server fans out, and a reset when a member leaves. | A specification. It is a descriptive overview of another vendor's system, which Tacenta does not target, and it gives steps, not formats or derivations. |
-| Balbás, Collins and Gajland, "WhatsUpp with Sender Keys? Analysis, Improvements and Security Proofs" (IACR ePrint 2023/1385; ASIACRYPT 2023) | A formal model of sender keys, a proof of the guarantees the protocol achieves (which the authors find weak), and an improved variant, Sender Keys+. | A wire format. |
+| WhatsApp, "WhatsApp Encryption Overview" (technical white paper, edition of 4 April 2016) | One deployment's description of sender keys, which it calls a component of the Signal Protocol: a chain key ratcheted per message, a signature key, the sender key sent to the other members over the pairwise sessions, one ciphertext that the server fans out, and a reset when a member leaves. | A specification. It is a descriptive overview of another vendor's system, which Tacenta does not target, and it gives steps, not formats or derivations. |
 
 ## Provenance rules for this page
 
@@ -80,6 +82,26 @@ different part of the problem.
   research under the interoperability boundary (ADR-0003), never from another
   implementation's source.
 
+## What this page rests on
+
+- The bounded fan-out commitment helper is `ours`.
+- The mechanism outline at the top is `nominated`, on WhatsApp's white paper
+  (Published material), and it is the only item the outline is cited to. The
+  white paper's authors are the operator of the deployment it describes. What
+  the document itself was based on has not been checked (second rule above),
+  so the outline is not treated as more than `nominated`.
+- The open questions are questions, not choices. Where one says what a
+  published item covers, that comes from the item's row under Published
+  material: the fan-out description from the 2014 post, and the Private Group
+  System's scope from the 2019 post and paper. The paper named in the last open
+  question has no row; it is cited only for the layer it says it addresses.
+- No wire detail, label, constant or derivation on this page is taken from any
+  of these items.
+- The repository records no check of what any item under Published material, or
+  the paper named in the last open question, was based on beyond who wrote it,
+  and records no finding that any of them was based on another
+  implementation's source.
+
 ## Open questions
 
 These are to be settled in a decision record when the work is scheduled, not
@@ -89,8 +111,8 @@ assumed before then.
   the only group mechanism Signal has published is fan-out. Fan-out reuses
   the one-to-one sessions unchanged, together with their post-compromise
   security and their proofs, at the cost of one encryption per member. Sender
-  keys cost one encryption per message, but add a second key hierarchy, and
-  the analysis above finds their guarantees weak.
+  keys cost one encryption per message, but add a second key hierarchy whose
+  guarantees this project would have to state and prove itself.
 - **Membership privacy against the server.** The Private Group System is a
   separate layer from message encryption. Whether Tacenta needs it is
   undecided.
