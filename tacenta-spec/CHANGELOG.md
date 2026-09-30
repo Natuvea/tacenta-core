@@ -89,6 +89,38 @@ is SemVer against the specified protocol (not the implementation).
   a caller can find such states beforehand by applying the rule to the stored
   keys). The encodings, the signature input and the persisted layouts are unchanged.
 
+- `protocol/group-epochs.md`: new draft page, not ratified, for signed
+  hash-chained group membership epochs. It proposes the canonical epoch body,
+  its commitment and writer signature, genesis and successor acceptance as an
+  ordered list of checks with a first-failure rule, batched operations that
+  take effect atomically, an owner, admin and member policy read against the
+  predecessor only, a conflict rule for concurrent proposals, and the
+  obligations an epoch places on a key engine. The conflict rule refuses a
+  sibling whose writer the head removed and freezes a verifier that sees any
+  other valid sibling. Nothing on the page clears the freeze, and the page says
+  plainly that it gives no way out of a frozen state. Only an owner of the
+  predecessor can cause the `unsupported` result. A device that joins after
+  genesis starts from a checkpoint, which may be the genesis epoch itself, that
+  an authenticated invitation carries, on seven ordered checks and a stated
+  trust assumption: the joiner trusts its inviter for the checkpoint and cannot
+  verify the chain before it. Identity keys of member devices are compared as
+  bytes, which is safe because the verifier applies the identity-key rule of
+  `identities-and-devices.md` to the key of each new device (at the evidence
+  check and at a checkpoint) and to a writer's key at the signature check. The
+  page states a scoped early removal invariant, as a target that is not shown,
+  with its adversary, assumptions and limits, and says that it concerns
+  membership acceptance and recipient sets and not the derivation of later key
+  material. It names RFC 9420 (MLS) as related published work, says that the page
+  has not been compared with it and that no text of it was used to write the
+  page, and says a comparison is required before the key engine is fixed. It
+  lists thirteen open decisions and, for seven of them, adopts a recommended
+  default that the maintainer said to go with; none has been reviewed otherwise.
+  The page has had no human review, and the reviews it has had were run by
+  automated reviewers and are not independent of the maintainer. It is not a
+  conformance target until a reviewed change ratifies it, and no model, vector or
+  proof states it. The domain and label constants, the bounds and the refusal
+  kinds it proposes are not yet in `CONSTANTS.md`.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale
