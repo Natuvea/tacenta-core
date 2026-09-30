@@ -64,7 +64,9 @@ Everything else is outside this specification, including:
 
 Unspecified. protocol/group-messaging.md is an outline, marked as a scaffold,
 and its mechanism is an open question. No requirement covers groups, sender
-keys or group membership.
+keys or group membership. protocol/group-epochs.md is a draft of the
+membership-epoch part; it adds no numbered requirement, and until a reviewed
+change ratifies it this exclusion stands.
 
 ## EX-05: devices
 

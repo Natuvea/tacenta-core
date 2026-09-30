@@ -23,7 +23,10 @@ are the security properties: security-properties/ states authentication,
 confidentiality, forward secrecy and post-compromise security as numbered
 requirements, each marked proved, assumed or tested only, and its
 limitations.md lists the known gaps. group-messaging.md is an outline ahead of
-the code, and that work is not yet scheduled. identities-and-devices.md is
+the code, and that work is not yet scheduled. group-epochs.md is a draft of the
+membership-epoch part of it: it is marked "Status: draft", it has the standing
+of a scaffold until a reviewed change ratifies it, and it adds no numbered
+requirement to security-properties/. identities-and-devices.md is
 partly written: it specifies the identity key's secret, how that key signs
 (XEdDSA) and how a verifier checks a signature against it, and application
 signatures, and devices remain a scaffold. key-registration.md,
