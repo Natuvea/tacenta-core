@@ -5,6 +5,22 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `protocol/group-messaging.md`: the page no longer lists or relies on one
+  published analysis of sender keys (IACR ePrint 2023/1385). The page's rule is
+  to check what a published description's authors based it on before using it,
+  and no outcome of that check is recorded in this repository, so the row is
+  removed. The sentence in the first open question that took that analysis's
+  finding about sender keys is replaced by the project's own cost argument:
+  sender keys add a second key hierarchy whose guarantees the project would
+  have to state and prove itself. This supersedes the earlier entry's remark
+  that sender keys are described publicly "by academic analysis". The mechanism
+  outline is marked tier `nominated` and cited to WhatsApp's white paper, and it
+  says in plain words how a sender key is shared instead of using a fixed
+  message name. A new section, "What this page rests on", says which parts of
+  the page are `nominated` and which are `ours`, and that the page relies on no
+  analysis of another implementation's source code. No byte, label, constant,
+  derivation or refusal changes.
+
 - `identities-and-devices.md`, hosted device-inventory statements: state what a
   verifier must check before it relies on a signed statement, as seven ordered
   checks (account match, issuer binding, signature, freshness, duplicate active
