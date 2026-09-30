@@ -61,6 +61,7 @@ Signed with the key above:
 | `tacenta-assurance-v0.4.1` | `18755545985cee1039df7ab0e209f4c34d2abf35` | `abd0c3b18a76cb34931536ddc368256227e06c37` |
 | `tacenta-assurance-v0.4.2` | `2ff70100f8804cba1dc38a63811b07e033acd1c1` | `d072ef2e85628ed8a9916d42aae1222c8f24c9a0` |
 | `tacenta-assurance-v0.4.3` | `59d2594db082144b45dbd984489341b04d05b8c8` | `2c89e0898b88231c54ffa5e9058817ea3f0cda75` |
+| `tacenta-assurance-v0.4.4` | `d2100dbcf954793257b41f2629ed921ac2bedf87` | `75387aa9b183f0baae3804bb6f4881380a825f8a` |
 
 **Not signed.** `tacenta-assurance-v0.2.0`, `tacenta-assurance-v0.3.0`,
 `tacenta-assurance-v0.4.0`, `tacenta-spec-v0.1.0` and `tacenta-spec-v0.2.0` are
