@@ -18,7 +18,7 @@ made by anyone independent of the maintainer. This assessment did not
 run every acceptance criterion of every closed gap row. `GAP-REGISTER.md` and
 `ASSURANCE-OBLIGATIONS.md` carry their own stamps. Pull request #210 (a
 specification page) merged after `dea57eaf`, and neither it nor this pull request
-is covered by the assessment. In this record, "hosted" means run by GitHub
+is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. In this record, "hosted" means run by GitHub
 Actions. On a push to `main`, the `proofs` and `translation` jobs run on the
 project's self-hosted runners and every other job on GitHub-hosted machines; a
 pull request's `proofs` and `translation` jobs run on GitHub-hosted machines and
@@ -55,7 +55,7 @@ obligations recorded below.
 - **Met:**
   - no `unsafe` in the libraries of the default feature set (practice 3), and no FFI in the core;
   - I/O separated from protocol logic, with bytes in and out and randomness injected;
-  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; `E2E-07` is closed on a recorded run at `75387aa9`, and the order inside `establish_responder` rests on its tests, because that checker reads names and receiver shapes and not bodies);
+  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; `E2E-07` is closed on a recorded run at `75387aa9`, `E2E-07-UNTESTED-CASES` lists two cases no test holds, and the order inside `establish_responder` rests on tests, because that checker reads names and receiver shapes and not bodies);
   - bounded stores and profiles.
 - **Weak:**
   - protocol keys are `[u8; 32]` aliases (the ratchet, session and sparse-ratchet crates each define `Key`); X25519 keys are newtypes in `tacenta-boundary` and in `Session`;
