@@ -17,7 +17,7 @@ the log of the `translation` job for `dea57eaf`. The mutation counts in `ASSURAN
 made by anyone independent of the maintainer. This assessment did not
 run every acceptance criterion of every closed gap row. `GAP-REGISTER.md` and
 `ASSURANCE-OBLIGATIONS.md` carry their own stamps. Pull request #210 (a
-specification page) merged after `dea57eaf`, and neither it nor this pull request
+specification page) merged after `dea57eaf`, and neither it nor pull request #211
 is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. In this record, "hosted" means run by GitHub
 Actions. On a push to `main`, the `proofs` and `translation` jobs run on the
 project's self-hosted runners and every other job on GitHub-hosted machines; a
