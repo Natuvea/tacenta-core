@@ -30,8 +30,8 @@ checks and reviews are evidence of what they ran, not independent review.
 
 The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
-target. Gate 2 is not met: four rows are open at BLOCKING in `GAP-REGISTER.md`
-(HL-IMP-01, HL-R1-SPARSE-TRANSLATION, E2E-07 and E2E-01, the last while the
+target. Gate 2 is not met: three rows are open at BLOCKING in `GAP-REGISTER.md`
+(HL-IMP-01, HL-R1-SPARSE-TRANSLATION and E2E-01, the last while the
 tacenta.com home page says "proven core"), and INV-01 is open at AMBIGUOUS. Gates 3 and 4 have not been met either; see the readiness section.
 This record does not close a practice or replace the review and evidence
 obligations recorded below.
@@ -55,7 +55,7 @@ obligations recorded below.
 - **Met:**
   - no `unsafe` in the libraries of the default feature set (practice 3), and no FFI in the core;
   - I/O separated from protocol logic, with bytes in and out and randomness injected;
-  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; E2E-07 stays open until its final evidence run is recorded);
+  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; `E2E-07` is closed on a recorded run at `75387aa9`, and the order inside `establish_responder` rests on its tests, because that checker reads names and receiver shapes and not bodies);
   - bounded stores and profiles.
 - **Weak:**
   - protocol keys are `[u8; 32]` aliases (the ratchet, session and sparse-ratchet crates each define `Key`); X25519 keys are newtypes in `tacenta-boundary` and in `Session`;
@@ -114,9 +114,9 @@ auditing a ledger that is still moving wastes the engagement.
 | 3 | The claims ledger has been verified claim by claim, by a reader who did not write it, since its last change | a recorded review naming the reading |
 | 4 | Every gate has been shown to fail when what it checks is broken, and none reports green when it cannot run | each gate's mutation record |
 
-**Where the gates stand at `dea57eaf`.**
+**Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), and the ML-KEM Braid row reads L3 against an L4 target.
-- Gate 2 is not met. `GAP-REGISTER.md` has four rows open at BLOCKING and one at AMBIGUOUS, and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS.
+- Gate 2 is not met. `GAP-REGISTER.md` has three rows open at BLOCKING and one at AMBIGUOUS, and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS.
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 
