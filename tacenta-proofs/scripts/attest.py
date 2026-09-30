@@ -637,6 +637,63 @@ AXIOM_PIN = re.compile(
 )
 
 
+# Pins that may not be deleted, and pins that may be compiler-trusted. The
+# manifest is regenerated from the source, so a pin block that is deleted leaves
+# a smaller manifest that `--check` accepts, and a pin edited to list a
+# compiler-trust axiom is recorded with the label `compiler` and accepted. These
+# two lists are the part a regeneration cannot change: editing either is a
+# change to this script, which shows in the diff.
+REQUIRED_PINS = frozenset(
+    "Tacenta.UnitLifecycleT1." + n
+    for n in (
+        "encrypt_no_panic",
+        "decrypt_no_panic",
+        "decrypt_ratchet_no_panic",
+        "establish_initiator_for_no_panic",
+        "establish_responder_no_panic",
+        "invariant_gives_preconditions",
+    )
+)
+COMPILER_TRUSTED_PINS = frozenset(
+    {
+        "Model.Gf65536.mul_inv_cancel",
+        "Model.Polynomial.interp_eq",
+        "Proofs.Serialization.decode_encode_composite",
+        "Tacenta.ErasureT3.mul_refines",
+        "Tacenta.SessionT3.shared_secret_refines_some",
+        "Tacenta.SpqrT3.receive_refines",
+        "Tacenta.SpqrT3.send_refines",
+        "Tacenta.UnitSpqrT3.receive_refines",
+        "Tacenta.UnitSpqrT3.send_refines",
+        "Tacenta.UnitTripleT3.receive_refines_discharged",
+        "Tacenta.UnitTripleT3.send_refines_discharged",
+        "Tacenta.UnitTripleT3.spqr_agrees_for",
+    }
+)
+
+
+def check_pin_lists(pins):
+    """Refuse a lost required pin, an unlisted compiler-trusted pin and a repeat."""
+    have = {p["theorem"] for p in pins}
+    # `pinned_theorems` counts pin blocks, so a block copied under another
+    # theorem's pin would keep the count while losing a pin.
+    repeated = sorted(t for t, n in Counter(p["theorem"] for p in pins).items() if n > 1)
+    problems = (
+        ["theorems pinned more than once: " + ", ".join(repeated)] if repeated else []
+    )
+    problems += [
+        f"`{t}` is on REQUIRED_PINS and has no axiom pin"
+        for t in sorted(REQUIRED_PINS - have)
+    ]
+    problems += [
+        f"`{p['theorem']}` is pinned as compiler-trusted and is not on "
+        "COMPILER_TRUSTED_PINS"
+        for p in pins
+        if p["trust"] == "compiler" and p["theorem"] not in COMPILER_TRUSTED_PINS
+    ]
+    return problems
+
+
 def proof_files():
     for rel in PROOF_TREES:
         for p in source_files(rel):
@@ -659,6 +716,16 @@ def axiom_pins():
         # regex does not recognise would otherwise drop out of the count.
         raw_pairs = len(RAW_PIN.findall(text))
         matched = len(AXIOM_PIN.findall(text))
+        # A pin block left inside a block comment or a string is still in the
+        # file, but Lean never elaborates it, so it would count as a pin the
+        # build does not hold.
+        live_pairs = len(RAW_PIN.findall(lean_code(text)))
+        if live_pairs != raw_pairs:
+            raise SystemExit(
+                f"{p}: {raw_pairs - live_pairs} `#guard_msgs in`/`#print axioms` "
+                "pair(s) sit inside a comment or a string, where Lean does not "
+                "check them"
+            )
         if raw_pairs != matched:
             raise SystemExit(
                 f"{p}: {raw_pairs} `#guard_msgs in`/`#print axioms` pairs but the pin "
@@ -1508,6 +1575,7 @@ def build():
     declared = declared_theorems()
     problems += check_claims(claim_list, declared)
     problems += check_completeness(claim_list, pins)
+    problems += check_pin_lists(pins)
     problems += check_zones_match_translation()
     problems += check_assembly_sources()
 

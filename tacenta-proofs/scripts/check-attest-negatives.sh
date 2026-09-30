@@ -18,6 +18,9 @@
 #   audit comparison       -- `--compare-audit` against the environment's list
 #   allowlist writer       -- the only writer of the allowlist
 #   construct scanner      -- `check-lean-constructs.sh` reads the same spellings
+#   pin lists              -- a required pin deleted or left in a comment, a
+#                             compiler-trust pin the script does not list, a
+#                             pin block copied over another
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -205,6 +208,86 @@ expect_fail "missing-verification-manifest" "tacenta-proofs/manifests/verificati
 make_case
 edit_json tacenta-proofs/manifests/source-commit-attestation.json 'data["p9_mutation"] = "stale"'
 expect_fail "stale-source-attestation" "tacenta-proofs/manifests/source-commit-attestation.json is stale" --check
+
+# ---------------------------------------------------------------------------
+# Pin lists. A pin block that is deleted, or edited to list a compiler-trust
+# axiom, leaves a manifest that regenerates cleanly; the required-pin floor and
+# the compiler-trust ceiling in attest.py are what refuse both. The mutations
+# are made in the session lifecycle pins, and each is refused by the build of
+# the manifest itself, so the expected text is the script's own diagnostic.
+# ---------------------------------------------------------------------------
+
+session_pins="tacenta-proofs/translation/Translation/UnitLifecyclePublicT1.lean"
+
+for n in encrypt_no_panic decrypt_no_panic decrypt_ratchet_no_panic \
+         establish_initiator_for_no_panic establish_responder_no_panic \
+         invariant_gives_preconditions; do
+  make_case
+  python3 - "$work/$session_pins" "Tacenta.UnitLifecycleT1.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-$n" "\`Tacenta.UnitLifecycleT1.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+  if [ "$n" = "encrypt_no_panic" ]; then
+    expect_fail "required-pin-deleted-refused-by-refresh" "\`Tacenta.UnitLifecycleT1.$n\` is on REQUIRED_PINS and has no axiom pin"
+  fi
+done
+
+make_case
+python3 - "$work/$session_pins" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = "Tacenta.UnitLifecycleT1.encrypt_no_panic"
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn(lambda m: "/-\n" + m.group(0) + "-/\n", text)
+assert n == 1, n
+path.write_text(new)
+PY
+expect_fail "required-pin-commented-out" "sit inside a comment or a string" --check
+
+make_case
+python3 - "$work/$session_pins" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+anchor = "info: 'Tacenta.UnitLifecycleT1.decrypt_no_panic' depends on axioms: [propext,"
+assert text.count(anchor) == 1
+path.write_text(text.replace(anchor, anchor + "\n Tacenta.UnitLifecycleT1.full_store_eq_no_panic._native.native_decide.ax_1_2,"))
+PY
+expect_fail "compiler-trust-pin-not-listed" "\`Tacenta.UnitLifecycleT1.decrypt_no_panic\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS" --check
+expect_fail "compiler-trust-pin-refused-by-refresh" "\`Tacenta.UnitLifecycleT1.decrypt_no_panic\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS"
+
+make_case
+python3 - "$work/$session_pins" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+def block(name):
+    return re.compile(
+        r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+        re.S,
+    )
+first = "Tacenta.UnitLifecycleT1.encrypt_no_panic"
+second = "Tacenta.UnitLifecycleT1.decrypt_no_panic"
+copy = block(second).search(text).group(0)
+new, n = block(first).subn(lambda _m: copy, text)
+assert n == 1, n
+path.write_text(new)
+PY
+expect_fail "pin-block-copied-over-another" "theorems pinned more than once: Tacenta.UnitLifecycleT1.decrypt_no_panic" --check
 
 # ---------------------------------------------------------------------------
 # The translation record.

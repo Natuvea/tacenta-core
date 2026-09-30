@@ -98,7 +98,9 @@ not declared by Lean, a missing generated verification manifest, a stale
 source-commit attestation, a generated translation whose bytes or assembly
 provenance do not match the record, an axiom in a generated file that the
 allowlist does not list by qualified name and type, a malformed or incomplete
-allowlist, and an audit list that differs from the record or the allowlist.
+allowlist, an audit list that differs from the record or the allowlist, a
+required axiom pin that is deleted or left inside a comment, a pin labelled
+compiler-trusted that the script does not list, and a theorem pinned twice.
 The runner matches the corresponding diagnostic, so a failure elsewhere cannot
 satisfy a case.  What none of this shows: that the allowlist was reviewed, that
 the type text is the type the elaborator gave the axiom, or that the toolchain

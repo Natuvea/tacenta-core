@@ -105,7 +105,7 @@ for old, new, expected in [
     ("Translation.TacentaTripleUnit", "Translation.TacentaSessionUnit", 1),
     ("tacenta_triple_unit", "tacenta_session_unit", 3),
     ("UnitTripleT1", "SessionUnitTripleT1", 2),
-    ("UnitSpqrT1", "SessionUnitSpqrT1", 46),
+    ("UnitSpqrT1", "SessionUnitSpqrT1", 45),
     ("UnitT1", "SessionUnitT1", 39),
     ("three-leaf translation unit", "eight-leaf Session translation unit", 1),
     ("Translation/TacentaTripleUnit.lean", "Translation/TacentaSessionUnit.lean", 1),

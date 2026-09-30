@@ -1444,23 +1444,17 @@ from `T1`/`T3`, and a `receive` calls the KDF, the `zeroize` wrapper and the
 `Vec` operations Aeneas does not model. Every one of those reaches this
 translation as an opaque axiom, so a corollary's base is the base of the
 `receive` theorem it composes with: eleven `tacenta_ratchet.*` constants for
-the ratchet's two, ten `tacenta_spqr.*` constants **plus one compiler-trust
-axiom** for the sparse ratchet's, and the erasure coders and KEM constants for
-the Braid's. Saying only the first paragraph would over-read the file, so the
+the ratchet's two, twelve `tacenta_spqr.*` constants for the sparse ratchet's,
+and the erasure coders and KEM constants for the Braid's. Saying only the first paragraph would over-read the file, so the
 corollaries carry pins of their own below and a widening anywhere along the
 chain fails here.
 
-**The one compiler-trust axiom, named rather than only listed.**
-`Spqr.decoded_receive_no_panic` carries
-`Tacenta.SpqrT1.receive_no_panic._native.native_decide.ax_1_1`. It is not new
-and is not this file's: it is inherited from `SpqrT1.receive_no_panic`, whose
-proof settles one closed numeric fact (that `(1 : U64)` has value one) with
-`native_decide`, so the Lean compiler's evaluation is trusted where the kernel
-would otherwise check. `LIMITATIONS.md` counts that use among the fourteen
-inside translation theorems. What is new here is where it surfaces: the
-end-to-end statement "a `receive` on a decoded sparse-ratchet state does not
-panic" is compiler-trusted, not kernel-only, and no other statement in this
-file is. -/
+**No compiler-trust axiom.**
+`Spqr.decoded_receive_no_panic` used to carry
+`Tacenta.SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, inherited from
+`SpqrT1.receive_no_panic`, whose proof settled one closed numeric fact (that
+`(1 : U64)` has value one) with `native_decide`. Since 2026-09-30 that fact is
+settled by `decide`. No pin in this file lists a compiler-trust axiom. -/
 /-- info: 'Tacenta.ImportInv.Ratchet.invariant_true_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.ImportInv.Ratchet.invariant_true_iff
@@ -1558,9 +1552,7 @@ info: 'Tacenta.ImportInv.Ratchet.decoded_receive_refines' depends on axioms: [pr
 #guard_msgs in
 #print axioms Tacenta.ImportInv.Ratchet.decoded_receive_refines
 
--- The sparse ratchet's. The `_native.native_decide.ax_1_1` entry in this list
--- is the compiler-trust axiom described above: it is what makes this one
--- end-to-end statement compiler-trusted rather than kernel-only.
+-- The sparse ratchet's.
 /--
 info: 'Tacenta.ImportInv.Spqr.decoded_receive_no_panic' depends on axioms: [propext,
  Classical.choice,
@@ -1574,7 +1566,6 @@ info: 'Tacenta.ImportInv.Spqr.decoded_receive_no_panic' depends on axioms: [prop
  tacenta_spqr.alloc.vec.Vec.pop,
  tacenta_spqr.core.option.Option.as_mut,
  tacenta_spqr.zeroize.Zeroize.Blanket.zeroize,
- SpqrT1.receive_no_panic._native.native_decide.ax_1_1,
  tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_spqr.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone]

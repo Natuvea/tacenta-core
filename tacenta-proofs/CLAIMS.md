@@ -960,10 +960,10 @@ says.
   composes this with the classical ratchet above, is translated and proved
   (see below).
 - `send_no_panic` and `receive_no_panic` are pinned under `#guard_msgs` at the
-  end of the file. `receive_no_panic` is not kernel-only: besides the crate's
-  opaque-operation axioms it carries
-  `SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, one closed numeric
-  fact in its proof settled by `native_decide`.
+  end of the file. Both depend on the three standard axioms and the crate's
+  opaque-operation axioms only; the
+  one closed numeric fact in `receive_no_panic`'s proof (that `(1 : U64)` has
+  value one) is settled by `decide`, not `native_decide`.
 - Seven opaque-operation assumptions back these theorems
   (`RemoveSkippedAtTotal`, which describes the custom wipe-before-pop helper
   under `i.val < v.val.length →` and is discharged from the skipped-key
@@ -1313,16 +1313,12 @@ window is written with `saturating_add` exactly as the Rust writes it.
   list of bridges stays a list of premises actually discharged.
 - `Spqr.decoded_receive_no_panic`: the chain end to end -- a `receive` on a
   decoded state does not panic, with no side condition left for a caller.
-  **Not kernel-only, and not only because of the opaque operations.** It
-  carries ten `tacenta_spqr.*` opaque-operation axioms *and*
+  It carries twelve `tacenta_spqr.*` opaque-operation axioms beside Lean's three,
+  and no compiler-trust axiom. It used to carry
   `SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, inherited from
-  `SpqrT1.receive_no_panic`: one closed numeric fact in that proof is settled
-  by `native_decide`, so the Lean compiler's evaluation is trusted where the
-  kernel would otherwise check. This end-to-end statement is the point at
-  which that compiler trust reaches a claim about a state read off disk. It is
-  pinned under `#guard_msgs` with the axiom named in the pin, and it is the
-  only compiler-trusted statement in `ImportInv.lean`. `LIMITATIONS.md` counts
-  that `native_decide` use among the fourteen inside translation theorems.
+  `SpqrT1.receive_no_panic`; since 2026-09-30 the closed numeric fact behind that
+  axiom is settled by `decide`. It is pinned under `#guard_msgs`, and no
+  statement in `ImportInv.lean` is compiler-trusted.
 
 **What this does not give.** `SpqrT3.receive_refines` also takes `hepoch`,
 `hcb`, `hsb`, `hnewb` and `hcounter`, and those are **not** consequences of
@@ -1417,8 +1413,8 @@ in CI, so the copies cannot drift from the originals in either direction.
 - `Tacenta.UnitSpqrT1.receive_no_panic`: likewise for the sparse ratchet's
   receive.
 
-**What the pins add, which is the reason to have them.** Each of the five is
-pinned in `UnitPins.lean`, and each base is the leaf theorem's base name for
+**What the pins add, which is the reason to have them.** Five of the six are
+pinned in `UnitPins.lean` (`is_canonical_x25519_spec` is not), and each base is the leaf theorem's base name for
 name, with `tacenta_triple_unit.` in front of every translated axiom and
 nothing else changed. That is a statement about the printed lists. A leaf file opens its
 crate's namespace, so its pins print a translated axiom without the
@@ -1426,11 +1422,8 @@ crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
 `tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
 differ by that prefix as well. Nothing appears that the leaf did not assume, nothing the
 leaf assumed has quietly become a definition, and no proof that was kernel-only
-has become compiler-trusted. `Tacenta.UnitSpqrT1.receive_no_panic` carries
-`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the same
-compiler-trust axiom its leaf twin carries and for the same closed numeric
-fact; it is the one of the five that is not kernel-only, in the unit as in the
-leaf.
+has become compiler-trusted. None of the five pinned ones carries a compiler-trust
+axiom, in the unit as in the leaf.
 
 **What these do not do on their own.** They say nothing about the composition:
 that is the next section, `Translation/UnitTripleT1.lean`, which proves the
@@ -1515,20 +1508,17 @@ these four is proved to hold of every decoded state on the unit island. They are
 the way to violate one is to hold a vector with billions of entries.
 
 **What the trust base became, honestly.** The standalone
-`Tacenta.TripleT1.State.receive_no_panic` depended on twelve axioms and was
-kernel-only, as measured on 2026-09-10 with `#print axioms`, before its
-deletion; it was never pinned. This file's depends on eighteen and is not: it
-inherits
-`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. Both halves
-matter. The standalone theorem was kernel-only because it *assumed* the sparse
-ratchet's receive is total rather than proving it, so its kernel-only status was
-bought by assuming the hard part; this one proves that part and inherits the
-one compiler-trusted numeric fact that proof rests on. Six axioms go and twelve arrive. Eleven of the
-twelve are a substitution rather than a new kind of trust: the bare operation
-axioms are replaced by KDF, `zeroize` and `Vec` boundary axioms that other
-proofs in this tree already carry. The twelfth is the `native_decide` axiom
-above, which is neither, and is the whole of the regression. `send` is quieter -- twelve axioms before and twelve
-after, kernel-only on both sides. `Translation/UnitPins.lean` records all of it.
+`Tacenta.TripleT1.State.receive_no_panic` depended on twelve axioms, none of
+them compiler-trusted, as measured on 2026-09-10 with `#print axioms`, before its
+deletion; it was never pinned. This file's depends on seventeen, none of them
+compiler-trusted. Both halves matter. The standalone theorem had fewer axioms
+because it *assumed* the sparse ratchet's receive is total rather than proving it;
+this one proves that part and inherits the boundary axioms proving it needs. Six
+axioms go and eleven arrive, a substitution rather than a new kind of trust: the
+bare operation axioms are replaced by KDF, `zeroize`, `Vec` and `Option` boundary
+axioms that other proofs in this tree already carry. `send` is quieter: twelve
+axioms before (measured on 2026-09-10) and sixteen after, none of them
+compiler-trusted. `Translation/UnitPins.lean` records all of it.
 
 **Two more assumptions, and one trade.** `SpqrInitAliceTotal` and
 `SpqrInitBobTotal` bottom out in `tacenta_spqr.kdf_init`, which no leaf proof
@@ -2166,15 +2156,24 @@ which are not listed as claims.
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
   establishment entry points return, the responder's with room in its
   last-resort record.
-- `invariant_gives_preconditions`: `Session::invariant` yields the
-  preconditions the inner Triple and Braid theorems carry.
+- `invariant_gives_preconditions`: given `Ct1LenTotal` (the translated `CT1_LEN`
+  returns a value of at most 4096), a session for which `Session::invariant`
+  returns `true` has the preconditions the inner Triple and Braid theorems carry.
+  It takes that one contract and no headroom record.
 
-`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`
-also depend on three compiler-trust axioms
-(`Tacenta.SessionUnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, and
-`Tacenta.UnitLifecycleT1.full_store_eq_no_panic._native.native_decide.ax_1_2` and `ax_1_3`). None of the
-six theorems carries an axiom pin, so a change to their axiom lists would not
-fail the build.
+None of the six theorems depends on a compiler-trust axiom. Two closed facts that
+were settled by `native_decide` are now settled in the kernel: that `(1 : U64)` has
+value one, in the sparse ratchet's `receive_no_panic`, by `decide`, and that the
+two `FullStore` discriminants differ, in `full_store_eq_no_panic`, by `simp`. Each
+of the six carries an axiom pin under `#guard_msgs` at the end of
+`Translation/UnitLifecyclePublicT1.lean`, and `attest.py` lists the six in
+`REQUIRED_PINS`, so deleting a pin block, or leaving it inside a comment, fails
+it. The pins hold axiom lists only. A change to a contract record, to the class
+`SessionUnitT1.DerivedKeysModel` or to a headroom record, or a weaker theorem
+statement, fails a pin only if it names an operation the pin does not list. Nor do they show that the records can be met:
+`Translation/UnitSatisfiabilitySession.lean` exhibits a model for thirteen
+boundary contracts, and no theorem shows that any of the four records, or the
+class, is inhabited (`LIMITATIONS.md`, "The Session unit's primitive contracts").
 
 ## Proved (bounded P6 session lifecycle observations)
 

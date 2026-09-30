@@ -574,7 +574,8 @@ theorem full_store_eq_no_panic (a b : lifecycle.FullStore) :
     lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore.eq a b
       ⦃ fun r => r = true ↔ a = b ⦄ := by
   rcases a <;> rcases b <;>
-    simp [lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore.eq] <;> native_decide
+    simp [lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore.eq] <;>
+      simp [lifecycle.FullStore.read_discriminant]
 
 @[step]
 theorem full_store_ne_no_panic (a b : lifecycle.FullStore) :

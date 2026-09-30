@@ -46,6 +46,11 @@ theorems (`send_refines`, `receive_refines`, `message_keys_refines`),
 `Translation.ErasureT1`/`ErasureT3` for the erasure coder's two entry points
 and its field, and `Translation.ProtobufT1`/`ProtobufT3` for both message
 parsers, the encoder and all nine refinement theorems.
+`Translation.UnitLifecyclePublicT1` pins the six Session lifecycle results, five
+panic-freedom theorems and one lemma (`encrypt_no_panic`, `decrypt_no_panic`,
+`decrypt_ratchet_no_panic`, `establish_initiator_for_no_panic`,
+`establish_responder_no_panic` and `invariant_gives_preconditions`); none
+depends on a compiler-trust axiom.
 `Translation.ImportInv` pins both halves of its chain: the two ratchets'
 `invariant_true_iff` and `from_bytes_establishes_inv`, together with the
 classical ratchet's two non-vacuity pins, which are kernel-only; and
@@ -54,8 +59,8 @@ separately the Braid's `from_bytes_establishes_inv` and each of the four
 erasure and KEM decoders and, through its `invariant`'s key-pair clause, the
 KEM's `header`, `ek_vector` and `validate_ek`, and a corollary carries the
 boundary axioms of the
-`receive` theorem it composes with, the sparse ratchet's carrying a
-compiler-trust axiom too. `Translation.SpqrT1`/`SpqrT3` pin the sparse
+`receive` theorem it composes with, the sparse ratchet's carrying no
+compiler-trust axiom since 2026-09-30. `Translation.SpqrT1`/`SpqrT3` pin the sparse
 ratchet's `send` and `receive`, for panic-freedom and for refinement, and
 `Translation.BraidT1`/`BraidT3` the Braid's; the bases stated below for those
 crates' other theorems are read off `#print axioms` by hand. Ten of the Triple
@@ -73,27 +78,33 @@ Most other uses of `native_decide` (about a hundred) are in `example`
 declarations. Those are build-time known-answer checks: they fail the build if
 wrong, and no theorem depends on them, so they widen no proof's trust base.
 
-**Fourteen are inside translation theorems.** They are: `fPrefix_agrees` and `skInfo_agrees` in
+**Thirteen are inside translation theorems.** They are: `fPrefix_agrees` and `skInfo_agrees` in
 `Translation.SessionT3`; in `Translation.SpqrT3`, `protocol_info_agrees`,
 `chain_start_agrees`, `root_label_agrees`, `chain_label_agrees`,
 `max_skip_agrees`, `max_skipped_store_agrees`, `max_skip_val`, and one step of
-`receive_refines_continuation`; in `Translation.UnitTripleT3`, `split_info_agrees`,
-`combine_info_agrees`, and one step of `split_secret_refines`; and one step of
-`Translation.SpqrT1.receive_no_panic` (that `(1 : U64)` has value 1). The
-three-leaf unit's generated copies of the sparse ratchet's proofs carry those
-nine again and are not counted here. A
-fifteenth, `Model.Gf65536.mul_inv_cancel`, lives in the model and is pinned in
+`receive_refines_continuation`; and in `Translation.UnitTripleT3`, `split_info_agrees`,
+`combine_info_agrees`, and one step of `split_secret_refines`. Two uses were
+removed on 2026-09-30. The first, in `Translation.SpqrT1.receive_no_panic` (that
+`(1 : U64)` has value 1), was in the earlier count of fourteen and is now settled by
+`decide`. The second, in `UnitLifecycleT1.full_store_eq_no_panic`, was not in that
+count and is now settled by `simp`. The step of `receive_refines_continuation`
+named above settles the same fact, that `(1 : U64)` has value 1, by
+`native_decide` still. The generated copies on the three-leaf unit
+(`UnitSpqrT3.lean`) and on the eight-leaf Session unit (`SessionUnitSpqrT3.lean`,
+`SessionUnitTripleT3.lean`) carry those again and are not counted here. A fourteenth,
+`Model.Gf65536.mul_inv_cancel`, lives in the model and is pinned in
 `Proofs.TrustedBase`. `u8_zero`, `zeroSalt_agrees` and
-`decode_ec_after_encode_ec` are **not** among them: each is written `first |
-rfl | decide | native_decide` and closes on `rfl`/`decide`, so they are
-kernel-only. Each of
-the fourteen is a closed numeric or byte-string fact that `decide` could in
+`decode_ec_after_encode_ec` are **not** among them: the first two close on
+`rfl`, and the third is proved from the encoder's and decoder's specifications;
+none uses `native_decide`, so they are kernel-only. `fPrefix_agrees` and
+`skInfo_agrees` are written `first | rfl | decide | native_decide` and do reach
+`native_decide`. Each of
+the thirteen is a closed numeric or byte-string fact that `decide` could in
 principle settle and `native_decide` settles faster. On Lean v4.31.0 the axiom
 each use adds is the per-declaration `<decl>._native.native_decide.ax_*` (and
 `…bv_decide.ax_*` for `bv_decide`), not `Lean.ofReduceBool`; either way it
 puts the compiler into the axiom base of every theorem downstream: in
-particular the sparse ratchet's T1 headline theorem and every T3 refinement
-that uses a label lemma are compiler-trusted, not kernel-only, and `CLAIMS.md`
+particular every T3 refinement that uses a label lemma is compiler-trusted, not kernel-only, and `CLAIMS.md`
 should be read with that in mind. Counted by a `#print axioms` sweep over
 every theorem. The headline theorems of the classical and sparse ratchets, the
 Braid, the session, the erasure coder and the parser are pinned under
@@ -813,14 +824,11 @@ the invariant gives both of `receive_no_panic`'s preconditions outright:
 the chains vector at two entries, so `chains.length + 2 < usize::MAX` needs
 nothing further) and `Spqr.inv_gives_skip_room` (2000 stored keys plus
 `MAX_SKIP` is 3000). `Spqr.decoded_receive_no_panic` states the composition
-with no side condition left over -- and is **compiler-trusted rather than
-kernel-only**: it inherits
-`SpqrT1.receive_no_panic._native.native_decide.ax_1_1` from
-`SpqrT1.receive_no_panic`, one of the fourteen `native_decide` uses counted
-above, so the end-to-end statement about a sparse-ratchet state read off disk
-rests on the Lean compiler's evaluation as well as on the kernel. It is pinned
-under `#guard_msgs` in `ImportInv.lean` with that axiom named in the pin, and
-it is the only compiler-trusted statement in that file. Three of the
+with no side condition left over. It carries no compiler-trust
+axiom: the one closed numeric fact it inherits from `SpqrT1.receive_no_panic` was
+settled by `native_decide` until 2026-09-30 and is now settled by `decide`. It is
+pinned under `#guard_msgs` in `ImportInv.lean`, and no statement in that file is
+compiler-trusted. Three of the
 refinement's premises come off the same invariant -- the two above, which are
 also `SpqrT3.receive_refines`'s `hroom` and `hskiproom`, and `hone` -- but
 five do not: `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter` are not
@@ -1783,17 +1791,16 @@ The standalone `TripleT1.State.clone_no_panic` proved only that the clone
 returns, which was all it could prove where the inner states were opaque, so
 there a precondition could not be transported at all.
 
-**And the composed `receive` stops being kernel-only.**
+**And the composed `receive` takes on boundary axioms.**
 The standalone `Tacenta.TripleT1.State.receive_no_panic` depended on twelve
-axioms, none of them compiler-trusted, measured before its deletion. The ported theorem depends on eighteen and inherits
-`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. The reason
-is not a weaker proof: the standalone theorem was kernel-only because it
-*assumed* the sparse ratchet's receive is total rather than proving it, so its
-kernel-only status was bought by assuming the hard part. The ported one proves
-that part and inherits the one compiler-trusted numeric fact that proof rests
-on. The six extra axioms are a substitution rather than a new kind of trust --
-the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
-axioms already shared with every other proof in the tree. `Translation/UnitPins.lean`
+axioms, none of them compiler-trusted, measured before its deletion. The ported
+theorem depends on seventeen, none of them compiler-trusted. The difference is not
+a weaker proof: the standalone theorem had fewer axioms because it *assumed* the
+sparse ratchet's receive is total rather than proving it. The ported one proves
+that part and inherits the boundary axioms proving it needs. The five extra axioms
+are a substitution rather than a new kind of trust -- the bare operation axioms
+are replaced by KDF, `zeroize`, `Vec` and `Option` boundary axioms already shared
+with every other proof in the tree. `Translation/UnitPins.lean`
 records the whole base and `CLAIMS.md` repeats it.
 
 **The refinement layer is on the unit too, with its trust base unchanged.**
