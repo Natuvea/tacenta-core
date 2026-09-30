@@ -6,17 +6,21 @@ the difference between a proof and a check stays explicit.
 
 ## Read this first: what is not proved
 
-Everything below this section is accurate. A reader who works through it can
+Everything below this section is intended to be accurate. `attest.py --check` confirms that each theorem it names exists in the file it names and that each axiom pin is current; this repository records no review, by a reader who did not write the ledger, of whether the statements say what this prose says. A reader who works through it can
 still finish with a stronger impression than the sum of its parts supports, so
 this section says in one place what is not proved.
 
 - **`Session::encrypt` and `Session::decrypt` are not proved end to end.** They
   are the functions a product actually calls. On the eight-leaf session unit
   their orchestration now has panic-freedom theorems (T1, below), conditional
-  on thirteen named boundary contracts and explicit headroom, and a set of
+  on the contract records named in their statements (15 to 44 named hypotheses
+  each; together the four records include eleven of the thirteen boundary
+  contracts of `LIMITATIONS.md`, and any one record includes three to eight of
+  them) and explicit headroom, and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
-  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
-  composed with the leaf theorems). No theorem says what the two functions
+  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Braid
+  and Triple receive evidence in `UnitLifecycleInitialDispatch.lean` is derived
+  from the leaf refinements, `GAP-REGISTER.md` E2E-04). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -46,7 +50,9 @@ this section says in one place what is not proved.
   `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it. That layer now has a Phase 0
-  translation but no theorem. Wherever that
+  translation and, on the eight-leaf session unit, conditional panic-freedom
+  theorems for its entry points, but no theorem about the import of a stored
+  session. Wherever that
   chain does not reach, the sentence in bold still stands unchanged.
 - **A decoded state is panic-free unconditionally; it refines the model
   provided the relevant counter has a step of headroom left.** That is the
@@ -202,9 +208,10 @@ this section says in one place what is not proved.
   theorem of any kind yet (`LIMITATIONS.md`). So is the session lifecycle
   leaf, `tacenta-core/lifecycle` (`Translation/TacentaLifecycle.lean`): all
   thirty public operations, `Session::encrypt` and `decrypt` among them, are
-  translated and audited, and none has a theorem; it stands on the ratchets,
-  the Braid, the wire codecs and the primitive boundary as opaque externals
-  until the session unit exists (`LIMITATIONS.md`, "The lifecycle leaf is a
+  translated and pass the axiom audit, and none has a theorem on this island; the
+  theorems about them are on the eight-leaf session unit (the session lifecycle
+  T1 section below), where the ratchets, the Braid, the wire codecs and the
+  PQXDH derivation are real bodies (`LIMITATIONS.md`, "The lifecycle leaf is a
   tenth translated zone").
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
@@ -1451,8 +1458,9 @@ qualified form, and its proof bodies genuinely changed on the way.
 
 **This is the claim that says anything about the composed path.**
 `tacenta-core/lifecycle/src`, the product code that calls `tacenta-triple`, is
-not translated or proved in its own right, so the claim stops at the crate
-boundary below it.
+translated and has conditional T1 theorems on the eight-leaf session unit (the
+session lifecycle T1 section below) and no refinement theorem, so the
+refinement claim stops at the crate boundary below it.
 
 - `Tacenta.UnitTripleT1.State.send_no_panic`: the composed send path cannot
   panic, given one precondition -- the sparse ratchet's chain table has room
@@ -2129,24 +2137,44 @@ are what the refinement theorems are *about*.
 
 Location: `Translation/UnitLifecyclePublicT1.lean`.
 
-The five operations a
-product calls, translated inside `tacenta-core/session-unit` where the
+The four entry points a
+product calls and the private `decrypt_ratchet`, translated inside `tacenta-core/session-unit` where the
 ratchets, the Braid, the wire codecs and the PQXDH derivation are real
-bodies rather than axioms. Each theorem is conditional on the thirteen boundary
-contracts (`LIMITATIONS.md`, "The Session unit's primitive contracts") and on
-an explicit headroom record; `invariant_gives_preconditions` derives the
+bodies rather than axioms. Each theorem is conditional on the contract record named in its
+statement, on an explicit headroom record and, for `decrypt_no_panic`,
+`decrypt_ratchet_no_panic` and `establish_responder_no_panic`, on the class
+`SessionUnitT1.DerivedKeysModel`, which no record contains. The records are `EncryptContracts`
+(25 named hypotheses), `DecryptRatchetContracts` (38, taken by `decrypt_no_panic`
+and `decrypt_ratchet_no_panic`), `EstablishInitiatorContracts` (15) and
+`EstablishResponderContracts` (44), counting the fields of nested records. Eleven
+of the thirteen boundary contracts of `LIMITATIONS.md` ("The Session unit's
+primitive contracts") appear among those fields; `KemCiphertextLenTotal` and
+`XeddsaSignTotal` appear in none of the four records. The others are contracts
+on the ratchets, the Braid, the Triple Ratchet and the session layer; `invariant_gives_preconditions` derives the
 leaf preconditions from `Session::invariant`. Nothing here relates a result
 to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
 which are not listed as claims.
 
 - `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`:
-  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, for a
-  session satisfying `Session::invariant` with room in its counters.
+  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, given the
+  headroom records in their statements (`EncryptHeadroom`,
+  `DecryptRatchetHeadroom`). `invariant_gives_preconditions` yields two of the
+  three receive-headroom fields. The third, a bound on the associated data
+  length, is not derived by any theorem, although clause (c) of
+  `Session::invariant` fixes the associated data at the 66 bytes that
+  `identity_ad_length` proves.
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
   establishment entry points return, the responder's with room in its
   last-resort record.
 - `invariant_gives_preconditions`: `Session::invariant` yields the
   preconditions the inner Triple and Braid theorems carry.
+
+`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`
+also depend on three compiler-trust axioms
+(`Tacenta.SessionUnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, and
+`Tacenta.UnitLifecycleT1.full_store_eq_no_panic._native.native_decide.ax_1_2` and `ax_1_3`). None of the
+six theorems carries an axiom pin, so a change to their axiom lists would not
+fail the build.
 
 ## Proved (bounded P6 session lifecycle observations)
 
@@ -2238,7 +2266,7 @@ excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
 ones included, is outside the seven audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
-six do not all run with the same first-party prefixes, since the audit's
+seven do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
 `scripts/check-audit-negatives.sh` plants thirteen declarations: one for each

@@ -103,8 +103,11 @@ Session unit's axiom-audit closure and kernel replay.
 
 ## Current composition boundary (2026-09-23)
 
-The public result-shaped bridge is now exposed by
-`decrypt_initial_refines_of_t1_with_nonterminal_route`. It splits the actual
+The public result-shaped bridge was described on this date as
+`decrypt_initial_refines_of_t1_with_nonterminal_route`. That name was used on the
+pull-request branch only and was replaced before the squash merge `0a684fc`
+(2026-09-24); no Lean file on `main` has declared it. The public bridge is
+`decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`. It splits the actual
 `decrypt_ratchet` result, derives terminal and malformed-message evidence from
 the generated call, and accepts a typed refusal route for the remaining
 nonterminal families. `InitialRatchetRefusalRoute` is indexed by the exact
@@ -182,7 +185,8 @@ added: 2,318 translation/T1/T3 jobs, 37 model proof jobs, 64 model/property
 jobs, all kernel replays, audit negatives, reachability, and dispatcher
 mutation controls. Hosted run `35818611209` for `0de9430` has armv7, rust,
 vectors, proofs, msrv, sign-off, audit, and checks green; `translation` is
-still in progress, so no hosted-green claim is made.
+still in progress, so no hosted-green claim is made. This run belongs to the private working
+repository and cannot be opened from this one.
 
 ## Verification record (2026-09-20)
 
@@ -195,7 +199,7 @@ zero-second timeout and an unavailable compiler; both returned nonzero without
 reporting a passing control. These are local results, not hosted CI results.
 
 After the first-DH adapter landed in `48610c0` (manifests refreshed in
-`8a0aeaf`), the focused 1,733-job build and the complete `no-sorry.sh` gate
+`8a0aeaf`; both are commits that GitHub still serves by id and that no branch or pull-request head contains; they are not on `main`), the focused 1,733-job build and the complete `no-sorry.sh` gate
 again finished with exit code 0. Kernel replay again covered 68 translation,
 11 model-layer proof, and 34 model/property modules.
 
@@ -219,7 +223,8 @@ head `no-sorry.sh` replay is clean: translation/T1/T3 replayed 68 modules,
 model proofs 11, model/property proofs 34; all 13 audit negatives, construct
 checks, reachability, and the dispatcher mutation controls passed. Hosted CI
 run `35827850983` is on this exact SHA; rust, proofs, audit, checks, msrv,
-armv7, and sign-off are green while vectors and translation finish.
+armv7, and sign-off are green while vectors and translation finish. This run
+belongs to the private working repository and cannot be opened from this one.
 
 ## Checkpoint — 2026-09-23 (AEAD early refusal inversion)
 

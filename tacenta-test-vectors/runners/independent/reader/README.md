@@ -1,7 +1,10 @@
-# tacenta_reader: a clean-room reading of tacenta-spec
+# tacenta_reader: a specification-only reading of tacenta-spec
 
-An independent implementation of parts of the Tacenta protocol specification,
-written to test whether the specification alone is enough to build from.
+An implementation of parts of the Tacenta protocol specification, written to
+test whether the specification alone is enough to build from. Passes 2 to 7 were
+run in isolated directories, on the author's own isolation records; pass 1 has none.
+Passes 8 to 11 and later maintenance were made with the implementation in view. Passes 12 and 13 have isolation records written by their own author, as
+this file records below.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
@@ -14,7 +17,7 @@ Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
   admits one."
 
 The twelfth pass read `1cac363f11305d675844af590a0840774a87656f` (the hosted
-device-inventory statements). The seventh pass, the last full clean-room pass
+device-inventory statements). The seventh pass, the last pass held to the isolation rule
 before that, read `5ae44427d17d0e8bfa1d314780305690000ee770`; passes 8 to 10
 were maintenance re-runs (`../GAPS-8.md` to `../GAPS-10.md`). The sixth pass
 read `c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
@@ -38,7 +41,7 @@ It was written without network access. It consulted no existing implementation
 of these protocols: not tacenta-core, tacenta-model, tacenta-proofs, the Rust
 vector runner, libsignal or anything else.
 
-**That holds for passes 1 to 7 only.** Passes 8 to 11, and every change to this
+**That is the author's statement for passes 2 to 7 only.** Passes 8 to 11, and every change to this
 directory since, were made inside the repository by people who could read
 `tacenta-core`, the model, the proofs and the Rust runner. They are maintenance,
 not clean-room passes: none has an isolation record, and none claims one. The
@@ -1098,7 +1101,7 @@ to the explicit ML-KEM and Braid-key-generation boundaries listed above.
 ```
 python3 reader/run.py                        # from the clean-room directory
 python3 reader/test_skip_allowlist.py        # the skip gate fails when it should
-python3 reader/test_session_e2e_sweep.py     # corrupt the session vectors byte by byte
+python3 reader/test_session_e2e_sweep.py     # corrupt sampled bytes of the session vectors
 python3 work/faults13.py               # the pass-13 deliberate faults and controls (about four minutes)
 python3 work/check_new_vectors13.py    # pass 13: the new vectors pass for the stated reasons
 python3 work/faults12.py               # the pass-12 deliberate faults and controls
@@ -1220,7 +1223,10 @@ and 264 derived cases). This supersedes the earlier pass-10 skip tally;
 
 ### Pass 12
 
-`../GAPS-12.md` is a clean-room pass, the first since pass 7. It extends this
+`../GAPS-12.md` is a pass with an isolation record written by its own author
+(Isolation, pass 12), the first since pass 7. It read `1cac363`, a commit of a
+pull-request branch that is not an ancestor of `main`, and it is not independent
+review. It extends this
 reader from the specification and the vectors alone to read the four
 `vectors/groups/inventory-*.json` files, re-assesses every gap left open, and
 records the deliberate-fault run. It is numbered 12 because another branch may
@@ -1228,7 +1234,9 @@ use 11.
 
 ### Pass 13
 
-`../GAPS-13.md` is a clean-room pass. It extends this reader from the
+`../GAPS-13.md` is a pass with an isolation record written by its own author
+(Isolation, pass 13). It read a source revision that is not a commit of this
+repository, and it is not independent review. It extends this reader from the
 specification and the vectors alone to read the three files under
 `vectors/identity/`, the new refused rows of the two persisted-state files and
 of `xeddsa.json`, and the identity-key rule at each boundary the text lists;

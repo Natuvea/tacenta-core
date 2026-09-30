@@ -155,7 +155,7 @@ it names the route in each case.
 | Skipped keys match in-order keys | §5.6 | proved (`deriveInto_get`) |
 | Store bounded in total | this implementation's addition | modelled, proved, and implemented |
 | Retiring old epochs | §5.7 | modelled, main-text approach; implemented |
-| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved, and the epoch ceiling stated and its ranges proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 both complete** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which `step_send` maintains but no theorem yet says so -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
+| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved, and the epoch ceiling stated and its ranges proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 theorems exist** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which no theorem shows `step_send` keeps -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
 | Ratcheted Authenticator | Braid §2.4 | modelled and computed byte for byte; implemented in `tacenta-braid`; update step pinned by vectors |
 | Incremental ML-KEM interface | Braid §1.2.1 | a boundary in the model, with the one law it must satisfy; wrapped from libcrux in `primitives::kem_incremental`, with the size mapping asserted by test |
 | GF(2^16) arithmetic | Braid §2.2 | modelled and proved a field (`Model.Gf65536`); implementation pinned by vectors |
@@ -292,7 +292,7 @@ provenance in `tacenta-spec/CONSTANTS.md` rather than chosen here.
   so this is composition evidence rather than an independent implementation. It
   is a regression and composition oracle, not an external implementation. The
   independent reader derives the same fields from the inputs with its own code
-  (so a value the vector should have derived cannot merely be echoed), except
+  (so a value the reader derives cannot merely be echoed; the reader's sweep of 764 corrupted bytes notices 660, and the other 104 lie in inputs it does not read or regions `GAPS-11.md` lists as not checked), except
   for ML-KEM-1024 and the Braid's key generation, which are boundaries;
   `runners/independent/reader/README.md` lists what it derives and what it does
   not.
@@ -534,8 +534,10 @@ on a revoked entry that is not the last, and the big-endian order through its
 derived cases (`cases_inventory.py`), not through the vector files. Reader edits
 that apply the terminal generation range to the first revoked entry only, or the
 rule that an exact binding is in one list only to the first active entry only or
-to the first revoked entry only, pass the vector files and the derived cases
-alike (checked by hand on 2026-09-29; the edits are not kept in the tree).
+to the first revoked entry only, passed the vector files and the derived cases
+alike (checked by hand on 2026-09-29). The derived case IV-23, added in #205,
+now fails all three (checked by hand on 2026-09-30; the edits are not kept in
+the tree).
 
 No vector pins the error variants of an implementation (error-handling.md).
 

@@ -1,7 +1,7 @@
 # Limitations
 
 The trusted computing base, and what is deliberately not proven yet. Kept honest
-so a claim never reads as stronger than its evidence.
+so that a claim does not read as stronger than its evidence, and corrected when it does.
 
 ## The proofs are trusted by evaluation, not only by the kernel
 
@@ -101,7 +101,7 @@ Braid, the session, the erasure coder and the parser are pinned under
 `native_decide` reaching one of them fails the build.
 
 **The generated translation carries compiler-trust axioms of its own**,
-a hundred and sixty-two on the current generation. Aeneas's `toStr` discharges its
+346 across the 11 generated modules at `dea57eaf` (the line printed by `attest.py --compare-audit`, which the `translation` job runs through `no-sorry.sh`; run 36629026947). Aeneas's `toStr` discharges its
 string-length bound with `by decide +native`, so every generated `Debug`
 `fmt` body (one per error and header type) adds axioms named
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
@@ -116,7 +116,7 @@ auxiliary the elaborator splits out of a `fmt` body) and prints them apart
 from the externals, as `audit-native:` lines in the translation build log,
 so the count is visible rather than folded in.
 
-Eleven of the hundred and sixty-two meet every part of that rule except the last, and
+Eleven of them (counted on an earlier generation and not recounted) meet every part of that rule except the last, and
 the audit waives it for them. All eleven are in the three-leaf translation unit
 described under "The three-leaf translation unit" below, which puts all three
 leaves' types in one module. Eight string literals occur in more than one
@@ -202,8 +202,14 @@ excludes it.
   step.
 - The cryptographic primitives are trusted. tacenta-core uses vetted crates for
   X25519, HKDF, HMAC, SHA-256, AES-256-CBC, and Ed25519, and ML-KEM-1024 from
-  libcrux-ml-kem, which is itself formally verified, its source carrying hax and
-  F* contracts. XEdDSA is the one exception: it is implemented here over
+  libcrux-ml-kem. The crate's top-level ML-KEM-1024 functions carry hax and F*
+  annotations by its own account, and this project has not checked which are
+  discharged. The three top-level functions this project calls are marked
+  `verification_status(panic_free)` in the pinned source, and the verification
+  status file the crate's README cites is not in the published package. The
+  incremental interface that `tacenta-kem` uses for the Braid
+  carries no such annotations in the pinned version 0.0.10. Both are trusted,
+  not verified. XEdDSA is the one exception: it is implemented here over
   curve25519-dalek and ed25519-dalek rather than taken from a vetted crate, the
   deliberate exception recorded in ADR-0002. The model computes SHA-256, HMAC, and HKDF
   itself only to serve as the vector oracle, and those are anchored to RFC and
@@ -349,15 +355,20 @@ key schedule, not on guaranteed erasure of every in-memory copy.
 
 ## Undefined behaviour: forbidden statically, checked dynamically where it can be
 
-Every crate in `tacenta-core` carries `#![forbid(unsafe_code)]`. None
-contains `unsafe`, and the attribute is what keeps that true rather than merely
-observed. It bounds our own crates only; the primitives are the trusted
+Every library crate in `tacenta-core` carries `#![forbid(unsafe_code)]`, except
+that `tacenta-spqr` lifts it under the non-default `private-erasure-review`
+feature. None contains `unsafe` in the default feature set, and the attribute is
+what keeps that true rather than merely observed. One test target,
+`tests/timing.rs`, has an `unsafe` inline-assembly block on aarch64 macOS. With
+the non-default feature `private-erasure-review`, a second,
+`tests/spqr_erasure_public.rs`, has `unsafe` allocator code (`ASSURANCE.md`,
+practice 3). It bounds our own crates only; the primitives are the trusted
 boundary and are unaffected.
 
 `tooling/miri.sh` is the dynamic half. Miri interprets MIR and reports
 undefined behaviour: out-of-bounds access, invalid aliasing, uninitialised
 reads, misaligned pointers. With `unsafe` forbidden the interesting result is
-not UB in our own unsafe code -- there is none -- but that the *safe* code and
+not UB in our own unsafe code, which is limited to the items above, but that the *safe* code and
 everything it calls in `core` and `alloc` executes cleanly, which catches an
 `unsafe` block inside a dependency reached on one path, or a std API used in a
 way that is unsound.
@@ -365,8 +376,9 @@ way that is unsound.
 **Clean across `tacenta-protobuf`, `tacenta-kdf`, `tacenta-ratchet`,
 `tacenta-session`, and `tacenta-triple`** (`tooling/miri.sh`), with no undefined
 behaviour reported. The first three run in seconds; `tacenta-triple`'s
-conversation tests take minutes under the interpreter, so the script runs
-nightly rather than on every push.
+conversation tests take minutes under the interpreter, so the script is meant to run
+nightly rather than on every push. No workflow in this repository runs it, and the
+date and commit of the last clean run are not recorded.
 
 Three limits, stated because a scoped check read as a whole-codebase one is
 worse than no check:
@@ -413,8 +425,9 @@ An attacker who can measure how long an operation takes must learn nothing secre
 from it. This holds here by delegation and discipline, not by proof.
 
 - **The secret-touching work is at the trusted boundary, assumed constant-time.**
-  X25519 and Ed25519 (dalek) are constant-time; ML-KEM (libcrux) is formally
-  verified and ships a `check-secret-independence` mode; the AEAD tag is checked
+  X25519 and Ed25519 (dalek) are constant-time; ML-KEM (libcrux-ml-kem) is
+  trusted, and its crate has a `check-secret-independence` feature that this
+  build does not enable; the AEAD tag is checked
   with a constant-time comparison (`Mac::verify_slice`), not a byte-wise `==`.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
@@ -481,7 +494,7 @@ from it. This holds here by delegation and discipline, not by proof.
   panic block. `subtle` is now compiled without overflow checks in this
   workspace's release profile (`tacenta-core/Cargo.toml`), and the function
   counts zero branches on every target.
-- **Our own composition is audited to not reintroduce a leak.** tacenta-core's
+- **Our own composition was read by the maintainer for leaks; no one independent has audited it.** tacenta-core's
   ratchet, session, and serialization code branches on and compares only public
   data: ratchet public keys, message numbers, and wire bytes, whose timing
   reveals nothing secret. On no path a peer can time does it perform a
@@ -492,7 +505,7 @@ from it. This holds here by delegation and discipline, not by proof.
   state it decoded and compares the bytes to the input, a canonicality check
   over the caller's own persisted blob, where the only observer is the caller.
   This was checked by reading the code, not by a timing experiment.
-- **Four of the claims above are measured in CI, not only read.**
+- **Four of the claims above are measured by `tests/timing.rs`, not only read.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow of a private repository (see the timing section), and no workflow in this repository runs them.
   `tacenta-core/tests/timing.rs` times two input classes and asks whether their
   rejection times differ by an *exploitable* margin -- an effect size in
   nanoseconds. Besides the AEAD tag comparison and the forged-ciphertext
@@ -1224,10 +1237,12 @@ standalone proof was deleted after 2a89a7f.
 the crate that actually carries it.** `Session::encrypt` and
 `Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
 code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
-that code, but no theorem is stated about it -- a separate question this does
-not answer.
+that code. On the eight-leaf session unit it has five conditional panic-freedom
+theorems and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
+theorem that relates it to the model -- a separate question this does not
+answer.
 
-The proof tiers cover **seven** leaf crates, and a claim that names only the
+The proof tiers cover **eight** leaf crates, and a claim that names only the
 ratchet understates what is proven while a claim that says "the protocol"
 overstates it. In every crate below, "complete" and "every function" mean the
 protocol functions: the persistence codecs (`from_bytes`, `to_bytes`, their
@@ -1243,7 +1258,8 @@ invariant yields as many of the T1 and T3 preconditions as it reaches. That is n
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
 session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
-translated but has no theorem, so nothing here says what a session restored
+translated and has conditional panic-freedom theorems for its entry points but
+none for import or export, so nothing here says what a session restored
 from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
 any kind, as do the codecs of the other four crates, with two exceptions:
@@ -1963,7 +1979,10 @@ over standard-library and `zeroize` operations Aeneas leaves opaque,
 `VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten
 and `AeadSealTotal`; the complete translation and its T1 layer showed the
 twelve, and the identity-key rule added `DhIdentityTotal` as the thirteenth;
-the record carries a dated note for each.
+the record carries a dated note for each. These are the contracts over
+primitives. The contract records in `CLAIMS.md` (session lifecycle T1 section)
+hold further totalities over the ratchets, the Braid, the Triple Ratchet and the
+session layer, which this section does not list.
 
 Apart from `AeadSealBounded`, these contracts say that the outer Aeneas `Result` returns. They permit an
 AEAD, KEM or signature check to return its ordinary inner refusal, and permit
@@ -2002,10 +2021,14 @@ binding is a statement of intent about the oracle and not an assurance.
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
 thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`). The negative control removes each of two
-witnesses in turn, the first one the theorem listed and the identity-key
-contract's, and requires elaboration to fail each time. This establishes only that the assumptions are
+witnesses in turn, `random32_satisfiable` and `dh_identity_satisfiable`, and
+requires elaboration to fail each time. This establishes only that the assumptions are
 consistent; it does not prove that the real primitive implementations satisfy
-their value-level specifications.
+their value-level specifications. It covers those thirteen contracts only. The
+other 9 to 36 fields of each contract record in `CLAIMS.md` (the ratchet, Braid,
+Triple Ratchet and session-layer totalities, and the class
+`SessionUnitT1.DerivedKeysModel`) have no satisfiability witness in the session
+unit, and no theorem shows that any of the four records is inhabited.
 
 ## The erasure coding's field is proved
 
@@ -2036,10 +2059,11 @@ that assembly possible.
 
 ## Not yet proven
 
-- T1 (panic-freedom and memory safety of the core's verified zone via the
+- T1 (panic-freedom of the translated Rust of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the eight proved leaf crates (the
-  translated lifecycle leaf has no theorem) and not the
+  for the verified zone only, which is the eight proved leaf crates and, on
+  the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems (no
+  T3 result) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas
