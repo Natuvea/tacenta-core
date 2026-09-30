@@ -1,9 +1,9 @@
 # tacenta_reader: a specification-only reading of tacenta-spec
 
 An implementation of parts of the Tacenta protocol specification, written to
-test whether the specification alone is enough to build from. Passes 1 to 7 were
-clean-room. Passes 8 to 11 and later maintenance were made with the implementation
-in view. Passes 12 and 13 have isolation records written by their own author, as
+test whether the specification alone is enough to build from. Passes 2 to 7 were
+run in isolated directories, on the author's own isolation records; pass 1 has none.
+Passes 8 to 11 and later maintenance were made with the implementation in view. Passes 12 and 13 have isolation records written by their own author, as
 this file records below.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
@@ -41,7 +41,7 @@ It was written without network access. It consulted no existing implementation
 of these protocols: not tacenta-core, tacenta-model, tacenta-proofs, the Rust
 vector runner, libsignal or anything else.
 
-**That holds for passes 1 to 7 only.** Passes 8 to 11, and every change to this
+**That is the author's statement for passes 2 to 7 only.** Passes 8 to 11, and every change to this
 directory since, were made inside the repository by people who could read
 `tacenta-core`, the model, the proofs and the Rust runner. They are maintenance,
 not clean-room passes: none has an isolation record, and none claims one. The
@@ -1224,8 +1224,9 @@ and 264 derived cases). This supersedes the earlier pass-10 skip tally;
 ### Pass 12
 
 `../GAPS-12.md` is a pass with an isolation record written by its own author
-(Isolation, pass 12), the first since pass 7. It read a source revision that is
-not a commit of this repository, and it is not independent review. It extends this
+(Isolation, pass 12), the first since pass 7. It read `1cac363`, a commit of a
+pull-request branch that is not an ancestor of `main`, and it is not independent
+review. It extends this
 reader from the specification and the vectors alone to read the four
 `vectors/groups/inventory-*.json` files, re-assesses every gap left open, and
 records the deliberate-fault run. It is numbered 12 because another branch may

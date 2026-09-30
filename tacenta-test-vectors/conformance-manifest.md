@@ -155,7 +155,7 @@ it names the route in each case.
 | Skipped keys match in-order keys | §5.6 | proved (`deriveInto_get`) |
 | Store bounded in total | this implementation's addition | modelled, proved, and implemented |
 | Retiring old epochs | §5.7 | modelled, main-text approach; implemented |
-| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved, and the epoch ceiling stated and its ranges proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 both complete** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which `step_send` maintains but no theorem yet says so -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
+| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved, and the epoch ceiling stated and its ranges proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 theorems exist** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which no theorem shows `step_send` keeps -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
 | Ratcheted Authenticator | Braid §2.4 | modelled and computed byte for byte; implemented in `tacenta-braid`; update step pinned by vectors |
 | Incremental ML-KEM interface | Braid §1.2.1 | a boundary in the model, with the one law it must satisfy; wrapped from libcrux in `primitives::kem_incremental`, with the size mapping asserted by test |
 | GF(2^16) arithmetic | Braid §2.2 | modelled and proved a field (`Model.Gf65536`); implementation pinned by vectors |

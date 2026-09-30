@@ -101,7 +101,7 @@ translated Rust: `tacenta-wire` (the decoders), `tacenta-ratchet`,
 `tacenta-triple`, `tacenta-protobuf` and `tacenta-erasure` (T1 for the coder, T3
 for the field arithmetic only). A ninth, `tacenta-lifecycle`, has conditional
 panic-freedom theorems on the eight-leaf session unit and no refinement theorem.
-The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition.
+The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext, which no theorem shows a send keeps.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.

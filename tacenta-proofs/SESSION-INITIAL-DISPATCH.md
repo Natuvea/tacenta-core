@@ -199,7 +199,7 @@ zero-second timeout and an unavailable compiler; both returned nonzero without
 reporting a passing control. These are local results, not hosted CI results.
 
 After the first-DH adapter landed in `48610c0` (manifests refreshed in
-`8a0aeaf`; both are commits of a pull-request branch, not on `main`), the focused 1,733-job build and the complete `no-sorry.sh` gate
+`8a0aeaf`; both are commits that GitHub still serves by id and that no branch or pull-request head contains; they are not on `main`), the focused 1,733-job build and the complete `no-sorry.sh` gate
 again finished with exit code 0. Kernel replay again covered 68 translation,
 11 model-layer proof, and 34 model/property modules.
 

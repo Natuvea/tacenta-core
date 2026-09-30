@@ -49,11 +49,11 @@ Baseline gates run for comparison, all pass: `attest.py --check` (4.8 s; 150 pin
 
 Method. Baseline first, in a fresh clone of the repository at `dea57eaf`: `run-build-assurance-manifest-cases.sh`, `run-collect-assurance-receipts-cases.sh`, `run-build-evidence-pack-cases.sh` (2.0 s, 8.2 s, 4.7 s), `check-workflows.sh` (0.2 s), `run-check-workflows-cases.sh` (26.2 s), `run-check-signoff-cases.sh`, `run-check-constant-time-asm-cases.sh`, the reader's `run.py`: all green, `git status` empty. Each mutation is one replacement of a string that the harness first checks occurs exactly once in one file, in its own fresh clone. The named runners are then run. The clone is discarded, which restores the file. The harness that applied the edits is not in this repository; this table is the record.
 
-### The two requested mutations
+### The two named mutations
 
 **1. The receipt validator accepts a receipt for another commit.** File `tooling/assurance_validation.py`, in `validate_receipts`. Edit `V1+2`: `if check["run"].get("commit") != commit or check["run"].get("tree") != tree:` becomes `if False:`. Result: caught. Named checks that failed: `run-build-assurance-manifest-cases.sh` case `foreign-signoff` (the receipt was refused for another reason, "names event 'push', for which the workflow runs no sign-off commands", so the case's diagnostic no longer matched) and `run-build-evidence-pack-cases.sh` case `signoff-other-commit` ("expected refusal"). `run-collect-assurance-receipts-cases.sh` stayed green, because the collector has its own candidate check (`C1`, below). Each half alone: `V1` (commit half removed) is caught only by `signoff-other-commit`; `V2` (tree half removed) is caught only by `required-check-other-commit`, both in the evidence-pack runner. The manifest and collector runners have no case that reaches either half alone.
 
-**2. The required-steps check accepts a disabled job.** File `tooling/check-workflows.sh`. Edit `R1`: `found = list(differences(expected, actual, ""))` becomes `found = []`, so the comparison of `ci.yml` with `tooling/required-steps.json` never reports a difference. Result: caught by `run-check-workflows-cases.sh` (first failure `fail-required-step-form-01`: "expected refused (differs from tooling/required-steps.json), was accepted"). With that mutated checker the required `audit` job was also disabled in `ci.yml` (`if: ${{ github.run_id < 0 }}`) and ran `check-workflows.sh` was run on the real tree: still refused, by rule 8 ("emits a required receipt but has a job-level `if`"). So this one edit does not make the checker accept a disabled job: rule 8 still refuses it. Layer check (deliberately more than one edit, not a mutation record entry): a non-constant condition on a required job is refused by two layers, the rule 10 comparison (`R1`) and the rule 8 job-level-`if` refusal (`R15`); removing either alone leaves the job refused, and removing both together makes `check-workflows.sh` accept the disabled `audit` job (exit 0). A YAML `if: false` was still refused by the constant-false rule after those two edits; That rule was not removed entirely. Each layer's removal alone (`R1`, `R15`, `R5`) is caught by its own named case.
+**2. The required-steps check accepts a disabled job.** File `tooling/check-workflows.sh`. Edit `R1`: `found = list(differences(expected, actual, ""))` becomes `found = []`, so the comparison of `ci.yml` with `tooling/required-steps.json` never reports a difference. Result: caught by `run-check-workflows-cases.sh` (first failure `fail-required-step-form-01`: "expected refused (differs from tooling/required-steps.json), was accepted"). With that mutated checker the required `audit` job was also disabled in `ci.yml` (`if: ${{ github.run_id < 0 }}`) and `check-workflows.sh` was run on the real tree: still refused, by rule 8 ("emits a required receipt but has a job-level `if`"). So this one edit does not make the checker accept a disabled job: rule 8 still refuses it. Layer check (deliberately more than one edit, not a mutation record entry): a non-constant condition on a required job is refused by two layers, the rule 10 comparison (`R1`) and the rule 8 job-level-`if` refusal (`R15`); removing either alone leaves the job refused, and removing both together makes `check-workflows.sh` accept the disabled `audit` job (exit 0). A YAML `if: false` was still refused by the constant-false rule after those two edits; that rule was not removed entirely. Each layer's removal alone (`R1`, `R15`, `R5`) is caught by its own named case.
 
 ### All mutations
 
@@ -82,7 +82,7 @@ Method. Baseline first, in a fresh clone of the repository at `dea57eaf`: `run-b
 | C5 | duplicate receipt accepted | collector | caught: `duplicate` |
 | C6 | unexpected receipt id accepted | collector | caught: `unknown` |
 | C7 | required receipt with status other than `pass` accepted | collector | caught: `status-fail` |
-| W1 | `write-assurance-receipt.py`: a failed required command still yields a receipt | writer | caught: `writer-failed-step` |
+| W1 | `write-assurance-receipt.py`: the first refusal of a failed required command removed | writer | caught (diag.): `writer-failed-step`; the writer still refuses the receipt at its second check (`check_step_outcomes`), exits 1 and writes no file |
 | B1 | `build-assurance-manifest.py --validate`: identity compared with `HEAD` removed | manifest validator | survived: no case for a manifest that names another commit or tree. Receipts are compared against the manifest's own identity, so a change of identity alone is still refused (seen in the live check); a manifest whose identity and receipts were both changed to one other commit would no longer be refused (by reading) |
 | B2 | `--validate`: `clean_tree` need not be true | manifest validator | survived; no case |
 | B3 | `--validate`: source digest and size not compared | manifest validator | survived; no case |
@@ -95,16 +95,16 @@ Method. Baseline first, in a fresh clone of the repository at `dea57eaf`: `run-b
 | R3 | key in the manifest and absent from the workflow not reported | required-steps check | caught: `fail-required-step-form-20` |
 | R4 | key in the workflow and absent from the manifest not reported | required-steps check | caught: `fail-required-step-form-04` |
 | R5 | literal `false` no longer read as constant false (rule 8) | disabled-job check | caught: `fail-condition-form-01`; the real-tree job still refused by rules 8 and 10 |
-| R6 | job-level `continue-on-error` on a required job allowed | rule 8 | caught: `fail-required-job-continue-on-error` |
+| R6 | job-level `continue-on-error` on a required job allowed | rule 8 | caught (diag.): `fail-required-job-continue-on-error` |
 | R7 | every step-level `if` on a required command step approved | rule 9 | caught: `fail-required-step-form-37` |
 | R8 | a missing `required-steps.json` is not a complaint | required-steps check | caught: `fail-manifest-form-01` |
 | R9 | another workflow with a required job's name allowed | required-steps check | caught: `fail-required-step-form-41` |
 | R10 | a workflow the manifest does not describe allowed | required-steps check | caught: `fail-manifest-form-04` |
 | R11 | a manifest naming an absent file allowed | required-steps check | caught: `fail-manifest-form-06` (diag.: `FileNotFoundError`) |
-| R12 | any manifest `schema_version` accepted | required-steps check | caught: `fail-manifest-form-03` |
+| R12 | any manifest `schema_version` accepted | required-steps check | caught (diag.): `fail-manifest-form-03` |
 | R13 | step labels and order not compared | required-steps check | caught: `fail-required-step-form-26` |
 | R14 | receipt action `id`, `classification`, `command` need not be literals | rule 9 | caught: `fail-receipt-form-04` |
-| R15 | job-level `if` on a required job no longer refused | rule 8 | caught: `fail-receipt-form-18` |
+| R15 | job-level `if` on a required job no longer refused | rule 8 | caught (diag.): `fail-collector-dynamic-if` first, then `fail-receipt-form-17` and `fail-receipt-form-18` |
 | CR1 | `check-workflows.sh`: when PyYAML is missing and `GITHUB_ACTIONS=true`, skip instead of fail (lines 121-124 deleted) | required-input rule | survived: the runner unsets `GITHUB_ACTIONS` for every case (`run-check-workflows-cases.sh:113-115`); no case covers the rule. In CI the `checks_01` step installs PyYAML and its outcome is asserted by the receipt, so a failed install is still caught elsewhere |
 | Rself | no gate edit. `ci.yml` job `rust`, step `rust_test`: `cargo test --locked --workspace` becomes `... --no-run`; `bash tooling/check-workflows.sh --write-required-steps` rewrites the manifest | required-steps check, receipt validator | survived, as designed: with the workflow edit alone the checker refused (`jobs.rust.steps[5:rust_test].run` differs); after the writer rewrote the manifest (one changed line in each of two files), `check-workflows.sh`, `run-check-workflows-cases.sh`, and the manifest, collector and pack runners all passed, so a job that runs no tests is accepted. This is the limit stated at `check-workflows.sh:98-104` and in MU-04; no reviewer is required (`required_pull_request_reviews` is null) |
 | S1 | `check-signoff.sh`: no commit refused for a missing sign-off | DCO check | caught: `unsigned-commit` |
@@ -114,9 +114,9 @@ Method. Baseline first, in a fresh clone of the repository at `dea57eaf`: `run-b
 | S5 | any trailer accepted, not only the author's | DCO check | survived; no case with a trailer naming another person |
 | CT1 | `check-constant-time-asm.sh`: x86 conditional branches not counted | constant-time gate | survived: the runner's fixtures hold no branch |
 | CT2 | aarch64 conditional branches not counted | constant-time gate | survived, same reason |
-| CT3 | indirect calls and jumps not counted | constant-time gate | survived, same reason |
-| CT4 | in CI, having neither Linux target is not a failure | constant-time gate | survived; no case |
-| CT5 | `subtle` and `conditional_` callees accepted | constant-time gate | survived; no case |
+| CT3 | indirect calls and jumps not counted | constant-time gate | survived: the runner's fixtures hold no branch; a fixture with an indirect jump or call is still refused, as an unexpected callee, so the mutant changes the diagnostic and not the verdict |
+| CT4 | in CI, having neither Linux target is not a failure | constant-time gate | survived; no case; on a GitHub-hosted runner the host is a Linux target, so the rule cannot fire there |
+| CT5 | `subtle` and `conditional_` callees accepted | constant-time gate | survived; no case; a fixture with a `subtle` or `conditional_` callee is also refused as off the allow-list |
 | RD1 | `aead-encrypt.json`: first hex digit of the first `output` flipped | independent reader | caught: `aead/aead-encrypt.json :: empty-plaintext` |
 | RD2 | `protobuf-ratchet-body.json`: first `ratchet_key` digit flipped | independent reader | caught: `protobuf/protobuf-ratchet-body.json :: ascending-order` |
 | RD3 | reader `COMPOSITE_LEN` 102 to 103 | independent reader | caught: `aead/aead-decrypt.json :: session-associated-data` |
@@ -130,7 +130,7 @@ One-off breaks of gates with no retained control (not in the tally, each on a fr
 
 | Break | Gate | Result |
 |---|---|---|
-| `<<<<<<< HEAD` appended to `README.md` | `check-conflict-markers.sh` | refused (exit 1, names `README.md:222`) |
+| `<<<<<<< HEAD` appended to `README.md` | `check-conflict-markers.sh` | refused (exit 1, names `README.md` at the appended line: 222 at `dea57eaf`, 235 at the tagged commit) |
 | `theorem probe_hygiene : True := kdf_ck._proof_3` appended to `T1.lean` | `check-proof-hygiene.sh` | refused |
 | first registry row deleted from `tacenta-core/AUTHENTICATION-BOUNDARY.md` | `check_authentication_boundary.py` | refused |
 | a line appended to a triple-unit and to a session-unit source | `assemble-triple-unit.sh --check`, `assemble-session-unit.sh --check` | both refused |

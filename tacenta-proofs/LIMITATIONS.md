@@ -101,7 +101,7 @@ Braid, the session, the erasure coder and the parser are pinned under
 `native_decide` reaching one of them fails the build.
 
 **The generated translation carries compiler-trust axioms of its own**,
-346 across the 11 generated modules at `dea57eaf` (`attest.py --check`, in the `translation` job). Aeneas's `toStr` discharges its
+346 across the 11 generated modules at `dea57eaf` (the line printed by `attest.py --compare-audit`, which the `translation` job runs through `no-sorry.sh`; run 36629026947). Aeneas's `toStr` discharges its
 string-length bound with `by decide +native`, so every generated `Debug`
 `fmt` body (one per error and header type) adds axioms named
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
@@ -505,7 +505,7 @@ from it. This holds here by delegation and discipline, not by proof.
   state it decoded and compares the bytes to the input, a canonicality check
   over the caller's own persisted blob, where the only observer is the caller.
   This was checked by reading the code, not by a timing experiment.
-- **Four of the claims above are measured by `tests/timing.rs`, not only read.** Those tests are `#[ignore]`d and run by hand; no workflow in this repository runs them.
+- **Four of the claims above are measured by `tests/timing.rs`, not only read.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow of a private repository (see the timing section), and no workflow in this repository runs them.
   `tacenta-core/tests/timing.rs` times two input classes and asks whether their
   rejection times differ by an *exploitable* margin -- an effect size in
   nanoseconds. Besides the AEAD tag comparison and the forged-ciphertext

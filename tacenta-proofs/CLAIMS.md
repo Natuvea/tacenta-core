@@ -6,7 +6,7 @@ the difference between a proof and a check stays explicit.
 
 ## Read this first: what is not proved
 
-Everything below this section is intended to be accurate. `attest.py --check` confirms that each theorem it names exists in the file it names and that each axiom pin is current; no reader who did not write the ledger has checked that the statements say what this prose says. A reader who works through it can
+Everything below this section is intended to be accurate. `attest.py --check` confirms that each theorem it names exists in the file it names and that each axiom pin is current; this repository records no review, by a reader who did not write the ledger, of whether the statements say what this prose says. A reader who works through it can
 still finish with a stronger impression than the sum of its parts supports, so
 this section says in one place what is not proved.
 
@@ -2172,7 +2172,7 @@ which are not listed as claims.
 `decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`
 also depend on three compiler-trust axioms
 (`Tacenta.SessionUnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, and
-`full_store_eq_no_panic._native.native_decide.ax_1_2` and `ax_1_3`). None of the
+`Tacenta.UnitLifecycleT1.full_store_eq_no_panic._native.native_decide.ax_1_2` and `ax_1_3`). None of the
 six theorems carries an axiom pin, so a change to their axiom lists would not
 fail the build.
 

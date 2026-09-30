@@ -185,9 +185,10 @@ public item are still translated; `scripts/check-lifecycle-translation-coverage.
 fails the run if any of the thirty public operations has no generated
 definition, and its negative control shows that it can.
 
-Expected tail (the counts below were read from a tree at `dea57eaf` by counting
-files and by running `check-lean-constructs.sh`; the `audit-reach` line was not
-re-run for this update, and every count moves with the tree):
+Expected tail (the file counts below were read from a tree at `dea57eaf`; the
+`attest`, `audit-reach`, `audit-negatives` and replay lines are from the log of the
+`translation` job of run 36629026947, which ran on the project's self-hosted
+runner; every count moves with the tree):
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
