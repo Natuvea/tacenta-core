@@ -20,7 +20,7 @@ wire, ratchet, session, erasure, protobuf, sparse ratchet, Braid, and triple cra
 with two caveats worth stating here: the erasure crate's T3 covers its field
 arithmetic only, not the encoder or decoder, whose entry points have T1 and no
 refinement; the Braid's T3 theorems carry two preconditions (a live encoder,
-an unspliced chunk stream) and, for the receive, the bound `ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`, which no theorem shows a send or a receive keeps), on top of the boundary agreements and totality
+an unspliced chunk stream) and, for the receive, the bound `ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`; `CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`)), on top of the boundary agreements and totality
 constants they take -- `CLAIMS.md` lists every hypothesis and records why; and the
 Triple's T1 holds on the three-leaf unit, where the inner ratchets' totality is
 proved from the leaf theorems, under four size preconditions that nothing on
