@@ -107,60 +107,49 @@ flowchart TD
     end
 
     subgraph BUILD["Built"]
-        LEAVES["Leaf crates (Rust)<br/>wire, protobuf, ratchet, spqr, braid,<br/>triple, session (PQXDH), erasure, kdf, kem"]
-        LIFE["lifecycle (Rust)<br/>sessions, prekey store, persistence"]
+        CRATES["tacenta-core crates (Rust)<br/>leaf crates: wire, protobuf, ratchet, spqr,<br/>braid, triple, session (PQXDH), erasure, kdf, kem<br/>lifecycle: sessions, prekey store, persistence"]
         BOUND["boundary (Rust)<br/>X25519, AEAD, ML-KEM-1024, XEdDSA<br/>trusted, not translated"]
         UNITS["Generated units<br/>triple-unit, braid-unit, session-unit<br/>(leaves assembled into one crate)"]
     end
 
     subgraph CHECK["Checked"]
-        TESTS["Rust tests, property tests,<br/>fuzzing"]
-        RUN["Vector runners<br/>Rust runner and independent reader"]
+        TESTS["Rust tests, property tests, fuzzing,<br/>vector runners and the independent reader"]
         TRANS["Charon and Aeneas<br/>(pinned, run outside the repository)<br/>generated Lean, committed with checksums"]
-        T1["T1: cannot panic<br/>tacenta-proofs/translation"]
-        T3["T3: refines the model<br/>tacenta-proofs/translation"]
-        MPROOF["Model-layer proofs<br/>tacenta-proofs/Proofs"]
+        T1["T1: cannot panic"]
+        T3["T3: refines the model"]
+        MPROOF["Model-layer proofs"]
     end
 
     subgraph RECORD["Recorded and held"]
-        CLAIMS["CLAIMS.md and LIMITATIONS.md<br/>each theorem claimed with the<br/>hypotheses it takes; what is trusted"]
+        CLAIMS["CLAIMS.md and LIMITATIONS.md<br/>each theorem claimed with the hypotheses<br/>it takes; what the proofs trust"]
         MANIFEST["manifests (attest.py)<br/>axiom pins, claim ledger, checksums"]
-        CI["CI<br/>Lean build, sorry and axiom audit,<br/>kernel replay, vectors current,<br/>Rust, 32-bit and constant-time checks"]
-        ASSURE["ASSURANCE.md and GAP-REGISTER.md<br/>level per component, open gaps,<br/>readiness gates"]
+        CI["CI<br/>Lean build, sorry and axiom audit, kernel replay,<br/>vectors current, Rust, 32-bit and constant-time checks"]
+        ASSURE["ASSURANCE.md and GAP-REGISTER.md<br/>level per component, open gaps, readiness gates"]
     end
 
     SPEC -->|"stated formally"| MODEL
-    SPEC -->|"implemented from"| LEAVES
-    SPEC -->|"implemented from"| LIFE
+    SPEC -->|"implemented from"| CRATES
     MODEL -->|"generates"| VEC
-    MODEL -->|"proved about"| MPROOF
+    BOUND -->|"called by"| CRATES
+    CRATES -->|"assembled into"| UNITS
 
-    BOUND -->|"called by"| LIFE
-    LEAVES -->|"assembled into"| UNITS
-    LIFE -->|"assembled into"| UNITS
-
-    LEAVES --> TESTS
-    LIFE --> TESTS
-    VEC -->|"checked by"| RUN
-    LEAVES --> RUN
-    LIFE --> RUN
-
-    LEAVES -->|"translated"| TRANS
+    CRATES --> TESTS
+    VEC -->|"checked by"| TESTS
+    CRATES -->|"translated"| TRANS
     UNITS -->|"translated"| TRANS
     BOUND -. "opaque in the translation,<br/>assumed through contracts" .-> TRANS
     TRANS --> T1
     TRANS --> T3
     MODEL -->|"what T3 refines"| T3
+    MODEL -->|"proved about"| MPROOF
 
     T1 --> CLAIMS
     T3 --> CLAIMS
     MPROOF --> CLAIMS
     CLAIMS --> MANIFEST
     MANIFEST --> CI
-    TESTS --> ASSURE
-    RUN --> ASSURE
     CI --> ASSURE
-    CLAIMS --> ASSURE
+    TESTS --> ASSURE
 ```
 
 - **Defined, built, checked, recorded.** The specification and the model say
