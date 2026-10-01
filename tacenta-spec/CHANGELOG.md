@@ -104,26 +104,31 @@ is SemVer against the specified protocol (not the implementation).
   predecessor, of the device that wrote each sibling, and, only between two
   epochs of one device, the commitment. Between two devices of the owner's
   principal, a sibling whose writer the head removed or demoted is refused as
-  `removed-by-head` whatever its rank, so a lost or stolen owner device cannot
-  undo its removal where the removal arrived first; the page states that this
-  makes the head depend on the order of arrival when the removed device ranks
-  before its remover, mutual removal included. No sibling stops a verifier: two
+  `removed-by-head` whatever its rank. That protects a removal only against the
+  devices it removes or demotes: an honest device that ranks before the
+  removal's writer, and that the removal leaves in place, can still displace it,
+  so the page asks the product to have a removal written by the owner device
+  that ranks first among those it leaves in place. The page states that the rule
+  makes the head depend on the order of arrival, and lets a replay change it,
+  when the removed device ranks before its remover, mutual removal included, and
+  that a compromised owner device of any rank can keep the honest one that ranks
+  first out of a verifier with one delivery. No sibling stops a verifier: two
   epochs that one device signed for one slot are ranked by commitment and given
   to the caller as a pair. Beside `superseded`, and beside `missing-predecessor`
   at a checkpoint head, the verifier returns a hint, `possible-fork`, for a
   candidate whose predecessor is the epoch it holds for the number before; the
-  hint has no effect, is not authenticated, and also fires without a fork. This
-  replaces an earlier rule of the same unreviewed draft, which froze a verifier
-  for good at the first valid sibling of its head; that rule stays among the
-  alternatives of Open decision D-12, with the reasons it was not chosen. The
-  page states that a displaced epoch's key material is retired and its proposer
-  proposes again, with back-off; that an accepted epoch, and so a removal, is
-  final at a verifier only once a successor of it is accepted there; that a fork
-  deeper than one epoch still splits a group and nothing brings it back; that an
-  authority an owner removes, or a network, can still keep chosen verifiers from
-  accepting the removal by having them accept a successor of a sibling first;
-  that a writer that ranks first can undo, at depth one, the epochs of writers
-  that rank after it; that a sibling's evidence is judged with the records of
+  hint has no effect, is not authenticated, and also fires without a fork. Open
+  decision D-12 lists the alternatives to that rule, among them a rule that
+  freezes a verifier for good at the first valid sibling of its head, with the
+  reasons they were not chosen. The page states that a displaced epoch's key
+  material is retired and its proposer proposes again, with back-off; that an
+  accepted epoch, and so a removal, is final at a verifier only once a successor
+  of it is accepted there; that a fork deeper than one epoch still splits a
+  group and nothing brings it back; that an authority an owner removes, or a
+  network, can still keep chosen verifiers from accepting the removal by having
+  them accept a successor of a sibling first; that a writer that ranks first can
+  undo, at depth one, the epochs of writers that rank after it, apart from the
+  case of owner devices; that a sibling's evidence is judged with the records of
   its slot set aside, so that the order of arrival does not choose the head, and
   that verifiers that received different siblings then hold different records;
   that catching up an offline device can stall under the default freshness rule;
@@ -134,44 +139,47 @@ is SemVer against the specified protocol (not the implementation).
   state first and derive the caller's record of generations and the key engine's
   current material from it on restart; that an inviter give as a checkpoint an
   epoch that already has a successor; and that the owner be shown which of its
-  devices ranks first. A caller may remember an `outranked` or `removed-by-head`
-  answer while the head is unchanged. For a successor, only an owner of the
-  predecessor can cause the `unsupported` result. A device that joins after
-  genesis starts from a checkpoint, which may be the genesis epoch itself, that
-  an authenticated invitation carries, on seven ordered checks and a stated
-  trust assumption: the joiner trusts its inviter for the checkpoint and cannot
-  verify the chain before it. Identity keys of member devices are compared as
-  bytes, which relies on the verifier applying the identity-key rule of
-  `identities-and-devices.md` to the key of each new device (at the evidence
-  check and at a checkpoint) and to a writer's key at the signature check. The
-  page states a removal invariant, as a target that is not shown, with its
-  adversary, assumptions and limits; it concerns recipient sets and retired key
-  material and restates obligations on the key engine and the product, and it is
-  not about the derivation of later key material. It names RFC 9420 (MLS) as
-  related published work, says that the page has not been compared with it, that
-  it quotes no text of it and that this repository does not record what the
-  drafter had read of it, and says a comparison is required before the key
-  engine is fixed. It lists thirteen open decisions. Six carry a recommended
-  default marked as adopted on the maintainer's word (go of 2026-09-29 or
-  instruction of 2026-09-30), and the default of a seventh, D-12, replaces an
-  option that the plan of 2026-09-29 adopted; none has been reviewed otherwise.
-  Where its own text gives two readings that differ for some input (the kind
-  reported for an input with another domain and a bad tail, and check 8's clause
-  on a principal named by two operations), the page marks the point as open. The
-  page has had no human review, and the reviews it has had were run by automated
-  reviewers and are not independent of the maintainer. It is not a conformance
-  target until a reviewed change ratifies it, and no model, vector or proof
-  states it. The domain and label constants and the bounds it proposes are not
-  yet in `CONSTANTS.md` or `tacenta-core/LABELS.md`, and its refusal kinds are
-  in neither, since `CONSTANTS.md` has no rows for refusal kinds. The same pull
-  request adds to `protocol/group-messaging.md` a paragraph that points to the
-  page, says it has had no human review and says that an accepted epoch of the
-  draft can be replaced, with its key material, by a competing one; a paragraph
-  there that names RFC 9420 as published work that the project's design has not
-  been compared with; a sentence to `README.md` that the page is a draft with no
-  human review; and a sentence to `threat-model/exclusions.md` (EX-04) that the
-  page is a draft with no human review and that the exclusion stands until a
-  reviewed change ratifies it. These add no requirement and change no rule.
+  devices ranks first and have a removal of an owner device written by the one
+  that ranks first among those the removal leaves in place. A caller may
+  remember an `outranked` or `removed-by-head` answer while the head is
+  unchanged. For a successor, only an owner of the predecessor can cause the
+  `unsupported` result. A device that joins after genesis starts from a
+  checkpoint, which may be the genesis epoch itself, that an authenticated
+  invitation carries, on seven ordered checks and a stated trust assumption: the
+  joiner trusts its inviter for the checkpoint and cannot verify the chain
+  before it. Identity keys of member devices are compared as bytes, which relies
+  on the verifier applying the identity-key rule of `identities-and-devices.md`
+  to the key of each new device (at the evidence check and at a checkpoint) and
+  to a writer's key at the signature check. The page states a removal invariant,
+  as a target that is not shown, with its adversary, assumptions and limits; it
+  concerns recipient sets and retired key material and restates obligations on
+  the key engine and the product, and it is not about the derivation of later
+  key material. It names RFC 9420 (MLS) as related published work, says that the
+  page has not been compared with it, that it quotes no text of it and that this
+  repository does not record what the drafter had read of it, and says a
+  comparison is required before the key engine is fixed. It lists thirteen open
+  decisions. Six carry a recommended default marked as adopted on the
+  maintainer's word (go of 2026-09-29 or instruction of 2026-09-30), and the
+  default of a seventh, D-12, replaces an option that the plan of 2026-09-29
+  adopted; none has been reviewed otherwise. Where its own text gives two
+  readings that differ for some input (the kind reported for an input with
+  another domain and a bad tail, and check 8's clause on a principal named by
+  two operations), the page marks the point as open. The page has had no human
+  review, and the reviews it has had were run by automated reviewers and are not
+  independent of the maintainer. It is not a conformance target until a reviewed
+  change ratifies it, and no model, vector or proof states it. The domain and
+  label constants and the bounds it proposes are not yet in `CONSTANTS.md` or
+  `tacenta-core/LABELS.md`, and its refusal kinds are in neither, since
+  `CONSTANTS.md` has no rows for refusal kinds. The same pull request adds to
+  `protocol/group-messaging.md` a paragraph that points to the page, says it has
+  had no human review and says that an accepted epoch of the draft can be
+  replaced, with its key material, by a competing one; a paragraph there that
+  names RFC 9420 as published work that the project's design has not been
+  compared with and says that the epochs page has had no human review; a
+  sentence to `README.md` that the page is a draft with no human review; and a
+  sentence to `threat-model/exclusions.md` (EX-04) that the page is a draft with
+  no human review and that the exclusion stands until a reviewed change ratifies
+  it. These add no requirement and change no rule.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519

@@ -29,16 +29,18 @@ What this page does not give. It gives no secrecy of later key material from a
 removed device, since how key material is derived is not specified. It chooses
 between two competing epochs for one slot only while no successor of either has
 been accepted, and not even then when a device of the owner's principal removes
-another that ranks before it: the order of arrival decides that case (Siblings).
-It gives no recovery from a fork deeper than that, no agreement among members
-once a successor has been built on the losing epoch, and no signal to a user
-that a group has split, only a hint that anyone can cause and that a group that
-has not split also produces (Siblings, Fork hint). Until a successor of an
-accepted epoch is accepted, a competing epoch that ranks before it can replace
-it, so a removal is final at a verifier only from then on. It gives no evidence
-that anyone accepted an epoch before a checkpoint. It gives no anonymity. It has
-no model, vector, code, proof or worked example, and its byte layout depends on
-decisions that are open (Open decisions D-2, D-4 and D-7).
+or demotes another that ranks before it: the order of arrival decides that case
+(Siblings). It gives no recovery from a fork deeper than that, no agreement
+among members once a successor has been built on the losing epoch, and no signal
+to a user that a group has split, only a hint that anyone can cause and that a
+group that has not split also produces (Siblings, Fork hint). Until a successor
+of an accepted epoch is accepted, a competing epoch that ranks before it can
+replace it, so a removal is final at a verifier only from then on. For the
+owner's own devices the page protects a removal only against the devices that it
+removes or demotes (Siblings, Owner devices). It gives no evidence that anyone
+accepted an epoch before a checkpoint. It gives no anonymity. It has no model,
+vector, code, proof or worked example, and its byte layout depends on decisions
+that are open (Open decisions D-2, D-4 and D-7).
 
 Dependency note, to be deleted at ratification: this page cites "Accepting a
 signed statement", "Identity keys" and "Verifying a signature" in
@@ -97,6 +99,10 @@ This page specifies:
 - the key epoch of an epoch, and what a client must take from accepted state
   before it distributes or uses group key material (Key epochs; Obligations on
   the key engine);
+- obligations at the product boundary: what a product, its coordinator and its
+  stores do for the removal property, so that a race between siblings settles,
+  and so that a failure part-way through a step cannot make a verifier refuse
+  the same epoch for good (Obligations at the product boundary);
 - one scoped property, the removal invariant, stated as a target and not shown,
   about recipient sets and retired key material and not about how key material
   is derived, with its adversary, its assumptions and its limits.
@@ -163,7 +169,7 @@ first.
   them, and the key material and traffic that go with them. This page does not
   specify it. Where it says a verifier's coordinator, it means the coordinator
   of the product that runs that verifier, and Obligations at the product
-  boundary (3) says what it must not do.
+  boundary (3, 6 and 8) say what it must and must not do.
 - **Product, caller.** The product is the application that runs a verifier, with
   the services it uses (Layers); its coordinator is the part that proposes and
   distributes epochs. The caller is the code of the product that offers an epoch
@@ -180,8 +186,9 @@ first.
 - **Sibling.** A candidate that has the head's epoch number and the head's
   predecessor, and a commitment other than the head's. It is judged against
   `prior` and not against the head (Accepting a successor, check 2), and, if it
-  passes every check, it is ranked against the head (Siblings). Two epochs with
-  the same predecessor and different commitments are also called siblings.
+  passes every check, it is ranked against the head, after the rule for owner
+  devices (Siblings). Two epochs with the same predecessor and different
+  commitments are also called siblings.
 - **Slot.** One epoch number of a group. Siblings compete for one slot, and a
   verifier holds one epoch for each slot it has accepted.
 - **Final.** An accepted epoch is final at a verifier once that verifier has
@@ -209,8 +216,9 @@ first.
   Between two devices of the owner's principal, a sibling whose writer the head
   removed or demoted is refused before the rank is read (Siblings, Owner
   devices).
-- **Displaced.** The result for a sibling of the head that passes every check
-  and ranks before the head. The sibling becomes the head, and the epoch it
+- **Displaced.** The result for a sibling of the head that passes every check,
+  ranks before the head and is not refused by the rule for owner devices
+  (Siblings, Owner devices). The sibling becomes the head, and the epoch it
   replaces, a displaced epoch, is no longer accepted state (Siblings).
 - **Equivocation.** Two different epochs that one writer device signed for the
   same predecessor (Siblings, Equivocation).
@@ -230,8 +238,9 @@ first.
   checks), Joining from a checkpoint (seven) and Accepting a successor
   (twelve). Outside its own list a check is cited with the list: "successor
   check 7", "genesis check 5", "checkpoint check 7". In Accepting a successor,
-  Siblings, Key epochs, What is not checked, the section on the removal
-  invariant and Open decisions, a bare "check N" is a successor check.
+  Siblings, Key epochs, Obligations at the product boundary, What is not
+  checked, the section on the removal invariant and Open decisions, a bare
+  "check N" is a successor check.
 
 ## Encoding conventions
 
@@ -724,20 +733,20 @@ checkpoint_epoch         a signed epoch (Canonical encoding): the body, then the
                          epoch of the group and 1 for any later epoch
 ```
 
-- **The commitment is the anchor.** The caller pins `checkpoint_commitment` as it
-  pins a genesis commitment (Genesis; Open decision D-1). It takes the value from
-  an authenticated invitation and from nothing else.
+- **The commitment is the anchor.** The caller pins `checkpoint_commitment` as
+  it pins a genesis commitment (Genesis; Open decision D-1). It takes the value
+  from an authenticated invitation and from nothing else.
 - **The epoch is the state.** Under Open decision D-7 (option A, for the draft)
   an epoch's body carries the full resulting principals and devices, each device
   with its binding, `update_authority`, `inventory_generation` and
-  `inventory_commitment`, and it carries `group_id`, `epoch_number`, `key_epoch`,
-  `closure_state`, `policy_version` and `policy_commitment`. These are the fields
-  that the checks of "Accepting a successor" read from the head (The accepted
-  state). Those checks read `prior`, and `index` below the head, only to judge a
-  sibling or an older epoch, and a joiner has nothing to judge one against. So a
-  checkpoint needs no more than the epoch and its commitment. If Open decision
-  D-7 goes to option B, the checkpoint carries the snapshot that option
-  describes, and the checks below change with it.
+  `inventory_commitment`, and it carries `group_id`, `epoch_number`,
+  `key_epoch`, `closure_state`, `policy_version` and `policy_commitment`. These
+  are the fields that the checks of "Accepting a successor" read from the head
+  (The accepted state). Those checks read `prior`, and `index` below the head,
+  only to judge a sibling or an older epoch, and a joiner has nothing to judge
+  one against. So a checkpoint needs no more than the epoch and its commitment.
+  If Open decision D-7 goes to option B, the checkpoint carries the snapshot
+  that option describes, and the checks below change with it.
 - **Where the epoch comes from.** The invitation may carry the epoch, or the
   epoch may reach the joiner some other way. Checkpoint check 3 below binds its
   body to the commitment either way. The commitment does not cover the signature
@@ -750,16 +759,17 @@ checkpoint_epoch         a signed epoch (Canonical encoding): the body, then the
 ### Trust assumption
 
 **Trust assumption (Open decision D-11, option C).** A joiner trusts its inviter
-for the checkpoint. It relies on the inviter's word that the epoch the commitment
-names is an epoch of the group it means to join, that the members of the group
-accepted it, and that it is the group's head or close to it. Nothing on this page
-lets the joiner check any of that (What a joiner cannot verify). It takes the
-checkpoint's members, roles, devices, policy and closure state as the group's,
-and every epoch it accepts afterwards is a successor of that state. If the
-inviter is mistaken or hostile, the joiner holds a state that the group may never
-have had, and cannot tell it from a real one: an inviter can write an epoch that
-lists whatever members it likes, itself as owner among them, sign it under a key
-it made, and give its commitment as the anchor. The checks below accept it.
+for the checkpoint. It relies on the inviter's word that the epoch the
+commitment names is an epoch of the group it means to join, that the members of
+the group accepted it, and that it is the group's head or close to it. Nothing
+on this page lets the joiner check any of that (What a joiner cannot verify). It
+takes the checkpoint's members, roles, devices, policy and closure state as the
+group's, and every epoch it accepts afterwards is a successor of that state. If
+the inviter is mistaken or hostile, the joiner holds a state that the group may
+never have had, and cannot tell it from a real one: an inviter can write an
+epoch that lists whatever members it likes, itself as owner among them, sign it
+under a key it made, and give its commitment as the anchor. The checks below
+accept it.
 
 A joiner already relies on its inviter, whose identity key it takes to be the
 inviter's (ASM-14; EX-09), for which group it is joining and who is in it, since
@@ -825,12 +835,12 @@ does not pass and returns its result:
    other epoch that rule does not apply.
 6. **Signature.** For a genesis epoch, first the rule of genesis check 6:
    `writer_account` and `writer_binding` name a device that the epoch itself
-   lists with `update_authority` 1, else `writer-not-authorised`. Then, for every
-   epoch, as Signature above, else `bad-signature`. This shows that the key
-   `writer_binding` names signed the body. It does not show that the writer was
-   authorised, because the joiner holds no predecessor to read authority from.
-   For an epoch that is not a genesis epoch the writer need not be listed in the
-   checkpoint: a device may sign the epoch that removes it.
+   lists with `update_authority` 1, else `writer-not-authorised`. Then, for
+   every epoch, as Signature above, else `bad-signature`. This shows that the
+   key `writer_binding` names signed the body. It does not show that the writer
+   was authorised, because the joiner holds no predecessor to read authority
+   from. For an epoch that is not a genesis epoch the writer need not be listed
+   in the checkpoint: a device may sign the epoch that removes it.
 7. **Keys.** The `identity_public_key` of every member device the epoch lists,
    in encoding order, passes the identity-key rule (identities-and-devices.md,
    Identity keys), else `refused(invalid-identity-key)`. A joiner holds no
@@ -845,16 +855,17 @@ signature and commitment, `prior` is absent, `index` holds the commitment at the
 epoch's number and nothing below it. A refusal changes nothing. The step creates
 no key material and retires none.
 
-The checkpoint need not list the joiner's device, and no check asks that it does.
-A device can start from the epoch before the one that admits it and become a
-member device by accepting that successor, which is judged like any other. A
+The checkpoint need not list the joiner's device, and no check asks that it
+does. A device can start from the epoch before the one that admits it and become
+a member device by accepting that successor, which is judged like any other. A
 device receives key material only as a permitted recipient, and a device is one
 only if the head lists it (Obligations on the key engine, 2).
 
-`already-started` and `invalid-identity-key` are new refusal kinds, and check 12
-of "Accepting a successor" uses the second as well. CONSTANTS.md has no rows for
-refusal kinds, and error-handling.md leaves the names of error variants to an
-implementation, so the page's refusal kinds are in neither.
+`already-started` and `invalid-identity-key` are refusal kinds that this page
+names for a checkpoint, and genesis check 8 and check 12 of "Accepting a
+successor" use the second as well. CONSTANTS.md has no rows for refusal kinds,
+and error-handling.md leaves the names of error variants to an implementation,
+so the page's refusal kinds are in neither.
 
 ### After the checkpoint
 
@@ -891,11 +902,15 @@ the following. It takes each from the inviter.
   that epoch's or is below 2^64 - 1, or that policy version 1 allowed what it
   did (Accepting a successor, checks 4, 8, 9 and 10). The joiner holds no
   predecessor. It checks only that the key the named writer holds signed the
-  body. The operations that the head carries are stored with it and no check
-  reads them: a checkpoint can carry operations that contradict its principals
-  or its closure state, and the verifier holds it as given.
-- That any epoch before the checkpoint was written, signed or accepted by anyone,
-  or that a device the group removed earlier is absent from the checkpoint.
+  body. No check reads the operations that a checkpoint carries: it can carry
+  operations that contradict its principals or its closure state, and the
+  verifier holds it as given. The one rule that reads the operations of a head,
+  at the end of the successor list (Siblings, Owner devices), judges a sibling
+  of the head, and the verifier judges no sibling of a checkpoint (Accepting a
+  successor, check 2), so it never reads them.
+- That any epoch before the checkpoint was written, signed or accepted by
+  anyone, or that a device the group removed earlier is absent from the
+  checkpoint.
 - That any device the checkpoint lists was admitted with evidence. The joiner
   holds no inventory statement for them, so their `inventory_generation` and
   `inventory_commitment` are values it stores and cannot check (Accepting a
@@ -1018,7 +1033,7 @@ checkpoint the anchor the caller supplies is an input as well.
 | Result | Meaning | Effect on accepted state |
 |---|---|---|
 | `accepted` | The candidate is the new head. | `head` and `prior` are replaced, and `index` gains the candidate's entry, together. |
-| `displaced` | The candidate is a sibling of the head that passes every check and ranks before the head (Siblings). It is the new head in the head's place. | `head` and the `index` entry for its number are replaced together; `prior` is unchanged. |
+| `displaced` | The candidate is a sibling of the head that passes every check, ranks before the head and is not refused by the rule for owner devices (Siblings, Owner devices). It is the new head in the head's place. | `head` and the `index` entry for its number are replaced together; `prior` is unchanged. |
 | `duplicate` | The candidate is, by commitment, an epoch already accepted and not displaced (an entry of `index`). The signature bytes are not examined. | None. |
 | `missing-predecessor` | The candidate's predecessor is not an accepted epoch here: a gap, or another branch. | None. The verifier must obtain the predecessor before it can decide, except for a sibling of a checkpoint head, which it does not wait to judge (check 2). Anyone can produce this result from any bytes, so it is not by itself evidence of a gap (Obligations at the product boundary, 3). |
 | `unsupported` | The candidate, signed by an owner of its predecessor, sets a policy version this verifier does not implement. | None. It is not evidence that the candidate is invalid: the verifier has judged only checks 1 to 5 and the conditions of check 6. It cannot decide until it supports the version. Its coordinator does not propose or distribute while this is the only successor of the head that it has seen, and that ends when the verifier supports the version, which judges the candidate afresh, or when it accepts another successor of its head. Only an owner of the predecessor can cause it (check 6), so neither an unauthenticated candidate nor a lesser role can. For a genesis epoch or a checkpoint it is returned after the anchor (genesis check 4, checkpoint check 4). |
@@ -1045,7 +1060,7 @@ conforming implementation must report them is not decided here (The checks).
 |---|---|---|
 | `accepted` | the end of each of the three lists, when every check passed and, for the successor list, `P` is the head | every check of the list |
 | `duplicate` | successor check 2; genesis check 2; checkpoint check 2 | state |
-| `displaced` | the end of the successor list, when `P` is `prior` | every check of the list, and the head's writer and commitment (state and input) |
+| `displaced` | the end of the successor list, when `P` is `prior` | every check of the list, and the head's writer, operations and commitment (input) |
 | `missing-predecessor` | successor check 2 | state |
 | `unsupported` | successor check 6; genesis check 4; checkpoint check 4 | input (the supported versions) |
 | `malformed` | check 1 of each of the three lists (Decoding) | bytes |
@@ -1074,8 +1089,8 @@ conforming implementation must report them is not decided here (The checks).
 | `evidence-missing` | successor check 12; genesis check 8 | input (the evidence) |
 | `evidence-mismatch` | successor check 12; genesis check 8 | input (the evidence) |
 | `evidence-refused` | successor check 12; genesis check 8; the recording step under Inputs | input (the acceptance procedure and the store it reads) |
-| `outranked` | the end of the successor list, when `P` is `prior` | every check of the list, and the head's writer and commitment (state and input) |
-| `removed-by-head` | the end of the successor list, when `P` is `prior` and the writers of the candidate and the head are two devices of the owner's principal (Siblings, Owner devices) | every check of the list, and the head's writer and operations (state and input) |
+| `outranked` | the end of the successor list, when `P` is `prior` | every check of the list, and the head's writer, operations and commitment (input) |
+| `removed-by-head` | the end of the successor list, when `P` is `prior`, the writers of the candidate and the head are two different devices of the owner's principal, and the head removes or demotes the candidate's writer (Siblings, Owner devices) | every check of the list, and the head's writer and operations (input) |
 
 That is five results besides `refused`, and 28 refusal kinds. Where several
 kinds can apply, the order of the checks decides which is reported. At successor
@@ -1345,18 +1360,20 @@ can be valid against `P`. A verifier that holds one of them as its head and
 receives the other judges it against `P`, which is `prior`, by every check of
 Accepting a successor, and then compares the two by a fixed order, the rank,
 after one rule for two devices of the owner's principal (Owner devices, below).
-The one that ranks first is the head, and the other is not accepted state. The
-rank depends only on `P`, on which device wrote each sibling and, between two
-epochs of one device, on their commitments, so every verifier that holds `P`,
-receives the same siblings that pass every check, in any order, and judges each
-of them the same way, ends on the same one (What the order does not resolve,
-below). That holds on two conditions. The verifier accepts no successor of any
-of them before the last one arrives, which no verifier can detect. And no
-sibling written by a device of the owner's principal removes or demotes another
-device of that principal that ranks before its writer and has written one of
-the siblings (Owner devices). This is Open decision D-12, option F. There is no
-sibling of genesis: a second genesis epoch is refused as `superseded` (genesis
-check 2).
+The one that ranks first is the head, except where the rule for owner devices
+refuses it, and the other is not accepted state. The rank depends only on `P`,
+on which device wrote each sibling and, between two epochs of one device, on
+their commitments, so every verifier that holds `P`, receives the same siblings
+that pass every check, in any order, and judges each of them the same way, ends
+on the same one (What the order does not resolve, below). That holds on two
+conditions. The verifier accepts no successor of any of them before the last one
+arrives, which no verifier can detect. And no sibling written by a device of the
+owner's principal removes or demotes another device of that principal that ranks
+before its writer and has written one of the siblings (Owner devices). When the
+second does not hold, the head can depend on the order of arrival, and a replay
+of a sibling can change it (Owner devices). This is Open decision D-12, option
+F. There is no sibling of genesis: a second genesis epoch is refused as
+`superseded` (genesis check 2).
 
 Siblings arise without bad faith. An authority device that is one epoch behind
 writes a sibling of a head it has not seen. Two devices of one account each
@@ -1365,9 +1382,13 @@ different epochs. A retry assembles a batch again. A service that kept the
 losing epoch of a race delivers it later, and anyone who holds its bytes can do
 the same without a key. None of these stops a verifier, and none of them leaves
 two verifiers on different heads when the siblings reach both before a successor
-does: a replay of an epoch that ranks after the head is `refused(outranked)`
-and changes neither the head nor `index`, and an epoch that ranks before the
-head displaces it at every verifier it reaches.
+does, apart from the case that Owner devices describes: a replay of an epoch
+that ranks after the head is `refused(outranked)`, or `refused(removed-by-head)`
+where the rule for owner devices applies, and changes neither the head nor
+`index`, and an epoch that ranks before the head displaces it at every verifier
+it reaches, except where that rule refuses it. In that case a replay is not
+harmless: the refusal depended on the head at the time, and the same bytes can
+displace a different head later (Owner devices).
 
 ### Rank
 
@@ -1426,30 +1447,73 @@ always ranked.
 
 So a device of the owner's principal that another of its devices removed, or
 that lost the owner role by a `transfer_ownership` that another of its devices
-wrote, cannot displace the head that did it, whatever its place: a lost or
-stolen owner device that ranks first cannot undo its removal at a verifier that
-accepted the removal first, and a transfer that a verifier has accepted is not
-redirected there by another device of the former owner. The rule only refuses.
-It never lets a sibling displace a head that ranks before it, so the head at
-one epoch number still moves only to an epoch that ranks before it
-(Displacement).
+wrote, cannot displace the head that did it, whatever its place, and a transfer
+that a verifier has accepted is not redirected there by another device of the
+former owner. The rule only refuses. It never lets a sibling displace a head
+that ranks before it, so the head at one epoch number still moves only to an
+epoch that ranks before it (Displacement).
 
-It costs independence from the order of arrival in one case. When a sibling
-written by a device of the owner's principal removes or demotes another device
-of that principal that ranks before its writer, and that other device has
-written a sibling too, the head depends on which of the two a verifier received
-first. At a verifier that received the removal first, the other device's
-sibling is `removed-by-head`. At one that received the other device's sibling
-first, the removal ranks after it and is `outranked`. Two verifiers that
-receive them in different orders end on different heads, and nothing here
-brings them together. Mutual removal, in which each of two owner devices
-removes or demotes the other, is always such a case: the sibling that arrives
-second is refused, whichever it is. No rule on this page avoids that split
-without choosing which of two owner devices to believe. The rank alone believes
-the device that ranks first, a stolen one included; a rule that let the
-removal displace the other device's sibling whatever its rank would, with three
-or more owner devices, let a displaced epoch become the head again. Apart from
-this case the rule does not make the head depend on the order of arrival.
+**What the rule does not give.** It protects a head only against the devices
+that the head removes or demotes. A device of the owner's principal that the
+head neither removes nor demotes displaces the head with a sibling that passes
+every check, if it ranks before the head's writer, whatever else the head does
+(Displacement). So a head that removes a device of that principal is protected
+against every other device of the principal only if it demotes them all, as a
+`transfer_ownership` does, or if every other device that ranks before its writer
+is also removed by it, that is, if its writer ranks first among the devices of
+the principal that it leaves in place. Otherwise an honest device that ranks
+before the writer and that the head leaves in place can displace it. Let three
+devices of the owner's principal rank first, second and third. The first is lost
+or stolen, and the third writes an epoch `R` that removes it. The second, honest
+and not yet aware of `R`, has written a sibling `s` that lists the first. At a
+verifier that accepted `R` first, `s` ranks before `R` and `R` does not remove
+its writer, so `s` displaces `R`. The first device is then a member device with
+authority of the new head. The first device's own sibling ranks before `s`, and
+`s` does not remove it, so that sibling displaces `s` in turn; or the first
+device writes a successor of `s`. A removal written by the device that ranks
+first among those it leaves in place has no such sibling to meet: the devices it
+removes cannot displace it, and the others rank after it. Obligations at the
+product boundary, 7, asks the product to write a removal that way. This page
+cannot see who wrote a removal, and it does not say what a product does when
+that device is not available. Whether the rule should also refuse a sibling of
+another owner device that still lists a device the head removed is open (Open
+decision D-12), and this page does not extend it.
+
+The rule costs independence from the order of arrival, and from replays, in one
+case. When a sibling written by a device of the owner's principal removes or
+demotes another device of that principal that ranks before its writer, and that
+other device has written a sibling too, the head depends on which of the two a
+verifier received first. At a verifier that received the removal first, the
+other device's sibling is `removed-by-head`. At one that received the other
+device's sibling first, the removal ranks after it and is `outranked`. Two
+verifiers that receive them in different orders end on different heads, and
+nothing here brings them together. Mutual removal, in which each of two owner
+devices removes or demotes the other, is always such a case: the sibling that
+arrives second is refused, whichever it is. With three or more devices of the
+principal there is more: a refusal depends on the head at the time, so after the
+head has changed the same bytes offered again can displace the new head. A
+replay of a sibling refused as `removed-by-head` can therefore change the head,
+and two verifiers that received the same siblings in the same order can end on
+different heads if only one of them also received a replay. No rule on this page
+avoids that split without choosing which of two owner devices to believe. The
+rank alone believes the device that ranks first, a stolen one included; a rule
+that let the removal displace the other device's sibling whatever its rank
+would, with three or more owner devices, let a displaced epoch become the head
+again. Apart from these cases the rule adds no dependence on the order of
+arrival or on replays.
+
+The cost falls unevenly. At a verifier that received a removal first, the
+removed device's sibling is refused whatever its rank. So a compromised device
+of the owner's principal, of any rank and not only the one that ranks first, can
+keep the honest device that ranks first out of that verifier with one delivery:
+an epoch that removes it, or a `transfer_ownership`, delivered before that
+device's sibling. While that epoch is the head the honest device's siblings are
+refused there, and once a successor of it is accepted they are `superseded`
+(check 2). Under the rank alone the compromised device needed two deliveries,
+its epoch and a successor of it, accepted before that sibling arrived. The theft
+of a device of the owner's principal, whichever it is, is therefore a loss that
+the rank does not contain, and a product treats it as needing recovery
+(Obligations at the product boundary, 7; Recovery, under What is not checked).
 
 ### Displacement
 
@@ -1474,7 +1538,8 @@ head. The head at one epoch number moves only to an epoch that ranks before it,
 so a displaced epoch never becomes the head again, and the head a verifier ends
 on is the sibling that ranks first among those it has received that pass every
 check, whatever order they came in, as long as it accepts no successor of any of
-them in between, except in the one case that Owner devices describes.
+them in between, except in the case that Owner devices describes, where the
+order of arrival and a replay can decide.
 
 A sibling whose writer the head removed, or demoted, is ranked like any other
 unless the head's writer is another device of the owner's principal (Owner
@@ -1489,7 +1554,10 @@ owner's principal that the head does not remove or demote still displaces the
 head if it ranks before the head's writer: a lost or stolen owner device that
 ranks first displaces, until it has a successor, any epoch of the owner's
 other devices that does not remove it, and its own sibling can remove those
-devices (Recovery, under What is not checked).
+devices (Recovery, under What is not checked). And an honest device of the
+owner's principal that ranks before the writer of an epoch that removes a lost
+device, and that the epoch leaves in place, displaces that epoch in the same way
+(Owner devices).
 
 ### Evidence of a sibling
 
@@ -1512,11 +1580,11 @@ would refuse generation 4 after generation 5 for a successor, and it accepts it
 for the sibling: the sibling displaces the head, and the revoked device becomes
 a member device of the head and a recipient of its key material, at a verifier
 that had recorded generation 5. That is a cost of making the head independent of
-the order of arrival, and it is this page's rule and not the caller's
-(Inventory, under What is not checked). Its limit: only the records made for the
-slot being decided are set aside. A generation recorded for another slot of the
-group, for another group, or by another use of the procedure still applies to
-the sibling.
+the order of arrival (apart from the case of Owner devices), and it is this
+page's rule and not the caller's (Inventory, under What is not checked). Its
+limit: only the records made for the slot being decided are set aside. A
+generation recorded for another slot of the group, for another group, or by
+another use of the procedure still applies to the sibling.
 
 The rule only sets those records aside. They stay recorded, since a stored value
 never decreases (identities-and-devices.md, Accepting a signed statement), and
@@ -1537,6 +1605,15 @@ losing sibling's generation refuses, under a freshness rule that refuses an
 equal generation, a later candidate on a statement of the same generation that
 another verifier, which received the losing sibling only after the successor,
 accepts.
+
+A sibling written by a device that the head removed is refused as
+`removed-by-head`, and the caller records the generations of its statements all
+the same. A removed owner device that holds a genuine statement can therefore
+still change the caller's store in this one way: it raises the generation
+recorded for an account at that slot, and a freshness rule that refuses an equal
+generation then refuses a later admission of that account on the same statement,
+at a later slot. The effect is bounded: it needs a statement that the account's
+issuer made, and a stored value only rises.
 
 ### Equivocation
 
@@ -1588,7 +1665,9 @@ denies it (check 11), or that does not support a policy version it sets
 
 So do verifiers that receive in different orders a removal or demotion of a
 device of the owner's principal, written by a device of that principal that
-ranks after it, and a sibling written by the removed device (Owner devices).
+ranks after it, and a sibling written by the removed device, and, with three or
+more such devices, verifiers of which only one received a replay of a sibling
+that the other refused (Owner devices).
 
 A verifier whose head is the checkpoint it started from judges no sibling of it
 (check 2), and cannot follow a sibling that displaces the checkpoint at the
@@ -1600,12 +1679,13 @@ a device of the owner's principal that ranks before the device that wrote the
 arrives, and the group is open again at that verifier. A `close` removes no
 device, so the rule for owner devices never protects it. And at a verifier that
 received first a sibling, written by another device of the owner's principal,
-that removes the device that wrote the `close`, the `close` is `removed-by-head`
-and never takes effect there (Owner devices). No operation reopens a group, but
-a displacement is not an operation, and a `close` is final at no verifier. A
-`close` written by the device that ranks first among the owner's devices is
-displaced only by that device's own epochs, and is refused only where another
-owner device's removal of that device arrived first.
+that removes or demotes the device that wrote the `close`, the `close` is
+`removed-by-head` and does not take effect there while that sibling is the head
+(Owner devices). No operation reopens a group, but a displacement is not an
+operation, and a `close` is final at no verifier. A `close` written by the
+device that ranks first among the owner's devices is displaced only by that
+device's own epochs, and is refused only where an epoch of another owner device
+that removes or demotes that device arrived first.
 
 The rank is a choice between branches at depth one and at no other depth. No
 rule here selects a winner from a service's order or a timestamp, and a
@@ -1639,19 +1719,20 @@ epoch can make a verifier return the hint with bytes of their own. It is not
 evidence of a fork. It is also returned without a fork: for a sibling that
 ranked after the epoch that won its slot and arrived after a successor of that
 epoch, and for every replay of such a sibling. A product may count the hint and
-show the count, and may verify a candidate that carried it by judging it, as a
-sibling, against the epoch at `m - 1` if the product kept that epoch. Because
-anyone can raise the hint as often as they can send bytes, a product bounds how
-often it counts it, shows it or acts on it, and does not stop proposing,
-discard state or start recovery on the hint alone. What a product does about a
-fork that is real is recovery, which this page does not specify.
+show the count. The verifier offers no way to judge a candidate that carried it
+against the epoch at `m - 1`, which is not its head, and this page has no rule
+for doing so. Because anyone can raise the hint as often as they can send bytes,
+a product bounds how often it counts it, shows it or acts on it, and does not
+stop proposing, discard state or start recovery on the hint alone. What a
+product does about a fork that is real is recovery, which this page does not
+specify.
 
 ## Key epochs
 
 Every accepted successor starts a new key epoch: `key_epoch` is the
 predecessor's plus 1 (check 9; Open decision D-2). So in a chain that starts at
-genesis `key_epoch` equals `epoch_number`, and material bound to an earlier epoch
-is never current in a later one. A sibling that displaces the head has the
+genesis `key_epoch` equals `epoch_number`, and material bound to an earlier
+epoch is never current in a later one. A sibling that displaces the head has the
 head's `key_epoch`, since both are one more than `prior`'s, and a different
 commitment, so its key binding differs from the displaced head's (Siblings). A
 verifier that started from a checkpoint takes the checkpoint's `key_epoch` on
@@ -1703,15 +1784,16 @@ anything against a device that keeps its keys. It is the key engine's
 obligation. This page does not list it among the five obligations above and does
 not establish it (The removal invariant, What it does not claim).
 
-### Obligations at the product boundary
+## Obligations at the product boundary
 
 These are not checked by this page, and the product's tests are where they are
 exercised. Items 1 to 5 are the parts of the removal property that a product
 supplies. Items 6 to 10 are what a coordinator, an inviter and the product's
 stores do so that a sibling race settles, so that a split is less frequent, and
-so that a failure part-way through a step leaves no verifier stopped; item 7
-is the product's part of the rule for owner devices. They are requirements on
-the product, and none of them changes a check or a result.
+so that a failure part-way through a step cannot make a verifier refuse the same
+epoch for good. Item 7 is the product's part of the order among the owner's
+devices and of the rule for them (Siblings, Rank and Owner devices). They are
+requirements on the product, and none of them changes a check or a result.
 
 1. The product commits an epoch that becomes the head, by acceptance or by
    displacing the head, durably before it distributes key material or
@@ -1734,13 +1816,13 @@ the product, and none of them changes a check or a result.
 5. The product starts a verifier from a checkpoint only on an invitation it has
    authenticated as made by the inviter the joiner means to trust and as
    unmodified, and it pins the checkpoint commitment from that invitation alone:
-   not from a directory, an inventory statement, a service's list of heads or the
-   bytes of the epoch. A device that already holds state for the group discards
-   it, and what is tied to it, before it starts from a checkpoint, because a
-   verifier that holds a head refuses one. It does so only when the user has
-   chosen to replace that group, and not because a checkpoint was refused as
-   `already-started`: an inviter chooses the `group_id` its epoch names, and can
-   name one the device already holds.
+   not from a directory, an inventory statement, a service's list of heads or
+   the bytes of the epoch. A device that already holds state for the group
+   discards it, and what is tied to it, before it starts from a checkpoint,
+   because a verifier that holds a head refuses one. It does so only when the
+   user has chosen to replace that group, and not because a checkpoint was
+   refused as `already-started`: an inviter chooses the `group_id` its epoch
+   names, and can name one the device already holds.
 6. When an epoch that the coordinator proposed is displaced at its verifier, or
    is refused there as `outranked` or `removed-by-head`, the change it carried
    has not taken effect at that slot. The coordinator does not treat it as
@@ -1756,9 +1838,15 @@ the product, and none of them changes a check or a result.
    the product's to send again, under the new head's material and to the new
    head's member devices, if it is still to be delivered.
 7. The product shows the owner which of the devices of the owner's principal
-   ranks first among them (Siblings, Rank), and treats the loss of any of those
-   devices, and of that one above all, as needing recovery outside this page
-   (Recovery, under What is not checked).
+   ranks first among them (Siblings, Rank). The product has a removal of a
+   device of that principal written by the device of that principal that ranks
+   first among those the removal leaves in place. A removal written by another
+   device can be displaced by an honest device that ranks before the writer and
+   that the removal leaves in place, and the removed device is then a member
+   device with authority of the new head, if that sibling lists it (Siblings,
+   Owner devices). The product treats the loss of any device of that principal,
+   whatever its rank, as needing recovery outside this page (Recovery, under
+   What is not checked).
 8. A coordinator proposes an epoch only on a head that has settled: one that it
    has held for at least a delivery bound that the product states, so that no
    sibling of it that ranks before it can still arrive within that bound, or one
@@ -1782,11 +1870,14 @@ the product, and none of them changes a check or a result.
    carries for the devices it lists and `prior` does not (every device, for
    genesis; none, for a checkpoint), with the head's group and epoch number, and
    recording one again changes nothing, since a stored value never decreases.
-   The key engine's current binding is a function of the head: on restart it is
-   `key_binding(head)`, all other material is retired (Obligations on the key
-   engine, 3), and retiring material twice is the same as retiring it once. So a
-   crash between the stores leaves no retired epoch's material current and no
-   generation recorded for a head that was not kept, and cannot make the
+   The key engine's current binding is a function of the head at every use, and
+   not only on restart: the engine keeps no record of currency of its own that
+   could still name an earlier head, and a product that keeps one allows no send
+   or distribution until that record names the head (items 1 and 2). On restart
+   it is `key_binding(head)`, all other material is retired (Obligations on the
+   key engine, 3), and retiring material twice is the same as retiring it once.
+   So a crash between the stores leaves no retired epoch's material current and
+   no generation recorded for a head that was not kept, and cannot make the
    verifier refuse the same epoch for good. The record made for an `outranked`
    or `removed-by-head` sibling is in one store and needs no order. This page
    requires that order and that derivation. How each store is written, and what
@@ -1798,7 +1889,9 @@ the product, and none of them changes a check or a result.
     successor is stranded for good if a sibling displaces that epoch at the
     other verifiers (Joining from a checkpoint, After the checkpoint). In a
     quiet group that means writing an epoch with no operation (Cadence, under
-    What is not checked), which starts a key epoch.
+    What is not checked), which starts a key epoch. Only an authority device can
+    write one (Policy version 1), so an inviter that is not one waits for an
+    authority device to write it, with no bound that this page states.
 
 A caller may keep, while the head is unchanged, the epoch number and commitment
 of a candidate that the verifier answered `outranked` or `removed-by-head`, and
@@ -1848,14 +1941,21 @@ following.
   successor of another exists, can split a group when it chooses. Verifiers
   whose callers, verdicts or supported policy versions judge one sibling
   differently end on different heads, and so do verifiers that receive in
-  different orders a removal of a device of the owner's principal by another
-  that ranks after it and a sibling of the removed device (Siblings, Owner
-  devices). And a head is not final until a successor of it is accepted, so a
-  writer that ranks first can undo, at depth one, the epoch of any writer that
-  ranks after it, as often as that writer proposes (Siblings, Rank). The
-  positions are not even: the writer that ranks first needs one delivery, its
-  sibling, and the writer that ranks after it needs two, its epoch and a
-  successor of it, accepted before that sibling arrives.
+  different orders a removal or demotion of a device of the owner's principal by
+  another that ranks after it and a sibling of the removed device, and verifiers
+  of which only one receives a replay of a sibling that the other refused
+  (Siblings, Owner devices). And a head is not final until a successor of it is
+  accepted, so a writer that ranks first can undo, at depth one, the epoch of
+  any writer that ranks after it, as often as that writer proposes (Siblings,
+  Rank), except that a device of the owner's principal cannot undo, at a
+  verifier that accepted it first, an epoch of another such device that removes
+  or demotes it (Siblings, Owner devices). The positions are not even: the
+  writer that ranks first needs one delivery, its sibling, and the writer that
+  ranks after it needs two, its epoch and a successor of it, accepted before
+  that sibling arrives. Between devices of the owner's principal that is not so
+  for a removal or a transfer: a device of any rank needs one delivery, the
+  removal, before the sibling of the device it removes (Siblings, Owner
+  devices).
 - **Removal of an admin.** An admin that an owner removes can still keep
   chosen verifiers from accepting its removal. Let `C` be the owner's epoch that
   removes it, and `S` another successor of the same head that the admin writes,
@@ -1938,17 +2038,18 @@ following.
   from the predecessor, so a product that buffers holds unauthenticated bytes,
   each up to 2,167,845 bytes, with no bound that this page states. The order in
   which a backlog is offered can decide the head. With siblings A and B, where B
-  ranks before A, and C a successor of A, a verifier that is offered A, B, C
-  ends on B and answers C `missing-predecessor`, and one that is offered A, C, B
-  ends on C and answers B `superseded`. Two products that offer a backlog in
-  different orders end in different states on the same bytes.
+  ranks before A and the rule for owner devices does not refuse B, and C a
+  successor of A, a verifier that is offered A, B, C ends on B and answers C
+  `missing-predecessor`, and one that is offered A, C, B ends on C and answers B
+  `superseded`. Two products that offer a backlog in different orders end in
+  different states on the same bytes.
 - **Freshness.** A verifier decides against the head it has. It cannot know of
   a successor it has not received. A withheld successor is undetected, and a
   removed device can go on using what it holds with any peer that has not
   accepted the removal.
 - **The chain before a checkpoint.** For a verifier that started from a
-  checkpoint, everything listed under What a joiner cannot verify (Joining from a
-  checkpoint). It takes the checkpoint's state from the inviter, and claims
+  checkpoint, everything listed under What a joiner cannot verify (Joining from
+  a checkpoint). It takes the checkpoint's state from the inviter, and claims
   nothing about the epochs before it.
 - **Order.** The order or position a service assigns never authorises a
   candidate, and never decides between siblings (Siblings). A service that
@@ -1973,8 +2074,12 @@ following.
   given for bytes that nobody has authenticated. A product that shows these
   results to a sender, or to a peer that probes, tells it which epoch is the
   head, whether the group is closed, and which pairs of account and binding are
-  authority devices of the head or of `prior`. The anonymity non-claim covers
-  the roster only.
+  authority devices of the head or of `prior`. The hint `possible-fork`
+  (Siblings, Fork hint) is also returned before the signature is examined: a
+  prober who sends bytes with a chosen epoch number and predecessor commitment
+  learns from it whether that commitment is the one the verifier holds for the
+  number before, or, at a checkpoint head, the predecessor of the checkpoint.
+  The anonymity non-claim covers the roster only.
 - **Delivery.** That a recipient has received an epoch, that a removed device
   has learned of its removal, or that any message reached anyone.
 - **Recall.** Anything a removed device already received: plaintext,
@@ -2022,8 +2127,9 @@ following.
   the same slot, including a statement from before a revocation that the
   recorded one carried, and the revoked device then becomes a member device of
   the head. That is a cost of making the head independent of the order of
-  arrival. Its limit is that records made for other slots, for other groups and
-  by other uses of the procedure still apply.
+  arrival (apart from the case of Owner devices). Its limit is that records made
+  for other slots, for other groups and by other uses of the procedure still
+  apply.
 - **Promotion and re-entry.** `set_role` and `transfer_ownership` name an
   account, not its devices. `apply`, step 6, gives `update_authority` 1 to every
   device under a principal whose role becomes owner or admin, including a device
@@ -2066,23 +2172,29 @@ following.
   faster than the owner's other devices, it can remove them, or transfer
   ownership, and make that final with one more epoch; the owner's other devices
   are then not authority devices of the head, and this page gives them no way
-  back. Its sibling cannot displace an epoch in which another of the owner's
-  devices removed it, at a verifier that accepted that epoch first, but where
-  its own sibling arrived first and it ranks before the remover, the removal is
-  `outranked`; and when it and another owner device remove each other in one
-  slot, the order of arrival decides and the group splits (Siblings, Owner
-  devices). If it ranks first among the owner's devices, it also displaces, at
-  depth one, any epoch of the others that does not remove it (Siblings,
-  Displacement). Nothing on this page lets an authority establish its own
-  replacement. A checkpoint is not recovery (Joining from a checkpoint).
+  back. A removal of it by another of the owner's devices is protected against
+  its own sibling at a verifier that accepted the removal first, but not against
+  an honest device that ranks before the remover and that the removal leaves in
+  place: that device's sibling displaces the removal, and the lost device is
+  then a member device with authority of the new head, if that sibling lists it
+  (Siblings, Owner devices). Where its own sibling arrived first and it ranks
+  before the remover, the removal is `outranked`; and when it and another owner
+  device remove or demote each other in one slot, the order of arrival decides
+  and the group splits. A compromised device of the owner's principal, of any
+  rank, can keep the honest device that ranks first out of a verifier with one
+  delivery (Siblings, Owner devices). If the lost device ranks first among the
+  owner's devices, it also displaces, at depth one, any epoch of the others that
+  does not remove it (Siblings, Displacement). Nothing on this page lets an
+  authority establish its own replacement. A checkpoint is not recovery (Joining
+  from a checkpoint).
 - **Post-quantum authority.** Writer signatures are classical XEdDSA
   signatures (EX-11).
 - **Storage.** A verifier whose stored state is rolled back or rewritten
   accepts what its restored state allows (ASM-12; EX-07).
 - **The key engine.** That any key engine meets the obligations above. That is
   its specification's and its proof's to show. It also covers what those
-  obligations leave out: that a removed device cannot compute the key material of
-  a later epoch (Obligations on the key engine).
+  obligations leave out: that a removed device cannot compute the key material
+  of a later epoch (Obligations on the key engine).
 - **Agreement on key material.** An epoch commits to membership, roles, policy
   and closure state, and to a `key_epoch` number. It does not commit to any key
   material. Nothing on this page makes members check that they hold the same
@@ -2104,9 +2216,9 @@ following.
   successor, so a sibling written by a device of the owner's principal that
   ranks before the device that wrote it, or by that device with a lower
   commitment, displaces it whenever it arrives; and where a sibling of another
-  owner device that removes the `close`'s writer arrived first, that sibling
-  takes effect instead (Siblings, What the order does not resolve). Recovery is
-  not specified (Recovery).
+  owner device that removes or demotes the `close`'s writer arrived first, that
+  sibling takes effect instead (Siblings, What the order does not resolve).
+  Recovery is not specified (Recovery).
 - **The atomic step.** The step in which a candidate is accepted, or displaces
   the head, spans three stores: this page's accepted state, the caller's record
   of the generations it has seen (Inputs), and the key engine's retirement of
@@ -2132,9 +2244,10 @@ following.
   principal with new devices, the whole work of the acceptance procedure; the
   page does not say whether a verifier may remember such a refusal. A sibling is
   ranked only after every check, so a party that replays a sibling that ranks
-  after the head makes the verifier do the whole work of checks 1 to 12, the
-  caller's acceptance procedure included, each time before it answers
-  `outranked`, unless the caller keeps the record of such answers that
+  after the head, or one that the rule for owner devices refuses, makes the
+  verifier do the whole work of checks 1 to 12, the caller's acceptance
+  procedure included, each time before it answers `outranked` or
+  `removed-by-head`, unless the caller keeps the record of such answers that
   Obligations at the product boundary permits. The size of an epoch does not
   shrink with the size of the change: every epoch carries the full state (Open
   decision D-7), so one operation in a group of 512 principals with eight
@@ -2212,9 +2325,13 @@ ranks before `C`'s writer and that `C` does not remove or demote, or `C`'s
 writer with a lower commitment. A device of that principal that `C` removes or
 demotes cannot displace `C` (Siblings, Owner devices); where its sibling arrived
 before `C`, `C` is `outranked` and never becomes the head, if that device ranks
-before `C`'s writer. If an admin wrote `C`, as an admin's removal of a member
-device, a sibling written by any device of the owner's principal, by an admin
-device that ranks before `C`'s writer, or by `C`'s writer with a lower
+before `C`'s writer. A device of that principal that ranks before `C`'s writer,
+and that `C` neither removes nor demotes, displaces `C` with a sibling even when
+`C` removes another device of the principal: the removal did not happen at that
+slot, and the removed device is a member device of the new head if that sibling
+lists it (Siblings, Owner devices). If an admin wrote `C`, as an admin's removal
+of a member device, a sibling written by any device of the owner's principal, by
+an admin device that ranks before `C`'s writer, or by `C`'s writer with a lower
 commitment displaces it, whether or not that sibling removes `r`. The removal
 then did not happen at that slot, `r` is a member device of the new head, and
 the proposer has to propose the removal again (Obligations at the product
@@ -2284,8 +2401,9 @@ scope).
 Assumptions 1 and 2 cite entries of the threat model. Assumptions 3 to 7 are
 this page's own, and they are in no register (ADR-0008, rule 2 asks
 threat-model/assumptions.md to state what the protocol and the proofs assume).
-The identifiers RM-1 to RM-3 are labels used on this page and are not
-requirement identifiers.
+Item 8 states what no assumption covers and is not an assumption. The
+identifiers RM-1 to RM-3 are labels used on this page and are not requirement
+identifiers.
 
 The inventory issuer is not an assumption of RM-1 or RM-2 once `C` is accepted:
 removal needs no evidence. The issuer matters to admission, which decides who is
@@ -2316,8 +2434,8 @@ a member device to begin with.
   obligation, and it is not established here.
 - Anything before a checkpoint. A verifier that started from a checkpoint holds
   it as its first head, and the invariant applies to what it accepts after that.
-  It says nothing about whether a device the group removed earlier is absent from
-  the checkpoint, which the joiner takes from its inviter.
+  It says nothing about whether a device the group removed earlier is absent
+  from the checkpoint, which the joiner takes from its inviter.
 - Anything across a discard. The invariant is about one verifier for its
   lifetime, not about a device. A device that discards its state and starts from
   a checkpoint is a new verifier, and a checkpoint older than what the device
@@ -2484,12 +2602,12 @@ has no accepted successor, a sibling of the head that passes every check
 displaces the head if it ranks before it, by the role and the position in the
 predecessor of the device that wrote it and, between two epochs of one device,
 by commitment, and is refused as `outranked` otherwise; except that, when the
-sibling and the head were written by two devices of the owner's principal and
-the head removes or demotes the sibling's writer, the sibling is refused as
-`removed-by-head` whatever its rank; and the verifier returns the hint
-`possible-fork`, which has no effect, beside `superseded`, and beside
-`missing-predecessor` at a checkpoint head, for a candidate whose predecessor
-is the epoch it holds for the number before. Default: F.
+sibling and the head were written by two different devices of the owner's
+principal and the head removes or demotes the sibling's writer, the sibling is
+refused as `removed-by-head` whatever its rank; and the verifier returns the
+hint `possible-fork`, which has no effect, beside `superseded`, and beside
+`missing-predecessor` at a checkpoint head, for a candidate whose predecessor is
+the epoch it holds for the number before. Default: F.
 
 Not chosen. Under A and D one valid sibling stops a verifier for good, and
 under E until a device of the owner's principal clears it. An authority device
@@ -2510,18 +2628,21 @@ commitment is the lowest and so win every race; F orders writers by their place
 in the predecessor, which no body changes, and uses the commitment only between
 one device's own epochs. What F gives up: an accepted epoch is final only once
 it has a successor; a writer that ranks first can undo, at depth one, the epoch
-of any writer that ranks after it; and a fork deeper than one epoch still splits
-a group (Siblings, What the order does not resolve). F keeps D's refusal of a
-sibling whose writer the head removed only between two devices of the owner's
-principal. Under policy version 1 an admin that the head removed was removed by
-the owner, whose devices rank first, so the rank already refuses its sibling.
-Between the owner's devices the rank alone would let a lost or stolen device
-that ranks first undo its own removal and remove the others; the refusal stops
-that where the removal arrived first, and makes the outcome depend on the order
-of arrival when the removed device ranks before its remover, mutual removal
-included (Siblings, Owner devices). The hint gives an operator something to
-count; it is not authenticated and fires without a fork too (Siblings, Fork
-hint).
+of any writer that ranks after it, except as Owner devices says; and a fork
+deeper than one epoch still splits a group (Siblings, What the order does not
+resolve). F keeps D's refusal of a sibling whose writer the head removed only
+between two devices of the owner's principal. Under policy version 1 an admin
+that the head removed was removed by the owner, whose devices rank first, so the
+rank already refuses its sibling. Between the owner's devices the rank alone
+would let a lost or stolen device that ranks first undo its own removal and
+remove the others; the refusal stops the removed device's own sibling where the
+removal arrived first, but not an honest device that ranks before the remover
+and that the removal leaves in place, and it makes the outcome depend on the
+order of arrival when the removed device ranks before its remover, mutual
+removal included (Siblings, Owner devices). Whether to extend the refusal to a
+sibling that still lists a device the head removed is open, and F does not. The
+hint gives an operator something to count; it is not authenticated and fires
+without a fork too (Siblings, Fork hint).
 
 History. Option E was adopted (go of 2026-09-29). An earlier revision of this
 draft, which no one has reviewed, was written to D in place of E under the
@@ -2569,7 +2690,7 @@ it covers. This page has not been compared with it either.
 - RFC 9420 and IACR ePrint 2019/1416: named under Related published work only.
   This page cites no rule, field or check as taken from either.
 - session-establishment.md: the X25519 agreement class, for option B of Open
-  decision D-10, which is not adopted.
+  decision D-10, which is not chosen.
 - error-handling.md: what is left to an implementation (Accepting a successor,
   Results and The checks).
 - CONSTANTS.md: the provenance tiers named under Constants.

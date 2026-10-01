@@ -15,9 +15,10 @@ devices per account, a different profile from the one-authority,
 one-device-per-identity profile of the bounded fan-out helper below. With
 several authorities two epochs can compete for one slot: the draft chooses
 between them by a fixed order of their writers while neither has an accepted
-successor, so an accepted epoch can be replaced by a competing one and its key
-material retired (its section Siblings). The outline below does not say what
-happens to sender keys in that case.
+successor (apart from one case between two devices of the owner's principal,
+where the order of arrival can decide), so an accepted epoch can be replaced by
+a competing one and its key material retired (its section Siblings). The outline
+below does not say what happens to sender keys in that case.
 
 The mechanism, in outline (tier `nominated`: this is the shape of sender keys
 that WhatsApp's white paper describes, listed under Published material): each
@@ -87,7 +88,7 @@ sources in the table above, and this page states nothing about what it covers or
 how it relates to this outline. This project's design has not been compared with
 it, and a comparison is required before the key engine is fixed.
 group-epochs.md, Related published work, says the same of its signed membership
-epochs.
+epochs, and that page has had no human review.
 
 ## Provenance rules for this page
 
