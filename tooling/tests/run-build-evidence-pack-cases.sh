@@ -190,6 +190,7 @@ refuse digest-not-a-string 'invalid pack digest entry: source/ASSURANCE-OBLIGATI
 refuse pack-schema 'invalid pack manifest' push "d['pack']['schema_version'] = 2"
 refuse pack-files-not-a-list 'invalid pack manifest' push "d['pack']['files'] = {}"
 refuse pack-candidate-missing 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': '', 'tree': ''}"
+refuse pack-candidate-short 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': 'abc', 'tree': 'def'}"
 refuse pack-candidate-not-strings 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': 1, 'tree': 2}"
 
 set +e
@@ -261,5 +262,409 @@ if [ "$missing_args_rc" -eq 0 ] || ! printf '%s' "$missing_args" | grep -qF -- '
   echo "WRONG  build-without-arguments: $missing_args" >&2
   exit 1
 fi
+
+# ---- a pack made by the production tools, and the git it must match ----------
+# Everything above uses made-up commits, so it cannot show that a pack's files
+# are the candidate commit's. These candidates are made by the production
+# tools in a small git repository (`tests/make-candidate.py`): the receipt writer,
+# the collector, the manifest builder and the pack builder. `--candidate-repo`
+# then holds the pack to that repository's history.
+export PYTHONDONTWRITEBYTECODE=1
+make_candidate() {
+  python3 "$here/make-candidate.py" "$root" "$work/$1" --event "$2"
+}
+make_candidate real-push push
+make_candidate real-pull-request pull_request
+real="$work/real-push"
+verify_in_repo() {
+  python3 "$root/tooling/build-evidence-pack.py" --verify "$1" --candidate-repo "$2"
+}
+expect_real_pass() {
+  cases=$((cases + 1))
+  if ! verify_in_repo "$1" "$2" >"$work/real.out" 2>&1; then
+    echo "WRONG  $3: an honest pack made by the production tools was refused:" >&2
+    cat "$work/real.out" >&2
+    return 1
+  fi
+}
+expect_real_fail() {
+  local name="$1" needle="$2" pack="$3" repo="$4" out rc
+  cases=$((cases + 1))
+  set +e
+  out="$(verify_in_repo "$pack" "$repo" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: expected refusal" >&2
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  $name: missing diagnostic '$needle'" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+}
+expect_real_pass "$real/pack" "$real/repo" real-push
+expect_real_pass "$work/real-pull-request/pack" "$work/real-pull-request/repo" real-pull-request
+python3 "$root/tooling/build-evidence-pack.py" --verify "$real/pack" >/dev/null
+cases=$((cases + 1))
+
+# forge PACK RELATIVE TEXT: change a packed source, then make every digest that
+# mentions it agree, so that the pack still verifies on its own.
+forge() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import hashlib, json, pathlib, sys
+pack, relative, text = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+target = pack / "source" / relative
+target.write_text(text)
+manifest_path = pack / "assurance-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+for item in manifest["sources"]:
+    if item["path"] == relative:
+        item["sha256"], item["bytes"] = digest(target), target.stat().st_size
+manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+for entry in index["files"]:
+    path = pack / entry["path"]
+    entry["sha256"], entry["bytes"] = digest(path), path.stat().st_size
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
+}
+
+cp -R "$real/pack" "$work/forged-source"
+forge "$work/forged-source" ASSURANCE.md 'A different ledger text, with digests made to agree.
+'
+python3 "$root/tooling/build-evidence-pack.py" --verify "$work/forged-source" >/dev/null
+cases=$((cases + 1))
+expect_real_fail forged-source 'packed source differs from the candidate commit: ASSURANCE.md' "$work/forged-source" "$real/repo"
+
+cp -R "$real/pack" "$work/forged-claims"
+forge "$work/forged-claims" tacenta-proofs/CLAIMS.md '# Claims
+'
+expect_real_fail forged-claims 'packed source differs from the candidate commit: tacenta-proofs/CLAIMS.md' "$work/forged-claims" "$real/repo"
+
+cp -R "$real/pack" "$work/forged-generator"
+python3 - "$work/forged-generator" <<'PY'
+import hashlib, json, pathlib, sys
+pack = pathlib.Path(sys.argv[1])
+manifest_path = pack / "assurance-manifest.json"
+manifest = json.loads(manifest_path.read_text())
+manifest["identity"]["generator_sha256"] = "0" * 64
+manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+for entry in index["files"]:
+    path = pack / entry["path"]
+    entry["sha256"], entry["bytes"] = hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
+python3 "$root/tooling/build-evidence-pack.py" --verify "$work/forged-generator" >/dev/null
+cases=$((cases + 1))
+expect_real_fail forged-generator "packed manifest names a generator that is not the candidate commit's" "$work/forged-generator" "$real/repo"
+
+# The same pack against a repository that does not hold the candidate commit.
+expect_real_fail commit-absent 'is not in the repository' "$real/pack" "$work/real-pull-request/repo"
+mkdir "$work/empty-repo"
+git -C "$work/empty-repo" init -q 2>/dev/null
+expect_real_fail repository-empty 'is not in the repository' "$real/pack" "$work/empty-repo"
+
+# The commit is there and the pack names another tree for it. The pack is made
+# with the helper above, whose documents are consistent with each other, so only
+# the comparison with git can refuse it.
+real_commit="$(git -C "$real/repo" rev-parse HEAD)"
+pack tree-of-another-commit push "d['candidate'] = {'commit': '$real_commit', 'tree': 'b' * 40}; d['manifest']['identity'].update(source_commit='$real_commit'); d['receipts']['candidate'] = dict(d['candidate']); d['pack']['candidate'] = dict(d['candidate'])
+for r in (d['manifest'], d['receipts']):
+    for c in r['checks']:
+        if 'commit' in c['run']: c['run']['commit'] = '$real_commit'"
+expect_pass tree-of-another-commit-alone "$work/tree-of-another-commit"
+expect_real_fail tree-of-another-commit 'pack candidate tree is not the tree of the candidate commit' "$work/tree-of-another-commit" "$real/repo"
+
+# A source file that is not a file of the commit.
+cp -R "$real/pack" "$work/source-not-in-commit"
+python3 - "$work/source-not-in-commit" <<'PY'
+import hashlib, json, pathlib, sys
+pack = pathlib.Path(sys.argv[1])
+extra = pack / "source" / "NOT-IN-THE-COMMIT.md"
+extra.write_text("Added to the pack, never committed.\n")
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+index["files"].append({"path": "source/NOT-IN-THE-COMMIT.md", "sha256": hashlib.sha256(extra.read_bytes()).hexdigest(), "bytes": extra.stat().st_size})
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
+python3 "$root/tooling/build-evidence-pack.py" --verify "$work/source-not-in-commit" >/dev/null
+cases=$((cases + 1))
+expect_real_fail source-not-in-commit 'packed source is not a file of the candidate commit: NOT-IN-THE-COMMIT.md' "$work/source-not-in-commit" "$real/repo"
+
+set +e
+repo_without_verify="$(python3 "$root/tooling/build-evidence-pack.py" --manifest "$work/x" --receipts "$work/x" --output "$work/x" --candidate-repo "$real/repo" 2>&1)"
+repo_without_verify_rc=$?
+set -e
+cases=$((cases + 1))
+if [ "$repo_without_verify_rc" -eq 0 ] || ! printf '%s' "$repo_without_verify" | grep -qF -- '--candidate-repo is only for --verify'; then
+  echo "WRONG  candidate-repo-without-verify: $repo_without_verify" >&2
+  exit 1
+fi
+
+# ---- rebuilding a candidate from public inputs -----------------------------
+# `reproduce-evidence.py` rebuilds the manifest and the pack with the candidate
+# commit's own builders from the receipts and compares byte for byte.
+reproduce() {
+  python3 "$root/tooling/reproduce-evidence.py" "$@"
+}
+expect_reproduced() {
+  local name="$1"
+  shift
+  cases=$((cases + 1))
+  if ! reproduce "$@" >"$work/reproduce.out" 2>&1; then
+    echo "WRONG  $name: an honest candidate did not reproduce:" >&2
+    cat "$work/reproduce.out" >&2
+    return 1
+  fi
+}
+expect_not_reproduced() {
+  local name="$1" needle="$2" out rc
+  shift 2
+  cases=$((cases + 1))
+  set +e
+  out="$(reproduce "$@" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: expected refusal" >&2
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  $name: missing diagnostic '$needle'" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+}
+no_worktrees_left() {
+  [ "$(git -C "$1" worktree list | wc -l | tr -d ' ')" = "1" ]
+}
+expect_reproduced reproduce-pack-and-hosted --pack "$real/pack" --hosted "$real/hosted" --repo "$real/repo"
+expect_reproduced reproduce-pack-alone --pack "$real/pack" --repo "$real/repo"
+expect_reproduced reproduce-hosted-alone --hosted "$real/hosted" --repo "$real/repo"
+expect_reproduced reproduce-pull-request --pack "$work/real-pull-request/pack" --hosted "$work/real-pull-request/hosted" --repo "$work/real-pull-request/repo"
+cases=$((cases + 1))
+no_worktrees_left "$real/repo" || { echo "WRONG  a reproduction left a worktree in the repository" >&2; exit 1; }
+git -C "$real/repo" status --short --ignored | grep -v '^!! .assurance/$' && { echo "WRONG  a reproduction changed the repository" >&2; exit 1; }
+
+expect_not_reproduced reproduce-nothing 'give --pack, --hosted or both'
+expect_not_reproduced reproduce-pack-forged-source 'packed source differs from the candidate commit: ASSURANCE.md' --pack "$work/forged-source" --repo "$real/repo"
+expect_not_reproduced reproduce-pack-wrong-repository 'is not in the repository' --pack "$real/pack" --repo "$work/real-pull-request/repo"
+expect_not_reproduced reproduce-pack-unreadable 'cannot read pack manifest' --pack "$work/no-such-pack" --repo "$real/repo"
+cases=$((cases + 1))
+no_worktrees_left "$real/repo" || { echo "WRONG  a refused reproduction left a worktree in the repository" >&2; exit 1; }
+
+cp -R "$real/pack" "$work/real-tampered"
+printf '\n' >> "$work/real-tampered/assurance-receipts.json"
+expect_not_reproduced reproduce-pack-tampered 'pack digest mismatch: assurance-receipts.json' --pack "$work/real-tampered" --repo "$real/repo"
+cp -R "$real/hosted" "$work/hosted-wrong-tree"
+python3 - "$work/hosted-wrong-tree/assurance-receipts.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["candidate"]["tree"] = "c" * 40
+path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+PY
+expect_not_reproduced hosted-names-another-tree 'the candidate tree is not the tree of the candidate commit' --hosted "$work/hosted-wrong-tree" --repo "$real/repo"
+
+# The hosted artifact is not the one the pack holds.
+cp -R "$real/hosted" "$work/hosted-reformatted"
+python3 - "$work/hosted-reformatted/assurance-manifest.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+path.write_text(json.dumps(json.loads(path.read_text())) + "\n")
+PY
+expect_not_reproduced hosted-not-the-packed-manifest 'the hosted assurance-manifest.json is not the one in the pack' --pack "$real/pack" --hosted "$work/hosted-reformatted" --repo "$real/repo"
+expect_not_reproduced hosted-manifest-not-the-rebuilt 'the manifest rebuilt from the receipts differs from the given manifest' --hosted "$work/hosted-reformatted" --repo "$real/repo"
+cp -R "$real/hosted" "$work/hosted-other-receipts"
+python3 - "$work/hosted-other-receipts/assurance-receipts.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["checks"][0]["command"] = "a different command"
+path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+PY
+expect_not_reproduced hosted-not-the-packed-receipts 'the hosted assurance-receipts.json is not the one in the pack' --pack "$real/pack" --hosted "$work/hosted-other-receipts" --repo "$real/repo"
+expect_not_reproduced hosted-receipts-not-the-manifests 'the manifest rebuilt from the receipts differs from the given manifest' --hosted "$work/hosted-other-receipts" --repo "$real/repo"
+expect_not_reproduced hosted-of-another-candidate 'names a different candidate than the pack' --pack "$real/pack" --hosted "$work/real-pull-request/hosted" --repo "$real/repo"
+expect_not_reproduced hosted-unreadable 'cannot read hosted receipts' --hosted "$work/no-such-directory" --repo "$real/repo"
+python3 - "$work/hosted-other-receipts/assurance-receipts.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["candidate"]["tree"] = "short"
+path.write_text(json.dumps(data) + "\n")
+PY
+expect_not_reproduced hosted-candidate-malformed 'has no valid candidate commit and tree' --hosted "$work/hosted-other-receipts" --repo "$real/repo"
+
+# A pack that verifies and whose parts agree, but is not what the builders write
+# from its receipts: the index reformatted. Digests and contents all agree.
+cp -R "$real/pack" "$work/pack-reformatted"
+python3 - "$work/pack-reformatted" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]) / "PACK-MANIFEST.json"
+path.write_text(json.dumps(json.loads(path.read_text())) + "\n")
+PY
+python3 "$root/tooling/build-evidence-pack.py" --verify "$work/pack-reformatted" --candidate-repo "$real/repo" >/dev/null
+cases=$((cases + 1))
+expect_not_reproduced pack-not-what-the-builder-writes 'the rebuilt pack differs from the given pack in PACK-MANIFEST.json' --pack "$work/pack-reformatted" --repo "$real/repo"
+# A file of the commit that the builder does not allowlist, added to the pack and
+# listed. It verifies and it matches git; only the rebuild notices.
+cp -R "$real/pack" "$work/pack-lists-an-extra-source"
+python3 - "$work/pack-lists-an-extra-source" "$real/repo/.gitignore" <<'PY'
+import hashlib, json, pathlib, shutil, sys
+pack, committed = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+extra = pack / "source" / ".gitignore"
+shutil.copyfile(committed, extra)
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+index["files"].append({"path": "source/.gitignore", "sha256": hashlib.sha256(extra.read_bytes()).hexdigest(), "bytes": extra.stat().st_size})
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
+python3 "$root/tooling/build-evidence-pack.py" --verify "$work/pack-lists-an-extra-source" --candidate-repo "$real/repo" >/dev/null
+cases=$((cases + 1))
+expect_not_reproduced pack-with-a-source-the-builder-would-not-pack 'the rebuilt pack lists different files: source/.gitignore' --pack "$work/pack-lists-an-extra-source" --repo "$real/repo"
+rm -rf "$work/pack-lists-an-extra-source" "$work/pack-reformatted"
+
+# ---- publication to the archive, with a stand-in for the aws command ---------
+# The archive's retention is COMPLIANCE, so an object cannot be deleted once
+# written. `publish-evidence-archive.py` is therefore run here against a stub
+# `aws` that records every call and fails in the ways S3 can, and the runner
+# requires that nothing is uploaded for a pack that does not verify, that does
+# not match git, or that has no receipt path, and that every upload asks S3 to
+# refuse an existing key.
+mkdir -p "$work/stub"
+cat > "$work/stub/aws" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >> "$AWS_STUB_LOG"
+mode="${AWS_STUB_MODE:-ok}"
+case "$2" in
+  put-object)
+    count="$(grep -c ' put-object ' "$AWS_STUB_LOG")"
+    if [ "$mode" = exists ]; then echo "An error occurred (PreconditionFailed) when calling the PutObject operation" >&2; exit 254; fi
+    if [ "$mode" = partial ] && [ "$count" -ge 3 ]; then echo "An error occurred (RequestTimeout)" >&2; exit 254; fi
+    if [ "$mode" = no-version ]; then echo '{}'; exit 0; fi
+    echo "{\"VersionId\": \"version-$count\"}"
+    ;;
+  get-object-retention)
+    case "$mode" in
+      governance) echo '{"Retention": {"Mode": "GOVERNANCE", "RetainUntilDate": "2033-01-01T00:00:00+00:00"}}' ;;
+      no-retention) echo "An error occurred (AccessDenied)" >&2; exit 254 ;;
+      retention-without-date) echo '{"Retention": {"Mode": "COMPLIANCE"}}' ;;
+      *) echo '{"Retention": {"Mode": "COMPLIANCE", "RetainUntilDate": "2033-01-01T00:00:00+00:00"}}' ;;
+    esac
+    ;;
+  *) echo "stub aws: unexpected call: $*" >&2; exit 2 ;;
+esac
+STUB
+chmod +x "$work/stub/aws"
+export AWS_STUB_LOG="$work/aws.log"
+publish() {
+  # publish MODE ARGS...: runs the publisher with the stub first on PATH.
+  local mode="$1"
+  shift
+  : > "$AWS_STUB_LOG"
+  PATH="$work/stub:$PATH" AWS_STUB_MODE="$mode" python3 "$root/tooling/publish-evidence-archive.py" "$@"
+}
+expect_publish_fail() {
+  local name="$1" needle="$2" calls="$3" out rc
+  shift 3
+  cases=$((cases + 1))
+  set +e
+  out="$(publish "$@" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: the publisher accepted it" >&2
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  $name: missing diagnostic '$needle'" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+  if [ "$(wc -l < "$AWS_STUB_LOG" | tr -d ' ')" != "$calls" ]; then
+    echo "WRONG  $name: expected $calls aws calls, saw:" >&2
+    cat "$AWS_STUB_LOG" >&2
+    return 1
+  fi
+}
+files_to_upload="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["files"]) + 1)' "$real/pack/PACK-MANIFEST.json")"
+pack_digest="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$real/pack/PACK-MANIFEST.json")"
+bucket=tacenta-core-assurance-evidence-238576302016
+
+cases=$((cases + 1))
+dry="$(publish ok --pack "$real/pack" --candidate-repo "$real/repo" --dry-run | tail -n 1)"
+if [ "$dry" != "archive dry run: s3://$bucket/candidates/$real_commit/$pack_digest/ ($files_to_upload files)" ]; then
+  echo "WRONG  publish-dry-run: $dry" >&2
+  exit 1
+fi
+if [ -s "$AWS_STUB_LOG" ]; then
+  echo "WRONG  publish-dry-run: the dry run called aws" >&2
+  exit 1
+fi
+
+expect_publish_fail publish-needs-a-receipt '--receipt is required for publication' 0 ok --pack "$real/pack" --candidate-repo "$real/repo"
+echo existing > "$work/existing-receipt.json"
+expect_publish_fail publish-existing-receipt 'refusing to replace publication receipt' 0 ok --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/existing-receipt.json"
+expect_publish_fail publish-forged-source 'packed source differs from the candidate commit: ASSURANCE.md' 0 ok --pack "$work/forged-source" --candidate-repo "$real/repo" --receipt "$work/forged.json"
+expect_publish_fail publish-forged-source-refused 'evidence pack did not verify' 0 ok --pack "$work/forged-source" --candidate-repo "$real/repo" --receipt "$work/forged.json"
+expect_publish_fail publish-tampered-pack 'pack digest mismatch: source/ASSURANCE.md' 0 ok --pack "$work/tampered" --candidate-repo "$real/repo" --receipt "$work/tampered.json"
+expect_publish_fail publish-pack-of-another-commit 'is not in the repository' 0 ok --pack "$real/pack" --candidate-repo "$work/real-pull-request/repo" --receipt "$work/other.json"
+expect_publish_fail publish-default-repository-is-this-checkout 'is not in the repository' 0 ok --pack "$real/pack" --receipt "$work/default.json"
+for refused in forged tampered other default; do
+  if [ -e "$work/$refused.json" ]; then
+    echo "WRONG  publish-$refused: a receipt was written for a refused publication" >&2
+    exit 1
+  fi
+done
+
+expect_publish_fail publish-key-exists 'upload refused for candidates/' 1 exists --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/exists.json"
+expect_publish_fail publish-cut-short 'upload refused for candidates/' 5 partial --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/partial.json"
+expect_publish_fail publish-no-version-id 'returned no version ID for candidates/' 1 no-version --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-version.json"
+expect_publish_fail publish-governance-retention 'upload lacks Compliance retention for candidates/' 2 governance --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/governance.json"
+expect_publish_fail publish-retention-unreadable 'cannot read retention for candidates/' 2 no-retention --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-retention.json"
+expect_publish_fail publish-retention-without-date 'upload lacks Compliance retention for candidates/' 2 retention-without-date --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-date.json"
+for refused in exists partial no-version governance no-retention no-date; do
+  if [ -e "$work/$refused.json" ]; then
+    echo "WRONG  publish-$refused: a receipt was written for a failed publication" >&2
+    exit 1
+  fi
+done
+
+cases=$((cases + 1))
+publish ok --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/published.json" >/dev/null
+python3 - "$work/published.json" "$AWS_STUB_LOG" "$real_commit" "$pack_digest" "$files_to_upload" "$bucket" <<'PY'
+import json, sys
+receipt = json.load(open(sys.argv[1]))
+log = open(sys.argv[2]).read().splitlines()
+commit, digest, count, bucket = sys.argv[3], sys.argv[4], int(sys.argv[5]), sys.argv[6]
+prefix = f"candidates/{commit}/{digest}"
+assert receipt["schema_version"] == 1 and receipt["bucket"] == bucket and receipt["prefix"] == prefix, receipt
+assert receipt["candidate"]["commit"] == commit and receipt["pack_manifest_sha256"] == digest, receipt
+objects = receipt["objects"]
+assert len(objects) == count, (len(objects), count)
+assert all(o["key"].startswith(prefix + "/") and o["retention"]["Mode"] == "COMPLIANCE" and o["version_id"] for o in objects)
+assert len({o["key"] for o in objects}) == count
+assert objects[-1]["key"] == prefix + "/PACK-MANIFEST.json", objects[-1]
+puts = [line for line in log if " put-object " in " " + line + " "]
+assert len(puts) == count, len(puts)
+for line in puts:
+    assert "--if-none-match *" in line and f"--bucket {bucket}" in line, line
+reads = [line for line in log if line.startswith("s3api get-object-retention")]
+assert len(reads) == count and all("--version-id version-" in line for line in reads), reads
+PY
+cases=$((cases + 1))
+publish ok --pack "$real/pack" --candidate-repo "$real/repo" --bucket another-bucket --receipt "$work/other-bucket.json" >/dev/null
+python3 - "$work/other-bucket.json" "$AWS_STUB_LOG" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["bucket"] == "another-bucket"
+assert all("--bucket another-bucket" in line for line in open(sys.argv[2]) if " put-object " in " " + line)
+PY
 
 echo "build-evidence-pack-cases: $cases cases gave the expected result (honest push and pull-request packs verified; each refusal is one change to an honest pack)"
