@@ -148,13 +148,14 @@ is SemVer against the specified protocol (not the implementation).
   states it. The domain and label constants and the bounds it proposes are not
   yet in `CONSTANTS.md` or `tacenta-core/LABELS.md`, and its refusal kinds are
   in neither, since `CONSTANTS.md` has no rows for refusal kinds. The same pull
-  request adds a paragraph to `protocol/group-messaging.md` that points to the
-  page and says it has had no human review, a paragraph there that names RFC
-  9420 as published work that the project's design has not been compared with, a
-  sentence to `README.md` that the page is a draft with no human review, and a
-  sentence to `threat-model/exclusions.md` (EX-04) that the page is a draft with
-  no human review and that the exclusion stands until a reviewed change ratifies
-  it. These add no requirement and change no rule.
+  request adds to `protocol/group-messaging.md` a paragraph that points to the
+  page, says it has had no human review and says that an accepted epoch of the
+  draft can be replaced, with its key material, by a competing one; a paragraph
+  there that names RFC 9420 as published work that the project's design has not
+  been compared with; a sentence to `README.md` that the page is a draft with no
+  human review; and a sentence to `threat-model/exclusions.md` (EX-04) that the
+  page is a draft with no human review and that the exclusion stands until a
+  reviewed change ratifies it. These add no requirement and change no rule.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519

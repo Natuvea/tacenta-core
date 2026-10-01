@@ -12,7 +12,12 @@ sender-key format, and it assumes that each accepted epoch starts a key epoch
 (its Open decision D-2), which the open question below on sender keys or
 pairwise fan-out does not assume. It lists several authorities and up to eight
 devices per account, a different profile from the one-authority,
-one-device-per-identity profile of the bounded fan-out helper below.
+one-device-per-identity profile of the bounded fan-out helper below. With
+several authorities two epochs can compete for one slot: the draft chooses
+between them by a fixed order of their writers while neither has an accepted
+successor, so an accepted epoch can be replaced by a competing one and its key
+material retired (its section Siblings). The outline below does not say what
+happens to sender keys in that case.
 
 The mechanism, in outline (tier `nominated`: this is the shape of sender keys
 that WhatsApp's white paper describes, listed under Published material): each
