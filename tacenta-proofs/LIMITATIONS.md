@@ -1794,14 +1794,26 @@ narrower than the claim that was removed:
   built environment and refuses the module if its statement is not the
   theorem's own premises, if a premise of the theorem is left unclassified, or if
   the witness proves anything else. A premise added to one of these theorems is
-  therefore refused until someone classifies it. That is the join the removed
-  witnesses lacked, for these theorems only.
+  therefore refused until someone classifies it. For the three discharge-only
+  theorems (`advance_refines`, `maybe_advance_refines`, `clear_old_epochs_refines`)
+  classifying it is all that is asked: a numeric premise tabled as `caller` needs
+  no witness. The script recognises a numeric premise by a comparison or by the
+  name of a numeric state predicate, so one hidden behind another definition and
+  tabled `boundary` is accepted, and it does not tie the state a witness proof uses
+  to the state the decoder-invariant theorems are about. That is the join the
+  removed witnesses lacked, for these theorems only.
 - `Translation/NumericBoundary.lean` proves the bounds against the code's caps
   at both widths (the 32-bit erasure room bound is exactly
-  `needed ≤ 2^27 - 1`) and that each ceiling that stays a caller's premise excludes
-  exactly one honest value. `NumericShapeWitness.lean` shows each of the 61 shapes
-  into which the numeric premises fall satisfiable at both widths; those theorems
-  are about shapes and are joined to no theorem.
+  `needed ≤ 2^27 - 1`) and that the two ceilings the invariant leaves open on the
+  clock and the epoch, `events + 1 < u32::MAX` and `epoch + 1 < u64::MAX`, each
+  exclude exactly one value among those the decoder's invariant allows; `hnewb` and
+  `hcounter` have no such theorem. `NumericShapeWitness.lean` shows each of 61
+  shapes of numeric premise, as enumerated once, satisfiable at both widths. The
+  enumeration is not complete (the codec theorems' `pos + 41 ≤ usize::MAX` and
+  `len + 48 ≤ usize::MAX` have no shape) and nothing in the tree checks it. Those
+  theorems are about shapes and are joined to no theorem; their statements are
+  held by `#guard_msgs in #check` pins in the build, and no gate requires a pin to
+  exist.
 - The store bounds the classical ratchet's `receive` carries are satisfied by
   every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
   `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
@@ -1811,20 +1823,24 @@ narrower than the claim that was removed:
   from the invariant and `hepoch`, and the session unit's copy adds the Triple's
   composed refinements.
 
-What is **not** established. The helper theorems of the T1 and T3 files and the
-dispatch layer have no witness in the tree; their numeric hypotheses are
-discharged inside the proofs that apply them, which is read and not checked. The
+What is **not** established. The helper theorems of the T1 and T3 files, the codec
+and parser theorems and the dispatch layer have no witness in the tree; their
+numeric hypotheses are discharged inside the proofs that apply them, which is read
+and not checked. The
 Braid's relations between a translated and a model Braid, the arms of
 `ct1_bounded` and `decoders_bounded` that hold a KEM value, and the premise that
 a byte string decodes to a given state have no witness (they need values of opaque
 types), and the lifecycle headroom records have none either. Nothing was built or
 run at 32 bits: `Usize.max` is an opaque constant of which only its two values are
 known, so each proof covers both widths by being about the constant. The values
-of the constants in the translations are evaluated by `NumericBoundary*.lean` and
-agree with the model's, and that they equal the Rust source's rests on the
-translation attestation. A one-off script run over the built environment found no
-hypothesis of any theorem false or unsatisfiable at either width; that script is
-not in this tree, so it is not evidence the tree can repeat.
+of the constants in the translations are evaluated by `NumericBoundary*.lean`, and
+the ratchet's and the sparse ratchet's agree with the model's; that they equal the
+Rust source's rests on the translation attestation. A one-off script run over the
+built environment, on the theorems that have numeric hypotheses, found none of
+those hypotheses false or unsatisfiable at either width. It did not enter every
+comparison (those under `match`, `or`, `not` and `!=`), and it covered the helper
+theorems and the dispatch layer by script alone. The script is not in this tree,
+so it is not evidence the tree can repeat.
 
 **Satisfiable is not satisfied by every state.** A witness says a hypothesis is
 not vacuous. It does not say every reachable state meets it. The clock headroom
@@ -2703,12 +2719,15 @@ ones are listed here so nobody mistakes "not yet" for "not known":
   `hcb` and `hsb` as facts the invariant does not give and proposes reserving
   the top `EPOCHS_KEPT` epochs to close the gap. They follow from the invariant
   together with `hepoch` (`spqr_receive_premises` in
-  `Translation/DecodedStateDischarge.lean`), so nothing needs reserving, and the
-  text of `CLAIMS.md`, this file and `ImportInv.lean` says so. The comment is
-  not changed here: a comment-only edit inside a translated crate changes the
-  crate's hash in `manifests/translation-attestation.json`, which only a Linux
-  regeneration can refresh, so it waits for this window and is superseded by
-  those texts until then.
+  `Translation/DecodedStateDischarge.lean`), so reserving them is not needed for
+  those two premises (whether it would also remove `hepoch` has not been
+  checked), and the text of `CLAIMS.md`, this file and `ImportInv.lean` says so.
+  The comment's closing sentence, that the two are recorded as open in
+  `CLAIMS.md`, is out of date too. The comment is not changed here: a
+  comment-only edit inside a translated crate changes the crate's hash in
+  `manifests/translation-attestation.json`, which only a Linux regeneration can
+  refresh, so it waits for this window and is superseded by those texts until
+  then.
 
 One entry closed with this re-translation: `tacenta_spqr::State::to_bytes` and
 `tacenta_braid::Braid::to_bytes` no longer grow their buffer by pushing, and

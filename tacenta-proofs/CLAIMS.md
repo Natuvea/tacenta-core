@@ -2985,7 +2985,8 @@ panic-freedom and refinement theorems of the classical ratchet, the sparse ratch
 ML-KEM Braid and the decoded-state receive refinement, each module proves that one concrete state meets, at once, the theorem's
 numeric premises (bounds on lengths, counters and epochs written against `usize::MAX`, `u32::MAX` and
 `u64::MAX`), its numeric predicates about a state (`ct1_bounded`, `decoders_bounded`, `EncodersLive`) and its
-relations between a translated value and a model value (`StateRefines`, `StateR`, `HeaderR`). Every proof is
+relations between a translated value and a model value (`StateRefines`, `StateR`, `HeaderR`; for the Braid theorems the
+relations are left out, as set out below). Every proof is
 about the constant `Usize.max`, of which Lean knows only that it is `2^32 - 1` or `2^64 - 1`, so each holds at
 both platform widths and none appeals to a width.
 
@@ -2993,14 +2994,27 @@ The statement of each witness is checked against its theorem and not trusted. `s
 theorem's type from the built environment, rebuilds the conjunction of the premises its table puts inside the
 witness, requires the module's `Premises.T` to equal it and `sat_T` to prove exactly `Premises.T`, and requires
 every other premise of `T` to be classified as `boundary` or `unwitnessed`, so a premise added to a theorem
-later is refused until it is classified. It runs inside `no-sorry.sh` with 28 cases, 7 that must be accepted and 21 that apply one change and must be refused (a bound weakened
+later is refused until it is classified. It runs inside `no-sorry.sh` with 36 cases, 10 that must be accepted and 26 that apply one change and must be refused (a bound weakened
 in a statement, a witness deleted or replaced by `True`, a statement or a table row removed, a premise left
-unclassified, a numeric premise listed as outside, a premise added to a theorem). The check is a script and
+unclassified, a numeric premise listed as outside, a premise added to a theorem, a `sat_` theorem or an `*_at_witness`
+theorem that the table does not account for). The check is a script and
 not a Lean theorem because `check-lean-constructs.sh` refuses elaboration-time code in this package; it
 trusts the script's reading of the environment, and classifies a hypothesis as numeric by a comparison on a
 natural number or an integer in its propositional skeleton or by the name of a numeric state predicate, so a
 numeric bound hidden behind a definition whose name is not on the script's list of numeric state predicates is
 classified by the table's author; `ChainCounterBounded`, a bound on a chain's counter, is such a name and is on the list.
+A numeric premise stated through a definition whose name is not on the list is not recognised, and if the table classifies it
+as `boundary` the check accepts it: a toy theorem with `(h2 : Roomy n)`, where `Roomy n := n + 1 < Usize.max`, passes. A scan of
+the 44 witness rows and the 18 discharge rows with definitions unfolded found no such premise in the tree; the only hypotheses
+it flagged were the contract bundles `RatchetAgreesFor` and `SpqrAgreesFor`, whose numeric content is in implication antecedents.
+The check also does not tie the state a `sat_` proof uses to the state `spqrS_inv` and `ratS_inv` are about, or to the sizes
+described below.
+
+All 66 theorems named below are pinned with `#guard_msgs in #print axioms`. 54 list only `propext`, `Classical.choice` and
+`Quot.sound`. The other 12 are the Braid theorems, whose statements mention opaque types: the six standalone ones also list
+`tacenta_braid.tacenta_erasure.Decoder` and `Encoder` and `tacenta_braid.tacenta_kem.EncapsState` and `IncrementalKeyPair`, and the
+six on the session unit also list `tacenta_session_unit.tacenta_kem.EncapsState` and `IncrementalKeyPair`. No pin lists a
+compiler-trust axiom. The pin list is `REQUIRED_PINS` in `scripts/attest.py`.
 
 **What this is not.** A witness says a premise is not vacuous. It does not say a reachable state meets it:
 among the values the decoder's invariant allows, `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and
@@ -3013,8 +3027,10 @@ need a value of an opaque type (the KEM), and `hdec` of `decoded_receive_refines
 state. On the standalone leaves the Braid witnesses are at `KeysUnsampled`, where `ct1_bounded` holds by its `True` arm; the
 arms of `ct1_bounded` that bound a stored ciphertext hold values of opaque types and are **not shown**, and that stays open.
 On the session unit `decoders_bounded` is witnessed in its real arm, a decoder at the cap its invariant admits
-(`needed = 65536`); the arms that hold a KEM value stay open there too. The states are small (one chain and one skipped
-key, one stored skipped key); the bounds up to their caps are in the next sections.
+(`needed = 65536`); the arms that hold a KEM value stay open there too. The states are small, not extremal (one chain and one
+skipped key, one stored skipped key, a counter at 1 or 5). That is what the proofs use; no gate checks it, and no gate checks
+that the state a `sat_` proof uses is the one `spqrS_inv` and `ratS_inv` are about. The bounds up to their caps are in the next
+sections.
 
 - `sat_T1_receive_no_panic`, `sat_T3_receive_refines`, `sat_ImportInv_Ratchet_decoded_receive_refines`: the classical ratchet's
   receive (the panic-freedom theorem, the refinement, and the decoded-state refinement), standalone translations.
@@ -3057,8 +3073,10 @@ key, one stored skipped key); the bounds up to their caps are in the next sectio
   the other ten on the session unit; each is a discharge theorem of the next section applied at the
   witness state, with its type read off the application (`type_of%`). A discharge theorem takes the decoder invariant and other
   premises beyond its theorem's own, and one whose premises no state meets would be true and empty; these show the state relation, the
-  epoch step and the invariant met together at a state, and they stop building if a premise is added to the discharge theorem or made
-  unsatisfiable. The lifecycle theorems of `SessionUnitDecodedStateDischarge.lean` (`decrypt_headroom_of_invariant` and the two that
+  epoch step and the invariant met together at a state. They stop building if a premise they apply is changed so that the witness
+  state no longer meets it. A premise added after the last argument of a discharge theorem leaves one building, at a function type,
+  so the build does not hold that case; `scripts/check-precondition-witnesses.sh` refuses an `*_at_witness` theorem whose type is a
+  function type, and refuses one the script's list does not name. The lifecycle theorems of `SessionUnitDecodedStateDischarge.lean` (`decrypt_headroom_of_invariant` and the two that
   apply it) have no such application: their premise `Session::invariant self = ok true` needs a value of the session type, whose
   fields are opaque boundary types (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and `invariant_gives_preconditions` has the same premise.
 
@@ -3074,7 +3092,16 @@ premises it takes as arguments. `scripts/check-precondition-witnesses.sh` reads 
 requires that, requires the theorem to take each premise the script's table calls given and no other premise of `T`, and
 requires the table to classify every premise of `T`, so a premise added to `T` or changed in it is refused until the table
 and the theorem are changed to match. Every result is conditional on the invariant and the premises it takes; none says a
-decoded state refines the model.
+decoded state refines the model. The gate looks only at the premise names the table lists, so a premise added under a new name to a
+discharge theorem is refused only where the theorem has an `*_at_witness` application (the previous section); the three lifecycle
+theorems and the two `epoch_family` theorems have no table row and no application.
+
+The 23 theorems named below are pinned with `#guard_msgs in #print axioms`. 16 list only `propext`, `Classical.choice` and
+`Quot.sound`. Seven list more: the four Braid discharge theorems add the opaque erasure and KEM types their statements mention
+(`Decoder`, `Encoder`, `EncapsState`, `IncrementalKeyPair`); `decrypt_headroom_of_invariant` adds 18 opaque constants of the session
+unit's KEM, DH and boundary layers; and `decrypt_ratchet_no_panic_of_invariant` and `decrypt_no_panic_of_invariant` add 50,
+among them `hkdf_sha256`, `hmac_sha256`, `zeroize` operations, `Vec` and `Option` operations and the AEAD boundary. No pin lists a
+compiler-trust axiom. The pin list is `REQUIRED_PINS` in `scripts/attest.py`.
 
 The result that was not in this ledger is for the sparse ratchet. `SpqrT3.receive_refines` takes `hroom`, `hskiproom` and `hone`,
 which `ImportInv.lean` derives from the invariant, and five premises that were recorded as open: `hepoch`, `hcb`, `hsb`,
@@ -3084,7 +3111,7 @@ caller are three: `hepoch`, `hnewb` (the epochs of the keys an operation adds) a
 `u64::MAX`). The invariant alone still does not give `hcb`: the state at `epoch = u64::MAX - 1` with a chain at that epoch
 passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds for `send_refines`, `advance_refines`,
 `maybe_advance_refines` (`hroom`, `hcb`, `hsb` follow from the invariant and `hepoch`) and `clear_old_epochs_refines`
-(`hcb`, `hsb`). `hepoch` is not discharged: it excludes one honest value, and that value is an ordinary state.
+(`hcb` and `hsb`, from the invariant and `epoch + 1 < u64::MAX`, a bound that theorem does not itself state). `hepoch` is not discharged: it excludes one honest value, and that value is an ordinary state.
 
 - `spqr_epoch_family`, `session_unit_spqr_epoch_family`: given the sparse ratchet's decoder invariant and `epoch + 1 < u64::MAX`,
   every chain epoch and every skipped key's epoch plus `EPOCHS_KEPT` is at most `u64::MAX`.
@@ -3101,15 +3128,18 @@ passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds fo
 - `braid_receive_premises`, `braid_step_receive_premises`, `session_unit_braid_receive_premises`,
   `session_unit_braid_step_receive_premises`: `ct1_bounded` (and on the session unit `decoders_bounded`) follows from the Braid's
   `Inv`; the `epoch + 1 < u64::MAX` premise does not, and is not claimed. The Braid's `Inv` is the partial mirror
-  `ImportInv.lean` describes.
+  `ImportInv.lean` describes. The standalone `Braid.Inv` has that one field, so for the standalone translations
+  `braid_receive_premises` is the projection of its own hypothesis; the substantive step is `Braid.from_bytes_establishes_inv`,
+  which takes `Ct1LenTotal`.
 - `triple_receive_premises`, `triple_send_premises`: on the session unit, the Triple's composed refinements
-  (`receive_refines_discharged`, `send_refines_discharged`) take the premises of both inner ratchets stated about the model state. Given the two
-  inner decoder invariants, `hrel`, `hevents` and `hepoch`, the receive theorem's `hone`, `hs`, `hroom`, `hcb`, `hsb`, `hskiproom` and `hone2`
-  follow, and the send theorem's `hroom`, `hcb` and `hsb` follow from the sparse invariant, `hrel` and `hepoch`. What stays with the caller
+  (`receive_refines_discharged`, `send_refines_discharged`) take the premises of both inner ratchets stated about the model state. The
+  receive theorem's `hone`, `hs`, `hroom`, `hcb`, `hsb`, `hskiproom` and `hone2` follow from the two inner invariants, `hrel` and `hepoch`.
+  `hevents` is a premise of the target that stays with the caller; it is an argument of the discharge theorem so that the table matches,
+  and no conclusion uses it. The send theorem's `hroom`, `hcb` and `hsb` follow from the sparse invariant, `hrel` and `hepoch`. What stays with the caller
   is `hevents`, `hepoch`, `hnewb` and `hcounter` (receive) and `hepoch`, `hnewb` and `hcounter` (send), and `hheader`, which relates
   the header to its model header. Proved for the session unit's copy only: the three-leaf unit has no decoder-invariant module.
 - `decrypt_headroom_of_invariant`, `decrypt_ratchet_no_panic_of_invariant`, `decrypt_no_panic_of_invariant`: a session that passes
-  `Session::invariant` meets `DecryptRatchetHeadroom` once `identity_ad.length + 106 ≤ usize::MAX` holds, and the two lifecycle
+  `Session::invariant` meets `DecryptRatchetHeadroom` once `Ct1LenTotal` and `identity_ad.length + 106 ≤ usize::MAX` hold, and the two lifecycle
   panic-freedom theorems apply with it. `invariant_gives_preconditions` derived the record without the associated-data bound and no
   theorem used it; this is the connection. The theorems are conditional on `DecryptRatchetContracts` exactly as the ones they apply are.
 
@@ -3117,8 +3147,10 @@ passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds fo
 
 Location: `Translation/NumericBoundary.lean`, `Translation/NumericBoundaryLeaf.lean`, `Translation/NumericBoundaryTriple.lean`, `Translation/NumericBoundarySession.lean`, `Translation/NumericShapeWitness.lean`.
 
-Every numeric bound is written against `usize::MAX`, `u32::MAX`, `u64::MAX` or a fixed cap of the code. Only the first depends on
-the platform, and Lean knows of `usize::MAX` that it is `2^32 - 1` or `2^64 - 1`; each statement below is proved by a case
+Every numeric bound that depends on a platform width or on a ceiling is written against `usize::MAX`, `u32::MAX`, `u64::MAX` or a
+fixed cap of the code. Eleven of the 61 shapes below compare two lengths or counters with each other and mention none of these.
+Of these only `usize::MAX` depends on
+the platform, and Lean knows of it that it is `2^32 - 1` or `2^64 - 1`; each statement below is proved by a case
 split on that, so it holds at both widths, and a bound that held at 64 bits and not at 32 (the defect of 2026-09-10) would fail in
 the 32-bit case. These are statements about arithmetic and about the translations' constants. They are not statements that a
 real run reaches a size, or that the Rust source has the constant the translation evaluates.
@@ -3129,23 +3161,35 @@ real run reaches a size, or that the Rust source has the constant the translatio
   (a store of up to 2000 keys, at most two chains, an erasure decoder of up to 65536 chunks), at both widths.
 - `erasure_room_exact_at_32`: at 32 bits `32 * needed < usize::MAX` is exactly `needed ≤ 2^27 - 1`, so the bound is not slack.
 - `clock_ceiling_excludes_only_parked`, `epoch_ceiling_excludes_only_top`: `events + 1 < u32::MAX` fails, among the values
-  the decoder's invariant allows, only at `u32::MAX - 1`, and `epoch + 1 < u64::MAX` only at `u64::MAX - 1`. Each ceiling
-  that stays a caller's premise excludes exactly one honest value.
+  the decoder's invariant allows, only at `u32::MAX - 1`, and `epoch + 1 < u64::MAX` only at `u64::MAX - 1`. These are the two
+  ceilings the invariant leaves open on the clock and the epoch, and each excludes exactly one value among those the decoder's
+  invariant allows. `hnewb` and `hcounter` have no such theorem.
 - `ratchet_constants`, `spqr_constants`, `erasure_constants`, `protobuf_constants`, `code_matches_model`, `max_events_is_parked`,
   `clock_ceiling_summary`: in the standalone translations, the constants the bounds mention have the values the
-  arithmetic uses, equal the model's copies, and the clock premise of `T3.receive_refines` is satisfiable, is failed by the
-  parked clock, and by no other value (`PreconditionShapes.lean`'s two theorems about it are the summary's first two conjuncts).
+  arithmetic uses, and the ratchet's and the sparse ratchet's equal the model's copies (the erasure and protobuf constants are
+  evaluated and compared with nothing). The clock premise of `T3.receive_refines` is satisfiable, is failed by the
+  parked clock, and by no other value the decoder's invariant allows (`PreconditionShapes.lean`'s two theorems about it are the
+  summary's first two conjuncts).
 - `unit_ratchet_constants`, `unit_spqr_constants`, `unit_code_matches_model`, `session_unit_ratchet_constants`,
   `session_unit_spqr_constants`, `session_unit_erasure_constants`, `session_unit_code_matches_model`: the same on the
   three-leaf unit and the session unit, which cannot share an environment with the standalone translations.
-- `usize_max_cases`, `every_shape_is_satisfiable`: as enumerated once from the built environment (the script is not in this tree, so
-  nothing here checks that the list is complete or stays complete), the numeric premises of the theorems of this package fall into 61 shapes
-  (`S01` to `S61` in the module: a comparison between sums and products of lengths, scalars and model numbers, a constant and an
-  operator), and each is satisfiable at both widths, with its first atom at the largest value the shape admits and, where that
-  value is bounded, nothing larger meeting the shape. The aggregate theorem names every shape theorem so that deleting one is an
-  error. The shape theorems are about shapes and not about theorems: nothing in the tree joins a shape to the premises that have
-  it, so a premise added to a theorem with a shape outside the 61 is not noticed there. The statements of the individual shape
-  theorems are not pinned. The join to the central theorems is the witness section above.
+- `usize_max_cases`, `every_shape_is_satisfiable`: as enumerated once from the built environment, 61 shapes of numeric premise
+  occur (`S01` to `S61` in the module: a comparison between sums and products of lengths, scalars and model numbers, a constant
+  and an operator). The enumeration is not complete: hypotheses of the codec theorems such as `pos + 41 ≤ usize::MAX` and
+  `len + 48 ≤ usize::MAX` have no shape here, and the script that made it is not in this tree, so nothing checks that the list is
+  complete or stays complete. Each shape is satisfiable at both widths. For 54 of the 61 the first atom is at the largest value
+  the shape admits with the other atoms as chosen, and nothing larger meets the shape with the other atoms held. S10 uses `0` for
+  its first atom, S32, S33 and S41 prove only existence, and S45, S47 and S48 are over unbounded counters, so their witnesses are
+  not at a bound (S48's second atom is a length with no `≤ um` bound, so its witness is above `usize::MAX` at both widths). The
+  aggregate theorem names every shape theorem so that deleting one is an error. The shape theorems are about shapes and not about
+  theorems: nothing in the tree joins a shape to the premises that have it, so a premise added to a theorem with a shape outside
+  the 61 is not noticed there. The statement of each shape theorem and of the two theorems at the end is held by a
+  `#guard_msgs in #check` pin in the module, so a changed statement stops the build until its pin is changed too; no gate
+  requires a statement pin to exist, so deleting a pin and changing its statement together is accepted. The join to the central
+  theorems is the witness section above.
+
+The 27 theorems of the five bound modules are pinned with `#guard_msgs in #print axioms`; each lists only `propext`,
+`Classical.choice` and `Quot.sound`, or fewer of them. No pin lists a compiler-trust axiom.
 
 ## Evidence, not proof
 
@@ -3185,7 +3229,7 @@ fail if the Braid's erasure or KEM hypotheses lose their model,
 `scripts/check-precondition-witnesses.sh`, which fails if a numeric-precondition
 witness or discharge theorem (`Translation/NumericWitness*.lean`,
 `Translation/*DecodedStateDischarge.lean`) no longer states its theorem's own
-premises, by reading each theorem's type from the built environment (28 cases hold
+premises, by reading each theorem's type from the built environment (36 cases hold
 that comparison to mutations), and
 `Translation/AxiomAudit.lean` and `AxiomAuditTripleUnit.lean`, which walk the
 elaborated environment and fail if any hand-written declaration is an
