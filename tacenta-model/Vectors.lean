@@ -1584,10 +1584,10 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
       "keys 1 and 2 of epoch 0 stored, then epochs 1 and 2 opened: epoch 0's chains and keys are retired" .bob
       [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1],
     sparseOps "replacement-bound-counts-resulting-store"
-      "a 1,999-key store holds keys 1 and 2 of epoch 0, and message 4 stores keys 1 to 3: the two held keys are replaced before the total bound is checked, so the store left holds 1,997 + 3 = 2,000 keys, which the bound allows; counted before the replacement, 1,999 + 3 would pass it"
+      "a 1,999-key store holds keys 1 and 2 of epoch 0, and message 4 stores keys 1 to 3: the two held keys are replaced before the total bound is checked, so the store left holds 1,997 + 3 = 2,000 keys, which the bound allows; counted before the replacement, 1,999 + 3 would pass it; the other 1,997 keys are numbered 5,000 to 6,996 under a receiving counter of 0, which a stored state may hold and no operation produces"
       (.stored sparseReplacementStart) [.receive 0 none 4],
     sparseOps "replacement-range-excludes-the-chain-counter"
-      "epoch 0's chain at 4 and held keys at 4, 5, 6 and 8, and a key at 5 under epoch 1: message 7 stores keys 5 and 6, replacing the held 5 and 6 and keeping the key at the chain's own number 4, the key at 8 above the range and the key of the other epoch"
+      "epoch 0's chain at 4, held keys at 1 to 6 and 8, and a key at 5 under epoch 1: message 7 stores keys 5 and 6, replacing the held 5 and 6 and keeping the keys below the chain's counter, the key at the chain's own number 4, the key at 8 above the range and the key of the other epoch"
       (.stored sparseRangeStart) [.receive 0 none 7],
     sparseOps "epoch-reaches-one-below-the-ceiling"
       "from epoch u64::MAX - 2, a receive carrying epoch u64::MAX - 1's secret: the window's sum saturates, and epochs u64::MAX - 2 and u64::MAX - 1 are kept"

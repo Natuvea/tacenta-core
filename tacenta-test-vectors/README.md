@@ -357,17 +357,23 @@ Three things no vector here pins.
   `tacenta-core` checks the length first; both conform, and no vector here
   offers such a buffer.
 - **A Double Ratchet state of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys
-  are refused in both files. `ratchet-state.json` accepts at most 1,999 keys.
-  `sparse-ratchet-state.json` accepts exactly 2,000:
-  `replacement-bound-counts-resulting-store` leaves that store through
+  are refused in both files. The largest accepted store in
+  `ratchet-state.json` holds 1,999 keys; the reader accepts 2,000
+  (session-persistence.md, Semantic rules of the leaf formats) and no vector
+  offers one. `sparse-ratchet-state.json` offers an accepted store of exactly
+  2,000: `replacement-bound-counts-resulting-store` leaves that store through
   operations, and its `-read-back` vector offers the same 2,000 keys as bytes.
   Each of the two vectors is about 385 kilobytes.
-- **A skip refused for the total bound.** An operations vector's refusal is
-  `counter-exhaustion` or `no-chain`, and the schema has no kind for
-  `SkippedStoreFull`, so no vector refuses a skip for the total bound. The
-  refusal, and that it leaves the state unchanged, are pinned by `tacenta-spqr`'s
-  tests and by a one-step sequence in the differential harness, which checks
-  the state the refused receive was run on.
+- **A sparse skip refused for either bound.** An operations vector's refusal
+  is `counter-exhaustion` or `no-chain`, and the schema has no kind for
+  `TooManySkipped` or `SkippedStoreFull`. No vector refuses a sparse skip for
+  the per-chain bound or for the total bound, none pins which of the two is
+  checked first, and none counts keys under another epoch against the total
+  bound. An implementation that never refuses, or that refuses one key late,
+  passes every vector here. The refusals, and that a refused skip leaves the
+  state it was run on unchanged, are pinned by `tacenta-spqr`'s tests and by a
+  one-step sequence in the differential harness, which checks the state the
+  refused receive was run on.
 
 ### The Triple Ratchet's state: `vectors/persistence/triple-ratchet-state.json`
 
