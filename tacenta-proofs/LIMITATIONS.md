@@ -2051,6 +2051,21 @@ model's `identityValid` oracle to the translated `is_valid_identity_key`
 binding yet, because no T3 statement about establishment exists, so the
 binding is a statement of intent about the oracle and not an assurance.
 
+Seventeen of the lifecycle T3 branch lemmas and initial-dispatch theorems (`UnitLifecycleT3.lean`,
+`UnitLifecycleInitialDispatch.lean`) are affected by a hypothesis or evidence record that is shown false
+or empty, and sixteen of them are vacuous as stated, so they say nothing about `Session::encrypt` or
+`Session::decrypt`. `InitialSameEphemeralEvidence` is false. `CodewordViewOf` is false given that
+`Encoder::new` returns on two 33-byte messages, which is the law that `usize::div_ceil` returns at
+divisor 32. `InitialRatchetBraidEvidenceContracts` has no term when the model Braid, with its epoch below
+2^64, is in one of six state and message-type pairs and its decoder holds a chunk. Under the statement
+`PublicKeyNotConstant` about the real `PrivateKey::public_key`, which is tested and not proved,
+`InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` are false for a refusal
+run. The oracle record `OracleOf` also asserts that the KEM oracle accepts every key, which the shipped
+`encapsulate` contradicts for a key of the wrong length (tested) and for a key that fails
+`validate_public_key` (read from the source). None of the seventeen is a claim.
+`Translation/DispatchEvidenceVacuity.lean` proves each result, and `GAP-REGISTER.md`, row
+`DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row.
+
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
 thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`).

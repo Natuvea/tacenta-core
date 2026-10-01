@@ -770,6 +770,30 @@ REQUIRED_PINS = frozenset(
         "arrayZeroizeScoped_of_total",
         "VecZeroizeSkippedTotal_of_vecRetain",
     )]
+    # The refutations of the dispatch layer's evidence hypotheses (`DispatchEvidenceVacuity`):
+    # every axiom pin of the module. A pin outside this list can be deleted with its claim and
+    # the manifest regenerated without a refusal.
+    + ["Tacenta.DispatchEvidenceVacuity." + n for n in (
+        "same_ephemeral_agreement_empty",
+        "initialSameEphemeralEvidence_false",
+        "codewordViewOf_false",
+        "codewordViewOf_false_of_encoderNewTotal",
+        "record_empty_of_nonempty_decoder",
+        "record_empty_headerSent",
+        "record_empty_ekSentCt1Received",
+        "record_empty_noHeaderReceived",
+        "record_empty_ct1Sampled_ek",
+        "record_empty_ct1Sampled_ekCt1Ack",
+        "record_empty_ct1Acknowledged",
+        "keysSampled_receive_ct1_holds_chunk",
+        "tripleConcreteEvidence_forces_constant_dhPublic",
+        "aeadConcreteEvidence_forces_constant_dhPublic",
+        "constant_dhPublic_false_of_publicKeyNotConstant",
+        "tripleConcreteEvidence_false_of_publicKeyNotConstant",
+        "aeadConcreteEvidence_false_of_publicKeyNotConstant",
+        "oracleOf_kem_oracle_never_refuses",
+        "oracleOf_kem_call_never_errs",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

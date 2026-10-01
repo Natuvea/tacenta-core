@@ -26,8 +26,10 @@ this section says in one place what is not proved.
   (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Triple receive
   evidence in `UnitLifecycleInitialDispatch.lean` is derived from a leaf refinement
   that takes no contract record; the Braid receive evidence there takes
-  `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; see also
-  `GAP-REGISTER.md`, rows `E2E-04` and `SESSION-CONTRACT-VACUITY`). No theorem says what the two functions
+  `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; seventeen of
+  the lemmas are affected by a hypothesis or evidence record that is shown false or empty under stated conditions,
+  sixteen of them vacuous as stated;
+  see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -2230,7 +2232,9 @@ opaque standard-library function, and no theorem shows the headroom records sati
 no longer fail for a hypothesis in their records, in the sense and under the five laws of the sections named
 above. Whether the headroom they take can be met is not
 shown, and a theorem is vacuous if it cannot. The dispatch theorems compile
-against the repaired record and are not claims. The standalone Braid theorems in `BraidT1.lean`
+against the repaired record and are not claims. Seventeen theorems of the two modules, ten of them encrypt-side
+lemmas of `UnitLifecycleT3.lean`, are affected for a different reason, which the section "Proved (a negative
+result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)" below gives. The standalone Braid theorems in `BraidT1.lean`
 and `BraidT3.lean` are not affected, because there the decoder is an opaque type and the field
 can be satisfied (`Translation/ErasureWitness.lean`, `erasure_hypotheses_satisfiable`, proves the
 standalone Braid's seven erasure totals jointly satisfiable). The decoders the Braid holds are
@@ -2560,6 +2564,83 @@ crate: the fields are stronger than the code supports. This module changes no re
   replacement needs both: with the chain table alone, `skip_message_keys_no_panic` stops building (measured
   in a copy; `LIMITATIONS.md`). That the scoped forms hold in the second interpretation is not shown, because
   they mention the translated `Chains::zeroize` and `Skipped::zeroize`, whose totality there is not proved.
+
+## Proved (a negative result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)
+
+Location: `Translation/DispatchEvidenceVacuity.lean`.
+
+`UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean` state refinement lemmas for the
+eight-leaf session unit's `encrypt` and `decrypt` as conditional on hypotheses and on evidence
+records. These results are about those hypotheses and records, not about the product. They show
+that five of them are false or empty under the conditions stated in the bullets below, which
+affects seventeen theorem statements of the two modules: sixteen are vacuous as stated, and the
+seventeenth has no term of its evidence record in the cases the third bullet gives
+(`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, lists them and the conditions). The last bullet
+is a sixth point and not a refutation. None of the seventeen is listed in this ledger or carries an
+axiom pin, so no existing entry changes.
+
+- `same_ephemeral_agreement_empty`, `initialSameEphemeralEvidence_false`: the translated
+  `same_ephemeral_agreement` returns `false` on two empty byte strings, because `decode_ec`
+  refuses a string whose length is not 33, so `InitialSameEphemeralEvidence`, which asks for `true`
+  on every pair of equal byte strings, is false for every `dh`, `oracle`, `real` and `model`. The
+  proof uses no hypothesis and no law. Six theorems and three of the eleven constructors of
+  `SessionDecryptEvidence` (`initialAccepted`, `initialTerminal`, `initialMalformed`) take it.
+- `codewordViewOf_false`, `codewordViewOf_false_of_encoderNewTotal`: if `Encoder::new` returns on
+  two messages of one length `n` of at least 33 bytes that agree on their first 32 bytes and differ
+  at byte 32, no view satisfies `CodewordViewOf`, because both messages have the same codeword at
+  index 0 and the `receive` clause asks the view to name the one source it came from. The first
+  theorem takes the two returns; the second takes `EncoderNewTotal`, the field `encoderNew` of the
+  encrypt contract records, which `UnitSatisfiabilityErasure.encoderNew_iff` shows equivalent to
+  the law that `usize::div_ceil` returns at divisor 32, and uses `n = 33`. Ten theorems take
+  `CodewordViewOf`, and none of them takes `EncoderNewTotal`, so for them the result rests on that
+  law, which no theorem proves of the opaque constant.
+- `record_empty_of_nonempty_decoder`, `record_empty_headerSent`, `record_empty_ekSentCt1Received`,
+  `record_empty_noHeaderReceived`, `record_empty_ct1Sampled_ek`, `record_empty_ct1Sampled_ekCt1Ack`,
+  `record_empty_ct1Acknowledged`: `InitialRatchetBraidEvidenceContracts` has no term when the model
+  Braid, with its epoch below 2^64, is in one of the six state and message-type pairs for which
+  `Model.Braid.receive` feeds a chunk to an existing decoder and that decoder holds a chunk. The
+  record quantifies over every incoming
+  composite, and two chunks that differ at index 0 cannot both be codewords of the one source the
+  held chunk carries. The first theorem is the general statement and the other six are its
+  instances. The record is not decided for a state whose decoder is empty or that is outside the six.
+- `keysSampled_receive_ct1_holds_chunk`: the model Braid in `keysSampled` that receives a ct1 chunk
+  moves to `headerSent` with that chunk in its decoder (transition (2) of `Model.Braid.receive`),
+  so the hypotheses of `record_empty_headerSent` are met by a state one receive step from
+  `keysSampled`.
+- `tripleConcreteEvidence_forces_constant_dhPublic`, `aeadConcreteEvidence_forces_constant_dhPublic`:
+  `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence`, given a prefix of
+  the refusal run, force the oracle's `dhPublic` to be constant, because their field
+  `hmodelPublic` equates the run's new public key with `oracle.dhPublic draw` for every draw and the
+  run consumed one.
+- `constant_dhPublic_false_of_publicKeyNotConstant`,
+  `tripleConcreteEvidence_false_of_publicKeyNotConstant`,
+  `aeadConcreteEvidence_false_of_publicKeyNotConstant`: a constant `dhPublic` contradicts
+  `PublicKeyNotConstant`, given the DH codec and the oracle's `dhPublic` clause, so neither record
+  holds for a refusal run that has a prefix. `PublicKeyNotConstant` says that two 32-byte private
+  keys have different public keys under the real `PrivateKey::public_key`. It is not proved:
+  `public_key` is an opaque constant. It is tested, at the two RFC 7748 section 6.1 private keys, by
+  `the_fixed_secrets_have_the_table_keys` in `tacenta-core/tests/identity_boundary.rs`. These three
+  results are conditional on it, on the codec and on the clause, and none of the three is shown
+  satisfiable inside Lean.
+- `oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`: `OracleOf.kemEncapsulateSuccess`
+  makes the model's KEM oracle accept every public key at every draw that a trace has, and the
+  translated `encapsulate` never return `Err` while the trace has a draw. This is not a refutation,
+  because `encapsulate` is an opaque constant: the shipped function returns `Err` on a key of the
+  wrong length (tested by `malformed_inputs_are_rejected`) and on a key that fails
+  `validate_public_key` (read from `tacenta-core/boundary/src/kem.rs`; `GAP-REGISTER.md`, row
+  `E2E-04`).
+
+No step of these proofs case-splits on the width of `usize`, and the only facts they use about
+`Usize.max` are the bounds Aeneas proves for the platform constant. `System.Platform.numBits` is an
+opaque constant of the kernel whose value is 32 or 64, so a proof that does not choose between the
+two holds for both. Each of the nineteen results is pinned under `#guard_msgs` twice at the end of the
+file, once as an axiom list and once as its statement (`#check`), and `attest.py` requires every axiom
+pin (`REQUIRED_PINS`), so deleting one fails it. The statement pins are held by the build only: no
+check requires them to exist. The axiom lists name the opaque constants that the statements mention,
+directly or through the definitions they unfold, and the proofs use none of them as assumptions;
+`keysSampled_receive_ct1_holds_chunk` mentions none and lists the three standard axioms only. None
+depends on a compiler-trust axiom. These results repair nothing, and they do not show that any other
+hypothesis of the two modules can be met.
 
 ## Proved (bounded P6 session lifecycle observations)
 

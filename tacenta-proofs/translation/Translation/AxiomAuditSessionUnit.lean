@@ -17,6 +17,7 @@ import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleInitialDispatch
+import Translation.DispatchEvidenceVacuity
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -34,7 +35,9 @@ false field until it was restated for bounded decoders (`SessionBraidReceiveVacu
 `SessionBraidReceiveRepair.lean`; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `UnitSatisfiabilityRecords.lean` shows that the four records follow from an axiom base, over the
 unit's opaque constants, that one interpretation satisfies (`UnitSatisfiabilityJoint.lean`); that
-is an argument about derivations and not a statement that the real primitives meet the records. General
+is an argument about derivations and not a statement that the real primitives meet the records.
+`DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
+initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every
 generated declaration and opaque boundary is visible to the
 same elaborated-environment audit used by the smaller units.
