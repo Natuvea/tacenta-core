@@ -151,6 +151,192 @@ fn the_store_bound_stops_repeated_skipping_on_one_chain() {
     assert!(b.skipped_len() <= MAX_SKIPPED_STORE);
 }
 
+// The total bound counts the store a skip leaves (sparse-pq-ratchet.md, The
+// store also has a total bound): the keys stored for the epoch under the
+// numbers about to be stored are purged first, and the survivors plus the keys
+// to store are held to `MAX_SKIPPED_STORE`. Only a state read from storage
+// holds a key to replace, so these build one. The edge numbers are literals,
+// so a change of the policy constant fails them rather than moving them.
+
+/// Bob at epoch 0 with the receiving chain at 0 and 1,999 stored keys: two
+/// held keys, `(0, 1)` and `(0, 2)`, that a skip from 0 re-derives, and 1,997
+/// others, at numbers no skip here reaches.
+fn store_with_two_replaceable_keys() -> (State, Key, Key) {
+    let old1 = [0xA1; 32];
+    let old2 = [0xA2; 32];
+    let mut b = State::init_bob(&sk());
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 1,
+        key: old1,
+    });
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 2,
+        key: old2,
+    });
+    for n in 5_000..6_997 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    assert_eq!(MAX_SKIPPED_STORE, 2_000);
+    assert_eq!(b.skipped_len(), 1_999);
+    assert!(b.invariant(), "the store is a state the reader accepts");
+    (b, old1, old2)
+}
+
+fn stored_key(b: &State, epoch: u64, n: u64) -> Option<Key> {
+    let mut i = 0;
+    while i < b.skipped.len() {
+        if b.skipped[i].epoch == epoch && b.skipped[i].n == n {
+            return Some(b.skipped[i].key);
+        }
+        i += 1;
+    }
+    None
+}
+
+#[test]
+fn replacement_keys_make_room_at_the_exact_store_edge() {
+    // Three keys are stored, numbers 1 to 3, and two of them replace held keys.
+    // The store left holds 1,997 survivors and three keys: exactly the cap. The
+    // count taken before the purge, 1,999 + 3, would refuse this.
+    let (mut b, old1, old2) = store_with_two_replaceable_keys();
+    b.skip_message_keys(0, 3)
+        .expect("re-deriving held pairs replaces them before the bound is checked");
+    assert_eq!(b.skipped_len(), MAX_SKIPPED_STORE);
+    assert_eq!(b.skipped_len(), 2_000);
+    assert!(b.invariant());
+    assert_ne!(stored_key(&b, 0, 1).unwrap(), old1);
+    assert_ne!(stored_key(&b, 0, 2).unwrap(), old2);
+    // The replacing keys are the in-order keys, stored last in number order.
+    let mut reference = State::init_bob(&sk());
+    reference.skip_message_keys(0, 3).unwrap();
+    let mut n = 1;
+    while n <= 3 {
+        assert_eq!(stored_key(&b, 0, n), stored_key(&reference, 0, n));
+        let at = b.skipped.len() - 4 + n as usize;
+        assert_eq!((b.skipped[at].epoch, b.skipped[at].n), (0, n));
+        n += 1;
+    }
+    assert_eq!(b.receive_count(0), Some(3));
+}
+
+#[test]
+fn a_sparse_store_refusal_is_atomic_when_replacement_would_still_overflow() {
+    // The same store, one number further: four keys to store, two of them
+    // replacing held keys, so 1,997 + 4 = 2,001 passes the cap by one. The
+    // request is refused and the state, the held keys included, is as it was.
+    let (mut b, old1, old2) = store_with_two_replaceable_keys();
+    let before = b.clone();
+    assert_eq!(b.skip_message_keys(0, 4), Err(SpqrError::SkippedStoreFull));
+    assert!(b == before, "a refused skip changed the state");
+    assert_eq!(stored_key(&b, 0, 1), Some(old1));
+    assert_eq!(stored_key(&b, 0, 2), Some(old2));
+    assert_eq!(b.receive_count(0), Some(0));
+    // And through `receive`, which folds nothing in here: message 5 skips to 4.
+    assert_eq!(b.receive(0, None, 5), Err(SpqrError::SkippedStoreFull));
+    assert!(b == before, "a refused receive changed the state");
+}
+
+#[test]
+fn a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound() {
+    // No held key lies in the range, so the survivors are the whole store and
+    // the count is the length: 1,999 + 1 is exactly the cap and 2,000 + 1 is
+    // past it, whatever the constant is changed to.
+    let mut b = State::init_bob(&sk());
+    for n in 5_000..6_999 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    assert_eq!(b.skipped_len(), 1_999);
+    let mut fits = b.clone();
+    fits.skip_message_keys(0, 1).expect("1,999 + 1 is the cap");
+    assert_eq!(fits.skipped_len(), 2_000);
+
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 7_000,
+        key: [0x32; 32],
+    });
+    assert_eq!(b.skipped_len(), 2_000);
+    let before = b.clone();
+    assert_eq!(b.skip_message_keys(0, 1), Err(SpqrError::SkippedStoreFull));
+    assert!(b == before, "a full-store refusal changed the state");
+}
+
+#[test]
+fn the_purge_range_is_above_the_chain_number_and_up_to_the_target_only() {
+    // A stored state that holds keys on both sides of both ends of the range
+    // `(ch.n, upto]`. The chain stands at 4 and message 7 skips to 6, so
+    // numbers 5 and 6 are replaced; 4, the chain's own number, and 8, past the
+    // target, are kept as they were, and so is a key of another epoch under a
+    // number in the range. (No key is held at 7: a message whose key is held
+    // is read from the store without a skip.)
+    let mut b = State::init_bob(&sk());
+    b.receive(0, None, 4).unwrap(); // stores 1 to 3, chain at 4
+    assert_eq!(b.receive_count(0), Some(4));
+    let o1 = out(1, 0xB1);
+    b.receive(1, Some(&o1), 1).unwrap(); // opens epoch 1, leaves epoch 0's chain alone
+    assert_eq!(b.receive_count(0), Some(4));
+    let at_counter = [0xC4; 32];
+    let in_range = [0xC5; 32];
+    let at_target = [0xC6; 32];
+    let above = [0xC8; 32];
+    let other_epoch = [0xC9; 32];
+    for (epoch, n, key) in [
+        (0, 4, at_counter),
+        (0, 5, in_range),
+        (0, 6, at_target),
+        (0, 8, above),
+        (1, 5, other_epoch),
+    ] {
+        b.skipped.push(Skipped { epoch, n, key });
+    }
+    assert!(b.invariant());
+    let before = b.clone();
+    b.receive(0, None, 7).unwrap();
+    assert_eq!(b.receive_count(0), Some(7));
+
+    assert_eq!(
+        stored_key(&b, 0, 4),
+        Some(at_counter),
+        "the chain's own number is kept"
+    );
+    assert_eq!(
+        stored_key(&b, 0, 8),
+        Some(above),
+        "a number past the target is kept"
+    );
+    assert_eq!(
+        stored_key(&b, 1, 5),
+        Some(other_epoch),
+        "another epoch's key is kept"
+    );
+    assert_ne!(stored_key(&b, 0, 5), Some(in_range));
+    assert_ne!(
+        stored_key(&b, 0, 6),
+        Some(at_target),
+        "the target's own number is replaced"
+    );
+    assert_eq!(b.skipped_len(), before.skipped_len());
+    assert!(b.invariant(), "the store is still a map on (epoch, number)");
+    // The replacing keys are the in-order keys, and they come last.
+    let mut reference = State::init_bob(&sk());
+    reference.receive(0, None, 7).unwrap();
+    assert_eq!(stored_key(&b, 0, 5), stored_key(&reference, 0, 5));
+    assert_eq!(stored_key(&b, 0, 6), stored_key(&reference, 0, 6));
+    let last = b.skipped.len();
+    assert_eq!((b.skipped[last - 2].epoch, b.skipped[last - 2].n), (0, 5));
+    assert_eq!((b.skipped[last - 1].epoch, b.skipped[last - 1].n), (0, 6));
+}
+
 #[test]
 fn retirement_keeps_the_cross_epoch_total_below_the_bound() {
     // Skipping the maximum in every epoch does not accumulate, because

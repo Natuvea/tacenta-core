@@ -511,9 +511,12 @@ impl State {
     /// no epoch because the classical ratchet has one receiving chain at a
     /// time. With `skipped_len` this is what a caller needs to size an
     /// eviction: a message numbered `n` on this epoch skips
-    /// `n - 1 - receive_count` keys, and the store refuses when the keys it
-    /// holds plus that figure would pass `MAX_SKIPPED_STORE`, so the room to
-    /// make is that excess (see `evict_oldest`).
+    /// `n - 1 - receive_count` keys, and the store refuses when the keys that
+    /// survive the purge of the keys about to be replaced plus that figure
+    /// would pass `MAX_SKIPPED_STORE`. The keys held are an upper bound on the
+    /// survivors, and equal to them in any state the operations produced, so
+    /// the excess over the keys held is the room to make and is never short of
+    /// it (see `evict_oldest`).
     ///
     /// An index loop through `find_chains`, like every other lookup here, and
     /// two `let ... else` rather than an `Option` combinator: a closure is
@@ -901,6 +904,15 @@ impl State {
     /// Storing replaces rather than accumulates, for the same reason the Double
     /// Ratchet's does: the store is a map on `(epoch, number)`, and a peer must
     /// not be able to make one pair hold two keys.
+    ///
+    /// The order is the specification's (sparse-pq-ratchet.md, The store also
+    /// has a total bound; `Model.SparseRatchet.skipMessageKeys`): nothing to do
+    /// when `upto <= ch.n`; `TooManySkipped` past `MAX_SKIP`; the stored keys for
+    /// this epoch at a number `n` with `ch.n < n <= upto` are dropped from a
+    /// working copy; `SkippedStoreFull` when the copy's length plus the keys to
+    /// store passes `MAX_SKIPPED_STORE`; then the derived keys are appended in
+    /// number order. A key at `ch.n` itself, or below it, is outside the range
+    /// and survives. A refusal leaves `self` as it was.
     fn skip_message_keys(&mut self, e: u64, upto: u64) -> Result<(), SpqrError> {
         let cs = match self.find_chains(e) {
             Some(cs) => cs.clone(),
@@ -917,13 +929,16 @@ impl State {
         if count > MAX_SKIP {
             return Err(SpqrError::TooManySkipped);
         }
-        if self.skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
-            return Err(SpqrError::SkippedStoreFull);
-        }
 
         // Rebuild at the final capacity before copying secret-bearing entries.
         // Derive directly into the final vector: appending a separate vector
         // moves its keys and leaves the source allocation unwiped.
+        //
+        // The copy leaves out the keys stored for this epoch under the numbers
+        // about to be stored, `ch.n < n <= upto`: the purge of
+        // sparse-pq-ratchet.md, The store also has a total bound. It is made
+        // on this working copy, so `self.skipped` is untouched until the
+        // swap below.
         let mut skipped = Vec::with_capacity(self.skipped.len() + count as usize);
         let mut i = 0;
         while i < self.skipped.len() {
@@ -932,6 +947,18 @@ impl State {
                 skipped.push(s.clone());
             }
             i += 1;
+        }
+
+        // The total bound counts the store this skip would leave: the keys that
+        // survived the purge plus the `count` about to be stored, so a key that
+        // is replaced takes one slot and not two. Counting `self.skipped`
+        // here instead, before the purge, would refuse a stored state near the
+        // cap for a request that only replaces its own keys. A refusal returns
+        // before `self` is written: the working copy is dropped, which erases
+        // each key in it (`Skipped` is `ZeroizeOnDrop`), and the state is
+        // exactly as it was.
+        if skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
+            return Err(SpqrError::SkippedStoreFull);
         }
 
         // Numbers run from ch.n + 1, because this chain step is keyed by the
