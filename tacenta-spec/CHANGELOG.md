@@ -321,6 +321,22 @@ is SemVer against the specified protocol (not the implementation).
   no key in the range, so the two counts differ only for a stored state that
   does: such a state near the bound is no longer refused a request that
   replaces its own keys.
+- `tacenta-core/spqr` and `tacenta-model`: `skip_message_keys` and
+  `Model.SparseRatchet.skipMessageKeys` follow the order the sparse page now
+  states: the keys the skip is about to replace are dropped from a working copy
+  and the total bound is checked against that copy plus the keys to store. A
+  refusal leaves the state as it was. The two previously counted the store
+  before the deletion and could refuse a stored state near the bound for a
+  request that only replaces its own keys.
+- `sparse-ratchet-state.json`: add `replacement-bound-counts-resulting-store`,
+  a 1,999-key store whose two held keys a skip replaces, leaving exactly 2,000,
+  and `replacement-range-excludes-the-chain-counter`, a chain with keys held at
+  its own number, inside the replaced range, at the number the skip steps to,
+  above it and under another epoch, with the key at the counter and the keys
+  above and under the other epoch kept. Each has its `-read-back` vector. No
+  existing vector changes. No operations vector refuses a skip for the total
+  bound, since the file's operation refusals are `counter-exhaustion` and
+  `no-chain`.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. `key-deletion.md` states the order explicitly:
   delete held `(DHr, n)` pairs in the re-derived range, then require the
