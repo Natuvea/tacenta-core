@@ -2748,6 +2748,84 @@ translated functions: the audit text in `tacenta-proofs/scripts/check-session-sa
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
 package.
 
+## Proved (the Braid refinement agreements of the Session unit: a model, the hypotheses that have witnesses, and what is discharged)
+
+Location: `Translation/UnitSatisfiabilityBraidAgreements.lean`, `Translation/UnitSatisfiabilityErasureAgrees.lean`, `Translation/UnitSatisfiabilityBraidStates.lean`, `Translation/UnitBraidEntryPoints.lean`.
+
+`step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines` of the complete
+Session unit (`SessionUnitBraidT3.lean`) take 34 hypotheses besides the contract fields: six agreements about
+the unit's opaque KEM and KDF constants (`KemAgreesFor`, `KemLenAgrees`, `ValidateEkAgrees`, `KemCloneAgrees`,
+`BraidHkdfAgrees`, `BraidHmacAgrees`), thirteen totality or size shapes, six statements about the translated
+erasure coder, and the hypotheses about the state and the message. The standalone witnesses
+(`KemWitness.lean`, `Satisfiability.lean`) are about the constants of the standalone Braid translation, which
+are different Lean constants, so before these modules none of the six agreements, none of the state-level
+hypotheses and neither erasure agreement had a witness for the unit. The sense of "has a model" is the
+substitution argument of the section above and no other: a derivation of `False` from statements about
+uninterpreted constants would become one from facts that hold in the model, which is an argument about
+derivations and not a theorem inside Lean. Nothing here is shown of the real ML-KEM wrapper, libcrux or the
+real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
+
+- `braid_agreement_shapes_are_predicates`: each of the six agreements, and the law `TruncatePrefix`, is at
+  `Interp.real` the shape over an interpretation that replaces it. Each bridge is `Iff.rfl`, so the kernel
+  checks that the shape unfolds to the very proposition the refinement theorems take. A shape that differs
+  from the predicate by a constant or a premise is rejected: `check-braid-agreement-negatives.sh` makes
+  such changes one at a time and requires the bridge to fail, and requires this theorem to name every
+  `_is` bridge of the module.
+- `braid_agreements_have_a_model`: one interpretation, `Interp.modelT3`, a conservative extension of
+  `Interp.model` that changes only the KEM family, the two KDFs and their sizes, satisfies the six agreements
+  (at `Model.Braid.toyKem`, because `K` is existential in `KemAgreesFor K`), the 33 axiom-level shapes of the
+  session records, the laws of `StdLaws` and `TruncatePrefix`. So the agreements are consistent with each
+  other and with every axiom-level contract field. The proofs hold on both platform widths: they use only
+  that `Usize.max` is at least `2^32 - 1`. `ValidateEkAgrees K` holds of the real call only for a `K` whose
+  `hashEk` folds in the coefficient check that `validate_ek` makes after the hash; such a `K` exists because
+  `K` is existential.
+- `erasureCloneAgrees`: `ErasureCloneAgrees` is a theorem of the translated unit, outright: a clone of an
+  encoder or a decoder equals it. No law about an opaque constant is used.
+- `erasureAgrees_iff_clauses`, `erasureAgrees_encoder`: `ErasureAgrees` is its encoder clause and its decoder
+  clause, by `Iff.rfl`, and the encoder clause is a theorem given that `usize::div_ceil` returns at divisor 32
+  (`DivCeil32`, which `DivCeilValue` implies): `Encoder::new` of any message refines the model encoder of the
+  same bytes, for every number of steps a `u16` index allows. The decoder clause is not proved in this tree
+  without compiler-trust axioms.
+- `ingredients`, `twelve_states`, `six_receive_witnesses`: given `ErasureAgrees`, `KemAgreesFor K`,
+  `KemLenAgrees K`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
+  state constructors has a real state and a model state satisfying `StateRefines`, `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive` at once (`Good`, which `Good_iff` unfolds), and
+  each of the six state and message-type pairs in which `Model.Braid.receive` feeds a chunk to a decoder has
+  a message satisfying `MsgRefines` and `HonestChunk`, in the state's epoch, with data, and not through the
+  vacuous arm of `HonestChunk`. The witnesses are built from the agreements: the key pairs and encapsulation
+  states from the `generate` and `encapsulate1` clauses of `KemAgreesFor`, the encoders and decoders from the
+  two clauses of `ErasureAgrees`. So these hypotheses are satisfiable together whenever the agreements are,
+  and a model of the agreements is the one above.
+- `initiator_refines`, `responder_refines`: the states `Braid::initiator` and `Braid::responder` build refine
+  the model's initial states `Model.Braid.initAlice` and `Model.Braid.initBob` and satisfy `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
+  only of a state built to satisfy it. The responder's decoder is the one `ErasureAgrees` provides for the
+  header size.
+- `defined_hypotheses_given_erasure`, `Braid.receive_refines_given_erasure`, `Braid.send_refines_given_erasure`: five of
+  the six hypotheses about translated functions are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
+  `EncoderCloneTotal` and `DecoderCloneTotal` outright, and the bounded `DecoderMessageTotal` from the one
+  law `TruncateTotal` (`Vec::truncate` returns). The two entry points are restated with those hypotheses
+  replaced: the send needs no law, the receive needs `TruncateTotal`. `ErasureAgrees` stays a hypothesis. No
+  statement of `SessionUnitBraidT3.lean` changed; each restatement is a corollary of the entry point it
+  restates, with fewer premises.
+
+Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
+deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry points list the opaque
+constants their statements mention; none depends on a compiler-trust axiom. The statements of every claimed
+theorem here are pinned by `#guard_msgs in #check`, and so are `Good_iff` and `RecvWitness_iff`, which unfold the two
+definitions the state theorems are stated through, and the three definitions that fix which constructor and which
+message pair each witness is for (`stateTag`, `modelTag`, `FeedsDecoder`, by `#guard_msgs in #print`).
+
+What these results do not show: that the real KEM and KDF meet the six agreements; that a send or a receive
+keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch headroom (the witnesses are single steps
+and a run is not shown to stay inside the hypotheses); that `MsgRefines` and `HonestChunk` hold of a message
+a peer sends (`MsgRefines` holds of a real chunk of any content when the decoder needs at least one chunk, so
+`HonestChunk` is the only hypothesis that excludes a spliced stream); that a decoder restored by
+`Decoder::from_bytes` refines a model decoder (one that holds chunks of no common message refines none, so the
+refinement theorems apply to states reachable from a fresh Braid and to restored states equal to such a state);
+and that the witnesses reach a state with the relation hypotheses over values of a real ML-KEM key pair, because
+the key pairs are the ones the agreements provide.
+
 ## Proved (evidence about three fields that quantify over every Zeroize record)
 
 Location: `Translation/UnitSatisfiabilityZeroizeScope.lean`.

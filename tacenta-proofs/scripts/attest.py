@@ -683,6 +683,30 @@ REQUIRED_PINS = frozenset(
     + [
         "Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded",
     ]
+    # The Braid agreements of the Session unit: the witnesses that the six KEM and KDF agreements and
+    # the laws have a model, the erasure halves that need no compiler-trust axiom, the state-level
+    # witnesses, and the entry points with five defined-function hypotheses discharged.
+    + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
+        "braid_agreement_shapes_are_predicates",
+        "braid_agreements_have_a_model",
+    )]
+    + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
+        "erasureCloneAgrees",
+        "erasureAgrees_iff_clauses",
+        "erasureAgrees_encoder",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
+        "ingredients",
+        "twelve_states",
+        "six_receive_witnesses",
+        "initiator_refines",
+        "responder_refines",
+    )]
+    + ["Tacenta.UnitBraidEntryPoints." + n for n in (
+        "defined_hypotheses_given_erasure",
+        "Braid.receive_refines_given_erasure",
+        "Braid.send_refines_given_erasure",
+    )]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
     # proved from named laws, the shapes bound to the real predicates, the faithful-`pop`

@@ -13,6 +13,10 @@ import Translation.SessionBraidReceiveRepair
 import Translation.UnitSatisfiabilityErasure
 import Translation.UnitSatisfiabilityRatchet
 import Translation.UnitSatisfiabilityRecords
+import Translation.UnitSatisfiabilityBraidAgreements
+import Translation.UnitSatisfiabilityErasureAgrees
+import Translation.UnitSatisfiabilityBraidStates
+import Translation.UnitBraidEntryPoints
 import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
