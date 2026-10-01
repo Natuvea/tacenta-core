@@ -218,7 +218,7 @@ matches = list(re.finditer(r"^## (.+)$", text, re.M))
 sections = {}
 def add(title, body):
     sections[title] = hashlib.sha256(body.encode()).hexdigest()
-add("Introduction (the text before the first section)", text[: matches[0].start()])
+add("Introduction (the text before the first section)", text[: matches[0].start() if matches else len(text)])
 for index, match in enumerate(matches):
     end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
     add(match.group(1).rstrip(), text[match.start():end])
@@ -280,6 +280,21 @@ digest_case() {
 }
 digest_case middle "import re; ms = list(re.finditer(r'^## ', text, re.M)); k = (ms[len(ms) // 2].start() + ms[len(ms) // 2 + 1].start()) // 2; text = text[:k] + 'X' + text[k:]"
 digest_case last-byte-of-last "text = text[:-1] + 'Z'"
+# A ledger with no section at all is one introduction, whose last byte can be anything:
+# a change to that byte alone must no longer match. (With a section after it, the last byte
+# of the introduction is the newline that puts the heading at the start of a line, so it
+# cannot be changed without changing the sections.)
+cp -R "$pack" "$work/pack-only-introduction"
+forge_claims "$work/pack-only-introduction" "text = '# Claims\n\nOnly an introduction, with no section.\n'"
+craft_receipt "$work/pack-only-introduction" "$work/only-introduction.json"
+cp -R "$pack" "$work/pack-only-introduction-changed"
+forge_claims "$work/pack-only-introduction-changed" "text = '# Claims\n\nOnly an introduction, with no section.Z'"
+rebind "$work/only-introduction.json" "$work/pack-only-introduction-changed"
+expect_refused_for_pack only-introduction 'was not given on the text the pack holds' "$work/pack-only-introduction-changed"
+cp "$work/only-introduction.json" "$work/only-introduction-honest.json"
+rebind "$work/only-introduction-honest.json" "$work/pack-only-introduction"
+cases=$((cases + 1))
+python3 "$checker" --receipt "$work/only-introduction-honest.json" --pack "$work/pack-only-introduction" >/dev/null
 digest_case last-byte-of-introduction "import re; a = re.search(r'^## ', text, re.M).start(); text = text[:a - 1] + text[a:]"
 
 # Two sections with one title: a reference could not say which was read.
