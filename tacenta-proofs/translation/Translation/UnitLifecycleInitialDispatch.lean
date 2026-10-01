@@ -12,10 +12,12 @@ The T1 bridge below derives existence of the inner result from the existing
 boundary contracts and headroom theorem. No public-decrypt witness or route
 is accepted as an input.
 
-Every theorem below that takes `DecryptRatchetContracts` or `BraidReceiveContracts` holds
-vacuously as stated, because `BraidReceiveContracts` contains a false field
+Until the repair, every theorem below that takes `DecryptRatchetContracts` or
+`BraidReceiveContracts` held vacuously, because `BraidReceiveContracts` contained a false field
 (`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`).
+`SESSION-CONTRACT-VACUITY`). The field is now stated for decoders that need at most
+`MAX_CODEWORDS` chunks and the headroom record carries that bound
+(`Translation/SessionBraidReceiveRepair.lean`). No theorem here shows that the records can be met.
 -/
 
 namespace Tacenta.UnitLifecycleT3
@@ -137,6 +139,7 @@ theorem braid_receive_evidence
       contracts.arrayZeroize contracts.rangeFullIndex
       real.braid message
         (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braid headroom)
+        (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoders headroom)
         hepoch hrel.braid
       hmessageRel hhonest)
   rcases result with ⟨receivedEpoch, output, next⟩

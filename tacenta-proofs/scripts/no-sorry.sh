@@ -90,6 +90,13 @@ report_time "lifecycle public-root coverage" "$t"
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1
 report_time "Session contract satisfiability control" "$t"
+# The unit-only edits of the three Session Braid ports are held by one property, the anchor count
+# in `unit_edit`. `--check` alone cannot see that guard removed (an unchanged source regenerates
+# the same file), so break one source anchor per port script (two for the proof script) and require the port
+# script to refuse.
+t=$SECONDS
+bash scripts/check-port-negatives.sh || fail=1
+report_time "port-script unit-edit controls" "$t"
 # The initial dispatcher must retain its matching-key guards. These controls
 # elaborate disposable copies after the positive build above; timeout or a
 # compiler/dependency failure is never counted as a rejected mutation.

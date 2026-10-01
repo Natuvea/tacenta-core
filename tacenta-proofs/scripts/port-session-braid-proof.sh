@@ -28,6 +28,7 @@ substitutions = [
     ("import Translation.TacentaBraid\nimport Translation.SessionT1", """import Translation.TacentaSessionUnit
 import Translation.SessionUnitSessionT1
 import Translation.SessionUnitErasureT1
+import Translation.SessionUnitDecoderBound
 
 -- The complete unit imports proof modules whose global `step` rules target
 -- the same generated primitives. These rules are intentionally narrower
@@ -56,6 +57,136 @@ for old, new, expected in substitutions:
             f"port-session-braid-proof: {old!r} occurs {found} time(s), "
             f"expected {expected}; inspect the source proof before changing this count")
     text = text.replace(old, new)
+
+# The erasure decoder is concrete inside the complete unit, so `Decoder::message` is a
+# translated definition and "it returns for every decoder" is false (a decoder that needs
+# (Usize.max + 1) / 32 chunks overflows the output vector; see SessionBraidReceiveVacuity.lean).
+# The standalone BraidT1.lean has an opaque `Decoder` and keeps its statement. In the unit the
+# field is stated for decoders within MAX_CODEWORDS, and the receive theorems take that bound
+# from the state (`State.decoders_bounded`). Each edit below names the place it changes and
+# fails if the source proof no longer has exactly that text.
+def unit_edit(text, label, old, new, expected=1):
+    found = text.count(old)
+    if found != expected:
+        raise SystemExit(
+            f"port-session-braid-proof: unit edit {label!r}: text occurs {found} time(s), "
+            f"expected {expected}; inspect the source proof before changing this edit")
+    return text.replace(old, new)
+
+E = "tacenta_session_unit.tacenta_erasure."
+
+text = unit_edit(text, "DecoderMessageTotal",
+    f"""def DecoderMessageTotal : Prop :=
+  ∀ (d : {E}Decoder), ∃ r, {E}Decoder.message d = ok r
+""",
+    f"""/-- `Decoder::message` returns for every decoder that needs at most `MAX_CODEWORDS`
+(65536) chunks, the bound `Decoder::invariant` checks. The translation's `Vec::with_capacity`
+never fails, so the statement also holds for a decoder with a small `needed` and a huge `size`,
+on which the Rust function panics or aborts; `Decoder::invariant` rejects such a decoder through
+`needed == chunk_count(size)`. The bound is part of the
+statement: in the complete unit `Decoder::message` is a translated definition, and it fails for a
+decoder that needs and holds `(Usize.max + 1) / 32` chunks (`SessionBraidReceiveVacuity.lean`), so the
+statement without the bound, `DecoderMessageTotalUnbounded`, is false. The Braid builds no such
+decoder. The public `Decoder::new(usize::MAX)` does build one that needs that many chunks, but
+`Decoder::add_chunk` admits one chunk per `u16` index, so a decoder the crate builds holds at most
+65536 chunks, and that one never has a message.
+The receive theorems take the bound from the state (`State.decoders_bounded`). -/
+def DecoderMessageTotal : Prop :=
+  ∀ (d : {E}Decoder), d.needed.val ≤ 65536 →
+    ∃ r, {E}Decoder.message d = ok r
+
+/-- `DecoderMessageTotal` without the bound on `needed`. It is false
+(`Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total`) and nothing assumes it; it is
+kept so that refutation stays a checked statement about the predicate the unit used to take. -/
+def DecoderMessageTotalUnbounded : Prop :=
+  ∀ (d : {E}Decoder), ∃ r, {E}Decoder.message d = ok r
+""")
+
+text = unit_edit(text, "State.decoders_bounded",
+    """  | .Ct1Acknowledged _ _ _ _ ct1 _ => ct1.length ≤ 4096
+  | _ => True
+
+""",
+    f"""  | .Ct1Acknowledged _ _ _ _ ct1 _ => ct1.length ≤ 4096
+  | _ => True
+
+/-- The decoder side of `State.ct1_bounded`: every erasure decoder the state holds needs at
+most `MAX_CODEWORDS` (65536) chunks. `Braid::invariant` calls `Decoder::invariant` on each of
+them and that rejects a larger `needed` (`SessionUnitBraidImportInv.Braid.Inv.decoders_bounded`);
+`Decoder::add_chunk` and `Decoder::clone` keep `needed` (`SessionUnitDecoderBound`), and a
+decoder `Decoder::new` builds from a protocol constant meets the bound given the value law of
+`div_ceil` (`UnitLifecycleT1.braid_responder_headroom`). The receive theorems need it to call
+`DecoderMessageTotal` on the decoder after a chunk is added. -/
+def State.decoders_bounded : State → Prop
+  | .HeaderSent _ _ _ ct1_dec _ => ct1_dec.needed.val ≤ 65536
+  | .EkSentCt1Received _ _ _ _ ct2_dec => ct2_dec.needed.val ≤ 65536
+  | .NoHeaderReceived _ _ hdr_dec => hdr_dec.needed.val ≤ 65536
+  | .HeaderReceived _ _ _ ek_dec => ek_dec.needed.val ≤ 65536
+  | .Ct1Sampled _ _ _ _ _ _ ek_dec => ek_dec.needed.val ≤ 65536
+  | .Ct1Acknowledged _ _ _ _ _ ek_dec => ek_dec.needed.val ≤ 65536
+  | _ => True
+
+""")
+
+text = unit_edit(text, "State.clone_no_panic postcondition",
+    """      ⦃ fun r => State.epoch_val r = State.epoch_val self ∧
+                 (State.ct1_bounded self → State.ct1_bounded r) ⦄ := by""",
+    """      ⦃ fun r => State.epoch_val r = State.epoch_val self ∧
+                 (State.ct1_bounded self → State.ct1_bounded r) ∧
+                 (State.decoders_bounded self → State.decoders_bounded r) ⦄ := by""")
+
+text = unit_edit(text, "State.clone_no_panic decoder clone",
+    "all_goals (try (obtain ⟨r, hr⟩ := hdec ‹_›; simp only [hr]))",
+    "all_goals (try (obtain ⟨r, hr⟩ := hdec ‹_›; simp only [hr]; "
+    "have hrn := Tacenta.SessionUnitDecoderBound.clone_keeps_needed _ _ hr))")
+
+text = unit_edit(text, "State.clone_no_panic redundant step",
+    """       all_goals (try (step with vecU8_clone_no_panic))
+       all_goals (try step*)
+       all_goals (try (step with vecU8_clone_no_panic))""",
+    """       all_goals (try (step with vecU8_clone_no_panic))
+       all_goals (try (step with vecU8_clone_no_panic))""")
+
+text = unit_edit(text, "State.clone_no_panic closer",
+    "all_goals (try (simp_all [State.epoch_val, State.ct1_bounded])))",
+    "all_goals (try (simp_all [State.epoch_val, State.ct1_bounded, State.decoders_bounded])))")
+
+for name, count in [("ct1_dec1", 1), ("ct2_dec1", 1), ("hdr_dec1", 1), ("ek_dec1", 2)]:
+    text = unit_edit(text, f"step_receive_no_panic message call on {name}",
+        f"hdmsg {name}; simp only [ho]",
+        f"hdmsg {name} (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); "
+        f"simp only [ho]", count)
+
+text = unit_edit(text, "step_receive_no_panic signature",
+    """    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state) :
+    Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by""",
+    """    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state)
+    (hdb : State.decoders_bounded state) :
+    Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by""")
+
+text = unit_edit(text, "receive_no_panic signature",
+    """    (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state) :
+    Braid.receive self msg ⦃ fun _ => True ⦄ := by""",
+    """    (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state)
+    (hdb : State.decoders_bounded self.state) :
+    Braid.receive self msg ⦃ fun _ => True ⦄ := by""")
+
+text = unit_edit(text, "receive_no_panic step_receive call",
+    "hencaps2 hz hzz hrf self ‹_› msg (by simp_all)))",
+    "hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all)))")
+
+text = unit_edit(text, "what this covers: second premise",
+    """does not prove (that would be a T3 claim about the whole state machine, not a
+T1 one about a single function). The epoch bound""",
+    """does not prove (that would be a T3 claim about the whole state machine, not a
+T1 one about a single function). In the complete unit there is a second one,
+`State.decoders_bounded`: the erasure decoder is a translated definition there, and
+`DecoderMessageTotal` is stated only for a decoder that needs at most `MAX_CODEWORDS` chunks.
+The translated `Decoder::message` fails for a decoder that needs and holds `(Usize.max + 1) / 32`
+chunks (`SessionBraidReceiveRepair.old_witness`), and `MAX_CODEWORDS` is
+the Braid's own bound far below that line (`SessionBraidReceiveRepair.boundary_exact`).
+`Braid::invariant` supplies it (`SessionUnitBraidImportInv`), `add_chunk` and `clone` keep it,
+and no theorem shows that a send or a receive produces a state that has it. The epoch bound""")
 
 # The erasure operations are concrete inside the complete unit, so the Braid
 # entry points no longer depend on the standalone translation's opaque erasure
@@ -107,8 +238,11 @@ note = (
     "-- Generated by tacenta-proofs/scripts/port-session-braid-proof.sh from\n"
     "-- Translation/BraidT1.lean. Do not edit: `port-session-braid-proof.sh --check`\n"
     "-- regenerates this file and fails on any difference. This count-checked\n"
-    "-- port changes namespaces, pins aggregate tactic rules and audits the\n"
-    "-- complete unit's concrete erasure dependencies.\n\n"
+    "-- port changes namespaces, pins aggregate tactic rules, audits the\n"
+    "-- complete unit's concrete erasure dependencies and applies the named\n"
+    "-- `unit_edit`s that restate `DecoderMessageTotal` for decoders with\n"
+    "-- `needed <= 65536` and add the hypothesis `hdb` (`State.decoders_bounded`)\n"
+    "-- to the receive theorems. The standalone file keeps its statements.\n\n"
 )
 dest.write_text(note + text)
 PY

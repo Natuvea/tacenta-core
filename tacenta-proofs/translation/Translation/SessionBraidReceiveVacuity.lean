@@ -1,41 +1,40 @@
 import Translation.UnitLifecyclePublicT1
 
 /-!
-# The Braid receive contract record is uninhabited
+# The unbounded decoder hypothesis is false, and what it did to the contract records
 
-`BraidReceiveContracts` (`UnitLifecyclePublicT1.lean`) is a hypothesis of
-`decrypt_ratchet_no_panic`, `decrypt_no_panic` and `establish_responder_no_panic`
-through `DecryptRatchetContracts` and `EstablishResponderContracts`.  One of its
-fields, `SessionUnitBraidT1.DecoderMessageTotal`, says `Decoder::message` returns for
-every `Decoder`, with no premise on the decoder.  It is false.
+`Decoder::message` is a translated definition in the complete Session unit.  The statement
+`SessionUnitBraidT1.DecoderMessageTotalUnbounded`, that it returns for every `Decoder`, is
+false.  Until the repair this statement was the field `decoderMessage` of `BraidReceiveContracts`
+(`UnitLifecyclePublicT1.lean`) and the hypothesis `hdmsg` of the Braid receive theorems, so the
+records `DecryptRatchetContracts` and `EstablishResponderContracts` had no term and the
+theorems that took them held vacuously.  This file keeps the refutation, as a checked
+statement about the predicate the unit used to take, and the corollaries about the records as
+they stood.  The repair itself is in `SessionBraidReceiveRepair.lean`, which shows that the old
+argument does not touch the repaired field.
 
-A decoder that needs `K = (Usize.max + 1) / 32` chunks and holds `K` chunks has a
-message, and `Decoder::message` appends 32 bytes per target chunk to a vector, so the
-output would hold `32 * K = Usize.max + 1` bytes and the append that crosses
-`Usize.max` fails.  The same argument gives a counterexample on either platform width:
-`usize_max_facts` finds `K` by cases on `Usize.bounds_eq`, and nothing after it depends on
-which case applies.
+A decoder that needs `K = (Usize.max + 1) / 32` chunks and holds `K` chunks has a message, and
+`Decoder::message` appends 32 bytes per target chunk to a vector, so the output would hold
+`32 * K = Usize.max + 1` bytes and the append that crosses `Usize.max` fails.  The same argument
+gives a counterexample on either platform width: `usize_max_facts` finds `K` by cases on
+`Usize.bounds_eq`, and nothing after it depends on which case applies.
 
-The decoder is not reachable through the crate, by reading the source (no theorem states
-it).  The Braid calls `Decoder::new` only with protocol constants (the KEM and MAC lengths).
-A decoder's `have` grows only through `add_chunk`, which admits one chunk per `u16` index, or
-through `from_bytes`, which refuses `needed > MAX_CODEWORDS` and calls `Decoder::invariant`,
-so `have` never holds more than 65536 chunks and a decoder that has a message has
-`needed <= 65536`.  The witness below violates three clauses of `Decoder::invariant`.  What
-this file shows is that the hypothesis, as stated, cannot hold, so the theorems that take it
-hold vacuously.  It says nothing about the product.
+The decoder is not reachable through the crate, by reading the source (no theorem states it).
+The Braid calls `Decoder::new` only with protocol constants (the KEM and MAC lengths).  A
+decoder's `have` grows only through `add_chunk`, which admits one chunk per `u16` index, or
+through `from_bytes`, which refuses `needed > MAX_CODEWORDS` and calls `Decoder::invariant`, so
+`have` never holds more than 65536 chunks and a decoder that has a message has
+`needed <= 65536`.  The witness below violates three clauses of `Decoder::invariant`.  What this
+file shows is that the hypothesis, as it was stated, cannot hold.  It says nothing about the
+product.
 
-The same field is the hypothesis `hdmsg` of `SessionUnitBraidT1.Braid.step_receive_no_panic`
-and `Braid.receive_no_panic`, `SessionUnitBraidT3.step_receive_refines` and
-`Braid.receive_refines`, and `SessionUnitBraidImportInv.Braid.decoded_receive_no_panic`.
-Those theorems are vacuous for the same reason.
+The repair states the field for decoders with `needed <= 65536`, a clause `Decoder::invariant`
+already checks, and supplies that bound from the Braid invariant
+(`SessionUnitBraidT1.State.decoders_bounded`, `SessionUnitBraidImportInv.Braid.Inv`;
+`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 
-Nothing here assumes a property of any opaque axiom: the refutation does not depend on how
-the unit's `Vec::truncate` behaves (section C proves it for every function in its place).
-The repair is to state the field for decoders with `needed = chunk_count(size)` and
-`needed <= 65536`, two of the clauses `Decoder::invariant` already checks (together they bound
-`size` by two megabytes), and to supply that bound from the Braid invariant
-(`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+Nothing here assumes a property of any opaque axiom: the refutation does not depend on how the
+unit's `Vec::truncate` behaves (section C proves it for every function in its place).
 -/
 
 open Aeneas Aeneas.Std Result
@@ -43,7 +42,7 @@ open tacenta_session_unit.tacenta_erasure
 
 namespace Tacenta.SessionBraidReceiveVacuity
 
-/-! ## A. Failure-allowing reasoning, and the refutation of `DecoderMessageTotal`
+/-! ## A. Failure-allowing reasoning, and the refutation of `DecoderMessageTotalUnbounded`
 
 `OF x Q` says that `x` either fails or returns a value satisfying `Q`.  It is a partial
 correctness statement: it is what lets a proof say "this loop cannot return normally". -/
@@ -268,10 +267,11 @@ theorem usize_max_facts : ∃ K : Nat, 32 * K = Usize.max + 1 ∧ K < Usize.max 
     · rw [h]; simp [U64.max, U64.numBits]
     · rw [h]; simp [U64.max, U64.numBits]
 
-/-- **`DecoderMessageTotal` is false.**  The witness is a decoder of size 0 that needs
+/-- **`DecoderMessageTotalUnbounded` is false.**  The witness is a decoder of size 0 that needs
 `K = (Usize.max + 1) / 32` chunks (2^27 on a 32-bit target, 2^59 on a 64-bit one) and holds
 `K` copies of one chunk.  `message` would have to write `32 * K = Usize.max + 1` bytes. -/
-theorem decoderMessage_not_total : ¬ Tacenta.SessionUnitBraidT1.DecoderMessageTotal := by
+theorem decoderMessage_not_total :
+    ¬ Tacenta.SessionUnitBraidT1.DecoderMessageTotalUnbounded := by
   intro H
   obtain ⟨K, hK32, hKlt⟩ := usize_max_facts
   have hKb : K < 2 ^ UScalarTy.Usize.numBits := by
@@ -291,19 +291,74 @@ theorem decoderMessage_not_total : ¬ Tacenta.SessionUnitBraidT1.DecoderMessageT
   · rw [he] at hr; cases hr
   · exact hf
 
-/-! ## B. What the refutation does to the contract records -/
+/-! ## B. What the refutation did to the contract records
 
-theorem braidReceiveContracts_false : ¬ Tacenta.UnitLifecycleT1.BraidReceiveContracts :=
+The three records below are the records as they stood before the repair: the same fields, in the
+same order, with `decoderMessage` the unbounded statement.  They are restated here because the
+live records changed: `BraidReceiveContracts` now takes the bounded `DecoderMessageTotal`, and
+`EstablishResponderContracts` has one more field, `divCeilValue`.  The records as they stood are in
+`UnitLifecyclePublicT1.lean` at the tag `tacenta-assurance-v0.4.4`, which has the same fields in
+the same order. -/
+
+/-- `BraidReceiveContracts` before the repair. -/
+structure BraidReceiveContractsUnbounded : Prop where
+  decoderNew : Tacenta.SessionUnitBraidT1.DecoderNewTotal
+  decoderAdd : Tacenta.SessionUnitBraidT1.DecoderAddChunkTotal
+  decoderMessage : Tacenta.SessionUnitBraidT1.DecoderMessageTotalUnbounded
+  ct1Len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
+  ct2Len : Tacenta.SessionUnitBraidT1.Ct2LenTotal
+  headerLen : Tacenta.SessionUnitBraidT1.HeaderLenTotal
+  ekVectorLen : Tacenta.SessionUnitBraidT1.EkVectorLenTotal
+  keyPairEkVector : Tacenta.SessionUnitBraidT1.KeyPairEkVectorTotal
+  encoderNew : Tacenta.SessionUnitBraidT1.EncoderNewTotal
+  keyPairDecapsulate : Tacenta.SessionUnitBraidT1.KeyPairDecapsulateTotal
+  hkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total
+  hmac : Tacenta.SessionUnitBraidT1.HmacSha256Total
+  validateEk : Tacenta.SessionUnitBraidT1.ValidateEkTotal
+  encapsulate2 : Tacenta.SessionUnitBraidT1.Encapsulate2Total
+  encoderClone : Tacenta.SessionUnitBraidT1.EncoderCloneTotal
+  decoderClone : Tacenta.SessionUnitBraidT1.DecoderCloneTotal
+  keyPairClone : Tacenta.SessionUnitBraidT1.KeyPairCloneTotal
+  encapsStateClone : Tacenta.SessionUnitBraidT1.EncapsStateCloneTotal
+  optionClone : Tacenta.SessionUnitBraidT1.OptionCloneTotal
+  zeroizingArray : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip
+  arrayZeroize : Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal
+  rangeFullIndex : Tacenta.SessionUnitBraidT1.RangeFullIndexTotal
+
+/-- `DecryptRatchetContracts` before the repair. -/
+structure DecryptRatchetContractsUnbounded {R : Type}
+    (rc : tacenta_session_unit.rand_core_1.RngCore R) : Prop where
+  dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal
+  dhAgree : Tacenta.UnitLifecycleT1.DhAgreeTotal
+  aeadOpen : Tacenta.UnitLifecycleT1.AeadOpenTotal
+  random32 : Tacenta.UnitLifecycleT1.Random32Total rc
+  braid : BraidReceiveContractsUnbounded
+  triple : Tacenta.UnitLifecycleT1.TripleReceiveContracts
+  messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip
+
+/-- `EstablishResponderContracts` before the repair. -/
+structure EstablishResponderContractsUnbounded {R : Type}
+    (rngCore : tacenta_session_unit.rand_core_1.RngCore R) where
+  decrypt : DecryptRatchetContractsUnbounded rngCore
+  dhIdentity : Tacenta.UnitLifecycleT1.DhIdentityTotal
+  kemDecapsulate : Tacenta.UnitLifecycleT1.KemDecapsulateTotal
+  sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
+  sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
+  spqrKdfInit : Tacenta.SessionUnitTripleT1.KdfInitTotal
+  vecPop : Tacenta.UnitLifecycleT1.VecPopTotal
+
+theorem braidReceiveContractsUnbounded_false : ¬ BraidReceiveContractsUnbounded :=
   fun h => decoderMessage_not_total h.decoderMessage
 
-theorem decryptRatchetContracts_false {R : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R) :
-    ¬ Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc :=
-  fun h => braidReceiveContracts_false h.braid
-
-theorem establishResponderContracts_empty {R : Type}
+theorem decryptRatchetContractsUnbounded_false {R : Type}
     (rc : tacenta_session_unit.rand_core_1.RngCore R) :
-    ¬ Nonempty (Tacenta.UnitLifecycleT1.EstablishResponderContracts rc) :=
-  fun ⟨h⟩ => decryptRatchetContracts_false rc h.decrypt
+    ¬ DecryptRatchetContractsUnbounded rc :=
+  fun h => braidReceiveContractsUnbounded_false h.braid
+
+theorem establishResponderContractsUnbounded_empty {R : Type}
+    (rc : tacenta_session_unit.rand_core_1.RngCore R) :
+    ¬ Nonempty (EstablishResponderContractsUnbounded rc) :=
+  fun ⟨h⟩ => decryptRatchetContractsUnbounded_false rc h.decrypt
 
 /-! ## C. Independence from `Vec::truncate`
 
@@ -406,7 +461,7 @@ info: 'Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total' depends on a
 #print axioms Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total
 
 /--
-info: 'Tacenta.SessionBraidReceiveVacuity.braidReceiveContracts_false' depends on axioms: [propext,
+info: 'Tacenta.SessionBraidReceiveVacuity.braidReceiveContractsUnbounded_false' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.tacenta_kdf.hkdf_sha256,
@@ -433,10 +488,10 @@ info: 'Tacenta.SessionBraidReceiveVacuity.braidReceiveContracts_false' depends o
  tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.SessionBraidReceiveVacuity.braidReceiveContracts_false
+#print axioms Tacenta.SessionBraidReceiveVacuity.braidReceiveContractsUnbounded_false
 
 /--
-info: 'Tacenta.SessionBraidReceiveVacuity.decryptRatchetContracts_false' depends on axioms: [propext,
+info: 'Tacenta.SessionBraidReceiveVacuity.decryptRatchetContractsUnbounded_false' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.tacenta_kdf.hkdf_sha256,
@@ -480,10 +535,10 @@ info: 'Tacenta.SessionBraidReceiveVacuity.decryptRatchetContracts_false' depends
  tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.SessionBraidReceiveVacuity.decryptRatchetContracts_false
+#print axioms Tacenta.SessionBraidReceiveVacuity.decryptRatchetContractsUnbounded_false
 
 /--
-info: 'Tacenta.SessionBraidReceiveVacuity.establishResponderContracts_empty' depends on axioms: [propext,
+info: 'Tacenta.SessionBraidReceiveVacuity.establishResponderContractsUnbounded_empty' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.tacenta_kdf.hkdf_sha256,
@@ -531,7 +586,7 @@ info: 'Tacenta.SessionBraidReceiveVacuity.establishResponderContracts_empty' dep
  tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.SessionBraidReceiveVacuity.establishResponderContracts_empty
+#print axioms Tacenta.SessionBraidReceiveVacuity.establishResponderContractsUnbounded_empty
 
 /--
 info: 'Tacenta.SessionBraidReceiveVacuity.message_eq_messageP' depends on axioms: [propext,
