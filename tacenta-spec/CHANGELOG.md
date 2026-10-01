@@ -96,15 +96,30 @@ is SemVer against the specified protocol (not the implementation).
   results and 27 refusal kinds, batched operations, including closing a group,
   that take effect atomically, an owner, admin and member policy read against
   the predecessor only, an optional policy verdict that can only refuse, key
-  epochs, a conflict rule for concurrent proposals, and the obligations an epoch
-  places on a key engine and on a product. The conflict rule refuses a sibling
-  whose writer the head removed and freezes a verifier that sees any other valid
-  sibling. Nothing on the page clears the freeze. The page states that it gives
-  no way out of a frozen state; that the window for a freeze is the staleness of
-  any authority device and not only a simultaneous race; that an authority can
-  keep chosen verifiers from ever accepting its own removal; that catching up an
-  offline device can stall under the default freshness rule; and that a frozen
-  verifier and a split group give no signal to a user. For a successor, only an
+  epochs, a rule for two valid epochs for one slot (ordered siblings), and the
+  obligations an epoch places on a key engine and on a product. Under that rule,
+  while the head has no accepted successor, a sibling of the head that passes
+  every check displaces the head if it ranks before it and is refused as
+  `outranked` otherwise; the rank is the role and the position, in the shared
+  predecessor, of the device that wrote each sibling, and, only between two
+  epochs of one device, the commitment. No sibling stops a verifier: two epochs
+  that one device signed for one slot are ranked by commitment and given to the
+  caller as a pair. This replaces an earlier rule of the same unreviewed draft,
+  which froze a verifier for good at the first valid sibling of its head; that
+  rule stays among the alternatives of Open decision D-12, with the reasons it
+  was not chosen. The page states that a displaced epoch's key material is
+  retired and its proposer proposes again; that an accepted epoch, and so a
+  removal, is final at a verifier only once a successor of it is accepted
+  there; that a fork deeper than one epoch still splits a group and nothing
+  brings it back; that an authority an owner removes, or a network, can still
+  keep chosen verifiers from accepting the removal by having them accept a
+  successor of a sibling first; that a writer that ranks first can undo, at
+  depth one, the epochs of writers that rank after it; that a sibling's
+  evidence is judged with the records of its slot set aside, so that the order
+  of arrival does not choose the head, and that verifiers that received
+  different siblings then hold different records; that catching up an offline
+  device can stall under the default freshness rule; and that a split group
+  gives no signal to a user. For a successor, only an
   owner of the predecessor can cause the `unsupported` result. A device that
   joins after genesis starts from a checkpoint, which may be the genesis epoch
   itself, that an authenticated invitation carries, on seven ordered checks and
@@ -125,7 +140,7 @@ is SemVer against the specified protocol (not the implementation).
   instruction of 2026-09-30), and the default of a seventh, D-12, replaces an
   option that the plan of 2026-09-29 adopted; none has been reviewed otherwise.
   Where its own text gives two readings that differ for some input (the kind
-  reported for an input with another domain and a bad tail, and check 9's clause
+  reported for an input with another domain and a bad tail, and check 8's clause
   on a principal named by two operations), the page marks the point as open. The
   page has had no human review, and the reviews it has had were run by automated
   reviewers and are not independent of the maintainer. It is not a conformance
