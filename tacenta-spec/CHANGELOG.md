@@ -322,7 +322,7 @@ is SemVer against the specified protocol (not the implementation).
   implementation and model counted the store before the deletion and that the
   change was an open follow-up (`HL-R1-SPARSE-TRANSLATION` in
   `GAP-REGISTER.md`, which stays open for the translation evidence). That
-  entry, which stands in the tags `tacenta-assurance-v0.4.0` to
+  entry, which stands in the tags `tacenta-assurance-v0.3.0` to
   `tacenta-assurance-v0.4.5`, is superseded by this one, and the page states
   the rule as normative. The independent reader, which is project-controlled
   evidence (`GAP-REGISTER.md`, `READER-INDEPENDENCE`), already counted the
@@ -330,13 +330,16 @@ is SemVer against the specified protocol (not the implementation).
   (`tacenta-test-vectors/runners/independent/reader/tacenta_reader/spqr.py`,
   case CR-18) and recorded the page's silence as G12-05
   (`tacenta-test-vectors/runners/independent/GAPS-12.md`). Two of its case
-  titles were edited to quote this page. No reader has read the new text.
+  titles and one cite string were edited to quote this page, and its documented
+  run tally and one note on G12-05 were updated. No reader has read the new text.
   Through a session the earlier count did not lose such a message: the session
   evicted the oldest stored keys and retried. The difference a session shows
   is in eviction. Where the replaced keys were not the oldest, the earlier
   count evicted up to as many other stored keys as the store held in the
-  range, and this count keeps them. On the state of
-  `replacement-bound-counts-resulting-store`, whose two replaced keys are the
+  range, and this count keeps them when the skip fits once the replaced keys
+  are dropped. When it does not, both counts evict the same first batch. On the
+  state of `replacement-bound-counts-resulting-store` in
+  `sparse-ratchet-state.json`, whose two replaced keys are the
   oldest, the two counts leave the same store. An implementation that counted
   the store before the deletion, as the earlier text of this page described,
   must count it after. This changes no byte written to the wire or to storage

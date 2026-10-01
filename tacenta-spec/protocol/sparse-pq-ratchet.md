@@ -188,8 +188,8 @@ whether or not the epoch's receiving chain is absent, and a message numbered
 zero is refused as out of order only when no key is stored under it. A stored
 key is otherwise deleted only when its epoch is retired, when it is evicted to
 make room (below), or when a skip stores a key under the same epoch and number,
-which happens only in a state read from storage (The store also has a total
-bound).
+which happens only in a state read from storage (read off the operations; The
+store also has a total bound).
 
 Otherwise the receiving chain for the named epoch is stepped forward to one
 before the message's number, storing every key it passes, and then once more to
@@ -264,8 +264,8 @@ read from storage that holds a key in the range. There the check on the count
 after the deletion accepts a request that the same check on the count before it
 would refuse: a stored state of `MAX_SKIPPED_STORE - 1` keys, two of which lie
 in the range of a skip that stores two, is not refused. The vector
-`replacement-bound-counts-resulting-store` is the case that ends at exactly
-`MAX_SKIPPED_STORE`.
+`replacement-bound-counts-resulting-store` in `sparse-ratchet-state.json` is the
+case that ends at exactly `MAX_SKIPPED_STORE`.
 
 `Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`
 proves this of one skip that steps the chain: the store it leaves is the
@@ -277,7 +277,7 @@ refusal is exactly the count after the deletion
 (`Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`), and
 `Tacenta.SpqrT3.skip_message_keys_refines` proves that the translated code
 refines that model and that a refused skip returns the state it was given; the
-refusal it returns is not part of that statement. No theorem carries the bound
+which refusal it returns is not part of that statement. No theorem carries the bound
 across this ratchet's sending, receiving or advancing, or across a sequence of
 them. Over a session, the bound is tested rather than proved.
 
