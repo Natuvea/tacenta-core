@@ -143,6 +143,29 @@ that the receipts were produced by a hosted run of the workflow (that is checked
 against the run itself), that a reviewer was independent, or that a source file
 says something true.
 
+## Commands, in order
+
+From a clean checkout of the frozen candidate (`git status --short` empty), with
+the receipts and manifest the hosted `assurance-receipts` job produced for that
+exact commit in `HOSTED`:
+
+```sh
+python3 tooling/build-evidence-pack.py --manifest HOSTED/assurance-manifest.json \
+  --receipts HOSTED/assurance-receipts.json --output PACK
+python3 tooling/reproduce-evidence.py --pack PACK --hosted HOSTED
+python3 tooling/ledger-review-sections.py --pack PACK --template RECEIPT.json   # add --since EARLIER_PACK to scope a re-review
+# the reviewer fills RECEIPT.json in, then:
+python3 tooling/validate-reviewed-evidence.py --manifest HOSTED/assurance-manifest.json --pack PACK --receipt RECEIPT.json
+python3 tooling/publish-evidence-archive.py --pack PACK --dry-run
+python3 tooling/publish-evidence-archive.py --pack PACK --receipt PUBLICATION-RECEIPT.json
+```
+
+After publication, download the release assets into a new directory and run
+`python3 tooling/build-evidence-pack.py --verify DOWNLOAD --candidate-repo CLONE` and
+`python3 tooling/reproduce-evidence.py --pack DOWNLOAD --repo CLONE` there. Run
+them with the tooling of the commit that built the pack, since the expected
+lists come from the checkout that runs the verifier.
+
 ## Finalization checklist
 
 1. Freeze a clean candidate revision and collect the local and hosted results.
