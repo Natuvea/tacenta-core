@@ -32,8 +32,9 @@ So `hepoch` is the caller's premise, and this module shows what it is needed for
 
 For the classical ratchet `T3.receive_refines` takes `hone`, `hs` and `hroom`. `hone` and `hs`
 follow from `Inv` (`hroom`, `events + 1 < u32::MAX`, does not: the parked clock passes `invariant`).
-For the Braid, `ct1_bounded` follows from `Braid.Inv`; the `epoch + 1 < u64::MAX` premise of
-`receive_refines` and `step_receive_refines` does not.
+For the Braid, `ct1_bounded` follows from `Braid.Inv` (the standalone `Braid.Inv` has that one field;
+the substantive step is `Braid.from_bytes_establishes_inv`, which takes `Ct1LenTotal`); the
+`epoch + 1 < u64::MAX` premise of `receive_refines` and `step_receive_refines` does not.
 
 Every result is conditional on the premises it takes and on `Inv`; none says a decoded state refines
 the model. A discharge theorem whose own premises no state meets would be true and empty, and `Inv` is a premise

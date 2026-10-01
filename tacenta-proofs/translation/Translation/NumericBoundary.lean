@@ -3,9 +3,11 @@ import Aeneas
 /-!
 # The numeric bounds of the refinement and panic-freedom theorems, against the caps they are compared with
 
-Every bound a theorem of this package takes about a length or a counter is written against one of
+Every numeric bound that depends on a platform width or on a ceiling is written against one of
 four constants: `usize::MAX` (`Usize.max`), `u32::MAX`, `u64::MAX`, or a fixed cap of the code
 (`MAX_SKIP = 1000`, `MAX_SKIPPED_STORE = 2000`, `EPOCHS_KEPT = 2`, `MAX_CODEWORDS = 65536`, ...).
+Eleven of the 61 shapes in `NumericShapeWitness.lean` compare two lengths or counters with each other
+and mention none of these.
 Only the first depends on the platform: Aeneas defines `Usize.max` as `2^System.Platform.numBits - 1`
 and the only fact Lean has about `numBits` is that it is 32 or 64 (`Usize.bounds_eq`). Everything
 below is proved for the constant `Usize.max`, by a case split on `both_widths`, so each statement
@@ -20,12 +22,14 @@ What is proved:
   `spqr_skip_cap_fits`, `ratchet_codec_cap_fits`, `spqr_codec_cap_fits`, `erasure_cap_fits`);
 * the 32-bit erasure bound `32 * needed < usize::MAX` is exactly `needed ≤ 2^27 - 1`
   (`erasure_room_exact_at_32`), so it is not slack by accident;
-* each ceiling that stays a caller's premise excludes exactly one honest value:
-  `events + 1 < u32::MAX` excludes `events = u32::MAX - 1` and nothing else among the values the
-  decoder's invariant allows, and `epoch + 1 < u64::MAX` excludes `epoch = u64::MAX - 1`
-  (`clock_ceiling_excludes_only_parked`, `epoch_ceiling_excludes_only_top`).
+* the two ceilings the invariant leaves open on the clock and the epoch, `events + 1 < u32::MAX` and
+  `epoch + 1 < u64::MAX`, each exclude exactly one value among those the decoder's invariant allows:
+  `events = u32::MAX - 1` and `epoch = u64::MAX - 1` respectively
+  (`clock_ceiling_excludes_only_parked`, `epoch_ceiling_excludes_only_top`). `hnewb` and `hcounter`
+  have no such theorem.
 
-The constants' values in each translation, and their agreement with the model's, are in
+The constants' values in each translation, and the agreement of the ratchet's and the sparse ratchet's
+with the model's, are in
 `NumericBoundaryLeaf.lean`, `NumericBoundaryTriple.lean` and `NumericBoundarySession.lean`; they have
 to be stated per translation, because the three environments do not share declarations.
 
@@ -86,7 +90,7 @@ theorem erasure_cap_fits :
 theorem erasure_room_exact_at_32 :
     (32 * 134217727 < 4294967295) ∧ ¬ (32 * 134217728 < 4294967295) := by omega
 
-/-! ## What each ceiling excludes, exactly -/
+/-! ## What the clock and epoch ceilings exclude, exactly -/
 
 /-- `events + 1 < u32::MAX` against the invariant's `events < u32::MAX`: the one value excluded is
 `u32::MAX - 1`, the parked clock (`MAX_EVENTS`). -/

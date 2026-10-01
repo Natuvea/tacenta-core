@@ -7,7 +7,7 @@ import Translation.NumericBoundary
 
 The values of the constants the numeric bounds mention, in the translation of the Triple Ratchet
 unit (the classical and sparse ratchets compiled as one crate), and that they equal the model's
-copies. See `NumericBoundaryLeaf.lean` for what this does and does not establish; the arithmetic
+copies (the unit has no erasure or protobuf constants). See `NumericBoundaryLeaf.lean` for what this does and does not establish; the arithmetic
 over the caps is in `NumericBoundary.lean`.
 -/
 

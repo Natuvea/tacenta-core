@@ -7,8 +7,8 @@ import Translation.NumericBoundary
 # The numeric constants of the eight-leaf session unit
 
 The values of the constants the numeric bounds mention, in the translation of the session unit,
-and that they equal the model's copies. The unit also translates the erasure coder, so its caps are
-here. See `NumericBoundaryLeaf.lean` for what this does and does not establish; the arithmetic over
+and that the ratchet's and the sparse ratchet's equal the model's copies. The unit also translates
+the erasure coder, so its caps are here, evaluated and compared with nothing. See `NumericBoundaryLeaf.lean` for what this does and does not establish; the arithmetic over
 the caps is in `NumericBoundary.lean`.
 -/
 

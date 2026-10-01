@@ -22,7 +22,8 @@ For each theorem `T` below, `Premises.T` is the statement that one choice of `T`
 every premise of `T` that is numeric (a bound on a length, a counter or an epoch, written against
 `Usize.max`, `U32.max` or `U64.max`), every numeric predicate about a state (`ct1_bounded`,
 `EncodersLive`, ...) and every relation between a translated value and a model value
-(`StateRefines`, `StateR`, `HeaderR`) at the same time. `sat_T` proves it at a concrete state. A
+(`StateRefines`, `StateR`, `HeaderR`; for the Braid theorems the relations are left out, as set out below)
+at the same time. `sat_T` proves it at a concrete state. A
 theorem whose premises no state meets is true and says nothing; this is the check that these are not
 that.
 
@@ -36,8 +37,10 @@ that.
 * Both platform widths. `Usize.max` is `2^System.Platform.numBits - 1` and Lean knows only that
   `numBits` is 32 or 64. Every proof here is about the constant, so it holds at both widths and none
   appeals to a width. The ceilings are discussed in `NumericBoundary.lean`.
-* The states are small, not extremal: one chain and one skipped key, one stored skipped key, a counter
-  at 1 or 5. That the bounds hold up to their caps, and what each ceiling excludes, is
+* The states are small, not extremal: one chain and one skipped key, one stored skipped key, a
+  counter at 1 or 5. That is what the proofs below use; no gate checks it, and no gate checks that
+  the state a `sat_` proof uses is the one `session_unit_spqrS_inv` and `session_unit_ratS_inv` are
+  about. That the bounds hold up to their caps, and what each ceiling excludes, is
   `NumericBoundary.lean`.
 
 What is not shown here.

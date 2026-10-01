@@ -145,9 +145,10 @@ state, `hrel` (the translated state refines the model state) and the two counter
 them follow. -/
 
 /-- `SessionUnitTripleT3.receive_refines_discharged`: `hone`, `hs`, `hroom`, `hcb`, `hsb`,
-`hskiproom` and `hone2` follow from the two inner invariants, `hrel`, `hevents` and `hepoch`.
-Four premises stay with the caller: `hevents`, `hepoch` (arguments here), `hnewb` and `hcounter`;
-`hheader` relates a header to its model header and is also the caller's. -/
+`hskiproom` and `hone2` follow from the two inner invariants, `hrel` and `hepoch`. `hevents` is a
+premise of the target that stays with the caller; it is an argument here so that the table matches
+and no conclusion uses it. Four premises stay with the caller: `hevents`, `hepoch` (arguments here),
+`hnewb` and `hcounter`; `hheader` relates a header to its model header and is also the caller's. -/
 theorem triple_receive_premises {s : tacenta_triple.State} {m : Model.Triple.State}
     (header : tacenta_triple.Header) (mh : Model.State.Header)
     (hrel : SessionUnitTripleT3.StateRefines SessionUnitTripleT3.ratchetAbs

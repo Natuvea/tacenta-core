@@ -10,16 +10,17 @@ import Translation.NumericBoundary
 
 `NumericBoundary.lean` proves the arithmetic of the bounds for every size the caps allow. This module
 states, in the standalone translations of the ratchet, the sparse ratchet, the erasure coder and
-the protobuf parser, the values of the constants the bounds mention and that they equal the
-model's copies (`code_matches_model`). The translation makes each constant a definition, so these
+the protobuf parser, the values of the constants the bounds mention, and that the ratchet's and the
+sparse ratchet's equal the model's copies (`code_matches_model`); the erasure and protobuf constants
+are evaluated and compared with nothing. The translation makes each constant a definition, so these
 are evaluations of the generated code and nothing more: they do not say the Rust source has these
 values, which is what the translation attestation and the build of the generated file are for.
 
 It also connects the two theorems of `PreconditionShapes.lean` about the clock premise to the
 statement that matters: the premise `events + 1 < u32::MAX` is satisfiable
 (`clock_headroom_satisfiable`), the parked clock `MAX_EVENTS` fails it
-(`clock_headroom_excludes_parked_clock`), and that is the only honest value it fails
-(`clock_ceiling_summary`). The two theorems of `PreconditionShapes.lean` were referenced by no
+(`clock_headroom_excludes_parked_clock`), and that is the only value the decoder's invariant allows
+that fails it (`clock_ceiling_summary`). The two theorems of `PreconditionShapes.lean` were referenced by no
 other theorem; they are the first two conjuncts of the summary.
 -/
 

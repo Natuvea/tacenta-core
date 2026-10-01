@@ -31,20 +31,17 @@ that.
 * Both platform widths. `Usize.max` is `2^System.Platform.numBits - 1` and Lean knows only that
   `numBits` is 32 or 64. Every proof here is about the constant, so it holds at both widths and none
   appeals to a width. The ceilings are discussed in `NumericBoundary.lean`.
-* The states are small, not extremal: one chain and one skipped key, one stored skipped key, a counter
-  at 1 or 5. That the bounds hold up to their caps, and what each ceiling excludes, is
-  `NumericBoundary.lean`.
+* The states are small, not extremal: one chain and one skipped key, one stored skipped key, a
+  counter at 1 or 5. That is what the proofs below use; no gate checks it. That the bounds hold up
+  to their caps, and what each ceiling excludes, is `NumericBoundary.lean`.
 
 What is not shown here.
 
 * The `boundary` premises of each theorem: statements about opaque operations or translated
   functions (`HmacAgrees`, `VecRetainTotal`, `KemAgreesFor`, ...). They are not part of `Premises.T`.
   Some have models (`Satisfiability.lean`), and the rest are recorded in `LIMITATIONS.md`.
-* The `unwitnessed` premises: premises that relate a translated Braid to a model Braid
-  (`StateRefines`, `MsgRefines`, `HonestChunk`), which need a value of an opaque type, and the premise
-  `hdec` of `decoded_receive_refines`, that a byte string decodes to the state. They stay open here.
 * That a reachable state meets the premises. A witness says a premise is not vacuous; it does not say
-  every reachable state meets it. Among the values the decoder's invariant allows,
+  every reachable state meets it. Among the values a sparse or classical state may hold,
   `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and `epoch + 1 < u64::MAX` only at
   `u64::MAX - 1`, and each of those is an ordinary state (`NumericBoundary.lean`).
 -/
