@@ -3,6 +3,8 @@ import Translation.TacentaTripleUnit
 import Translation.UnitPins
 import Translation.UnitSpqrT3
 import Translation.UnitSatisfiabilityTriple
+import Translation.NumericBoundaryTriple
+import Translation.NumericWitnessTriple
 
 /-!
 The three-leaf translation unit's half of the translation package's axiom

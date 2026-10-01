@@ -12,6 +12,11 @@ import Translation.ErasureWitness
 import Translation.KemWitness
 import Translation.BraidPreserveWitness
 import Translation.BraidPreserveCorollary
+import Translation.NumericBoundary
+import Translation.NumericBoundaryLeaf
+import Translation.NumericShapeWitness
+import Translation.NumericWitnessLeaf
+import Translation.DecodedStateDischarge
 
 /-!
 The translation package's axiom audit, over everything the root `Translation`
@@ -32,6 +37,9 @@ only, since Aeneas declares every opaque external as an `axiom`;
 set, so a new one fails there rather than being reclassified. Both `Model`
 and `Translation` prefixes are audited here: the model is imported into this
 package, and a widening in it would reach every refinement theorem.
+
+The numeric-precondition modules of the standalone leaves are walked here: `NumericBoundary`,
+`NumericBoundaryLeaf`, `NumericShapeWitness`, `NumericWitnessLeaf` and `DecodedStateDischarge`.
 -/
 
 run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
