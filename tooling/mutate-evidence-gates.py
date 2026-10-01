@@ -8,7 +8,8 @@ go red? Each entry in `MUTATIONS` replaces one string, which must occur exactly
 once, in one tooling file of a throwaway copy of the repository's evidence
 tooling, commits the edit there, and runs the case runners named in
 `RUNNERS` until one fails. An edit that leaves every runner green is a
-SURVIVOR: a check no case holds.
+SURVIVOR: a check no case holds, unless `EQUIVALENT` lists it with the reason
+its verdict cannot change.
 
 A baseline run of the unedited copy comes first, and the harness stops if it is
 not green, because a red baseline would make every edit look caught.
@@ -17,9 +18,9 @@ not green, because a red baseline would make every edit look caught.
     python3 tooling/mutate-evidence-gates.py --list
     python3 tooling/mutate-evidence-gates.py --only B1 --only V4
 
-It exits 1 if the baseline is red or any mutation survives. The copy holds
-`tooling/` and the files the case runners read; it is made from the committed
-tree at `HEAD`, so commit your edit first.
+It exits 1 if the baseline is red or any mutation survives that is not listed
+as equivalent. The copy holds `tooling/` and the files the case runners read; it
+is made from the committed tree at `HEAD`, so commit your edit first.
 """
 from __future__ import annotations
 
@@ -61,6 +62,12 @@ REPRODUCE = "tooling/reproduce-evidence.py"
 REVIEW = "tooling/check-ledger-review-receipt.py"
 REVIEWED = "tooling/validate-reviewed-evidence.py"
 SECTIONS = "tooling/ledger-review-sections.py"
+
+# Edits whose survival is expected, each with the reason it is no gap: the verdict
+# does not change, only which check says so. A survivor not listed here fails the run.
+EQUIVALENT = {
+    "E3": "the comparison of the pack's manifest bytes with the given manifest, which follows it, refuses the same inputs",
+}
 
 # (id, file, old, new, what the edit does)
 MUTATIONS: list[tuple[str, str, str, str, str]] = [
@@ -280,6 +287,7 @@ def main() -> int:
             return 1
         print(f"baseline green ({time.time() - started:.0f} s); {len(mutations)} mutation(s)")
         survivors = []
+        equivalent = []
         for ident, file, old, new, what in mutations:
             text = (base / file).read_text()
             if text.count(old) != 1:
@@ -294,10 +302,14 @@ def main() -> int:
             shutil.rmtree(work)
             if caught:
                 print(f"caught    {ident:5} {what}\n            by {caught.rsplit('/', 1)[1]}: {tail}")
+            elif ident in EQUIVALENT:
+                equivalent.append(ident)
+                print(f"SURVIVED  {ident:5} {what}\n            claimed equivalent: {EQUIVALENT[ident]}")
             else:
                 survivors.append(ident)
                 print(f"SURVIVED  {ident:5} {what}")
-        print(f"{len(mutations) - len(survivors)} caught, {len(survivors)} survived")
+        caught_count = len(mutations) - len(survivors) - len(equivalent)
+        print(f"{caught_count} caught, {len(equivalent)} survived as claimed equivalent, {len(survivors)} survived unexpectedly")
         return 1 if survivors else 0
 
 
