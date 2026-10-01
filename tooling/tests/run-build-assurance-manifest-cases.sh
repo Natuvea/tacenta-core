@@ -50,8 +50,8 @@ expect_validate_fail() {
 }
 
 make_case() {
-  local name="$1" program="$2"
-  python3 - "$fixture" "$work/$name.json" "$program" <<'PY'
+  local name="$1" program="$2" from="${3:-$fixture}"
+  python3 - "$from" "$work/$name.json" "$program" <<'PY'
 import json, pathlib, sys
 source, output, program = map(pathlib.Path, sys.argv[1:])
 data = json.loads(source.read_text())
