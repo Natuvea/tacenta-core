@@ -7,35 +7,49 @@ Status: draft. It has had no human review. The reviews it has had were run by
 automated reviewers working for the maintainer, and they are not independent of
 the maintainer. It is proposed for review under ADR-0008, rule 7, and it is not
 ratified. Until a reviewed change replaces this line, nothing on this page is a
-conformance target, no model or vector states it, and the decisions at the end
-are open: a mark "Adopted" there means a recommended default that the maintainer
-said to go with, not a choice that anyone has reviewed. Adopting a default does
-not ratify the text it shapes. The page has the standing of a scaffold
-(README.md, "Normative status"), with more text.
+conformance target, no model or vector states it, and the decisions under Open
+decisions are open: a mark "Adopted" there means a recommended default that the
+maintainer said to go with, not a choice that anyone has reviewed. Adopting a
+default does not ratify the text it shapes. The page has the standing of a
+scaffold (README.md, "Normative status"), with more text.
+
+Review record. ADR-0008, rule 7 requires that a change to this specification be
+reviewed against that record before it merges, by the maintainer or by a
+reviewer the maintainer delegates to, that the review be written on the pull
+request, and that the merge wait for green checks. It does not require that a
+person read the change. The main branch requires the CI status checks and
+linear history and requires no pull-request review (ASSURANCE.md, row 7), and
+no job in the CI workflow checks the rules of this page: the one tool that
+opens it scans every tracked file for unresolved conflict markers. So nothing
+in the repository requires or enforces a reading of this page by a person. The
+reports of the reviews mentioned above are not recorded on the pull request or
+in this repository.
 
 Dependency note, to be deleted at ratification: this page cites "Accepting a
 signed statement", "Identity keys" and "Verifying a signature" in
-identities-and-devices.md. "Accepting a signed statement" is on main (core PR
-#200, merged as commit 4dcb8cc). "Identity keys", and the rule in "Verifying a
-signature" that the key a signature is checked under be an identity key, came
-with core PR #205 (merged as commit e06f8f4). Both are on main. The drafter read
-this page against their merged text; that reading is not a review. "Accepting a
-signed statement" has seven checks, in this order: account, issuer binding,
-signature, freshness, device id, identity key, policy. Four rules in these
-sections matter here. The identity-key check admits one spelling of an identity
-key, which is what makes the byte comparison of Open decision D-10 safe.
-"Identity keys" lists where a party applies that rule and says a decoder does
-not apply it, which bears on Decoding and on Signature. The freshness check must
-have no effect of its own, and a generation is recorded as seen only after the
-statement is accepted, in one atomic step that evaluates the rule again, which
-bears on the inputs to "Accepting a successor". And a verifier must not refuse a
-statement solely because a replacement's marker names no listed binding, which
-bears on the non-claim about a replacement's chain of custody. This page cites
-these sections by their names and by the names of their checks, never by their
-numbers, so a change to the order there would need those four places read again.
-The page is still a draft and waits for a human read under ADR-0008, rule 7. The
-"Adopted" marks under Open decisions are drafting records, and they go with this
-note.
+identities-and-devices.md. "Accepting a signed statement" is on main (core pull
+request #200, merged as commit 4dcb8cc). "Identity keys", and the rule in
+"Verifying a signature" that the key a signature is checked under be an identity
+key, came with core pull request #205 (merged as commit e06f8f4). Both are on
+main. The drafter read this page against their merged text; that reading is not
+a review. "Accepting a signed statement" has seven checks, in this order:
+account, issuer binding, signature, freshness, device id, identity key, policy.
+Four rules in these sections matter here. The identity-key check admits one
+spelling of an identity key, which is what makes the byte comparison of Open
+decision D-10 safe. "Identity keys" lists where a party applies that rule and
+says a decoder does not apply it, which bears on Decoding and on Signature. The
+freshness check must have no effect of its own, and a generation is recorded as
+seen only after the statement is accepted, in one atomic step that evaluates the
+rule again, which bears on the inputs to "Accepting a successor". And a verifier
+must not refuse a statement solely because a replacement's marker names no
+listed binding, which bears on the non-claim about a replacement's chain of
+custody. This page cites these sections by their names and by the names of their
+checks, never by their numbers, so a change to the order there would need those
+four places read again. The "Adopted" marks under Open decisions are drafting
+records, and they go with this note, as do the statements in the text that give
+a decision's adoption (in Joining from a checkpoint, The checkpoint, Aliasing
+and Inventory under What is not checked, and the introduction to Open
+decisions).
 
 ## Scope
 
@@ -61,6 +75,9 @@ or compromised authority, from a frozen verifier or from a fork, or a
 product's roles and user interface. Where a rule below needs one of these, it
 names the boundary and says what it takes from the far side.
 
+EX-04 (threat-model/exclusions.md) records groups as unspecified, and it stands
+until a reviewed change ratifies this page.
+
 ## Layers
 
 Three parties take part in accepting an epoch, and this page fixes only the
@@ -84,9 +101,9 @@ first.
 
 - **Account.** An account handle as an inventory statement names it: non-empty
   UTF-8, at most `MAX_ACCOUNT_BYTES` (256) bytes, compared byte for byte. UTF-8
-  is as RFC 3629 defines it, so a surrogate code point or an overlong form is
-  not UTF-8. This page defines no normalisation, so two spellings are two
-  accounts.
+  is as RFC 3629 defines it (Sources), so a surrogate code point or an overlong
+  form is not UTF-8. This page defines no normalisation, so two spellings are
+  two accounts.
 - **Principal.** An account an epoch lists, with one role.
 - **Device binding.** `DeviceBinding` (identities-and-devices.md, Hosted
   device-inventory statements), compared as its whole canonical encoding.
@@ -138,11 +155,16 @@ predecessor.
 
 ## Constants
 
-Every value is `ours` (the tiers of CONSTANTS.md): a choice made for this draft,
-for which this page cites no source. Whether any published document also
-supplies one has not been checked. These are draft values. They are not in
-CONSTANTS.md, which records constants the engine emits or accepts, until the
-page is ratified.
+Every value is a choice made for this draft, for which this page cites no
+source, and is listed as tier `ours` (CONSTANTS.md: free choices, authorised by
+nobody but us). That tier assumes that no published document supplies the value,
+and whether any does has not been checked. The page's other choices (the fields
+and their order, the order of the checks, the roles and the operations) are
+likewise its own and have no tier, because CONSTANTS.md tiers constants only.
+These are draft values. They are not in CONSTANTS.md or tacenta-core/LABELS.md,
+which register what the engine emits or accepts and what its code derives with,
+until the page is ratified. tooling/check-labels.sh reads Rust sources only, so
+no tool checks a label that exists only in this page.
 
 | Name | Value | Meaning |
 |---|---|---|
@@ -158,15 +180,17 @@ page is ratified.
 In a label, `\xff` is the single byte 255 (`0xFF`): the label is its ASCII text
 followed by that byte.
 
-The bounds come from the profile the design targets: groups of up to 512
-people, each with up to eight devices. They are ceilings, not a promise that a
-group of that size is supported. By these counts and the field sizes no epoch is
-longer than 2,167,845 bytes: 619,557 for the header, 512 principals with
-256-byte accounts and 4096 devices with 77-byte bindings, and 1,548,288 for 4096
-operations of the longest kind. That is an upper bound and not a typical size;
-Open decision D-7 asks for a measurement. The three labels are prefix-free
-against each other and against the two group commitment labels in
-group-messaging.md.
+The bounds are choices of this draft: groups of up to 512 principals with up to
+eight devices each. No profile document in this repository states them, and
+eight is the inventory profile's `MAX_ACTIVE_BINDINGS`. They are ceilings, not a
+promise that a group of that size is supported. By these counts and the field
+sizes no epoch is longer than 2,167,845 bytes: 619,557 for everything but the
+operations (the 549 fixed bytes of the header, the writer and the signature, 512
+principals with 256-byte accounts, and 4096 devices with 77-byte bindings), and
+1,548,288 for 4096 operations of the longest kind. That is an upper bound and
+not a typical size; Open decision D-7 asks for a measurement. The three labels
+are prefix-free against each other and against the two group commitment labels
+in group-messaging.md.
 
 ## The accepted state
 
@@ -318,14 +342,20 @@ comparator for both produces `non-canonical` on a valid epoch.
 
 A decoder consumes exactly the bytes of a signed epoch, rebuilds the value,
 re-encodes the body, and refuses if the bytes differ; every such case is one of
-the refusals below. It refuses, before it
-allocates more than these bounds imply, and it reports the first refusal in
-this order: the length test, then the domain test, then the fields in the order
-of the layout above (the first field that is out of range, truncated or
-invalid), then the bytes after the body, then the form of the body, and last
-`non-canonical`, which is judged only once the whole body has been read
-(principals first, then each principal's devices in principal order, then
-operations). The refusals are:
+the refusals below. It refuses before it allocates more than these bounds imply,
+and it reports the first refusal in this order:
+
+1. the length test;
+2. the domain test;
+3. the fields, in the order of the layout above: the first field that is out of
+   range, truncated or invalid;
+4. the bytes after the body;
+5. the form of the body;
+6. `non-canonical`, which is judged only once the whole body has been read
+   (principals first, then each principal's devices in principal order, then
+   operations).
+
+The refusals are:
 
 - input of fewer than 22 bytes, or whose bytes after the last body field are
   not exactly 64: `malformed`;
@@ -346,6 +376,12 @@ operations). The refusals are:
   `predecessor_tag` 1 with `epoch_number` 0: `malformed`;
 - a sequence that is not sorted, or a duplicate entry, in `principals`, a
   principal's `devices` or `operations`: `non-canonical`.
+
+The first bullet gives the condition on the bytes after the body together with
+the length test, while the order above places the bytes after the body at step
+4, after the domain test. For an input of at least 22 bytes with another domain
+and a tail that is not 64 bytes, the first bullet gives `malformed` and the
+order gives `wrong-version`. The page does not say which; this point is open.
 
 A body has a single canonical encoding. Two candidates with equal bodies have
 equal commitments whatever their signatures are.
@@ -687,8 +723,9 @@ device receives key material only as a permitted recipient, and a device is one
 only if the head lists it (Obligations on the key engine, 2).
 
 `already-started` and `invalid-identity-key` are new refusal kinds, and check 13
-of "Accepting a successor" uses the second as well. They are not yet in
-CONSTANTS.md, as the page's other refusal kinds are not.
+of "Accepting a successor" uses the second as well. CONSTANTS.md has no rows for
+refusal kinds, and error-handling.md leaves the names of error variants to an
+implementation, so the page's refusal kinds are in neither.
 
 ### After the checkpoint
 
@@ -820,13 +857,17 @@ A candidate whose `predecessor_tag` is 0 is a genesis candidate and is judged
 under Genesis above from its second check on. (An epoch with `predecessor_tag` 0
 that the caller offers as a checkpoint is not a candidate; Joining from a
 checkpoint judges it.) For any other candidate the checks run in the order
-below. The verifier stops at the first that fails and
-returns its result. The order is normative: it decides which result is
-returned and which state effect goes with it, and, among refusals, which kind
-is reported. It places every result that has an effect after the checks that
-an unauthenticated candidate fails: a candidate that is not canonical, or has
-not passed checks 5 and 6, cannot set `conflict` and cannot cause
-`unsupported`, and check 7 lets only an owner of `P` cause `unsupported`.
+below. The verifier stops at the first that fails and returns its result. In
+this draft the order is fixed: it decides which result is returned and which
+state effect goes with it, and, among refusals, which kind is reported. Whether
+a conforming implementation must report the same refusal kind where several
+apply is not decided here: error-handling.md leaves the choice of reported
+refusal to an implementation unless a page fixes an order because it is
+observable in a way that matters. The order places every result that has an
+effect after the checks that an unauthenticated candidate fails: a candidate
+that is not canonical, or has not passed checks 5 and 6, cannot set `conflict`
+and cannot cause `unsupported`, and check 7 lets only an owner of `P` cause
+`unsupported`.
 
 Arithmetic in the checks is over unbounded integers, so an epoch numbered
 2^64 - 1, or with a `key_epoch` of 2^64 - 1, has no successor. Within a check
@@ -1113,8 +1154,8 @@ for a later epoch cannot be computed from material an earlier member holds,
 which includes a removed device: a key engine could derive every later key from
 an earlier one and meet all four. That independence is what makes a removal mean
 anything against a device that keeps its keys. It is the key engine's
-obligation. This page neither states it nor establishes it (The early removal
-invariant, What it does not claim).
+obligation. This page does not list it among the four obligations above and does
+not establish it (The early removal invariant, What it does not claim).
 
 ### Obligations at the product boundary
 
@@ -1211,18 +1252,20 @@ following.
   in accepted state). So two member devices of one epoch cannot hold one key
   under two spellings. A later epoch can still admit a removed key again under
   another binding, and that is another member device (Open decision D-13).
-- **Inventory.** That an inventory statement is current or complete, or that
-  its issuer is honest. A compromised issuer can list a device for an account.
-  It cannot admit that device: only an epoch written by an authorised writer
-  does. Under Open decision D-9 (adopted B) an admin can write an admission only
-  for a member principal or for a new principal, which enters as a member, so an
-  admin and a compromised issuer together can add a member device and cannot add
-  an authority device; an owner writes the epoch that gives a principal
-  authority. Currency is not checked either. A revocation in an account's
-  inventory does not remove a device from a group, and a service that carries
-  evidence (ADV-01, ADV-04) can serve a statement older than a revocation. A
-  caller whose freshness rule (Open decision D-6) accepts it lets a writer admit
-  a device that the account has since revoked. That rule is the caller's.
+- **Inventory.** That an inventory statement is current or complete, or that its
+  issuer is honest. A compromised issuer can list a device for an account. It
+  cannot admit that device: only an epoch written by an authorised writer does.
+  Under Open decision D-9 (adopted B) an admin can write an admission only for a
+  member principal or for a new principal, which enters as a member, so an admin
+  and a compromised issuer together can add a member device that has no
+  authority in the epoch that admits it. An owner writes the epoch that gives a
+  principal authority, and that epoch gives it to every device already under the
+  principal, including one added earlier (`apply`, step 6). Currency is not
+  checked either. A revocation in an account's inventory does not remove a
+  device from a group, and a service that carries evidence (ADV-01, ADV-04) can
+  serve a statement older than a revocation. A caller whose freshness rule (Open
+  decision D-6) accepts it lets a writer admit a device that the account has
+  since revoked. That rule is the caller's.
 - **Chain of custody for a replacement.** That a binding's
   `replacement_predecessor` names any binding. This page gives it no meaning and
   no check above reads it. The inventory section does not let a verifier refuse
@@ -1293,9 +1336,10 @@ including none. Then, in the verifier's state after that:
   distribution or retry addressed to `r`, from stale pending work or otherwise,
   once it has durably committed `C` (Obligations at the product boundary, 2).
 
-A `conflict` adds no path around these three. A frozen verifier accepts nothing,
-and the sibling that froze it is never accepted, so its device set never enters
-the verifier's state.
+A `conflict` does not put the sibling's devices into the verifier's state: the
+sibling that froze it is never accepted. It does not bring a removal about
+either. A verifier that is frozen before it accepts `C` stays on a head that
+still lists `r`, and these three statements are not made of it (assumption 3).
 
 RM-1 and RM-2 are properties of this page's checks together with the key
 engine's obligations. Much of RM-2's first clause follows from those
@@ -1341,7 +1385,8 @@ scope).
 
 8. Nothing above is an assumption about how key material is derived. Whether a
    removed device can compute the material of a later epoch from what it held
-   is not stated on this page and is not covered by RM-1 to RM-3.
+   is not among the obligations stated on this page and is not covered by RM-1
+   to RM-3.
 
 The inventory issuer is not an assumption of RM-1 or RM-2 once `C` is accepted:
 removal needs no evidence. The issuer matters to admission, which decides who is
@@ -1386,16 +1431,21 @@ material to any peer that has not yet accepted `C`. A peer that has accepted
 The page's text uses a stated default for each only so that it can be read and
 checked as one piece. A default is not a decision that anyone has reviewed.
 Two dates appear in the marks below. On 2026-09-29 the maintainer said "go" to a
-recommended plan that named D-3, D-7, D-9, D-12 (then option E) and D-13; the
-mark "Adopted (go of 2026-09-29)" means the recommended default of that plan.
-On 2026-09-30 the maintainer gave a general instruction to go with the
-recommendations; the mark "Adopted (instruction of 2026-09-30)" means a
-recommended default written to the draft on it, which is D-10, D-11 and, in
-place of E, D-12. In neither case has the maintainer otherwise reviewed the
-page. D-7 is adopted for the draft and is to be settled again with measurements
-before the encoding is frozen. D-1, D-2, D-4, D-5, D-6 and D-8 keep their stated
-defaults. Adopting a default fixes the choice the text is written to, and it
-does not ratify the text.
+recommended plan that named D-3, D-7, D-9, D-12 (then option E) and D-13; a mark
+"Adopted: X (go of 2026-09-29)" means the recommended default of that plan. On
+2026-09-30 the maintainer gave a general instruction to go with the
+recommendations; a mark "Adopted: X (instruction of 2026-09-30)" means a
+recommended default written to the draft on that instruction. The plan and the
+instructions are not recorded in this repository. Six decisions carry a mark:
+D-3, D-7, D-9 and D-13 (go of 2026-09-29), and D-10 and D-11 (instruction of
+2026-09-30). D-12 carries no mark: its default, D, is a recommended default
+under the instruction of 2026-09-30 that replaces option E, which the plan of
+2026-09-29 adopted. In none of these cases has the maintainer otherwise reviewed
+the page. D-7 is adopted for the draft and is to be settled again with
+measurements before the encoding is frozen. D-1, D-2, D-4, D-5, D-6 and D-8 keep
+a default that the drafter chose and that no one has reviewed. Adopting a
+default fixes the choice the text is written to, and it does not ratify the
+text.
 
 **D-1: how genesis is anchored, and what `group_id` is.** Options: (A) the
 caller pins the genesis commitment, and `group_id` is 32 random bytes the
@@ -1421,10 +1471,15 @@ so the field is a fixed constant; (B) an opaque 32-byte value a product defines,
 which the verifier binds and changes only by `set_policy`; (C) the field is
 absent until a second policy version exists. Default: B.
 
-**D-5: the bound on operations in one epoch.** Options: (A) `MAX_GROUP_DEVICES`,
-so no separate limit; (B) a small limit chosen to bound the cost of one epoch
-and of the key redistribution it causes; (C) a limit set from measurement.
-Default: A.
+**D-5: the bound on operations in one epoch.** Options: (A) a limit equal to
+`MAX_GROUP_DEVICES`, which is the value `MAX_EPOCH_OPERATIONS` has in this
+draft, 4096; (B) a small limit chosen to bound the cost of one epoch and of the
+key redistribution it causes; (C) a limit set from measurement. Default: A.
+Under A an epoch carries at most 4096 operations. A batch can remove up to 4096
+devices and admit up to 4096, so replacing every device of a full group is 8192
+operations and cannot be written as one epoch, and neither can a replacement of
+more than 2048 devices of a full group. That is a cost of option A, the
+default.
 
 **D-6: freshness of inventory evidence.** Options: (A) the caller's freshness
 rule applies when a verifier first evaluates a candidate live, and a caller
@@ -1448,17 +1503,16 @@ be written until then.
 **D-8: who is in genesis.** Options: (A) only the owner principal, with its
 devices; (B) any initial set. Default: A.
 
-**D-9: an admin's power over owner and admin principals.** Options: (A) as the
-authority baseline reads literally: an admin may add a device to any principal,
-and remove a device of an owner or admin other than the owner's last device and
-other than a whole admin principal; (B) an admin acts on member principals
-only, and an owner alone adds or removes devices of an owner or admin. Under A
-an admin can admit a device under the owner's principal, which then carries
-owner-level authority in the next epoch, with only an inventory statement
-standing in the way. Under B an admin cannot manage its own devices, or another
-admin's, and the owner must write every such change. Default: B. Adopted: B (go
-of 2026-09-29), as a departure from the literal reading of the authority
-baseline, in the safer direction.
+**D-9: an admin's power over owner and admin principals.** Options: (A) an admin
+may add a device to any principal, and remove a device of an owner or admin
+other than the owner's last device and other than a whole admin principal; (B)
+an admin acts on member principals only, and on a principal that is new, which
+enters as a member, and an owner alone adds or removes devices of an owner or
+admin. Under A an admin can admit a device under the owner's principal, which
+then carries owner-level authority in the next epoch, with only an inventory
+statement standing in the way. Under B an admin cannot manage its own devices,
+or another admin's, and the owner must write every such change. Default: B.
+Adopted: B (go of 2026-09-29). B is narrower than A.
 
 **D-10: aliasing of identity keys among member devices.** Options: (A) two
 member devices may not share the same 32 identity-key bytes; (B) they may not
@@ -1511,33 +1565,28 @@ product's.
 conflict, and a conflict stops acceptance, proposing and distribution until an
 unspecified recovery; (B) as A, but a conflict stops only proposing and
 distributing, and the verifier keeps accepting successors of the head; (C)
-choose deterministically between the siblings, for example by commitment
-order, which requires a verifier to undo an epoch it has accepted; (D) as A,
-except that a sibling whose writer is not in the head's authority set is
-refused and is not a conflict, as check 5 and Conflict write it; (E) as D, and
-a successor of the head signed by a device of the head's owner principal
-clears the conflict in the step that accepts it. Under A a writer the head
-removed can still publish a valid sibling and freeze every verifier that
-accepted the removal; under D it cannot, and the fork it makes is visible only
-as a refusal. Under A to D a still-authorised writer can freeze a verifier by a
-sibling, by replay of an earlier sibling or by an honest race, and A to D give
-no way out. Default: D. Option D is this page's recommended default. The
-maintainer gave a general instruction on 2026-09-30 to go with the
-recommendations, and has not otherwise reviewed the page. Option E was adopted
-earlier (go of 2026-09-29) and is replaced by D in the draft. The reason is that
-E's clear does not recover the group. It moves the cleared verifier onto
-a branch that diverges from every peer that kept going: the peers' next
+choose deterministically between the siblings, for example by commitment order,
+which requires a verifier to undo an epoch it has accepted; (D) as A, except
+that a sibling whose writer is not in the head's authority set is refused and is
+not a conflict, as check 5 and Conflict write it; (E) as D, and a successor of
+the head signed by a device of the head's owner principal clears the conflict in
+the step that accepts it. Under A a writer the head removed can still publish a
+valid sibling and freeze every verifier that accepted the removal; under D it
+cannot, and the fork it makes is visible only as a refusal. Under A to D a
+still-authorised writer can freeze a verifier by a sibling, by replay of an
+earlier sibling or by an honest race, and A to D give no way out. Default: D.
+Option D is a recommended default that this draft is written to under the
+maintainer's general instruction of 2026-09-30. It is not an adopted option, and
+the maintainer has not otherwise reviewed the page. Option E was adopted (go of
+2026-09-29), and this draft does not implement it: D replaces E. The reason is
+that E's clear does not recover the group. It moves the cleared verifier onto a
+branch that diverges from every peer that kept going: the peers' next
 admin-signed epoch is blocked at the cleared verifier, or is a sibling of the
 clearing epoch and freezes it again, and a verifier on the other branch of a
-fork has no clear at all. E could not honestly promise recovery, and it added a
-rule that this page would have to defend. With it go the clearing successor,
-the record of the sibling's commitment and writer that served it, and the
-owner's device as the one party that check 3 admitted while the marker was set.
-The record is dropped and not kept: it was there only so that an owner could
-name the device to remove in a clearing epoch, no check read it, and it could
-name a writer that acted in good faith. D states recovery from a frozen
-verifier as not specified (Conflict; Recovery, under What is not checked).
-Adopting a default fixes the choice and does not ratify the text.
+fork has no clear at all. Under D, recovery from a frozen verifier is not
+specified (Conflict; Recovery, under What is not checked). This page records no
+reason for choosing D over B. Adopting a default fixes the choice and does not
+ratify the text.
 
 **D-13: the same key admitted again in the batch that removes it.** Options: (A)
 an `admit_device` naming an identity public key that a `remove_device` in the
@@ -1550,15 +1599,15 @@ its key and changes its `device_id` takes two epochs. Default: A. Adopted: A (go
 
 ## Related published work
 
-RFC 9420, The Messaging Layer Security (MLS) Protocol (IETF, July 2023), is a
-published group key agreement protocol. It also organizes group state into
-numbered epochs and handles changes of membership, so it covers ground
-neighbouring this page's.
+RFC 9420, The Messaging Layer Security (MLS) Protocol (IETF, July 2023), is
+named here because it is published work on group messaging. This page states
+nothing about what it covers or how it relates to this page.
 
-This page has not been compared with RFC 9420, and no text of it was used to
-write this page. A comparison is required before the key engine is fixed. Until
-a person has made it, from the RFC itself, this page makes no statement about
-how its epochs relate to MLS.
+This page has not been compared with RFC 9420, and it quotes no text of it. This
+repository does not record what the drafter had read of it before writing, so
+independence from it is not shown. A comparison is required before the key
+engine is fixed. Until a person has made it, from the RFC itself, this page
+makes no statement about how its epochs relate to MLS.
 
 The Signal Private Group System (Chase, Perrin and Zaverucha, IACR ePrint
 2019/1416) is listed in group-messaging.md, Published material, which says what
@@ -1567,21 +1616,31 @@ it covers. This page has not been compared with it either.
 ## Sources
 
 - identities-and-devices.md: the `DeviceBinding` encoding, the inventory
-  statement, `binding_commitment`, XEdDSA signing and verification,
-  "Accepting a signed statement", and "Identity keys".
+  statement, XEdDSA signing and verification, "Accepting a signed statement",
+  and "Identity keys".
 - group-messaging.md: the two group commitment labels this page's labels stay
   prefix-free against; and "Published material", which Related published work
   points to for the Private Group System.
+- RFC 3629, UTF-8 (IETF, 2003): the definition of UTF-8 that the Account term
+  uses. Tier `fact` (CONSTANTS.md: standards).
 - RFC 9420 and IACR ePrint 2019/1416: named under Related published work only.
   This page cites no rule, field or check as taken from either.
 - session-establishment.md: the X25519 agreement class, for option B of Open
   decision D-10, which is not adopted.
-- threat-model/: ADV-01, ADV-04, ADV-05, ADV-06; ASM-03, ASM-07, ASM-11,
-  ASM-12, ASM-14; EX-07, EX-09, EX-11.
-- ADR-0006 and ADR-0008: the specification-first and review rules this draft
-  is subject to.
+- error-handling.md: what is left to an implementation (Accepting a successor,
+  Results and The checks).
+- CONSTANTS.md: the provenance tiers named under Constants.
+- README.md, "Normative status": the standing named in the status paragraph.
+- threat-model/: ADV-01, ADV-02, ADV-04, ADV-05, ADV-06; ASM-03, ASM-07, ASM-11,
+  ASM-12, ASM-14; EX-04, EX-07, EX-09, EX-11.
+- ADR-0003, ADR-0006 and ADR-0008: the research boundary, the
+  specification-first rule and the review rule this draft is subject to.
 
-This page cites no source for any field, label, bound, rule or check other than
-the sections of this specification listed above. Whether any published document
-or implementation also supplies one has not been checked, and that check is
-needed before the page is ratified.
+Apart from the sections of this specification and the standard listed above,
+this page cites no source for any field, label, bound, rule or check. Whether
+any published document or implementation also supplies one has not been
+checked, and that check is needed before the page is ratified. ADR-0003 says
+that its policy binds every contributor and every tool used to make a change,
+and this repository records no statement of what the drafter had read or been
+given, so the page does not show that it is independent of RFC 9420 or of any
+implementation.
