@@ -852,15 +852,18 @@ pinned under `#guard_msgs` in `ImportInv.lean`, and no statement in that file is
 compiler-trusted. Three of the
 refinement's premises come off the same invariant -- the two above, which are
 also `SpqrT3.receive_refines`'s `hroom` and `hskiproom`, and `hone` -- but
-five do not: `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter` are not
-consequences of `invariant()`, and a state with `epoch = u64::MAX - 1` and a
-chain at that epoch passes the invariant and fails both `hepoch` and `hcb`.
-`hepoch` is on that list because `advance` now reserves `u64::MAX` and refuses
+five do not come off the invariant alone: `hepoch`, `hcb`, `hsb`, `hnewb` and
+`hcounter` are not consequences of `invariant()`, and a state with
+`epoch = u64::MAX - 1` and a chain at that epoch passes the invariant and fails
+both `hepoch` and `hcb`. `hcb` and `hsb` do follow from the invariant together
+with `hepoch` (`spqr_receive_premises` in `Translation/DecodedStateDischarge.lean`).
+`hepoch` is on the list because `advance` now reserves `u64::MAX` and refuses
 the step that would reach it, so the refinement asks for a step of headroom
 (`epoch + 1 < u64::MAX`) while the invariant reaches only `epoch < u64::MAX`
 (`Spqr.inv_gives_epoch_room`) and admits `epoch = u64::MAX - 1`, which is a
-fully usable epoch the operations produce. Those five stay with the caller,
-and CLAIMS.md says so where the theorems are listed.
+fully usable epoch the operations produce. So three of the five stay with the
+caller, `hepoch`, `hnewb` and `hcounter`, and CLAIMS.md says so where the
+theorems are listed.
 
 **`tacenta-spqr` also has T3**: `send`/`receive` compute what
 `Model.SparseRatchet.send`/`receive` say -- the key returned, the output
@@ -1773,28 +1776,63 @@ It does not check what they say, and it scans nothing else in that file. An
 earlier version tried to excuse the refutations by name and binder instead, and
 review found five ways to smuggle an ordinary precondition past that.
 
-What is **not** established is that the tree's numeric preconditions are
-satisfiable in general. There are some 140 bound hypotheses on some 95
-theorems, in about 54 shapes, by two reviewers' rough and slightly different
-counts. An earlier version of that file claimed to witness them all through
-"six shapes"; a cold read showed the six covered under half of the theorems,
-and that the witnesses were connected to none of them, since nothing compared
-a witness with any theorem's hypothesis. Those witnesses were removed rather
-than defended.
-The store bounds the classical ratchet's `receive` carries are satisfied by
-every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
-`Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
-(`Spqr.inv_gives_chain_room`, `Spqr.inv_gives_skip_room`), which is far
-stronger than a witness. The remaining shapes, among them the `epochsKept`
-family on the sparse ratchet's refinement and the `32 *` bounds on the erasure
-coder, are unexamined.
+An earlier version of that file claimed to witness the numeric preconditions
+through "six shapes"; a cold read showed the six covered under half of the
+theorems, and that the witnesses were connected to none of them, since nothing
+compared a witness with any theorem's hypothesis. Those witnesses were removed
+rather than defended. The tree now holds replacement evidence, and it is
+narrower than the claim that was removed:
+
+- For the receive and send theorems of the classical ratchet, the sparse
+  ratchet, the Triple Ratchet and the Braid (44 theorems, on the standalone
+  translations, the three-leaf unit and the session unit),
+  `Translation/NumericWitnessLeaf.lean`, `NumericWitnessTriple.lean` and
+  `NumericWitnessSession.lean` prove that the theorem's numeric premises, its
+  numeric predicates about a state and its relations between a translated and a
+  model value hold together at a concrete state, at both platform widths.
+  `scripts/check-precondition-witnesses.sh` reads each theorem's type from the
+  built environment and refuses the module if its statement is not the
+  theorem's own premises, if a premise of the theorem is left unclassified, or if
+  the witness proves anything else. A premise added to one of these theorems is
+  therefore refused until someone classifies it. That is the join the removed
+  witnesses lacked, for these theorems only.
+- `Translation/NumericBoundary.lean` proves the bounds against the code's caps
+  at both widths (the 32-bit erasure room bound is exactly
+  `needed ≤ 2^27 - 1`) and that each ceiling that stays a caller's premise excludes
+  exactly one honest value. `NumericShapeWitness.lean` shows each of the 61 shapes
+  into which the numeric premises fall satisfiable at both widths; those theorems
+  are about shapes and are joined to no theorem.
+- The store bounds the classical ratchet's `receive` carries are satisfied by
+  every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
+  `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
+  (`Spqr.inv_gives_chain_room`, `Spqr.inv_gives_skip_room`), which is far
+  stronger than a witness. `Translation/DecodedStateDischarge.lean` adds that the
+  `epochsKept` family on the sparse ratchet's refinement (`hcb`, `hsb`) follows
+  from the invariant and `hepoch`, and the session unit's copy adds the Triple's
+  composed refinements.
+
+What is **not** established. The helper theorems of the T1 and T3 files and the
+dispatch layer have no witness in the tree; their numeric hypotheses are
+discharged inside the proofs that apply them, which is read and not checked. The
+Braid's relations between a translated and a model Braid, the arms of
+`ct1_bounded` and `decoders_bounded` that hold a KEM value, and the premise that
+a byte string decodes to a given state have no witness (they need values of opaque
+types), and the lifecycle headroom records have none either. Nothing was built or
+run at 32 bits: `Usize.max` is an opaque constant of which only its two values are
+known, so each proof covers both widths by being about the constant. The values
+of the constants in the translations are evaluated by `NumericBoundary*.lean` and
+agree with the model's, and that they equal the Rust source's rests on the
+translation attestation. A one-off script run over the built environment found no
+hypothesis of any theorem false or unsatisfiable at either width; that script is
+not in this tree, so it is not evidence the tree can repeat.
 
 **Satisfiable is not satisfied by every state.** A witness says a hypothesis is
 not vacuous. It does not say every reachable state meets it. The clock headroom
 on the refinement of `receive` is satisfiable and excludes the parked clock, an
 ordinary state a session reaches, and `PreconditionShapes.lean` states both
-facts beside each other. The epoch step on the sparse ratchet's refinement is
-another instance.
+facts beside each other (`NumericBoundaryLeaf.clock_ceiling_summary` adds that the
+parked clock is the only value the decoder's invariant allows that fails it). The
+epoch step on the sparse ratchet's refinement is another instance.
 
 The unit island has witnesses of the first kind and none of the second.
 `UnitSatisfiabilityTriple.lean` witnesses every boundary hypothesis the Triple's
@@ -2661,6 +2699,16 @@ ones are listed here so nobody mistakes "not yet" for "not known":
   `Braid::invariant` rejects it, and the receive that completes the decoder returns a `ct1` of 4097
   bytes. It passed on a scratch tree. It is not committed because an edit under `tacenta-core/braid`
   changes the crate hash that `translation-attestation.json` records.
+- The doc comment of `tacenta_spqr::State::invariant` (`spqr/src/lib.rs`) lists
+  `hcb` and `hsb` as facts the invariant does not give and proposes reserving
+  the top `EPOCHS_KEPT` epochs to close the gap. They follow from the invariant
+  together with `hepoch` (`spqr_receive_premises` in
+  `Translation/DecodedStateDischarge.lean`), so nothing needs reserving, and the
+  text of `CLAIMS.md`, this file and `ImportInv.lean` says so. The comment is
+  not changed here: a comment-only edit inside a translated crate changes the
+  crate's hash in `manifests/translation-attestation.json`, which only a Linux
+  regeneration can refresh, so it waits for this window and is superseded by
+  those texts until then.
 
 One entry closed with this re-translation: `tacenta_spqr::State::to_bytes` and
 `tacenta_braid::Braid::to_bytes` no longer grow their buffer by pushing, and

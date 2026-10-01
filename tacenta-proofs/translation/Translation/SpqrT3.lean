@@ -2255,9 +2255,10 @@ no longer speak about.
 One consequence outside this file: `ImportInv.lean`'s `inv_gives_epoch_room`
 derives `epoch < u64::MAX` from the crate's `invariant`, which was `hepoch`
 before and is now strictly weaker than it. The invariant does not exclude
-`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hcb`,
-`hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
-discharge. -/
+`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hnewb`
+and `hcounter` as a premise the decoded-state chain does not discharge. (`hcb`
+and `hsb` follow from the invariant together with `hepoch`; in the standalone
+translation that is `DecodedStateDischarge.spqr_receive_premises`.) -/
 
 -- The trust base of the two refinements, held by the build: three `native_decide`
 -- label facts under `send_refines`, and those three, the three bound facts and

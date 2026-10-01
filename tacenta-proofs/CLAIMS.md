@@ -53,10 +53,14 @@ this section says in one place what is not proved.
   proves at both platform widths) and `hone`; the sparse ratchet's `hroom`, `hskiproom` and `hone`; the
   Braid's `ct1_bounded`. See "Proved: what a decoded state satisfies" for the
   exact statements. What is **not** closed: `T3.receive_refines`'s `hroom`,
-  `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter`,
+  `SpqrT3.receive_refines`'s `hepoch`, `hnewb` and `hcounter`,
   and `BraidT3.step_receive_refines`'s `epoch + 1 < u64::MAX` are not
   consequences of those crates' invariants and are still the caller's (the
-  bullet below says why the three counter bounds cannot be); `tacenta-triple`,
+  bullet below says why the three counter bounds cannot be). `SpqrT3.receive_refines`'s
+  `hcb` and `hsb` follow from the sparse invariant together with `hepoch`
+  (`Translation/DecodedStateDischarge.lean`, section "Proved (which numeric premises
+  of the refinement theorems a decoded state already gives)"), so the open premises
+  of that theorem are those three and not five; `tacenta-triple`,
   `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it. That layer now has a Phase 0
@@ -1362,14 +1366,17 @@ window is written with `saturating_add` exactly as the Rust writes it.
   statement in `ImportInv.lean` is compiler-trusted.
 
 **What this does not give.** `SpqrT3.receive_refines` also takes `hepoch`,
-`hcb`, `hsb`, `hnewb` and `hcounter`, and those are **not** consequences of
-the crate's `invariant`: a state with `epoch = u64::MAX - 1` and a chain at
-that epoch passes `invariant` and fails both `hepoch` and `hcb`. `hepoch` is
+`hcb`, `hsb`, `hnewb` and `hcounter`. `hcb` and `hsb` are **not** consequences
+of the crate's `invariant` alone: a state with `epoch = u64::MAX - 1` and a
+chain at that epoch passes `invariant` and fails both `hepoch` and `hcb`. They
+are consequences of the invariant together with `hepoch`
+(`spqr_receive_premises` in `Translation/DecodedStateDischarge.lean`), so what
+stays with the caller is `hepoch`, `hnewb` and `hcounter`. `hepoch` is
 on this list because the reserved ceiling moved it there -- it now asks for a
 step of headroom, `epoch + 1 < u64::MAX`, and the invariant reaches only
 `epoch < u64::MAX` (`Spqr.inv_gives_epoch_room`). There is deliberately no
-`decoded_receive_refines` for this crate; those five premises stay with the
-caller.
+`decoded_receive_refines` for this crate; `hepoch`, `hnewb` and `hcounter` stay
+with the caller.
 
 ### `tacenta-braid` -- the clause its theorems need (two in the complete Session unit)
 
@@ -2274,7 +2281,8 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 - **Further preconditions on `send_refines`/`receive_refines`:** besides `hepoch`, `hroom`, `hskiproom`, `hone` and `hcounter`, both
   carry `hcb`, `hsb` and `hnewb`: every chain epoch, every skipped-entry epoch,
   and the incoming `Output.key_epoch` must satisfy `+ epochsKept ≤ U64.max`,
-  so the retirement arithmetic cannot overflow. These propagate into the
+  so the retirement arithmetic cannot overflow. (For a decoded state `hcb` and `hsb`
+  follow from the invariant and `hepoch`; `hnewb` does not.) These propagate into the
   Triple Ratchet's refinement on the unit, through its sparse bundle. `hepoch` and `hcounter` are the model's
   requirements, not the code's: `SpqrT1.lean`'s `send_no_panic`/
   `receive_no_panic` no longer carry either, every epoch and counter
