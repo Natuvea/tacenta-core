@@ -159,12 +159,9 @@ theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
             subst h'
             simp only [setChains, List.length_append, List.length_map,
               deriveInto_length]
-            -- Written with `==` rather than `decide (· = ·)`: the two are the
-            -- same proposition and not the same term, and the goal uses this one.
-            have hfil := List.length_filter_le
-              (fun x : Nat × Nat × Key =>
-                !(x.1 == e && decide (ch.n < x.2.1) && decide (x.2.1 ≤ upto)))
-              st.skipped
+            -- The total check counts the survivors, so the bound follows from
+            -- that check directly: what the skip leaves is the survivors plus
+            -- the `upto - ch.n` keys it stores.
             rename_i hcap _
             simp only [Nat.not_lt] at hcap
             omega
@@ -236,7 +233,7 @@ theorem skipMessageKeys_preserves_map (st : State) (e upto : Nat) (st' : State)
               exact hab hn
             · -- what survived was outside the replaced range; the batch is inside
               intro a ha b hb
-              simp only [List.mem_filter] at ha
+              simp only [skipSurvivors, List.mem_filter] at ha
               simp only [List.mem_map] at hb
               obtain ⟨hamem, hakeep⟩ := ha
               obtain ⟨y, hy, rfl⟩ := hb
