@@ -278,8 +278,10 @@ decoder invariant `Inv` and the premises its theorems take. A discharge theorem 
 meets would be true and empty, and the premise `Inv` is one this package adds. Each theorem below is a
 discharge theorem applied to the witness state, with its type read off that application (`type_of%`), so
 that it holds exactly when the theorem's premises (the state relation, the epoch step and the invariant) are
-met together at that state, and it breaks if a premise is added to the discharge theorem or made
-unsatisfiable. -/
+met together at that state. It stops building if a premise it applies is changed so that the witness
+state no longer meets it. A premise added after the last argument of a discharge theorem leaves it building,
+at a function type, so the build does not hold that case; `scripts/check-precondition-witnesses.sh` refuses an
+application whose type is a function type. -/
 
 theorem spqrS_epoch_room : spqrS.epoch.val + 1 < U64.max := by simp; scalar_tac
 theorem braidS_inv : ImportInv.Braid.Inv braidS := ⟨by simp [BraidT1.State.ct1_bounded]⟩
