@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Exercise the standalone evidence-pack verifier: its containment and digest
-# checks, and each check it makes on the documents inside the pack.
+# Exercise the evidence-pack tooling: the standalone verifier (its containment and
+# digest checks, and each check it makes on the documents inside the pack), the
+# check of a pack against git, the rebuild of a candidate from public inputs
+# (`reproduce-evidence.py`) and the archive publisher, which runs here against a
+# stand-in for `aws` that cannot reach the real archive.
 #
 # Packs are made here with the digests worked out from whatever the case put in
 # them, so a pack fails for the change the case made and not because a digest no

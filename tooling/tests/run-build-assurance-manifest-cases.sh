@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Exercise the assurance-manifest receipt refusal paths against the production builder.
+# Exercise the assurance-manifest builder and its `--validate`: the receipt refusal
+# paths, each field of a valid manifest changed once, and the clean-tree rule in
+# a small candidate checkout made here.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
