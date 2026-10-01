@@ -2967,6 +2967,162 @@ bounded evidence that selected Rust traces fit this boundary.
   committed accepted observation has no abstract operation effect. Concrete
   P6 traces separately check the public replay refusal they return.
 
+## Proved (the numeric premises of the central theorems hold together at a concrete state)
+
+Location: `Translation/NumericWitnessLeaf.lean`, `Translation/NumericWitnessTriple.lean`, `Translation/NumericWitnessSession.lean`.
+
+A theorem whose premises no state meets is true and says nothing. For 44 theorems (13 in the standalone
+translations, 12 on the three-leaf unit, 19 on the eight-leaf session unit), the receive and send
+panic-freedom and refinement theorems of the classical ratchet, the sparse ratchet, the Triple Ratchet and the
+ML-KEM Braid and the decoded-state receive refinement, each module proves that one concrete state meets, at once, the theorem's
+numeric premises (bounds on lengths, counters and epochs written against `usize::MAX`, `u32::MAX` and
+`u64::MAX`), its numeric predicates about a state (`ct1_bounded`, `decoders_bounded`, `EncodersLive`) and its
+relations between a translated value and a model value (`StateRefines`, `StateR`, `HeaderR`). Every proof is
+about the constant `Usize.max`, of which Lean knows only that it is `2^32 - 1` or `2^64 - 1`, so each holds at
+both platform widths and none appeals to a width.
+
+The statement of each witness is not written twice. `scripts/check-precondition-witnesses.sh` reads the
+theorem's type from the built environment, rebuilds the conjunction of the premises its table puts inside the
+witness, requires the module's `Premises.T` to equal it and `sat_T` to prove exactly `Premises.T`, and requires
+every other premise of `T` to be classified as `boundary` or `unwitnessed`, so a premise added to a theorem
+later is refused until it is classified. It runs inside `no-sorry.sh` with 28 cases, 7 that must be accepted and 21 that apply one change and must be refused (a bound weakened
+in a statement, a witness deleted or replaced by `True`, a statement or a table row removed, a premise left
+unclassified, a numeric premise listed as outside, a premise added to a theorem). The check is a script and
+not a Lean theorem because `check-lean-constructs.sh` refuses elaboration-time code in this package; it
+trusts the script's reading of the environment, and classifies a hypothesis as numeric by a comparison on a
+natural number or an integer in its propositional skeleton or by the name of a numeric state predicate, so a
+numeric bound hidden behind a definition of another name is classified by the table's author (the table has
+`ChainCounterBounded` of the sparse refinement's continuation by hand).
+
+**What this is not.** A witness says a premise is not vacuous. It does not say a reachable state meets it:
+among the values the decoder's invariant allows, `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and
+`epoch + 1 < u64::MAX` only at `u64::MAX - 1` (`NumericBoundary.lean`), and each of those values is an ordinary state. The witnesses exclude two groups of
+premises, named per theorem in the script's table and in each module's docstring: the `boundary` premises, which
+are statements about opaque operations or translated functions (`HmacAgrees`, `VecRetainTotal`, `KemAgreesFor`, ...,
+recorded in `LIMITATIONS.md` and, in part, given a model in `Satisfiability.lean`), and the `unwitnessed` ones, which
+are the Braid's relations between a translated and a model Braid (`StateRefines`, `MsgRefines`, `HonestChunk`), which
+need a value of an opaque type (the KEM), and `hdec` of `decoded_receive_refines`, that a byte string decodes to the
+state. On the standalone leaves the Braid witnesses are at `KeysUnsampled`, where `ct1_bounded` holds by its `True` arm; the
+arms of `ct1_bounded` that bound a stored ciphertext hold values of opaque types and are **not shown**, and that stays open.
+On the session unit `decoders_bounded` is witnessed in its real arm, a decoder at the cap its invariant admits
+(`needed = 65536`); the arms that hold a KEM value stay open there too. The states are small (one chain and one skipped
+key, one stored skipped key); the bounds up to their caps are in the next sections.
+
+- `sat_T1_receive_no_panic`, `sat_T3_receive_refines`, `sat_ImportInv_Ratchet_decoded_receive_refines`: the classical ratchet's
+  receive (the panic-freedom theorem, the refinement, and the decoded-state refinement), standalone translations.
+  The decoded-state theorem's `hdec` is outside the witness.
+- `sat_SpqrT1_receive_no_panic`, `sat_SpqrT1_send_no_panic`, `sat_SpqrT3_receive_refines`, `sat_SpqrT3_send_refines`:
+  the sparse ratchet's receive and send, standalone. The witness state has one chain and one skipped key, and the
+  refinements' `hepoch`, `hroom`, `hcb`, `hsb`, `hnewb`, `hskiproom`, `hone` and `hcounter` hold there together.
+- `sat_BraidT1_Braid_receive_no_panic`, `sat_BraidT1_Braid_step_receive_no_panic`, `sat_BraidT3_Braid_receive_refines`,
+  `sat_BraidT3_step_receive_refines`, `sat_BraidT3_Braid_send_refines`, `sat_BraidT3_step_send_refines`: the Braid's
+  `ct1_bounded`, `epoch + 1 < u64::MAX` and `EncodersLive`, standalone, at the states described above. The relations between
+  a translated and a model Braid are not witnessed.
+- `spqrS_inv`, `ratS_inv`: the two ratchet states the standalone witnesses use satisfy the decoder's invariant
+  (`ImportInv.Spqr.Inv`, `ImportInv.Ratchet.Inv`), the predicate every state `from_bytes` returns satisfies. One direction only.
+- `sat_UnitT1_receive_no_panic`, `sat_UnitT3_receive_refines`, `sat_UnitSpqrT1_receive_no_panic`, `sat_UnitSpqrT1_send_no_panic`,
+  `sat_UnitSpqrT3_receive_refines`, `sat_UnitSpqrT3_send_refines`, `sat_UnitTripleT1_State_receive_no_panic`,
+  `sat_UnitTripleT1_State_send_no_panic`, `sat_UnitTripleT3_receive_refines`, `sat_UnitTripleT3_receive_refines_discharged`,
+  `sat_UnitTripleT3_send_refines`, `sat_UnitTripleT3_send_refines_discharged`: the same for the three-leaf unit, including the
+  Triple's four size premises (`hone`, `hs`, `hroom`, `hskiproom` and their model-state forms) with the epoch and counter premises.
+  The unit has no decoder-invariant module, so nothing is shown about a decoder there.
+- `sat_SessionUnitT1_receive_no_panic`, `sat_SessionUnitT3_receive_refines`,
+  `sat_SessionUnitRatchetImportInv_Ratchet_decoded_receive_refines`, `sat_SessionUnitSpqrT1_receive_no_panic`,
+  `sat_SessionUnitSpqrT1_send_no_panic`, `sat_SessionUnitSpqrT3_receive_refines`, `sat_SessionUnitSpqrT3_send_refines`,
+  `sat_SessionUnitTripleT1_State_receive_no_panic`, `sat_SessionUnitTripleT1_State_send_no_panic`,
+  `sat_SessionUnitTripleT3_receive_refines`, `sat_SessionUnitTripleT3_receive_refines_discharged`,
+  `sat_SessionUnitTripleT3_send_refines`, `sat_SessionUnitTripleT3_send_refines_discharged`,
+  `sat_SessionUnitBraidT1_Braid_receive_no_panic`, `sat_SessionUnitBraidT1_Braid_step_receive_no_panic`,
+  `sat_SessionUnitBraidT3_Braid_receive_refines`, `sat_SessionUnitBraidT3_step_receive_refines`,
+  `sat_SessionUnitBraidT3_Braid_send_refines`, `sat_SessionUnitBraidT3_step_send_refines`: the same for the eight-leaf session
+  unit, with `decoders_bounded` for the Braid. The lifecycle theorems (`encrypt_no_panic` and the others) are not here: their
+  headroom records hold values of opaque boundary types.
+- `session_unit_spqrS_inv`, `session_unit_ratS_inv`: the session unit's two ratchet witness states satisfy the decoder invariant.
+
+## Proved (which numeric premises of the refinement theorems a decoded state already gives)
+
+Location: `Translation/DecodedStateDischarge.lean`, `Translation/SessionUnitDecodedStateDischarge.lean`.
+
+`ImportInv.lean` proves that a state `State::from_bytes` returns satisfies the crate's `invariant`, and derives some of the
+numeric premises of the refinement theorems from it. These two modules finish that accounting, for the standalone
+translations and for the session unit. For each theorem `T` named below, a discharge theorem concludes exactly the
+conjunction of the premises of `T` that it names, written in `T`'s own variables, from the decoder invariant and the
+premises it takes as arguments. `scripts/check-precondition-witnesses.sh` reads `T`'s type from the built environment and
+requires that, requires the theorem to take each premise the script's table calls given and no other premise of `T`, and
+requires the table to classify every premise of `T`, so a premise added to `T` or changed in it is refused until the table
+and the theorem are changed to match. Every result is conditional on the invariant and the premises it takes; none says a
+decoded state refines the model.
+
+The result that was not in this ledger is for the sparse ratchet. `SpqrT3.receive_refines` takes `hroom`, `hskiproom` and `hone`,
+which `ImportInv.lean` derives from the invariant, and five premises that were recorded as open: `hepoch`, `hcb`, `hsb`,
+`hnewb` and `hcounter`. `hcb` and `hsb` (every chain epoch, and every skipped key's epoch, plus `EPOCHS_KEPT` is at most
+`u64::MAX`) follow from the invariant together with `hepoch` (`epoch + 1 < u64::MAX`), so the premises that stay with the
+caller are three: `hepoch`, `hnewb` (the epochs of the keys an operation adds) and `hcounter` (every chain's counter is below
+`u64::MAX`). The invariant alone still does not give `hcb`: the state at `epoch = u64::MAX - 1` with a chain at that epoch
+passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds for `send_refines`, `advance_refines`,
+`maybe_advance_refines` (`hroom`, `hcb`, `hsb` follow from the invariant and `hepoch`) and `clear_old_epochs_refines`
+(`hcb`, `hsb`). `hepoch` is not discharged: it excludes one honest value, and that value is an ordinary state.
+
+- `spqr_epoch_family`, `session_unit_spqr_epoch_family`: given the sparse ratchet's decoder invariant and `epoch + 1 < u64::MAX`,
+  every chain epoch and every skipped key's epoch plus `EPOCHS_KEPT` is at most `u64::MAX`.
+- `spqr_receive_premises`, `session_unit_spqr_receive_premises`: `hroom`, `hcb`, `hsb`, `hskiproom` and `hone` of
+  `SpqrT3.receive_refines` follow from the invariant, `hrel` and `hepoch`. Caller: `hepoch`, `hnewb`, `hcounter`.
+- `spqr_send_premises`, `session_unit_spqr_send_premises`, `spqr_advance_premises`, `session_unit_spqr_advance_premises`,
+  `spqr_maybe_advance_premises`, `session_unit_spqr_maybe_advance_premises`: `hroom`, `hcb` and `hsb` of `send_refines`,
+  `advance_refines` and `maybe_advance_refines` follow from the invariant and `hepoch`. Caller: `hrel`, `hepoch`, `hnewb`
+  and, for `send_refines`, `hcounter`.
+- `spqr_clear_old_epochs_premises`, `session_unit_spqr_clear_old_epochs_premises`: `hcb` and `hsb` of
+  `clear_old_epochs_refines` follow from the invariant and `epoch + 1 < u64::MAX`.
+- `ratchet_receive_premises`, `session_unit_ratchet_receive_premises`: `hone` and `hs` of the classical `receive_refines` follow from the
+  invariant and `hR`. `hroom` (`events + 1 < u32::MAX`) does not: the parked clock passes `invariant`.
+- `braid_receive_premises`, `braid_step_receive_premises`, `session_unit_braid_receive_premises`,
+  `session_unit_braid_step_receive_premises`: `ct1_bounded` (and on the session unit `decoders_bounded`) follows from the Braid's
+  `Inv`; the `epoch + 1 < u64::MAX` premise does not, and is not claimed. The Braid's `Inv` is the partial mirror
+  `ImportInv.lean` describes.
+- `triple_receive_premises`, `triple_send_premises`: on the session unit, the Triple's composed refinements
+  (`receive_refines_discharged`, `send_refines_discharged`) take the premises of both inner ratchets stated about the model state. Given the two
+  inner decoder invariants, `hrel`, `hevents` and `hepoch`, the receive theorem's `hone`, `hs`, `hroom`, `hcb`, `hsb`, `hskiproom` and `hone2`
+  follow, and the send theorem's `hroom`, `hcb` and `hsb` follow from the sparse invariant, `hrel` and `hepoch`. What stays with the caller
+  is `hevents`, `hepoch`, `hnewb` and `hcounter` (receive) and `hepoch`, `hnewb` and `hcounter` (send), and `hheader`, which relates
+  the header to its model header. Proved for the session unit's copy only: the three-leaf unit has no decoder-invariant module.
+- `decrypt_headroom_of_invariant`, `decrypt_ratchet_no_panic_of_invariant`, `decrypt_no_panic_of_invariant`: a session that passes
+  `Session::invariant` meets `DecryptRatchetHeadroom` once `identity_ad.length + 106 ≤ usize::MAX` holds, and the two lifecycle
+  panic-freedom theorems apply with it. `invariant_gives_preconditions` derived the record without the associated-data bound and no
+  theorem used it; this is the connection. The theorems are conditional on `DecryptRatchetContracts` exactly as the ones they apply are.
+
+## Proved (the numeric bounds against the caps they are compared with, at both platform widths)
+
+Location: `Translation/NumericBoundary.lean`, `Translation/NumericBoundaryLeaf.lean`, `Translation/NumericBoundaryTriple.lean`, `Translation/NumericBoundarySession.lean`, `Translation/NumericShapeWitness.lean`.
+
+Every numeric bound is written against `usize::MAX`, `u32::MAX`, `u64::MAX` or a fixed cap of the code. Only the first depends on
+the platform, and Lean knows of `usize::MAX` that it is `2^32 - 1` or `2^64 - 1`; each statement below is proved by a case
+split on that, so it holds at both widths, and a bound that held at 64 bits and not at 32 (the defect of 2026-09-10) would fail in
+the 32-bit case. These are statements about arithmetic and about the translations' constants. They are not statements that a
+real run reaches a size, or that the Rust source has the constant the translation evaluates.
+
+- `both_widths`: `Usize.max` is `2^32 - 1` or `2^64 - 1`.
+- `classical_store_cap_fits`, `classical_skip_cap_fits`, `spqr_chain_cap_fits`, `spqr_skip_cap_fits`, `ratchet_codec_cap_fits`,
+  `spqr_codec_cap_fits`, `erasure_cap_fits`: the room bounds the theorems take hold for every size the code's caps allow
+  (a store of up to 2000 keys, at most two chains, an erasure decoder of up to 65536 chunks), at both widths.
+- `erasure_room_exact_at_32`: at 32 bits `32 * needed < usize::MAX` is exactly `needed ≤ 2^27 - 1`, so the bound is not slack.
+- `clock_ceiling_excludes_only_parked`, `epoch_ceiling_excludes_only_top`: `events + 1 < u32::MAX` fails, among the values
+  the decoder's invariant allows, only at `u32::MAX - 1`, and `epoch + 1 < u64::MAX` only at `u64::MAX - 1`. Each ceiling
+  that stays a caller's premise excludes exactly one honest value.
+- `ratchet_constants`, `spqr_constants`, `erasure_constants`, `protobuf_constants`, `code_matches_model`, `max_events_is_parked`,
+  `clock_ceiling_summary`: in the standalone translations, the constants the bounds mention have the values the
+  arithmetic uses, equal the model's copies, and the clock premise of `T3.receive_refines` is satisfiable, is failed by the
+  parked clock, and by no other value (`PreconditionShapes.lean`'s two theorems about it are the summary's first two conjuncts).
+- `unit_ratchet_constants`, `unit_spqr_constants`, `unit_code_matches_model`, `session_unit_ratchet_constants`,
+  `session_unit_spqr_constants`, `session_unit_erasure_constants`, `session_unit_code_matches_model`: the same on the
+  three-leaf unit and the session unit, which cannot share an environment with the standalone translations.
+- `usize_max_cases`, `every_shape_is_satisfiable`: the numeric premises of the theorems of this package fall into 61 shapes
+  (`S01` to `S61` in the module: a comparison between sums and products of lengths, scalars and model numbers, a constant and an
+  operator), and each is satisfiable at both widths, with its first atom at the largest value the shape admits and, where that
+  value is bounded, nothing larger meeting the shape. The aggregate theorem names every shape theorem so that deleting one is an
+  error. The shape theorems are about shapes and not about theorems: nothing in the tree joins a shape to the premises that have
+  it, so a premise added to a theorem with a shape outside the 61 is not noticed there. The statements of the individual shape
+  theorems are not pinned. The join to the central theorems is the witness section above.
+
 ## Evidence, not proof
 
 Runtime evidence: known-answer and self-consistency checks. These are build
@@ -3001,7 +3157,12 @@ opaque-boundary hypothesis (the `Vec` operations, the `zeroize` wrapper, the
 key-derivation agreements, `Option`'s clone and the rest they list) becomes
 refutable,
 `Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
-fail if the Braid's erasure or KEM hypotheses lose their model, and
+fail if the Braid's erasure or KEM hypotheses lose their model,
+`scripts/check-precondition-witnesses.sh`, which fails if a numeric-precondition
+witness or discharge theorem (`Translation/NumericWitness*.lean`,
+`Translation/*DecodedStateDischarge.lean`) no longer states its theorem's own
+premises, by reading each theorem's type from the built environment (28 cases hold
+that comparison to mutations), and
 `Translation/AxiomAudit.lean` and `AxiomAuditTripleUnit.lean`, which walk the
 elaborated environment and fail if any hand-written declaration is an
 axiom, opaque, unsafe or partial, carries `implemented_by`/`extern`, or is

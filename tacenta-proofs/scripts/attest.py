@@ -921,6 +921,127 @@ REQUIRED_PINS = frozenset(
         "invariant_session_of_axiom_base",
         "invariant_hypotheses_satisfiable",
     )]
+    # The numeric-precondition modules: every axiom pin of the witnesses, the discharge theorems and the boundary
+    # arithmetic. `scripts/check-precondition-witnesses.sh` holds the statements of the `sat_` and discharge theorems
+    # to the signatures of the theorems they are about, and its table is the other half of this list.
+    + ["Tacenta.NumericBoundary." + n for n in (
+        "both_widths",
+        "classical_store_cap_fits",
+        "classical_skip_cap_fits",
+        "spqr_chain_cap_fits",
+        "spqr_skip_cap_fits",
+        "ratchet_codec_cap_fits",
+        "spqr_codec_cap_fits",
+        "erasure_cap_fits",
+        "erasure_room_exact_at_32",
+        "clock_ceiling_excludes_only_parked",
+        "epoch_ceiling_excludes_only_top",
+    )]
+    + ["Tacenta.NumericBoundaryLeaf." + n for n in (
+        "ratchet_constants",
+        "spqr_constants",
+        "erasure_constants",
+        "protobuf_constants",
+        "code_matches_model",
+        "max_events_is_parked",
+        "clock_ceiling_summary",
+    )]
+    + ["Tacenta.NumericBoundaryTriple." + n for n in (
+        "unit_ratchet_constants",
+        "unit_spqr_constants",
+        "unit_code_matches_model",
+    )]
+    + ["Tacenta.NumericBoundarySession." + n for n in (
+        "session_unit_ratchet_constants",
+        "session_unit_spqr_constants",
+        "session_unit_erasure_constants",
+        "session_unit_code_matches_model",
+    )]
+    + ["Tacenta.NumericShapeWitness." + n for n in (
+        "usize_max_cases",
+        "every_shape_is_satisfiable",
+    )]
+    + ["Tacenta.NumericWitnessLeaf." + n for n in (
+        "sat_T1_receive_no_panic",
+        "sat_T3_receive_refines",
+        "sat_ImportInv_Ratchet_decoded_receive_refines",
+        "sat_SpqrT1_receive_no_panic",
+        "sat_SpqrT1_send_no_panic",
+        "sat_SpqrT3_receive_refines",
+        "sat_SpqrT3_send_refines",
+        "sat_BraidT1_Braid_receive_no_panic",
+        "sat_BraidT1_Braid_step_receive_no_panic",
+        "sat_BraidT3_Braid_receive_refines",
+        "sat_BraidT3_step_receive_refines",
+        "sat_BraidT3_Braid_send_refines",
+        "sat_BraidT3_step_send_refines",
+        "spqrS_inv",
+        "ratS_inv",
+    )]
+    + ["Tacenta.NumericWitnessTriple." + n for n in (
+        "sat_UnitT1_receive_no_panic",
+        "sat_UnitT3_receive_refines",
+        "sat_UnitSpqrT1_receive_no_panic",
+        "sat_UnitSpqrT1_send_no_panic",
+        "sat_UnitSpqrT3_receive_refines",
+        "sat_UnitSpqrT3_send_refines",
+        "sat_UnitTripleT1_State_receive_no_panic",
+        "sat_UnitTripleT1_State_send_no_panic",
+        "sat_UnitTripleT3_receive_refines",
+        "sat_UnitTripleT3_receive_refines_discharged",
+        "sat_UnitTripleT3_send_refines",
+        "sat_UnitTripleT3_send_refines_discharged",
+    )]
+    + ["Tacenta.NumericWitnessSession." + n for n in (
+        "sat_SessionUnitT1_receive_no_panic",
+        "sat_SessionUnitT3_receive_refines",
+        "sat_SessionUnitRatchetImportInv_Ratchet_decoded_receive_refines",
+        "sat_SessionUnitSpqrT1_receive_no_panic",
+        "sat_SessionUnitSpqrT1_send_no_panic",
+        "sat_SessionUnitSpqrT3_receive_refines",
+        "sat_SessionUnitSpqrT3_send_refines",
+        "sat_SessionUnitTripleT1_State_receive_no_panic",
+        "sat_SessionUnitTripleT1_State_send_no_panic",
+        "sat_SessionUnitTripleT3_receive_refines",
+        "sat_SessionUnitTripleT3_receive_refines_discharged",
+        "sat_SessionUnitTripleT3_send_refines",
+        "sat_SessionUnitTripleT3_send_refines_discharged",
+        "sat_SessionUnitBraidT1_Braid_receive_no_panic",
+        "sat_SessionUnitBraidT1_Braid_step_receive_no_panic",
+        "sat_SessionUnitBraidT3_Braid_receive_refines",
+        "sat_SessionUnitBraidT3_step_receive_refines",
+        "sat_SessionUnitBraidT3_Braid_send_refines",
+        "sat_SessionUnitBraidT3_step_send_refines",
+        "session_unit_spqrS_inv",
+        "session_unit_ratS_inv",
+    )]
+    + ["Tacenta.DecodedStateDischarge." + n for n in (
+        "spqr_epoch_family",
+        "spqr_receive_premises",
+        "spqr_send_premises",
+        "spqr_advance_premises",
+        "spqr_maybe_advance_premises",
+        "spqr_clear_old_epochs_premises",
+        "ratchet_receive_premises",
+        "braid_receive_premises",
+        "braid_step_receive_premises",
+    )]
+    + ["Tacenta.SessionUnitDecodedStateDischarge." + n for n in (
+        "session_unit_spqr_epoch_family",
+        "session_unit_spqr_receive_premises",
+        "session_unit_spqr_send_premises",
+        "session_unit_spqr_advance_premises",
+        "session_unit_spqr_maybe_advance_premises",
+        "session_unit_spqr_clear_old_epochs_premises",
+        "session_unit_ratchet_receive_premises",
+        "session_unit_braid_receive_premises",
+        "session_unit_braid_step_receive_premises",
+        "triple_receive_premises",
+        "triple_send_premises",
+        "decrypt_headroom_of_invariant",
+        "decrypt_ratchet_no_panic_of_invariant",
+        "decrypt_no_panic_of_invariant",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

@@ -91,6 +91,13 @@ report_time "lifecycle public-root coverage" "$t"
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1
 report_time "Session contract satisfiability control" "$t"
+# The numeric-precondition witnesses (`NumericWitness*.lean`) and discharge theorems
+# (`*DecodedStateDischarge.lean`) are evidence about a theorem only if their statements are
+# that theorem's own premises. This reads each theorem's type from the built environment,
+# compares it with the module's statement, and mutation-tests the comparison.
+t=$SECONDS
+bash scripts/check-precondition-witnesses.sh || fail=1
+report_time "numeric-precondition witnesses and controls" "$t"
 # The unit-only edits of the three Session Braid ports are held by one property, the anchor count
 # in `unit_edit`. `--check` alone cannot see that guard removed (an unchanged source regenerates
 # the same file), so break one source anchor per port script (two for the proof script) and require the port
