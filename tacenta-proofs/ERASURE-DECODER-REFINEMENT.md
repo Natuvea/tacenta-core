@@ -54,7 +54,8 @@ An honest-codeword carry lemma already exists. It does not establish malformed,
 duplicate, inconsistent or completed-decoder behaviour. The model lemmas and
 the full leaf-decoder theorem above pin one rejection effect, but completing
 the duplicate and other real cases and discharging `ErasureAgrees` for the
-concrete decoder remains required for the L4 target.
+standalone crate's decoder remains required for the L4 target. The Session
+unit's coder is covered by the update below.
 
 ## Update, 2026-10-01: the Session unit's coder
 

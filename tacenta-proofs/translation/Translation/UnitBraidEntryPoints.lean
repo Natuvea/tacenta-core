@@ -7,10 +7,11 @@ import Translation.SessionBraidReceiveRepair
 /-!
 # The Braid entry points of the Session unit with the defined-function hypotheses discharged
 
-`Braid.send_refines` and `Braid.receive_refines` (`SessionUnitBraidT3.lean`) take six hypotheses
-about translated functions: `ErasureAgrees`, `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
-`DecoderMessageTotal`, `EncoderCloneTotal` and `DecoderCloneTotal`.  The unit's erasure coder is
-translated Rust, so each is a statement about definitions, and all six are theorems:
+`Braid.receive_refines` takes six hypotheses about translated functions and `Braid.send_refines` takes
+four of them (`ErasureAgrees`, `ErasureCloneAgrees`, `EncoderCloneTotal` and `DecoderCloneTotal`):
+`ErasureAgrees`, `ErasureCloneAgrees`, `DecoderAddChunkTotal`, `DecoderMessageTotal`,
+`EncoderCloneTotal` and `DecoderCloneTotal`.  The unit's erasure coder is translated Rust, so each is
+a statement about definitions, and all are theorems:
 
 * `ErasureCloneAgrees`: outright (`UnitSatisfiabilityErasureAgrees.erasureCloneAgrees`);
 * `DecoderAddChunkTotal`, `EncoderCloneTotal`, `DecoderCloneTotal`: outright
@@ -21,8 +22,10 @@ translated Rust, so each is a statement about definitions, and all six are theor
   (`UnitErasureRsGlue.erasureAgrees`), by the Reed-Solomon refinement of the translated coder.
 
 `Braid.send_refines_given_erasure` and `Braid.receive_refines_given_erasure` restate the two entry
-points with five of those hypotheses replaced and `ErasureAgrees` still a premise.
-`Braid.send_refines_of_laws` and `Braid.receive_refines_of_laws` replace all six by the two laws.
+points with every hypothesis about translated functions except `ErasureAgrees` replaced (three for the
+send, five for the receive) and `ErasureAgrees` still a premise.
+`Braid.send_refines_of_laws` and `Braid.receive_refines_of_laws` replace the hypotheses about
+translated functions that each takes (four and six) by the two laws.
 None changes a statement of `SessionUnitBraidT3.lean`: each is a corollary of the entry point it
 restates, with fewer premises.  What remains is what a model of the unit's opaque constants can satisfy
 (the agreements and totality shapes, `UnitSatisfiabilityBraidAgreements.lean`), the two laws, and the
@@ -40,8 +43,10 @@ namespace Tacenta.UnitBraidEntryPoints
 
 open Tacenta.SessionUnitBraidT3
 
-/-- Five of the six defined-function hypotheses of the two entry points are theorems, given the
-one law `TruncateTotal`.  The sixth, `ErasureAgrees`, is not among them. -/
+/-- The hypotheses about translated functions of the two entry points other than `ErasureAgrees` are
+theorems, given the one law `TruncateTotal`: `ErasureCloneAgrees`, `EncoderCloneTotal` and
+`DecoderCloneTotal` (taken by both) and `DecoderAddChunkTotal` and `DecoderMessageTotal` (taken by the
+receive only).  `ErasureAgrees` is not among them. -/
 theorem defined_hypotheses_given_erasure (htr : Tacenta.SessionUnitErasureT1.TruncateTotal) :
     ErasureCloneAgrees ∧ Tacenta.SessionUnitBraidT1.DecoderAddChunkTotal ∧
     Tacenta.SessionUnitBraidT1.DecoderMessageTotal ∧ Tacenta.SessionUnitBraidT1.EncoderCloneTotal ∧
@@ -119,8 +124,8 @@ theorem Braid.send_refines_given_erasure
 
 open Tacenta.UnitSatisfiabilityBraidAgreements (TruncatePrefix TruncatePrefix.total)
 
-/-- **All six defined-function hypotheses of the two entry points are theorems under the two laws**
-`DivCeilValue` and `TruncatePrefix`. -/
+/-- **The hypotheses about translated functions of the two entry points (four of the send, six of the
+receive) are theorems under the two laws** `DivCeilValue` and `TruncatePrefix`. -/
 theorem defined_hypotheses_of_laws (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
     (htr : TruncatePrefix) :
     ErasureAgrees ∧ ErasureCloneAgrees ∧ Tacenta.SessionUnitBraidT1.DecoderAddChunkTotal ∧

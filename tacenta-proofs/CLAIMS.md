@@ -686,19 +686,23 @@ Location: `tacenta-model/Model/Gf65536.lean` and
   so each law reduces to the sixteen single-bit values (`linear_ext_w`), which
   the kernel evaluates, and the exclusive-or arithmetic is settled one bit at a time.
 - `mul_inv_cancel`: every nonzero element has an inverse and `inv` returns it,
-  for all sixty-five thousand five hundred and thirty-five. This doubles as an
-  irreducibility check on the reduction polynomial. Proved by the kernel: two has
+  for all sixty-five thousand five hundred and thirty-five. This doubles as a
+  check on the reduction polynomial: it needs two to have order exactly `size - 1`,
+  so a reducible polynomial is refused and so is an irreducible one under which two
+  has a smaller order. Proved by the kernel: two has
   multiplicative order exactly `65535` (five closed computations, at `65535` and at
   each of its four maximal divisors), so its powers are all the nonzero elements,
   and each is inverted by raising it to `65534`. Until 2026-10-01 this was
   established by exhaustion through `native_decide`, which trusts the compiler.
 - `interp_eq`: the delta property in the form a decoder states it, which is what
   interpolation needs to recover a lost codeword. It rests on the kernel's three
-  axioms alone, as does `unisolvence`.
+  axioms alone, as does `unisolvence`, which has no pin of its own and is held through the pin on
+  `M_recover`.
 
-The three pins above list `propext`, `Classical.choice` and `Quot.sound` and nothing else, and
-`attest.py` still lists `mul_inv_cancel` and `interp_eq` among the pins that may be compiler-trusted;
-neither is now.
+The three pins above list `propext`, `Classical.choice` and `Quot.sound` and nothing else. They are on the
+`attest.py` floor of required pins (with the pin on `Tacenta.ErasureT3.mul_refines`), and `attest.py` no longer
+lists any of the three among the pins that may be compiler-trusted, so a compiler-trust axiom under one of them is
+refused.
 
 ## Not needed: a concatenation lemma for the Triple Ratchet's combination
 
@@ -2794,7 +2798,8 @@ theorem has exactly the statement the glue was written against.
   and in the model (`message_not_full`), which covers a decoder sized for `usize::MAX` bytes. The statements hold
   at both platform widths, because the proofs use only that `Usize.max` is at least `2^32 - 1`.
 
-Each is pinned under `#guard_msgs` (axioms and statement), and `attest.py` requires every pin. The pins list
+Each is pinned under `#guard_msgs` (axioms and statement), and `attest.py` requires every axiom pin; the statement
+pins are held by the build alone (see the section on the Braid agreements). The axiom pins list
 `propext`, `Classical.choice` and `Quot.sound`, and the two opaque constants the laws are about (`usize::div_ceil` in
 `E_new` and `erasureAgrees`, `Vec::truncate` in `D_message` and the glue); none depends on a compiler-trust axiom.
 The proof of the statements through the field used compiler-trust axioms (about fifty `bv_decide` and `native_decide`
@@ -2860,29 +2865,38 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
   only of a state built to satisfy it. The responder's decoder is the one `ErasureAgrees` provides for the
   header size.
-- `defined_hypotheses_given_erasure`, `Braid.receive_refines_given_erasure`, `Braid.send_refines_given_erasure`: five of
-  the six hypotheses about translated functions are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
+- `defined_hypotheses_given_erasure`, `Braid.receive_refines_given_erasure`, `Braid.send_refines_given_erasure`: the
+  receive takes six hypotheses about translated functions and the send takes four of them (`ErasureAgrees`,
+  `ErasureCloneAgrees`, `EncoderCloneTotal`, `DecoderCloneTotal`); `DecoderAddChunkTotal` and `DecoderMessageTotal`
+  occur only in the receive. All but `ErasureAgrees` are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
   `EncoderCloneTotal` and `DecoderCloneTotal` outright, and the bounded `DecoderMessageTotal` from the one
   law `TruncateTotal` (`Vec::truncate` returns). The two entry points are restated with those hypotheses
   replaced: the send needs no law, the receive needs `TruncateTotal`, and `ErasureAgrees` stays a premise. No
   statement of `SessionUnitBraidT3.lean` changed; each restatement is a corollary of the entry point it
   restates, with fewer premises.
 - `defined_hypotheses_of_laws`, `Braid.receive_refines_of_laws`, `Braid.send_refines_of_laws`: with
-  `ErasureAgrees` from the section above, all six hypotheses about translated functions are theorems under the two
-  laws `DivCeilValue` and `TruncatePrefix`, and the two entry points are restated with all six replaced by the laws.
+  `ErasureAgrees` from the section above, all six hypotheses of the receive and all four of the send are theorems
+  under the two laws `DivCeilValue` and `TruncatePrefix`, and the two entry points are restated with them replaced
+  by the laws.
   What remains of their hypotheses is what a model of the unit's opaque constants can satisfy (the six agreements and
   the totality shapes), the two laws, and the hypotheses about state and message.
 - `twelve_states_of_laws`, `six_receive_witnesses_of_laws`: the state witnesses with `ErasureAgrees` supplied by the
   laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the
   two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
-  without a witness for the unit, in the sense of the substitution argument.
+  without a witness for the unit, in the sense of the substitution argument. The state and message witnesses are
+  derived from the agreements and the two laws, so they exist in the model because the agreements hold there;
+  the step from the model to the real constants is the substitution argument and not a theorem inside Lean.
 
-Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
-deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry points list the opaque
-constants their statements mention; none depends on a compiler-trust axiom. The statements of every claimed
-theorem here are pinned by `#guard_msgs in #check`, and so are `Good_iff` and `RecvWitness_iff`, which unfold the two
-definitions the state theorems are stated through, and the three definitions that fix which constructor and which
-message pair each witness is for (`stateTag`, `modelTag`, `FeedsDecoder`, by `#guard_msgs in #print`).
+Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these axiom pins
+(`REQUIRED_PINS`), so deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry
+points list the opaque constants their statements mention; none depends on a compiler-trust axiom. The statements
+of every claimed theorem here are pinned by `#guard_msgs in #check`, and so are `Good_iff` and `RecvWitness_iff`,
+which unfold the two definitions the state theorems are stated through, and the three definitions that fix which
+constructor and which message pair each witness is for (`stateTag`, `modelTag`, `FeedsDecoder`, by
+`#guard_msgs in #print`). Those statement pins are held by the build alone: `attest.py` reads the axiom pins, so
+deleting a statement pin, or weakening a statement together with its pin, is refused by no gate. A statement
+weakened without its pin is refused by the build, and `check-braid-agreement-negatives.sh` shows it in five of the
+modules (the four of this section and the glue).
 
 What these results do not show: that the real KEM and KDF meet the six agreements; that a send or a receive
 keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch headroom (the witnesses are single steps
