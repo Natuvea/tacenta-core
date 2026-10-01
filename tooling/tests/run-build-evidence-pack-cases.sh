@@ -526,6 +526,7 @@ mkdir -p "$work/stub"
 cat > "$work/stub/aws" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >> "$AWS_STUB_LOG"
+case "$*" in *tacenta-core-assurance-evidence-238576302016*) echo "stub aws: refusing the real archive bucket" >&2; exit 2 ;; esac
 mode="${AWS_STUB_MODE:-ok}"
 case "$2" in
   put-object)
@@ -548,12 +549,26 @@ esac
 STUB
 chmod +x "$work/stub/aws"
 export AWS_STUB_LOG="$work/aws.log"
+# The archive's retention is irreversible, so these cases are built to be unable
+# to reach it: the stub must be the `aws` that runs (checked here, not assumed),
+# and every call but the dry run names a bucket that is not the archive's, so
+# that a real `aws` that ran by mistake would be refused by S3 for a bucket that
+# does not exist.
+stub_bucket=tacenta-evidence-cases-stub-bucket-that-does-not-exist
+if [ "$(PATH="$work/stub:$PATH" command -v aws)" != "$work/stub/aws" ]; then
+  echo "WRONG  the stand-in for aws is not the aws that would run; refusing to run the publisher cases" >&2
+  exit 1
+fi
 publish() {
   # publish MODE ARGS...: runs the publisher with the stub first on PATH.
-  local mode="$1"
+  local mode="$1" bucket_args="--bucket $stub_bucket"
   shift
+  for argument in "$@"; do
+    case "$argument" in --bucket|--dry-run) bucket_args="" ;; esac
+  done
   : > "$AWS_STUB_LOG"
-  PATH="$work/stub:$PATH" AWS_STUB_MODE="$mode" python3 "$root/tooling/publish-evidence-archive.py" "$@"
+  # shellcheck disable=SC2086
+  PATH="$work/stub:$PATH" AWS_STUB_MODE="$mode" python3 "$root/tooling/publish-evidence-archive.py" "$@" $bucket_args
 }
 expect_publish_fail() {
   local name="$1" needle="$2" calls="$3" out rc
@@ -580,7 +595,7 @@ expect_publish_fail() {
 }
 files_to_upload="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["files"]) + 1)' "$real/pack/PACK-MANIFEST.json")"
 pack_digest="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$real/pack/PACK-MANIFEST.json")"
-bucket=tacenta-core-assurance-evidence-238576302016
+bucket=tacenta-core-assurance-evidence-238576302016   # the dry run only prints it
 
 cases=$((cases + 1))
 dry="$(publish ok --pack "$real/pack" --candidate-repo "$real/repo" --dry-run | tail -n 1)"
@@ -623,7 +638,7 @@ done
 
 cases=$((cases + 1))
 publish ok --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/published.json" >/dev/null
-python3 - "$work/published.json" "$AWS_STUB_LOG" "$real_commit" "$pack_digest" "$files_to_upload" "$bucket" <<'PY'
+python3 - "$work/published.json" "$AWS_STUB_LOG" "$real_commit" "$pack_digest" "$files_to_upload" "$stub_bucket" <<'PY'
 import json, sys
 receipt = json.load(open(sys.argv[1]))
 log = open(sys.argv[2]).read().splitlines()
