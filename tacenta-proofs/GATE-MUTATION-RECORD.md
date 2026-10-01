@@ -140,3 +140,121 @@ One-off breaks of gates with no retained control (not in the tally, each on a fr
 | PyYAML made unimportable | `check-workflows.sh`, `run-check-workflows-cases.sh` | with `GITHUB_ACTIONS=true` both exit 1; without it both print a skip line and exit 0 |
 | no `TACENTA_DIFFTEST` binary | `the_model_and_the_core_agree_on_generated_sequences` | `GITHUB_ACTIONS=true` or `TACENTA_DIFFTEST_REQUIRED=1`: panic, exit 101; neither: prints "skipping" and passes |
 | no base ref; empty receipts directory | `check-signoff.sh`; collector | both exit 1 |
+
+## Addendum, 2026-10-01: the evidence tooling, with a retained harness
+
+`tooling/mutate-evidence-gates.py` is the harness the section above says is not in this repository, for the receipt, manifest, pack,
+publisher, reproduction and review tooling. It copies `tooling/` and the files the case runners read into a throwaway git repository,
+requires the unedited copy to pass the four case runners, and then, for each entry in its table, replaces one string that must occur
+exactly once, commits the edit there and runs the runners until one fails. An edit that leaves every runner green is a survivor, and it fails the
+run unless the harness lists it as equivalent with a reason. It is a local control: nothing in CI runs it.
+
+Run in three parts on macOS 26.5.1 (Apple silicon, bash 3.2.57, Python 3.9.6, git 2.50.1): the B, MT, V and C edits at `9495e0c`; the PK1 to PK9, PB and
+RP edits at `e0b7f6f`; the PK0, RC, RV and SC edits at `a8c381f` (RV3 again at `e0b7f6f`, to record why it survives). Between the parts, the files the earlier edits change and the runners that
+catch them did not change (the manifest runner's header comment aside), and each later part ran the cases added in between.
+95 edits: 94 caught, 1 survived as claimed equivalent (RV3), 0 survived unexpectedly.
+Rows B1 to B6, V4 and C2 of the table above, which survived at `dea57eaf`, are among the 94 caught. Ids beginning MT, PK, PB, RP, RC, RV and SC are new in this addendum and do not refer to rows of the earlier tables. "Caught by" names the first runner and case that
+failed; a case whose own diagnostic no longer matched counts, because it shows the edit changed what the gate says.
+
+| Id | Edit | Result | Caught by |
+| --- | --- | --- | --- |
+| B1 | --validate does not compare the manifest identity with HEAD | caught | build-assurance-manifest: identity-other-commit |
+| B1c | --validate compares the tree with HEAD but not the commit | caught | build-assurance-manifest: identity-other-commit |
+| B1t | --validate compares the commit with HEAD but not the tree | caught | build-assurance-manifest: identity-other-tree |
+| B2 | --validate does not need clean_tree to be true | caught | build-assurance-manifest: not-clean |
+| B3d | --validate does not compare a source digest | caught | build-assurance-manifest: source-digest |
+| B3s | --validate does not compare a source size | caught | build-assurance-manifest: source-size |
+| B4 | --validate does not need the pending review requirement | caught | build-assurance-manifest: review-dropped |
+| B5 | the builder accepts a dirty tree without --allow-dirty | caught | build-assurance-manifest: dirty-tracked |
+| B6 | --validate does not re-validate the check set | caught | build-assurance-manifest: check-failed |
+| MT1 | --validate allows extra or missing top-level fields | caught | build-assurance-manifest: manifest-extra-field |
+| MT2 | --validate allows extra or missing identity fields | caught | build-assurance-manifest: identity-field-added |
+| MT3 | --validate allows another repository name | caught | build-assurance-manifest: identity-repository |
+| MT4 | --validate allows a short commit or tree | caught | build-assurance-manifest: identity-commit-short |
+| MT5 | --validate does not check which generator wrote the manifest | caught | build-assurance-manifest: generator-digest |
+| MT5d | --validate checks the generator path but not its digest | caught | build-assurance-manifest: generator-digest |
+| MT6 | --validate allows extra fields in a source entry | caught | build-assurance-manifest: source-entry-field-added |
+| MT7 | an ignored file anywhere makes the tree clean, not only under .assurance/ | caught | build-assurance-manifest: dirty-ignored |
+| MT7b | the .assurance/ receipt workspace makes the tree dirty | caught | build-assurance-manifest: an assertion or a step that must pass failed |
+| MT8 | an untracked file does not make the tree dirty | caught | build-assurance-manifest: dirty-untracked |
+| MT9 | an ignored file does not make the tree dirty | caught | build-assurance-manifest: dirty-ignored |
+| MT10 | the dirty-path report loses the first character of its first path | caught | build-assurance-manifest: dirty-tracked |
+| V1 | a receipt for another commit is accepted | caught | build-assurance-manifest: receipt-other-commit |
+| V2 | a receipt for another tree is accepted | caught | build-assurance-manifest: receipt-other-tree |
+| V3 | the receipt document may name another commit | caught | build-assurance-manifest: foreign |
+| V4 | the receipt document may name another tree | caught | build-assurance-manifest: foreign-tree |
+| C1 | the collector accepts a receipt for another commit | caught | collect-assurance-receipts: foreign |
+| C2 | the collector accepts a receipt for another tree | caught | collect-assurance-receipts: foreign-tree |
+| PK0 | the pack need not carry the workflow and the receipt action | caught | build-evidence-pack: missing-workflow |
+| PK1 | --candidate-repo is accepted and ignored | caught | build-evidence-pack: forged-source |
+| PK2 | a candidate commit that is not in the repository is not noticed | caught | build-evidence-pack: commit-absent |
+| PK3 | the pack may name another tree than its commit has | caught | build-evidence-pack: tree-of-another-commit |
+| PK4 | a packed source need not be the commit's file | caught | build-evidence-pack: forged-source |
+| PK5 | a packed source that is not a file of the commit is not named as such | caught | build-evidence-pack: source-not-in-commit |
+| PK6 | the manifest's generator digest is not compared with the commit's | caught | build-evidence-pack: forged-generator |
+| PK7 | no packed source is compared with git | caught | build-evidence-pack: forged-source |
+| PK8 | a short or non-hex candidate commit or tree is accepted | caught | build-evidence-pack: pack-candidate-missing |
+| PK9 | --candidate-repo is accepted with a build | caught | build-evidence-pack: candidate-repo-without-verify |
+| PB1 | an unverified pack is uploaded | caught | build-evidence-pack: publish-forged-source |
+| PB2 | the pack is not authenticated against git before upload | caught | build-evidence-pack: publish-forged-source |
+| PB3 | an upload may replace an existing key | caught | build-evidence-pack: an assertion or a step that must pass failed |
+| PB4 | an object without Compliance retention is recorded | caught | build-evidence-pack: publish-governance-retention |
+| PB4m | retention in a mode other than COMPLIANCE is accepted | caught | build-evidence-pack: publish-governance-retention |
+| PB4d | retention without an end date is accepted | caught | build-evidence-pack: publish-retention-without-date |
+| PB5 | an upload that returns no version ID is recorded | caught | build-evidence-pack: publish-no-version-id |
+| PB6 | an existing publication receipt is replaced | caught | build-evidence-pack: publish-existing-receipt |
+| PB7 | publication without a receipt path | caught | build-evidence-pack: publish-needs-a-receipt |
+| PB8 | the pack manifest is not uploaded last | caught | build-evidence-pack: an assertion or a step that must pass failed |
+| PB9 | the archive prefix does not carry the pack digest | caught | build-evidence-pack: publish-dry-run |
+| RP1 | a hosted artifact of another candidate is compared with the pack | caught | build-evidence-pack: hosted-of-another-candidate |
+| RP2 | a hosted file need not be the packed one | caught | build-evidence-pack: hosted-not-the-packed-manifest |
+| RP3 | the candidate tree is not compared with the commit's | caught | build-evidence-pack: hosted-names-another-tree |
+| RP4 | the rebuilt manifest need not equal the given one | caught | build-evidence-pack: hosted-manifest-not-the-rebuilt |
+| RP5 | the rebuilt pack is not compared | caught | build-evidence-pack: pack-not-what-the-builder-writes |
+| RP6 | the rebuilt pack may list other files | caught | build-evidence-pack: pack-with-a-source-the-builder-would-not-pack |
+| RP7 | the rebuilt pack may differ in a file | caught | build-evidence-pack: pack-not-what-the-builder-writes |
+| RP8 | a reproduction leaves its worktree in the repository | caught | build-evidence-pack: an assertion or a step that must pass failed |
+| RP9 | the candidate's own pack verifier is not run | caught | build-evidence-pack: reproduce-pack-tampered |
+| RP10 | the pack is not authenticated against git | caught | build-evidence-pack: reproduce-pack-forged-source |
+| RC1 | the receipt schema version is not checked | caught | check-ledger-review-receipt: schema-one |
+| RC2u | an unknown receipt field is accepted | caught | check-ledger-review-receipt: unknown-field |
+| RC2m | a missing receipt field is not named | caught | check-ledger-review-receipt: pack-binding-absent |
+| RC3 | a template placeholder is accepted | caught | check-ledger-review-receipt: placeholder |
+| RC4 | a receipt for another candidate is accepted | caught | check-ledger-review-receipt: foreign |
+| RC5 | the receipt need not bind the pack manifest | caught | check-ledger-review-receipt: wrong-pack |
+| RC6 | a receipt without reviewer identity is accepted | caught | check-ledger-review-receipt: missing-reviewer |
+| RC7 | a receipt without artifacts read is accepted | caught | check-ledger-review-receipt: no-artifacts |
+| RC8 | a required artifact need not be named | caught | check-ledger-review-receipt: artifact-unnamed |
+| RC9 | malformed cross-cutting notes are accepted | caught | check-ledger-review-receipt: notes-malformed |
+| RC10 | a receipt with no dispositions is accepted | caught | check-ledger-review-receipt: no-claims |
+| RC11 | a disposition with other fields is accepted | caught | check-ledger-review-receipt: claim-not-an-object |
+| RC12 | a repeated or empty reference is accepted | caught | check-ledger-review-receipt: duplicate-reference |
+| RC13 | an unknown disposition is accepted | caught | check-ledger-review-receipt: invalid-disposition |
+| RC14 | a finding that is not text is accepted | caught | check-ledger-review-receipt: finding-not-text |
+| RC15 | a limit or finding without text is accepted | caught | check-ledger-review-receipt: limit-without-text |
+| RC16 | a reference to a section the ledger lacks is accepted | caught | check-ledger-review-receipt: unknown-section |
+| RC17 | a malformed section digest is accepted | caught | check-ledger-review-receipt: digest-malformed |
+| RC18 | a disposition on other text than the pack's is accepted | caught | check-ledger-review-receipt: digest-of-another-section |
+| RC19 | a section with no disposition is accepted | caught | check-ledger-review-receipt: one-section-missing |
+| RC20 | --require-no-findings does not refuse a finding | caught | check-ledger-review-receipt: finding-refused |
+| RC21 | the pack's CLAIMS.md is not held to its manifest digest | caught | check-ledger-review-receipt: tampered-ledger |
+| RC22 | a pack without CLAIMS.md is read as an empty ledger | caught | check-ledger-review-receipt: without-ledger |
+| RC23 | two sections with one title are accepted | caught | check-ledger-review-receipt: twice-ledger |
+| RC24 | the ledger's introduction need not be dispositioned | caught | check-ledger-review-receipt: an assertion or a step that must pass failed |
+| RC25 | the pack manifest schema is not checked | caught | check-ledger-review-receipt: pack-schema |
+| RC26 | the ledger is read through the platform's newline translation | caught | check-ledger-review-receipt: an assertion or a step that must pass failed |
+| RV1 | a reviewed candidate may carry a finding | caught | check-ledger-review-receipt: reviewed-with-a-finding |
+| RV2 | the reviewed pack is not authenticated against git | caught | check-ledger-review-receipt: reviewed-pack-forged-source |
+| RV3 | the pack may name another candidate than the manifest | survived, claimed equivalent | claimed equivalent: the comparison of the pack's manifest bytes with the given manifest, which follows it, refuses the same inputs |
+| RV4 | the pack need not hold the reviewed manifest's bytes | caught | check-ledger-review-receipt: reviewed-manifest-not-the-packed-one |
+| RV5 | the manifest is not validated | caught | check-ledger-review-receipt: reviewed-manifest-not-clean |
+| SC1 | a changed section is reported unchanged | caught | check-ledger-review-receipt: an assertion or a step that must pass failed |
+| SC2 | a removed section is not reported | caught | check-ledger-review-receipt: an assertion or a step that must pass failed |
+| SC3 | a template replaces an existing file | caught | check-ledger-review-receipt: template-exists |
+| SC4 | --template is accepted with --since | caught | check-ledger-review-receipt: template-with-since |
+| SC5 | a schema 1 receipt serves as an earlier state | caught | check-ledger-review-receipt: since-schema-one |
+
+What this does not show: that the harness's table is every check these tools make (it is the checks the cases were written for), that the
+receipts are produced by a hosted run, or anything about the gates outside this tooling. `Rself` above is unchanged: the workflow and
+`tooling/required-steps.json` can still be edited together.
+
