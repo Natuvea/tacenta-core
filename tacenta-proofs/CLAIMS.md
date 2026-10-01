@@ -3224,6 +3224,83 @@ test a refusal that rewinds the random source, a success of `decrypt_ratchet` or
 taken without the committed state's `Braid::failed` being true. These are proof-dependency controls on copies of the generated Lean, not mutations of the Rust: a
 changed Rust source needs the pinned Linux toolchain to regenerate (`REPRODUCING.md`).
 
+## Proved (restated dispatch records: a view for the send direction, and when the scoped chunk fields can be met)
+
+Location: `Translation/UnitLifecycleRepair.lean`, and `Translation/UnitLifecycleT3.lean` for the definition
+`CodewordViewSendOf` and the lemma `candidate_public_eq_draw`.
+
+Three records of the lifecycle T3 and dispatch layer ask more than a run can supply, on the readings below, so the theorems that
+take them are not claims. None of the readings is a theorem of this tree: each is read from the definition, and the one that
+needs a fact about the primitives names it.
+
+- The `receive` clause of `CodewordViewOf` asks a view to name one source for each wire chunk. Two messages that agree on their
+  first 32 bytes have the same codeword at index 0, so, given that `Encoder::new` returns on both, no view meets the clause.
+- The two chunk fields of `InitialRatchetBraidEvidenceContracts` ask, of every composite, that its chunk be a codeword of the
+  source the decoder holds, including the chunk of a composite no peer sends.
+- Two fields of `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` are quantified over every draw.
+  Read with the oracle's `random32` and `dhPublic` clauses they ask `dhPublic` to take one value over all draws, and the real
+  X25519 public key is not constant, a property no theorem here states.
+
+Each is restated under a new name (`CodewordViewSendOf`, `InitialRatchetBraidEvidenceContractsScoped`,
+`InitialRatchetTripleConcreteEvidenceScoped`, `InitialRatchetAeadConcreteEvidenceScoped`), the dispatch theorems that took the
+old records take the new ones, and the old definitions stay, with their statements unchanged. Two results about the restated records are claimed.
+
+- `codewordViewSendOf_satisfiable`: some `Model.Lifecycle.CodewordView` satisfies `CodewordViewSendOf`. For every Braid
+  state, source and chunk that is a codeword of that source, the view's send of the model chunk (the source and the index) is
+  that chunk's wire codeword. The witness is chosen by classical choice, and the proof uses that the translated encoder is a
+  function, so that a codeword of one source at one index is unique. It takes no hypothesis about any opaque operation. It
+  holds for any deterministic encoder, so it shows that the clause is consistent and states nothing about a property of the
+  shipped one.
+- `scoped_chunk_fields_iff_consistent`: for a Braid state, a wire composite and a model composite related by `CompositeRefines`,
+  some view meets `IncomingChunkRefines` and `HonestChunk` (the two chunk fields of the scoped record, as statements about the
+  state and the two composites) if and only if the run is consistent: the chunk it receives is a codeword of one source, and that
+  source fits the decoder the chunk is fed to. It is a normalisation lemma, whose right side is the left side specialised to a
+  view that names the source. It does not mention the record, the message or `decodeDetailed`, it says nothing about the code, and
+  a well-formed chunk from a dishonest sender is consistent as well. It is not a statement that any real session is.
+
+What these do not show.
+
+- That the theorems taking the restated records are claims. The ten encrypt-side theorems that took `CodewordViewOf` take
+  `CodewordViewSendOf` now, but all but two of them also take `OracleOf`, whose KEM success clause is not shown to hold of the
+  shipped `encapsulate`, so what they say rests on a record that is not shown to hold until that clause is restated or shown. The
+  dispatch theorems that take the Triple, AEAD and Braid evidence records no longer take the old records, but they also take
+  `OracleOf`, and all but `initial_ratchet_refines_of_t1_with_concrete_evidence` also take the same-ephemeral evidence records,
+  which are not shown satisfiable.
+- That the consumer structure is satisfiable. `InitialRatchetConcreteBranchEvidence`, which five dispatch theorems reach through
+  `InitialRatchetEndToEndEvidence` and `SessionDecryptEvidence` (`initial_ratchet_refines_of_t1_with_concrete_evidence`,
+  `decrypt_initial_end_to_end_with_concrete_evidence`, `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`,
+  `public_session_decrypt_end_to_end` and its `_with_atomicity` form), asks the scoped Braid record of every inner message that
+  reaches a refusal, an inconsistent message included. An inconsistent message can reach a refusal: `decrypt_ratchet` checks
+  nothing about the agreement chunk before the AEAD tag, and no field of `InitialRatchetRefusalBranchInput` mentions the chunk.
+  For a model Braid state whose decoder holds a chunk, a message whose chunk bytes differ from the held source's codeword at
+  their index cannot meet both `IncomingChunkRefines` and `HonestChunk`, so on that reading the structure is unsatisfiable at
+  such states and the five theorems are not shown non-vacuous there. No Lean statement says this, because no `Session` value
+  can be built in the tree. The unpinned lemma `scoped_record_gives_consistent` ties the record to the consistent-run condition:
+  from the record, a message that decodes to a composite related to the wire composite gives a consistent run, so the structure
+  is satisfiable only if every refused inner message that decodes in that way is a consistent run. Guarding the fields by a
+  consistency premise on the run is the repair, and it changes the signatures of the dispatch theorems that reach the structure.
+- The agreement hypotheses of the Braid in the session unit, which are not decided here.
+
+A view that meets the send clause and the scoped chunk fields of one consistent run together exists
+(`send_and_scoped_chunk_fields_joint`, unpinned), because the two constrain different fields of a `CodewordView`. Whether one
+view meets the scoped fields for every inner message is the consumer-structure item above.
+
+The seven results of the previous section and the T1 results do not depend on any of this. `candidate_public_eq_draw` is the
+lemma that replaces the two dropped draw-quantified fields: the public bytes of the run's candidate ratchet key are
+`oracle.dhPublic` of the run's draw, from the oracle's `random32` and `dhPublic` clauses and the key codec. It is not pinned or
+claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown to hold of the shipped primitives.
+
+Each of the two claimed results carries an axiom pin and its statement pinned under `#guard_msgs in #check`, so a weaker
+statement that keeps its axiom list fails the module while that pin stands. `attest.py` lists them in `REQUIRED_PINS`, which
+requires the axiom pin and not the statement pin; no gate requires a statement pin to exist, so a weaker statement whose statement
+pin is removed in the same commit is accepted once the manifests are regenerated. `check-attest-negatives.sh` deletes each axiom
+pin in turn. `send_and_scoped_chunk_fields_joint` and `scoped_record_gives_consistent` carry no axiom pin and are not on
+`REQUIRED_PINS`.
+`tacenta-proofs/scripts/check-repair-negatives.py`, run from `no-sorry.sh`, holds them against a changed statement: it requires
+the unmodified module and the unmodified lemma to be accepted, then makes one change to a copy (a witness that does not send the
+codeword, a claim of the old two-sided statement, a consistent-run definition without the codeword or without the fit, a weakened
+link between the draw and the candidate key) and requires Lean to refuse it.
+
 ## Proved (bounded P6 session lifecycle observations)
 
 Location: `Proofs/SessionTrace.lean`. These are the three narrow theorems for
