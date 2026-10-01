@@ -489,13 +489,14 @@ steps a chain from its counter `c` to `upto`: refuse above `maxSkip`; delete the
 keys stored for the epoch under a number `n` with `c < n ≤ upto`; refuse when
 what remains plus `upto - c` passes `maxSkippedStore`; otherwise store the
 derived keys after what remains. `Model.SparseRatchet.skipMessageKeys` states
-that order, with `skipSurvivors` for what remains. These theorems are about that
-model definition. Their premises are that the epoch has a chain (`hc`), that its
+that order, with `skipSurvivors` for what remains. The first two theorems below
+are about `skipSurvivors` and take no premises. The others are about that model
+definition. Their premises are that the epoch has a chain (`hc`), that its
 receiving chain is present (`hr`), that the request steps the chain forward
 (`hlo`) and, for the refusal characterisation, that it is within `maxSkip`
-(`hhi`). The last theorem below exhibits a state that satisfies all four. They
-say nothing about the Rust, and nothing about a send, a receive or an advance,
-or about a sequence of operations.
+(`hhi`). `witness_premises_hold` below states that all four hold for one store.
+They say nothing about the Rust, and nothing about a send, a receive or an
+advance, or about a sequence of operations.
 
 - `Proofs.SparseReplacementBound.mem_skipSurvivors_iff`: a stored key survives a
   skip from `start` to `upto` on epoch `e` exactly when it was stored and is
@@ -507,7 +508,7 @@ or about a sequence of operations.
 - `Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`: on a chain that
   steps forward within `maxSkip`, a skip is refused exactly when the survivors
   plus `upto - c` pass `maxSkippedStore`. Counted before the deletion the same
-  skip is a different question: that is what the last theorem separates.
+  skip is a different question: that is what the witness below separates.
 - `Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`: a
   skip that steps the chain and succeeds leaves the survivors followed by the
   keys it derived, in that order, so the store it leaves holds the survivors
@@ -527,14 +528,25 @@ or about a sequence of operations.
   deletion, `1999 + 2`, passes the bound. It is a witness, and it is why the
   premises above are not vacuous: no key is evaluated, so it holds for every
   value the keys can take.
+- `Proofs.SparseReplacementBound.witness_premises_hold`: for the same store, the
+  four premises of `skipMessageKeys_refused_iff` hold together: the epoch has a
+  chain, its receiving chain is present, `ch.n < 2` and `2 <= ch.n + maxSkip`.
+  So the characterisation, and the other theorems that take `hc`, `hr` and
+  `hlo`, are about a set of states that is not empty.
+- `Proofs.SparseReplacementBound.witness_refused_one_key_further`: the same store
+  with a skip from `0` to `4`, which stores four keys, is refused: `1997 + 4`
+  passes the bound. With the witness above, both sides of
+  `skipMessageKeys_refused_iff` are shown inhabited.
 
 Each is pinned under `#guard_msgs` in `Proofs/SparseReplacementBound.lean`, on
 `propext` and `Quot.sound`, except `skipSurvivors_length_le`, on `propext`
-alone, and the witness, on `propext`, `Classical.choice` and `Quot.sound`. The
-statements of `skipMessageKeys_refused_iff`,
-`skipMessageKeys_leaves_survivors_then_batch` and the witness are also pinned
-with `#guard_msgs in #check`, so a change to a premise or a conclusion fails the
-build where the proof would still go through.
+alone, and the three witness theorems, on `propext`, `Classical.choice` and
+`Quot.sound`. `attest.py` requires all ten pins (`REQUIRED_PINS`), so deleting
+one fails the attestation. The statements of all ten are also pinned with
+`#guard_msgs in #check` in the same file, so a change to a premise or a
+conclusion fails the build where the proof would still go through. That is held
+by the build: no gate yet requires a statement pin to exist, so deleting one
+passes `attest.py` and the other gates.
 
 **What reaches the translated code.** `Tacenta.SpqrT3.skip_message_keys_refines`
 (tier T3, "the sparse post-quantum ratchet's translated code refines the model")
@@ -542,20 +554,28 @@ has the text and the hypotheses it had. The model it names changed, so its
 refusal case is now the count above: when `skipMessageKeys` refuses, the
 translated code returns an error and `r.2 = s`, the state as it was, and when it
 succeeds the state refines the one the model returns. Its statement is pinned in
-`Translation/SparseSkipStatementPin.lean`; the unit copies are generated from it
-(`port-unit-proofs.sh`, `port-session-unit-proofs.sh`). Its hypotheses `hroom`
+`Translation/SparseSkipStatementPin.lean`, which the build holds and no gate yet
+requires: deleting that file and its import passes every gate today. The unit
+copies are generated from it (`port-unit-proofs.sh`,
+`port-session-unit-proofs.sh`). Its hypotheses `hroom`
 and `hskiproom` are proved for a state `State::from_bytes` returns
 ("Proved: what a decoded state satisfies"). Nothing in this change adds a
 hypothesis, an axiom or an entry to the trusted base.
 
-**Tested only.** That the Rust refuses and accepts where the model does at the
-edges: `tacenta-spqr`'s tests `replacement_keys_make_room_at_the_exact_store_edge`,
+**Tested only.** That the Rust source, as distinct from its translation, refuses
+and accepts where the model does at the edges: `tacenta-spqr`'s tests
+`replacement_keys_make_room_at_the_exact_store_edge`,
 `a_sparse_store_refusal_is_atomic_when_replacement_would_still_overflow`,
 `a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound` and
 `the_purge_range_is_above_the_chain_number_and_up_to_the_target_only`; the
 vectors `replacement-bound-counts-resulting-store` and
-`replacement-range-excludes-the-chain-counter`; and three one-step sequences in
-the differential harness. They pin the behaviour; they do not prove it.
+`replacement-range-excludes-the-chain-counter` in `sparse-ratchet-state.json`;
+and three one-step sequences in the differential harness. They pin the
+behaviour of the source; they do not prove it. The translation they are
+compared with was regenerated with a macOS arm64 build of the pinned release,
+and no Linux x86_64 regeneration of `TacentaSpqr.lean`, `TacentaTripleUnit.lean`
+or `TacentaSessionUnit.lean` has been made (`GAP-REGISTER.md`,
+`HL-R1-SPARSE-TRANSLATION`).
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
