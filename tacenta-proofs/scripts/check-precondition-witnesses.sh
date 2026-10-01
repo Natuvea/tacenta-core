@@ -50,6 +50,24 @@
 # into `boundary` and `unwitnessed` is the right one; a reader checks that, and the groups are in
 # the module docstrings and in CLAIMS.md.
 #
+# A numeric premise stated through a definition whose name is not on `pwStatePreds` is not recognised as
+# numeric. If the table classifies it as `boundary` the check accepts it; a toy theorem with `(h2 : Roomy n)`
+# where `Roomy n := n + 1 < Usize.max` passes. Unfolding Prop-valued definition heads before looking for
+# comparisons would close this. A scan of the 44 witness rows and 18 discharge rows with unfolding found no
+# such premise in the tree: the only hypotheses it flagged were the contract bundles `RatchetAgreesFor` and
+# `SpqrAgreesFor`, whose numeric content is in implication antecedents.
+#
+# The numeric-hypothesis rule applies to witness rows only. In a discharge row a numeric hypothesis may be
+# classified `caller` and nothing asks for a witness, so a numeric premise added to a theorem that has a
+# discharge row and no witness row (`advance_refines`, `maybe_advance_refines`, `clear_old_epochs_refines`)
+# is accepted once it is classified.
+#
+# Two more checks keep the rest of a witness module tied to its table. Every `*_at_witness` theorem (a
+# discharge theorem applied at the witness state, its type read off the application by `type_of%`) must be
+# listed and must not have a function type: a premise added after the last argument of a discharge theorem
+# leaves the application building at a function type, which the build does not notice and this check
+# refuses. And every theorem named `sat_*` in the island must belong to a row of the table.
+#
 # Each case below applies ONE change and requires `lake env lean` to refuse for the stated reason,
 # at the line of its own command, so several cases share one elaboration without hiding each other.
 # The unmodified modules must pass first: a refusal is only evidence if acceptance is possible. The
@@ -271,6 +289,8 @@ syntax (name := pwDischargesCmd) "#pw_discharges " pwDEntry* : command
 
 syntax (name := pwDischarge1Cmd) "#pw_discharge1 " pwDEntry : command
 
+syntax (name := pwAppliedCmd) "#pw_applied " ident* : command
+
 private def pwArgNames (stx : Syntax) (i : Nat) : Array Name := stx[i].getSepArgs.map (·.getId)
 
 @[command_elab pwWitnessesCmd] def elabPwWitnesses : CommandElab := fun stx => do
@@ -288,7 +308,38 @@ private def pwArgNames (stx : Syntax) (i : Nat) : Array Name := stx[i].getSepArg
   let extra := defined.filter fun n => !seen.contains n
   unless extra.isEmpty do
     throwError "statements under {prem} that the table does not list: [{pwFmt extra}]"
+  -- and every `sat_*` theorem of the island must belong to a row
+  let wanted := seen.map fun c => island ++ Name.mkSimple ("sat_" ++ (toString (c.replacePrefix prem Name.anonymous)).replace "." "_")
+  let sats := env.constants.map₂.foldl (fun (acc : Array Name) n _ =>
+    match n with
+    | .str pre s => if pre == island && s.startsWith "sat_" then acc.push n else acc
+    | _ => acc) #[]
+  let extraSat := sats.filter fun n => !wanted.contains n
+  unless extraSat.isEmpty do
+    throwError "theorems named sat_* under {island} that no row of the table accounts for: [{pwFmt extraSat}]"
   logInfo m!"witness table complete: {seen.size} statements"
+
+/-- The `*_at_witness` theorems of an island: each must be a theorem whose type is not a function type
+(a discharge theorem applied to all its arguments), and every such theorem of the island must be listed. -/
+@[command_elab pwAppliedCmd] def elabPwApplied : CommandElab := fun stx => do
+  let island ← getCurrNamespace
+  let env ← getEnv
+  let mut seen : Array Name := #[]
+  for id in stx[1].getArgs do
+    let n := island ++ id.getId
+    let some ci := env.find? n | throwError "{n} is not defined"
+    unless ci.isThm do throwError "{n} is not a theorem"
+    if ci.type.isForall then
+      throwError "{n} has a function type: it applies a discharge theorem to fewer arguments than the theorem takes, so a premise added after the last argument leaves it building"
+    seen := seen.push n
+  let applied := env.constants.map₂.foldl (fun (acc : Array Name) n _ =>
+    match n with
+    | .str pre s => if pre == island && s.endsWith "_at_witness" then acc.push n else acc
+    | _ => acc) #[]
+  let extra := applied.filter fun n => !seen.contains n
+  unless extra.isEmpty do
+    throwError "*_at_witness theorems under {island} that are not listed: [{pwFmt extra}]"
+  logInfo m!"applied theorems ok: {seen.size}"
 
 /-- One row, checked alone and without the completeness check, so that cases are independent. -/
 @[command_elab pwWitness1Cmd] def elabPwWitness1 : CommandElab := fun stx => do
@@ -400,16 +451,33 @@ SESSION_DISCHARGE = [
     "Tacenta.SessionUnitTripleT3.send_refines_discharged by Tacenta.SessionUnitDecodedStateDischarge.triple_send_premises discharges [hroom, hcb, hsb] given [hrel, hepoch] caller [hnewb, hcounter] boundary [hmac, hkdf, hzr, hvr, hz96, hz64, hret, hret_total, hrm, hzs, hopt]",
 ]
 
+# The discharge theorems applied at the witness state, by name under the witness module's namespace.
+LEAF_APPLIED = [
+    "spqr_receive_premises_at_witness", "spqr_send_premises_at_witness", "spqr_advance_premises_at_witness",
+    "spqr_maybe_advance_premises_at_witness", "spqr_clear_old_epochs_premises_at_witness",
+    "ratchet_receive_premises_at_witness", "braid_receive_premises_at_witness",
+    "braid_step_receive_premises_at_witness",
+]
+SESSION_APPLIED = [
+    "session_unit_spqr_receive_premises_at_witness", "session_unit_spqr_send_premises_at_witness",
+    "session_unit_spqr_advance_premises_at_witness", "session_unit_spqr_maybe_advance_premises_at_witness",
+    "session_unit_spqr_clear_old_epochs_premises_at_witness", "session_unit_ratchet_receive_premises_at_witness",
+    "session_unit_braid_receive_premises_at_witness", "session_unit_braid_step_receive_premises_at_witness",
+    "triple_receive_premises_at_witness", "triple_send_premises_at_witness",
+]
+
 ISLANDS = [
-    # (witness module, witness rows, discharge module, discharge rows)
-    ("NumericWitnessLeaf", LEAF_WITNESS, "DecodedStateDischarge", LEAF_DISCHARGE),
-    ("NumericWitnessTriple", TRIPLE_WITNESS, None, None),
-    ("NumericWitnessSession", SESSION_WITNESS, "SessionUnitDecodedStateDischarge", SESSION_DISCHARGE),
+    # (witness module, witness rows, discharge module, discharge rows, applied theorems)
+    ("NumericWitnessLeaf", LEAF_WITNESS, "DecodedStateDischarge", LEAF_DISCHARGE, LEAF_APPLIED),
+    ("NumericWitnessTriple", TRIPLE_WITNESS, None, None, []),
+    ("NumericWitnessSession", SESSION_WITNESS, "SessionUnitDecodedStateDischarge", SESSION_DISCHARGE,
+     SESSION_APPLIED),
 ]
 
 INFRA = ("object file", "unknown module prefix", "no such file", "could not find",
          "unknown package", "failed to read file")
 cases = 0
+accepted_n = 0
 wrong = []
 MSG = re.compile(r"^[^\n]*?case\.lean:(\d+):\d+: (error|warning|info)[^\n]*", re.M)
 
@@ -462,7 +530,7 @@ class File:
         self.items.append((name, line, reason, needles))
 
     def check(self, label):
-        global cases
+        global cases, accepted_n
         rc, out = run(self.text)
         if infra(out):
             wrong.append(f"{label}: failed because the build is missing, not as a refusal:\n{out[:600]}")
@@ -473,6 +541,7 @@ class File:
             msgs = by_line.get(line, [])
             errors = [m for kind, m in msgs if kind == "error"]
             if reason is None:
+                accepted_n += 1
                 if errors:
                     wrong.append(f"{name}: expected acceptance, was refused:\n{errors[0][:1200]}")
                 else:
@@ -524,10 +593,13 @@ def mutated(rows, theorem, old, new):
 started = time.time()
 
 # ------------------------------------------------------------------ the modules as they are
-for mod, rows, dmod, drows in ISLANDS:
+for mod, rows, dmod, drows, applied in ISLANDS:
     f = File(without_pins(read(mod)) + "\n" + META + "\nnamespace Tacenta." + mod)
     f.command("witnesses of " + mod + " match their theorems", w_all(rows), None,
               ["witness table complete: %d statements" % len(rows)] + ["witness ok: " + r.split()[0] for r in rows])
+    if applied:
+        f.command("the discharge theorems applied in " + mod + " are applications", "#pw_applied " + " ".join(applied),
+                  None, ["applied theorems ok: %d" % len(applied)])
     f.text += "end Tacenta." + mod + "\n"
     f.check("positive " + mod)
     if dmod:
@@ -553,6 +625,13 @@ text = once(text, "theorem sat_BraidT3_step_send_refines :", "theorem sat_BraidT
 text = once(text, "\nend Tacenta.NumericWitnessLeaf",
             "\ntheorem sat_BraidT3_step_send_refines : True := trivial\n\nabbrev Premises.Extra : Prop := True\n"
             "\nend Tacenta.NumericWitnessLeaf", "appending a weaker witness and a statement") or text
+text = once(text, """theorem spqr_clear_old_epochs_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room spqrS_inv""",
+            """theorem spqr_clear_old_epochs_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room) :=
+  DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room""",
+            "dropping the last argument of an application") or text
 f = File(text + "\n" + META + "\nnamespace Tacenta." + nm)
 LW = LEAF_WITNESS
 single = lambda r: "#pw_witness1 " + r
@@ -565,6 +644,14 @@ f.command("the witness of SpqrT1.send_no_panic is deleted", single(row_of(LW, "S
           "Unknown constant")
 f.command("the witness of BraidT3.step_send_refines proves True", single(row_of(LW, "BraidT3.step_send_refines")),
           "does not state")
+# an applied discharge theorem that lost its last argument is a function type: what a premise added after the
+# last argument looks like to the build, which accepts it
+f.command("an application of a discharge theorem has a function type", "#pw_applied " + " ".join(LEAF_APPLIED),
+          "spqr_clear_old_epochs_premises_at_witness has a function type")
+f.command("an applied theorem is not listed",
+          "#pw_applied " + " ".join(n for n in LEAF_APPLIED if n not in (
+              "spqr_send_premises_at_witness", "spqr_clear_old_epochs_premises_at_witness")),
+          "Tacenta.NumericWitnessLeaf.spqr_send_premises_at_witness")
 # the four changed theorems are left out of these two tables, so that the check reaches the completeness test
 CHANGED = {"SpqrT3.send_refines", "ImportInv.Ratchet.decoded_receive_refines", "SpqrT1.send_no_panic",
            "BraidT3.step_send_refines"}
@@ -641,16 +728,33 @@ theorem ToyE (n : Nat) (h1 : n + 1 < Usize.max) (h2 : n = n) : True := trivial
 theorem ToyF (n : Nat) (h0 : n < 3) (h1 : n < 5) (h2 : n < 6) : True := trivial
 theorem ToyG (n : Nat) (h0 : n < 3) (h1 : n < 5) (h2 : n < 6) : True := trivial
 theorem ToyH (n : Nat) (h0 : n < 3) (h1 : n < 5) (h2 : n < 6) : True := trivial
+theorem ToyS (n : Nat) (h1 : n + 1 < Usize.max) : True := trivial
 end Tacenta
 """
-for k in "ABCDE":
+for k in "ABCDES":
     TOY += (f"namespace Tacenta.NumericWitnessToy{k}\nabbrev Premises.Toy{k} : Prop := ∃ n : Nat, n + 1 < Usize.max\n"
             f"theorem sat_Toy{k} : Premises.Toy{k} := ⟨0, by scalar_tac⟩\nend Tacenta.NumericWitnessToy{k}\n")
 TOY += """namespace Tacenta.NumericWitnessToyD
 theorem toyDischarge (n : Nat) (h0 : n < 3) : n < 5 ∧ n < 6 := ⟨by omega, by omega⟩
 theorem toyDischargeWeak (n : Nat) (h0 : n < 3) : n < 5 ∧ n < 7 := ⟨by omega, by omega⟩
 theorem toyDischargeGiven (n : Nat) (h0 : n < 4) : n < 5 ∧ n < 6 := ⟨by omega, by omega⟩
+theorem toyDischargeExtra (n : Nat) (h0 : n < 3) (hextra : False) : n < 5 ∧ n < 6 := ⟨by omega, by omega⟩
 end Tacenta.NumericWitnessToyD
+namespace Tacenta.NumericWitnessToyS
+theorem sat_Extra : True := trivial
+end Tacenta.NumericWitnessToyS
+namespace Tacenta.NumericWitnessToyP1
+theorem ok_at_witness : type_of% (Tacenta.NumericWitnessToyD.toyDischarge 1 (by omega)) :=
+  Tacenta.NumericWitnessToyD.toyDischarge 1 (by omega)
+end Tacenta.NumericWitnessToyP1
+namespace Tacenta.NumericWitnessToyP2
+theorem partial_at_witness : type_of% (Tacenta.NumericWitnessToyD.toyDischargeExtra 1 (by omega)) :=
+  Tacenta.NumericWitnessToyD.toyDischargeExtra 1 (by omega)
+end Tacenta.NumericWitnessToyP2
+namespace Tacenta.NumericWitnessToyP3
+theorem unlisted_at_witness : type_of% (Tacenta.NumericWitnessToyD.toyDischarge 1 (by omega)) :=
+  Tacenta.NumericWitnessToyD.toyDischarge 1 (by omega)
+end Tacenta.NumericWitnessToyP3
 """
 f = File(TOY + META)
 row = lambda k, cov, bnd: f"Tacenta.Toy{k} covers [{cov}] boundary [{bnd}] unwitnessed []"
@@ -677,9 +781,23 @@ f.command("a discharged hypothesis is changed in the theorem", disch("ToyG", "to
           "does not conclude h2 of Tacenta.ToyG")
 f.command("a given hypothesis is changed in the theorem", disch("ToyH", "toyDischargeGiven"),
           "is not the one Tacenta.ToyH takes")
+f.command("a theorem named sat_* that no row accounts for",
+          f"namespace Tacenta.NumericWitnessToyS\n#pw_witnesses\n  {row('S', 'h1', '')}\nend Tacenta.NumericWitnessToyS",
+          "theorems named sat_* under Tacenta.NumericWitnessToyS that no row of the table accounts for: "
+          "[Tacenta.NumericWitnessToyS.sat_Extra]")
+f.command("an applied discharge theorem is accepted",
+          "namespace Tacenta.NumericWitnessToyP1\n#pw_applied ok_at_witness\nend Tacenta.NumericWitnessToyP1", None,
+          ["applied theorems ok: 1"])
+f.command("a discharge theorem that took a premise after its last argument is refused",
+          "namespace Tacenta.NumericWitnessToyP2\n#pw_applied partial_at_witness\nend Tacenta.NumericWitnessToyP2",
+          "partial_at_witness has a function type")
+f.command("an applied theorem that is not listed is refused",
+          "namespace Tacenta.NumericWitnessToyP3\n#pw_applied\nend Tacenta.NumericWitnessToyP3",
+          "unlisted_at_witness")
 f.check("a theorem that gains a hypothesis, and a discharge theorem that changes")
 
-print(f"check-precondition-witnesses: {cases} cases in {int(time.time() - started)}s")
+print(f"check-precondition-witnesses: {cases} cases ({accepted_n} accepted, {cases - accepted_n} refused) "
+      f"in {int(time.time() - started)}s")
 if wrong:
     print("", file=sys.stderr)
     for w in wrong:
