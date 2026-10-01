@@ -58,7 +58,7 @@ inputs; libsignal's source code is not an input to this project.
 | Symmetric-key ratchet | The symmetric-key ratchet | in-order vector |
 | Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
-| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | Classical ratchet: `skipMessageKeys_store_bounded`, fixed 2,000/2,001 edge and replacement tests, `replacement-bound-counts-resulting-store` vector, and the differential harness. Sparse ratchet: the total bound and retirement are tested; the replacement-only stored-state edge remains in `HL-R1-SPARSE-TRANSLATION`. |
+| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | Classical ratchet: `skipMessageKeys_store_bounded`, fixed 2,000/2,001 edge and replacement tests, `replacement-bound-counts-resulting-store` vector, and the differential harness. Sparse ratchet: `skipMessageKeys_store_bounded` (one skip), `skipMessageKeys_refused_iff` and `skipMessageKeys_leaves_survivors_then_batch` (the count is the store the skip leaves), fixed 1,999/2,000/2,001 edge and atomic-refusal tests in `tacenta-spqr`, the `replacement-bound-counts-resulting-store` and `replacement-range-excludes-the-chain-counter` vectors, and three one-step sequences in the differential harness. |
 | Initialisation, both roles | Initialisation | all vectors (init_sender / init_receiver) |
 | Same-chain message below `Nr` with no stored key refused | Sending and receiving | same-chain-duplicate reject vector, `Model.Ratchet` examples (a duplicate after an in-order receive and after a stored-key receive is refused, the next message is still received), `receive_refines` (the model's refusal is part of what the Rust success case refines), core unit test `a_same_chain_duplicate_is_refused_and_changes_nothing` (`OutOfOrder`, state unchanged) |
 
@@ -211,10 +211,21 @@ the two pairs about to be re-derived, and pins the resulting count at 1,999.
 The differential harness inspects those pairs before and after the receive, so
 the marker cannot be satisfied by an in-order no-op.
 
-The sparse ratchet currently has no equivalent replacement-only differential
-case. Its follow-up must add a stored-state sequence that both replaces held
-pairs and reaches the exact lower purge endpoint, then pin the model and Rust
-responses together.
+The sparse ratchet's total bound counts the store a skip leaves
+(sparse-pq-ratchet.md, The store also has a total bound), and its evidence is
+parallel. `replacement-bound-counts-resulting-store` starts from 1,999 stored
+keys, two of them under numbers the skip re-derives, and stores three: the
+store left holds exactly 2,000. `replacement-range-excludes-the-chain-counter`
+holds keys at the chain's own number, inside the range, at the number the skip
+steps to, above it, and under another epoch, and pins which are replaced and
+which kept; the lower end of the range is strict. The differential harness
+builds both stores as stored bytes and, from the bytes before and after the
+step, checks that the held keys were present, that the replaced ones changed
+and the kept ones did not. A third sequence takes the same store one number
+further, 1,997 + 4, and checks that the model and the crate both refuse it, the
+crate as `SkippedStoreFull` and with the state it was run on unchanged. No
+vector carries that refusal, since the operations vectors name only
+`counter-exhaustion` and `no-chain`.
 
 `tacenta-spqr` demonstrates both halves of this in Rust. Three requests on a
 single chain in a single epoch, each inside the per-call bound, reach the cap and

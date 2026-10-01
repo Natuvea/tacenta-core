@@ -1547,6 +1547,27 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     { st with chains := st.chains.map fun p =>
         (p.1, if sendSide then { p.2 with send := p.2.send.map f } else { p.2 with receive := p.2.receive.map f }) }
   let bobStore ← reachSparse "Bob's stored keys" .bob [.receive 0 none 3]
+  -- The total bound counts the store a skip leaves (sparse-pq-ratchet.md, The
+  -- store also has a total bound). Only a stored state holds a key a skip
+  -- re-derives, so both vectors start from one.
+  -- One short of the cap: the two held keys a skip from 0 re-derives, numbers
+  -- 1 and 2, and maxSkippedStore - 3 others at numbers no skip here reaches.
+  let sparseReplacementStart : Model.SparseRatchet.State :=
+    { bob with
+        skipped := [(0, 1, fill 0x51), (0, 2, fill 0x52)] ++
+          (List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, fill 0x53) }
+  -- Epoch 0's receiving chain at 4 with keys 1 to 3 stored, as after message 4,
+  -- then epoch 1 opened. Held keys are added at 4 (the chain's own number), 5 and
+  -- 6 (inside a skip to 6), 8 (above it), and at 5 under epoch 1. None is held at
+  -- 7, the message that is received: a held key for the message number is read
+  -- from the store without a skip.
+  let sparseRangeBase ← reachSparse "Bob with two epochs" .bob
+    [.receive 0 none 4, .receive 1 (out 1 0xa1) 1]
+  let sparseRangeStart : Model.SparseRatchet.State :=
+    { sparseRangeBase with
+        skipped := sparseRangeBase.skipped ++
+          [(0, 4, fill 0x71), (0, 5, fill 0x72), (0, 6, fill 0x73), (0, 8, fill 0x74),
+           (1, 5, fill 0x75)] }
   let ops ← [
     sparseOps "fresh-alice" "init with direction A2b: epoch 0's two chains, nothing stored" .alice [],
     sparseOps "fresh-bob" "init with direction B2a: the same chain keys, assigned the other way" .bob [],
@@ -1562,6 +1583,12 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     sparseOps "bob-retires-an-epoch-with-its-keys"
       "keys 1 and 2 of epoch 0 stored, then epochs 1 and 2 opened: epoch 0's chains and keys are retired" .bob
       [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1],
+    sparseOps "replacement-bound-counts-resulting-store"
+      "a 1,999-key store holds keys 1 and 2 of epoch 0, and message 4 stores keys 1 to 3: the two held keys are replaced before the total bound is checked, so the store left holds 1,997 + 3 = 2,000 keys, which the bound allows; counted before the replacement, 1,999 + 3 would pass it"
+      (.stored sparseReplacementStart) [.receive 0 none 4],
+    sparseOps "replacement-range-excludes-the-chain-counter"
+      "epoch 0's chain at 4 and held keys at 4, 5, 6 and 8, and a key at 5 under epoch 1: message 7 stores keys 5 and 6, replacing the held 5 and 6 and keeping the key at the chain's own number 4, the key at 8 above the range and the key of the other epoch"
+      (.stored sparseRangeStart) [.receive 0 none 7],
     sparseOps "epoch-reaches-one-below-the-ceiling"
       "from epoch u64::MAX - 2, a receive carrying epoch u64::MAX - 1's secret: the window's sum saturates, and epochs u64::MAX - 2 and u64::MAX - 1 are kept"
       (.stored { bob with epoch := u64Max - 2, chains := [(u64Max - 3, bobCs), (u64Max - 2, bobCs)] })

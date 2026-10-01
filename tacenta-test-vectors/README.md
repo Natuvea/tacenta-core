@@ -356,9 +356,18 @@ Two things no vector here pins.
   Rejection). `Model.PersistedState` reads the version byte first and
   `tacenta-core` checks the length first; both conform, and no vector here
   offers such a buffer.
-- **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
-  both files, but the accepted side of the bound is not pinned, since its
-  vector would be about 290 kilobytes.
+- **A stored state of exactly `MAX_SKIPPED_STORE` keys offered as bytes.**
+  2,001 keys are refused in both files. The accepted side of the bound is
+  reached only through operations, and only in `sparse-ratchet-state.json`:
+  `replacement-bound-counts-resulting-store` leaves a store of exactly 2,000
+  keys (the vector is about 385 kilobytes, and its `-read-back` vector the
+  same). The Double Ratchet's file reaches 1,999.
+- **A skip refused for the total bound.** An operations vector's refusal is
+  `counter-exhaustion` or `no-chain`, and the schema has no kind for
+  `SkippedStoreFull`, so no vector refuses a skip for the total bound. The
+  refusal, and that it leaves the state unchanged, are pinned by `tacenta-spqr`'s
+  tests and by a one-step sequence in the differential harness, which checks
+  the state the refused receive was run on.
 
 ### The Triple Ratchet's state: `vectors/persistence/triple-ratchet-state.json`
 
@@ -821,7 +830,11 @@ from either implementation.
 - **The store's total bound.** Reaching `MAX_SKIPPED_STORE` means deriving
   thousands of message keys in the model's Lean SHA-256 and then reading a
   state holding them back at every later step. The refused side of the bound
-  is pinned by the `store-over-its-bound` vectors instead. The per-chain bound
+  is pinned by the `store-over-its-bound` vectors instead, and the sparse
+  ratchet's replacement at the bound by three one-step sequences built from
+  stored bytes: 1,999 keys, two of them re-derived, a skip that ends at the cap
+  and one that passes it by one, and a chain with keys held either side of the
+  range a skip replaces. The per-chain bound
   is driven: the step past `MAX_SKIP` in every run, and `MAX_SKIP` itself in
   the long run below.
 - **The one refusal the specification leaves open.** A buffer too short for
