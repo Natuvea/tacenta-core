@@ -50,6 +50,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# The builders are imported in this process. Without this, a run where bytecode may
+# be written leaves `tooling/__pycache__/` in the repository, which the next
+# manifest build there reports as a dirty tree.
+sys.dont_write_bytecode = True
 GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}")
 
 

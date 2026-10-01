@@ -194,6 +194,10 @@ refuse pack-schema 'invalid pack manifest' push "d['pack']['schema_version'] = 2
 refuse pack-files-not-a-list 'invalid pack manifest' push "d['pack']['files'] = {}"
 refuse pack-candidate-missing 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': '', 'tree': ''}"
 refuse pack-candidate-short 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': 'abc', 'tree': 'def'}"
+refuse pack-candidate-short-everywhere 'pack manifest has invalid candidate' push "d['candidate'] = {'commit': 'abc', 'tree': 'def'}; d['manifest']['identity'].update(source_commit='abc', source_tree='def'); d['receipts']['candidate'] = dict(d['candidate']); d['pack']['candidate'] = dict(d['candidate'])
+for r in (d['manifest'], d['receipts']):
+    for c in r['checks']:
+        if 'commit' in c['run']: c['run'].update(commit='abc', tree='def')"
 refuse pack-candidate-not-strings 'pack manifest has invalid candidate' push "d['pack']['candidate'] = {'commit': 1, 'tree': 2}"
 
 set +e
@@ -351,20 +355,66 @@ python3 "$root/tooling/build-evidence-pack.py" --verify "$work/forged-generator"
 cases=$((cases + 1))
 expect_real_fail forged-generator "packed manifest names a generator that is not the candidate commit's" "$work/forged-generator" "$real/repo"
 
+# Every file under source/ is held to git, one at a time: each is forged with every
+# digest brought up to date, so the pack still verifies on its own, and refused.
+packed_sources="$(python3 -c 'import json,sys; print("\n".join(e["path"][len("source/"):] for e in json.load(open(sys.argv[1]))["files"] if e["path"].startswith("source/")))' "$real/pack/PACK-MANIFEST.json")"
+packed_count=0
+while IFS= read -r relative; do
+  cp -R "$real/pack" "$work/forge-each"
+  forge "$work/forge-each" "$relative" "Forged text for $relative.
+"
+  expect_real_fail "forge-$relative" "packed source differs from the candidate commit: $relative" "$work/forge-each" "$real/repo"
+  rm -rf "$work/forge-each"
+  packed_count=$((packed_count + 1))
+done <<EOF
+$packed_sources
+EOF
+expected_sources="$(python3 -c 'import importlib.util,sys; s=importlib.util.spec_from_file_location("p", sys.argv[1]+"/tooling/build-evidence-pack.py"); sys.path.insert(0, sys.argv[1]+"/tooling"); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(len(set(m.ASSURANCE_SOURCES) | set(m.EXTRA)))' "$root")"
+if [ "$packed_count" != "$expected_sources" ]; then
+  echo "WRONG  forged $packed_count packed sources, but the pack allowlist has $expected_sources" >&2
+  exit 1
+fi
+
 # The same pack against a repository that does not hold the candidate commit.
 expect_real_fail commit-absent 'is not in the repository' "$real/pack" "$work/real-pull-request/repo"
 mkdir "$work/empty-repo"
 git -C "$work/empty-repo" init -q 2>/dev/null
 expect_real_fail repository-empty 'is not in the repository' "$real/pack" "$work/empty-repo"
 
-# The commit is there and the pack names another tree for it. The pack is made
-# with the helper above, whose documents are consistent with each other, so only
-# the comparison with git can refuse it.
+# The commit is there and the pack names another tree for it. The pack is the one
+# the production tools made, so every packed source is the commit's file and the
+# generator digest is right; only the tree differs, in every document that names
+# it, with the digests brought up to date. Only the comparison with git refuses it.
 real_commit="$(git -C "$real/repo" rev-parse HEAD)"
-pack tree-of-another-commit push "d['candidate'] = {'commit': '$real_commit', 'tree': 'b' * 40}; d['manifest']['identity'].update(source_commit='$real_commit'); d['receipts']['candidate'] = dict(d['candidate']); d['pack']['candidate'] = dict(d['candidate'])
-for r in (d['manifest'], d['receipts']):
-    for c in r['checks']:
-        if 'commit' in c['run']: c['run']['commit'] = '$real_commit'"
+cp -R "$real/pack" "$work/tree-of-another-commit"
+python3 - "$work/tree-of-another-commit" <<'PY'
+import hashlib, json, pathlib, sys
+pack, other = pathlib.Path(sys.argv[1]), "c" * 40
+def rewrite(name, edit):
+    path = pack / name
+    document = json.loads(path.read_text())
+    edit(document)
+    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
+def move_checks(document):
+    for check in document["checks"]:
+        if "tree" in check["run"]:
+            check["run"]["tree"] = other
+def manifest(document):
+    document["identity"]["source_tree"] = other
+    move_checks(document)
+def receipts(document):
+    document["candidate"]["tree"] = other
+    move_checks(document)
+rewrite("assurance-manifest.json", manifest)
+rewrite("assurance-receipts.json", receipts)
+rewrite("PACK-MANIFEST.json", lambda document: document["candidate"].update(tree=other))
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+for entry in index["files"]:
+    path = pack / entry["path"]
+    entry["sha256"], entry["bytes"] = hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
 expect_pass tree-of-another-commit-alone "$work/tree-of-another-commit"
 expect_real_fail tree-of-another-commit 'pack candidate tree is not the tree of the candidate commit' "$work/tree-of-another-commit" "$real/repo"
 
@@ -384,8 +434,11 @@ python3 "$root/tooling/build-evidence-pack.py" --verify "$work/source-not-in-com
 cases=$((cases + 1))
 expect_real_fail source-not-in-commit 'packed source is not a file of the candidate commit: NOT-IN-THE-COMMIT.md' "$work/source-not-in-commit" "$real/repo"
 
+# `--candidate-repo` with a build. Run from the candidate's own checkout with real
+# inputs, so that nothing but the flag itself can refuse it: if the flag were
+# accepted and ignored, this build would succeed.
 set +e
-repo_without_verify="$(python3 "$root/tooling/build-evidence-pack.py" --manifest "$work/x" --receipts "$work/x" --output "$work/x" --candidate-repo "$real/repo" 2>&1)"
+repo_without_verify="$(cd "$real/repo" && python3 tooling/build-evidence-pack.py --manifest "$real/hosted/assurance-manifest.json" --receipts "$real/hosted/assurance-receipts.json" --output "$work/fresh-pack" --candidate-repo "$real/repo" 2>&1)"
 repo_without_verify_rc=$?
 set -e
 cases=$((cases + 1))
@@ -438,6 +491,24 @@ expect_reproduced reproduce-pull-request --pack "$work/real-pull-request/pack" -
 cases=$((cases + 1))
 no_worktrees_left "$real/repo" || { echo "WRONG  a reproduction left a worktree in the repository" >&2; exit 1; }
 git -C "$real/repo" status --short --ignored | grep -v '^!! .assurance/$' && { echo "WRONG  a reproduction changed the repository" >&2; exit 1; }
+
+# A reproduction leaves the repository as it found it even when the interpreter is
+# allowed to write bytecode (the runner sets PYTHONDONTWRITEBYTECODE, which the
+# first runs here rely on): the loaded builders must not leave a cache in the tree.
+cases=$((cases + 1))
+env -u PYTHONDONTWRITEBYTECODE -u PYTHONPYCACHEPREFIX python3 -X pycache_prefix= "$real/repo/tooling/reproduce-evidence.py" --pack "$real/pack" --hosted "$real/hosted" --repo "$real/repo" >/dev/null
+if git -C "$real/repo" status --short --ignored | grep -v '^!! .assurance/$'; then
+  echo "WRONG  a reproduction with bytecode writing allowed changed the repository" >&2
+  exit 1
+fi
+# ...and removes its scratch directory.
+mkdir "$work/reproduce-tmp"
+cases=$((cases + 1))
+TMPDIR="$work/reproduce-tmp" python3 "$root/tooling/reproduce-evidence.py" --pack "$real/pack" --hosted "$real/hosted" --repo "$real/repo" >/dev/null
+if [ -n "$(ls -A "$work/reproduce-tmp")" ]; then
+  echo "WRONG  a reproduction left its scratch directory: $(ls "$work/reproduce-tmp")" >&2
+  exit 1
+fi
 
 expect_not_reproduced reproduce-nothing 'give --pack, --hosted or both'
 expect_not_reproduced reproduce-pack-forged-source 'packed source differs from the candidate commit: ASSURANCE.md' --pack "$work/forged-source" --repo "$real/repo"
@@ -537,6 +608,7 @@ case "$2" in
     if [ "$mode" = exists ]; then echo "An error occurred (PreconditionFailed) when calling the PutObject operation" >&2; exit 254; fi
     if [ "$mode" = partial ] && [ "$count" -ge 3 ]; then echo "An error occurred (RequestTimeout)" >&2; exit 254; fi
     if [ "$mode" = no-version ]; then echo '{}'; exit 0; fi
+    if [ "$mode" = empty-version ]; then echo '{"VersionId": ""}'; exit 0; fi
     echo "{\"VersionId\": \"version-$count\"}"
     ;;
   get-object-retention)
@@ -628,11 +700,12 @@ done
 
 expect_publish_fail publish-key-exists 'upload refused for candidates/' 1 exists --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/exists.json"
 expect_publish_fail publish-cut-short 'upload refused for candidates/' 5 partial --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/partial.json"
+expect_publish_fail publish-empty-version-id 'returned no version ID for candidates/' 1 empty-version --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/empty-version.json"
 expect_publish_fail publish-no-version-id 'returned no version ID for candidates/' 1 no-version --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-version.json"
 expect_publish_fail publish-governance-retention 'upload lacks Compliance retention for candidates/' 2 governance --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/governance.json"
 expect_publish_fail publish-retention-unreadable 'cannot read retention for candidates/' 2 no-retention --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-retention.json"
 expect_publish_fail publish-retention-without-date 'upload lacks Compliance retention for candidates/' 2 retention-without-date --pack "$real/pack" --candidate-repo "$real/repo" --receipt "$work/no-date.json"
-for refused in exists partial no-version governance no-retention no-date; do
+for refused in exists partial no-version empty-version governance no-retention no-date; do
   if [ -e "$work/$refused.json" ]; then
     echo "WRONG  publish-$refused: a receipt was written for a failed publication" >&2
     exit 1
