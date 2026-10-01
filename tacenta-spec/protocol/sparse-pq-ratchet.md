@@ -238,8 +238,10 @@ and number. A skip that steps the chain from `c` to `upto`, with `c < upto`:
 
 So a key that a skip replaces takes one slot, not two. The deletion in step 2
 is made on a working copy, and a refusal at step 1 or step 3 leaves the state
-exactly as it was, the keys step 2 would have deleted included. A skip with
-`upto <= c` stores nothing and checks nothing.
+exactly as it was when the skip began, the keys step 2 would have deleted
+included. That is the skip alone: a receive that folded the agreement's secret
+in before it reached the skip is still spent (above). A skip with `upto <= c`
+stores nothing and checks nothing.
 
 A state the operations produced holds no key at a number past its chain's
 counter (Receiving), so step 2 deletes nothing there and the count in step 3 is

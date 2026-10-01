@@ -309,7 +309,7 @@ is SemVer against the specified protocol (not the implementation).
   the counter itself is excluded, the number it steps to is included), counts
   what remains, and is refused as `SkippedStoreFull` only when that count plus
   `upto - c` passes `MAX_SKIPPED_STORE`. The deletion is made on a working
-  copy, and a refusal leaves the state unchanged. A key outside the range,
+  copy, and a refusal leaves the state as it was when the skip began. A key outside the range,
   including one stored at the counter itself, is kept as it was. This is the
   order `key-deletion.md` states for the Double Ratchet, which now names the
   sparse ratchet as taking it too. An earlier entry here recorded that the
