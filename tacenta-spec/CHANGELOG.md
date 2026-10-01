@@ -113,29 +113,36 @@ is SemVer against the specified protocol (not the implementation).
   at a checkpoint head, the verifier returns a hint, `possible-fork`, for a
   candidate whose predecessor is the epoch it holds for the number before; the
   hint has no effect, is not authenticated, and also fires without a fork. This
-  replaces an earlier rule of the same unreviewed draft,
-  which froze a verifier for good at the first valid sibling of its head; that
-  rule stays among the alternatives of Open decision D-12, with the reasons it
-  was not chosen. The page states that a displaced epoch's key material is
-  retired and its proposer proposes again; that an accepted epoch, and so a
-  removal, is final at a verifier only once a successor of it is accepted
-  there; that a fork deeper than one epoch still splits a group and nothing
-  brings it back; that an authority an owner removes, or a network, can still
-  keep chosen verifiers from accepting the removal by having them accept a
-  successor of a sibling first; that a writer that ranks first can undo, at
-  depth one, the epochs of writers that rank after it; that a sibling's
-  evidence is judged with the records of its slot set aside, so that the order
-  of arrival does not choose the head, and that verifiers that received
-  different siblings then hold different records; that catching up an offline
-  device can stall under the default freshness rule; and that a split group
-  gives a user no signal beyond that hint. For a successor, only an
-  owner of the predecessor can cause the `unsupported` result. A device that
-  joins after genesis starts from a checkpoint, which may be the genesis epoch
-  itself, that an authenticated invitation carries, on seven ordered checks and
-  a stated trust assumption: the joiner trusts its inviter for the checkpoint
-  and cannot verify the chain before it. Identity keys of member devices are
-  compared as bytes, which relies on the verifier applying the identity-key rule
-  of `identities-and-devices.md` to the key of each new device (at the evidence
+  replaces an earlier rule of the same unreviewed draft, which froze a verifier
+  for good at the first valid sibling of its head; that rule stays among the
+  alternatives of Open decision D-12, with the reasons it was not chosen. The
+  page states that a displaced epoch's key material is retired and its proposer
+  proposes again, with back-off; that an accepted epoch, and so a removal, is
+  final at a verifier only once a successor of it is accepted there; that a fork
+  deeper than one epoch still splits a group and nothing brings it back; that an
+  authority an owner removes, or a network, can still keep chosen verifiers from
+  accepting the removal by having them accept a successor of a sibling first;
+  that a writer that ranks first can undo, at depth one, the epochs of writers
+  that rank after it; that a sibling's evidence is judged with the records of
+  its slot set aside, so that the order of arrival does not choose the head, and
+  that verifiers that received different siblings then hold different records;
+  that catching up an offline device can stall under the default freshness rule;
+  and that a split group gives a user no signal beyond that hint. Its
+  obligations at the product boundary also ask that a proposer build only on a
+  head that has settled, or rely on an ordering hint that gains no authority;
+  that re-proposals be paced; that the step that accepts an epoch write accepted
+  state first and derive the caller's record of generations and the key engine's
+  current material from it on restart; that an inviter give as a checkpoint an
+  epoch that already has a successor; and that the owner be shown which of its
+  devices ranks first. A caller may remember an `outranked` or `removed-by-head`
+  answer while the head is unchanged. For a successor, only an owner of the
+  predecessor can cause the `unsupported` result. A device that joins after
+  genesis starts from a checkpoint, which may be the genesis epoch itself, that
+  an authenticated invitation carries, on seven ordered checks and a stated
+  trust assumption: the joiner trusts its inviter for the checkpoint and cannot
+  verify the chain before it. Identity keys of member devices are compared as
+  bytes, which relies on the verifier applying the identity-key rule of
+  `identities-and-devices.md` to the key of each new device (at the evidence
   check and at a checkpoint) and to a writer's key at the signature check. The
   page states a removal invariant, as a target that is not shown, with its
   adversary, assumptions and limits; it concerns recipient sets and retired key
