@@ -16,6 +16,27 @@ headroom record carries that bound (`DecryptRatchetHeadroom.braidDecoders`). The
 compile against the repaired record. The obligations listed below as discharged are discharged
 under records that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws"), with the headroom records not shown satisfiable.
 
+Update, 2026-10-01, evidence records: that statement does not cover the hypotheses and records named
+here, which `Translation/DispatchEvidenceVacuity.lean` shows are false or empty under stated conditions
+(`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, gives the conditions). `InitialSameEphemeralEvidence`
+is false for every argument, so `decrypt_initial_refines_from_ratchet`, `initial_dispatch_route_from_ratchet`,
+`initial_dispatch_atomicity_from_ratchet`, `decrypt_initial_terminal_refines`,
+`decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
+`decrypt_initial_end_to_end_with_concrete_evidence` are vacuous as stated, and so are the three
+constructors `initialAccepted`, `initialTerminal` and `initialMalformed` of `SessionDecryptEvidence`.
+`InitialRatchetBraidEvidenceContracts` has no term when the model Braid is in one of six state and
+message-type pairs and its decoder holds a chunk, and `InitialRatchetTripleConcreteEvidence` and
+`InitialRatchetAeadConcreteEvidence` force the oracle's `dhPublic` to be constant, which contradicts the
+real X25519 public-key function under a statement that is tested and not proved. The evidence record of
+`initial_ratchet_refines_of_t1_with_concrete_evidence` asks for the first of these for every refusal input,
+so that theorem has no term whenever such an input exists and the model Braid is in one of the six states.
+Of the theorems listed below as discharging obligations, `decrypt_initial_terminal_refines` is one of those
+named in this note. The ten theorems of `UnitLifecycleT3.lean` that take `CodewordViewOf`, among them
+`public_encrypt_end_to_end`, are vacuous as stated under a condition on `Encoder::new`, which the register
+row states. The list of assumptions below omits two that `initial_dispatch_route_from_ratchet` takes, `hsame`
+and `hmismatch`, which are `InitialSameEphemeralEvidence` and `InitialMismatchedEphemeralEvidence`; the first
+is false and the second is false of the real function by reading.
+
 ## What the theorem establishes
 
 `initial_dispatch_route_from_ratchet` constructs the six routes from the
