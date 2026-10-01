@@ -54,6 +54,10 @@ EXTRA = [
     "tacenta-test-vectors/traces/session-operation-trace.json",
     "tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md",
     "tooling/required-steps.json",
+    # The workflow the receipts come from and the receipt action it uses, so that a
+    # reader sees them beside `tooling/required-steps.json`, the expected form the
+    # receipts were checked against.
+    ".github/workflows/ci.yml", ".github/actions/assurance-receipt/action.yml",
 ]
 
 

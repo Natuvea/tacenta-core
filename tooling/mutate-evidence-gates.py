@@ -113,6 +113,8 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
      'run.get("tree") != candidate["tree"]:', "the collector accepts a receipt for another commit"),
     ("C2", COLLECTOR, 'run.get("commit") != candidate["commit"] or run.get("tree") != candidate["tree"]:',
      'run.get("commit") != candidate["commit"]:', "the collector accepts a receipt for another tree"),
+    ("X1", PACK, '".github/workflows/ci.yml", ".github/actions/assurance-receipt/action.yml",\n', "",
+     "the pack need not carry the workflow and the receipt action"),
     # The pack verifier, its authentication against git, and its command line.
     ("P1", PACK, "    if repo is not None:\n        authenticate(root, repo)\n", "    if False:\n        authenticate(root, repo)\n",
      "--candidate-repo is accepted and ignored"),
