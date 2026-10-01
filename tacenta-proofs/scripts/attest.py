@@ -862,6 +862,20 @@ REQUIRED_PINS = frozenset(
         "truncateLen_model",
         "laws_model",
     )]
+    # The sparse ratchet's total bound counts the store a skip leaves
+    # (Proofs/SparseReplacementBound.lean): the range of the deletion, that the
+    # refusal is the resulting count, what a successful skip leaves, what is kept
+    # and replaced, and the witness that the two counts differ.
+    + ["Proofs.SparseReplacementBound." + n for n in (
+        "mem_skipSurvivors_iff",
+        "skipSurvivors_length_le",
+        "skipMessageKeys_refused_iff",
+        "skipMessageKeys_leaves_survivors_then_batch",
+        "skipMessageKeys_keeps_outside_range",
+        "skipMessageKeys_keeps_the_key_at_the_counter",
+        "skipMessageKeys_replaces_the_range",
+        "replacement_accepts_where_the_count_before_the_deletion_refuses",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
