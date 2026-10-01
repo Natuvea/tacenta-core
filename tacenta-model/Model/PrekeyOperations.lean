@@ -1,4 +1,5 @@
 import Model.PersistedState
+import Model.SwapRemove
 
 /-!
 # Prekey-store operation checks
@@ -58,18 +59,19 @@ def noOpOk (before after : Store) : Bool :=
   before == after && invariant before
 
 /-- Successful authenticated responder establishment using one-time curve and KEM
-    prekeys deletes exactly the named one-time entries after authentication. The
+    prekeys deletes exactly the named one-time entries after authentication, each by moving
+    the last entry of its list into the slot (`session-persistence.md`, Prekey store). The
     session output and plaintext are outside this store-only structural check. -/
 def consumeOneTimeOk (before after : Store) (curveId kemId : Nat) : Bool :=
   before.identityPublic == after.identityPublic
     && before.signedPrekeySecret == after.signedPrekeySecret
     && before.signedPrekeyId == after.signedPrekeyId
     && before.signedPrekeySig == after.signedPrekeySig
-    && after.oneTime == before.oneTime.filter (fun e => !(e.1 == curveId))
+    && after.oneTime == Model.swapRemove (fun e => e.1 == curveId) before.oneTime
     && before.kemPair == after.kemPair
     && before.kemId == after.kemId
     && before.kemSig == after.kemSig
-    && after.kemOneTime == before.kemOneTime.filter (fun e => !(e.1 == kemId))
+    && after.kemOneTime == Model.swapRemove (fun e => e.1 == kemId) before.kemOneTime
     && before.nextId == after.nextId
     && before.seen == after.seen
     && before.legacyLastResortBlocked == after.legacyLastResortBlocked

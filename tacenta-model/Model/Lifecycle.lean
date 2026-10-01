@@ -14,6 +14,7 @@ intended to quantify over every oracle; real-crypto vectors instantiate one.
 import Model.PersistedState
 import Model.CompositeHeader
 import Model.SessionEstablishment
+import Model.SwapRemove
 
 namespace Model.Lifecycle
 
@@ -758,14 +759,18 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
 
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
+  -- A consumed entry is removed by moving the last entry into its slot, as `take_one_time` and
+  -- `take_one_time_kem` do and `session-persistence.md`, Prekey store, says; for a store, whose
+  -- identifiers are distinct, an order-preserving removal differs from it unless the entry is last
+  -- or the one before it (`GAP-REGISTER.md`, row `E2E-03`).
   let withoutKem :=
     if lastResort then store.state
     else { store.state with
-      kemOneTime := store.state.kemOneTime.filter (fun entry => entry.1 != kemId) }
+      kemOneTime := Model.swapRemove (fun entry => entry.1 == kemId) store.state.kemOneTime }
   let withoutCurve :=
     if oneTimeId = Model.PersistedState.PrekeyStoreState.absentId then withoutKem
     else { withoutKem with
-      oneTime := withoutKem.oneTime.filter (fun entry => entry.1 != oneTimeId) }
+      oneTime := Model.swapRemove (fun entry => entry.1 == oneTimeId) withoutKem.oneTime }
   let recorded :=
     match fingerprint with
     | none => withoutCurve
@@ -1786,6 +1791,19 @@ example :
     consumed.state.oneTime.map Prod.fst = [9]
       ∧ consumed.state.kemOneTime.map Prod.fst = [8, 10]
       ∧ consumed.state.seen = [(8, fingerprint)] := by
+  native_decide
+
+/-- A consumed entry that is neither the last nor the one before it: the last entry takes its slot.
+    An order-preserving removal would give `[9, 11]` and `[10, 12]`. -/
+example :
+    let store : PrekeyStore :=
+      { state :=
+          { (default : StoredPrekeys) with
+            oneTime := [(7, [0x71]), (9, [0x91]), (11, [0xb1])]
+            kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2]), (12, [0xc1], [0xc2])] } }
+    let consumed := consumeResponderPrekeys store 7 8 false none
+    consumed.state.oneTime.map Prod.fst = [11, 9]
+      ∧ consumed.state.kemOneTime.map Prod.fst = [12, 10] := by
   native_decide
 
 /-- Replay matching ignores the record's budget tag. The tag controls counting

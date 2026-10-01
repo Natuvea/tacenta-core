@@ -718,6 +718,7 @@ struct Observed {
     prekey_lifecycle_rotate_signed: usize,
     prekey_lifecycle_rotate_kem: usize,
     prekey_lifecycle_consume_one_time: usize,
+    prekey_lifecycle_consume_not_last: usize,
     prekey_lifecycle_record_last_resort: usize,
     prekey_lifecycle_noop: usize,
     // Stores imported from the older layouts with a replay record: the
@@ -3816,6 +3817,45 @@ fn check_prekey_responder_effects(exe: &Path, rng: &mut Rng, seed: u64, seen: &m
     );
     seen.prekey_lifecycle_consume_one_time += 1;
 
+    // A one-time pair that is not at the end of its lists. `publish_one_time_batch` names the last
+    // pair first, so the last bundle of the batch names the first pair, and consuming it moves the
+    // last pair into its slot (session-persistence.md, Prekey store); for a store, whose
+    // identifiers are distinct, an order-preserving removal gives a different list whenever the
+    // pair is neither the last nor the one before it.
+    let mut spread = responder.create_prekeys(4, rng);
+    let batch = spread.publish_one_time_batch();
+    assert_eq!(batch.len(), 4, "create_prekeys(4) should stock four pairs");
+    let first = batch.last().expect("a batch of four");
+    assert!(
+        first.one_time_prekey_id != batch[0].one_time_prekey_id
+            && first.one_time_prekey_id != batch[1].one_time_prekey_id
+            && first.kem_prekey_id != batch[0].kem_prekey_id
+            && first.kem_prekey_id != batch[1].kem_prekey_id,
+        "the consumed pair must be neither the last nor the one before it"
+    );
+    let spread_initial = initial_for_bundle(&initiator, first, rng);
+    let before_first = prekey_bytes(&spread);
+    establish_responder(&responder, &mut spread, &spread_initial, rng)
+        .expect("an authenticated one-time initial message should establish");
+    let after_first = prekey_bytes(&spread);
+    assert_eq!(
+        spread.one_time_remaining(),
+        (3, 3),
+        "only the named pair is consumed"
+    );
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey consume-one-time {} {} {} {}",
+            first.one_time_prekey_id,
+            first.kem_prekey_id,
+            hex::encode(&before_first),
+            hex::encode(&after_first)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_consume_not_last += 1;
+
     let before_replay = prekey_bytes(&store);
     assert!(
         establish_responder(&responder, &mut store, &initial, rng).is_err(),
@@ -4999,12 +5039,13 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
 
     eprintln!(
         "differential: prekey lifecycle checks: publish {}, replenish {}, rotate-signed {}, \
-         rotate-kem {}, consume-one-time {}, record-last-resort {}, no-op {}",
+         rotate-kem {}, consume-one-time {} (not last {}), record-last-resort {}, no-op {}",
         seen.prekey_lifecycle_publish,
         seen.prekey_lifecycle_replenish,
         seen.prekey_lifecycle_rotate_signed,
         seen.prekey_lifecycle_rotate_kem,
         seen.prekey_lifecycle_consume_one_time,
+        seen.prekey_lifecycle_consume_not_last,
         seen.prekey_lifecycle_record_last_resort,
         seen.prekey_lifecycle_noop,
     );
@@ -5027,6 +5068,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_lifecycle_consume_one_time > 0,
         "no prekey lifecycle one-time consumption check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_consume_not_last > 0,
+        "no prekey lifecycle one-time consumption of an entry that is not last was compared"
     );
     assert!(
         seen.prekey_lifecycle_record_last_resort > 0,
