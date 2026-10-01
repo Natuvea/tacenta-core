@@ -514,9 +514,10 @@ impl State {
     /// `n - 1 - receive_count` keys, and the store refuses when the keys that
     /// survive the purge of the keys about to be replaced plus that figure
     /// would pass `MAX_SKIPPED_STORE`. The keys held are an upper bound on the
-    /// survivors, and equal to them in any state the operations produced, so
-    /// the excess over the keys held is the room to make and is never short of
-    /// it (see `evict_oldest`).
+    /// survivors (`Proofs.SparseReplacementBound.skipSurvivors_length_le`), so
+    /// the excess over the keys held is never short of the room to make. In a
+    /// state the operations produced the two are equal; that is read off the
+    /// operations and not proved (see `evict_oldest`).
     ///
     /// An index loop through `find_chains`, like every other lookup here, and
     /// two `let ... else` rather than an `Option` combinator: a closure is
@@ -955,8 +956,10 @@ impl State {
         // here instead, before the purge, would refuse a stored state near the
         // cap for a request that only replaces its own keys. A refusal returns
         // before `self` is written: the working copy is dropped, which erases
-        // each key in it (`Skipped` is `ZeroizeOnDrop`), and the state is
-        // exactly as it was.
+        // each key in it (`Skipped` is `ZeroizeOnDrop`, and
+        // `a_skip_refused_for_the_total_bound_frees_no_secret` in
+        // `tests/spqr_erasure_public.rs` fails if it stops being), and the
+        // state is exactly as it was.
         if skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
             return Err(SpqrError::SkippedStoreFull);
         }

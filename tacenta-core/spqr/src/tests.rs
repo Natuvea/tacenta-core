@@ -223,6 +223,10 @@ fn replacement_keys_make_room_at_the_exact_store_edge() {
         n += 1;
     }
     assert_eq!(b.receive_count(0), Some(3));
+    // The 1,997 survivors keep the order they were stored in, ahead of the new
+    // keys (sparse-pq-ratchet.md, step 4). Eviction takes the front first.
+    assert_eq!((b.skipped[0].epoch, b.skipped[0].n), (0, 5_000));
+    assert_eq!((b.skipped[1_996].epoch, b.skipped[1_996].n), (0, 6_996));
 }
 
 #[test]
@@ -269,6 +273,99 @@ fn a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound() {
     let before = b.clone();
     assert_eq!(b.skip_message_keys(0, 1), Err(SpqrError::SkippedStoreFull));
     assert!(b == before, "a full-store refusal changed the state");
+}
+
+/// A xorshift stream, so the sequences below are the same on every run.
+struct Xs(u64);
+
+impl Xs {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+}
+
+/// How many stored keys sit at or past their epoch's receiving counter, or
+/// under an epoch with no receiving chain.
+fn keys_at_or_past_the_counter(s: &State) -> usize {
+    let mut bad = 0;
+    for k in s.skipped.iter() {
+        match s.receive_count(k.epoch) {
+            Some(c) if k.n < c => {}
+            _ => bad += 1,
+        }
+    }
+    bad
+}
+
+#[test]
+fn no_operation_leaves_a_stored_key_at_or_past_its_chain_counter() {
+    // sparse-pq-ratchet.md, Receiving: "no operation leaves a key stored at a
+    // number past its chain's counter", which is why the two counts of the
+    // total bound differ only for a state read from storage. No theorem states
+    // it and `State::invariant` does not require it (the reader accepts such a
+    // state), so this runs honest and hostile sequences through the public
+    // operations and asserts it after every step. Sends, epoch openings,
+    // in-order and late receives, duplicates, arbitrary numbers and stale
+    // epochs on a clone adopted only on success, and eviction.
+    for seed in 1..=40u64 {
+        let mut rng = Xs(0x9E37_79B9_7F4A_7C15 ^ seed.wrapping_mul(0x0123_4567));
+        let mut a = State::init_alice(&sk());
+        let mut b = State::init_bob(&sk());
+        let mut epoch = 0u64;
+        let mut sent: Vec<u64> = Vec::new();
+        for _ in 0..300 {
+            match rng.next() % 10 {
+                0 => {
+                    let o = out(epoch + 1, (rng.next() & 0xff) as u8);
+                    if let Ok((n, _)) = a.send(epoch + 1, Some(&o)) {
+                        epoch += 1;
+                        sent.clear();
+                        sent.push(n);
+                        let _ = b.receive(epoch, Some(&o), n);
+                    }
+                }
+                1..=4 => {
+                    if let Ok((n, _)) = a.send(epoch, None) {
+                        sent.push(n);
+                    }
+                }
+                5..=7 => {
+                    if !sent.is_empty() {
+                        let n = sent[(rng.next() as usize) % sent.len()];
+                        let _ = b.receive(epoch, None, n);
+                    }
+                }
+                8 => {
+                    let n = match rng.next() % 4 {
+                        0 => rng.next() % 1500,
+                        1 => 1000 + rng.next() % 3000,
+                        2 => 0,
+                        _ => u64::MAX - (rng.next() % 3),
+                    };
+                    let e = if rng.next() & 1 == 0 {
+                        epoch
+                    } else {
+                        epoch.saturating_sub(rng.next() % 3)
+                    };
+                    let mut c = b.clone();
+                    if c.receive(e, None, n).is_ok() {
+                        b = c;
+                    }
+                }
+                _ => {
+                    let _ = b.evict_oldest((rng.next() % 50) as usize);
+                }
+            }
+            assert_eq!(keys_at_or_past_the_counter(&b), 0, "seed {seed}");
+            assert_eq!(keys_at_or_past_the_counter(&a), 0, "seed {seed}");
+            assert!(b.invariant(), "seed {seed}");
+        }
+    }
 }
 
 #[test]

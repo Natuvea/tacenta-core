@@ -103,8 +103,9 @@ fn a_full_store_makes_room_and_the_conversation_continues() {
 /// the keys the message skips on its chain, less the cap -- not the skip
 /// count on its own, and not a geometric climb up to it. For the post-quantum
 /// store the keys held are an upper bound on the keys that survive the
-/// replacement of the skipped range, and equal to them in every state a
-/// session produces, so this figure is never short. The store refuses
+/// replacement of the skipped range, so this figure is never short; in a state
+/// the operations produced the two are equal (read off the operations, not
+/// proved). The store refuses
 /// well before it holds the cap: 1500 keys and a message 599 ahead is 99
 /// over, and 99 is what must go from each store. Sizing by the skip count
 /// would take 599, five hundred keys the message never displaced (CR-19).

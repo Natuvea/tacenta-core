@@ -3105,13 +3105,17 @@ impl Session {
         //
         // The first eviction aims at the shortfall the header implies rather
         // than climbing 1, 2, 4, ... up to it (CR-19). The classical ratchet
-        // refuses when the keys it holds plus the keys this message skips on
-        // the current chain -- its header number minus the current receive
-        // count -- would exceed `MAX_SKIPPED_STORE`, so the room it needs is
-        // that excess and nothing more, and both terms are known before the
-        // first attempt. The purge of the replaced range comes before that
-        // check, so here too the keys held are an upper bound on the keys it
-        // counts, and equal to them in every state a session produces.
+        // refuses when the keys that survive the purge of the range it
+        // re-derives, plus the keys this message skips on the current chain
+        // (its header number minus the current receive count), would exceed
+        // `MAX_SKIPPED_STORE`. The keys held are at least the survivors, so
+        // the excess over the cap of the keys held plus that figure is never
+        // short of the room it needs, and both terms are known before the
+        // first attempt. The two counts differ when the store holds keys in
+        // the range the skip re-derives. On this side that happens in a
+        // session when a peer returns to a ratchet key it had left
+        // (ratchet.md, Skipped keys), and the first batch can then exceed the
+        // room needed by the number of those keys.
         // "Full" does not mean the store holds exactly the cap:
         // a store of 1500 keys refuses a message 600 ahead, and needs 100
         // evicted, not 600. Starting at the excess means a forged full-store
@@ -3129,8 +3133,10 @@ impl Session {
         // store refuses when the keys it holds plus that figure would exceed
         // `MAX_SKIPPED_STORE`, so the room it needs is that excess. For the
         // post-quantum store the keys held are an upper bound on the keys that
-        // survive the replacement of the skipped range, and equal to them in
-        // every state a session produces, so this figure is never short.
+        // survive the replacement of the skipped range, so this figure is
+        // never short. In a state the operations produced the two are equal;
+        // that is read off the operations and not proved
+        // (sparse-pq-ratchet.md, Receiving).
         //
         // The ramp stays as the fallback for a header naming an epoch the state
         // holds no receiving chain for, where the accessor reports nothing and
@@ -3168,7 +3174,11 @@ impl Session {
         // twice `MAX_SKIP`; both are public and tunable, and the argument is
         // meant to survive one of them moving. At today's values that floor is
         // a thousand keys. Either way the first batch never exceeds what the
-        // message displaces.
+        // message displaces, except by the keys the store holds in the range
+        // the skip re-derives, which the purge removes and the batch counts
+        // as well. The post-quantum store holds such keys only in a state read
+        // from storage. The classical store holds them after a peer returns to
+        // a ratchet key it had left.
         //
         // The batch is reset when the *other* store reports full, because the
         // classical half runs first inside `receive` and a batch sized for its
