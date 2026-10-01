@@ -191,6 +191,15 @@ is SemVer against the specified protocol (not the implementation).
   awaiting review and that the exclusion stands until a reviewed change ratifies
   it. These add no requirement and change no rule.
 
+- `README.md`, "Normative status": add the status "Status: draft" beside "Status:
+  scaffold". A page marked draft is a proposed text awaiting review under
+  ADR-0008, rule 7. It is not normative and not a conformance target, and the
+  rules for normative text (a constant needs an entry in `CONSTANTS.md`; a
+  change is specified first) apply from the change that removes the mark after
+  review. A draft can span several files: the entry page carries the status and
+  each part points to it. This adds no requirement and changes no rule for any
+  existing page.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale

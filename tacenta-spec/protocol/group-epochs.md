@@ -9,7 +9,7 @@ on this page is a conformance target, no model or vector states it, and the
 decisions under Open decisions are open: a mark "Adopted" there means a
 recommended default that the maintainer said to go with, not a decision made
 after review. Adopting a default does not ratify the text it shapes. The page
-has the standing of a scaffold (README.md, "Normative status"), with more text.
+is a draft in the sense of README.md, "Normative status".
 
 Review record. ADR-0008, rule 7 asks that a change to this specification be
 reviewed against that record before it merges, by the maintainer or by a
