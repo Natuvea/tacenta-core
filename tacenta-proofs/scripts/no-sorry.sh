@@ -125,6 +125,12 @@ report_time "initial dispatcher proof-dependency controls" "$t"
 t=$SECONDS
 python3 scripts/check-atomicity-negatives.py || fail=1
 report_time "lifecycle frame-proof controls" "$t"
+# The restated dispatch records' witnesses (`UnitLifecycleRepair.lean`): a witness for a wrong or
+# weaker statement would hold nothing, so make one change to a copy of each and require Lean to
+# refuse it, after requiring the unmodified copies to be accepted.
+t=$SECONDS
+python3 scripts/check-repair-negatives.py || fail=1
+report_time "restated dispatch record controls" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

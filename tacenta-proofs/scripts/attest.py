@@ -1227,6 +1227,11 @@ REQUIRED_PINS = frozenset(
         "encrypt_err_leaves_state",
         "encrypt_ok_writes",
     )]
+    # The restated dispatch records and that honest runs meet them (`UnitLifecycleRepair.lean`).
+    + ["Tacenta.UnitLifecycleRepair." + n for n in (
+        "codewordViewSendOf_satisfiable",
+        "scoped_chunk_fields_iff_consistent",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

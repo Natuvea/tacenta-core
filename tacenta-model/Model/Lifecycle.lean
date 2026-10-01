@@ -56,8 +56,9 @@ structure Oracle where
     refinement. A wire codeword does not reveal the Braid model's ghost source,
     and a model chunk does not contain its wire bytes. The current Braid state
     is part of each complete argument list because it supplies the encoder or
-    decoder context. `CodewordViewOf` in the refinement layer will constrain
-    these choices by the existing `BraidT3.CodewordOf` relation. -/
+    decoder context. `CodewordViewSendOf` in the refinement layer constrains
+    the send choice by the existing `BraidT3.CodewordOf` relation; the
+    receive choice is constrained per run (`IncomingChunkRefines`). -/
 structure CodewordView where
   receive : Model.Braid.BraidState → UInt16 → Bytes → Model.Braid.Chunk
   send : Model.Braid.BraidState → Model.Braid.Chunk → Model.CompositeHeader.Codeword
