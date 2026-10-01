@@ -1012,23 +1012,27 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   between a malformed message and a remote denial of service, for this leaf
   crate. One real precondition travels with these two: `State.ct1_bounded`, a
   concrete size cap on the KEM ciphertext carried across the encapsulation
-  exchange (an invariant `step_send` maintains but this file does not prove,
-  since that would be a T3 claim about the whole state machine rather than a
-  T1 one about a single function). The epoch bound they used to carry as well
+  exchange. Neither `step_send` nor `step_receive` keeps it alone: `step_send`
+  makes a `ct1` with `encapsulate1`, and `step_receive` makes one from the
+  `ct1` decoder. This file does not prove it is kept, since that would be a
+  claim about the whole state machine rather than a T1 one about a single
+  function; `BraidPreserve.lean` proves that every successful step keeps
+  `State.sized`, which gives it. The epoch bound they used to carry as well
   (`hepoch`, an epoch counter below `2^64`, the same shape of bound the
   classical ratchet and the sparse ratchet each need above) is no longer a
   hypothesis of either theorem: the two transitions that advance the epoch
   now use `checked_add` and answer `Failed` at the ceiling (CR-03), an
   outcome the theorems prove as a value rather than assume away.
-  **Nothing below closes the `ct1_bounded` gap**, and it is worth
+  **The `ct1_bounded` gap is not closed by `tacenta-triple`**, and it is worth
   being exact about why, since the obvious candidate does not apply:
   `tacenta-triple` is proved (T1 and T3, both further down this file), but it
   composes `tacenta-spqr` and `tacenta-ratchet`, not `tacenta-braid`. The Braid
   sits beneath the session alongside the Triple rather than inside it, so the
   Triple's proofs never see the Braid's state and cannot discharge an invariant
-  about it. Closing this needs a T3 claim about the Braid's own state machine
-  maintaining `ct1_bounded` across `step_send`, which `BraidT3.lean` does not
-  currently make.
+  about it. It is closed by the Braid's own results, in the section "Proved
+  (the ML-KEM Braid keeps the two premises its receive theorems take)":
+  `State.sized`, which gives `ct1_bounded` and adds the clause it needs to be
+  closed under the transitions, is kept by every successful step.
 - `finish_encaps_no_panic`, and every helper the state machine calls
   (`info_no_panic`, `Auth.update_no_panic`/`mac_hdr_no_panic`/
   `mac_ct_no_panic`/`init_no_panic`, `kdf_ok_no_panic`, `State.clone_no_panic`,
@@ -1063,8 +1067,9 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   `MAX_CODEWORDS` chunks), because in that unit `Decoder::message` is translated and its
   hypothesis `DecoderMessageTotal` is stated for such decoders only; the statement for every
   decoder is false (see the section on the unbounded decoder hypothesis). Like `ct1_bounded`,
-  no theorem shows that a send or a receive produces a state that has it; `Braid::invariant`
-  supplies it. In that unit the erasure functions are
+  it is implied by `State.sized`, which every successful send and receive keeps (the section
+  "Proved (the same preservation theorems on the session unit, with the decoded Braid)"), and
+  `Braid::invariant` supplies it for a decoded Braid. In that unit the erasure functions are
   concrete translated code, so the pinned
   axiom lists drop the standalone Braid translation's opaque erasure
   declarations. The port explicitly unregisters three narrower global tactic
@@ -1174,6 +1179,12 @@ that it yields the preconditions the `receive` theorems take, and no more.
 There is no theorem here of the form "`send`/`receive` carries a state
 satisfying `Inv` to one satisfying `Inv`", for any of the three crates, and
 `Inv s` therefore does not on its own say that any run of the crate built `s`.
+For the Braid a preservation theorem exists for the clause set `State.sized`,
+which implies `Braid.Inv`. `Braid.Inv` does not imply `State.sized`
+(`inv_not_sized`), so the theorem is not about `Braid.Inv`. It is in the
+sections "Proved (the ML-KEM Braid keeps the two premises its receive theorems
+take)" and "Proved (the same preservation theorems on the session unit, with
+the decoded Braid)".
 
 That is worth stating because it decides how the decoder's refusal should be
 read. Where a predicate is not maintained by the operations, `from_bytes` can
@@ -1184,7 +1195,8 @@ the values the predicate excludes are values the operations never reach -- is
 established by the crates, in the Rust, in the comments beside the counters
 concerned and in their import tests, not here. Read it as the property the
 crates establish; the Lean side would need a preservation theorem per
-operation, and that is open work.
+operation. For the Braid's `State.sized`, which gives the two receive premises,
+that theorem now exists (see above); for the two ratchets it is open work.
 
 **What is not claimed: a step of counter headroom.** The three crates reserve
 the top value of the counter each steps, so that no state their operations
@@ -2058,6 +2070,160 @@ What a reader has to grant:
   with `K.hashEk` -- four more opaque-boundary assumptions, distinct from
   `BraidT1.lean`'s bound-only copies of the same constants.
 
+## Proved (the ML-KEM Braid keeps the two premises its receive theorems take)
+
+Location: `Translation/BraidPreserve.lean`.
+
+`Braid.receive_no_panic` and `Braid.receive_refines` take `State.ct1_bounded` as a premise: the KEM
+ciphertext a state stores is at most 4096 bytes. Until these results no theorem showed that a
+send or a receive keeps it. They show that every successful step of the standalone Braid
+translation keeps a clause set `State.sized`: `ct1_bounded`; `Good 4096` for the decoder that
+`HeaderSent` holds, the clause `ct1_bounded` needs before it is closed under the transitions; and
+`Good 4128` for each other decoder a state holds, which on the session unit carries the `needed`
+bound of `decoders_bounded`. `ct1_bounded` alone is not preserved: `ct1` is the
+message of the decoder that `HeaderSent` holds, which is as long as the decoder was sized for, and
+`ct1_bounded` does not say that decoder is sized for at most 4096 bytes. A `HeaderSent` state
+whose decoder is sized for 4097 bytes meets `ct1_bounded`, and the chunk that completes the
+decoder makes a `ct1` of 4097 bytes. That step is not a Lean theorem: the translated
+`Decoder::message` is not computed in Lean, and the real one returns as many bytes as the decoder
+was sized for. It was run on the real crate, and the test is recorded under "Waiting on the next
+re-translation window" in `LIMITATIONS.md`, because it is not committed.
+`Braid::invariant` states the missing clause as `decoder_sized(ct1_dec, CT1_LEN)`, so a restored
+Braid is not such a state, and `State.sized` states it as `Good 4096 ct1_dec`.
+
+- `Braid.step_send_sized`, `Braid.step_receive_sized`: a successful `step_send` or `step_receive`
+  carries a state that has `State.sized` to one that has it, for all twelve states. The hypotheses
+  are values the opaque operations return and never that a step returns, so the theorems are about
+  the steps that do.
+- `State.clone_sized`: a state's clone has it too, so the clone that `send` and `receive` step is no
+  gap.
+- `Braid.send_sized`, `Braid.receive_sized`, `Braid.commit_sized`: the same for the two entry points and
+  for adopting a candidate.
+- `Braid.initiator_sized`, `Braid.responder_sized`: the two constructors build a Braid that has it.
+  The responder's one decoder is `hdr_decoder`.
+- `Braid.Run.sized`: every Braid that a run reaches from Braids that have `State.sized`, by any
+  number of `send` (with an RNG that answers) and `receive`, has it. `Braid.Run Base` is the
+  closure, and `Braid.Run.sized` takes `Base` as an argument.
+- `Braid.Constructed.sized`: the constructors' Braids are such a base.
+- `State.sized_ct1_bounded`: `State.sized` gives `ct1_bounded`, the premise the receive theorems take.
+- `Braid.Run.exists_initiator`, `Braid.Run.exists_responder`, `Braid.Run.exists_send`: the closure
+  is not empty. An initiator and a responder exist under the totality hypotheses each theorem
+  takes, and two Braids exist that the closure reaches, the second the result of a `send` from the
+  first. Each takes its own totality hypotheses and not those of `Braid.Run.sized`, so they do not
+  show that the hypotheses of `Braid.Run.sized` hold together; the length constants and
+  `Encapsulate1Total` have a model in `KemWitness.lean` and `Laws` has one in
+  `BraidPreserveWitness.lean`, and no theorem combines the two.
+
+**Assumed, and where recorded.** `step_receive_sized` and what is built on it take `Laws`
+(`BraidPreserveDecoder.lean`): a decoder that `Decoder::new(m)` builds never returns a message
+longer than `m`, however many chunks it is given and however often it is cloned. It is new and
+it is assumed. The real `Decoder::message` ends in `out.truncate(self.size)`, and the session
+unit proves the analogue from the translated body, given `TruncateLen` (below). It has a model
+together with the three erasure hypotheses `BraidT1` and `BraidT3` already take (next section). The
+theorems take four of `BraidT1`'s KEM length constants (`Ct1LenTotal`, `Ct2LenTotal`,
+`HeaderLenTotal`, `EkVectorLenTotal`, each at most 4096; the real ones are 1408, 160, 64 and 1536),
+and the send theorems take `Encapsulate1Total` with `RngTotal rc`, which caps the ciphertext
+`encapsulate1` returns. Those five are existing hypotheses, modelled by `KemWitness.lean`.
+
+**What is not claimed.** No theorem here says a step returns: `BraidT1` does, for a state with
+`ct1_bounded`, and `State.sized` now supplies that premise for every Braid a run reaches.
+`State.sized` is not `Braid::invariant`: it has none of the clauses of `Braid::invariant` that the
+receive theorems do not use (the exact lengths of `header`, `ct1` and `ek_vector`, the encoders'
+sizes, `epoch >= 1`, the key pair's validity). On the standalone translation a decoded Braid is not
+shown to have it, because `Decoder::invariant` and `Decoder::size` are opaque there; the session
+unit shows it (below). The epoch headroom `epoch + 1 < u64::MAX` that the refinements take is not a
+clause of `State.sized` and is not discharged. A clone of a Braid (`Braid` derives `Clone`) is not a
+step of `Braid.Run`; `State.clone_sized` covers the state clone that `send` and `receive` take. The
+three non-vacuity theorems exhibit an initiator, a responder and one send from an initiator. None
+of those Braids holds a stored `ct1` or a `ct1` decoder, so no theorem here exhibits a Braid in the
+closure for which `ct1.length <= 4096` or `Good 4096 ct1_dec` is more than `True`.
+
+## Proved (the law the Braid's preservation theorems add has a model, and the receive corollaries)
+
+Location: `Translation/BraidPreserveWitness.lean` and `Translation/BraidPreserveCorollary.lean`.
+
+- `newMsgLen_iff`: `Laws` is `NewMsgLenShape` at the real erasure operations, so a model of the
+  shape is a model of the law, and a change to the statement stops the file from building.
+- `api_newMsgLen`: the Reed-Solomon implementation of `ErasureWitness.lean` never returns a message
+  longer than the size it was built for.
+- `erasure_laws_satisfiable`: one implementation of the opaque erasure operations satisfies
+  `ErasureAgrees`, `ErasureCloneAgrees`, the seven erasure totality assumptions and `NewMsgLen`
+  together. This is consistency of the statements and not a statement about the real crate.
+- `model_for_both_widths`: `Usize.max` is `U32.max` or `U64.max` (`Usize.bounds_eq`), and the model
+  satisfies `NewMsgLenShape` for an arbitrary `Usize`, so it satisfies it at each width. The proof of
+  `api_newMsgLen` uses no fact about the width (its axioms are `propext`, `Classical.choice`,
+  `Quot.sound`).
+- `Braid.Run.receive_no_panic`, `Braid.Run.receive_refines`: `BraidT1.Braid.receive_no_panic` and
+  `BraidT3.Braid.receive_refines` for a Braid that a run reaches. The premise `ct1_bounded` is
+  replaced by `Braid.Run Base self`, with `Base` having `State.sized`, and by `Laws`,
+  `Encapsulate1Total` and `EkVectorLenTotal`. Every other premise of `receive_refines` stays, among
+  them the epoch headroom, the honest-chunk condition and the relation of the real state to a model
+  state.
+
+## Proved (the same preservation theorems on the session unit, with the decoded Braid)
+
+Location: `Translation/SessionUnitBraidPreserve.lean`, `Translation/SessionUnitBraidPreserveDecoder.lean` and `Translation/SessionUnitBraidPreserveFacts.lean`.
+
+`SessionUnitBraidPreserve.lean` is the count-checked port of `BraidPreserve.lean`
+(`scripts/port-session-braid-preserve.sh`, run by CI with `--check`), so its theorems have the same
+names and the same text, and its negative controls are in `scripts/check-port-negatives.sh`. The
+unit translates the erasure decoder with a body, so a decoder is read off its fields: `Good n d` is
+`d.size <= n` and `d.needed <= MAX_CODEWORDS`, and `Laws` is two laws about standard-library
+operations, `TruncateLen` (`Vec::truncate` of `n` returns at most `n` elements) and `DivCeilValue`
+(`usize::div_ceil a 32` is `(a + 31) / 32`, the law `SessionUnitDecoderBound.lean` already states).
+Both are assumed. `LIMITATIONS.md` records them.
+
+- `Braid.step_send_sized`, `Braid.step_receive_sized`, `State.clone_sized`, `Braid.send_sized`,
+  `Braid.receive_sized`, `Braid.commit_sized`, `Braid.initiator_sized`, `Braid.responder_sized`,
+  `Braid.Run.sized`, `Braid.Constructed.sized`, `State.sized_ct1_bounded`,
+  `Braid.Run.exists_initiator`, `Braid.Run.exists_responder`, `Braid.Run.exists_send`: the fourteen
+  results of the previous sections, on the unit.
+- `message_length_le`: a message `Decoder::message` returns is at most `size` bytes, given
+  `TruncateLen`. The function ends in `truncate(size)`.
+- `Good.new`, `Good.msg`, `Good.add`, `Good.clone`: a decoder that `Decoder::new` builds from a protocol
+  constant is `Good` (it takes `DivCeilValue`, for `needed`), a `Good` decoder returns messages of
+  at most `n` bytes (it takes `TruncateLen`), and adding a chunk or cloning keeps `Good`
+  (they use `SessionUnitDecoderBound.lean`'s lemmas and no law).
+- `sized_decoders_bounded`: `State.sized` gives `State.decoders_bounded`, so it supplies both premises
+  of the unit's receive theorems.
+- `invariant_true_gives_sized`, `from_bytes_sized`: a Braid whose translated `invariant` returns
+  `true`, and so a Braid that `Braid::from_bytes` returns, has `State.sized`. The clauses are read off the
+  arms of `Braid::invariant`: `Vec::len ct1 = CT1_LEN`, `Decoder::invariant` on every decoder, and
+  `decoder_sized` against the protocol constant each decoder is built with. The hypotheses are the
+  four KEM length constants being at most 4096.
+- `Braid.Run.sized_of_start`, `Braid.Run.inv`: every Braid that a run reaches from the constructors and
+  from decoded Braids has `State.sized`, and so `Braid.Inv`, the two-field mirror that
+  `SessionUnitBraidImportInv.lean` states.
+- `Braid.Run.receive_no_panic`, `Braid.Run.receive_refines`: the unit's receive theorems for such a
+  Braid. The premises `ct1_bounded` and `decoders_bounded` are replaced by
+  `Braid.Run Braid.Start self`, `Laws`, `Encapsulate1Total` and `EkVectorLenTotal`. Every other
+  premise of `receive_refines` stays.
+- `inv_not_sized`: `Braid.Inv` does not say what `State.sized` says. A `HeaderSent` state with a
+  decoder that is sized for 4097 bytes and needs 129 chunks meets `ct1_bounded` and
+  `decoders_bounded`, so it meets `Braid.Inv`, and it does not have `State.sized`. The statement
+  quantifies over every key pair, so it needs no inhabitant of the opaque key-pair type. That the
+  step then breaks `ct1_bounded` is not a theorem either, for the reason given above.
+- `TruncateLen_is`, `truncateLen_model`, `laws_model`: `TruncateLen` is `TruncateLenShape` at the
+  unit's `Vec::truncate` by `Iff.rfl`; the joint model of `UnitSatisfiabilityJoint.lean`, which satisfies
+  every axiom-level field of the four session records and the five laws of `LIMITATIONS.md` at once,
+  satisfies it (its `truncate` is a prefix) and `DivCeilValue`'s shape. This is consistency of the
+  statements in one interpretation of the unit's opaque constants, as `LIMITATIONS.md` records for
+  the five laws, and not a model of the real `Vec::truncate` or `usize::div_ceil`.
+
+**What holds these results in place.** Each result named in the three sections above has an axiom
+pin under `#guard_msgs`, and `attest.py` requires all of the axiom pins (`REQUIRED_PINS`), so
+deleting one fails it. The axiom lists name constants that occur in the statements, not assumptions
+made by the proofs, and the results that take `Laws` say so in their statements. An axiom pin does
+not hold a statement. Statements are held by `#guard_msgs in #check` pins, and the definitions that
+carry the claim by
+`#guard_msgs in #print` pins (`State.sized`, `Braid.sized`, `Braid.Run` with its constructors,
+`Braid.Constructed`, `Braid.Start`, `Braid.Decoded`, `Reach`, `Good`, `NewMsgLen`, `TruncateLen`,
+`TruncateLenShape`, `Laws`, in the standalone and unit files that define them). These are held by the
+build and by the axiom pin, and **no gate requires a statement pin or a definition pin to exist**: deleting
+one fails nothing, and weakening a result whose statement has no pin changes nothing a gate reads. The
+results whose statements are held only by the build and the axiom pin, with no statement pin, are
+`api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and `Good.clone`.
+
 ## Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)
 
 Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
@@ -2227,8 +2393,11 @@ where allocation does not fail. That
 sense and under the five laws recorded in `LIMITATIONS.md`, in the sections "Proved (the records' fields about
 translated functions, from named laws)" and "Proved (one interpretation of the unit's opaque constants, and
 the four records from it)" below; `divCeilValue` is one of those laws, an assumption about an
-opaque standard-library function, and no theorem shows the headroom records satisfiable. No theorem shows that a send or a receive keeps
-`decoders_bounded`, as none shows it for `ct1_bounded`. The three theorems that were vacuous
+opaque standard-library function, and no theorem shows the headroom records satisfiable. That a send or a receive keeps
+`State.sized`, which gives `decoders_bounded` and `ct1_bounded`, is shown for the Braid's own operations in the sections
+"Proved (the ML-KEM Braid keeps the two premises its receive theorems take)" and "Proved (the
+same preservation theorems on the session unit, with the decoded Braid)", and not for a session
+state, which the single-step lifecycle theorems do not reach. The three theorems that were vacuous
 no longer fail for a hypothesis in their records, in the sense and under the five laws of the sections named
 above. Whether the headroom they take can be met is not
 shown, and a theorem is vacuous if it cannot. The dispatch theorems compile

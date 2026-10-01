@@ -176,17 +176,20 @@ text = unit_edit(text, "receive_no_panic step_receive call",
     "hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all)))")
 
 text = unit_edit(text, "what this covers: second premise",
-    """does not prove (that would be a T3 claim about the whole state machine, not a
-T1 one about a single function). The epoch bound""",
-    """does not prove (that would be a T3 claim about the whole state machine, not a
-T1 one about a single function). In the complete unit there is a second one,
+    """single function); `BraidPreserve.lean` proves it for `State.sized`. The epoch
+bound""",
+    """single function); `BraidPreserve.lean` proves it for `State.sized`. In the complete
+unit there is a second one,
 `State.decoders_bounded`: the erasure decoder is a translated definition there, and
 `DecoderMessageTotal` is stated only for a decoder that needs at most `MAX_CODEWORDS` chunks.
 The translated `Decoder::message` fails for a decoder that needs and holds `(Usize.max + 1) / 32`
 chunks (`SessionBraidReceiveRepair.old_witness`), and `MAX_CODEWORDS` is
 the Braid's own bound far below that line (`SessionBraidReceiveRepair.boundary_exact`).
 `Braid::invariant` supplies it (`SessionUnitBraidImportInv`), `add_chunk` and `clone` keep it,
-and no theorem shows that a send or a receive produces a state that has it. The epoch bound""")
+and `State.sized`, which gives it together with `ct1_bounded`, is kept by every successful
+send and receive (`SessionUnitBraidPreserve.lean`, under the two laws
+`SessionUnitBraidPreserveDecoder` states). The epoch
+bound""")
 
 # The erasure operations are concrete inside the complete unit, so the Braid
 # entry points no longer depend on the standalone translation's opaque erasure
