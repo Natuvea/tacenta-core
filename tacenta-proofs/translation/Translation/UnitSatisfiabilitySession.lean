@@ -1,4 +1,6 @@
 import Translation.UnitLifecyclePublicT1
+import Translation.UnitSatisfiabilityRatchet
+import Translation.UnitSatisfiabilityJoint
 
 /-!
 # Non-vacuity of the Session primitive contracts
@@ -8,6 +10,16 @@ Session boundary contract.  The corresponding `_is` theorem binds the shape
 to the generated constants, while the witness gives one joint interpretation
 in which the shape holds.  This establishes consistency only; it does not say
 that the generated axiom is implemented by the witness.
+
+The thirteen witnesses are separate: each interprets only the constants its
+contract mentions.  They do not show that the contracts hold together, and one of them
+had to change for that to be possible.  The witness for `VecPopTotal` was the function
+that returns and does not shorten the vector, which falsifies two fields that are
+defined by calling `pop` (`UnitSatisfiabilityRatchet.spqrRemoveSkippedAtTotal_false_of_noop_pop`).
+It is now the `pop` of `UnitSatisfiabilityJoint.lean`, which returns the last element and
+shortens the vector, and the shape carries the law as well as the totality.  That the contracts
+hold together, in one interpretation, is `UnitSatisfiabilityJoint.lean` and
+`UnitSatisfiabilityRecords.lean`.
 -/
 
 namespace Tacenta.UnitSatisfiabilitySession
@@ -230,11 +242,41 @@ def VecPopShape (f : VecPopFn) : Prop :=
   ∀ (T : Type) (v : alloc.vec.Vec T), Np (f v)
 
 theorem VecPopTotal_is : Tacenta.UnitLifecycleT1.VecPopTotal ↔
-    VecPopShape (fun {T} v => alloc.vec.Vec.pop Global v) := Iff.rfl
+    VecPopShape (fun {_} v => alloc.vec.Vec.pop Global v) := Iff.rfl
 
-theorem vec_pop_satisfiable : ∃ f : VecPopFn, VecPopShape f := by
-  refine ⟨(fun {T} v => ok (none, v)), ?_⟩
-  simp [VecPopShape, Np]
+/-- What the defined fields need of `pop` beyond returning: on a non-empty vector it returns the
+vector without its last element (`UnitSatisfiabilityRatchet.LawPop`). -/
+def VecPopLawShape (f : VecPopFn) : Prop :=
+  ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+    ∃ o w, f v = ok (o, w) ∧ w.val = v.val.dropLast
+
+theorem VecPopLaw_is : Tacenta.UnitSatisfiabilityRatchet.LawPop ↔
+    VecPopLawShape (fun {_} v => alloc.vec.Vec.pop Global v) := Iff.rfl
+
+/-- The witness for `VecPopTotal` is a `pop` that satisfies the law as well: the function that
+returns and leaves the vector unchanged satisfies `VecPopShape` and not `VecPopLawShape`. -/
+theorem vec_pop_satisfiable : ∃ f : VecPopFn, VecPopShape f ∧ VecPopLawShape f := by
+  refine ⟨Tacenta.UnitSatisfiabilityJoint.popImpl, ?_, ?_⟩
+  · exact fun T v => Tacenta.UnitSatisfiabilityJoint.popImpl_ok v
+  · intro T v hv
+    simp only [Tacenta.UnitSatisfiabilityJoint.popImpl, dif_neg hv]
+    exact ⟨_, _, rfl, rfl⟩
+
+/-- Control: the function that returns and leaves the vector unchanged, the witness this module
+used before, satisfies `VecPopShape` and does not satisfy `VecPopLawShape`.  So the stronger
+shape separates the old witness from the new one. -/
+theorem noop_pop_not_faithful :
+    VecPopShape (fun {_} v => ok (none, v)) ∧ ¬ VecPopLawShape (fun {_} v => ok (none, v)) := by
+  refine ⟨fun T v => ⟨_, rfl⟩, ?_⟩
+  intro H
+  let v : alloc.vec.Vec Unit := ⟨[()], by simp; scalar_tac⟩
+  obtain ⟨o, w, hw, hv⟩ := H v (by simp [v])
+  have hw' : w = v := by
+    have := hw
+    simp only [ok.injEq, Prod.mk.injEq] at this
+    exact this.2.symm
+  subst hw'
+  simp [v] at hv
 
 /-! ## Coverage
 
@@ -266,7 +308,7 @@ theorem all_thirteen_contracts_satisfiable :
     (∃ (W : Type → Type) (new : MessageKeyMaterialNewFn W)
       (deref : MessageKeyMaterialDerefFn W),
       MessageKeyMaterialRoundTripShape W new deref) ∧
-    (∃ f : VecPopFn, VecPopShape f) :=
+    (∃ f : VecPopFn, VecPopShape f ∧ VecPopLawShape f) :=
   ⟨dh_codec_satisfiable, dh_identity_satisfiable, dh_agree_satisfiable,
     aead_seal_bounded_satisfiable, aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
@@ -275,3 +317,45 @@ theorem all_thirteen_contracts_satisfiable :
     vec_pop_satisfiable⟩
 
 end Tacenta.UnitSatisfiabilitySession
+
+/-! ## Axiom pins
+
+The axiom bases of the `Vec::pop` witness, its law and the coverage theorem, held by the build.  The
+other witnesses are held by the coverage theorem, which names all thirteen.  A list names the
+constants that occur in the statement, not assumptions the proof makes. -/
+
+/--
+info: 'Tacenta.UnitSatisfiabilitySession.vec_pop_satisfiable' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilitySession.vec_pop_satisfiable
+
+/--
+info: 'Tacenta.UnitSatisfiabilitySession.noop_pop_not_faithful' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilitySession.noop_pop_not_faithful
+
+/--
+info: 'Tacenta.UnitSatisfiabilitySession.VecPopLaw_is' depends on axioms: [propext, tacenta_session_unit.alloc.vec.Vec.pop]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilitySession.VecPopLaw_is
+
+/--
+info: 'Tacenta.UnitSatisfiabilitySession.all_thirteen_contracts_satisfiable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilitySession.all_thirteen_contracts_satisfiable
+
+/--
+info: Tacenta.UnitSatisfiabilitySession.vec_pop_satisfiable :
+  ∃ f,
+    (Tacenta.UnitSatisfiabilitySession.VecPopShape fun {T} => f) ∧
+      Tacenta.UnitSatisfiabilitySession.VecPopLawShape fun {T} => f
+-/
+#guard_msgs in
+#check Tacenta.UnitSatisfiabilitySession.vec_pop_satisfiable

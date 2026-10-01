@@ -683,6 +683,93 @@ REQUIRED_PINS = frozenset(
     + [
         "Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded",
     ]
+    # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
+    # are the four records from an axiom base, the base's model, the erasure and ratchet fields
+    # proved from named laws, the shapes bound to the real predicates, the faithful-`pop`
+    # results, the controls and the evidence about the three zeroize fields. A pin outside this
+    # list can be deleted with its claim and the manifest regenerated without a refusal.
+    + ["Tacenta.UnitSatisfiabilityRecords." + n for n in (
+        "stdLaws_real_iff",
+        "ratchetLaws_of_base",
+        "encrypt_contracts_of_axiom_base",
+        "decrypt_contracts_of_axiom_base",
+        "initiator_contracts_of_axiom_base",
+        "responder_contracts_of_axiom_base",
+        "records_of_axiom_base",
+        "axiom_base_satisfiable",
+        "axiom_base_satisfiable_for_total_rng",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "all_shapes_are_predicates",
+        "model_satisfies_all_axiom_shapes",
+        "stdLaws_of_faithful",
+        "model_Faithful",
+        "model_StdLaws",
+        "encrypt_iff_parts",
+        "decrypt_iff_parts",
+        "initiator_toParts_ofParts",
+        "responder_toParts_ofParts",
+        "encrypt_axiom_part_satisfiable",
+        "decrypt_axiom_part_satisfiable",
+        "initiator_axiom_part_satisfiable",
+        "responder_axiom_part_satisfiable",
+        "DecoderNewTotal_is",
+        "decoderNewShape_of_stdLaws",
+        "model_DecoderNew",
+        "badRange_refutes",
+        "badDeref_refutes_array",
+        "badDeref_refutes_message_key",
+        "badOptionClone_refutes",
+        "badCap_refutes",
+        "badSeal_refutes",
+        "model_pop_empty",
+        "model_capacity_ge",
+        "model_truncate_is_take",
+    )]
+    + ["Tacenta.UnitSatisfiabilityErasure." + n for n in (
+        "decoderAddChunk_total",
+        "encoderNextChunk_total",
+        "encoderClone_total",
+        "decoderClone_total",
+        "decoderNew_iff",
+        "encoderNew_iff",
+        "divCeil32_of_value",
+        "decoderNew_of_divCeilValue",
+        "encoderNew_of_divCeilValue",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRatchet." + n for n in (
+        "kdfRkTotal",
+        "kdfCkTotal",
+        "kdfInitTotal",
+        "spqrRemoveSkippedAtTotal",
+        "ratchetRemoveSkippedAtTotal",
+        "setChainsLoopTotal",
+        "clearChainsLoop0Total",
+        "clearSkippedLoopTotal",
+        "vecRetainTotal",
+        "defined_fields_hold",
+        "spqrRemoveSkippedAtTotal_false_of_noop_pop",
+        "ratchetRemoveSkippedAtTotal_false_of_noop_pop",
+        "ratchetRemoveSkippedAtTotal_forces_blanketU32",
+        "setChainsLoopTotal_forces_asMut",
+    )]
+    + ["Tacenta.UnitSatisfiabilitySession." + n for n in (
+        "vec_pop_satisfiable",
+        "noop_pop_not_faithful",
+        "VecPopLaw_is",
+        "all_thirteen_contracts_satisfiable",
+    )]
+    + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
+        "zeroize_failure_propagation_conflicts",
+        "faithful_propagates",
+        "faithful_refutes_unscoped",
+        "faithful_satisfies_rest",
+        "ArrayZeroizeU8Total_of_spqr",
+        "ArrayZeroizeU8Total_of_braid",
+        "VecZeroizeChainsTotal_of_vecRetain",
+        "arrayZeroizeScoped_of_total",
+        "VecZeroizeSkippedTotal_of_vecRetain",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

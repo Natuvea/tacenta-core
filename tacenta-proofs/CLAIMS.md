@@ -18,14 +18,16 @@ this section says in one place what is not proved.
   contracts of `LIMITATIONS.md`, and any one record includes three to eight of
   them) and explicit headroom (three of the five, for `decrypt`, `decrypt_ratchet`
   and `establish_responder`, took a record that contained a false hypothesis,
-  which has been restated for bounded decoders; no theorem shows that any of the
-  four records can be met: `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and a set of
+  which has been restated for bounded decoders; the four records follow from an axiom base that one
+  interpretation satisfies, under five laws about standard-library and `zeroize` operations and with no witness for the
+  headroom records: `Translation/UnitSatisfiabilityRecords.lean`, `LIMITATIONS.md`,
+  `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
   (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Triple receive
   evidence in `UnitLifecycleInitialDispatch.lean` is derived from a leaf refinement
   that takes no contract record; the Braid receive evidence there takes
-  `BraidReceiveContracts`, which is not shown inhabited,
-  `GAP-REGISTER.md` E2E-04 and `SESSION-CONTRACT-VACUITY`). No theorem says what the two functions
+  `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; see also
+  `GAP-REGISTER.md`, rows `E2E-04` and `SESSION-CONTRACT-VACUITY`). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -56,9 +58,9 @@ this section says in one place what is not proved.
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it. That layer now has a Phase 0
   translation and, on the eight-leaf session unit, conditional panic-freedom
-  theorems for its entry points, all five conditional on records that are not shown
-  inhabited, three of which took a record with a false field until it was restated (the session lifecycle T1
-  section), but no theorem about the import of a stored
+  theorems for its entry points, all five conditional on records that are inhabited only in the
+  sense of `LIMITATIONS.md` (the session lifecycle T1 section), three of them on a record that
+  had a false field until it was restated, but no theorem about the import of a stored
   session. Wherever that
   chain does not reach, the sentence in bold still stands unchanged.
 - **A decoded state is panic-free unconditionally; it refines the model
@@ -1484,7 +1486,8 @@ qualified form, and its proof bodies genuinely changed on the way.
 **This is the claim that says anything about the composed path.**
 `tacenta-core/lifecycle/src`, the product code that calls `tacenta-triple`, is
 translated and has conditional T1 theorems on the eight-leaf session unit, all
-conditional on records not shown inhabited, three of them on a record that had a false field until it was restated (the session lifecycle T1 section below), and no
+conditional on contract records that are inhabited only in the sense of `LIMITATIONS.md` (the session
+lifecycle T1 section below), three of them on a record that had a false field until it was restated, and no
 refinement theorem, so the
 refinement claim stops at the crate boundary below it.
 
@@ -2184,8 +2187,8 @@ leaf preconditions from `Session::invariant`. Nothing here relates a result
 to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
 which are not listed as claims.
 
-**A false field was restated for bounded decoders; whether the records can be met is
-still not shown.** `BraidReceiveContracts`, which `DecryptRatchetContracts` contains and
+**A false field was restated for bounded decoders; the records now follow from an axiom base that has
+a model, under five laws (the two sections after the repair, below).** `BraidReceiveContracts`, which `DecryptRatchetContracts` contains and
 `EstablishResponderContracts` contains through it, used to include
 `SessionUnitBraidT1.DecoderMessageTotal` stated for every `Decoder`: the hypothesis that
 `Decoder::message` returns for every decoder. That is false: a decoder that needs
@@ -2217,13 +2220,16 @@ the four Braid theorems above each gained the precondition `decoders_bounded`.
 What this does and does not show. The repaired field is true given the one law that
 `Vec::truncate` returns, and the old argument does not touch it
 (`Translation/SessionBraidReceiveRepair.lean`, below). The statement is about the translation,
-where allocation does not fail. No theorem shows that
-`BraidReceiveContracts`, or any of the other three records, is inhabited: the fields of
-the records other than the thirteen boundary contracts witnessed in
-`Translation/UnitSatisfiabilitySession.lean` have no satisfiability witness in the tree, and `divCeilValue` is a new assumption
-about an opaque standard-library function. No theorem shows that a send or a receive keeps
-`decoders_bounded`, as none shows it for `ct1_bounded`. The three theorems that were vacuous are
-therefore no longer known to be, and are not known to be otherwise. The dispatch theorems compile
+where allocation does not fail. That
+`BraidReceiveContracts` and the other three records follow from an axiom base that has a model is shown, in the
+sense and under the five laws recorded in `LIMITATIONS.md`, in the sections "Proved (the records' fields about
+translated functions, from named laws)" and "Proved (one interpretation of the unit's opaque constants, and
+the four records from it)" below; `divCeilValue` is one of those laws, an assumption about an
+opaque standard-library function, and no theorem shows the headroom records satisfiable. No theorem shows that a send or a receive keeps
+`decoders_bounded`, as none shows it for `ct1_bounded`. The three theorems that were vacuous
+no longer fail for a hypothesis in their records, in the sense and under the five laws of the sections named
+above. Whether the headroom they take can be met is not
+shown, and a theorem is vacuous if it cannot. The dispatch theorems compile
 against the repaired record and are not claims. The standalone Braid theorems in `BraidT1.lean`
 and `BraidT3.lean` are not affected, because there the decoder is an opaque type and the field
 can be satisfied (`Translation/ErasureWitness.lean`, `erasure_hypotheses_satisfiable`, proves the
@@ -2264,12 +2270,14 @@ of the six carries an axiom pin under `#guard_msgs` at the end of
 `REQUIRED_PINS`, which also lists the results of the next section, so deleting a pin
 block, or leaving it inside a comment, fails it. The pins hold axiom lists only. A change to a contract record, to the class
 `SessionUnitT1.DerivedKeysModel` or to a headroom record, or a weaker theorem
-statement, fails a pin only if it names an operation the pin does not list. Nor do they show that the records can be met:
-`Translation/UnitSatisfiabilitySession.lean` exhibits a model for thirteen
-boundary contracts, and no theorem shows that any of the four records, or the
-class, is inhabited. Two of the four, `DecryptRatchetContracts` and
-`EstablishResponderContracts`, contained a field that was false, which the repair
-restated for decoders that need at most `MAX_CODEWORDS` chunks (above, and `LIMITATIONS.md`, "The Session unit's primitive contracts").
+statement, fails a pin only if it names an operation the pin does not list. Nor do they show that the records can be met by themselves:
+`Translation/UnitSatisfiabilitySession.lean` exhibits a model for each of thirteen boundary contracts
+separately. That the four records and the class follow from an axiom base that has a model, in the sense
+of the section "Proved (one interpretation of the unit's opaque constants, and the four records from it)"
+below, under five laws and without the headroom records, is shown by other results. Two of the four,
+`DecryptRatchetContracts` and `EstablishResponderContracts`, contained a field that was false, which the repair
+restated for decoders that need at most `MAX_CODEWORDS` chunks (above, and `LIMITATIONS.md`, "Trusted, not
+verified" for the bound and "The four contract records follow from an axiom base that has a model, under five laws" for the inhabitation).
 
 ## Proved (a negative result: the unbounded decoder hypothesis is false)
 
@@ -2362,12 +2370,195 @@ the translated definitions of the decoder. None assumes anything about an opaque
   decoder that needs at most 65536 chunks. This is the one place the new law is used, for the
   decoder of a freshly built responder Braid.
 
-These results do not show that `BraidReceiveContracts` or any other record is inhabited, and they
-say nothing about the product beyond what the translated definitions say. Each is pinned under
+These results alone do not show that `BraidReceiveContracts` or any other record is inhabited (the two
+sections that follow do, in one sense and under five laws), and they say nothing about the product beyond what the translated definitions say. Each is pinned under
 `#guard_msgs`, and `attest.py` requires all seventeen pins of the repair (`REQUIRED_PINS`), so
 deleting one fails it; the axiom lists name constants that occur in the statements, not assumptions made
 by the proofs, and the results that take `TruncateTotal` or `DivCeilValue` say so in their
 statements.
+
+## Proved (the records' fields about translated functions, from named laws)
+
+Location: `Translation/UnitSatisfiabilityErasure.lean`, `Translation/UnitSatisfiabilityRatchet.lean`.
+
+The four contract records of the session lifecycle T1 section contain thirteen distinct predicates that
+are statements about functions the Session unit translates with a body, and not about opaque
+constants: seven about the erasure coder (`DecoderNewTotal`, `DecoderAddChunkTotal`,
+`DecoderMessageTotal`, `EncoderNewTotal`, `EncoderCloneTotal`, `DecoderCloneTotal`,
+`EncoderNextChunkTotal`), the two removal helpers (`SessionUnitT1.RemoveSkippedAtTotal` and
+`SessionUnitSpqrT1.RemoveSkippedAtTotal`), the three key derivations (`KdfRkTotal`, `KdfCkTotal`,
+`SessionUnitTripleT1.KdfInitTotal`) and `VecRetainTotal`, whose first two conjuncts are about
+opaque constants and whose three loop conjuncts are about translated loops. A model of the
+unit's opaque constants cannot change what such a field says: its truth is fixed by the body and by
+the opaque operations the body reaches. The results below settle twelve of the thirteen from named laws about the
+opaque constants the bodies reach. The thirteenth, `DecoderMessageTotal`, follows from the one
+law `TruncateTotal` (`decoderMessageTotal_of_truncate`, in the previous section). Each result
+is conditional on exactly the laws its statement names, and they are results about hypotheses,
+not about the product. The five laws that the inhabitation result of the next section assumes, four of which no record states, are
+recorded in `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws").
+
+- `decoderAddChunk_total`, `encoderNextChunk_total`, `encoderClone_total`, `decoderClone_total`:
+  `SessionUnitBraidT1.DecoderAddChunkTotal`, `EncoderNextChunkTotal`, `EncoderCloneTotal` and
+  `DecoderCloneTotal` hold, with no assumption about any opaque operation (each pin lists the three
+  standard axioms only). The length premises of the existing `add_chunk_no_panic` and
+  `next_chunk_no_panic` are not needed: a vector of `Usize.max` elements makes `add_chunk` return
+  at once and makes `next_chunk` copy a stored chunk.
+- `decoderNew_iff`, `encoderNew_iff`: `DecoderNewTotal` holds if and only if `usize::div_ceil` returns at
+  divisor 32, and so does `EncoderNewTotal`. The two fields are exactly that one law, not more.
+- `divCeil32_of_value`, `decoderNew_of_divCeilValue`, `encoderNew_of_divCeilValue`: the value law
+  `DivCeilValue` (`usize::div_ceil a 32` returns `(a + 31) / 32`, the field `divCeilValue` of
+  `EstablishResponderContracts`) implies that law, and so implies both fields. The records keep both
+  fields as they are; whether they can be removed from the records is not checked.
+- `kdfRkTotal`, `kdfCkTotal`, `kdfInitTotal`: `SessionUnitSpqrT1.KdfRkTotal`, `KdfCkTotal` and
+  `SessionUnitTripleT1.KdfInitTotal` follow from the HKDF returning for output lengths up to 8160
+  bytes (`LawHkdf`, the field `HkdfTotal`) and the `Zeroizing` wrapper reading back what it wraps at 96
+  and at 64 bytes (the field `ZeroizingArrayRoundTrip`). `kdfInitTotal` holds for every slice `sk`.
+- `spqrRemoveSkippedAtTotal`, `ratchetRemoveSkippedAtTotal`: `SessionUnitSpqrT1.RemoveSkippedAtTotal`
+  follows from `SessionUnitSpqrT1.ZeroizeTotal` and `LawPop`, and `SessionUnitT1.RemoveSkippedAtTotal`
+  from the same two and `LawBlanketU32`.
+- `setChainsLoopTotal`, `clearChainsLoop0Total`, `clearSkippedLoopTotal`: the three loop contracts
+  inside `VecRetainTotal` follow from `ZeroizeTotal` and `LawPop`, and the first two also from
+  `LawAsMut`. They terminate only because `Vec::pop` shortens the vector.
+- `vecRetainTotal`: `VecRetainTotal` follows from `Vec::capacity` and `Vec::zeroize` returning (its own
+  first two conjuncts), `ZeroizeTotal`, `LawAsMut` and `LawPop`.
+- `defined_fields_hold`: the six fields (both removal helpers, the three key derivations and `VecRetainTotal`)
+  together follow from the structure `Laws`.
+  It has nine laws: four are fields of the records (`HkdfTotal`, the wrapper round trip at two lengths,
+  `ZeroizeTotal`), two are conjuncts of the field `VecRetainTotal`, and three are stated by no record.
+- `spqrRemoveSkippedAtTotal_false_of_noop_pop`, `ratchetRemoveSkippedAtTotal_false_of_noop_pop`: given
+  `ZeroizeTotal`, if `Vec::pop` returns and leaves the vector unchanged then
+  `SessionUnitSpqrT1.RemoveSkippedAtTotal` is false, and so is `SessionUnitT1.RemoveSkippedAtTotal` given also
+  `LawBlanketU32`. That function was the witness `UnitSatisfiabilitySession.lean` used for `VecPopTotal`
+  until it was replaced, so the thirteen separate witnesses did not compose.
+- `ratchetRemoveSkippedAtTotal_forces_blanketU32`, `setChainsLoopTotal_forces_asMut`: given
+  `ZeroizeTotal`, the classical removal field implies `LawBlanketU32`, and `SetChainsLoopTotal` implies that
+  `Option::as_mut` returns at `Option<Chain>`, the one type the proofs use `LawAsMut` at. Two of the three laws
+  that no record states are therefore needed by a field, at the types the proofs use, and are not spare.
+  For `LawPop` the result is the exclusion of the no-op, not an equivalence.
+
+The pins of the `div_ceil` results list `usize::div_ceil` because it occurs in their statements; the pins of the
+ratchet results list the opaque constants their statements and
+their law hypotheses are about (`Array::zeroize`, `Vec::pop`, `Option::as_mut`, the blanket
+`Zeroize`, the HKDF, the `Zeroizing` wrapper). None depends on a compiler-trust axiom. The proofs are
+statements about the translation: `Vec::with_capacity` never fails in the Aeneas model, where the
+real function panics for an absurd capacity, so a result that reaches it (`Encoder::new`,
+`Decoder::message`) holds of the translated code and says nothing about a request for more memory
+than the machine has.
+
+## Proved (one interpretation of the unit's opaque constants, and the four records from it)
+
+Location: `Translation/UnitSatisfiabilityJoint.lean`, `Translation/UnitSatisfiabilityRecords.lean`, `Translation/UnitSatisfiabilitySession.lean`.
+
+`UnitSatisfiabilityJoint.lean` interprets 48 of the opaque axioms of `TacentaSessionUnit.lean` that the
+four contract records reach (6 types, 4 constants, 38 functions; of the unit's other 40 axioms, 39 are reached
+by no field and the error type inside `RngCore` is reached and not interpreted) in one structure `Interp`, and shows that one interpretation satisfies every field of the four
+records that mentions only those constants, both model classes and the five laws of `StdLaws`.
+`UnitSatisfiabilityRecords.lean` proves, at the real constants, that the four records follow from that
+base. The sense of "inhabited" is the substitution argument and no other: every axiom that a record reaches is an
+uninterpreted constant (the unit also holds 143 compiler-trust facts about format-string lengths, none of
+which mentions an interpreted constant), so a derivation of `False` from a record at the real constants would,
+after the constants are replaced by the model's terms, become a derivation of `False` from facts that hold in
+the model. That last step is an argument about derivations and not a theorem inside Lean. It does not show that
+the real primitives, or the real standard-library and `zeroize` functions, satisfy any field or any law, and it does not cover the headroom records. The
+exact residual is in `LIMITATIONS.md`.
+
+- `all_shapes_are_predicates`: each of 37 predicates of the session proofs is, at `Interp.real`, the shape
+  over an interpretation that replaces it. Thirty-six bridges are `Iff.rfl`, so the kernel checks that the two
+  sides unfold to the same proposition. The thirty-seventh, `VecRetainTotal_is`, regroups the five conjuncts of
+  `VecRetainTotal` into its axiom half and its three loop contracts, and the kernel checks that proof.
+  `check-session-satisfiability-negatives.sh` requires this theorem to name every `_is` bridge except the
+  illustration `DecoderNewTotal_is`. (A shape that differs from the predicate by a constant, a premise or a
+  conjunct is rejected: the three controls inside the module, each stated as a definition, and the four bridge cases
+  of `check-session-satisfiability-negatives.sh`.)
+- `model_satisfies_all_axiom_shapes`: `Interp.model` satisfies every shape, `ZeroizingModel` at
+  `Vec U8` and `DerivedKeysModel` at `Vec (U32 × Array U8 32)`, the value law of `div_ceil`, `FaithfulShape`
+  and `StdLaws`. The theorem names every witness, so removing one breaks the build.
+- `stdLaws_of_faithful`, `model_Faithful`, `model_StdLaws`, `model_pop_empty`, `model_capacity_ge`,
+  `model_truncate_is_take`: the model implements `Vec::pop` (last element,
+  shortened vector), `Vec::truncate` (a prefix), `usize::div_ceil` (ceiling division; the model fails on a zero
+  divisor, which `FaithfulShape` does not require), `Option::as_mut` (the identity borrow) and `Vec::capacity` (at
+  least the length) as the real operations do, and the laws the proofs use follow (given that the blanket
+  `Zeroize` returns at `u32`). The empty-vector case of `pop`, the `capacity` bound and the `truncate` prefix are also
+  held by statement (`model_pop_empty`, `model_capacity_ge`, `model_truncate_is_take`), so weakening the matching
+  clause of `FaithfulShape` is refused. So the model is not a degenerate function with the weak property. The blanket
+  `Zeroize` and the array, vector and tuple `Zeroize` are modelled as the identity, which is not what they do; only the
+  returning of the blanket one is used by a law, and the array and vector ones are the three over-strong fields.
+- `encrypt_iff_parts`, `decrypt_iff_parts`, `initiator_toParts_ofParts`, `responder_toParts_ofParts`: each
+  record is exactly an axiom part over `Interp` and a defined part over the translated functions
+  (the `Iff` for the two `Prop` records, a round trip by `rfl` for the two that carry the model class's data).
+  The repacking functions name every field, so a field left out of both parts fails to build.
+- `encrypt_axiom_part_satisfiable`, `decrypt_axiom_part_satisfiable`, `initiator_axiom_part_satisfiable`,
+  `responder_axiom_part_satisfiable`: one interpretation satisfies each axiom part, under the hypothesis on the
+  supplied `RngCore` that the record itself carries as a field (`RngTotal` for the encrypt record, `Random32Total`
+  for the decrypt and responder records, both for the initiator record).
+- `DecoderNewTotal_is`, `decoderNewShape_of_stdLaws`, `model_DecoderNew`: an illustration of the
+  alternative to the substitution argument for one function: `Decoder::new` copied over the
+  interpretation, bound to the real body by `Iff.rfl`, and proved for every interpretation that satisfies
+  `StdLaws`. It is done for one function only, because it costs a copy of every body the record fields reach.
+- `badRange_refutes`, `badDeref_refutes_array`, `badDeref_refutes_message_key`, `badOptionClone_refutes`,
+  `badCap_refutes`, `badSeal_refutes`: controls. A model that breaks one faithful field (a `RangeFull::index`
+  that forgets its slice, a failing `Zeroizing::deref`, an `Option::clone` that drops its content, a header
+  constant above its cap, an AEAD seal that adds more than forty-eight bytes) makes the matching shape false, so
+  the faithful parts of the model are held to something. Of the cap shapes, this shows `HeaderLen` and
+  `AeadSealBounded` falsifiable; the `Ct1Len` cap is also held by a gate case.
+- `stdLaws_real_iff`: `StdLaws` at the real constants is exactly the five laws: `LawPop`, `LawAsMut`,
+  `LawBlanketU32`, `TruncateTotal` and `DivCeilValue`.
+- `ratchetLaws_of_base`: the nine laws of the ratchet results follow from the base at the real constants.
+- `encrypt_contracts_of_axiom_base`, `decrypt_contracts_of_axiom_base`, `initiator_contracts_of_axiom_base`,
+  `responder_contracts_of_axiom_base`: `EncryptContracts` follows from its axiom part and `StdLaws`;
+  `DecryptRatchetContracts` likewise, with the bounded `decoderMessage` from the truncate law;
+  `EstablishInitiatorContracts` follows from its axiom part alone (its one defined field, `KdfInitTotal`, needs
+  no law of `StdLaws`); `EstablishResponderContracts` follows from its axiom part and `StdLaws`. The two
+  records that carry model-class data are stated with `Nonempty`.
+- `records_of_axiom_base`: the base at the real constants gives all four records and the class
+  `SessionUnitT1.DerivedKeysModel` together, the hypotheses of the five Session T1 theorems apart from their
+  headroom records.
+- `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng`: the base is satisfied by `Interp.model` with a
+  concrete `RngCore`, and by the same interpretation for every `RngCore` whose `fill_bytes` returns (`RngTotal`). These
+  two results and `records_of_axiom_base` are the two halves of the substitution argument.
+- `vec_pop_satisfiable`, `noop_pop_not_faithful`, `VecPopLaw_is`, `all_thirteen_contracts_satisfiable`: the
+  witness for `VecPopTotal` among the thirteen separate boundary witnesses is now a `pop` that satisfies the
+  drop-last law (the witness `popImpl` also returns the last element), and the shape carries `LawPop` as well as the totality, bound to the
+  real `Vec::pop` by `Iff.rfl`. The function that returns and leaves the vector unchanged satisfies
+  `VecPopShape` and not the law. The coverage theorem still names all thirteen witnesses. These thirteen
+  witnesses are separate, one per contract; that the contracts hold together is the joint model.
+
+Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
+deleting one fails it. The pins of the results about `Interp.real` and the records list the 48 interpreted
+constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
+axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
+The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng`, `records_of_axiom_base` and
+`vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by `#guard_msgs in #check`; no other statement in these modules is held, so a weaker statement that
+keeps its axiom list is not refused. What the pins do not hold is the classification itself, which fields are axiom-level and which are about
+translated functions: the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`
+checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
+package.
+
+## Proved (evidence about three fields that quantify over every Zeroize record)
+
+Location: `Translation/UnitSatisfiabilityZeroizeScope.lean`.
+
+`SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of
+`SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize` return for every instance
+record `inst : Zeroize Z`, including one whose `zeroize` fails. The joint model satisfies them, so they do not make
+a record empty. The real functions call `inst.zeroize` on each element, so for a failing instance the statement is false of the
+crate: the fields are stronger than the code supports. This module changes no record and no theorem.
+
+- `zeroize_failure_propagation_conflicts`: no interpretation satisfies `ZeroizeTotal` and also lets
+  `Array::zeroize` propagate the failure of a failing instance, which is what the real function does.
+- `faithful_propagates`, `faithful_refutes_unscoped`, `faithful_satisfies_rest`: a second interpretation
+  implements `Array::zeroize` and `Vec::zeroize` as the crate does (zeroize each element in order, fail if one
+  fails; `Vec::zeroize` leaves an empty vector). It propagates the failure, falsifies the unscoped field, and
+  satisfies the scoped replacements together with every other shape, both model classes and `StdLaws`.
+- `arrayZeroizeScoped_of_total`, `ArrayZeroizeU8Total_of_spqr`, `ArrayZeroizeU8Total_of_braid`: the scoped
+  statements (the same, with the premise that the instance's `zeroize` returns, and the form at the one
+  instance the code uses, `Blanket U8`) follow from the fields as they stand, so replacing the fields by them
+  weakens a hypothesis.
+- `VecZeroizeChainsTotal_of_vecRetain`, `VecZeroizeSkippedTotal_of_vecRetain`: the `Vec::zeroize` conjunct implies its
+  scoped forms at the two instances the proofs apply it at, the chain table and the skipped-key store. A
+  replacement needs both: with the chain table alone, `skip_message_keys_no_panic` stops building (measured
+  in a copy; `LIMITATIONS.md`). That the scoped forms hold in the second interpretation is not shown, because
+  they mention the translated `Chains::zeroize` and `Skipped::zeroize`, whose totality there is not proved.
 
 ## Proved (bounded P6 session lifecycle observations)
 
