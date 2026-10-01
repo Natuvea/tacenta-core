@@ -862,6 +862,65 @@ REQUIRED_PINS = frozenset(
         "truncateLen_model",
         "laws_model",
     )]
+    # The headroom results: every axiom pin of the two UnitHeadroom modules.  They show the four headroom
+    # records satisfiable, the exact numeric conditions they impose, what `Session::invariant` gives for
+    # every session, and a session over fresh states that passes it.  A pin outside this list can be
+    # deleted with its claim and the manifest regenerated without a refusal.
+    + ["Tacenta.UnitHeadroomSatisfiable." + n for n in (
+        "usize_max_ge",
+        "plaintext_bound_at_widths",
+        "freshTriple_headroom",
+        "freshBraid_bounds",
+        "decryptHeadroom_sessionOf_iff",
+        "invariantPreconditions_sessionOf",
+        "encryptHeadroom_sessionOf_iff",
+        "initiatorHeadroom_iff",
+        "responderHeadroom_iff",
+        "decryptHeadroom_satisfiable",
+        "encryptHeadroom_satisfiable",
+        "encryptHeadroom_satisfiable_pending",
+        "initiatorHeadroom_satisfiable",
+        "responderHeadroom_satisfiable",
+        "initiatorHeadroom_not_trivial",
+        "responderHeadroom_not_trivial",
+        "decryptHeadroom_not_trivial",
+        "encryptHeadroom_not_trivial",
+        "nonempty_privateKey_of_dhCodec",
+        "nonempty_publicKey_of_dhCodec",
+        "nonempty_derivedZeroizing",
+        "encrypt_headroom_of_contracts",
+        "decrypt_headroom_of_contracts",
+        "initiator_headroom_of_contracts",
+        "responder_headroom_of_contracts",
+        "headroomInhabitants_is",
+        "model_headroomInhabitants",
+        "axiom_base_model",
+        "headroom_of_axiom_base",
+        "headroom_hypotheses_satisfiable",
+    )]
+    + ["Tacenta.UnitHeadroomInvariant." + n for n in (
+        "validKeyShape_is",
+        "model_validKeyShape",
+        "optionEqU64Shape_is",
+        "optionEqImpl_shape",
+        "structural_sessionOf",
+        "freshTriple_invariant",
+        "freshBraid_invariant",
+        "sessionOf_invariant",
+        "emptyChainTable_fails_invariant",
+        "epochZero_braid_fails_invariant",
+        "emptyChain_headroom",
+        "epochZero_bounds",
+        "session_emptyChainTable_fails_invariant",
+        "session_epochZero_fails_invariant",
+        "structural_gives_ad",
+        "invariant_gives_ad_length",
+        "decryptHeadroom_of_invariant",
+        "encryptHeadroom_iff_of_invariant",
+        "invariant_session_meets_both",
+        "invariant_session_of_axiom_base",
+        "invariant_hypotheses_satisfiable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
