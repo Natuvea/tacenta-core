@@ -17,8 +17,9 @@ in Lean, what the repair does and does not buy.
 3. Given only the law "`Vec::truncate` returns" (`TruncateTotal`), the repaired field is true and
    the unbounded one is false (`bounded_holds_unbounded_fails`).  Together with the absence of
    the old argument against the repaired field this is what makes the repaired field a statement that
-   can be met; it does not show that the whole record `BraidReceiveContracts` can be (that is a
-   separate piece of work, `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+   can be met; it does not show that the whole record `BraidReceiveContracts` can be
+   (`UnitSatisfiabilityRecords.lean` shows that, in the sense recorded in `LIMITATIONS.md`;
+   `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 4. Under the same law every decoder that passes the translated `Decoder::invariant` has a
    returning `Decoder::message` (`message_total_of_invariant`).
 5. The line between true and false is `K`: the field holds for `needed < K` and fails at

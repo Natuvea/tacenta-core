@@ -17,7 +17,9 @@ Until the repair, every theorem below that takes `DecryptRatchetContracts` or
 (`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
 `SESSION-CONTRACT-VACUITY`). The field is now stated for decoders that need at most
 `MAX_CODEWORDS` chunks and the headroom record carries that bound
-(`Translation/SessionBraidReceiveRepair.lean`). No theorem here shows that the records can be met.
+(`Translation/SessionBraidReceiveRepair.lean`). No theorem here shows that the records can be met;
+`Translation/UnitSatisfiabilityRecords.lean` shows it in one sense and under five laws, without the
+headroom records (`LIMITATIONS.md`).
 -/
 
 namespace Tacenta.UnitLifecycleT3

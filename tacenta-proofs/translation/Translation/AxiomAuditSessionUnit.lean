@@ -10,6 +10,10 @@ import Translation.SessionUnitBraidImportInv
 import Translation.UnitSatisfiabilitySession
 import Translation.SessionBraidReceiveVacuity
 import Translation.SessionBraidReceiveRepair
+import Translation.UnitSatisfiabilityErasure
+import Translation.UnitSatisfiabilityRatchet
+import Translation.UnitSatisfiabilityRecords
+import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleInitialDispatch
@@ -27,8 +31,10 @@ routes, conditional on refinement of the inner ratchet receive, and discharges
 that condition for terminal states and malformed payloads. Its T1 bridge
 proves inner-call existence under explicit contracts and headroom. Those contracts included a
 false field until it was restated for bounded decoders (`SessionBraidReceiveVacuity.lean`,
-`SessionBraidReceiveRepair.lean`; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`); no theorem
-shows that the records can be met. General
+`SessionBraidReceiveRepair.lean`; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+`UnitSatisfiabilityRecords.lean` shows that the four records follow from an axiom base, over the
+unit's opaque constants, that one interpretation satisfies (`UnitSatisfiabilityJoint.lean`); that
+is an argument about derivations and not a statement that the real primitives meet the records. General
 receive refinement and the full public Session T3 theorem remain open. Every
 generated declaration and opaque boundary is visible to the
 same elaborated-environment audit used by the smaller units.

@@ -320,6 +320,35 @@ path.write_text(new)
 PY
 expect_fail "required-pin-deleted-import-decoders-bounded" "\`Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded\` is on REQUIRED_PINS and has no axiom pin" --check
 
+# The inhabitation results: every pin of the UnitSatisfiability modules, each deleted in turn.
+# One line per module: file, namespace, then the required names.
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "required-pin-deleted-$file-$n" "\`$ns.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+  done
+done <<'LIST'
+UnitSatisfiabilityRecords Tacenta.UnitSatisfiabilityRecords stdLaws_real_iff ratchetLaws_of_base encrypt_contracts_of_axiom_base decrypt_contracts_of_axiom_base initiator_contracts_of_axiom_base responder_contracts_of_axiom_base records_of_axiom_base axiom_base_satisfiable axiom_base_satisfiable_for_total_rng
+UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityJoint all_shapes_are_predicates model_satisfies_all_axiom_shapes stdLaws_of_faithful model_Faithful model_StdLaws encrypt_iff_parts decrypt_iff_parts initiator_toParts_ofParts responder_toParts_ofParts encrypt_axiom_part_satisfiable decrypt_axiom_part_satisfiable initiator_axiom_part_satisfiable responder_axiom_part_satisfiable DecoderNewTotal_is decoderNewShape_of_stdLaws model_DecoderNew badRange_refutes badDeref_refutes_array badDeref_refutes_message_key badOptionClone_refutes badCap_refutes badSeal_refutes model_pop_empty model_capacity_ge model_truncate_is_take
+UnitSatisfiabilityErasure Tacenta.UnitSatisfiabilityErasure decoderAddChunk_total encoderNextChunk_total encoderClone_total decoderClone_total decoderNew_iff encoderNew_iff divCeil32_of_value decoderNew_of_divCeilValue encoderNew_of_divCeilValue
+UnitSatisfiabilityRatchet Tacenta.UnitSatisfiabilityRatchet kdfRkTotal kdfCkTotal kdfInitTotal spqrRemoveSkippedAtTotal ratchetRemoveSkippedAtTotal setChainsLoopTotal clearChainsLoop0Total clearSkippedLoopTotal vecRetainTotal defined_fields_hold spqrRemoveSkippedAtTotal_false_of_noop_pop ratchetRemoveSkippedAtTotal_false_of_noop_pop ratchetRemoveSkippedAtTotal_forces_blanketU32 setChainsLoopTotal_forces_asMut
+UnitSatisfiabilitySession Tacenta.UnitSatisfiabilitySession vec_pop_satisfiable noop_pop_not_faithful VecPopLaw_is all_thirteen_contracts_satisfiable
+UnitSatisfiabilityZeroizeScope Tacenta.UnitSatisfiabilityZeroizeScope zeroize_failure_propagation_conflicts faithful_propagates faithful_refutes_unscoped faithful_satisfies_rest ArrayZeroizeU8Total_of_spqr ArrayZeroizeU8Total_of_braid VecZeroizeChainsTotal_of_vecRetain arrayZeroizeScoped_of_total VecZeroizeSkippedTotal_of_vecRetain
+LIST
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys
