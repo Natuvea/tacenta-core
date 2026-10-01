@@ -695,12 +695,30 @@
               "run": "python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json"
             },
             {
+              "run": "python3 tooling/build-evidence-pack.py --manifest .assurance/assurance-manifest.json --receipts .assurance/assurance-receipts.json --output .assurance/evidence-pack"
+            },
+            {
+              "run": "python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack --candidate-repo ."
+            },
+            {
+              "run": "python3 tooling/reproduce-evidence.py --pack .assurance/evidence-pack --hosted .assurance"
+            },
+            {
               "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
               "with": {
                 "name": "assurance-receipts",
                 "path": ".assurance/assurance-receipts.json\n.assurance/assurance-manifest.json\n",
                 "if-no-files-found": "error",
-                "retention-days": 7
+                "retention-days": 90
+              }
+            },
+            {
+              "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "with": {
+                "name": "evidence-pack",
+                "path": ".assurance/evidence-pack",
+                "if-no-files-found": "error",
+                "retention-days": 90
               }
             }
           ]
