@@ -1635,8 +1635,13 @@ def axiom_pins():
 #     nothing else before the next command at column 0 (a `#check` of an
 #     application or a term is not a pin of a name);
 #   * the name must equal the floor name character for character, and the pin must
-#     sit outside every `namespace` and `section`, so no name resolution is guessed
-#     at: the pins are written after the namespace's `end`, with the full name;
+#     sit outside every `namespace`, `section` and `mutual` block, so no name
+#     resolution is guessed at: the pins are written after the namespace's `end`,
+#     with the full name;
+#   * the `#guard_msgs` must be the whole command: when it is the argument of an
+#     earlier `... in` (`#guard_msgs (drop error) in`, `set_option ... in`,
+#     `open ... in`) the outer command can swallow the pin's mismatch or change what
+#     the pin prints, so the pin is refused and is written as its own command;
 #   * the options must still compare the `info` message `#check` prints. `#guard_msgs`
 #     takes the first option that covers a message kind: `check` compares it, `drop`
 #     discards it and `pass` prints it without comparing, and when options are given
@@ -1661,12 +1666,19 @@ def axiom_pins():
 # know that the name resolves to a declaration of the shape the claim describes (the
 # build does: the docstring holds the printed statement); it does not run Lean, so a
 # pin that elaborates to a message that matches a docstring written to match it is
-# as good as the build says; it does not follow `open`, a macro that expands to
+# as good as the build says; it does not read what a pin says, so a statement weakened
+# together with its pin's expected message is accepted (the build compares the text;
+# the diff of the pin shows the change); it does not follow `open`, a file-level
+# `set_option` that elides the printed statement, a macro that expands to
 # `#guard_msgs`, `#guard_msgs` written inside a `run_cmd`, or a header that is more
-# than 20,000 characters long; it reads the first-party trees in `PROOF_TREES` only;
-# and it never decides that a pinned statement is the right one.
+# than 20,000 characters long; a definition changed under an unchanged name changes
+# no pin that mentions it by name; it reads the first-party trees in `PROOF_TREES`
+# only; and it never decides that a pinned statement is the right one.
 # ---------------------------------------------------------------------------
 
+# `mutual` is closed by an `end` like a namespace and a section, so it is a frame too; without it
+# the `end` of a `mutual` block would pop a `namespace` that is still open.
+_FRAME_TOKEN = re.compile(r"(?<![\w.«'])(?P<kw>namespace|section|mutual|end)(?![\w.'])")
 _PIN_HEAD = re.compile(r"(?<![\w.'«])#guard_msgs(?![\w.'!?])")
 _WORD_IN = re.compile(r"in(?![\w.'!?])")
 _PIN_NAME = re.compile(r"(?:«[^»\n]*»|[\w'!?.])+")
@@ -1748,7 +1760,7 @@ def scan_statement_pins(words, names, scoped):
     `options`, `frames` (the open `namespace`/`section` scopes, when `scoped`) and
     `cmd_pos`, where the command starts."""
     out = []
-    tokens = [t for t in _SCOPE_TOKEN.finditer(words) if t.group("kw") != "axiom"] if scoped else []
+    tokens = list(_FRAME_TOKEN.finditer(words)) if scoped else []
     frames, ti = [], 0
     for head in _PIN_HEAD.finditer(words):
         while ti < len(tokens) and tokens[ti].start() < head.start():
@@ -1758,7 +1770,7 @@ def scan_statement_pins(words, names, scoped):
                     frames.pop()
             else:
                 found = _INLINE_NAME.match(names, token.end())
-                frames.append((token.group("kw"), found.group(1) if found else ""))
+                frames.append((token.group("kw"), found.group(1) if found and token.group("kw") != "mutual" else ""))
         j = _skip_space(words, head.end())
         options = None
         if words.startswith("(", j):
@@ -1772,15 +1784,22 @@ def scan_statement_pins(words, names, scoped):
             continue
         j = _skip_space(words, keyword.end())
         command, name = _named_command(words, names, j, lenient=not scoped)
+        # A pin that is the argument of an earlier `... in` (`#guard_msgs (drop error) in`,
+        # `set_option pp... in`, `open ... in`) is not the outermost command: the outer one can
+        # swallow the pin's own mismatch or change what the pin prints.
+        k = head.start()
+        while k > 0 and words[k - 1].isspace():
+            k -= 1
+        wrapped = words[max(0, k - 2):k] == "in" and not re.match(r"[\w.'!?]", words[k - 3:k - 2])
         out.append({"pos": head.start(), "command": command, "name": name,
-                    "options": options, "frames": list(frames), "cmd_pos": j})
+                    "options": options, "frames": list(frames), "cmd_pos": j, "wrapped": wrapped})
     return out
 
 
 def statement_pin_survey():
     """Every statement pin in the first-party Lean trees: `live` (Lean elaborates
     it), `raw_only` (the same shape inside a comment, docstring or string) and
-    `unguarded` (a `#check name` that no `#guard_msgs` governs), each with its file
+    `unguarded` (a `#check name` or `#print name` that no `#guard_msgs` governs), each with its file
     and line; and `guards`, the count of every live `#guard_msgs ... in` command."""
     survey = {"live": [], "raw_only": [], "unguarded": [], "guards": 0}
     for p in proof_files():
@@ -1803,11 +1822,11 @@ def statement_pin_survey():
         survey["raw_only"] += [located(d) for d in scan_statement_pins(bare, bare, False)
                                if d["pos"] not in seen]
         governed = {d["cmd_pos"] for d in live}
-        for m in re.finditer(r"(?<![\w.'«])#check(?![\w'!?])", words):
+        for m in re.finditer(r"(?<![\w.'«])#(?:check|print)(?![\w'!?])", words):
             if m.start() in governed:
                 continue
             command, name = _named_command(words, names, m.start())
-            if command == "check":
+            if command in ("check", "print"):
                 survey["unguarded"].append(located({"pos": m.start(), "name": name,
                                                     "command": command}))
     return survey
@@ -1871,8 +1890,9 @@ def audit_reach():
 def check_statement_pins(survey=None, reached=None):
     """Refuse a statement pin on `REQUIRED_STATEMENT_PINS` that is absent, inside a
     comment or a string, not under `#guard_msgs`, given options that compare
-    nothing, written inside a `namespace` or a `section`, or in a module no audit
-    module imports. One message per floor name, naming it."""
+    nothing, the argument of an earlier `... in`, written inside a `namespace`,
+    a `section` or a `mutual` block, or in a module no audit module imports.
+    One message per floor name, naming it."""
     survey = survey or statement_pin_survey()
     if reached is None:
         reached = audit_reach()
@@ -1887,6 +1907,9 @@ def check_statement_pins(survey=None, reached=None):
             if guard_option_problem(d["options"]):
                 why = (f"its `#guard_msgs ({d['options']})` at {where} is vacuous: "
                        + guard_option_problem(d["options"]))
+            elif d.get("wrapped"):
+                why = (f"its `#guard_msgs` at {where} is the argument of an earlier `... in`, which "
+                       "can swallow its mismatch or change what it prints; write the pin as its own command")
             elif d["frames"]:
                 scope = ".".join(n for _, n in d["frames"] if n) or "section"
                 why = (f"its statement pin at {where} sits inside `{scope}`; write it after "
@@ -1912,30 +1935,46 @@ def check_statement_pins(survey=None, reached=None):
                 "inside a comment, a docstring or a string, where Lean does not check it")
         elif loose:
             problems.append(
-                f"{head} `#check {name}` at {loose[0]['file']}:{loose[0]['line']} is not under "
-                "`#guard_msgs in`, so the build compares nothing")
+                f"{head} `#{loose[0]['command']} {name}` at {loose[0]['file']}:{loose[0]['line']} is not "
+                "under `#guard_msgs in`, so the build compares nothing")
         else:
             problems.append(
                 f"{head} has no statement pin: no active `#guard_msgs in` followed by "
-                f"`#check @{name}` exists in the first-party Lean trees")
+                f"`#check @{name}` or `#print {name}` exists in the first-party Lean trees")
     return problems
 
 
 def check_statement_floor_recorded():
     """Refuse a floor that is shorter than the one the committed verification
-    manifest records. Regenerating the manifest after deleting a pin and its floor
-    entry would otherwise write the smaller floor and pass; this makes the
-    removal a hand edit of the manifest's `statement_pin_floor`, which a diff of a
-    generated file shows."""
-    path = MANIFESTS / "verification-manifest.json"
+    manifest records, and refuse to run without that record. Regenerating the
+    manifest after deleting a pin and its floor entry would otherwise write the
+    smaller floor and pass; this makes the removal a hand edit of the manifest's
+    `statement_pin_floor`, which a diff of a generated file shows. The check fails
+    closed: a manifest that is missing, unreadable or without a floor list, a
+    recorded floor that is empty and a script floor that is empty are each a
+    problem, because each would otherwise leave nothing to compare with. What it
+    cannot see is an edit of the script and of the manifest's list together, or the
+    whole floor removed in those two edits; it does not compare with the base branch."""
+    rel = (MANIFESTS / "verification-manifest.json").relative_to(ROOT)
+    if not REQUIRED_STATEMENT_PINS:
+        return ["REQUIRED_STATEMENT_PINS is empty, so no statement pin is required to exist"]
+    path = ROOT / rel
+    keep = f"; restore {rel} from git instead of regenerating without it"
     if not path.exists():
-        return []
+        return [f"{rel} is missing, so the statement-pin floor it records cannot be "
+                "compared with REQUIRED_STATEMENT_PINS" + keep]
     try:
-        recorded = json.loads(path.read_text()).get("statement_pin_floor")
-    except ValueError:
-        return []
-    if not isinstance(recorded, list):
-        return []
+        document = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        return [f"{rel} cannot be read ({type(error).__name__}), so the statement-pin floor "
+                "it records cannot be compared with REQUIRED_STATEMENT_PINS" + keep]
+    recorded = document.get("statement_pin_floor") if isinstance(document, dict) else None
+    if not isinstance(recorded, list) or not all(isinstance(n, str) for n in recorded):
+        return [f"{rel} has no `statement_pin_floor` list, so the statement-pin floor it records "
+                "cannot be compared with REQUIRED_STATEMENT_PINS" + keep]
+    if not recorded:
+        return [f"{rel} records an empty `statement_pin_floor`, so it holds no floor to compare "
+                "with REQUIRED_STATEMENT_PINS" + keep]
     return [
         f"`{n}` is on the statement-pin floor that verification-manifest.json records and "
         "is not on REQUIRED_STATEMENT_PINS: a floor entry is removed by editing both, and "
@@ -1962,7 +2001,7 @@ def statement_pin_inventory():
           f"inside a namespace or section: {sum(1 for d in live if d['frames'])}")
     print(f"shapes in a comment, docstring or string (not counted): "
           f"{sum(1 for d in survey['raw_only'] if d['command'] != 'other')}")
-    print(f"`#check name` under no `#guard_msgs`: {len(survey['unguarded'])}")
+    print(f"`#check name` or `#print name` under no `#guard_msgs`: {len(survey['unguarded'])}")
     print(f"on REQUIRED_STATEMENT_PINS: {len(REQUIRED_STATEMENT_PINS)}; "
           f"statement pins not on it: {sorted(set(named) - REQUIRED_STATEMENT_PINS) or 'none'}; "
           f"floor names with no statement pin: {sorted(REQUIRED_STATEMENT_PINS - set(named)) or 'none'}")

@@ -24,8 +24,11 @@
 #   statement pins         -- a required statement pin deleted, commented out,
 #                             moved into a docstring or a string, left without
 #                             its `#guard_msgs`, given an option that compares
-#                             nothing, written inside a namespace, moved to a
-#                             module no audit imports, or dropped from the floor
+#                             nothing, nested under another `... in`, written
+#                             inside a namespace (also one that a `mutual` block
+#                             follows), moved to a module no audit imports,
+#                             dropped from the floor, or the floor's record
+#                             missing, unreadable, keyless or emptied
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -434,8 +437,8 @@ expect_fail "pin-block-copied-over-another" "theorems pinned more than once: Tac
 # the pins are not axiom pins, so REQUIRED_PINS does not see them. The floor
 # REQUIRED_STATEMENT_PINS does. One floor name stands for the class: each mutation
 # is made to the statement pin of `record_empty_headerSent`, and every one must be
-# refused by the floor's own message naming that declaration. Deleting each of the
-# 23 pins in turn would test the same loop 23 times. The accepted spellings are
+# refused by the floor's own message naming that declaration. Deleting each pin of
+# the floor in turn would test the same loop once per name. The accepted spellings are
 # cases too, because a refusal is only evidence if the pin can be accepted.
 # ---------------------------------------------------------------------------
 
@@ -466,6 +469,16 @@ new = {
     "options": "#guard_msgs (" + option + ") in\n#check @" + name + "\n",
     "rename": "#guard_msgs in\n#check @" + name + "_renamed\n",
     "namespace": "namespace StatementPinScope\n" + block + "end StatementPinScope\n",
+    # A `mutual` block closes with `end`, which must not pop the namespace around the pin.
+    "mutual": ("namespace StatementPinScope\nmutual\ndef statementPinA : Nat -> Nat\n  | 0 => 0\n"
+               "  | n + 1 => statementPinB n\ndef statementPinB : Nat -> Nat\n  | 0 => 0\n"
+               "  | n + 1 => statementPinA n\nend\n" + block + "end StatementPinScope\n"),
+    # The pin as the argument of an earlier `... in`: the outer command can swallow the
+    # pin's own mismatch (`drop`) or change what it prints (`set_option`, `open`).
+    "wrapped-drop-error": "#guard_msgs (drop error) in\n" + block,
+    "wrapped-drop-all": "#guard_msgs (drop all) in\n" + block,
+    "wrapped-set-option": "set_option pp.deepTerms false in\n" + block,
+    "wrapped-open": "open Nat in\n" + block,
     "term": "#guard_msgs in\n#check @" + name + " x\n",
     "at-sign": "#guard_msgs in\n#check @" + name + "\n",
 }[mode]
@@ -505,26 +518,45 @@ rewrite_statement_pin namespace
 expect_fail "statement-pin-inside-namespace" "its statement pin at $stmt_file:" --check
 expect_fail "statement-pin-inside-namespace-says-why" "sits inside \`StatementPinScope\`; write it after \`end\` with the full name" --check
 
+# The mutual block that follows a namespace is the same refusal as the namespace alone.
+make_case
+rewrite_statement_pin mutual
+expect_fail "statement-pin-after-mutual-inside-namespace" "its statement pin at $stmt_file:" --check
+expect_fail "statement-pin-after-mutual-inside-namespace-says-why" "sits inside \`StatementPinScope\`; write it after \`end\` with the full name" --check
+
+# A pin that is the argument of an earlier `... in` is not the outermost command.
+for mode in wrapped-drop-error wrapped-drop-all wrapped-set-option wrapped-open; do
+  make_case
+  rewrite_statement_pin "$mode"
+  expect_fail "statement-pin-$mode" "its \`#guard_msgs\` at $stmt_file:" --check
+  expect_fail "statement-pin-$mode-says-why" "is the argument of an earlier \`... in\`, which can swallow its mismatch or change what it prints; write the pin as its own command" --check
+done
+
 # Options that leave the `#check` message uncompared. `#guard_msgs` takes the first
 # option that covers a kind of message, and a message no option covers passes through.
-for option in "drop all" "drop info" "pass info" "pass all" "drop warning" "drop warning, drop error" \
-              "drop all, check info" "whitespace := lax" "error := true"; do
+# Each is refused for its own reason, so a wrong reason string goes red.
+covers="is the first option that covers \`info\` and it does not compare it, so the pin holds nothing"
+uncovered="no option covers \`info\`, so the message \`#check\` prints passes through without being compared"
+for entry in "drop all|$covers" "drop info|$covers" "pass info|$covers" "pass all|$covers" \
+             "drop warning|$uncovered" "drop warning, drop error|$uncovered" "drop all, check info|$covers" \
+             "whitespace := lax|compares the message with its whitespace removed" \
+             "error := true|the option \`error := true\` is not one this gate reads, so it cannot say what is compared"; do
+  option="${entry%%|*}"
+  reason="${entry#*|}"
   make_case
   rewrite_statement_pin options "$option"
   expect_fail "statement-pin-option-$option" "its \`#guard_msgs ($option)\` at $stmt_file:" --check
+  expect_fail "statement-pin-option-$option-says-why" "$reason" --check
 done
 
+# A definition pin (`#print`) with its `#guard_msgs` removed is refused for that, not as an
+# absent pin.
+print_name="Tacenta.BraidPreserve.Braid.sized"
+print_file="tacenta-proofs/translation/Translation/BraidPreserve.lean"
 make_case
-rewrite_statement_pin options "drop all"
-expect_fail "statement-pin-option-drop-all-says-why" "is the first option that covers \`info\` and it does not compare it, so the pin holds nothing" --check
-
-make_case
-rewrite_statement_pin options "drop warning"
-expect_fail "statement-pin-option-drop-warning-says-why" "no option covers \`info\`, so the message \`#check\` prints passes through without being compared" --check
-
-make_case
-rewrite_statement_pin options "whitespace := lax"
-expect_fail "statement-pin-option-lax-says-why" "compares the message with its whitespace removed" --check
+replace_in "$print_file" $'#guard_msgs in\n#print '"$print_name"$'\n' $'#print '"$print_name"$'\n'
+expect_fail "definition-pin-without-guard-msgs" "\`$print_name\` is on REQUIRED_STATEMENT_PINS and \`#print $print_name\` at $print_file:" --check
+expect_fail "definition-pin-without-guard-msgs-says-why" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
 
 # The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
 # changed, so the source attestation is stale until it is regenerated; regenerating
@@ -585,6 +617,52 @@ edit_json tacenta-proofs/manifests/verification-manifest.json \
   "data['statement_pin_floor'].remove('$stmt_name')"
 expect_pass "statement-floor-shortened-by-hand-edit-and-regenerated"
 expect_pass "statement-floor-shortened-by-hand-edit-then-checked" --check
+
+# The record does not fail open: with the script's floor shortened and its pin deleted, a
+# manifest that is missing, unreadable, without a floor list or with an empty one leaves
+# nothing to compare with, and is refused, by `--check` and by a regeneration alike.
+floor_record="tacenta-proofs/manifests/verification-manifest.json"
+shortened_floor_without_pin() {
+  make_case
+  shorten_floor
+  rewrite_statement_pin delete
+}
+no_floor="so the statement-pin floor it records cannot be compared with REQUIRED_STATEMENT_PINS"
+
+shortened_floor_without_pin
+rm "$work/$floor_record"
+expect_fail "statement-floor-record-missing" "$floor_record is missing, $no_floor" --check
+expect_fail "statement-floor-record-missing-refused-by-refresh" "$floor_record is missing, $no_floor"
+
+shortened_floor_without_pin
+echo '{' > "$work/$floor_record"
+expect_fail "statement-floor-record-unreadable" "$floor_record cannot be read (JSONDecodeError), $no_floor" --check
+expect_fail "statement-floor-record-unreadable-refused-by-refresh" "cannot be read (JSONDecodeError), $no_floor"
+
+shortened_floor_without_pin
+edit_json "$floor_record" "del data['statement_pin_floor']"
+expect_fail "statement-floor-record-keyless" "$floor_record has no \`statement_pin_floor\` list, $no_floor" --check
+expect_fail "statement-floor-record-keyless-refused-by-refresh" "has no \`statement_pin_floor\` list, $no_floor"
+
+shortened_floor_without_pin
+edit_json "$floor_record" "data['statement_pin_floor'] = None"
+expect_fail "statement-floor-record-null" "$floor_record has no \`statement_pin_floor\` list, $no_floor" --check
+
+shortened_floor_without_pin
+edit_json "$floor_record" "data['statement_pin_floor'] = []"
+expect_fail "statement-floor-record-emptied" "$floor_record records an empty \`statement_pin_floor\`" --check
+expect_fail "statement-floor-record-emptied-refused-by-refresh" "records an empty \`statement_pin_floor\`"
+
+# The whole floor emptied in the script, and its record deleted with it, is not "0 on the floor".
+make_case
+replace_in tacenta-proofs/scripts/attest.py "def check_statement_pins(survey=None, reached=None):" \
+  "REQUIRED_STATEMENT_PINS = frozenset()
+
+
+def check_statement_pins(survey=None, reached=None):"
+edit_json "$floor_record" "del data['statement_pin_floor']"
+expect_fail "statement-floor-emptied" "REQUIRED_STATEMENT_PINS is empty, so no statement pin is required to exist" --check
+expect_fail "statement-floor-emptied-refused-by-refresh" "REQUIRED_STATEMENT_PINS is empty"
 
 # ---------------------------------------------------------------------------
 # The translation record.
