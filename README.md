@@ -107,17 +107,15 @@ flowchart TD
     end
 
     subgraph BUILD["Built"]
-        CRATES["tacenta-core crates (Rust)<br/>leaf crates: wire, protobuf, ratchet, spqr,<br/>braid, triple, session (PQXDH), erasure, kdf, kem<br/>lifecycle: sessions, prekey store, persistence"]
         BOUND["boundary (Rust)<br/>X25519, AEAD, ML-KEM-1024, XEdDSA<br/>trusted, not translated"]
+        CRATES["tacenta-core crates (Rust)<br/>leaf crates: wire, protobuf, ratchet, spqr,<br/>braid, triple, session (PQXDH), erasure, kdf, kem<br/>lifecycle: sessions, prekey store, persistence"]
         UNITS["Generated units<br/>triple-unit, braid-unit, session-unit<br/>(leaves assembled into one crate)"]
     end
 
     subgraph CHECK["Checked"]
         TESTS["Rust tests, property tests, fuzzing,<br/>vector runners and the independent reader"]
         TRANS["Charon and Aeneas<br/>(pinned, run outside the repository)<br/>generated Lean, committed with checksums"]
-        T1["T1: cannot panic"]
-        T3["T3: refines the model"]
-        MPROOF["Model-layer proofs"]
+        PROOFS["Lean proofs<br/>T1: the translated code cannot panic<br/>T3: the translated code refines the model<br/>model-layer proofs about the model itself"]
     end
 
     subgraph RECORD["Recorded and held"]
@@ -127,29 +125,30 @@ flowchart TD
         ASSURE["ASSURANCE.md and GAP-REGISTER.md<br/>level per component, open gaps, readiness gates"]
     end
 
+    VEC --> BOUND
+    UNITS --> TESTS
+    TESTS --> TRANS
+
     SPEC -->|"stated formally"| MODEL
-    SPEC -->|"implemented from"| CRATES
     MODEL -->|"generates"| VEC
     BOUND -->|"called by"| CRATES
     CRATES -->|"assembled into"| UNITS
-
-    CRATES --> TESTS
-    VEC -->|"checked by"| TESTS
-    CRATES -->|"translated"| TRANS
-    UNITS -->|"translated"| TRANS
-    BOUND -. "opaque in the translation,<br/>assumed through contracts" .-> TRANS
-    TRANS --> T1
-    TRANS --> T3
-    MODEL -->|"what T3 refines"| T3
-    MODEL -->|"proved about"| MPROOF
-
-    T1 --> CLAIMS
-    T3 --> CLAIMS
-    MPROOF --> CLAIMS
+    TRANS --> PROOFS
+    PROOFS --> CLAIMS
     CLAIMS --> MANIFEST
     MANIFEST --> CI
     CI --> ASSURE
+
+    SPEC -->|"implemented from"| CRATES
+    VEC -->|"checked by"| TESTS
+    CRATES --> TESTS
+    CRATES -->|"translated"| TRANS
+    UNITS -->|"translated"| TRANS
+    BOUND -. "opaque in the translation,<br/>assumed through contracts" .-> TRANS
+    MODEL -->|"what T3 refines"| PROOFS
     TESTS --> ASSURE
+
+    linkStyle 0,1,2 stroke-width:0px,stroke:transparent
 ```
 
 - **Defined, built, checked, recorded.** The specification and the model say
