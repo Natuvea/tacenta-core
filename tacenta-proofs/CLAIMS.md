@@ -3187,9 +3187,11 @@ What these do not say.
 - They say nothing about heap residue. The translation ignores `Drop` and `zeroize`, so what a discarded candidate state
   leaves in memory is outside them.
 - They do not say what a successful `establish_responder` does to the prekey store beyond what the model and the tests say:
-  which entries are removed and in which order is not proved. The model removes a consumed one-time prekey with an
-  order-preserving filter and the code swaps the last entry into the slot (`GAP-REGISTER.md`, row `E2E-03`), so the model
-  cannot yet be the other side of such a theorem.
+  which entries are removed and in which order is not proved of the code. The model now removes a consumed one-time prekey
+  by moving the last entry into its slot, as the code and `session-persistence.md` do (`Model.swapRemove`;
+  `GAP-REGISTER.md`, row `E2E-03`), so it can be the other side of such a theorem. The differential harness compares the real
+  store bytes with `consumeOneTimeOk` for one entry that is not last, and an example in `Model/Lifecycle.lean` holds
+  `consumeResponderPrekeys` for a three-entry store. No theorem states the store effect of the translated function.
 - They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
   count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
 - They do not show that a refusal is reached, and none shows that a success is. The terminal refusals are shown for every
