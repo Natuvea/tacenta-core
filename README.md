@@ -128,7 +128,6 @@ flowchart TD
     end
 
     SPEC -->|"stated formally"| MODEL
-    SPEC ~~~ BOUND
     SPEC -->|"implemented from"| CRATES
     MODEL -->|"generates"| VEC
     BOUND -->|"called by"| CRATES
