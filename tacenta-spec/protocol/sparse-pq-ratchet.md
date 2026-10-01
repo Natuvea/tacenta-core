@@ -182,8 +182,14 @@ behaviour as built.
 Then, before deriving anything, the store of skipped keys is consulted for this
 epoch and number. If a key is there it is used and **removed**. That is the
 only path by which a stored key is used, and removing it is what makes it
-one-use. A stored key is otherwise deleted only when its epoch is retired, or
-when it is evicted to make room (below).
+one-use. The lookup comes before anything else about the chain is consulted. It
+finds a key in a state read from storage whatever the chain's counter, and
+whether or not the epoch's receiving chain is absent, and a message numbered
+zero is refused as out of order only when no key is stored under it. A stored
+key is otherwise deleted only when its epoch is retired, when it is evicted to
+make room (below), or when a skip stores a key under the same epoch and number,
+which happens only in a state read from storage (The store also has a total
+bound).
 
 Otherwise the receiving chain for the named epoch is stepped forward to one
 before the message's number, storing every key it passes, and then once more to
@@ -200,12 +206,14 @@ about to store, then stores the keys it passes, in number order, after every
 key already in the store. With `c` the chain's counter and `upto` the number
 it steps to (the message's number less one: the key for the message itself is
 derived after the skip and is not stored), the numbers it is about to store are
-those `n` with `c < n` and `n <= upto`. A key stored for the epoch at `c` itself, or below it, is outside
-that range and is kept as it was. No operation leaves a key stored at a number
-past its chain's counter, so this replaces a key only in a state read from
-storage, which the reader accepts (session-persistence.md, Semantic rules of
-the leaf formats). Where it does, the replacing key is last in the order
-eviction takes keys in.
+those `n` with `c < n` and `n <= upto`. A key stored for the epoch at `c`
+itself, or below it, is outside that range and is kept as it was. A skip stores
+numbers up to one below the message's number and the receive then moves the
+counter to the message's number, so no operation leaves a key stored at a number
+past its chain's counter. This is read off the operations; no theorem states it.
+It follows that this replaces a key only in a state read from storage, which the
+reader accepts (session-persistence.md, Semantic rules of the leaf formats).
+Where it does, the replacing key is last in the order eviction takes keys in.
 
 A send or receive that is refused may already have folded the agreement's
 secret in. A caller therefore runs each on a copy of the state and treats a
@@ -227,10 +235,11 @@ that would exceed it is refused by the ratchet (`SkippedStoreFull`).
 
 **The cap is checked against the store the skip would leave.** The order is the
 Double Ratchet's (key-deletion.md, Skipped message keys), on the pair of epoch
-and number. A skip that steps the chain from `c` to `upto`, with `c < upto`:
+and number. A skip that steps the receiving chain of the epoch the message
+names (its `pq_epoch`) from `c` to `upto`, with `c < upto`:
 
 1. is refused as `TooManySkipped` when `upto - c` is more than `MAX_SKIP`;
-2. otherwise deletes every stored key for this epoch whose number `n` has
+2. otherwise deletes every stored key for that epoch whose number `n` has
    `c < n` and `n <= upto`, which are the numbers it is about to store;
 3. counts the keys that remain in the store, whatever their epoch, and is
    refused as `SkippedStoreFull` when that count plus `upto - c` is more than
@@ -243,20 +252,32 @@ is made on a working copy, and a refusal at step 1 or step 3 leaves the state
 exactly as it was when the skip began, the keys step 2 would have deleted
 included. That is the skip alone: a receive that folded the agreement's secret
 in before it reached the skip is still spent (above). A skip with `upto <= c`
-stores nothing and checks nothing.
+stores nothing and checks nothing; a state with no chains, or no receiving
+chain, for the epoch refuses (`NoChain`, `ChainRetired`) before it gets that
+far.
 
 A state the operations produced holds no key at a number past its chain's
-counter (Receiving), so step 2 deletes nothing there and the number of keys
-step 3 counts is the length of the store. The count before the deletion and the
-count after it differ only for a state read from storage that holds a key in the
-range. There the check on the count after the deletion accepts a request that
-the same check on the count before it would refuse: a stored state of
-`MAX_SKIPPED_STORE - 1` keys, two of which lie in the range of a skip that
-stores two, is not refused.
+counter (Receiving; read off the operations, not proved), so step 2 deletes
+nothing there and the number of keys step 3 counts is the length of the store.
+The count before the deletion and the count after it differ only for a state
+read from storage that holds a key in the range. There the check on the count
+after the deletion accepts a request that the same check on the count before it
+would refuse: a stored state of `MAX_SKIPPED_STORE - 1` keys, two of which lie
+in the range of a skip that stores two, is not refused. The vector
+`replacement-bound-counts-resulting-store` is the case that ends at exactly
+`MAX_SKIPPED_STORE`.
 
-`Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves this of
-one skip: a skip that succeeds leaves the store no longer than the larger of
-its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
+`Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`
+proves this of one skip that steps the chain: the store it leaves is the
+survivors followed by the keys it derived, and holds at most `MAX_SKIPPED_STORE`
+keys. `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` covers
+every skip that succeeds, including one that stores nothing: the store it leaves
+is no longer than the larger of its previous length and `MAX_SKIPPED_STORE`. The
+refusal is exactly the count after the deletion
+(`Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`), and
+`Tacenta.SpqrT3.skip_message_keys_refines` proves that the translated code
+refines that model and that a refused skip returns the state it was given; the
+refusal it returns is not part of that statement. No theorem carries the bound
 across this ratchet's sending, receiving or advancing, or across a sequence of
 them. Over a session, the bound is tested rather than proved.
 
@@ -264,7 +285,9 @@ The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first
 whatever its epoch, and retries on a working copy that it adopts only if the
 message authenticates. A delayed message whose key was evicted can no longer be
-decrypted. Like the cap, the eviction is this implementation's addition.
+decrypted. A key the skip is about to replace does not count against the room
+the skip needs, so evicting one of those keys makes no room. Like the cap, the
+eviction is this implementation's addition.
 
 ## Retiring old epochs
 
