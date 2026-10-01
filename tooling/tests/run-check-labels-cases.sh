@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hold the label registry check to its three negative controls.
+# Hold the label registry check to its four negative controls.
 #
 #   bash tooling/tests/run-check-labels-cases.sh
 #
@@ -91,4 +91,12 @@ cat >> "$work/forbidden-prefix/tacenta-core/LABELS.md" <<'EOF'
 EOF
 expect_fail forbidden-prefix 'REFUSING: a label is a strict prefix of another, and is not a pair'
 
-echo 'check-labels-cases: pass case and 3 refusal cases gave the expected result'
+# The same label value declared twice under two names. `LABELS.md` lists values, so the registry comparison
+# still agrees; only the check on the raw list, before the sort, can refuse it.
+make_case duplicate-label
+duplicate="$(collect_labels | head -n 1)"
+printf 'const P_NINE_DUPLICATE_LABEL: &[u8] = b"%s";\n' "$duplicate" \
+  >> "$work/duplicate-label/tacenta-core/src/labels.rs"
+expect_fail duplicate-label 'REFUSING: the same label value is declared more than once'
+
+echo 'check-labels-cases: pass case and 4 refusal cases gave the expected result'

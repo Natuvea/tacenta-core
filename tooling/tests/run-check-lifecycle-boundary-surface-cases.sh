@@ -94,4 +94,17 @@ fi
 grep -q "Session proof surface regained opaque standard operation(s): $operation" "$tmp/out"
 done
 
-echo "9 lifecycle boundary-surface cases gave the expected result"
+# A proof root that is not in the translation at all must be refused by name, and not walked as if it
+# held no calls: the checker would otherwise report an empty surface for a root it never read.
+sed 's/^def lifecycle\.Session\.encrypt$/def lifecycle.Session.encrypt_removed/' "$source_file" >"$tmp/no-root.lean"
+if cmp -s "$source_file" "$tmp/no-root.lean"; then
+  echo "boundary-surface case: the edit that removes a root changed nothing" >&2
+  exit 1
+fi
+if python3 "$checker" --translation "$tmp/no-root.lean" >"$tmp/out" 2>&1; then
+  echo "boundary-surface case: accepted a translation with a Session root missing" >&2
+  exit 1
+fi
+grep -q 'missing proof root(s): lifecycle.Session.encrypt' "$tmp/out"
+
+echo "10 lifecycle boundary-surface cases gave the expected result"
