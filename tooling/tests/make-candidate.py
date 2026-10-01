@@ -75,7 +75,7 @@ def main() -> int:
         written.append(("sign-off", "conditional"))
     for check_id, classification in written:
         outcomes = ",".join(f"{step}=success" for step in table[(check_id, args.event)])
-        subprocess.run([sys.executable, "-I", "tooling/write-assurance-receipt.py", "--id", check_id,
+        subprocess.run([sys.executable, "-I", "-B", "tooling/write-assurance-receipt.py", "--id", check_id,
                         "--classification", classification, "--command", f"control-{check_id}",
                         "--required-outcomes", outcomes, "--output", f".assurance/receipts/{check_id}.json"],
                        cwd=repo, env=env, check=True, stdout=subprocess.DEVNULL)
@@ -86,12 +86,12 @@ def main() -> int:
          "--output", ".assurance/assurance-manifest.json"],
         ["tooling/build-assurance-manifest.py", "--validate", ".assurance/assurance-manifest.json"],
     ):
-        subprocess.run([sys.executable, *command], cwd=repo, env=env, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, "-B", *command], cwd=repo, env=env, check=True, stdout=subprocess.DEVNULL)
     hosted = dest / "hosted"
     hosted.mkdir()
     for name in ("assurance-receipts.json", "assurance-manifest.json"):
         shutil.copyfile(repo / ".assurance" / name, hosted / name)
-    subprocess.run([sys.executable, "tooling/build-evidence-pack.py", "--manifest", str(hosted / "assurance-manifest.json"),
+    subprocess.run([sys.executable, "-B", "tooling/build-evidence-pack.py", "--manifest", str(hosted / "assurance-manifest.json"),
                     "--receipts", str(hosted / "assurance-receipts.json"), "--output", str(dest / "pack")],
                    cwd=repo, env=env, check=True, stdout=subprocess.DEVNULL)
     return 0
