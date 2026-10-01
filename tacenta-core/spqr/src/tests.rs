@@ -272,6 +272,32 @@ fn a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound() {
 }
 
 #[test]
+fn a_skip_to_the_chain_number_stores_nothing_and_checks_nothing() {
+    // sparse-pq-ratchet.md: "A skip with `upto <= c` stores nothing and checks
+    // nothing." The store here holds 2,001 keys, one past the cap, which no
+    // operation produces and `from_bytes` refuses; it is built to show that
+    // the bound is not consulted when there is nothing to store. A skip to
+    // the chain's own number would be refused if the no-op test were `<`.
+    let mut b = State::init_bob(&sk());
+    for n in 5_000..7_001 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    assert_eq!(b.skipped_len(), 2_001);
+    let before = b.clone();
+    let counter = b.receive_count(0).unwrap();
+    b.skip_message_keys(0, counter)
+        .expect("a skip to the chain's own number stores nothing");
+    assert!(b == before, "a skip that stores nothing changed the state");
+    b.skip_message_keys(0, 0)
+        .expect("a skip below the chain's number stores nothing");
+    assert!(b == before, "a skip that stores nothing changed the state");
+}
+
+#[test]
 fn the_purge_range_is_above_the_chain_number_and_up_to_the_target_only() {
     // A stored state that holds keys on both sides of both ends of the range
     // `(ch.n, upto]`. The chain stands at 4 and message 7 skips to 6, so

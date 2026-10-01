@@ -3109,7 +3109,10 @@ impl Session {
         // the current chain -- its header number minus the current receive
         // count -- would exceed `MAX_SKIPPED_STORE`, so the room it needs is
         // that excess and nothing more, and both terms are known before the
-        // first attempt. "Full" does not mean the store holds exactly the cap:
+        // first attempt. The purge of the replaced range comes before that
+        // check, so here too the keys held are an upper bound on the keys it
+        // counts, and equal to them in every state a session produces.
+        // "Full" does not mean the store holds exactly the cap:
         // a store of 1500 keys refuses a message 600 ahead, and needs 100
         // evicted, not 600. Starting at the excess means a forged full-store
         // header no longer buys a run of eviction-and-retry rounds, each
@@ -3124,7 +3127,10 @@ impl Session {
         // receive count is needed to turn one into the other: a message
         // numbered `n` skips `n - 1 - received` keys on that chain, and the
         // store refuses when the keys it holds plus that figure would exceed
-        // `MAX_SKIPPED_STORE`, so the room it needs is that excess.
+        // `MAX_SKIPPED_STORE`, so the room it needs is that excess. For the
+        // post-quantum store the keys held are an upper bound on the keys that
+        // survive the replacement of the skipped range, and equal to them in
+        // every state a session produces, so this figure is never short.
         //
         // The ramp stays as the fallback for a header naming an epoch the state
         // holds no receiving chain for, where the accessor reports nothing and
