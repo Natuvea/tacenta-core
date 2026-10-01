@@ -166,6 +166,21 @@ t=$SECONDS
 bash scripts/check-audit-reach.sh || fail=1
 report_time "audit reach" "$t"
 
+# A hypothesis nothing satisfies makes the theorem that takes it true and empty, and neither the
+# kernel nor the pins notice. This reads the hypotheses of every claimed T1 and T3 theorem of the
+# leaf crates and the three-leaf unit from the built environment and fails if one is connected to
+# nothing (no bridge to a satisfiable shape, no derivation the ledger names), names no predicate, or
+# is about a variable only hypotheses mention. It does not show that a connected hypothesis is
+# satisfiable or that the hypotheses of one theorem hold together; the header of the script says
+# what it cannot see.
+# Its mutation controls, `check-hypothesis-witnesses-negatives.sh`, rebuild a copy of the package for
+# each case and take about fifteen minutes on an idle machine, so they are not run here. No workflow
+# runs them yet; run them by hand with
+# `bash tacenta-proofs/scripts/check-hypothesis-witnesses-negatives.sh`.
+t=$SECONDS
+bash scripts/check-hypothesis-witnesses.sh || fail=1
+report_time "hypothesis witnesses" "$t"
+
 # Both of the checks above ask what the audit found. This one asks whether the
 # audit finds anything: it plants declarations the rule says to refuse, and the
 # one shape the rule says to allow, in a throwaway first-party module and
