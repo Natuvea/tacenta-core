@@ -21,6 +21,11 @@
 #   pin lists              -- a required pin deleted or left in a comment, a
 #                             compiler-trust pin the script does not list, a
 #                             pin block copied over another
+#   statement pins         -- a required statement pin deleted, commented out,
+#                             moved into a docstring or a string, left without
+#                             its `#guard_msgs`, given an option that compares
+#                             nothing, written inside a namespace, moved to a
+#                             module no audit imports, or dropped from the floor
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -404,6 +409,164 @@ assert n == 1, n
 path.write_text(new)
 PY
 expect_fail "pin-block-copied-over-another" "theorems pinned more than once: Tacenta.UnitLifecycleT1.decrypt_no_panic" --check
+
+# ---------------------------------------------------------------------------
+# Statement pins. `#guard_msgs in #check @name` holds a theorem's statement, and
+# only the Lean build compared it: a deleted pin is a smaller file that builds, and
+# the pins are not axiom pins, so REQUIRED_PINS does not see them. The floor
+# REQUIRED_STATEMENT_PINS does. One floor name stands for the class: each mutation
+# is made to the statement pin of `record_empty_headerSent`, and every one must be
+# refused by the floor's own message naming that declaration. Deleting each of the
+# 23 pins in turn would test the same loop 23 times. The accepted spellings are
+# cases too, because a refusal is only evidence if the pin can be accepted.
+# ---------------------------------------------------------------------------
+
+stmt_name="Tacenta.DispatchEvidenceVacuity.record_empty_headerSent"
+stmt_file="tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean"
+stmt_head="\`$stmt_name\` is on REQUIRED_STATEMENT_PINS and"
+
+# Rewrite the statement pin of $stmt_name in $stmt_file. `mode` picks the mutation;
+# `option` is the text between the parentheses of `#guard_msgs` for mode `options`.
+rewrite_statement_pin() {
+  python3 - "$work/$stmt_file" "$stmt_name" "$1" "${2:-}" <<'PY'
+import pathlib, re, sys
+path, name, mode, option = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+text = path.read_text()
+pin = re.compile(r"#guard_msgs in\n#check @?" + re.escape(name) + r"\n")
+hits = pin.findall(text)
+assert len(hits) == 1, hits
+block = hits[0]
+new = {
+    "delete": "",
+    "line-comment": "".join("-- " + line + "\n" for line in block.splitlines()),
+    "block-comment": "/-\n" + block + "-/\n",
+    # The inner `-/` closes only the inner comment, so the pin is still commented out.
+    "nested-comment": "/- outer\n/- inner -/\n" + block + "-/\n",
+    "docstring": "/-- the pin of the next theorem:\n" + block + "-/\ndef statement_pin_doc : Nat := 0\n",
+    "string": 'def statement_pin_text : String := "\n' + block + '"\n',
+    "no-guard": "#check @" + name + "\n",
+    "options": "#guard_msgs (" + option + ") in\n#check @" + name + "\n",
+    "rename": "#guard_msgs in\n#check @" + name + "_renamed\n",
+    "namespace": "namespace StatementPinScope\n" + block + "end StatementPinScope\n",
+    "term": "#guard_msgs in\n#check @" + name + " x\n",
+    "at-sign": "#guard_msgs in\n#check @" + name + "\n",
+}[mode]
+path.write_text(text.replace(block, new))
+PY
+}
+
+make_case
+expect_pass "statement-pins-unmodified-tree" --check
+
+make_case
+rewrite_statement_pin delete
+expect_fail "statement-pin-deleted" "$stmt_head has no statement pin: no active \`#guard_msgs in\` followed by \`#check @$stmt_name\`" --check
+expect_fail "statement-pin-deleted-refused-by-refresh" "$stmt_head has no statement pin"
+
+for mode in line-comment block-comment nested-comment docstring string; do
+  make_case
+  rewrite_statement_pin "$mode"
+  expect_fail "statement-pin-$mode" "$stmt_head its statement pin at $stmt_file:" --check
+  expect_fail "statement-pin-$mode-says-why" "sits inside a comment, a docstring or a string, where Lean does not check it" --check
+done
+
+make_case
+rewrite_statement_pin no-guard
+expect_fail "statement-pin-without-guard-msgs" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
+
+make_case
+rewrite_statement_pin rename
+expect_fail "statement-pin-renamed-declaration" "$stmt_head has no statement pin" --check
+
+make_case
+rewrite_statement_pin term
+expect_fail "statement-pin-of-an-application-not-a-name" "$stmt_head has no statement pin" --check
+
+make_case
+rewrite_statement_pin namespace
+expect_fail "statement-pin-inside-namespace" "its statement pin at $stmt_file:" --check
+expect_fail "statement-pin-inside-namespace-says-why" "sits inside \`StatementPinScope\`; write it after \`end\` with the full name" --check
+
+# Options that leave the `#check` message uncompared. `#guard_msgs` takes the first
+# option that covers a kind of message, and a message no option covers passes through.
+for option in "drop all" "drop info" "pass info" "pass all" "drop warning" "drop warning, drop error" \
+              "drop all, check info" "whitespace := lax" "error := true"; do
+  make_case
+  rewrite_statement_pin options "$option"
+  expect_fail "statement-pin-option-$option" "its \`#guard_msgs ($option)\` at $stmt_file:" --check
+done
+
+make_case
+rewrite_statement_pin options "drop all"
+expect_fail "statement-pin-option-drop-all-says-why" "is the first option that covers \`info\` and it does not compare it, so the pin holds nothing" --check
+
+make_case
+rewrite_statement_pin options "drop warning"
+expect_fail "statement-pin-option-drop-warning-says-why" "no option covers \`info\`, so the message \`#check\` prints passes through without being compared" --check
+
+make_case
+rewrite_statement_pin options "whitespace := lax"
+expect_fail "statement-pin-option-lax-says-why" "compares the message with its whitespace removed" --check
+
+# The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
+# changed, so the source attestation is stale until it is regenerated; regenerating
+# refuses on the same statement-pin problems `--check` does, so an accepted case is a
+# regeneration that succeeds and a `--check` after it.
+for option in "check info, drop warning" "whitespace := normalized" "ordering := sorted" "info"; do
+  make_case
+  rewrite_statement_pin options "$option"
+  expect_pass "statement-pin-accepted-option-$option"
+  expect_pass "statement-pin-accepted-option-$option-then-checked" --check
+done
+
+make_case
+rewrite_statement_pin at-sign
+expect_pass "statement-pin-accepted-with-at-sign"
+expect_pass "statement-pin-accepted-with-at-sign-then-checked" --check
+
+# A pin in a module that no audit module imports: the pin moves to a new file under the
+# translation package, which nothing imports.
+make_case
+rewrite_statement_pin delete
+cat > "$work/tacenta-proofs/translation/Translation/OrphanStatementPin.lean" <<EOF
+import Translation.DispatchEvidenceVacuity
+
+#guard_msgs in
+#check @$stmt_name
+EOF
+expect_fail "statement-pin-in-a-module-no-audit-imports" "its statement pin is in tacenta-proofs/translation/Translation/OrphanStatementPin.lean, which no audit module imports" --check
+
+# The floor cannot be shortened by deleting a pin and its name and regenerating: the
+# verification manifest records the floor, and a floor shorter than the record is refused.
+shorten_floor() {
+  python3 - "$work/tacenta-proofs/scripts/attest.py" "$stmt_name" <<'PY'
+import pathlib, sys
+path, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+start = text.index("REQUIRED_STATEMENT_PINS = frozenset(")
+last = name.rsplit(".", 1)[1]
+line = '        "' + last + '",\n'
+at = text.index(line, start)
+path.write_text(text[:at] + text[at + len(line):])
+PY
+}
+
+make_case
+shorten_floor
+rewrite_statement_pin delete
+expect_fail "statement-floor-shortened" "\`$stmt_name\` is on the statement-pin floor that verification-manifest.json records and is not on REQUIRED_STATEMENT_PINS" --check
+expect_fail "statement-floor-shortened-refused-by-refresh" "is on the statement-pin floor that verification-manifest.json records and is not on REQUIRED_STATEMENT_PINS"
+
+# The limit of the record: a floor entry is removed by editing the script, the pin and the
+# manifest's own list together, a hand edit of a generated file that the diff shows. The
+# case is here so that the limit is on record and not found by deleting.
+make_case
+shorten_floor
+rewrite_statement_pin delete
+edit_json tacenta-proofs/manifests/verification-manifest.json \
+  "data['statement_pin_floor'].remove('$stmt_name')"
+expect_pass "statement-floor-shortened-by-hand-edit-and-regenerated"
+expect_pass "statement-floor-shortened-by-hand-edit-then-checked" --check
 
 # ---------------------------------------------------------------------------
 # The translation record.
