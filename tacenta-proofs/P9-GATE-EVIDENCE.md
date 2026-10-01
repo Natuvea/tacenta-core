@@ -99,10 +99,14 @@ semantic adequacy, which remain human-review findings.
 `tooling/ledger-review-sections.py` lists the sections, writes a receipt template
 with the references and digests filled in and every decision left as a
 placeholder, and with `--since` reports which sections differ from an earlier
-pack, receipt or `CLAIMS.md`. Whether an unchanged section's disposition may be
-carried forward is for the maintainer to decide before the final review (gate 3
-says any later ledger change reopens it); the reviewer states the basis in
-`cross_cutting_notes`.
+pack, receipt or `CLAIMS.md`. The maintainer decided on 2026-10-01 that the
+reviewer reads every changed or new section and may carry the disposition of a
+byte-identical section forward on a basis stated in `cross_cutting_notes`; the
+reviewer also checks the `LIMITATIONS.md` entries and the theorems that each
+carried section cites, because identical text can stand over changed proofs.
+Gate 3 says any later ledger change reopens the review, and the basis for each
+carried section is part of what the reviewer records. The introduction before
+the first section is a section that needs a disposition.
 `tooling/validate-reviewed-evidence.py`, run from the candidate's checkout,
 additionally verifies that the review receipt (with no finding), the evidence pack
 (against that checkout's git history) and the assurance manifest bind the same
