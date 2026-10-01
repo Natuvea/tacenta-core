@@ -11,6 +11,11 @@ This is a conditional composition theorem, not the full session T3 theorem.
 The T1 bridge below derives existence of the inner result from the existing
 boundary contracts and headroom theorem. No public-decrypt witness or route
 is accepted as an input.
+
+Every theorem below that takes `DecryptRatchetContracts` or `BraidReceiveContracts` holds
+vacuously as stated, because `BraidReceiveContracts` contains a false field
+(`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`).
 -/
 
 namespace Tacenta.UnitLifecycleT3

@@ -1014,6 +1014,11 @@ theorem message_keys_no_panic
   all_goals simp_all
 
 
+/-- The receive half of the Braid's boundary contracts. **No term of this type exists:**
+`decoderMessage` is false (`Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total`), so
+every theorem that takes this record, directly or through `DecryptRatchetContracts` or
+`EstablishResponderContracts`, holds vacuously as stated. See `GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`. -/
 structure BraidReceiveContracts : Prop where
   decoderNew : Tacenta.SessionUnitBraidT1.DecoderNewTotal
   decoderAdd : Tacenta.SessionUnitBraidT1.DecoderAddChunkTotal
@@ -1794,7 +1799,7 @@ The pins hold axiom lists only. The theorem statements, the fields of the
 contract records, the class `SessionUnitT1.DerivedKeysModel` and the headroom
 records are hypotheses, and `#print axioms` shows only the operations they
 name. A proof that starts to depend on a new axiom fails the build here. `attest.py` also lists the
-six in `REQUIRED_PINS`, so deleting a pin block, or leaving it inside a comment,
+six in `REQUIRED_PINS`, which also lists the results of `SessionBraidReceiveVacuity`, so deleting a pin block, or leaving it inside a comment,
 fails it, and refuses a pin
 labelled compiler-trusted unless `COMPILER_TRUSTED_PINS` names the theorem.
 -/

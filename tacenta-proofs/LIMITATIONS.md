@@ -50,7 +50,9 @@ parsers, the encoder and all nine refinement theorems.
 panic-freedom theorems and one lemma (`encrypt_no_panic`, `decrypt_no_panic`,
 `decrypt_ratchet_no_panic`, `establish_initiator_for_no_panic`,
 `establish_responder_no_panic` and `invariant_gives_preconditions`); none
-depends on a compiler-trust axiom.
+depends on a compiler-trust axiom, and three of the five panic-freedom theorems
+(`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`) are
+vacuous as stated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `Translation.ImportInv` pins both halves of its chain: the two ratchets'
 `invariant_true_iff` and `from_bytes_establishes_inv`, together with the
 classical ratchet's two non-vacuity pins, which are kernel-only; and
@@ -263,7 +265,10 @@ excludes it.
   Braid cannot state through the opaque types (the Rust documents the
   constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
   and the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
-  hypotheses, below).
+  hypotheses, below). In the eight-leaf session unit the erasure coder is translated, so
+  `DecoderMessageTotal` there is a statement about a definition, and it is refuted
+  (`Translation/SessionBraidReceiveVacuity.lean`); the other four erasure totals have not been
+  shown satisfiable there.
 
 ## Secret deletion is partial
 
@@ -1246,7 +1251,8 @@ the crate that actually carries it.** `Session::encrypt` and
 `Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
 code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
 that code. On the eight-leaf session unit it has five conditional panic-freedom
-theorems and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
+theorems, three of them vacuous as stated (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`), and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
 theorem that relates it to the model -- a separate question this does not
 answer.
 
@@ -1266,7 +1272,8 @@ invariant yields as many of the T1 and T3 preconditions as it reaches. That is n
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
 session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
-translated and has conditional panic-freedom theorems for its entry points but
+translated and has conditional panic-freedom theorems for its entry points, three of
+them vacuous as stated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), but
 none for import or export, so nothing here says what a session restored
 from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
@@ -2035,7 +2042,12 @@ their value-level specifications. It covers those thirteen contracts only. The
 other 9 to 36 fields of each contract record in `CLAIMS.md` (the ratchet, Braid,
 Triple Ratchet and session-layer totalities, and the class
 `SessionUnitT1.DerivedKeysModel`) have no satisfiability witness in the session
-unit, and no theorem shows that any of the four records is inhabited.
+unit, and no theorem shows that any of the four records is inhabited. Two are shown
+not to be: `DecryptRatchetContracts` and `EstablishResponderContracts` both contain
+`BraidReceiveContracts`, whose field `SessionUnitBraidT1.DecoderMessageTotal` is false for a
+decoder that needs `(Usize.max + 1) / 32` chunks
+(`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`).
 
 ## The erasure coding's field is proved
 
@@ -2069,8 +2081,8 @@ that assembly possible.
 - T1 (panic-freedom of the translated Rust of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
   for the verified zone only, which is the eight proved leaf crates and, on
-  the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems (no
-  T3 result) and not the
+  the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems, three of them vacuous as
+  stated (no T3 result) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas

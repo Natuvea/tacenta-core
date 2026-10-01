@@ -644,15 +644,22 @@ AXIOM_PIN = re.compile(
 # two lists are the part a regeneration cannot change: editing either is a
 # change to this script, which shows in the diff.
 REQUIRED_PINS = frozenset(
-    "Tacenta.UnitLifecycleT1." + n
-    for n in (
+    ["Tacenta.UnitLifecycleT1." + n for n in (
         "encrypt_no_panic",
         "decrypt_no_panic",
         "decrypt_ratchet_no_panic",
         "establish_initiator_for_no_panic",
         "establish_responder_no_panic",
         "invariant_gives_preconditions",
-    )
+    )]
+    + ["Tacenta.SessionBraidReceiveVacuity." + n for n in (
+        "decoderMessage_not_total",
+        "braidReceiveContracts_false",
+        "decryptRatchetContracts_false",
+        "establishResponderContracts_empty",
+        "message_eq_messageP",
+        "all_tr_refute",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

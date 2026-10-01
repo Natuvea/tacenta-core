@@ -16,11 +16,14 @@ this section says in one place what is not proved.
   on the contract records named in their statements (15 to 44 named hypotheses
   each; together the four records include eleven of the thirteen boundary
   contracts of `LIMITATIONS.md`, and any one record includes three to eight of
-  them) and explicit headroom, and a set of
+  them) and explicit headroom (three of the five, for `decrypt`, `decrypt_ratchet`
+  and `establish_responder`, are vacuous as stated, because a record they take
+  contains a false hypothesis: `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
-  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Braid
-  and Triple receive evidence in `UnitLifecycleInitialDispatch.lean` is derived
-  from the leaf refinements, `GAP-REGISTER.md` E2E-04). No theorem says what the two functions
+  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Triple receive
+  evidence in `UnitLifecycleInitialDispatch.lean` is derived from a leaf refinement
+  that is not vacuous, the Braid receive evidence there resting on a vacuous theorem,
+  `GAP-REGISTER.md` E2E-04 and `SESSION-CONTRACT-VACUITY`). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -51,7 +54,8 @@ this section says in one place what is not proved.
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it. That layer now has a Phase 0
   translation and, on the eight-leaf session unit, conditional panic-freedom
-  theorems for its entry points, but no theorem about the import of a stored
+  theorems for its entry points, three of them vacuous as stated (the session lifecycle T1
+  section), but no theorem about the import of a stored
   session. Wherever that
   chain does not reach, the sentence in bold still stands unchanged.
 - **A decoded state is panic-free unconditionally; it refines the model
@@ -94,7 +98,12 @@ this section says in one place what is not proved.
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis
   that implies `False` in Lean turns every theorem taking it into a proof of
   `False → _`, kernel-checked and establishing nothing; the kernel does not
-  flag this, and `#print axioms` does not either. The sparse ratchet's
+  flag this, and `#print axioms` does not either. These checks cover hypotheses
+  about opaque operations. In the eight-leaf session unit the erasure coder is
+  translated, and the hypothesis `DecoderMessageTotal` there is a statement about a
+  definition, not an opaque operation; nothing in the build checked it until
+  `Translation/SessionBraidReceiveVacuity.lean` refuted it (the session lifecycle T1
+  section). The sparse ratchet's
   `receive_no_panic` and `receive_refines`, the classical ratchet's
   `receive_refines`, and everything composed from them on the three-leaf unit
   take these hypotheses, so
@@ -1036,12 +1045,14 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   entry-point theorem to the complete eight-leaf Session namespace.
 - `Tacenta.SessionUnitBraidT1.Braid.receive_no_panic` (in
   `Translation/SessionUnitBraidT1.lean`): the corresponding count-checked
-  receive entry-point theorem. In that unit the erasure functions are
+  receive entry-point theorem. **Vacuous as stated:** it takes the unit's
+  `DecoderMessageTotal`, which is false (see the section on the Braid receive contract
+  record). In that unit the erasure functions are
   concrete translated code, so the pinned
   axiom lists drop the standalone Braid translation's opaque erasure
   declarations. The port explicitly unregisters three narrower global tactic
   rules from imported leaf proofs; its negative control checks that removing
-  that aggregate adaptation makes the proof fail.
+  that aggregate adaptation makes the proof fail. Its step lemma `Braid.step_receive_no_panic` is vacuous for the same reason.
 
 ## Proved (tier T1, the Double Ratchet's persistence codec cannot fail)
 
@@ -1361,7 +1372,8 @@ theorems take.
 - `Tacenta.SessionUnitBraidImportInv.Braid.decoded_receive_no_panic` (in
   `Translation/SessionUnitBraidImportInv.lean`): the aggregate decoded-state
   chain into the Session-unit Braid receive theorem, with its remaining KEM,
-  KDF, zeroize and generated-library boundaries pinned exactly.
+  KDF, zeroize and generated-library boundaries pinned exactly. **Vacuous as
+  stated**, for the reason given under the Session-unit Braid receive theorem above.
 
 **What this does not give.** `BraidT3.step_receive_refines` also takes
 `hepoch : epoch + 1 < u64::MAX`, which the Rust `invariant` does not check at
@@ -1451,8 +1463,8 @@ qualified form, and its proof bodies genuinely changed on the way.
 
 **This is the claim that says anything about the composed path.**
 `tacenta-core/lifecycle/src`, the product code that calls `tacenta-triple`, is
-translated and has conditional T1 theorems on the eight-leaf session unit (the
-session lifecycle T1 section below) and no refinement theorem, so the
+translated and has conditional T1 theorems on the eight-leaf session unit, three of them
+vacuous as stated (the session lifecycle T1 section below), and no refinement theorem, so the
 refinement claim stops at the crate boundary below it.
 
 - `Tacenta.UnitTripleT1.State.send_no_panic`: the composed send path cannot
@@ -1784,7 +1796,7 @@ restated without its bound:
   real chunk's index (model chunks carry the message they encode) it would be
   refutable jointly with `DecoderAddChunkTotal` and `DecoderMessageTotal`,
   the receive theorems' exact hypothesis set, since the real decoder's
-  `message` is total and gives one answer.
+  `message` returns, for every decoder the crate builds, and gives one answer.
 - `KemAgreesFor K` and `ValidateEkAgrees K` fix the split of a header into
   `ekSeed ++ hek` at 32 bytes. Quantified over every split they would be
   refutable for every `K` that models a KEM, the model's own `toyKem`
@@ -1941,7 +1953,8 @@ What a reader has to grant:
   namespace.
 - `Tacenta.SessionUnitBraidT3.Braid.receive_refines` (in
   `Translation/SessionUnitBraidT3.lean`): the corresponding receive
-  refinement. Both aggregate theorems use the concrete translated erasure
+  refinement. **Vacuous as stated**, like the receive entry-point theorem of the
+  same unit: it takes the unit's false `DecoderMessageTotal`. Both aggregate theorems use the concrete translated erasure
   implementation, so their pinned axiom lists omit the standalone Braid
   translation's opaque erasure declarations.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
@@ -2123,7 +2136,7 @@ are what the refinement theorems are *about*.
   the induction forced into the open; every real call starts at one and only
   multiplies.
 
-## Proved (tier T1, the session lifecycle on the eight-leaf unit cannot fail, under its contracts)
+## Proved (tier T1, the session lifecycle on the eight-leaf unit, under its contracts; three of the six theorems are vacuous as stated)
 
 Location: `Translation/UnitLifecyclePublicT1.lean`.
 
@@ -2145,16 +2158,48 @@ leaf preconditions from `Session::invariant`. Nothing here relates a result
 to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
 which are not listed as claims.
 
-- `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`:
-  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, given the
+**Three of these six theorems, and five Braid theorems in the same unit, hold vacuously as stated.**
+`BraidReceiveContracts`, which `DecryptRatchetContracts` contains and
+`EstablishResponderContracts` contains through it, includes
+`SessionUnitBraidT1.DecoderMessageTotal`, the hypothesis that `Decoder::message` returns for
+every `Decoder`. That is false: a decoder that needs `(Usize.max + 1) / 32` chunks and holds
+that many has a message, and assembling it appends more bytes than a vector can hold
+(`decoderMessage_not_total`, in the next section). So `decrypt_ratchet_no_panic`,
+`decrypt_no_panic` and `establish_responder_no_panic` take a hypothesis that nothing
+satisfies, and they are not accepted as claims until the field is restated and the theorems
+that use it are repaired (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`). They stay
+listed because they carry axiom pins. `encrypt_no_panic`, `establish_initiator_for_no_panic`
+and `invariant_gives_preconditions` do not use that field. The same field is the hypothesis
+`hdmsg` of five Braid theorems of the session unit:
+`SessionUnitBraidT1.Braid.step_receive_no_panic` and `Braid.receive_no_panic`,
+`SessionUnitBraidImportInv.Braid.decoded_receive_no_panic`, and
+`SessionUnitBraidT3.step_receive_refines` and `Braid.receive_refines`. Three of them are
+listed in this ledger and pinned; the two step lemmas are not. Sixteen theorems in
+`UnitLifecycleInitialDispatch.lean` take `BraidReceiveContracts` or `DecryptRatchetContracts` as a hypothesis, and two more are
+vacuous on one branch of their evidence type (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`); none is a claim. The standalone Braid theorems in `BraidT1.lean`
+and `BraidT3.lean` are not affected by this argument, because there the decoder is an opaque
+type and the field can be satisfied (`Translation/ErasureWitness.lean`,
+`erasure_hypotheses_satisfiable`, proves the standalone Braid's seven erasure totals jointly
+satisfiable). The decoder is not reachable through the crate, by reading the source: the
+Braid calls `Decoder::new` only with protocol constants, and a decoder's `have` grows only
+through `add_chunk` (one chunk per `u16` index) or `from_bytes` (which refuses
+`needed > MAX_CODEWORDS` and calls `Decoder::invariant`), so a decoder that has a message has
+`needed <= 65536`. No theorem states this. The defect is in the hypothesis, not in the
+product.
+
+- `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`: (`decrypt_no_panic` and
+  `decrypt_ratchet_no_panic` are vacuous as stated, see above) `Session::encrypt`,
+  `Session::decrypt` and `decrypt_ratchet` return, given the
   headroom records in their statements (`EncryptHeadroom`,
   `DecryptRatchetHeadroom`). `invariant_gives_preconditions` yields two of the
   three receive-headroom fields. The third, a bound on the associated data
   length, is not derived by any theorem, although clause (c) of
   `Session::invariant` fixes the associated data at the 66 bytes that
   `identity_ad_length` proves.
-- `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
-  establishment entry points return, the responder's with room in its
+- `establish_initiator_for_no_panic`, `establish_responder_no_panic`:
+  (`establish_responder_no_panic` is vacuous as stated, see above) the two establishment
+  entry points return, the responder's with room in its
   last-resort record.
 - `invariant_gives_preconditions`: given `Ct1LenTotal` (the translated `CT1_LEN`
   returns a value of at most 4096), a session for which `Session::invariant`
@@ -2167,13 +2212,44 @@ value one, in the sparse ratchet's `receive_no_panic`, by `decide`, and that the
 two `FullStore` discriminants differ, in `full_store_eq_no_panic`, by `simp`. Each
 of the six carries an axiom pin under `#guard_msgs` at the end of
 `Translation/UnitLifecyclePublicT1.lean`, and `attest.py` lists the six in
-`REQUIRED_PINS`, so deleting a pin block, or leaving it inside a comment, fails
-it. The pins hold axiom lists only. A change to a contract record, to the class
+`REQUIRED_PINS`, which also lists the results of the next section, so deleting a pin
+block, or leaving it inside a comment, fails it. The pins hold axiom lists only. A change to a contract record, to the class
 `SessionUnitT1.DerivedKeysModel` or to a headroom record, or a weaker theorem
 statement, fails a pin only if it names an operation the pin does not list. Nor do they show that the records can be met:
 `Translation/UnitSatisfiabilitySession.lean` exhibits a model for thirteen
 boundary contracts, and no theorem shows that any of the four records, or the
-class, is inhabited (`LIMITATIONS.md`, "The Session unit's primitive contracts").
+class, is inhabited; two of the four, `DecryptRatchetContracts` and
+`EstablishResponderContracts`, are shown not to be, through the record
+`BraidReceiveContracts` that both contain (above, and `LIMITATIONS.md`, "The Session unit's
+primitive contracts").
+
+## Proved (a negative result: the Braid receive contract record is uninhabited)
+
+Location: `Translation/SessionBraidReceiveVacuity.lean`.
+
+- `decoderMessage_not_total`: `SessionUnitBraidT1.DecoderMessageTotal` is false. A
+  decoder with `needed = (Usize.max + 1) / 32` that holds that many chunks has a
+  message, and `Decoder::message` fails on it, because the output vector would hold
+  `Usize.max + 1` bytes. The proof assumes no property of any opaque operation. It holds on
+  both platform widths: `usize_max_facts` supplies the chunk count, 2^27 or 2^59, by cases on
+  `Usize.bounds_eq`, and nothing after it depends on which case applies.
+- `braidReceiveContracts_false`, `decryptRatchetContracts_false`,
+  `establishResponderContracts_empty`: `BraidReceiveContracts`, and the two records
+  that contain it, cannot be satisfied.
+- `message_eq_messageP`, `all_tr_refute`: `Decoder::message` is the function `messageP` with
+  the unit's `Vec::truncate` in its last step, and with that step replaced by any function
+  whatever `messageP` still fails to return for some decoder. So the refutation
+  does not depend on how `Vec::truncate` behaves; `all_tr_refute` depends on the three
+  standard axioms only.
+
+These are results about our hypotheses, not security claims about the product. They
+show that `decrypt_ratchet_no_panic`, `decrypt_no_panic` and `establish_responder_no_panic`,
+named in the session lifecycle T1 section, and the five Braid theorems of the session unit are
+vacuous as stated. Each of the six results is pinned under
+`#guard_msgs` at the end of the file. The axiom lists in the first five pins name constants
+that occur in their statements (`Vec::truncate`, and the constants the contract records mention),
+and the proofs use none of them as assumptions. The sixth, `all_tr_refute`, lists the three
+standard axioms only.
 
 ## Proved (bounded P6 session lifecycle observations)
 
