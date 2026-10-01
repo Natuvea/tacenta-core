@@ -1215,6 +1215,18 @@ REQUIRED_PINS = frozenset(
         "ratchet_witness_events",
         "decoded_receive_refines_premises_satisfiable",
     )]
+    # What a refused lifecycle call leaves behind (`UnitLifecycleAtomicity.lean`): the seven frame
+    # results, each pinned by its axiom list and by its statement. They take no hypothesis about
+    # any opaque operation, so a weaker statement is the only way one could become empty.
+    + ["Tacenta.UnitLifecycleAtomicity." + n for n in (
+        "decrypt_ratchet_err_leaves_state",
+        "decrypt_ratchet_ok_writes",
+        "decrypt_err_leaves_state",
+        "decrypt_ok_writes",
+        "establish_responder_err_leaves_store",
+        "encrypt_err_leaves_state",
+        "encrypt_ok_writes",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

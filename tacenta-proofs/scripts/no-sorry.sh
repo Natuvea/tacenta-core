@@ -118,6 +118,13 @@ report_time "Braid agreement witnesses control" "$t"
 t=$SECONDS
 python3 scripts/check-initial-dispatch-negatives.py || fail=1
 report_time "initial dispatcher proof-dependency controls" "$t"
+# The lifecycle frame proofs (`UnitLifecycleAtomicity.lean`) are one walk over each generated body.
+# Plant a write in a copy of each body and require the same walk to refuse it, after requiring it
+# to accept the unmodified copy; timeout, a compiler that does not start and a syntax error are
+# never counted as a refusal.
+t=$SECONDS
+python3 scripts/check-atomicity-negatives.py || fail=1
+report_time "lifecycle frame-proof controls" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
