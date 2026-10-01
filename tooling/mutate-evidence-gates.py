@@ -363,23 +363,23 @@ def run_runners(directory: Path, runners: list[str]) -> tuple[str | None, str]:
     return None, ""
 
 
-def seen_as(directory: Path, runner: str, output: str) -> str:
-    """"accepted" if some case of the failing runner fails for more than a changed
-    message (it expected a refusal and saw an acceptance, an honest input was refused,
-    or an assertion failed), else "message"."""
+def case_name(line: str) -> str:
+    match = re.match(r"WRONG\s+([^:]+):", line)
+    return match.group(1) if match else line[:80]
+
+
+def seen_as(directory: Path, runner: str, output: str) -> tuple[str, str]:
+    """("accepted", case) if some case of the failing runner fails for more than a
+    changed message (it expected a refusal and saw an acceptance, an honest input was
+    refused, or an assertion failed), else ("message", first failing case)."""
     wrong = wrong_lines(output)
-    if not wrong or not all(MESSAGE.search(line) for line in wrong):
-        return "accepted"
+    if not wrong:
+        return "accepted", "an assertion or a step that must pass failed"
+    if not all(MESSAGE.search(line) for line in wrong):
+        return "accepted", case_name(wrong[0])
     _, everything = run_runner(directory, runner, keep_going=True)
-    return "accepted" if any(not MESSAGE.search(line) for line in wrong_lines(everything)) else "message"
-
-
-def first_case(output: str) -> str:
-    wrong = wrong_lines(output)
-    if wrong:
-        match = re.match(r"WRONG\s+([^:]+):", wrong[0])
-        return match.group(1) if match else wrong[0][:80]
-    return "an assertion or a step that must pass failed"
+    verdicts = [line for line in wrong_lines(everything) if not MESSAGE.search(line)]
+    return ("accepted", case_name(verdicts[0])) if verdicts else ("message", case_name(wrong[0]))
 
 
 def evidence_files() -> list[str]:
@@ -454,22 +454,22 @@ def main() -> int:
             git(work, "commit", "-q", "-a", "-m", ident)
             home = HOME_RUNNER.get(file, 0)
             runner, output = run_runners(work, [RUNNERS[home]] + [r for i, r in enumerate(RUNNERS) if i != home])
-            kind = seen_as(work, runner, output) if runner else "survived"
+            kind, case = seen_as(work, runner, output) if runner else ("survived", "")
             shutil.rmtree(work)
             label = f"{ident:5} {what}"
             if kind == "accepted" and ident in EQUIVALENT:
                 unexpected.append(ident)
-                print(f"STALE     {label}\n            listed as equivalent, but {runner.rsplit('/', 1)[1]} sees it as accepted ({first_case(output)}): remove it from EQUIVALENT")
+                print(f"STALE     {label}\n            listed as equivalent, but {runner.rsplit('/', 1)[1]} sees it as accepted ({case}): remove it from EQUIVALENT")
             elif kind == "accepted":
                 accepted.append(ident)
-                print(f"caught    {label}\n            seen as accepted by {runner.rsplit('/', 1)[1]}: {first_case(output)}")
+                print(f"caught    {label}\n            seen as accepted by {runner.rsplit('/', 1)[1]}: {case}")
             elif ident in EQUIVALENT:
                 (message_equivalent if kind == "message" else survived_equivalent).append(ident)
-                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {first_case(output)}" if kind == "message" else "survived every runner"
+                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {case}" if kind == "message" else "survived every runner"
                 print(f"EQUIVALENT {label}\n            {seen}; claimed equivalent: {EQUIVALENT[ident]}")
             else:
                 unexpected.append(ident)
-                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {first_case(output)}" if kind == "message" else "survived every runner"
+                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {case}" if kind == "message" else "survived every runner"
                 print(f"UNEXPECTED {label}\n            {seen}")
         print(f"{len(mutations)} edits: {len(accepted)} seen as accepted, {len(message_equivalent)} seen as message only and claimed equivalent, "
               f"{len(survived_equivalent)} survived and claimed equivalent, {len(unexpected)} unexpected" + (": " + ", ".join(unexpected) if unexpected else ""))
