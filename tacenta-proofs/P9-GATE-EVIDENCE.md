@@ -64,22 +64,35 @@ candidate.  Its record must contain all of the following:
 
 - reviewer identity and independence from the ledger author;
 - candidate commit and pull request URL;
-- `CLAIMS.md`, `LIMITATIONS.md`, manifests, requirement evidence index,
-  `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`, `GAP-REGISTER.md`, and applicable
-  target decisions read;
-- one finding and disposition for each claim, including its stated assumptions,
-  theorem symbol/file, scope and limitation; and
+- `CLAIMS.md`, `LIMITATIONS.md`, `verification-manifest.json`,
+  `evidence-index.json`, `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`,
+  `GAP-REGISTER.md`, `P6-L2-TARGET-DECISION.md` and
+  `PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md` read;
+  `ERASURE-CODEC-TARGET-DECISION.md` is not required and is not in the pack;
+- one finding and disposition for each `##` section of `CLAIMS.md` and for the
+  introduction before the first section, covering the stated assumptions,
+  theorem symbol and file, scope and limitation of every claim in it; the receipt
+  has one entry per section, so a claim that differs from the rest of its section
+  is named in that entry's finding; and
 - the exact local and hosted check results the reviewer relied on.
 
 The recorded review is evidence of the review only.  It does not replace the
 mutation evidence required by gate 4.
 
-`tooling/check-ledger-review-receipt.py` validates the receipt (schema 2). It
-checks the receipt's binding to the evidence-pack manifest, that each artifact in
-the list above was named, that every `##` section of the pack's copy of
-`CLAIMS.md`, and the introduction before the first one, has exactly one
-disposition, and that each disposition carries the SHA-256 of the section text it
-was given on, so a later edit to a section no longer matches. With
+The receipt has no field for the pull request URL or for the local and hosted
+check results the reviewer relied on, and the checker does not look for them; the
+final pull request records both.
+
+`tooling/check-ledger-review-receipt.py` validates the receipt (schema 2). A
+schema 1 receipt is refused by this checker and is checked by the checker of the
+commit it was written for. A schema 2 receipt of the same ledger needs
+`section_sha256` on every entry and an entry for the introduction. The checker
+checks the receipt's binding to the evidence-pack manifest, that each of the nine
+file names in `REQUIRED_ARTIFACTS` appears in the list of artifacts read, that
+every `##` section of the pack's copy of `CLAIMS.md`, and the introduction before
+the first one, has exactly one disposition, that every disposition carries finding
+text, and that each disposition carries the SHA-256 of the section text it was
+given on, so a later edit to a section no longer matches. With
 `--require-no-findings` it refuses a receipt that records a `finding`. It cannot
 establish reviewer independence, that the reviewer read what the receipt names, or
 semantic adequacy, which remain human-review findings.
@@ -87,7 +100,9 @@ semantic adequacy, which remain human-review findings.
 with the references and digests filled in and every decision left as a
 placeholder, and with `--since` reports which sections differ from an earlier
 pack, receipt or `CLAIMS.md`. Whether an unchanged section's disposition may be
-carried forward is the reviewer's judgement, stated in the receipt.
+carried forward is for the maintainer to decide before the final review (gate 3
+says any later ledger change reopens it); the reviewer states the basis in
+`cross_cutting_notes`.
 `tooling/validate-reviewed-evidence.py`, run from the candidate's checkout,
 additionally verifies that the review receipt (with no finding), the evidence pack
 (against that checkout's git history) and the assurance manifest bind the same

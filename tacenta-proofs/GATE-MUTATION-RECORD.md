@@ -257,4 +257,3 @@ failed; a case whose own diagnostic no longer matched counts, because it shows t
 What this does not show: that the harness's table is every check these tools make (it is the checks the cases were written for), that the
 receipts are produced by a hosted run, or anything about the gates outside this tooling. `Rself` above is unchanged: the workflow and
 `tooling/required-steps.json` can still be edited together.
-
