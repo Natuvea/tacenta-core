@@ -786,7 +786,7 @@ nothing about the ones it does not.
 |---|---|---|
 | Initialisation in either role, and either direction | ratchet.md, Initialisation; sparse-pq-ratchet.md, Initialisation | each side runs its own initialisation from the same parameters, and the stored bytes are compared |
 | Send, receive in order, out of order and duplicated | ratchet.md, Sending and receiving; sparse-pq-ratchet.md, Sending and Receiving | generated sequences, with the outcome and the stored bytes of every step compared |
-| Skipped keys up to and past the per-chain bound | ratchet.md, Skipped keys; sparse-pq-ratchet.md, Skipped keys | generated skips, the step past `MAX_SKIP` in every run and `MAX_SKIP` itself in the long run |
+| Skipped keys up to and past the per-chain bound | ratchet.md, Skipped keys; sparse-pq-ratchet.md, Receiving and The store also has a total bound | generated skips, the step past `MAX_SKIP` in every run and `MAX_SKIP` itself in the long run |
 | A stored key taken, and keys aged out of the store | ratchet.md, Skipped keys; key-deletion.md | a start whose store holds keys either side of `MAX_SKIPPED_AGE`, so both the key that goes and the key that stays are compared |
 | A Diffie-Hellman step; an epoch advance and retirement | ratchet.md, The Diffie-Hellman ratchet; sparse-pq-ratchet.md, Advancing | generated headers on an unseen ratchet key, and generated agreement outputs, including two advances that retire an epoch with its stored keys |
 | Export and import at every step | session-persistence.md, Principles | each side reads back the bytes it wrote, and the two verdicts are compared |
