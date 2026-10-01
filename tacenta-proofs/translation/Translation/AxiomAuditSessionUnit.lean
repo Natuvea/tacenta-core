@@ -19,6 +19,8 @@ import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleInitialDispatch
 import Translation.DispatchEvidenceVacuity
 import Translation.SessionUnitBraidPreserveFacts
+import Translation.UnitHeadroomSatisfiable
+import Translation.UnitHeadroomInvariant
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
