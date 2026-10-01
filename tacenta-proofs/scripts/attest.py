@@ -706,6 +706,29 @@ REQUIRED_PINS = frozenset(
         "defined_hypotheses_given_erasure",
         "Braid.receive_refines_given_erasure",
         "Braid.send_refines_given_erasure",
+        "defined_hypotheses_of_laws",
+        "Braid.receive_refines_of_laws",
+        "Braid.send_refines_of_laws",
+        "twelve_states_of_laws",
+        "six_receive_witnesses_of_laws",
+    )]
+    # The Reed-Solomon proof that the translated erasure coder of the Session unit refines the model:
+    # the nine statements of the plan and the two results of the glue. None rests on a compiler-trust
+    # axiom.
+    + ["Tacenta.UnitErasureRs." + n for n in (
+        "K_weights",
+        "K_coefficients",
+        "K_evaluate",
+        "K_algebra",
+        "E_new",
+        "E_next",
+        "D_add",
+        "D_message",
+        "M_recover",
+    )]
+    + ["Tacenta.UnitErasureRs.Glue." + n for n in (
+        "erasureAgrees_decoder",
+        "erasureAgrees",
     )]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields

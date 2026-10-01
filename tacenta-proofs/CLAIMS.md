@@ -120,8 +120,9 @@ this section says in one place what is not proved.
   `Translation/SessionBraidReceiveVacuity.lean` refuted its unbounded form, which is why it is
   now stated for decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1
   section). `ErasureAgrees` and `ErasureCloneAgrees`, the hypotheses of the session unit's Braid
-  refinements about the erasure coder, are in the same position: statements about translated
-  definitions, which no theorem shows can be met. The sparse ratchet's
+  refinements about the erasure coder, were in the same position: statements about translated
+  definitions. Both are theorems now, `ErasureCloneAgrees` outright and `ErasureAgrees` under two laws about
+  `Vec::truncate` and `usize::div_ceil` (the sections on the translated erasure coder and on the Braid agreements). The sparse ratchet's
   `receive_no_panic` and `receive_refines`, the classical ratchet's
   `receive_refines`, and everything composed from them on the three-leaf unit
   take the removal and retain hypotheses, which are of that kind. The witnesses
@@ -2035,8 +2036,9 @@ What a reader has to grant:
   translation's opaque erasure declarations. In the session unit, `ErasureAgrees` and
   `ErasureCloneAgrees` are statements about the translated erasure code and no longer about opaque
   operations. The model of `Translation/ErasureWitness.lean` is a model of the standalone
-  declarations and does not cover them. No theorem shows that they can be met, and they are not
-  among the records of `SESSION-CONTRACT-VACUITY`.
+  declarations and does not cover them. They are theorems of the unit now (`ErasureCloneAgrees` outright,
+  `ErasureAgrees` under two laws; the sections on the translated erasure coder and on the Braid agreements), and
+  they are not among the records of `SESSION-CONTRACT-VACUITY`.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -2761,15 +2763,60 @@ translated functions: the audit text in `tacenta-proofs/scripts/check-session-sa
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
 package.
 
+## Proved (the translated erasure coder of the Session unit refines the model: `ErasureAgrees`)
+
+Location: `Translation/UnitErasureRsStatements.lean`, `Translation/UnitErasureRsGlue.lean`.
+
+The proofs are in `UnitErasureRsDefs.lean` (the specification functions), `UnitErasureRsKernel.lean`, `UnitErasureRsAlgebra.lean`, `UnitErasureRsModel.lean`, `UnitErasureRsEncoder.lean` and `UnitErasureRsDecoder.lean`; the statements module restates each of the nine and the glue assembles them.
+
+In the complete Session unit the erasure coder is translated Rust, so `ErasureAgrees`, the hypothesis of the four
+Braid refinement theorems, is a statement about definitions: `Encoder::new` of any message and `Decoder::new` of any
+size build values that refine the model's encoder and decoder (`Model.Braid.encode`, `Model.Braid.Decoder.new`), the
+decoder for every message the model decoder could still be collecting. Its encoder clause was a theorem already
+(`erasureAgrees_encoder`); the decoder clause needed that decoding the codewords of a message at distinct indices
+returns the message, which no theorem of the model stated before `M_recover`. The proof is cut into nine statements,
+proved independently and restated in `UnitErasureRsStatements.lean` so that the kernel checks that each proved
+theorem has exactly the statement the glue was written against.
+
+- `K_weights`, `K_coefficients`, `K_evaluate`: the translated barycentric kernels `weights`, `coefficients` and
+  `evaluate` compute their pure specifications over `Model.Gf65536.Elem`, for every input slice. The field part
+  carries the argument of `ErasureT3.lean` over to the unit's constants.
+- `K_algebra`: the Lagrange evaluation they compute is `Model.Polynomial.interp` for distinct nodes.
+- `E_new`, `E_next`: `Encoder::new` builds the padded chunks of `Model.Erasure.chunks`, and `next_chunk` emits
+  `Model.Erasure.codeword` at the index `next`.
+- `D_add`, `D_message`: `Decoder::add_chunk` refines `Model.Erasure.Decoder.add`, and `Decoder::message` refines
+  `Model.Erasure.Decoder.message`.
+- `M_recover`: `Model.Erasure.Decoder.message` of the codewords of a message at distinct indices is the message.
+- `erasureAgrees_decoder`, `erasureAgrees`: the decoder clause, and `ErasureAgrees`, under the two laws
+  `DivCeilValue` and `TruncatePrefix`. The proof carries a decoder invariant (`DInv`) over every sequence of
+  chunks (`dinv_add`): a duplicate index, and a chunk offered after the decoder is complete, change nothing the
+  message depends on, and a decoder that holds fewer chunks than it needs returns no message in the translation
+  and in the model (`message_not_full`), which covers a decoder sized for `usize::MAX` bytes. The statements hold
+  at both platform widths, because the proofs use only that `Usize.max` is at least `2^32 - 1`.
+
+Each is pinned under `#guard_msgs` (axioms and statement), and `attest.py` requires every pin. The pins list
+`propext`, `Classical.choice` and `Quot.sound`, and the two opaque constants the laws are about (`usize::div_ceil` in
+`E_new` and `erasureAgrees`, `Vec::truncate` in `D_message` and the glue); none depends on a compiler-trust axiom.
+The proof of the statements through the field used compiler-trust axioms (about fifty `bv_decide` and `native_decide`
+certificates in the model's field lemmas) until the field lemmas became kernel proofs (the section on the field
+above).
+
+What this does not show: that the real `usize::div_ceil` and `Vec::truncate` meet the two laws (they are the
+documented behaviour of the standard library functions, and both hold in one interpretation of the unit's opaque
+constants, `UnitSatisfiabilityBraidAgreements.lean`); and anything about `Vec::with_capacity`, which never fails in
+the translation where the real function panics for an absurd capacity, so the results are about the translation. The
+laws are the whole interface between this proof and the standard library.
+
 ## Proved (the Braid refinement agreements of the Session unit: a model, the hypotheses that have witnesses, and what is discharged)
 
 Location: `Translation/UnitSatisfiabilityBraidAgreements.lean`, `Translation/UnitSatisfiabilityErasureAgrees.lean`, `Translation/UnitSatisfiabilityBraidStates.lean`, `Translation/UnitBraidEntryPoints.lean`.
 
 `step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines` of the complete
-Session unit (`SessionUnitBraidT3.lean`) take 34 hypotheses besides the contract fields: six agreements about
+Session unit (`SessionUnitBraidT3.lean`) take, besides the contract fields: six agreements about
 the unit's opaque KEM and KDF constants (`KemAgreesFor`, `KemLenAgrees`, `ValidateEkAgrees`, `KemCloneAgrees`,
 `BraidHkdfAgrees`, `BraidHmacAgrees`), thirteen totality or size shapes, six statements about the translated
-erasure coder, and the hypotheses about the state and the message. The standalone witnesses
+erasure coder, and the hypotheses about the state and the message (`StateRefines`, `EncodersLive`, `ct1_bounded`,
+`decoders_bounded`, the epoch headroom, `MsgRefines` and `HonestChunk`). The standalone witnesses
 (`KemWitness.lean`, `Satisfiability.lean`) are about the constants of the standalone Braid translation, which
 are different Lean constants, so before these modules none of the six agreements, none of the state-level
 hypotheses and neither erasure agreement had a witness for the unit. The sense of "has a model" is the
@@ -2797,8 +2844,7 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
 - `erasureAgrees_iff_clauses`, `erasureAgrees_encoder`: `ErasureAgrees` is its encoder clause and its decoder
   clause, by `Iff.rfl`, and the encoder clause is a theorem given that `usize::div_ceil` returns at divisor 32
   (`DivCeil32`, which `DivCeilValue` implies): `Encoder::new` of any message refines the model encoder of the
-  same bytes, for every number of steps a `u16` index allows. The decoder clause is not proved in this tree
-  without compiler-trust axioms.
+  same bytes, for every number of steps a `u16` index allows. The decoder clause is the section above.
 - `ingredients`, `twelve_states`, `six_receive_witnesses`: given `ErasureAgrees`, `KemAgreesFor K`,
   `KemLenAgrees K`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
   state constructors has a real state and a model state satisfying `StateRefines`, `ct1_bounded`,
@@ -2807,8 +2853,8 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   a message satisfying `MsgRefines` and `HonestChunk`, in the state's epoch, with data, and not through the
   vacuous arm of `HonestChunk`. The witnesses are built from the agreements: the key pairs and encapsulation
   states from the `generate` and `encapsulate1` clauses of `KemAgreesFor`, the encoders and decoders from the
-  two clauses of `ErasureAgrees`. So these hypotheses are satisfiable together whenever the agreements are,
-  and a model of the agreements is the one above.
+  two clauses of `ErasureAgrees` (discharged under the two laws by `twelve_states_of_laws`). So these hypotheses
+  are satisfiable together whenever the agreements are, and a model of the agreements is the one above.
 - `initiator_refines`, `responder_refines`: the states `Braid::initiator` and `Braid::responder` build refine
   the model's initial states `Model.Braid.initAlice` and `Model.Braid.initBob` and satisfy `ct1_bounded`,
   `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
@@ -2818,9 +2864,18 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   the six hypotheses about translated functions are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
   `EncoderCloneTotal` and `DecoderCloneTotal` outright, and the bounded `DecoderMessageTotal` from the one
   law `TruncateTotal` (`Vec::truncate` returns). The two entry points are restated with those hypotheses
-  replaced: the send needs no law, the receive needs `TruncateTotal`. `ErasureAgrees` stays a hypothesis. No
+  replaced: the send needs no law, the receive needs `TruncateTotal`, and `ErasureAgrees` stays a premise. No
   statement of `SessionUnitBraidT3.lean` changed; each restatement is a corollary of the entry point it
   restates, with fewer premises.
+- `defined_hypotheses_of_laws`, `Braid.receive_refines_of_laws`, `Braid.send_refines_of_laws`: with
+  `ErasureAgrees` from the section above, all six hypotheses about translated functions are theorems under the two
+  laws `DivCeilValue` and `TruncatePrefix`, and the two entry points are restated with all six replaced by the laws.
+  What remains of their hypotheses is what a model of the unit's opaque constants can satisfy (the six agreements and
+  the totality shapes), the two laws, and the hypotheses about state and message.
+- `twelve_states_of_laws`, `six_receive_witnesses_of_laws`: the state witnesses with `ErasureAgrees` supplied by the
+  laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the
+  two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
+  without a witness for the unit, in the sense of the substitution argument.
 
 Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
 deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry points list the opaque

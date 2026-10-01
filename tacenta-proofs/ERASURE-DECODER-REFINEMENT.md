@@ -55,3 +55,14 @@ duplicate, inconsistent or completed-decoder behaviour. The model lemmas and
 the full leaf-decoder theorem above pin one rejection effect, but completing
 the duplicate and other real cases and discharging `ErasureAgrees` for the
 concrete decoder remains required for the L4 target.
+
+## Update, 2026-10-01: the Session unit's coder
+
+For the complete Session unit, where the erasure coder is translated Rust and not an opaque dependency,
+`ErasureAgrees` is a theorem under two laws about `usize::div_ceil` and `Vec::truncate`
+(`UnitErasureRsGlue.erasureAgrees`; `CLAIMS.md`, "the translated erasure coder of the Session unit refines the
+model"). That includes the case this note sets as the first target, a duplicate or an offer after the decoder is
+complete (`dinv_add`), and the recovery statement the model lacked (`M_recover`). It is about the unit's coder,
+not about `tacenta-erasure` as a standalone crate, whose Braid refinement still takes `ErasureAgrees` as an
+assumed relation over an opaque boundary. It does not change the L3 target recorded in
+`ERASURE-CODEC-TARGET-DECISION.md`.

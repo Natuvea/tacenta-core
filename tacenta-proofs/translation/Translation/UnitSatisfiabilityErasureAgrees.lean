@@ -21,7 +21,8 @@ Both are kernel-checked.  The decoder half of `ErasureAgrees` is not here.
 ## What it does not show
 
 * The decoder half of `ErasureAgrees`.  It needs that decoding the codewords of a message at
-  distinct indices returns the message, which rests on the model's field lemmas.
+  distinct indices returns the message: that is the Reed-Solomon proof of `UnitErasureRsGlue.lean`,
+  which assembles the whole of `ErasureAgrees` under the two laws `DivCeilValue` and `TruncatePrefix`.
 * That `usize::div_ceil` returns at divisor 32: `DivCeil32` is a hypothesis of
   `erasureAgrees_encoder`, and `UnitSatisfiabilityErasure.divCeil32_of_value` derives it from
   `DivCeilValue`, a law about an opaque standard-library function.

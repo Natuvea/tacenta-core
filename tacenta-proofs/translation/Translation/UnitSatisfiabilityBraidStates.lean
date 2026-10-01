@@ -29,8 +29,9 @@ The witnesses are built from the agreements, so they are as satisfiable as the a
 the real key pairs and encapsulation states come from the `generate` and `encapsulate1` clauses of
 `KemAgreesFor`, the encoders and decoders from the two clauses of `ErasureAgrees`.  Nothing is
 assumed about a state beyond that.  `UnitSatisfiabilityBraidAgreements.lean` shows that the KEM and
-KDF agreements are jointly satisfiable; `ErasureAgrees` is the one hypothesis here that no module
-discharges without compiler trust (`UnitSatisfiabilityErasureAgrees.lean` has its encoder half).
+KDF agreements are jointly satisfiable; `ErasureAgrees` is a theorem under two laws
+(`UnitErasureRsGlue.erasureAgrees`), and `UnitBraidEntryPoints.twelve_states_of_laws` and
+`six_receive_witnesses_of_laws` are the theorems below with it supplied.
 
 ## What it does not show
 

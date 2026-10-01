@@ -11,8 +11,10 @@
 #   UnitSatisfiabilityBraidStates.lean      witnesses for the state-level hypotheses of the four refinement
 #                                           theorems, at all twelve state constructors and at the states the
 #                                           real constructors build.
-#   UnitBraidEntryPoints.lean               the two entry points with five defined-function hypotheses
+#   UnitBraidEntryPoints.lean               the two entry points with the defined-function hypotheses
 #                                           discharged.
+#   UnitErasureRs*.lean                     the Reed-Solomon proof that the translated erasure coder
+#                                           refines the model (`ErasureAgrees`).
 #
 # Each case below applies ONE change to a copy of a module and requires `lake env lean` to fail. Where a
 # theorem is named, the failure must be an error inside that theorem (a bridge that is no longer
@@ -30,6 +32,10 @@
 #               state theorems are stated through weakened.
 #   statements  a pinned statement weakened, so that the `#guard_msgs` pin refuses it.
 #   entry       an entry point restated with a premise dropped.
+#   rs          the Reed-Solomon proof of the unit's `ErasureAgrees`: a specification function changed,
+#               so that the module proving a kernel statement about it must refuse; a statement of
+#               the proof plan changed, so that the module that proves it must refuse; the decoder
+#               invariant changed, so that the glue must refuse.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -52,11 +58,17 @@ agree = read("UnitSatisfiabilityBraidAgreements")
 erasure = read("UnitSatisfiabilityErasureAgrees")
 states = read("UnitSatisfiabilityBraidStates")
 entry = read("UnitBraidEntryPoints")
+rs_defs = read("UnitErasureRsDefs")
+rs_kernel = read("UnitErasureRsKernel")
+rs_stmts = read("UnitErasureRsStatements")
+rs_glue = read("UnitErasureRsGlue")
 
-FIRST_ONLY = {"erasure-clause-encoder-of-the-empty-message"}
+FIRST_ONLY = {"erasure-clause-encoder-of-the-empty-message", "statement-entry-adds-a-premise"}
 INFRA = ("object file", "unknown module prefix", "no such file", "could not find",
          "unknown package", "failed to read file")
 PIN_MISMATCH = "does not match generated message"
+ANY = "any error"
+FILTER = os.environ.get("BRAIDNEG_FILTER", "")
 cases = 0
 accepted = 0
 wrong = []
@@ -103,6 +115,8 @@ def region(text, name):
 
 def passes(name, text):
     global cases, accepted
+    if FILTER and FILTER not in name:
+        return
     cases += 1
     accepted += 1
     rc, out = run(text)
@@ -111,6 +125,8 @@ def passes(name, text):
 
 
 def refused(name, text, where):
+    if FILTER and FILTER not in name:
+        return
     """`where` is a theorem or definition of the unmutated module whose body must contain an error, or
     the string PIN_MISMATCH."""
     global cases
@@ -126,6 +142,13 @@ def refused(name, text, where):
         if PIN_MISMATCH not in out:
             wrong.append(f"{name}: refused, but not by a pin:\n{out[:1200]}")
         return
+    if where == ANY:
+        errs = [m for _, m in errors(out)]
+        if not errs or all(any(k in m.lower() for k in RESOURCE) for m in errs):
+            wrong.append(f"{name}: refused only by a resource limit or without an error:\n{out[:600]}")
+        elif os.environ.get("BRAIDNEG_VERBOSE"):
+            print(f"  {name}: {errs[0][:140]}")
+        return
     r = region(text, where)
     if r is None:
         wrong.append(f"{name}: cannot locate {where} in the mutated text")
@@ -137,6 +160,59 @@ def refused(name, text, where):
         wrong.append(f"{name}: refused only by a resource limit inside {where}, which is not a refusal: {inside[0][1]}")
     elif os.environ.get("BRAIDNEG_VERBOSE"):
         print(f"  {name}: {inside[0][1][:140]}")
+
+
+_LEAN_PATH = []
+
+
+def lean_path():
+    if not _LEAN_PATH:
+        p = subprocess.run(["lake", "env", "printenv", "LEAN_PATH"], cwd=translation,
+                           capture_output=True, text=True)
+        _LEAN_PATH.append(p.stdout.strip())
+    return _LEAN_PATH[0]
+
+
+def refused_through(name, dep_name, dep_text, text, why):
+    """Mutate the module `dep_name`, build its olean in a scratch directory that shadows the built one,
+    and require `text` (an unmodified dependent) to be refused."""
+    global cases
+    if FILTER and FILTER not in name:
+        return
+    cases += 1
+    odir = os.path.join(tmp, "o_" + name)
+    os.makedirs(os.path.join(odir, "Translation"), exist_ok=True)
+    # The scratch directory holds a `Translation` directory, and Lean resolves every `Translation.*`
+    # module from the first search-path entry that has one, so the built oleans are linked into it.
+    built = os.path.abspath(os.path.join(translation, ".lake", "build", "lib", "lean", "Translation"))
+    for fn in os.listdir(built):
+        if fn.endswith(".olean") and fn != dep_name + ".olean":
+            os.symlink(os.path.join(built, fn), os.path.join(odir, "Translation", fn))
+    dep = os.path.join(tmp, dep_name + ".lean")
+    with open(dep, "w") as f:
+        f.write(dep_text)
+    lp = odir + ":" + lean_path()
+    env = dict(os.environ, LEAN_PATH=lp)
+    r = subprocess.run(["lean", "--root=" + tmp, "-o", os.path.join(odir, "Translation", dep_name + ".olean"), dep],
+                       cwd=translation, capture_output=True, text=True, env=env)
+    if r.returncode != 0:
+        wrong.append(f"{name}: the mutated {dep_name} does not compile, so the case tests nothing:\n{(r.stdout + r.stderr)[:600]}")
+        return
+    path = os.path.join(tmp, "case_dependent.lean")
+    with open(path, "w") as f:
+        f.write(text)
+    r = subprocess.run(["lean", path], cwd=translation, capture_output=True, text=True, env=env)
+    out = r.stdout + r.stderr
+    if r.returncode == 0:
+        wrong.append(f"{name}: the dependent module was accepted ({why})")
+    elif infra(out):
+        wrong.append(f"{name}: failed because the build is missing, not as a refusal:\n{out[:600]}")
+    else:
+        errs = [m for m in re.findall(r"case_dependent\.lean:\d+:\d+: error[^:]*: ([^\n]*)", out)]
+        if not errs or all(any(k in m.lower() for k in RESOURCE) for m in errs):
+            wrong.append(f"{name}: refused only by a resource limit or without an error ({why}):\n{out[:600]}")
+        elif os.environ.get("BRAIDNEG_VERBOSE"):
+            print(f"  {name}: {errs[0][:140]}")
 
 
 def once(text, old, new, what):
@@ -334,6 +410,62 @@ t = once(entry, "    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)\n
 if t is not None:
     # the proof still builds with an extra unused premise; the pin must refuse the changed statement
     refused("statement-entry-adds-a-premise", t, PIN_MISMATCH)
+
+
+# ---------------------------------------------------- the Reed-Solomon proof
+passes("rs-statements-unmodified", rs_stmts)
+passes("rs-glue-unmodified", rs_glue)
+
+# a specification function changed: the module that proves the kernel statement against it refuses
+for name, old, new, why in [
+    ("rs-spec-product-starts-from-zero",
+     "    Model.Gf65536.one\n\n/-- `weights`", "    Model.Gf65536.zero\n\n/-- `weights`",
+     "K_weights holds of the product, not of a product that starts from zero"),
+    ("rs-spec-evaluation-multiplies-instead-of-adds",
+     "(List.zipWith Model.Gf65536.mul cs vs).foldl Model.Gf65536.add Model.Gf65536.zero",
+     "(List.zipWith Model.Gf65536.mul cs vs).foldl Model.Gf65536.mul Model.Gf65536.zero",
+     "K_evaluate computes a sum"),
+    ("rs-spec-coefficients-use-the-node-not-x",
+     "(prodNe (fun j => Model.Gf65536.add x (xs.getD j 0#16)) xs.length i)",
+     "(prodNe (fun j => Model.Gf65536.add 0#16 (xs.getD j 0#16)) xs.length i)",
+     "K_coefficients depends on x"),
+]:
+    t = once(rs_defs, old, new, name)
+    if t is not None:
+        refused_through(name, "UnitErasureRsDefs", t, rs_kernel, why)
+
+# a statement of the plan changed: the theorem that proves it refuses
+for name, old, new, where in [
+    ("rs-statement-next-chunk-claims-the-next-index",
+     "cbytes ch = Model.Erasure.codeword (storeBytes e.chunks) e.next.val ⦄ :=",
+     "cbytes ch = Model.Erasure.codeword (storeBytes e.chunks) (e.next.val + 1) ⦄ :=", "E_next"),
+    ("rs-statement-add-chunk-verdict-inverted",
+     "(r.1 = true ↔ r.2.«have».val.length ≠ d.«have».val.length) ⦄ :=",
+     "(r.1 = true ↔ r.2.«have».val.length = d.«have».val.length) ⦄ :=", "D_add"),
+    ("rs-statement-recovery-with-fewer-indices-than-chunks",
+     "(hlen : idxs.length = Model.Erasure.chunkCount m.length) :\n    Model.Erasure.Decoder.message",
+     "(hlen : idxs.length + 1 = Model.Erasure.chunkCount m.length) :\n    Model.Erasure.Decoder.message", "M_recover"),
+]:
+    t = once(rs_stmts, old, new, name)
+    if t is not None:
+        refused(name, t, where)
+
+# the decoder invariant changed: the glue refuses
+t = once(rs_glue, "  rel : (haveHeld d).map Prod.fst = ((md.chunks.map (·.index)).reverse).take d.needed.val",
+         "  rel : (haveHeld d).map Prod.fst = ((md.chunks.map (·.index))).take d.needed.val",
+         "rs-invariant-the-decoder-holds-the-newest-indices")
+if t is not None:
+    refused("rs-invariant-the-decoder-holds-the-newest-indices", t, ANY)
+
+# the pins hold the statements
+for name, old, new in [
+    ("rs-pin-glue-drops-a-law",
+     "theorem erasureAgrees (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)\n    (htr : TruncatePrefix) : ErasureAgrees :=",
+     "theorem erasureAgrees (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)\n    (htr : TruncatePrefix) (hx : True) : ErasureAgrees :="),
+]:
+    t = once(rs_glue, old, new, name)
+    if t is not None:
+        refused(name, t, PIN_MISMATCH)
 
 if wrong:
     sys.stderr.write("braid-agreement negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))

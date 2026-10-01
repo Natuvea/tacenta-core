@@ -2384,6 +2384,40 @@ following and leave the following open.
   statement pin are `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and
   `Good.clone`; the other results have one.
 
+### The Braid refinement agreements of the Session unit: what is assumed, and what has a model
+
+`step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines`
+(`SessionUnitBraidT3.lean`) rest on assumptions that this section lists, with what the build holds
+about each (`CLAIMS.md`, the section on the Braid refinement agreements).
+
+**Assumed, about opaque constants.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem` and
+`Model.Kdf`: `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
+`BraidHkdfAgrees` and `BraidHmacAgrees`. Nothing shows that the real ML-KEM wrapper, libcrux or the real
+KDF satisfies them. What is shown is that they are consistent: one interpretation of the unit's opaque
+constants satisfies all six, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
+by the substitution argument above, which is an argument about derivations and not a theorem inside
+Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` says nothing about the real
+`K`. `ValidateEkAgrees K` holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
+coefficient check the real function makes after the hash; such a `K` exists, but the check is read from the
+source (`kem/src/lib.rs`) and no test runs a vector that matches the hash and fails the check.
+
+**Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
+theorem about the translated coder under two laws, because the translation leaves two library functions
+opaque: `usize::div_ceil` at divisor 32 returns `(a + 31) / 32` (`DivCeilValue`, already a field of
+`EstablishResponderContracts`), and `Vec::truncate` keeps the prefix (`TruncatePrefix`, which strengthens
+the existing `TruncateTotal` from returning to returning the prefix). Both are the documented behaviour of the
+standard library functions, and both hold in the interpretation above. The proof is about the
+translation: `Vec::with_capacity` never fails there, where the real function panics for an absurd
+capacity.
+
+**Not shown.** That a send or a receive keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch
+headroom: the state witnesses are single steps. That `MsgRefines` and `HonestChunk` hold of a message a peer
+sends: `MsgRefines` holds of a real chunk of any content when the decoder needs at least one chunk, so
+`HonestChunk` is the only hypothesis that excludes a spliced stream. That a decoder restored by
+`Decoder::from_bytes` refines a model decoder: one that holds chunks of no common message refines none,
+so the refinement theorems apply to states reachable from a fresh Braid and to restored states equal to
+such a state.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking
