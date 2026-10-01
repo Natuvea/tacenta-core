@@ -1447,10 +1447,11 @@ the only evidence that the decoder accepts anything is the Rust round-trip tests
   the code that ships. Nothing in the manifest may say otherwise until that
   gap closes.
 
-  The refinement rests on one axiom beyond the kernel's, and only one: a
-  `bv_decide` reflection in the step that relates the loop's sixteen turns to
-  the model's sixteen written terms. It is pinned under `#guard_msgs` in
-  `Translation/ErasureT3.lean`, so a fourth cannot appear unnoticed.
+  The refinement rests on the kernel's three axioms alone.
+  `#print axioms Tacenta.ErasureT3.mul_refines` is pinned under `#guard_msgs` in
+  `Translation/ErasureT3.lean`, so a compiler-trust axiom cannot appear
+  unnoticed. Until 2026-10-01 it rested on one `bv_decide` reflection, in
+  `clmulUpto_sixteen`.
 
   Worth naming because this is the crate where the claim is worth most and was
   cheapest to get. A decoder consumes codewords an attacker supplies, and every
@@ -2428,13 +2429,16 @@ both sides, and associativity.
 
 **Proved for every nonzero element.** That every nonzero element has the inverse
 `inv` returns, all sixty-five thousand five hundred and thirty-five. This doubles
-as an irreducibility check on the reduction polynomial, since a reducible one
-would leave some nonzero element a zero divisor with no inverse to return. Until
-2026-10-01 this was established by `native_decide`; it now follows, in the
-kernel, from the order of two, which is exactly `size - 1` (a closed computation
-at each of the four maximal divisors), so that the powers of two are the nonzero
-elements. Verified live by substituting a reducible polynomial and watching it
-fail.
+as a check on the reduction polynomial, since a reducible one would leave some
+nonzero element a zero divisor with no inverse to return. The proof asks for more
+than irreducibility: it needs two to have order exactly `size - 1`, so a
+polynomial under which two has a smaller order is refused too. Until 2026-10-01
+this was established by `native_decide`; it now follows, in the kernel, from that
+order (a closed computation at `65535` and at each of its four maximal divisors),
+so that the powers of two are the nonzero elements. Checked by substitution: with
+the reducible `0x10001`, `gen_order` fails to build; with the irreducible
+`0x1002B`, `0x1008D` or `0x103ED`, `gen_ne_21845`, `gen_ne_13107` or
+`gen_ne_3855` fails.
 
 The one thing still assumed is the reduction polynomial itself, which is ours
 rather than the specification's: the published document fixes the field and not

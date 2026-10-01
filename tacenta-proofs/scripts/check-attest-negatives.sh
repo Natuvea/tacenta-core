@@ -355,6 +355,7 @@ UnitSatisfiabilityBraidStates Tacenta.UnitSatisfiabilityBraidStates ingredients 
 UnitBraidEntryPoints Tacenta.UnitBraidEntryPoints defined_hypotheses_given_erasure Braid.receive_refines_given_erasure Braid.send_refines_given_erasure defined_hypotheses_of_laws Braid.receive_refines_of_laws Braid.send_refines_of_laws twelve_states_of_laws six_receive_witnesses_of_laws
 UnitErasureRsStatements Tacenta.UnitErasureRs K_weights K_coefficients K_evaluate K_algebra E_new E_next D_add D_message M_recover
 UnitErasureRsGlue Tacenta.UnitErasureRs.Glue erasureAgrees_decoder erasureAgrees
+ErasureT3 Tacenta.ErasureT3 mul_refines
 UnitSatisfiabilityRecords Tacenta.UnitSatisfiabilityRecords stdLaws_real_iff ratchetLaws_of_base encrypt_contracts_of_axiom_base decrypt_contracts_of_axiom_base initiator_contracts_of_axiom_base responder_contracts_of_axiom_base records_of_axiom_base axiom_base_satisfiable axiom_base_satisfiable_for_total_rng
 UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityJoint all_shapes_are_predicates model_satisfies_all_axiom_shapes stdLaws_of_faithful model_Faithful model_StdLaws encrypt_iff_parts decrypt_iff_parts initiator_toParts_ofParts responder_toParts_ofParts encrypt_axiom_part_satisfiable decrypt_axiom_part_satisfiable initiator_axiom_part_satisfiable responder_axiom_part_satisfiable DecoderNewTotal_is decoderNewShape_of_stdLaws model_DecoderNew badRange_refutes badDeref_refutes_array badDeref_refutes_message_key badOptionClone_refutes badCap_refutes badSeal_refutes model_pop_empty model_capacity_ge model_truncate_is_take
 UnitSatisfiabilityErasure Tacenta.UnitSatisfiabilityErasure decoderAddChunk_total encoderNextChunk_total encoderClone_total decoderClone_total decoderNew_iff encoderNew_iff divCeil32_of_value decoderNew_of_divCeilValue encoderNew_of_divCeilValue
@@ -417,6 +418,39 @@ path.write_text(text.replace(anchor, anchor + "\n Tacenta.UnitLifecycleT1.full_s
 PY
 expect_fail "compiler-trust-pin-not-listed" "\`Tacenta.UnitLifecycleT1.decrypt_no_panic\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS" --check
 expect_fail "compiler-trust-pin-refused-by-refresh" "\`Tacenta.UnitLifecycleT1.decrypt_no_panic\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS"
+
+# The field's pins are kernel-only and are on no ceiling: a compiler-trust axiom put back under
+# `interp_eq` (the case the stale ceiling entry used to accept) is refused, and so is deleting any
+# of the three pins in `Proofs/TrustedBase.lean`; the fourth, `ErasureT3.mul_refines`, is in the LIST below.
+make_case
+python3 - "$work/tacenta-proofs/Proofs/TrustedBase.lean" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+old = "info: 'Model.Polynomial.interp_eq' depends on axioms: [propext, Classical.choice, Quot.sound]"
+assert text.count(old) == 1
+path.write_text(text.replace(old, "info: 'Model.Polynomial.interp_eq' depends on axioms: [propext,\n Classical.choice,\n Quot.sound,\n Model.Gf65536.mul_one._native.bv_decide.ax_1_9]"))
+PY
+expect_fail "field-pin-compiler-trust-returns" "\`Model.Polynomial.interp_eq\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS" --check
+expect_fail "field-pin-compiler-trust-refused-by-refresh" "\`Model.Polynomial.interp_eq\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS"
+
+for n in Model.Gf65536.mul_assoc Model.Gf65536.mul_inv_cancel Model.Polynomial.interp_eq; do
+  make_case
+  python3 - "$work/tacenta-proofs/Proofs/TrustedBase.lean" "$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-trustedbase-$n" "\`$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
 
 make_case
 python3 - "$work/$session_pins" <<'PY'

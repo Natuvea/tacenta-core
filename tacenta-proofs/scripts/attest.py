@@ -730,6 +730,11 @@ REQUIRED_PINS = frozenset(
         "erasureAgrees_decoder",
         "erasureAgrees",
     )]
+    # The field, kernel-only since the model's field lemmas stopped using `bv_decide` and
+    # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
+    # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
+    + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    + ["Model.Polynomial.interp_eq", "Tacenta.ErasureT3.mul_refines"]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
     # proved from named laws, the shapes bound to the real predicates, the faithful-`pop`
@@ -1213,10 +1218,7 @@ REQUIRED_PINS = frozenset(
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
-        "Model.Gf65536.mul_inv_cancel",
-        "Model.Polynomial.interp_eq",
         "Proofs.Serialization.decode_encode_composite",
-        "Tacenta.ErasureT3.mul_refines",
         "Tacenta.SessionT3.shared_secret_refines_some",
         "Tacenta.SpqrT3.receive_refines",
         "Tacenta.SpqrT3.send_refines",
