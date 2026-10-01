@@ -977,6 +977,14 @@ REQUIRED_PINS = frozenset(
         "sat_BraidT3_step_send_refines",
         "spqrS_inv",
         "ratS_inv",
+        "spqr_receive_premises_at_witness",
+        "spqr_send_premises_at_witness",
+        "spqr_advance_premises_at_witness",
+        "spqr_maybe_advance_premises_at_witness",
+        "spqr_clear_old_epochs_premises_at_witness",
+        "ratchet_receive_premises_at_witness",
+        "braid_receive_premises_at_witness",
+        "braid_step_receive_premises_at_witness",
     )]
     + ["Tacenta.NumericWitnessTriple." + n for n in (
         "sat_UnitT1_receive_no_panic",
@@ -1014,6 +1022,16 @@ REQUIRED_PINS = frozenset(
         "sat_SessionUnitBraidT3_step_send_refines",
         "session_unit_spqrS_inv",
         "session_unit_ratS_inv",
+        "session_unit_spqr_receive_premises_at_witness",
+        "session_unit_spqr_send_premises_at_witness",
+        "session_unit_spqr_advance_premises_at_witness",
+        "session_unit_spqr_maybe_advance_premises_at_witness",
+        "session_unit_spqr_clear_old_epochs_premises_at_witness",
+        "session_unit_ratchet_receive_premises_at_witness",
+        "session_unit_braid_receive_premises_at_witness",
+        "session_unit_braid_step_receive_premises_at_witness",
+        "triple_receive_premises_at_witness",
+        "triple_send_premises_at_witness",
     )]
     + ["Tacenta.DecodedStateDischarge." + n for n in (
         "spqr_epoch_family",

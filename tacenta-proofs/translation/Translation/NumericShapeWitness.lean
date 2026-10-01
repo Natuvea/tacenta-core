@@ -3,9 +3,9 @@ import Aeneas
 /-!
 # Each numeric precondition shape is satisfiable at both platform widths
 
-The numeric premises of the theorems in this package fall into 61 shapes: a comparison between
-sums and products of lengths, scalars and model numbers, a constant (`usize::MAX`, `u32::MAX`,
-`u64::MAX`, a cap), and a comparison operator. `S01` to `S61` below are those shapes; each is
+As enumerated once from the built environment, the numeric premises of the theorems in this package
+fall into 61 shapes: a comparison between sums and products of lengths, scalars and model numbers, a
+constant (`usize::MAX`, `u32::MAX`, `u64::MAX`, a cap), and a comparison operator. `S01` to `S61` below are those shapes; each is
 stated as a comparison over natural numbers, with the lengths and scalars as the variables `x1, x2, ...`
 and the platform's `usize::MAX` as the parameter `um`.
 
@@ -24,435 +24,434 @@ central theorems by `NumericWitnessLeaf.lean`, `NumericWitnessTriple.lean` and
 against them, and for the rest by nothing in the tree. A numeric premise added to a theorem with a
 shape that is not among the 61 is not noticed here.
 
-The shapes were read off the built environment, not off the source: every hypothesis of every theorem
-in the first-party modules was enumerated, the comparison leaves were reduced to these forms, and
-each was checked for a satisfying assignment at both widths by Fourier-Motzkin elimination before
-it was written as a theorem here.
+The list of shapes comes from a one-off enumeration of the built environment: every hypothesis of every
+theorem in the first-party modules was reduced to comparison leaves, and the leaves to these forms. The
+script that did that is not in this tree, so nothing here checks that the list is complete or stays complete.
 -/
 
 namespace Tacenta.NumericShapeWitness
 
-/-- S01: `((((33 + 33) + LEN) + (102 + (LEN + 48))) + 18) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S01: `((((33 + 33) + LEN) + (102 + (LEN + 48))) + 18) ≤ UM`; role: room below usize::MAX. -/
 theorem S01 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (((((33 + 33) + x1) + (102 + (x2 + 48))) + 18) ≤ um) ∧ (∀ y_ : ℕ, (((((33 + 33) + y_) + (102 + (x2 + 48))) + 18) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967061, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551381, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S02: `((50 + (90 * LEN)) + (48 * LEN)) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S02: `((50 + (90 * LEN)) + (48 * LEN)) ≤ UM`; role: room below usize::MAX. -/
 theorem S02 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (((50 + (90 * x1)) + (48 * x2)) ≤ um) ∧ (∀ y_ : ℕ, (((50 + (90 * y_)) + (48 * x2)) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨47721858, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨204963823041217239, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S03: `((LEN + LEN) + 96) ≤ UM`; role: room below usize::MAX; carried by 4 theorem(s). -/
+/-- S03: `((LEN + LEN) + 96) ≤ UM`; role: room below usize::MAX. -/
 theorem S03 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (((x1 + x2) + 96) ≤ um) ∧ (∀ y_ : ℕ, (((y_ + x2) + 96) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967199, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551519, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S04: `((LEN + LEN) + LEN) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S04: `((LEN + LEN) + LEN) ≤ UM`; role: room below usize::MAX. -/
 theorem S04 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 x3 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (x3 ≤ um) ∧ (((x1 + x2) + x3) ≤ um) ∧ (∀ y_ : ℕ, (((y_ + x2) + x3) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 0, 0, by omega, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 0, 0, by omega, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S05: `(102 + (LEN + 48)) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S05: `(102 + (LEN + 48)) ≤ UM`; role: room below usize::MAX. -/
 theorem S05 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((102 + (x1 + 48)) ≤ um) ∧ (∀ y_ : ℕ, ((102 + (y_ + 48)) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967145, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551465, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S06: `(185 + (72 * LEN)) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S06: `(185 + (72 * LEN)) ≤ UM`; role: room below usize::MAX. -/
 theorem S06 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((185 + (72 * x1)) ≤ um) ∧ (∀ y_ : ℕ, ((185 + (72 * y_)) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨59652320, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨256204778801521547, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S07: `(20 + (34 * LEN)) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S07: `(20 + (34 * LEN)) ≤ UM`; role: room below usize::MAX. -/
 theorem S07 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((20 + (34 * x1)) ≤ um) ∧ (∀ y_ : ℕ, ((20 + (34 * y_)) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨126322566, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨542551296285575046, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S08: `(32 * VUsize) < UM`; role: room below usize::MAX; carried by 2 theorem(s). -/
+/-- S08: `(32 * VUsize) < UM`; role: room below usize::MAX. -/
 theorem S08 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((32 * x1) < um) ∧ (∀ y_ : ℕ, ((32 * y_) < um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨134217727, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨576460752303423487, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S09: `(7 + (32 * LEN)) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S09: `(7 + (32 * LEN)) ≤ UM`; role: room below usize::MAX. -/
 theorem S09 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((7 + (32 * x1)) ≤ um) ∧ (∀ y_ : ℕ, ((7 + (32 * y_)) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨134217727, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨576460752303423487, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S10: `(LEN + (N - N)) ≤ Model.State.maxSkippedStore=2000`; role: store cap; carried by 1 theorem(s). -/
+/-- S10: `(LEN + (N - N)) ≤ Model.State.maxSkippedStore=2000`; role: store cap. -/
 theorem S10 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 x3 : ℕ, ((x1 + (x2 - x3)) ≤ 2000) := by
   rcases h with rfl | rfl
   · exact ⟨0, 18446744073709551616, 18446744073709551616, by omega⟩
   · exact ⟨0, 18446744073709551616, 18446744073709551616, by omega⟩
 
-/-- S11: `(LEN + 1) < UM`; role: room below usize::MAX; carried by 24 theorem(s). -/
+/-- S11: `(LEN + 1) < UM`; role: room below usize::MAX. -/
 theorem S11 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 1) < um) ∧ (∀ y_ : ℕ, ((y_ + 1) < um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967293, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551613, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S12: `(LEN + 1) ≤ UM`; role: room below usize::MAX; carried by 2 theorem(s). -/
+/-- S12: `(LEN + 1) ≤ UM`; role: room below usize::MAX. -/
 theorem S12 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 1) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 1) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967294, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S13: `(LEN + 106) ≤ UM`; role: room below usize::MAX; carried by 5 theorem(s). -/
+/-- S13: `(LEN + 106) ≤ UM`; role: room below usize::MAX. -/
 theorem S13 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 106) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 106) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967189, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551509, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S14: `(LEN + 2) < UM`; role: room below usize::MAX; carried by 20 theorem(s). -/
+/-- S14: `(LEN + 2) < UM`; role: room below usize::MAX. -/
 theorem S14 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 2) < um) ∧ (∀ y_ : ℕ, ((y_ + 2) < um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967292, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551612, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S15: `(LEN + 32) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S15: `(LEN + 32) ≤ UM`; role: room below usize::MAX. -/
 theorem S15 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 32) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 32) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967263, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551583, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S16: `(LEN + 34) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S16: `(LEN + 34) ≤ UM`; role: room below usize::MAX. -/
 theorem S16 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 34) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 34) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967261, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551581, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S17: `(LEN + 64) ≤ UM`; role: room below usize::MAX; carried by 4 theorem(s). -/
+/-- S17: `(LEN + 64) ≤ UM`; role: room below usize::MAX. -/
 theorem S17 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 64) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 64) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967231, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551551, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S18: `(LEN + 72) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S18: `(LEN + 72) ≤ UM`; role: room below usize::MAX. -/
 theorem S18 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 72) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 72) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967223, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551543, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S19: `(LEN + 90) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S19: `(LEN + 90) ≤ UM`; role: room below usize::MAX. -/
 theorem S19 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 90) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 90) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967205, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551525, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S20: `(LEN + LEN) ≤ UM`; role: room below usize::MAX; carried by 1 theorem(s). -/
+/-- S20: `(LEN + LEN) ≤ UM`; role: room below usize::MAX. -/
 theorem S20 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ ((x1 + x2) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + x2) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 0, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S21: `(LEN + MAX_SKIP=1000) ≤ UM`; role: room below usize::MAX; carried by 29 theorem(s). -/
+/-- S21: `(LEN + MAX_SKIP=1000) ≤ UM`; role: room below usize::MAX. -/
 theorem S21 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ ((x1 + 1000) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 1000) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294966295, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709550615, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S22: `(LEN + Model.SparseRatchet.maxSkip=1000) ≤ UM`; role: room below usize::MAX; carried by 6 theorem(s). -/
+/-- S22: `(LEN + Model.SparseRatchet.maxSkip=1000) ≤ UM`; role: room below usize::MAX. -/
 theorem S22 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, ((x1 + 1000) ≤ um) ∧ (∀ y_ : ℕ, ((y_ + 1000) ≤ um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294966295, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709550615, by omega, fun y_ hy_ => by omega⟩
 
-/-- S23: `(N + 1) < Model.State.u32Max=4294967295`; role: u32 ceiling (clock); carried by 1 theorem(s). -/
+/-- S23: `(N + 1) < Model.State.u32Max=4294967295`; role: u32 ceiling (clock). -/
 theorem S23 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, ((x1 + 1) < 4294967295) ∧ (∀ y_ : ℕ, ((y_ + 1) < 4294967295) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967293, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4294967293, by omega, fun y_ hy_ => by omega⟩
 
-/-- S24: `(N + 1) < U32.max`; role: u32 ceiling (clock); carried by 6 theorem(s). -/
+/-- S24: `(N + 1) < U32.max`; role: u32 ceiling (clock). -/
 theorem S24 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, ((x1 + 1) < 4294967295) ∧ (∀ y_ : ℕ, ((y_ + 1) < 4294967295) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967293, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4294967293, by omega, fun y_ hy_ => by omega⟩
 
-/-- S25: `(N + 1) < U64.max`; role: u64 ceiling (epoch / counter); carried by 8 theorem(s). -/
+/-- S25: `(N + 1) < U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S25 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, ((x1 + 1) < 18446744073709551615) ∧ (∀ y_ : ℕ, ((y_ + 1) < 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551613, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551613, by omega, fun y_ hy_ => by omega⟩
 
-/-- S26: `(N + Model.SparseRatchet.epochsKept=2) ≤ U64.max`; role: u64 ceiling (epoch / counter); carried by 8 theorem(s). -/
+/-- S26: `(N + Model.SparseRatchet.epochsKept=2) ≤ U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S26 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, ((x1 + 2) ≤ 18446744073709551615) ∧ (∀ y_ : ℕ, ((y_ + 2) ≤ 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551613, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551613, by omega, fun y_ hy_ => by omega⟩
 
-/-- S27: `(N + N) ≤ 65536`; role: fixed cap (codeword count); carried by 27 theorem(s). -/
+/-- S27: `(N + N) ≤ 65536`; role: fixed cap (codeword count). -/
 theorem S27 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, ((x1 + x2) ≤ 65536) ∧ (∀ y_ : ℕ, ((y_ + x2) ≤ 65536) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨65536, 0, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨65536, 0, by omega, fun y_ hy_ => by omega⟩
 
-/-- S28: `(VU32 + 1) < U32.max`; role: u32 ceiling (clock); carried by 8 theorem(s). -/
+/-- S28: `(VU32 + 1) < U32.max`; role: u32 ceiling (clock). -/
 theorem S28 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 4294967295) ∧ ((x1 + 1) < 4294967295) ∧ (∀ y_ : ℕ, ((y_ + 1) < 4294967295) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967293, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4294967293, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S29: `(VU64 + 1) < U64.max`; role: u64 ceiling (epoch / counter); carried by 22 theorem(s). -/
+/-- S29: `(VU64 + 1) < U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S29 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 18446744073709551615) ∧ ((x1 + 1) < 18446744073709551615) ∧ (∀ y_ : ℕ, ((y_ + 1) < 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551613, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551613, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S30: `(VU64 + Model.SparseRatchet.epochsKept=2) ≤ U64.max`; role: u64 ceiling (epoch / counter); carried by 37 theorem(s). -/
+/-- S30: `(VU64 + Model.SparseRatchet.epochsKept=2) ≤ U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S30 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 18446744073709551615) ∧ ((x1 + 2) ≤ 18446744073709551615) ∧ (∀ y_ : ℕ, ((y_ + 2) ≤ 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551613, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551613, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S31: `(VUsize + 33) ≤ LEN`; role: index / length guard; carried by 3 theorem(s). -/
+/-- S31: `(VUsize + 33) ≤ LEN`; role: index / length guard. -/
 theorem S31 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ ((x1 + 33) ≤ x2) ∧ (∀ y_ : ℕ, ((y_ + 33) ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967262, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551582, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S32: `(max(LEN, MAX_SKIPPED_STORE=2000) + MAX_SKIP=1000) ≤ UM`; role: room below usize::MAX; carried by 14 theorem(s). -/
+/-- S32: `(max(LEN, MAX_SKIPPED_STORE=2000) + MAX_SKIP=1000) ≤ UM`; role: room below usize::MAX. -/
 theorem S32 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (((max x1 2000) + 1000) ≤ um) := by
   rcases h with rfl | rfl
   · exact ⟨4294966295, by omega, by omega⟩
   · exact ⟨18446744073709550615, by omega, by omega⟩
 
-/-- S33: `(max(LEN, Model.State.maxSkippedStore=2000) + Model.State.maxSkip=1000) ≤ UM`; role: room below usize::MAX; carried by 6 theorem(s). -/
+/-- S33: `(max(LEN, Model.State.maxSkippedStore=2000) + Model.State.maxSkip=1000) ≤ UM`; role: room below usize::MAX. -/
 theorem S33 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (((max x1 2000) + 1000) ≤ um) := by
   rcases h with rfl | rfl
   · exact ⟨4294966295, by omega⟩
   · exact ⟨18446744073709550615, by omega⟩
 
-/-- S34: `LEN < UM`; role: room below usize::MAX; carried by 49 theorem(s). -/
+/-- S34: `LEN < UM`; role: room below usize::MAX. -/
 theorem S34 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 < um) ∧ (∀ y_ : ℕ, (y_ < um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967294, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S35: `LEN ≤ (LEN + 48)`; role: index / length guard; carried by 2 theorem(s). -/
+/-- S35: `LEN ≤ (LEN + 48)`; role: index / length guard. -/
 theorem S35 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (x1 ≤ (x2 + 48)) ∧ (∀ y_ : ℕ, (y_ ≤ (x2 + 48)) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 4294967247, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 18446744073709551567, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S36: `LEN ≤ 1`; role: uniqueness (store is a map); carried by 21 theorem(s). -/
+/-- S36: `LEN ≤ 1`; role: uniqueness (store is a map). -/
 theorem S36 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 1) ∧ (∀ y_ : ℕ, (y_ ≤ 1) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨1, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨1, by omega, fun y_ hy_ => by omega⟩
 
-/-- S37: `LEN ≤ 4096`; role: fixed cap; carried by 50 theorem(s). -/
+/-- S37: `LEN ≤ 4096`; role: fixed cap. -/
 theorem S37 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 4096) ∧ (∀ y_ : ℕ, (y_ ≤ 4096) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4096, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4096, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S38: `LEN ≤ LEN`; role: index / length guard; carried by 75 theorem(s). -/
+/-- S38: `LEN ≤ LEN`; role: index / length guard. -/
 theorem S38 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (x1 ≤ x2) ∧ (∀ y_ : ℕ, (y_ ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S39: `LEN ≤ MAX_SKIPPED_STORE=2000`; role: store cap; carried by 24 theorem(s). -/
+/-- S39: `LEN ≤ MAX_SKIPPED_STORE=2000`; role: store cap. -/
 theorem S39 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 2000) ∧ (∀ y_ : ℕ, (y_ ≤ 2000) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨2000, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨2000, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S40: `LEN ≤ Model.State.maxSkippedStore=2000`; role: store cap; carried by 3 theorem(s). -/
+/-- S40: `LEN ≤ Model.State.maxSkippedStore=2000`; role: store cap. -/
 theorem S40 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 2000) ∧ (∀ y_ : ℕ, (y_ ≤ 2000) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨2000, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨2000, by omega, fun y_ hy_ => by omega⟩
 
-/-- S41: `Model.Braid.u64Max=18446744073709551615 ≤ (N + 1)`; role: u64 ceiling (epoch / counter); carried by 2 theorem(s). -/
+/-- S41: `Model.Braid.u64Max=18446744073709551615 ≤ (N + 1)`; role: u64 ceiling (epoch / counter). -/
 theorem S41 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (18446744073709551615 ≤ (x1 + 1)) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551614, by omega⟩
   · exact ⟨18446744073709551614, by omega⟩
 
-/-- S42: `N < 16`; role: relation between counters; carried by 1 theorem(s). -/
+/-- S42: `N < 16`; role: relation between counters. -/
 theorem S42 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 < 16) ∧ (∀ y_ : ℕ, (y_ < 16) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨15, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨15, by omega, fun y_ hy_ => by omega⟩
 
-/-- S43: `N < 65536`; role: fixed cap; carried by 4 theorem(s). -/
+/-- S43: `N < 65536`; role: fixed cap. -/
 theorem S43 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 < 65536) ∧ (∀ y_ : ℕ, (y_ < 65536) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨65535, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨65535, by omega, fun y_ hy_ => by omega⟩
 
-/-- S44: `N < Model.Braid.u64Max=18446744073709551615`; role: u64 ceiling (epoch / counter); carried by 1 theorem(s). -/
+/-- S44: `N < Model.Braid.u64Max=18446744073709551615`; role: u64 ceiling (epoch / counter). -/
 theorem S44 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 < 18446744073709551615) ∧ (∀ y_ : ℕ, (y_ < 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551614, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, fun y_ hy_ => by omega⟩
 
-/-- S45: `N < N`; role: relation between counters; carried by 5 theorem(s). -/
+/-- S45: `N < N`; role: relation between counters. -/
 theorem S45 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 < x2) ∧ (∀ y_ : ℕ, (y_ < x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551616, 18446744073709551617, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551616, 18446744073709551617, by omega, fun y_ hy_ => by omega⟩
 
-/-- S46: `N < U64.max`; role: u64 ceiling (epoch / counter); carried by 11 theorem(s). -/
+/-- S46: `N < U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S46 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 < 18446744073709551615) ∧ (∀ y_ : ℕ, (y_ < 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551614, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, fun y_ hy_ => by omega⟩
 
-/-- S47: `N ≤ (N + Model.State.maxSkip=1000)`; role: relation between counters; carried by 1 theorem(s). -/
+/-- S47: `N ≤ (N + Model.State.maxSkip=1000)`; role: relation between counters. -/
 theorem S47 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ (x2 + 1000)) ∧ (∀ y_ : ℕ, (y_ ≤ (x2 + 1000)) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551616, 18446744073709550616, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551616, 18446744073709550616, by omega, fun y_ hy_ => by omega⟩
 
-/-- S48: `N ≤ LEN`; role: index / length guard; carried by 1 theorem(s). -/
+/-- S48: `N ≤ LEN`; role: index / length guard. -/
 theorem S48 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ x2) ∧ (∀ y_ : ℕ, (y_ ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551616, 18446744073709551616, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551616, 18446744073709551616, by omega, fun y_ hy_ => by omega⟩
 
-/-- S49: `VU32 < U32.max`; role: u32 ceiling (clock); carried by 13 theorem(s). -/
+/-- S49: `VU32 < U32.max`; role: u32 ceiling (clock). -/
 theorem S49 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 4294967295) ∧ (x1 < 4294967295) ∧ (∀ y_ : ℕ, (y_ < 4294967295) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967294, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4294967294, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S50: `VU32 ≤ VU32`; role: relation between counters; carried by 13 theorem(s). -/
+/-- S50: `VU32 ≤ VU32`; role: relation between counters. -/
 theorem S50 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ 4294967295) ∧ (x2 ≤ 4294967295) ∧ (x1 ≤ x2) ∧ (∀ y_ : ℕ, (y_ ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4294967295, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S51: `VU64 < U64.max`; role: u64 ceiling (epoch / counter); carried by 9 theorem(s). -/
+/-- S51: `VU64 < U64.max`; role: u64 ceiling (epoch / counter). -/
 theorem S51 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ 18446744073709551615) ∧ (x1 < 18446744073709551615) ∧ (∀ y_ : ℕ, (y_ < 18446744073709551615) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551614, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S52: `VU64 < VU64`; role: relation between counters; carried by 11 theorem(s). -/
+/-- S52: `VU64 < VU64`; role: relation between counters. -/
 theorem S52 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ 18446744073709551615) ∧ (x2 ≤ 18446744073709551615) ∧ (x1 < x2) ∧ (∀ y_ : ℕ, (y_ < x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551614, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S53: `VU64 ≤ VU64`; role: relation between counters; carried by 11 theorem(s). -/
+/-- S53: `VU64 ≤ VU64`; role: relation between counters. -/
 theorem S53 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ 18446744073709551615) ∧ (x2 ≤ 18446744073709551615) ∧ (x1 ≤ x2) ∧ (∀ y_ : ℕ, (y_ ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨18446744073709551615, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S54: `VUsize < LEN`; role: index / length guard; carried by 74 theorem(s). -/
+/-- S54: `VUsize < LEN`; role: index / length guard. -/
 theorem S54 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (x1 < x2) ∧ (∀ y_ : ℕ, (y_ < x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967294, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S55: `VUsize < UM`; role: room below usize::MAX; carried by 2 theorem(s). -/
+/-- S55: `VUsize < UM`; role: room below usize::MAX. -/
 theorem S55 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 < um) ∧ (∀ y_ : ℕ, (y_ < um) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967294, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551614, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S56: `VUsize ≤ 2097152`; role: fixed cap; carried by 1 theorem(s). -/
+/-- S56: `VUsize ≤ 2097152`; role: fixed cap. -/
 theorem S56 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 2097152) ∧ (∀ y_ : ℕ, (y_ ≤ 2097152) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨2097152, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨2097152, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S57: `VUsize ≤ 4096`; role: fixed cap; carried by 38 theorem(s). -/
+/-- S57: `VUsize ≤ 4096`; role: fixed cap. -/
 theorem S57 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 4096) ∧ (∀ y_ : ℕ, (y_ ≤ 4096) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4096, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨4096, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S58: `VUsize ≤ 65536`; role: fixed cap; carried by 24 theorem(s). -/
+/-- S58: `VUsize ≤ 65536`; role: fixed cap. -/
 theorem S58 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 65536) ∧ (∀ y_ : ℕ, (y_ ≤ 65536) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨65536, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨65536, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S59: `VUsize ≤ 8160`; role: fixed cap; carried by 145 theorem(s). -/
+/-- S59: `VUsize ≤ 8160`; role: fixed cap. -/
 theorem S59 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 8160) ∧ (∀ y_ : ℕ, (y_ ≤ 8160) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨8160, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨8160, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S60: `VUsize ≤ LEN`; role: index / length guard; carried by 75 theorem(s). -/
+/-- S60: `VUsize ≤ LEN`; role: index / length guard. -/
 theorem S60 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 x2 : ℕ, (x1 ≤ um) ∧ (x2 ≤ um) ∧ (x1 ≤ x2) ∧ (∀ y_ : ℕ, (y_ ≤ x2) → y_ ≤ x1) := by
   rcases h with rfl | rfl
   · exact ⟨4294967295, 4294967295, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
   · exact ⟨18446744073709551615, 18446744073709551615, by omega, by omega, by omega, fun y_ hy_ => by omega⟩
 
-/-- S61: `VUsize ≤ MAX_FIELDS=32`; role: fixed cap (parser fields); carried by 2 theorem(s). -/
+/-- S61: `VUsize ≤ MAX_FIELDS=32`; role: fixed cap (parser fields). -/
 theorem S61 (um : ℕ) (h : um = 4294967295 ∨ um = 18446744073709551615) :
     ∃ x1 : ℕ, (x1 ≤ um) ∧ (x1 ≤ 32) ∧ (∀ y_ : ℕ, (y_ ≤ 32) → y_ ≤ x1) := by
   rcases h with rfl | rfl

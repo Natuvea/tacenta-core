@@ -21,7 +21,7 @@ every premise of `T` that is numeric (a bound on a length, a counter or an epoch
 theorem whose premises no state meets is true and says nothing; this is the check that these are not
 that.
 
-* The statement is not written twice. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
+* The statement is checked against the theorem and not trusted. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
   `T`'s type from the built environment, builds the conjunction of the premises its table puts inside
   the witness, and requires `Premises.T` to equal it. It also requires every other premise of `T` to be
   classified in the table, as `boundary` or as `unwitnessed`, so a premise added to `T` later is not
@@ -44,8 +44,9 @@ What is not shown here.
   (`StateRefines`, `MsgRefines`, `HonestChunk`), which need a value of an opaque type, and the premise
   `hdec` of `decoded_receive_refines`, that a byte string decodes to the state. They stay open here.
 * That a reachable state meets the premises. A witness says a premise is not vacuous; it does not say
-  every reachable state meets it. `events + 1 < u32::MAX` and `epoch + 1 < u64::MAX` are met by
-  every state but one honest value, and that value is an ordinary state (`NumericBoundary.lean`).
+  every reachable state meets it. Among the values the decoder's invariant allows,
+  `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and `epoch + 1 < u64::MAX` only at
+  `u64::MAX - 1`, and each of those is an ordinary state (`NumericBoundary.lean`).
 -/
 
 namespace Tacenta.NumericWitnessTriple

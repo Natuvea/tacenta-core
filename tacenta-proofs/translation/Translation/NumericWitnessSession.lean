@@ -1,3 +1,4 @@
+import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitT1
 import Translation.SessionUnitT3
 import Translation.SessionUnitRatchetImportInv
@@ -25,7 +26,7 @@ every premise of `T` that is numeric (a bound on a length, a counter or an epoch
 theorem whose premises no state meets is true and says nothing; this is the check that these are not
 that.
 
-* The statement is not written twice. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
+* The statement is checked against the theorem and not trusted. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
   `T`'s type from the built environment, builds the conjunction of the premises its table puts inside
   the witness, and requires `Premises.T` to equal it. It also requires every other premise of `T` to be
   classified in the table, as `boundary` or as `unwitnessed`, so a premise added to `T` later is not
@@ -48,8 +49,9 @@ What is not shown here.
   (`StateRefines`, `MsgRefines`, `HonestChunk`), which need a value of an opaque type, and the premise
   `hdec` of `decoded_receive_refines`, that a byte string decodes to the state. They stay open here.
 * That a reachable state meets the premises. A witness says a premise is not vacuous; it does not say
-  every reachable state meets it. `events + 1 < u32::MAX` and `epoch + 1 < u64::MAX` are met by
-  every state but one honest value, and that value is an ordinary state (`NumericBoundary.lean`).
+  every reachable state meets it. Among the values the decoder's invariant allows,
+  `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and `epoch + 1 < u64::MAX` only at
+  `u64::MAX - 1`, and each of those is an ordinary state (`NumericBoundary.lean`).
 
 Two things specific to the session unit.
 
@@ -447,6 +449,76 @@ theorem session_unit_ratS_inv : SessionUnitRatchetImportInv.Ratchet.Inv ratS := 
   · intro k hk; simp at hk; subst hk; simp [SessionUnitT1.canonicalX25519]
   · intro e he; simp at he; subst he; simp [SessionUnitT1.canonicalX25519]
 
+/-! ## The discharge theorems are not vacuous
+
+`SessionUnitDecodedStateDischarge.lean` proves that some premises of the refinement theorems follow from the
+decoder invariant `Inv` and the premises its theorems take. A discharge theorem whose own premises no state
+meets would be true and empty, and the premise `Inv` is one this package adds. Each theorem below is a
+discharge theorem applied to the witness state, with its type read off that application (`type_of%`), so
+that it holds exactly when the theorem's premises (the state relation, the epoch step and the invariant) are
+met together at that state, and it breaks if a premise is added to the discharge theorem or made
+unsatisfiable. -/
+
+theorem session_unit_spqrS_epoch_room : spqrS.epoch.val + 1 < U64.max := by simp; scalar_tac
+theorem session_unit_braidS_inv : SessionUnitBraidImportInv.Braid.Inv braidS := ⟨by simp [SessionUnitBraidT1.State.ct1_bounded], by simp [SessionUnitBraidT1.State.decoders_bounded]⟩
+
+theorem session_unit_spqr_receive_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_spqr_receive_premises 0#u64 0#u64 spqrRel session_unit_spqrS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_spqr_receive_premises 0#u64 0#u64 spqrRel session_unit_spqrS_epoch_room session_unit_spqrS_inv
+
+theorem session_unit_spqr_send_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_spqr_send_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_spqr_send_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv
+
+theorem session_unit_spqr_advance_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_spqr_advance_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_spqr_advance_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv
+
+theorem session_unit_spqr_maybe_advance_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_spqr_maybe_advance_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_spqr_maybe_advance_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv
+
+theorem session_unit_spqr_clear_old_epochs_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_spqr_clear_old_epochs_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_spqr_clear_old_epochs_premises session_unit_spqrS_epoch_room session_unit_spqrS_inv
+
+theorem session_unit_ratchet_receive_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_ratchet_receive_premises ratS ratM mh0 ratRel session_unit_ratS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_ratchet_receive_premises ratS ratM mh0 ratRel session_unit_ratS_inv
+
+theorem session_unit_braid_receive_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_braid_receive_premises braidS session_unit_braidS_inv) :=
+  SessionUnitDecodedStateDischarge.session_unit_braid_receive_premises braidS session_unit_braidS_inv
+
+theorem session_unit_braid_step_receive_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.session_unit_braid_step_receive_premises braidS.state ⟨session_unit_braidS_inv.ct1_bounded, session_unit_braidS_inv.decoders_bounded⟩) :=
+  SessionUnitDecodedStateDischarge.session_unit_braid_step_receive_premises braidS.state ⟨session_unit_braidS_inv.ct1_bounded, session_unit_braidS_inv.decoders_bounded⟩
+
+theorem session_unit_tripleS_events_room :
+    (SessionUnitTripleT3.ratchetAbs ratS).events + 1 < U32.max := by
+  simp [SessionUnitTripleT3.ratchetAbs]; scalar_tac
+theorem session_unit_tripleS_epoch_room :
+    (SessionUnitTripleT3.spqrAbs spqrS).epoch + 1 < U64.max := by
+  simp [SessionUnitTripleT3.spqrAbs]; scalar_tac
+
+theorem triple_receive_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.triple_receive_premises
+      (s := ⟨ratS, spqrS⟩) (m := ⟨SessionUnitTripleT3.ratchetAbs ratS, SessionUnitTripleT3.spqrAbs spqrS⟩)
+      ⟨hdr0, 0#u64, 0#u64⟩ mh0 ⟨rfl, rfl⟩ session_unit_tripleS_events_room session_unit_tripleS_epoch_room
+      ⟨session_unit_ratS_inv, session_unit_spqrS_inv⟩) :=
+  SessionUnitDecodedStateDischarge.triple_receive_premises
+      (s := ⟨ratS, spqrS⟩) (m := ⟨SessionUnitTripleT3.ratchetAbs ratS, SessionUnitTripleT3.spqrAbs spqrS⟩)
+      ⟨hdr0, 0#u64, 0#u64⟩ mh0 ⟨rfl, rfl⟩ session_unit_tripleS_events_room session_unit_tripleS_epoch_room
+      ⟨session_unit_ratS_inv, session_unit_spqrS_inv⟩
+
+theorem triple_send_premises_at_witness :
+    type_of% (SessionUnitDecodedStateDischarge.triple_send_premises
+      (s := ⟨ratS, spqrS⟩) (m := ⟨SessionUnitTripleT3.ratchetAbs ratS, SessionUnitTripleT3.spqrAbs spqrS⟩)
+      ⟨rfl, rfl⟩ session_unit_tripleS_epoch_room session_unit_spqrS_inv) :=
+  SessionUnitDecodedStateDischarge.triple_send_premises
+      (s := ⟨ratS, spqrS⟩) (m := ⟨SessionUnitTripleT3.ratchetAbs ratS, SessionUnitTripleT3.spqrAbs spqrS⟩)
+      ⟨rfl, rfl⟩ session_unit_tripleS_epoch_room session_unit_spqrS_inv
+
 end Tacenta.NumericWitnessSession
 
 /--
@@ -620,3 +692,87 @@ info: 'Tacenta.NumericWitnessSession.session_unit_ratS_inv' depends on axioms: [
 -/
 #guard_msgs in
 #print axioms Tacenta.NumericWitnessSession.session_unit_ratS_inv
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_spqr_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_spqr_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_spqr_send_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_spqr_send_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_spqr_advance_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_spqr_advance_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_spqr_maybe_advance_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_spqr_maybe_advance_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_spqr_clear_old_epochs_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_spqr_clear_old_epochs_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_ratchet_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_ratchet_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_braid_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_braid_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.session_unit_braid_step_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.session_unit_braid_step_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.triple_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.triple_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessSession.triple_send_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessSession.triple_send_premises_at_witness

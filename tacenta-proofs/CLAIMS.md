@@ -2981,7 +2981,7 @@ relations between a translated value and a model value (`StateRefines`, `StateR`
 about the constant `Usize.max`, of which Lean knows only that it is `2^32 - 1` or `2^64 - 1`, so each holds at
 both platform widths and none appeals to a width.
 
-The statement of each witness is not written twice. `scripts/check-precondition-witnesses.sh` reads the
+The statement of each witness is checked against its theorem and not trusted. `scripts/check-precondition-witnesses.sh` reads the
 theorem's type from the built environment, rebuilds the conjunction of the premises its table puts inside the
 witness, requires the module's `Premises.T` to equal it and `sat_T` to prove exactly `Premises.T`, and requires
 every other premise of `T` to be classified as `boundary` or `unwitnessed`, so a premise added to a theorem
@@ -2991,8 +2991,8 @@ unclassified, a numeric premise listed as outside, a premise added to a theorem)
 not a Lean theorem because `check-lean-constructs.sh` refuses elaboration-time code in this package; it
 trusts the script's reading of the environment, and classifies a hypothesis as numeric by a comparison on a
 natural number or an integer in its propositional skeleton or by the name of a numeric state predicate, so a
-numeric bound hidden behind a definition of another name is classified by the table's author (the table has
-`ChainCounterBounded` of the sparse refinement's continuation by hand).
+numeric bound hidden behind a definition whose name is not on the script's list of numeric state predicates is
+classified by the table's author; `ChainCounterBounded`, a bound on a chain's counter, is such a name and is on the list.
 
 **What this is not.** A witness says a premise is not vacuous. It does not say a reachable state meets it:
 among the values the decoder's invariant allows, `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and
@@ -3038,6 +3038,21 @@ key, one stored skipped key); the bounds up to their caps are in the next sectio
   unit, with `decoders_bounded` for the Braid. The lifecycle theorems (`encrypt_no_panic` and the others) are not here: their
   headroom records hold values of opaque boundary types.
 - `session_unit_spqrS_inv`, `session_unit_ratS_inv`: the session unit's two ratchet witness states satisfy the decoder invariant.
+- `spqr_receive_premises_at_witness`, `spqr_send_premises_at_witness`, `spqr_advance_premises_at_witness`,
+  `spqr_maybe_advance_premises_at_witness`, `spqr_clear_old_epochs_premises_at_witness`, `ratchet_receive_premises_at_witness`,
+  `braid_receive_premises_at_witness`, `braid_step_receive_premises_at_witness`,
+  `session_unit_spqr_receive_premises_at_witness`, `session_unit_spqr_send_premises_at_witness`,
+  `session_unit_spqr_advance_premises_at_witness`, `session_unit_spqr_maybe_advance_premises_at_witness`,
+  `session_unit_spqr_clear_old_epochs_premises_at_witness`, `session_unit_ratchet_receive_premises_at_witness`,
+  `session_unit_braid_receive_premises_at_witness`, `session_unit_braid_step_receive_premises_at_witness`,
+  `triple_receive_premises_at_witness`, `triple_send_premises_at_witness`: the first eight are in the standalone translations and
+  the other ten on the session unit; each is a discharge theorem of the next section applied at the
+  witness state, with its type read off the application (`type_of%`). A discharge theorem takes the decoder invariant and other
+  premises beyond its theorem's own, and one whose premises no state meets would be true and empty; these show the state relation, the
+  epoch step and the invariant met together at a state, and they stop building if a premise is added to the discharge theorem or made
+  unsatisfiable. The lifecycle theorems of `SessionUnitDecodedStateDischarge.lean` (`decrypt_headroom_of_invariant` and the two that
+  apply it) have no such application: their premise `Session::invariant self = ok true` needs a value of the session type, whose
+  fields are opaque boundary types (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and `invariant_gives_preconditions` has the same premise.
 
 ## Proved (which numeric premises of the refinement theorems a decoded state already gives)
 
@@ -3115,7 +3130,8 @@ real run reaches a size, or that the Rust source has the constant the translatio
 - `unit_ratchet_constants`, `unit_spqr_constants`, `unit_code_matches_model`, `session_unit_ratchet_constants`,
   `session_unit_spqr_constants`, `session_unit_erasure_constants`, `session_unit_code_matches_model`: the same on the
   three-leaf unit and the session unit, which cannot share an environment with the standalone translations.
-- `usize_max_cases`, `every_shape_is_satisfiable`: the numeric premises of the theorems of this package fall into 61 shapes
+- `usize_max_cases`, `every_shape_is_satisfiable`: as enumerated once from the built environment (the script is not in this tree, so
+  nothing here checks that the list is complete or stays complete), the numeric premises of the theorems of this package fall into 61 shapes
   (`S01` to `S61` in the module: a comparison between sums and products of lengths, scalars and model numbers, a constant and an
   operator), and each is satisfiable at both widths, with its first atom at the largest value the shape admits and, where that
   value is bounded, nothing larger meeting the shape. The aggregate theorem names every shape theorem so that deleting one is an

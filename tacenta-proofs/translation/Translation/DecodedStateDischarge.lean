@@ -36,7 +36,9 @@ For the Braid, `ct1_bounded` follows from `Braid.Inv`; the `epoch + 1 < u64::MAX
 `receive_refines` and `step_receive_refines` does not.
 
 Every result is conditional on the premises it takes and on `Inv`; none says a decoded state refines
-the model.
+the model. A discharge theorem whose own premises no state meets would be true and empty, and `Inv` is a premise
+this package adds, so `NumericWitnessLeaf.lean` applies each theorem at a concrete state (the `*_at_witness`
+theorems), where its premises, the invariant among them, are met together.
 -/
 
 namespace Tacenta.DecodedStateDischarge

@@ -1,3 +1,4 @@
+import Translation.DecodedStateDischarge
 import Translation.T1
 import Translation.T3
 import Translation.ImportInv
@@ -24,7 +25,7 @@ every premise of `T` that is numeric (a bound on a length, a counter or an epoch
 theorem whose premises no state meets is true and says nothing; this is the check that these are not
 that.
 
-* The statement is not written twice. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
+* The statement is checked against the theorem and not trusted. `tacenta-proofs/scripts/check-precondition-witnesses.sh` reads
   `T`'s type from the built environment, builds the conjunction of the premises its table puts inside
   the witness, and requires `Premises.T` to equal it. It also requires every other premise of `T` to be
   classified in the table, as `boundary` or as `unwitnessed`, so a premise added to `T` later is not
@@ -47,8 +48,9 @@ What is not shown here.
   (`StateRefines`, `MsgRefines`, `HonestChunk`), which need a value of an opaque type, and the premise
   `hdec` of `decoded_receive_refines`, that a byte string decodes to the state. They stay open here.
 * That a reachable state meets the premises. A witness says a premise is not vacuous; it does not say
-  every reachable state meets it. `events + 1 < u32::MAX` and `epoch + 1 < u64::MAX` are met by
-  every state but one honest value, and that value is an ordinary state (`NumericBoundary.lean`).
+  every reachable state meets it. Among the values the decoder's invariant allows,
+  `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and `epoch + 1 < u64::MAX` only at
+  `u64::MAX - 1`, and each of those is an ordinary state (`NumericBoundary.lean`).
 
 Two things specific to the leaves.
 
@@ -267,6 +269,51 @@ theorem ratS_inv : ImportInv.Ratchet.Inv ratS := by
   · intro k hk; simp at hk; subst hk; simp [T1.canonicalX25519]
   · intro e he; simp at he; subst he; simp [T1.canonicalX25519]
 
+/-! ## The discharge theorems are not vacuous
+
+`DecodedStateDischarge.lean` proves that some premises of the refinement theorems follow from the
+decoder invariant `Inv` and the premises its theorems take. A discharge theorem whose own premises no state
+meets would be true and empty, and the premise `Inv` is one this package adds. Each theorem below is a
+discharge theorem applied to the witness state, with its type read off that application (`type_of%`), so
+that it holds exactly when the theorem's premises (the state relation, the epoch step and the invariant) are
+met together at that state, and it breaks if a premise is added to the discharge theorem or made
+unsatisfiable. -/
+
+theorem spqrS_epoch_room : spqrS.epoch.val + 1 < U64.max := by simp; scalar_tac
+theorem braidS_inv : ImportInv.Braid.Inv braidS := ⟨by simp [BraidT1.State.ct1_bounded]⟩
+
+theorem spqr_receive_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_receive_premises 0#u64 0#u64 spqrRel spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_receive_premises 0#u64 0#u64 spqrRel spqrS_epoch_room spqrS_inv
+
+theorem spqr_send_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_send_premises spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_send_premises spqrS_epoch_room spqrS_inv
+
+theorem spqr_advance_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_advance_premises spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_advance_premises spqrS_epoch_room spqrS_inv
+
+theorem spqr_maybe_advance_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_maybe_advance_premises spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_maybe_advance_premises spqrS_epoch_room spqrS_inv
+
+theorem spqr_clear_old_epochs_premises_at_witness :
+    type_of% (DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room spqrS_inv) :=
+  DecodedStateDischarge.spqr_clear_old_epochs_premises spqrS_epoch_room spqrS_inv
+
+theorem ratchet_receive_premises_at_witness :
+    type_of% (DecodedStateDischarge.ratchet_receive_premises ratS ratM mh0 ratRel ratS_inv) :=
+  DecodedStateDischarge.ratchet_receive_premises ratS ratM mh0 ratRel ratS_inv
+
+theorem braid_receive_premises_at_witness :
+    type_of% (DecodedStateDischarge.braid_receive_premises braidS braidS_inv) :=
+  DecodedStateDischarge.braid_receive_premises braidS braidS_inv
+
+theorem braid_step_receive_premises_at_witness :
+    type_of% (DecodedStateDischarge.braid_step_receive_premises braidS.state ⟨braidS_inv.ct1_bounded⟩) :=
+  DecodedStateDischarge.braid_step_receive_premises braidS.state ⟨braidS_inv.ct1_bounded⟩
+
 end Tacenta.NumericWitnessLeaf
 
 /--
@@ -384,3 +431,69 @@ info: 'Tacenta.NumericWitnessLeaf.ratS_inv' depends on axioms: [propext, Classic
 -/
 #guard_msgs in
 #print axioms Tacenta.NumericWitnessLeaf.ratS_inv
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.spqr_receive_premises_at_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.spqr_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.spqr_send_premises_at_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.spqr_send_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.spqr_advance_premises_at_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.spqr_advance_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.spqr_maybe_advance_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.spqr_maybe_advance_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.spqr_clear_old_epochs_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.spqr_clear_old_epochs_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.ratchet_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.ratchet_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.braid_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_braid.tacenta_erasure.Decoder,
+ tacenta_braid.tacenta_erasure.Encoder,
+ tacenta_braid.tacenta_kem.EncapsState,
+ tacenta_braid.tacenta_kem.IncrementalKeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.braid_receive_premises_at_witness
+
+/--
+info: 'Tacenta.NumericWitnessLeaf.braid_step_receive_premises_at_witness' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_braid.tacenta_erasure.Decoder,
+ tacenta_braid.tacenta_erasure.Encoder,
+ tacenta_braid.tacenta_kem.EncapsState,
+ tacenta_braid.tacenta_kem.IncrementalKeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.NumericWitnessLeaf.braid_step_receive_premises_at_witness
