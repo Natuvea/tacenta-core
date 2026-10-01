@@ -1060,6 +1060,109 @@ REQUIRED_PINS = frozenset(
         "decrypt_ratchet_no_panic_of_invariant",
         "decrypt_no_panic_of_invariant",
     )]
+    # The hypotheses of the leaf and three-leaf-unit theorems that are statements about translated
+    # functions, proved from named laws about opaque constants, and the decoder acceptance witnesses.
+    # Every axiom pin of the eight modules below.
+    + ["Tacenta.SatisfiabilitySpqrLaws." + n for n in (
+        "kdfRkTotal",
+        "kdfCkTotal",
+        "spqrRemoveSkippedAtTotal",
+        "setChainsLoopTotal",
+        "clearChainsLoop0Total",
+        "clearSkippedLoopTotal",
+        "vecRetainTotal",
+        "defined_fields_hold",
+        "removeSkippedAtAgrees",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainAgrees",
+        "LawPop_is",
+        "LawAsMut_is",
+        "LawCapacity_is",
+        "LawVecZeroize_is",
+        "LawHkdf_is",
+        "SpqrCodec_ZeroizingVecTotal_is",
+        "zeroizing_vec_satisfiable",
+        "laws_jointly_satisfiable",
+        "defined_hyps_from_axiom_hyps",
+        "spqr_zeroizeTotal_conflicts",
+        "laws_of_shape",
+        "hkdf_total_satisfiable",
+        "pop_satisfiable",
+        "capacity_satisfiable",
+        "vec_zeroize_satisfiable",
+        "vec_zeroize_conflicts",
+    )]
+    + ["Tacenta.SatisfiabilityRatchetLaws." + n for n in (
+        "ratchetRemoveSkippedAtTotal",
+        "LawPop_is",
+        "LawBlanketU32_is",
+        "ArrZU8_is",
+        "RatchetCodec_ZeroizingVecTotal_is",
+        "zeroizing_vec_satisfiable",
+        "pop_satisfiable",
+        "blanket_satisfiable",
+        "arrZU8_satisfiable",
+        "ratchet_laws_jointly_satisfiable",
+    )]
+    + ["Tacenta.SatisfiabilityBraidZeroize." + n for n in (
+        "braid_arrayZeroizeTotal_conflicts",
+    )]
+    + ["Tacenta.UnitSatisfiabilityTripleLaws." + n for n in (
+        "kdfRkTotal",
+        "kdfCkTotal",
+        "kdfInitTotal",
+        "spqrRemoveSkippedAtTotal",
+        "ratchetRemoveSkippedAtTotal",
+        "setChainsLoopTotal",
+        "clearChainsLoop0Total",
+        "clearSkippedLoopTotal",
+        "vecRetainTotal",
+        "defined_fields_hold",
+        "removeSkippedAtAgrees",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainAgrees",
+        "LawPop_is",
+        "LawAsMut_is",
+        "LawCapacity_is",
+        "LawVecZeroize_is",
+        "LawBlanketU32_is",
+        "LawHkdf_is",
+        "laws_jointly_satisfiable",
+        "laws_of_shape",
+        "defined_hyps_from_axiom_hyps",
+        "RoundTrips80_is",
+        "roundTrips80_satisfiable",
+        "TripleZeroizeTotal_is",
+        "arrZ32_satisfiable",
+        "arrZ32_of_general",
+        "spqrZeroizeTotal_conflicts",
+        "hkdf_total_satisfiable",
+        "pop_satisfiable",
+        "capacity_satisfiable",
+        "vec_zeroize_satisfiable",
+        "blanket_satisfiable",
+        "vec_zeroize_conflicts",
+    )]
+    + ["Tacenta.SpqrFromBytesWitness." + n for n in (
+        "spqr_from_bytes_accepts_witness",
+        "spqr_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.BraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.SessionUnitBraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.RatchetDecodedWitness." + n for n in (
+        "ratchet_witness_events",
+        "decoded_receive_refines_premises_satisfiable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

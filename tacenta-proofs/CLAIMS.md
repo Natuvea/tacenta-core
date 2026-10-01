@@ -31,8 +31,8 @@ this section says in one place what is not proved.
   the lemmas are affected by a hypothesis or evidence record that is shown false or empty under stated conditions,
   sixteen of them vacuous as stated;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. What is proved
-  outright lies underneath them, in the ratchet, the sparse post-quantum
+  return as a whole, on every branch, against the model. What is proved, each
+  under the named boundary hypotheses, lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
   assumptions.** They are declared rather than hidden, and each is named where
@@ -95,16 +95,19 @@ this section says in one place what is not proved.
 - **The primitives are opaque.** X25519, ML-KEM, SHA-256, HMAC and the AEAD are
   assumed at the boundary. No proof here says anything about them.
 - **Every boundary hypothesis about an opaque operation is guarded by that
-  operation's own precondition, and the build checks that each `Vec`-family
-  one is satisfiable.** `VecAppendTotal`/`VecAppendAgrees` carry a length
-  guard (Aeneas's `Vec` has no room for two full vectors); the classical
-  ratchet's `VecRemoveTotal`/`VecRemoveAgrees` and the sparse ratchet's
-  `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry the index guard
+  operation's own precondition, and the build checks that those that remain
+  are satisfiable.** The classical ratchet's `T1.RemoveSkippedAtTotal` and the sparse
+  ratchet's `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry the index guard
   `i.val < v.val.length →`, discharged in each proof from the loop guard the
   source checks first (the guard also removed the
   `[Inhabited]` bound the unguarded statements needed: stated for every
   index and every element type, including the empty one, they would imply
-  `False`); every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
+  `False`). **Those hypotheses are about the translated removal helpers, not about an opaque
+  `Vec::remove`:** the leaf translations declare no `Vec::remove` and no `Vec::retain`, the helpers
+  are a swap loop, a wipe and `Vec::pop`, and the retain scans are explicit loops, so no
+  hypothesis about `Vec::remove` or `Vec::retain` remains. What the build checks about the removal and retain hypotheses is in the next
+  paragraphs and in "Proved (hypotheses about translated functions in the leaf crates and the
+  three-leaf unit, from named laws, and the decoder acceptance witnesses)". Every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
   bound the crate's `expect` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
   and the KEM's two randomness-drawing totals and clauses carry
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis
@@ -121,12 +124,14 @@ this section says in one place what is not proved.
   definitions, which no theorem shows can be met. The sparse ratchet's
   `receive_no_panic` and `receive_refines`, the classical ratchet's
   `receive_refines`, and everything composed from them on the three-leaf unit
-  take these hypotheses, so
-  `Translation/Satisfiability.lean` exhibits a model of each `Vec`-family
-  one and a refutation of each unguarded shape, and the build fails if any
-  of them becomes refutable; for `Vec::remove` the model is the real
-  operation's own behaviour, the element in range and a panic otherwise. The
-  same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
+  take the removal and retain hypotheses, which are of that kind. The witnesses
+  `Translation/Satisfiability.lean` keeps for them are retired shapes of a
+  `Vec::remove` and a `Vec::retain` that the translations no longer call, or bridges to a shape
+  applied to the defined function (void: they say nothing about the body), so they establish
+  nothing about the hypotheses as they now stand. That each of them holds follows, under named laws
+  about the opaque constants the bodies reach, from the results in the section named above
+  (`SatisfiabilityRatchetLaws.lean`, `SatisfiabilitySpqrLaws.lean`, `UnitSatisfiabilityTripleLaws.lean`).
+  The same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
   the Braid and the classical ratchet take (`ZeroizingRoundTrips96`/`64`,
   `ZeroizingArrayRoundTrip`, `T3.lean`'s `ZeroizingRoundTrips` and
   `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), jointly where one theorem
@@ -143,8 +148,9 @@ this section says in one place what is not proved.
   (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`) and for the
   inner refinements' boundary as restated about the unit, jointly where two
   hypotheses there constrain one constant: the `zeroize` wrapper family with
-  `DerivedKeysModel`, `Vec::remove`, `append` and `retain`, `Option`'s clone and
-  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements. A satisfiable hypothesis is still only
+  `DerivedKeysModel`, `Option`'s clone and
+  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements; its pair of removal
+  hypotheses is a void bridge, as above. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -513,7 +519,7 @@ operation carries it to the model's operation.
   successful Rust `receive` is never such a message (the Rust returns
   `OutOfOrder` there). Under `HmacAgrees`,
   `HkdfAgrees` (stated under RFC 5869's `N.val ≤ 8160`, discharged at the
-  64- and 80-byte literals), `ZeroizingRoundTrips`, `VecRemoveTotal`
+  64- and 80-byte literals), `ZeroizingRoundTrips`, `RemoveSkippedAtTotal`
   (stated under `i.val < v.val.length`, discharged from each scan's own loop
   guard) and `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
@@ -523,7 +529,7 @@ operation carries it to the model's operation.
   the model's clock did not stop; it now stops there too); it says nothing about the failure branches. Pinned base: the kernel's three axioms and
   eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
   the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
-  `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
+  `Zeroize` instances, and `Vec::pop`), and no `native_decide`.
 - `message_keys_refines`: the expansion of a message key into the AEAD key,
   the MAC key and the IV computes what `Model.State.messageKeys` says -- the
   zero salt, the `mkInfo` label and the 32/32/16 split -- for every key. This
@@ -542,10 +548,10 @@ operation carries it to the model's operation.
   byte for byte, by `rfl` rather than `native_decide`.
 - `skip_message_keys_refines`: the skip step -- the purge scan, the forward
   derivation and the store insertion -- refines `Model.State.skipMessageKeys`
-  on success, under `HmacAgrees`, `VecRemoveTotal` and `DerivedKeysModel`.
+  on success, under `HmacAgrees`, `RemoveSkippedAtTotal` and `DerivedKeysModel`.
 - `try_skipped_refines`: the skipped-key lookup returns the key the model's
   lookup returns and leaves the store the model leaves, and on a miss the
-  model misses too, under `VecRemoveTotal` and `hone`.
+  model misses too, under `RemoveSkippedAtTotal` and `hone`.
 - `dh_ratchet_refines`, `derive_chain_refines`, `age_store_refines`,
   `purge_chain_range_refines`, `init_sender_refines`, `init_receiver_refines`:
   the remaining operations the model defines, proved along the way since
@@ -735,9 +741,9 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
 - `receive_no_panic`: the translated Double Ratchet receive cannot panic,
   under `HmacTotal`, `HkdfTotal` (stated for every output length within RFC
   5869's `N.val ≤ 8160`, which the crate's `expect` enforces; the two calls
-  ask for 64 and 80 bytes), `ZeroizingTotal`, `VecRemoveTotal` (stated for
-  an in-range index, `i.val < v.val.length →`, which is where `Vec::remove`
-  returns; each of the three scans discharges it from its own loop guard)
+  ask for 64 and 80 bytes), `ZeroizingTotal`, `RemoveSkippedAtTotal` (stated for
+  an in-range index, `i.val < v.val.length →`, where the removal helper's
+  result is specified; each of the three scans discharges it from its own loop guard)
   and `DerivedKeysModel`, plus the store-size precondition `hs`.
   Since CR-15 the forward derivation returns its keys in a `Zeroizing`
   wrapper and the store loop reads them back by index, so this and the
@@ -1288,7 +1294,7 @@ the check computes, and `Ratchet.canonical_eq` restates as an equation.
   `hclock_unparked`, as described above. **Neither is
   kernel-only.** Each composes with a `T1`/`T3` `receive` theorem, so each
   carries that theorem's eleven `tacenta_ratchet.*` opaque-operation axioms
-  (the two KDF calls, `Vec::remove`, and the `zeroize` wrapper's constructor,
+  (the two KDF calls, `Vec::pop`, and the `zeroize` wrapper's constructor,
   projections and `Zeroize` instances). Both are pinned under `#guard_msgs`
   with that list in the pin, so the base cannot widen unnoticed.
 - `Ratchet.from_bytes_accepts_witness`: `∃ s, State.from_bytes witnessBytes =
@@ -1305,14 +1311,19 @@ the check computes, and `Ratchet.canonical_eq` restates as an equation.
   satisfiable, and a decoder that rejected every buffer would not satisfy
   this. Same three axioms, pinned. This is the discipline
   `Translation/Satisfiability.lean` applies to the leaves' opaque-boundary hypotheses,
-  applied to a decoder's premise. There is no counterpart for the sparse
-  ratchet or the Braid: those `from_bytes` chains are longer, and the
-  Braid's runs through the opaque erasure and KEM decoders, which no byte
-  string can be shown to satisfy from inside the translation. Their
-  `from_bytes_establishes_inv` are therefore **not** known to be
+  applied to a decoder's premise. The sparse ratchet and the Braid have
+  counterparts for the leaf translation in their own modules (`SpqrFromBytesWitness.lean`, 140
+  bytes; `BraidFromBytesWitness.lean`, 74 bytes, the `KeysUnsampled` state), and the Braid has one for
+  the complete Session unit (`SessionUnitBraidFromBytesWitness.lean`); the session unit's sparse decoder
+  has none. They are listed in "Proved (hypotheses about
+  translated functions in the leaf crates and the three-leaf unit, from named laws, and
+  the decoder acceptance witnesses)". For the Braid states that hold an erasure or KEM
+  value (tags 1 to 10) there is no counterpart: their decode runs through the opaque
+  erasure and KEM decoders, which no byte string can be shown to satisfy from inside the
+  translation, so for those states `from_bytes_establishes_inv` is **not** known to be
   non-vacuous, and the Rust-side round-trip tests
   (`ratchet/tests/audit_import.rs` and its siblings) are the only evidence
-  that those decoders accept anything.
+  that the decoder accepts anything.
 
 ### `tacenta-spqr` -- the sparse ratchet, complete for T1 and for three of T3's premises
 
@@ -1728,14 +1739,19 @@ The same holds for `receive`.
 
 **What the two discharged theorems assume**, beyond the numeric preconditions
 the bundle-taking theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
-`UnitT3.ZeroizingRoundTrips`, `UnitT1.VecRemoveTotal`, an instance of
+`UnitT3.ZeroizingRoundTrips`, `UnitT1.RemoveSkippedAtTotal`, an instance of
 `UnitT1.DerivedKeysModel`, `UnitSpqrT3.ZeroizingRoundTrips96` and
-`ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees`, `VecAppendAgrees` and
-`RemoveSkippedAtAgrees`, `UnitSpqrT1.ZeroizeTotal` and
+`ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees` with `UnitSpqrT1.VecRetainTotal`,
+`UnitSpqrT3.RemoveSkippedAtAgrees`, `UnitSpqrT1.ZeroizeTotal` and
 `UnitSpqrT1.OptionCloneTotal`.
-`UnitSatisfiabilityTriple.lean` witnesses all eleven, jointly where two constrain
-the same constant, and applies both theorems to exactly those hypotheses, so a
-boundary hypothesis added ahead of the state relation stops it building.
+`UnitSatisfiabilityTriple.lean` witnesses those that are about opaque constants, jointly where two
+constrain the same constant, and applies both theorems to exactly those hypotheses, so a
+boundary hypothesis added ahead of the state relation stops it building. The four that are about
+translated functions (`UnitT1.RemoveSkippedAtTotal`, `UnitSpqrT3.RemoveSkippedAtAgrees`,
+`UnitSpqrT3.VecRetainAgrees` and `UnitSpqrT1.VecRetainTotal`) have a void bridge or no witness there; they are shown to follow from
+named laws in `UnitSatisfiabilityTripleLaws.lean` (the section "Proved (hypotheses about translated
+functions in the leaf crates and the three-leaf unit, from named laws, and the decoder acceptance
+witnesses)").
 
 ## Proved (tier T3, the translated code refines the model)
 
@@ -2033,8 +2049,9 @@ What a reader has to grant:
   is not covered by `TrustedBase`'s pins.
 
 - `finish_encaps_refines`, `mac_eq_agrees`, `Model.Braid.receive_output_next_epoch`:
-  proved outright rather than assumed, since `finish_encaps` and `mac_eq` are
-  fully translated Rust (no opaque call in the ones that matter for value,
+  `mac_eq_agrees` and `Model.Braid.receive_output_next_epoch` take no boundary hypothesis;
+  `finish_encaps_refines` takes `BraidHmacAgrees` and `ErasureAgrees`, since `finish_encaps` and `mac_eq`
+  are fully translated Rust (no opaque call in the ones that matter for value,
   only in the KEM/erasure primitives they call), and the epoch fact is a
   finite case split over the model alone.
 - **The KEM boundary, `KemAgreesFor`:** two relations between a specific
@@ -2246,15 +2263,27 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 - `kdf_init_refines`, `kdf_rk_refines`, `kdf_ck_refines`, `find_chains_refines`,
   `set_chains_refines`, `clear_old_epochs_refines`, `advance_refines`,
   `maybe_advance_refines`, `try_skipped_refines`, `skip_message_keys_refines`:
-  proved outright rather than assumed, since each is translated Rust -- some
-  bottoming out in the KDF boundary below, others in `Vec::retain`/`remove`
-  instead, none in a boundary this file does not already name.
+  each is about translated Rust and refines the model under the boundary this file names:
+  the KDF boundary below, `RemoveSkippedAtAgrees` and `VecRetainAgrees`.
+  **`set_chains_refines` and `clear_old_epochs_refines` are not proved outright.** Each is
+  `VecRetainAgrees` (its first and its second conjunct) applied to its arguments, so each is that
+  hypothesis and no more, and every theorem that calls them (`advance_refines`,
+  `maybe_advance_refines`, `send_refines`, `skip_message_keys_refines`, `receive_refines` and the
+  Triple's discharged theorems, and, on the session unit, `SessionUnitTripleT3`'s discharged theorems and
+  the `vecRetain` and `spqrRemove` fields of the contract records in `UnitLifecycleT3.lean`) rests on it. `VecRetainAgrees` and `RemoveSkippedAtAgrees` are
+  statements about translated functions (`State::set_chains`, `State::clear_old_epochs`,
+  `State::remove_skipped_at`); `SatisfiabilitySpqrLaws.vecRetainAgrees` and
+  `SatisfiabilitySpqrLaws.removeSkippedAtAgrees` prove them from named laws about opaque constants
+  (the section "Proved (hypotheses about translated functions in the leaf crates and the three-leaf
+  unit, from named laws, and the decoder acceptance witnesses)"), but the theorems of this file still
+  take them as hypotheses.
 - **No KEM boundary and no erasure-coding boundary.** Unlike the ML-KEM
   Braid, this crate never computes a shared secret or touches a chunk codec
   -- `Output` arrives as a value from whichever crate produced it. The only
   opaque call this file assumes anything about the *value* of is
-  `hkdf_sha256`; `Vec::retain`/`remove`/`append`, `Zeroize`, and
-  `Option::clone` are opaque too and each carries its own assumption below.
+  `hkdf_sha256`; `Vec::pop`, `Zeroize` and
+  `Option::clone` are opaque too and each carries its own assumption below; the retain and removal scans
+  are translated loops whose results `VecRetainAgrees` and `RemoveSkippedAtAgrees` assume.
 - **The KDF boundary, `SpqrHkdfAgrees`:** one assumption, stated one level
   below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the
   opaque `hkdf_sha256` call itself -- that when it returns, it returns what
@@ -2262,22 +2291,17 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   at the 64- and 96-byte literals. Subsumes both of `SpqrT1.lean`'s KDF
   assumptions, so this file states the boundary once rather than twice.
 - **`VecRetainAgrees` and `RemoveSkippedAtAgrees`:** each states what the
-  operation returns, not only that it returns, and each is strictly stronger
-  than its `SpqrT1.lean` namesake, so neither older hypothesis is separately
-  assumed here. `RemoveSkippedAtAgrees` is stated under the index guard
+  operation returns, not only that it returns. `RemoveSkippedAtAgrees` is strictly stronger than
+  `SpqrT1.RemoveSkippedAtTotal`, so that one is not separately assumed here; `VecRetainAgrees` does not cover
+  the capacity and wipe calls, so `SpqrT1.VecRetainTotal` is carried beside it (`hret_total`).
+  `RemoveSkippedAtAgrees` is stated under the index guard
   `i.val < v.val.length`, and says the custom wipe-before-pop helper returns
   the indexed key and the vector with that index erased.
-- **`VecAppendAgrees`:** genuinely new. `SpqrT1.lean` needed only
-  `VecAppendTotal`, since nothing there depended on what
-  `skip_message_keys`'s concatenation actually produced; this file does.
-  **Both are guarded** by `v.length + w.length ≤ Usize.max →`. Stated
-  unconditionally they would be refutable in Lean (Aeneas bounds every `Vec`
-  by `Usize.max`, so two full vectors have no concatenation), which would
-  make `skip_message_keys_refines`, `receive_refines_continuation` and
-  `receive_refines` -- and `SpqrT1.lean`'s `skip_message_keys_no_panic` and
-  `receive_no_panic` -- provable from `False`. The guard is discharged at
-  each call from `hskiproom` and the loop's own length bound, exposed for the
-  purpose.
+- **No `VecAppendAgrees`.** `LIMITATIONS.md` and earlier text of this ledger named a hypothesis
+  `VecAppendAgrees` about the skip step's concatenation. No theorem of this file takes it and no proof file
+  defines it. The translated `skip_message_keys` builds its result with `Vec::with_capacity`, two `Vec::push`
+  loops and `core::mem::replace`, and `SpqrT1.VecAppendTotal` is `True`, kept as a name for the downstream
+  files.
 - **Further preconditions on `send_refines`/`receive_refines`:** besides `hepoch`, `hroom`, `hskiproom`, `hone` and `hcounter`, both
   carry `hcb`, `hsb` and `hnewb`: every chain epoch, every skipped-entry epoch,
   and the incoming `Output.key_epoch` must satisfy `+ epochsKept ≤ U64.max`,
@@ -2319,9 +2343,9 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   `Zeroizing`, and the translation sees the wrapper's `new` and `deref` as
   opaque). Each says wrapping then dereferencing returns the array that went
   in. `Translation/Satisfiability.lean` exhibits a model of each.
-- **Eight assumptions in this file, six new constants and two reused
-  outright**, none the same proposition as any other file's assumption of a
-  similar shape -- the same per-crate counting rule `SpqrT1.lean` and
+- **Eight assumptions in this file, five new constants and three reused
+  outright** (`SpqrT1.VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`), none the same proposition as any
+  other file's assumption of a similar shape -- the same per-crate counting rule `SpqrT1.lean` and
   `BraidT1.lean` describe. See `SpqrT3.lean`'s own closing section for the
   full account.
 
@@ -3190,6 +3214,204 @@ real run reaches a size, or that the Rust source has the constant the translatio
 
 The 27 theorems of the five bound modules are pinned with `#guard_msgs in #print axioms`; each lists only `propext`,
 `Classical.choice` and `Quot.sound`, or fewer of them. No pin lists a compiler-trust axiom.
+
+## Proved (hypotheses about translated functions in the leaf crates and the three-leaf unit, from named laws, and the decoder acceptance witnesses)
+
+Location: `Translation/SatisfiabilitySpqrLaws.lean`, `Translation/SatisfiabilityRatchetLaws.lean`, `Translation/SatisfiabilityBraidZeroize.lean`, `Translation/UnitSatisfiabilityTripleLaws.lean`, `Translation/SpqrFromBytesWitness.lean`, `Translation/BraidFromBytesWitness.lean`, `Translation/SessionUnitBraidFromBytesWitness.lean`, `Translation/RatchetDecodedWitness.lean`.
+
+Most boundary hypotheses of the leaf and three-leaf-unit theorems are statements about opaque
+constants, and `Translation/Satisfiability.lean` and `Translation/UnitSatisfiabilityTriple.lean`
+witness them. Some are statements about functions the translation defines, with a body: the two
+removal helpers (`T1.RemoveSkippedAtTotal`, `SpqrT1.RemoveSkippedAtTotal` and the unit's copies), the
+three key derivations, `SpqrT1.VecRetainTotal` with its three loop contracts, and the agreements
+`SpqrT3.RemoveSkippedAtAgrees` and `SpqrT3.VecRetainAgrees` (and the unit's copies). A model of the
+opaque constants cannot change what such a statement says. The witnesses those files hold for the
+removal helpers are bridged by `Iff.rfl` to a shape applied to the defined function, which is
+satisfiable for any function and says nothing about the body; the others had none, except `SpqrT1.KdfRkTotal`
+and `KdfCkTotal`, which `Satisfiability.lean` derives from the witnessed HKDF agreement and the two round trips.
+`SpqrT3.set_chains_refines` and `clear_old_epochs_refines`, and their copies on the unit, are
+`VecRetainAgrees` applied to its arguments. Before these results they were an assumed agreement of
+two translated loops with the model and not a proof of it, and the sparse refinements of `advance`,
+`maybe_advance`, `skip_message_keys`, `send` and `receive` rest on it. The results below show each of
+these hypotheses follows, by stepping through the translated code, from named laws about the opaque
+constants its body reaches. They are results about hypotheses and not about the product: each is
+conditional on exactly the laws its statement names, no theorem statement is changed, and the
+theorems that take the hypotheses still take them.
+
+The laws are assumptions about standard-library and `zeroize` operations, tested against the real
+functions only by reading, and nothing here shows that the real functions satisfy them: `Vec::pop`
+of a non-empty vector returns the vector without its last element (`LawPop`), `Option::as_mut`
+returns (`LawAsMut`), `Vec::capacity` returns (`LawCapacity`), the `Vec` `Zeroize` implementation
+returns (`LawVecZeroize`, stated for every `Zeroize` record, which is stronger than the crate, as below), the blanket `Zeroize` implementation returns at `u32` (`LawBlanketU32`,
+classical removal helper), the array `Zeroize` implementation returns (the existing hypotheses
+`SpqrT1.ZeroizeTotal` and `UnitSpqrT1.ZeroizeTotal`, and `ArrZU8` at the byte instance for the
+classical leaf), the HKDF returns for output lengths up to 8160 bytes (`LawHkdf`), and the
+`Zeroizing` wrapper reads back what it wraps at 96 and 64 bytes (`LawZeroizing`). The sparse T3
+theorems already take the HKDF agreement and the two round trips, which give `LawHkdf` and `LawZeroizing`
+at the two widths, and
+`LawCapacity` and `LawVecZeroize` are conjuncts of `VecRetainTotal`, which they take too, so beyond
+the hypotheses those theorems take the sparse results add `LawPop` and `LawAsMut` (and
+`LawBlanketU32` for the classical removal helper), which no hypothesis states. The proofs are generic
+in the platform width.
+
+- `SatisfiabilitySpqrLaws.kdfRkTotal`, `SatisfiabilitySpqrLaws.kdfCkTotal`,
+  `SatisfiabilitySpqrLaws.spqrRemoveSkippedAtTotal`, `SatisfiabilitySpqrLaws.setChainsLoopTotal`,
+  `SatisfiabilitySpqrLaws.clearChainsLoop0Total`, `SatisfiabilitySpqrLaws.clearSkippedLoopTotal`,
+  `SatisfiabilitySpqrLaws.vecRetainTotal`, `SatisfiabilitySpqrLaws.defined_fields_hold`: the leaf
+  sparse ratchet's `SpqrT1.KdfRkTotal`, `KdfCkTotal`, `RemoveSkippedAtTotal`, the three loop
+  contracts inside `VecRetainTotal`, and `VecRetainTotal` itself follow from the laws; the last result
+  gives the four hypotheses together from the structure `Laws`.
+- `UnitSatisfiabilityTripleLaws.kdfRkTotal`, `UnitSatisfiabilityTripleLaws.kdfCkTotal`,
+  `UnitSatisfiabilityTripleLaws.kdfInitTotal`, `UnitSatisfiabilityTripleLaws.spqrRemoveSkippedAtTotal`,
+  `UnitSatisfiabilityTripleLaws.ratchetRemoveSkippedAtTotal`,
+  `UnitSatisfiabilityTripleLaws.setChainsLoopTotal`, `UnitSatisfiabilityTripleLaws.clearChainsLoop0Total`,
+  `UnitSatisfiabilityTripleLaws.clearSkippedLoopTotal`, `UnitSatisfiabilityTripleLaws.vecRetainTotal`,
+  `UnitSatisfiabilityTripleLaws.defined_fields_hold`: the same on the three-leaf unit, where the two
+  ratchets share the constants, with `UnitTripleT1.KdfInitTotal` and `UnitT1.RemoveSkippedAtTotal` added;
+  the last result gives the six hypotheses together from the nine laws of its `Laws`.
+- `SatisfiabilitySpqrLaws.removeSkippedAtAgrees`, `SatisfiabilitySpqrLaws.setChainsAgrees`,
+  `SatisfiabilitySpqrLaws.clearOldEpochsAgrees`, `SatisfiabilitySpqrLaws.vecRetainAgreesOfLaws`,
+  `SatisfiabilitySpqrLaws.vecRetainAgrees`: `SpqrT3.RemoveSkippedAtAgrees` and `SpqrT3.VecRetainAgrees`
+  hold, as statements about the translated `remove_skipped_at`, `set_chains` and `clear_old_epochs` for
+  all inputs the theorems' own premises allow (a chain table at the largest length they admit,
+  duplicate epochs, `current` at `u64::MAX` and empty containers included). The retain loops are proved to keep exactly the entries their guard names, in
+  order, and to leave the other fields alone. `vecRetainAgreesOfLaws` takes the five laws one by one
+  (`LawCapacity`, `LawVecZeroize`, the array wipe, `LawAsMut`, `LawPop`), so its pin lists no HKDF
+  and no `Zeroizing` constant; `vecRetainAgrees` takes the bundle `Laws`, whose other fields add those
+  two to its pin although the proof does not use them. The array wipe is applied at
+  the byte instance on 32-byte arrays only.
+- `UnitSatisfiabilityTripleLaws.removeSkippedAtAgrees`, `UnitSatisfiabilityTripleLaws.setChainsAgrees`,
+  `UnitSatisfiabilityTripleLaws.clearOldEpochsAgrees`, `UnitSatisfiabilityTripleLaws.vecRetainAgreesOfLaws`,
+  `UnitSatisfiabilityTripleLaws.vecRetainAgrees`: the same on the unit, for `UnitSpqrT3.RemoveSkippedAtAgrees`
+  and `UnitSpqrT3.VecRetainAgrees`, which the Triple's discharged theorems take.
+- `SatisfiabilitySpqrLaws.defined_hyps_from_axiom_hyps`,
+  `UnitSatisfiabilityTripleLaws.defined_hyps_from_axiom_hyps`: the defined-function T1 hypotheses follow
+  from the hypotheses the T3 theorems already take (`ZeroizeTotal`, `SpqrHkdfAgrees`, the two round
+  trips) and the four laws that are not among them (five on the unit), so the defined-function
+  hypotheses add no assumption about the HKDF or the wrapper.
+- `SatisfiabilitySpqrLaws.LawPop_is`, `SatisfiabilitySpqrLaws.LawAsMut_is`,
+  `SatisfiabilitySpqrLaws.LawCapacity_is`, `SatisfiabilitySpqrLaws.LawVecZeroize_is`,
+  `SatisfiabilitySpqrLaws.LawHkdf_is`, `SatisfiabilitySpqrLaws.hkdf_total_satisfiable`,
+  `SatisfiabilitySpqrLaws.laws_jointly_satisfiable`, `SatisfiabilitySpqrLaws.laws_of_shape`: five of the laws are the statement
+  about the real constant (`Iff.rfl` against its shape, so the build compares them), and the array wipe and the
+  wrapper reach `Laws` through `laws_of_shape`, which is an implication; `LawsShape` bundles the eight laws over arbitrary
+  functions of the constants' types, with the array wipe, the HKDF and the wrapper in their general form,
+  which implies the instances `Laws` uses; one assignment satisfies all of it at once; and if the real
+  constants satisfied `LawsShape` then `Laws` would hold. So, as statements about arbitrary functions of the
+  constants' types, the laws do not conflict with one another.
+- `UnitSatisfiabilityTripleLaws.LawPop_is`, `UnitSatisfiabilityTripleLaws.LawAsMut_is`,
+  `UnitSatisfiabilityTripleLaws.LawCapacity_is`, `UnitSatisfiabilityTripleLaws.LawVecZeroize_is`,
+  `UnitSatisfiabilityTripleLaws.LawBlanketU32_is`, `UnitSatisfiabilityTripleLaws.LawHkdf_is`,
+  `UnitSatisfiabilityTripleLaws.hkdf_total_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.laws_jointly_satisfiable`, `UnitSatisfiabilityTripleLaws.laws_of_shape`:
+  the same for the nine laws of the unit. That the laws hold together with the other hypotheses of a
+  particular theorem is argued from the constants the statements mention, which are different constants
+  (the pop, as-mut, capacity and wipe operations against the HKDF and the wrapper), and is not a Lean
+  theorem.
+- `SatisfiabilitySpqrLaws.pop_satisfiable`, `SatisfiabilitySpqrLaws.as_mut_satisfiable`,
+  `SatisfiabilitySpqrLaws.capacity_satisfiable`, `SatisfiabilitySpqrLaws.vec_zeroize_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.pop_satisfiable`, `UnitSatisfiabilityTripleLaws.as_mut_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.capacity_satisfiable`, `UnitSatisfiabilityTripleLaws.vec_zeroize_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.blanket_satisfiable`: each law's shape is satisfied by some function.
+  `check-hypothesis-witnesses.sh` reads them as the existence theorems of the bridges. `as_mut_satisfiable`
+  depends on no axiom, so its `#print axioms` output has no list to pin; it has a pin on its statement.
+- `SatisfiabilityRatchetLaws.ratchetRemoveSkippedAtTotal`, `SatisfiabilityRatchetLaws.LawPop_is`,
+  `SatisfiabilityRatchetLaws.LawBlanketU32_is`, `SatisfiabilityRatchetLaws.ArrZU8_is`,
+  `SatisfiabilityRatchetLaws.pop_satisfiable`, `SatisfiabilityRatchetLaws.blanket_satisfiable`,
+  `SatisfiabilityRatchetLaws.arrZU8_satisfiable`, `SatisfiabilityRatchetLaws.ratchet_laws_jointly_satisfiable`:
+  the leaf classical ratchet's `T1.RemoveSkippedAtTotal`, which `Satisfiability.lean` witnesses only
+  through a void bridge, follows from `LawPop`, `LawBlanketU32` and `ArrZU8` (the array wipe returns at
+  the byte instance, at every length). Each law is the shape applied to the real constant and is
+  satisfiable, and one assignment satisfies the three, which are on three different constants. The
+  classical crate's `pop` is a different constant from the sparse crate's, so the law is stated again
+  for it.
+- `SatisfiabilityRatchetLaws.RatchetCodec_ZeroizingVecTotal_is`,
+  `SatisfiabilityRatchetLaws.zeroizing_vec_satisfiable`, `SatisfiabilitySpqrLaws.SpqrCodec_ZeroizingVecTotal_is`,
+  `SatisfiabilitySpqrLaws.zeroizing_vec_satisfiable`: `RatchetCodecT1.ZeroizingVecTotal` and
+  `SpqrCodecT1.ZeroizingVecTotal`, which had no witness, are each the shape of `Zeroizing::new` at
+  `Vec<u8>` and are satisfiable.
+- `UnitSatisfiabilityTripleLaws.RoundTrips80_is`, `UnitSatisfiabilityTripleLaws.roundTrips80_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.TripleZeroizeTotal_is`, `UnitSatisfiabilityTripleLaws.arrZ32_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.arrZ32_of_general`: `UnitT3.ZeroizingRoundTrips80` and
+  `UnitTripleT3.ZeroizeTotal`, which `UnitSatisfiabilityTriple.lean` leaves without a witness, are each
+  the shape of the real constant and satisfiable, and the scoped `UnitTripleT3.ZeroizeTotal` follows from
+  the general `UnitSpqrT1.ZeroizeTotal`.
+- `SatisfiabilitySpqrLaws.spqr_zeroizeTotal_conflicts`, `UnitSatisfiabilityTripleLaws.spqrZeroizeTotal_conflicts`,
+  `SatisfiabilityBraidZeroize.braid_arrayZeroizeTotal_conflicts`, `SatisfiabilitySpqrLaws.vec_zeroize_conflicts`,
+  `UnitSatisfiabilityTripleLaws.vec_zeroize_conflicts`: `SpqrT1.ZeroizeTotal`,
+  `UnitSpqrT1.ZeroizeTotal` and `BraidT1.ArrayZeroizeTotal` quantify over every `Zeroize` record
+  (`Zeroize U8` for the Braid), including one whose `zeroize` fails, and no `Array::zeroize` that
+  propagates the failure of a failing element satisfies them. The `Vec::zeroize` conjunct of
+  `SpqrT1.VecRetainTotal` and `UnitSpqrT1.VecRetainTotal`, which `LawVecZeroize` restates, is the same
+  kind of statement, and no `Vec::zeroize` that propagates the failure of a failing element satisfies it.
+  The real functions do propagate it (`PropagatesFailure` and `PropagatesFailureVec` are assumptions about
+  the real functions, tested only by reading), so the four hypotheses are stronger than the crate. They are
+  satisfiable (the identity wipe in `Satisfiability.lean` for the sparse and Braid wipes, and in
+  `UnitSatisfiabilityTriple.lean` for the unit's), and the proofs apply them only at the `Blanket U8`
+  instance, whose element wipe returns, and, for the `Vec` conjunct, at the instances for
+  `(u64, Chains)` and `Skipped`. They are **documented and unchanged here**: no theorem statement and no
+  hypothesis is altered by this section, and no result in it replaces any of them. The session unit's three
+  array fields and its `Vec` conjunct have the same result, with scoped replacements, in
+  `UnitSatisfiabilityZeroizeScope.lean`.
+- `SpqrFromBytesWitness.spqr_from_bytes_accepts_witness`,
+  `SpqrFromBytesWitness.spqr_from_bytes_establishes_inv_nonvacuous`: the translated
+  `tacenta_spqr::State::from_bytes` accepts a concrete 140-byte string (version 1, an all-zero root key, epoch 0, one
+  chains entry at epoch 0 with both chains absent, no skipped keys), and the state it returns satisfies
+  `Spqr.Inv`, so `Spqr.from_bytes_establishes_inv` is not vacuous. The pins list the three standard axioms
+  only; no hypothesis about an opaque constant is used on the decode path.
+- `BraidFromBytesWitness.braid_from_bytes_accepts_witness`,
+  `BraidFromBytesWitness.braid_from_bytes_establishes_inv_nonvacuous`,
+  `SessionUnitBraidFromBytesWitness.braid_from_bytes_accepts_witness`,
+  `SessionUnitBraidFromBytesWitness.braid_from_bytes_establishes_inv_nonvacuous`: the translated
+  `tacenta_braid::Braid::from_bytes`, in the standalone leaf and in the complete Session unit, accepts a
+  concrete 74-byte string (version 1, state tag 0 (`KeysUnsampled`), epoch 1, a zero authenticator), and
+  the state it returns satisfies `Braid.Inv` under the one hypothesis the existing theorem carries
+  (`Ct1LenTotal`, which acceptance itself does not use). `Braid.Inv` has one clause, a ciphertext-length
+  bound that is `True` outside tags 3, 4, 7, 8 and 9, so on this state it is trivial: the result shows
+  that the decoder accepts a string and that the premise of `from_bytes_establishes_inv` is satisfiable,
+  and it does not exercise the clause. That state holds no erasure or KEM value, so the
+  decode path calls no opaque constant; the pins list `tacenta_erasure.*` and `tacenta_kem.*` constants only
+  because those names occur in the definitions of the decoder's other arms and of `Braid.invariant`, which
+  the statement mentions. **For the states that hold an erasure or KEM value (tags 1 to 10) no byte string
+  is shown accepted**, because their decode runs through the opaque erasure and KEM decoders. Tag 11
+  (`Failed`) holds no such value and has no witness either; one would be a two-byte string.
+- `RatchetDecodedWitness.ratchet_witness_events`,
+  `RatchetDecodedWitness.decoded_receive_refines_premises_satisfiable`: the translated classical decoder
+  accepts `witnessBytes` and returns a state whose clock is zero, so the four premises of
+  `Ratchet.decoded_receive_refines` that are about the decoded state (`hdec`, `hR`, `hH`,
+  `hclock_unparked`) hold together on one state. The theorem's other premises, the HMAC and HKDF
+  agreements, the wrapper round trip, `T1.RemoveSkippedAtTotal` and `DerivedKeysModel`, are not part of
+  this result.
+
+- `T3.HmacAgrees.total` (in `Translation/T3.lean`), `T3.HkdfAgrees.total` (in `Translation/T3.lean`),
+  `BraidT3.BraidHmacAgrees.total` (in `Translation/BraidT3.lean`), `BraidT3.BraidHkdfAgrees.total`
+  (in `Translation/BraidT3.lean`), `UnitT3.HmacAgrees.total` (in `Translation/UnitT3.lean`),
+  `UnitT3.HkdfAgrees.total` (in `Translation/UnitT3.lean`), `UnitTripleT3.TripleHkdfAgrees.total`
+  (in `Translation/UnitTripleT3.lean`): the HMAC and HKDF totality hypotheses of the T1 theorems
+  (`HmacTotal`, `HkdfTotal`, `HmacSha256Total`, `HkdfSha256Total` and the unit's copies) follow from the
+  agreements the T3 theorems take, so they add no assumption beyond those agreements, which
+  `Satisfiability.lean` and `UnitSatisfiabilityTriple.lean` witness. These existing theorems are named
+  here because `check-hypothesis-witnesses.sh` accepts a hypothesis as derived only through a derivation
+  that the ledger names. That script checks that each closed hypothesis of the claimed T1 and T3 theorems of
+  the leaf crates and the three-leaf unit is connected to a bridge to a satisfiable shape, to a derivation
+  the ledger names, or to `True`, and that no such theorem takes a closed hypothesis that names no predicate
+  or quantifies over a variable only hypotheses mention. It does not show that a connected hypothesis is
+  satisfiable (an existence theorem is recognised by its shape, so a weakened one passes unless its
+  statement is pinned), that the hypotheses of one theorem hold together, or anything about a
+  hypothesis with a free variable that mentions real state. Its mutation controls are run by hand; no
+  workflow runs them.
+
+What is not shown. That the real standard-library and `zeroize` functions satisfy the laws. That the
+hypotheses that have a free variable (the state relations such as `StateR` and `StateRefines`, and the
+numeric bounds) hold together with these hypotheses on any state: this section covers the closed boundary
+hypotheses only. That the leaf Braid's erasure and KEM agreements hold of states that carry such
+values. That `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` follow from
+laws: this section covers the leaf crates and the three-leaf unit, `UnitSatisfiabilityRatchet.lean` covers
+the session unit's T1 fields only, and `check-hypothesis-witnesses.sh` does not read the Session unit; the
+session unit's refinement theorems, `SessionUnitTripleT3`'s discharged theorems and the lifecycle contract
+`TripleSendRefinementContracts` take those two. That any of the four over-strong zeroize hypotheses (the
+three array wipes and the `Vec::zeroize` conjunct) is replaced: the scoped replacements exist only for the
+session unit's fields.
 
 ## Evidence, not proof
 

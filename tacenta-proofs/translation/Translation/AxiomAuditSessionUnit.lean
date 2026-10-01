@@ -24,6 +24,7 @@ import Translation.UnitHeadroomInvariant
 import Translation.NumericBoundarySession
 import Translation.NumericWitnessSession
 import Translation.SessionUnitDecodedStateDischarge
+import Translation.SessionUnitBraidFromBytesWitness
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
