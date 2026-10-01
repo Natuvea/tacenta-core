@@ -54,8 +54,11 @@ depends on a compiler-trust axiom. Three of the five panic-freedom theorems
 (`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`) took a
 record with a false field until it was restated for bounded decoders. The four records follow from an
 axiom base that one interpretation satisfies, under five laws about standard-library and `zeroize`
-operations. That is an argument about derivations. The headroom records are not shown satisfiable (the
-subsection "The four contract records follow from an axiom base that has a model, under five laws"; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+operations. That is an argument about derivations. The headroom records are shown satisfiable in the same
+sense, with the inhabitedness of the opaque types (one of them, the key pair, an assumption) and two further assumptions in the
+base, one about the DH primitives and one about `Option::eq`, which no proof here checks against the real functions (the
+subsection "The four contract records follow from an axiom base that has a model, under five laws", paragraph "The headroom
+records"; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `Translation.ImportInv` pins both halves of its chain: the two ratchets'
 `invariant_true_iff` and `from_bytes_establishes_inv`, together with the
 classical ratchet's two non-vacuity pins, which are kernel-only; and
@@ -2142,6 +2145,69 @@ is not checked. `SessionUnitBraidPreserve.lean` takes one more law about a stand
 in "The Braid's preservation theorems" below, with `NewMsgLen`, the corresponding law on the standalone
 translation.
 
+**The headroom records.** `EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom` and
+`EstablishResponderHeadroom` are the conditions on the input of the five lifecycle T1 theorems that are not contracts about
+primitives, and `InvariantPreconditions` is what `invariant_gives_preconditions` concludes from `Session::invariant`. A
+lifecycle theorem is vacuous if no input meets its headroom. `UnitHeadroomSatisfiable.lean` and `UnitHeadroomInvariant.lean`
+show that each is met, in the sense below.
+
+*What the records are.* The two establishment records are one bound each: `EstablishInitiatorHeadroom` is exactly
+`kem_prekey.length < Usize.max` and `EstablishResponderHeadroom` exactly `last_resort_seen.length < Usize.max`
+(`initiatorHeadroom_iff`, `responderHeadroom_iff`). `DecryptRatchetHeadroom` is three facts about the Triple and Braid states
+and a bound on the associated data. `EncryptHeadroom` is the chain table, the associated data, the plaintext
+(`102 + (plaintext.length + 48) <= Usize.max`) and, with an initial message pending, its ciphertext. Every numeric bound has the form `length + c <= Usize.max` (or `< Usize.max`) for
+the length of a vector or slice, or is `max(skipped.length, MAX_SKIPPED_STORE) + MAX_SKIP <= Usize.max`, which is `3000` for at most 2000 skipped keys, and `Usize.max` is at least `2^32 - 1` at both
+platform widths, so each is met at both (`usize_max_ge`, `plaintext_bound_at_widths`); no bound is a `u32::MAX` bound.
+
+*What is shown.* A Triple state with no skipped keys and one chain-table entry, and a Braid in `KeysUnsampled`, meet the receive
+record's state fields (`freshTriple_headroom`, `freshBraid_bounds`); a session over them meets `DecryptRatchetHeadroom` and
+`EncryptHeadroom`, with and without a pending initial message, for any associated data and plaintext within the bounds
+(`decryptHeadroom_satisfiable`, `encryptHeadroom_satisfiable`, `encryptHeadroom_satisfiable_pending`), and a bundle and a prekey
+store meet the establishment records. Each record is false of some input, so none is a bound that everything meets
+(`*_not_trivial`). In the Lean model a vector can have length `Usize.max`, which is what the controls use. A Rust allocation is at
+most `isize::MAX` bytes, so every bound on one length holds of every real input and the controls exhibit lengths the real
+operation cannot receive. That is by reading and not a theorem, because the Aeneas `Vec` carries no `isize::MAX` bound, and the
+pending-message arm of `EncryptHeadroom` bounds a sum of two lengths, which that limit alone does not settle on a 32-bit target.
+The fields that are facts about a state and not about a size are `ct1_bounded` and `decoders_bounded`, which `Session::invariant`
+supplies. A session that passes `Session::invariant` has exactly 66 bytes of associated data (`invariant_gives_ad_length`,
+given `DhCodecTotal`), so `DecryptRatchetHeadroom` holds of every such session with nothing left for the caller
+(`decryptHeadroom_of_invariant`, given `Ct1LenTotal`), and `EncryptHeadroom` of such a session is exactly the plaintext bound
+and the `initial` field (`encryptHeadroom_iff_of_invariant`). A session over fresh states passes `Session::invariant`, evaluated
+through the translated Triple, Braid and structural checks, and meets both records (`sessionOf_invariant`,
+`invariant_session_meets_both`). The invariant is not a formality: a Triple state with an empty chain table meets `ReceiveHeadroom`, and a Braid at
+epoch 0 meets `ct1_bounded` and `decoders_bounded` (`emptyChain_headroom`, `epochZero_bounds`); a session that holds either one
+fails `Session::invariant` (`session_emptyChainTable_fails_invariant`, `session_epochZero_fails_invariant`); and the sparse
+ratchet and the Braid fail their own invariants (`emptyChainTable_fails_invariant`, `epochZero_braid_fails_invariant`).
+
+*The sense, and the assumptions.* The lifecycle types are built from opaque types of the unit, and no closed value of any of them
+exists in the real environment: Lean cannot show that `PrivateKey` is inhabited, and an interpretation in which it is empty,
+which is by reading and not by a theorem here, satisfies the unit's axioms (and falsifies `DhCodecTotal`). Every witness takes values of those types as arguments, so a statement of the form "some input meets
+the headroom" holds at the real constants only given those values. For `PrivateKey` and `PublicKeyBytes` they come from
+`DhCodecTotal`, which all four records carry (`nonempty_privateKey_of_dhCodec`, `nonempty_publicKey_of_dhCodec`), so for a
+`Session` and a `PublishedBundle` the headroom is met whenever the record holds (`encrypt_headroom_of_contracts`,
+`decrypt_headroom_of_contracts`, `initiator_headroom_of_contracts`). The wrapper around the one-time prekey vector comes from
+`DerivedKeysModel` (`nonempty_derivedZeroizing`), which `establish_responder_no_panic` takes as an instance argument. Those are
+not extra assumptions. For a `PrekeyStore` a `kem::KeyPair` is also needed (`responder_headroom_of_contracts`), and it is the
+first of three extra assumptions, none stated by any record:
+
+| Assumption | Statement | Used by | Satisfied by |
+|---|---|---|---|
+| `HeadroomInhabitants` | a `kem::KeyPair` has a value | `responder_headroom_of_contracts`, `headroom_of_axiom_base`: the `PrekeyStore` the responder takes holds one, and, by reading, no field of any record produces it (`KemDecapsulateTotal` takes a key pair and does not return one; `KeyPair::generate` and `KeyPair::from_bytes` occur in no record) | the joint model (`Unit`): `model_headroomInhabitants` |
+| `ValidKeyShape` | a private key exists whose public key is canonical and of prime order (`public_key`, `as_bytes` and `is_prime_order_public` agree on it) | `invariant_session_meets_both`: `Session::invariant` calls `is_valid_identity_key` on both identity keys and compares `public_key(ratchet_private)` with the ratchet's public key | the joint model: `model_validKeyShape`. Of the real primitives it is tested, not proved (rows `honest-h1` to `honest-h3` of `tacenta-test-vectors/vectors/identity/identity-key.json`, run by `tacenta-test-vectors/runners/rust/tests/identity.rs`; and, for the trusted primitives, "Trusted, not verified") |
+| `OptionEqU64Shape` | `Option::eq` on two `Some` values of `u64` compares them | the same: the invariant compares the Triple's epoch plus one with the Braid's through `Option::eq` | not the joint model, which does not interpret `Option::eq`; `optionEqImpl`, a Lean function of the same type: `optionEqImpl_shape` |
+
+Each is a statement over the opaque constants, bound to the real ones by `Iff.rfl` (`headroomInhabitants_is`, `validKeyShape_is`,
+`optionEqU64Shape_is`), and satisfied, the first two by the joint model and the third by `optionEqImpl`. So the headroom
+records are satisfiable in the sense of the previous paragraphs, the substitution argument, with `PrivateKey`, `PublicKeyBytes`
+and the wrapper around the one-time prekey vector inhabited by the contract records, and these three statements in the base: an argument about
+derivations and not a theorem inside Lean, and not a statement that the real `PrivateKey` has a value, that the real primitives
+satisfy `ValidKeyShape`, or that the real `Option::eq` behaves.
+
+*What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
+`#guard_msgs in #check` statement pin, which the build holds and no gate requires to exist. The other 32 are held by the build
+and by their axiom pin alone, and the axiom pin lists axioms and not the statement, so a weaker statement of any of them that
+keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the width bound and the four controls.
+
 **What is not shown.**
 
 - That the real primitives, or the real standard-library and `zeroize` functions, satisfy any field or any law. The
@@ -2149,11 +2215,14 @@ translation.
   `Vec::pop`, `Vec::truncate`, `usize::div_ceil`, `Option::as_mut` and `Vec::capacity` as the real operations. The
   blanket `Zeroize`, `Array::zeroize`, `Vec::zeroize` and the tuple `Zeroize` are the identity, which is not what they do.
 - That the substitution step is sound inside Lean (above).
-- That the headroom records are inhabited. A lifecycle theorem is vacuous if no input meets its headroom record
-  (`EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`, `EstablishResponderHeadroom`)
-  either. They are numeric bounds on the call and on the session, and no state or input that meets them is
-  exhibited. A session that passes `Session::invariant` gives three of the four receive-headroom fields
-  (`invariant_gives_preconditions`); that such a session exists is not shown.
+- That the headroom records are met by a state the crate can reach. The witness session has no pending initial message and no
+  established ephemeral key, and it is not one that `establish_initiator` or `establish_responder` returns. A session with a
+  pending initial message passes `Session::invariant` only with a ciphertext of the length of the opaque `kem::ciphertext_len`,
+  which no record bounds, and no theorem shows one passes. No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
+  or that the invariant bounds `last_resort_seen`, so `EstablishResponderHeadroom` is shown only as a bound on a vector length,
+  with a key pair (`HeadroomInhabitants`) as a value. The Braid in the witness is in `KeysUnsampled`,
+  which holds no decoder, ciphertext or KEM value; for the other states the receive record holds of every state that passes
+  the invariant (`decryptHeadroom_of_invariant`), and no state in which the five KEM-state arms of `ct1_bounded` bind is exhibited.
 - That a send or a receive keeps `State.decoders_bounded` and `State.ct1_bounded` at the level of the session. The
   Braid's own operations keep `State.sized`, which gives them (the subsection "The Braid's preservation
   theorems", below), but the lifecycle theorems are single-step, and nothing shows that a session state a
