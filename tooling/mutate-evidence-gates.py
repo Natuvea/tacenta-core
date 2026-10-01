@@ -44,6 +44,14 @@ RUNNERS = [
     "tooling/tests/run-check-ledger-review-receipt-cases.sh",
 ]
 
+# The runner that covers each file first, so most edits are caught by the first
+# runner tried; any other runner is tried only if that one stays green.
+HOME_RUNNER = {
+    "tooling/build-evidence-pack.py": 1, "tooling/publish-evidence-archive.py": 1, "tooling/reproduce-evidence.py": 1,
+    "tooling/collect-assurance-receipts.py": 2,
+    "tooling/check-ledger-review-receipt.py": 3, "tooling/validate-reviewed-evidence.py": 3, "tooling/ledger-review-sections.py": 3,
+}
+
 BUILDER = "tooling/build-assurance-manifest.py"
 VALIDATION = "tooling/assurance_validation.py"
 COLLECTOR = "tooling/collect-assurance-receipts.py"
@@ -277,7 +285,8 @@ def main() -> int:
             shutil.copytree(base, work, symlinks=True)
             (work / file).write_text(text.replace(old, new))
             git(work, "commit", "-q", "-a", "-m", ident)
-            caught, tail = run_runners(work, RUNNERS)
+            home = HOME_RUNNER.get(file, 0)
+            caught, tail = run_runners(work, [RUNNERS[home]] + [r for i, r in enumerate(RUNNERS) if i != home])
             shutil.rmtree(work)
             if caught:
                 print(f"caught    {ident:5} {what}\n            by {caught.rsplit('/', 1)[1]}: {tail}")

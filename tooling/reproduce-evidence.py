@@ -25,6 +25,10 @@ the candidate is the one the receipts name, and only the manifest is rebuilt.
 REPO defaults to this checkout. The candidate is checked out in a throwaway
 detached worktree of REPO, which is removed afterwards.
 
+This runs Python from the candidate commit: that commit's own manifest and pack
+builders. Run it only on a commit you would run the repository's other scripts
+from, in the environment you would use for them.
+
 What this does not show, and says: the receipts are an input. Nothing here shows
 that a run of the workflow wrote them, or that a reviewer was independent. A pack
 reproduced here is a deterministic function of the candidate commit and the

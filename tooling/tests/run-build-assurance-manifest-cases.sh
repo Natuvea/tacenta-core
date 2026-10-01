@@ -344,4 +344,24 @@ if [ "$bare_rc" -eq 0 ] || ! printf '%s' "$bare" | grep -qF -- '--receipts and -
   exit 1
 fi
 
+# The committed schema states the field names the validator holds, so that a
+# reader of the schema is not told something the validator does not enforce.
+python3 - "$root" <<'PY'
+import importlib.util, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+sys.path.insert(0, str(root / "tooling"))
+spec = importlib.util.spec_from_file_location("builder", root / "tooling/build-assurance-manifest.py")
+builder = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(builder)
+schema = json.loads((root / "tooling/assurance-manifest.schema.json").read_text())
+assert set(schema["required"]) == set(schema["properties"]) == builder.MANIFEST_FIELDS, "schema and validator disagree on the manifest fields"
+identity = schema["properties"]["identity"]
+assert set(identity["required"]) == set(identity["properties"]) == builder.IDENTITY_FIELDS, "schema and validator disagree on the identity fields"
+assert identity["properties"]["repository"]["const"] == builder.REPOSITORY and identity["properties"]["generator"]["const"] == builder.GENERATOR
+source = schema["properties"]["sources"]["items"]
+assert set(source["required"]) == set(source["properties"]) == builder.SOURCE_FIELDS, "schema and validator disagree on the source fields"
+assert schema["properties"]["review_requirements"]["items"]["const"] == builder.REVIEW_REQUIREMENTS[0]
+assert schema["additionalProperties"] is False and identity["additionalProperties"] is False and source["additionalProperties"] is False
+PY
+
 echo "build-assurance-manifest-cases: pass case and $refusals refusals gave the expected result"

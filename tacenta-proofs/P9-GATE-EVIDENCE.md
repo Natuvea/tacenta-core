@@ -74,11 +74,24 @@ candidate.  Its record must contain all of the following:
 The recorded review is evidence of the review only.  It does not replace the
 mutation evidence required by gate 4.
 
-`tooling/check-ledger-review-receipt.py` validates the receipt's structure and
-binding to the evidence-pack manifest. It cannot establish reviewer
-independence or semantic adequacy, which remain human-review findings.
-`tooling/validate-reviewed-evidence.py` additionally verifies that the review
-receipt, evidence pack and assurance manifest bind the same clean candidate.
+`tooling/check-ledger-review-receipt.py` validates the receipt (schema 2). It
+checks the receipt's binding to the evidence-pack manifest, that each artifact in
+the list above was named, that every `##` section of the pack's copy of
+`CLAIMS.md`, and the introduction before the first one, has exactly one
+disposition, and that each disposition carries the SHA-256 of the section text it
+was given on, so a later edit to a section no longer matches. With
+`--require-no-findings` it refuses a receipt that records a `finding`. It cannot
+establish reviewer independence, that the reviewer read what the receipt names, or
+semantic adequacy, which remain human-review findings.
+`tooling/ledger-review-sections.py` lists the sections, writes a receipt template
+with the references and digests filled in and every decision left as a
+placeholder, and with `--since` reports which sections differ from an earlier
+pack, receipt or `CLAIMS.md`. Whether an unchanged section's disposition may be
+carried forward is the reviewer's judgement, stated in the receipt.
+`tooling/validate-reviewed-evidence.py`, run from the candidate's checkout,
+additionally verifies that the review receipt (with no finding), the evidence pack
+(against that checkout's git history) and the assurance manifest bind the same
+clean candidate.
 
 ## Claims and attestation control record
 
@@ -106,6 +119,30 @@ satisfy a case.  What none of this shows: that the allowlist was reviewed, that
 the type text is the type the elaborator gave the axiom, or that the toolchain
 was run.
 
+## Reproducing a candidate from public inputs
+
+A third party needs a clone of the public repository, the candidate's
+`assurance-receipts.json` and the pack or the hosted artifact. Nothing private is
+read.
+
+```sh
+python3 tooling/build-evidence-pack.py --verify PACK --candidate-repo CLONE
+python3 tooling/reproduce-evidence.py --pack PACK --hosted HOSTED --repo CLONE
+```
+
+The first checks the pack against its own digests and against git: the candidate
+commit is in the clone, the pack's tree is that commit's tree, every file under
+`source/` is byte-identical to that path at that commit, and the manifest names
+that commit's generator. The second checks the candidate out in a throwaway
+worktree, runs that commit's own manifest and pack builders on the receipts, and
+requires the rebuilt manifest and pack to equal the given ones byte for byte; that
+runs Python from the candidate commit, so use it only on a commit you would run the
+repository's other scripts from. `HOSTED` is the directory holding the two files the `assurance-receipts` job
+uploads; with `--hosted` alone only the manifest is rebuilt. What neither shows:
+that the receipts were produced by a hosted run of the workflow (that is checked
+against the run itself), that a reviewer was independent, or that a source file
+says something true.
+
 ## Finalization checklist
 
 1. Freeze a clean candidate revision and collect the local and hosted results.
@@ -125,9 +162,14 @@ Object-Lock metadata in the publication receipt, then download and run
 `python3 tooling/build-evidence-pack.py --verify` on the downloaded pack.
 `tooling/publish-evidence-archive.py --pack PACK --dry-run` derives and prints
 that prefix; without `--dry-run` it uploads only verified pack files and sends
-S3 `If-None-Match: *` so an existing object key is refused. Publication
-requires an unused `--receipt` path and records every object key, version ID
-and Compliance retain-until timestamp.
+S3 `If-None-Match: *` so an existing object key is refused. It refuses a pack
+that does not verify or whose sources are not the candidate commit's files
+(`--candidate-repo`, this checkout by default) before it uploads anything, and it
+uploads `PACK-MANIFEST.json` last. Publication requires an unused `--receipt` path
+and records every object key, version ID and Compliance retain-until timestamp.
+A run cut short leaves objects that cannot be deleted under Compliance retention
+and that a retry cannot complete, because the retry is refused at the first key
+that exists; the prefix then holds no `PACK-MANIFEST.json`.
 
 The initialization control uploaded
 `controls/initialization/object-lock-20260915T151835Z.txt`, version
