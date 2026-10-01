@@ -517,9 +517,10 @@ What it rests on, all of it named:
   fixed-width requirement on `encode_ec` becomes load-bearing
   (`Proofs.SessionEstablishment`, session-establishment.md).
 
-Notably absent: no `VecRemoveTotal` analogue. `extend_from_slice` is modelled by
+Notably absent: no `Vec::pop` analogue. `extend_from_slice` is modelled by
 the Aeneas library rather than left opaque, so this zone adds no trusted
-boundary of that kind, where the ratchet's does.
+`Vec` boundary of the ratchet's kind. It does declare the `Vec` `Zeroize` implementation,
+which the entry points' pins list.
 
 What remains for this zone is T3: relating all of it to
 `Model.SessionEstablishment`, which is what the value-carrying specifications

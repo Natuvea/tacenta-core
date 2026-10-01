@@ -10,7 +10,7 @@ import Translation.ErasureT1
 Every `Vec` operation Aeneas does not model reaches the translation as an
 axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
-(`VecAppendTotal`, `RemoveSkippedAtAgrees`, `ZeroizingRoundTrips96`,
+(`ZeroizingRoundTrips96`,
 `ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
 (`T1.DerivedKeysModel`), and so are the key-derivation agreements (`T3.HmacAgrees`,
 `T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees`, `SessionT3.HkdfAgrees` and the Braid's
@@ -28,22 +28,28 @@ This file is the check against that. For each hypothesis it witnesses it states 
 the current hypothesis is exactly that shape applied to the axiom
 (`Iff.rfl`, so the two cannot drift), and exhibits a concrete function
 satisfying it, so the hypothesis is consistent: at least one model of that
-hypothesis makes it true. Alongside the `append` and `remove` hypotheses it also states the natural over-strong
-shape -- an `append` with no length guard, a `remove` with no index guard --
-and proves that **no** function satisfies it, so the guards on the
-hypotheses are shown to be necessary rather than merely cautious. An edit
-that makes a witnessed hypothesis unsatisfiable breaks its witness here. The six
-totalities covered only by derivation have no witness of their own; the
-`example`s at the end of the last section hold them to the theorems that derive
-them.
+hypothesis makes it true. An edit that makes a witnessed hypothesis unsatisfiable breaks its
+witness here. The six totalities covered only by derivation have no witness of their own; the
+`example`s at the end of the last section hold them to the theorems that derive them.
 
 Consistency is all this establishes. Nothing here says the axiom Aeneas
 generated *is* the witness; it says the theorems downstream are not proofs
-of `False`. For `Vec::remove` the witness happens to be the real operation's
-own behaviour -- the element in range, a panic otherwise -- because the
-hypotheses are stated under the index guard and so ask for nothing the real
-operation does not do; for `append` and `retain` it is one model among
-several.
+of `False`.
+
+Parts of this file are retired and describe operations the translations no longer call. The
+leaf translations declare neither `Vec::remove` nor `Vec::retain`: the removal helpers are a swap
+loop, a wipe and `Vec::pop`, and the retain scans are explicit loops. In the first section
+`RemoveFn`, `RemoveTotal`, `RemoveAgrees` and `RemoveTotalUnguarded`, with their witness and the
+refutation of the unguarded shape, and the whole `Vec::retain` section (`RetainFn`, `RetainTotal`,
+`RetainAgrees`) model those operations, and no hypothesis is bridged to them. What replaced them is a
+set of hypotheses about *defined* functions, and the three bridges in the first section
+(`T1_RemoveSkippedAtTotal_is`, `SpqrT1_RemoveSkippedAtTotal_is`, `RemoveSkippedAtAgrees_is`) are
+void: each states the hypothesis as a shape applied to a defined function. A shape is satisfiable by
+choosing a function, but a defined function is not a choice, so the bridge shows only that the
+hypothesis is the shape and nothing about whether it holds of the body. Those hypotheses, and `SpqrT1.VecRetainTotal` and `SpqrT3.VecRetainAgrees`, which have no witness here,
+are shown to follow from named laws about the opaque constants their bodies reach in
+`SatisfiabilityRatchetLaws.lean` and `SatisfiabilitySpqrLaws.lean` (and, for the three-leaf unit,
+`UnitSatisfiabilityTripleLaws.lean`).
 -/
 
 namespace Tacenta.Satisfiability
@@ -52,7 +58,7 @@ open Aeneas Aeneas.Std Result
 
 /-! ## Secret-bearing removal helpers -/
 
-/-- The type of both crates' `alloc.vec.Vec.remove`. -/
+/-- Retired: the type of `alloc.vec.Vec.remove`, which the leaf translations no longer declare. -/
 abbrev RemoveFn :=
   {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
 
@@ -88,6 +94,10 @@ def RemoveTotalUnguarded (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize),
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
 
+/-- Void bridge: the right side applies a shape to the defined function
+`tacenta_ratchet.remove_skipped_at`, which is not a choice, so the bridge says nothing about whether
+the body meets the shape. `SatisfiabilityRatchetLaws.ratchetRemoveSkippedAtTotal` proves the
+hypothesis from laws. -/
 theorem T1_RemoveSkippedAtTotal_is :
     Tacenta.T1.RemoveSkippedAtTotal ↔
       RemoveSkippedAtTotalShape @tacenta_ratchet.remove_skipped_at :=
@@ -108,11 +118,14 @@ def SpqrRemoveAgreesShape
       ∃ r, f v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
         r.2.val = v.val.eraseIdx i.val
 
+/-- Void bridge, as above, for `tacenta_spqr.State.remove_skipped_at`; see
+`SatisfiabilitySpqrLaws.spqrRemoveSkippedAtTotal`. -/
 theorem SpqrT1_RemoveSkippedAtTotal_is :
     Tacenta.SpqrT1.RemoveSkippedAtTotal ↔
       SpqrRemoveTotalShape @tacenta_spqr.State.remove_skipped_at :=
   Iff.rfl
 
+/-- Void bridge, as above; see `SatisfiabilitySpqrLaws.removeSkippedAtAgrees`. -/
 theorem RemoveSkippedAtAgrees_is :
     Tacenta.SpqrT3.RemoveSkippedAtAgrees ↔
       SpqrRemoveAgreesShape @tacenta_spqr.State.remove_skipped_at :=
@@ -155,8 +168,8 @@ theorem remove_total_unguarded_unsatisfiable : ¬ ∃ f : RemoveFn, RemoveTotalU
 
 /-! ## `Vec::retain` -/
 
-/-- The type of `tacenta_spqr.alloc.vec.Vec.retain` (binder order as Aeneas
-generated it: the closure's type parameter comes after `A`). -/
+/-- Retired: the type of `tacenta_spqr.alloc.vec.Vec.retain`, which the translation no longer
+declares (binder order as Aeneas generated it: the closure's type parameter comes after `A`). -/
 abbrev RetainFn :=
   {T : Type} → (A : Type) → {F : Type} → core.ops.function.FnMut F T Bool →
     alloc.vec.Vec T → F → Result (alloc.vec.Vec T)

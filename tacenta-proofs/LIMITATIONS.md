@@ -249,14 +249,16 @@ excludes it.
   `expect` enforces; every call site asks for 32, 64, 80 or 96 bytes and the
   premise closes from the literal (`KdfCkTotal` and `KdfRkTotal` are about
   the sparse ratchet's own fixed-length wrappers, total in Rust, and were
-  never in this list). The classical `VecRemoveTotal`/`VecRemoveAgrees` and
+  never in this list). The classical `T1.RemoveSkippedAtTotal` and
   sparse `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry
   `i.val < v.val.length`; every call site sits under exactly that loop
   guard, from which the proof discharges the premise, and the guard also
   removed the `[Inhabited T]` bound the unguarded statements needed for
-  consistency (`Translation/Satisfiability.lean` now models each with the
-  real operation's own behaviour, and keeps the refutation of the unguarded
-  shape). `DivCeilTotal` carries `b.val ≠ 0`, its one divisor being the
+  consistency. They are statements about translated removal helpers and not about an
+  opaque `Vec::remove`, which the translations no longer call, so the model and the refutation
+  of the unguarded shape that `Translation/Satisfiability.lean` keeps are retired and bridged to
+  nothing; the hypotheses are shown to follow from named laws in `SatisfiabilityRatchetLaws.lean`,
+  `SatisfiabilitySpqrLaws.lean` and `UnitSatisfiabilityTripleLaws.lean`. `DivCeilTotal` carries `b.val ≠ 0`, its one divisor being the
   constant `CHUNK_BYTES`. `KeyPairGenerateTotal`, `Encapsulate1Total` and
   the two randomness-drawing clauses of `KemAgreesFor` carry
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns, which the
@@ -871,11 +873,12 @@ reported, and the state transitioned to -- across every branch each can
 take, not merely that they cannot fail. Unlike the ML-KEM Braid this crate
 has no KEM boundary and no erasure-coding boundary to assume agreement at;
 the only opaque call this file assumes anything about the *value* of is
-`hkdf_sha256` -- `Vec::retain`/`pop`/`append`, `Zeroize`, and
-`Option::clone` are opaque too, each its own assumption below -- and
-everything built out of translated code around it -- `find_chains`,
-`set_chains`, `clear_old_epochs`, `advance`/`maybe_advance`, `try_skipped`,
-`skip_message_keys` -- is proved outright, not assumed.
+`hkdf_sha256`. `Vec::pop`, `Vec::capacity`, `Zeroize` and `Option::clone` are opaque too, each its own
+assumption below, and the retain and removal scans are translated loops whose results the file assumes
+(`VecRetainAgrees` and `RemoveSkippedAtAgrees`, from the boundary stated below). `find_chains` is proved
+outright. `set_chains` and `clear_old_epochs` are `VecRetainAgrees` applied to its arguments, and
+`advance`/`maybe_advance`, `try_skipped` and `skip_message_keys` are proved under it and
+`RemoveSkippedAtAgrees`.
 `Model.SparseRatchet.lean` carries its own lemma library, as `Model.Braid.lean`
 does: how far `advance` can shrink the skipped-key store,
 how a chain-vector length bound survives `set_chains`/`skip_message_keys`,
@@ -883,8 +886,8 @@ and a left-peeling split for the forward-derivation walk `skip_message_keys`
 performs. Eight assumptions back it: `SpqrHkdfAgrees` (one level below
 `SpqrT1.lean`'s `KdfRkTotal`/`KdfCkTotal`, subsuming both), `VecRetainAgrees`
 and `RemoveSkippedAtAgrees` (each strictly stronger than its `SpqrT1.lean`
-namesake), `VecAppendAgrees` (genuinely new, since nothing in T1 needed to
-know what `skip_message_keys`'s concatenation actually produced),
+namesake), `SpqrT1.VecRetainTotal` (carried from `SpqrT1.lean`, for the capacity and wipe calls the
+retain agreement does not cover),
 `ZeroizingRoundTrips96` and `ZeroizingRoundTrips64` (the key derivation's
 outputs are wrapped in `Zeroizing` since CR-15, and the wrapper's `new` and
 `deref` are opaque to the translation, so each width needs the round trip
@@ -1196,11 +1199,14 @@ respectively is, the original), hypotheses of `Braid.receive_refines` and
 `State.clone_refines`. Each is the same shape of boundary fact as the KDF
 agreements.
 
-**An assumption is per translated crate, not per operation.** `VecRemoveTotal`
-is listed once below. There are two:
-each translation unit declares its own opaque `alloc.vec.Vec.remove`, so the
-ratchet's assumption and the sparse ratchet's are about *different constants*
-and neither discharges the other. One modelling gap in Aeneas becomes one
+**An assumption is per translated crate, not per operation.** An earlier revision
+listed `VecRemoveTotal` once below, and there were two: each translation unit declared its own
+opaque `alloc.vec.Vec.remove`. The translations no longer call `Vec::remove`, and the removal
+helpers' hypotheses (`T1.RemoveSkippedAtTotal`, `SpqrT1.RemoveSkippedAtTotal`) are about translated
+functions; the point survives in the laws they follow from, since each translation unit declares
+its own opaque `alloc.vec.Vec.pop`, so the classical ratchet's `LawPop` and the sparse ratchet's
+are about *different constants* and neither discharges the other
+(`SatisfiabilityRatchetLaws.lean` states it again). One modelling gap in Aeneas becomes one
 assumption per crate that touches it. Anyone counting the trusted base by name
 rather than by constant will undercount.
 
@@ -1215,8 +1221,8 @@ ratchet's chain-key derivation bottoms out in its own copy of the opaque
 implementation. `send` and `receive` need two more:
 `OptionCloneTotal`, since both functions clone the *other* direction's chain
 through an `Option`, which has no clone specification in Aeneas's own library;
-and `VecAppendTotal`, since `skip_message_keys` (which `receive` calls)
-concatenates the derived keys onto the retained store. **Seven assumptions in
+and `VecAppendTotal`, which is `True` now that `skip_message_keys` derives into its final vector and no
+longer calls `Vec::append`, and is kept as a name for the downstream files. **Seven assumptions in
 that one file, none of them the same proposition as its namesake elsewhere.**
 
 **So both `tacenta-spqr` and `tacenta-braid` are fully covered by T1.**
@@ -1359,11 +1365,25 @@ in `Translation/Satisfiability.lean` do.
 `Ratchet.from_bytes_establishes_inv_nonvacuous` supplies one for
 `tacenta-ratchet`: a concrete 185-byte string the *translated* `from_bytes`
 accepts, kernel-checked (`decide` on a list literal, no `native_decide`) and
-pinned. The sparse ratchet's and the Braid's have no such witness. Their
-`from_bytes` chains are longer, and the Braid's runs through the opaque
-erasure and KEM decoders, which no byte string can be shown to satisfy from
-inside the translation; so for those two crates the only evidence that the
-decoder accepts anything at all is the Rust round-trip tests.
+pinned. The sparse ratchet and the Braid have witnesses for the leaf translation in modules of their
+own: `SpqrFromBytesWitness.lean` proves a 140-byte string accepted by the sparse
+ratchet's `from_bytes` (version 1, an all-zero root key, epoch 0, one chains entry at epoch 0 with
+both chains absent, no skipped keys), with a state that satisfies `Spqr.Inv`, and
+`BraidFromBytesWitness.lean` (and, for the complete Session unit,
+`SessionUnitBraidFromBytesWitness.lean`) a 74-byte string accepted by the Braid's
+(version 1, state tag 0, epoch 1, a zero authenticator), with a state that satisfies
+`Braid.Inv` under the one hypothesis `from_bytes_establishes_inv` already takes. `Braid.Inv` has one
+clause, a ciphertext-length bound that is `True` outside tags 3, 4, 7, 8 and 9, so on that state it is
+trivial: the result shows that the decoder accepts a string and that the premise of
+`from_bytes_establishes_inv` is satisfiable, and it does not exercise the clause. The session unit's sparse
+decoder has no witness. No opaque constant is called on either decode path, so acceptance itself needs no
+assumption; the Braid pins list `tacenta_erasure.*` and `tacenta_kem.*` constants only because those names
+occur in the definitions of the decoder's other arms and of `Braid.invariant`, which the statement
+mentions.
+**What is still not shown** is acceptance of a Braid state that holds an erasure or KEM
+value (tags 1 to 10): their decode runs through the opaque erasure and KEM decoders, which
+no byte string can be shown to satisfy from inside the translation. For those states
+the only evidence that the decoder accepts anything is the Rust round-trip tests.
 
 - `tacenta-core/ratchet` (`tacenta-ratchet`): the Double Ratchet state machine.
   T1, T2, T3. T3 includes `message_keys`, the expansion of a message key into
@@ -1598,9 +1618,10 @@ stating rather than folding into the general list:
   the wrapper is a transparent container rather than only that its operations
   return. It is a class so that instance resolution can supply it to stepping
   rules whose postconditions mention it.
-- **No `VecRemoveTotal` analogue.** `Vec::extend_from_slice` is modelled by the
-  Aeneas library rather than left an axiom, so this zone adds no trusted
-  boundary that nobody chose. The ratchet's does.
+- **No `Vec::pop` analogue.** `Vec::extend_from_slice` is modelled by the
+  Aeneas library rather than left an axiom, so this zone adds no `Vec` boundary of the ratchet's kind
+  (`Vec::pop`, `LawPop`). It does declare the `Vec` `Zeroize` implementation, which
+  `SessionT1.shared_secret_no_panic` and `SessionT3.shared_secret_refines_some` carry in their pins.
 - **Two `native_decide` uses reach the theorem**, for the constant comparisons: that the domain
   separator and the parameter label written as Rust byte strings are the ones
   the model writes as lists of code points. Decided by evaluation, so they trust
@@ -1940,8 +1961,8 @@ bundles discharged. What that does and does not buy:
   crates, the two state types and fourteen calls. On the unit those calls are
   defined, so `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
   already rests on none of them, and on the external primitives the inner
-  refinements rest on instead (HMAC, the `zeroize` wrapper and trait, three `Vec`
-  operations, `Option`'s clone), with the same one `native_decide` axiom.
+  refinements rest on instead (HMAC, the `zeroize` wrapper and trait, `Vec::pop`,
+  `Vec::capacity` and `Vec::zeroize`, `Option`'s clone), with the same one `native_decide` axiom.
   Discharging the bundles adds exactly the eight `native_decide` axioms
   `UnitSpqrT3.lean` carries, and nothing else; the same holds for `receive`.
   `UnitPins.lean` pins all four new theorems.
@@ -1951,14 +1972,17 @@ bundles discharged. What that does and does not buy:
   Triple's narrow one, so neither is listed twice. Proving the classical `clone`
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
-* **Every boundary hypothesis of the discharged theorems is witnessed on the
-  unit.** `UnitSatisfiabilityTriple.lean` witnesses all eleven, about the unit's
+* **The boundary hypotheses of the discharged theorems about opaque constants are
+  witnessed on the unit, and the four about translated functions follow from laws.**
+  `UnitSatisfiabilityTriple.lean` witnesses those about the unit's opaque
   constants, including the HMAC and HKDF agreements (from the model's output
   lengths). Where two constrain one constant it witnesses them jointly: the
   classical round trip, which is also the Triple's, the sparse round trips at 96
   and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
-  family, and the classical `VecRemoveTotal` and `VecRemoveAgrees` both
-  constrain `Vec::remove`.
+  family. The four about translated functions, `UnitT1.RemoveSkippedAtTotal`,
+  `UnitSpqrT3.RemoveSkippedAtAgrees`, `UnitSpqrT3.VecRetainAgrees` and `UnitSpqrT1.VecRetainTotal`, have a void bridge or no
+  witness there, and `UnitSatisfiabilityTripleLaws.lean` proves each from named laws
+  (`CLAIMS.md`).
   The rest each constrain a constant nothing else mentions, and that their
   separate witnesses combine is an argument in prose, not a checked one. Two
   `example`s apply the discharged theorems to exactly the witnessed hypotheses,
@@ -2459,8 +2483,9 @@ that assembly possible.
     `DerivedKeysModel`, the same crate's wrapper around the vector of derived
     keys (CR-15), which has to be a transparent container rather than merely
     total because the store loop reads a length back out of it, exactly as
-    the session zone's `ZeroizingModel` does; and `VecRemoveTotal`, which is
-    a gap in what Aeneas models rather than a choice, discussed below. The `zeroize` boundary is the reminder that every
+    the session zone's `ZeroizingModel` does; and, in the revision of the classical ratchet this
+    paragraph was written for, `VecRemoveTotal`, a gap in what Aeneas models rather than a choice
+    (the translation no longer calls `Vec::remove`; see the entry below). The `zeroize` boundary is the reminder that every
     external crate on a proven path becomes an assumption whether or not
     anyone intended it.
 
@@ -2569,27 +2594,21 @@ that assembly possible.
   translation models the array comparison and not the `Option` one. The one
   that remains is below, and should go the same way.
 
-- **A trusted boundary that is not a deliberate one.**
-  `Vec::remove` reaches the generated Lean as an axiom, because Aeneas does not
-  model it, so the skipped-key scan's proofs carry `VecRemoveTotal` as a stated
-  hypothesis: at an in-range index (`i.val < v.val.length →`) the operation
-  returns, and the vector it hands back is the input with that index erased.
-  That is what Rust's `Vec::remove` does; out of range it panics, and the
-  hypothesis says nothing there, so it is a fact the real operation
-  satisfies for every quantified input rather than a totality stronger than
-  the crate. Every call site sits under the scan's own `i < len` check, and
-  the proofs discharge the premise from that branch. The guard is also what
-  keeps the statement consistent without the `[Inhabited T]` bound it used
-  to carry: quantified over every index, at `T := Empty` it would ask for an
-  element of an empty type, imply `False`, and make the ratchet's
-  `receive_refines` provable for nothing. `Translation/Satisfiability.lean`
-  holds a model of it -- the real operation's own behaviour, the element in
-  range and a panic otherwise -- and a refutation of the unguarded shape, so
-  the build fails if the guard is dropped. It is still worth removing: unlike
-  the HMAC, this is a standard-library operation rather than a chosen
-  primitive, and the verified zone should not rest on something the
-  translation cannot see into. Removing the dependency in the Rust would be
-  the same move as making `derive_chain`'s arithmetic total.
+- **A trusted boundary that was not a deliberate one, replaced by a smaller one.**
+  `Vec::remove` used to reach the generated Lean as an axiom, because Aeneas does not
+  model it, and the skipped-key scan's proofs carried a stated hypothesis about it. The Rust no
+  longer calls it: the removal helper (`remove_skipped_at`, in both ratchets) is a swap loop, a wipe
+  of the removed entry and `Vec::pop`. The hypotheses the proofs now take about removal,
+  `T1.RemoveSkippedAtTotal` (classical) and `SpqrT1.RemoveSkippedAtTotal` and
+  `SpqrT3.RemoveSkippedAtAgrees` (sparse), are statements about those translated helpers, stated at an
+  in-range index (`i.val < v.val.length →`, which every call site's `i < len` check supplies) and, for
+  the classical and the agreement, naming the removed key and the erased-index result. They
+  follow from named laws about the opaque constants the bodies reach (`LawPop`: `Vec::pop` of a
+  non-empty vector returns the vector without its last element; the blanket and array `Zeroize`
+  implementations return), proved in `SatisfiabilityRatchetLaws.lean`, `SatisfiabilitySpqrLaws.lean`
+  and `UnitSatisfiabilityTripleLaws.lean`. Those laws are assumptions about standard-library and
+  `zeroize` operations, tested against the real functions only by reading, so the trust moved from one
+  statement about `Vec::remove` to them; the swap loop itself is proved and not assumed.
 
 - **The skipped-key store is a map, and storing replaces rather than
   accumulates.** The header carries the ratchet public key, so the peer
@@ -2608,15 +2627,14 @@ that assembly possible.
   T3's refinement of the skip step has to relate both sides through that
   scan; `Translation/T3.lean` records what that needs.
 
-- **`VecRemoveTotal` states the operation's value, and the length fact is
-  derived.** Under the index guard it states that removal returns the list
-  with that index erased; that a removal in range shortens the vector by
-  exactly one -- which the purge scan needs, because it removes without
-  advancing its index and so has nothing else to make its measure decrease --
-  is `VecRemoveTotal.lengths`, proved from the value rather than assumed
-  beside it. The sparse ratchet's `RemoveSkippedAtAgrees` names the removed
-  element and the custom helper's erased-index result, since its refinement
-  reads both. This is the recurring shape of the
+- **The removal hypotheses state the helper's value, and the length fact follows.** Under the
+  index guard the classical `T1.RemoveSkippedAtTotal` states that the helper returns the removed
+  entry's key and the list with that index erased; that a removal in range shortens the vector by
+  exactly one -- which the purge scan needs, because it removes without advancing its index and so has
+  nothing else to make its measure decrease -- follows from that value and is not assumed beside it.
+  The sparse ratchet's `SpqrT1.RemoveSkippedAtTotal` states the length fact, and
+  `SpqrT3.RemoveSkippedAtAgrees` names the removed element and the custom helper's erased-index
+  result, since its refinement reads both. This is the recurring shape of the
   whole exercise: T1 needed only that an unmodelled operation returns, and
   refinement needs to know what it returned.
 

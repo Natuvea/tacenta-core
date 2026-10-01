@@ -416,30 +416,17 @@ theorem array_eq_total {N : Usize} (a b : Array U8 N) :
   obtain ⟨r, hr⟩ := h
   simp [hr]
 
-/-- A second boundary. Aeneas does not model `remove_skipped_at`, so it reaches the
-translation as an opaque function and this hypothesis states what it does
-**at an in-range index**: it returns, and the vector it hands back is the
-input with that index erased. That is the whole of what Rust's `remove_skipped_at`
-promises; out of range it panics, and the hypothesis says nothing there. So
-this is a fact the real operation satisfies for every quantified input, not
-a totality stronger than the crate, and every use of it in this file sits
-under the loop guard `i < len` that the source code itself checks first --
-the guard is discharged from that branch condition, in the proof, rather
-than argued about the call sites in prose. It is stated rather than assumed
-silently, and it is worth removing: unlike the HMAC, this is a
-standard-library operation rather than a deliberate trusted primitive, so
-the verified zone should not depend on one that the translation cannot see
-into.
+/-- A second boundary. `remove_skipped_at` is translated with a body (a swap loop, a wipe of the removed
+entry and `Vec::pop`), so this hypothesis is a statement about a defined function. It states what the
+helper does **at an in-range index**: it returns, and the vector it hands back is the input with that
+index erased. Out of range it panics, and the hypothesis says nothing there, and every use of it in this
+file sits under the loop guard `i < len` that the source code itself checks first -- the guard is
+discharged from that branch condition, in the proof, rather than argued about the call sites in prose.
 
-The guard is also what keeps the statement satisfiable without an
-`[Inhabited T]` bound. Stated for every index, the existential would ask,
-at `T := Empty` and an empty vector, for an element of an empty type, and
-`RemoveSkippedAtTotal → False` would be provable -- with every theorem taking it.
-Under the guard a vector of an empty type has no in-range index, so the
-question does not arise (`Translation/Satisfiability.lean` keeps the
-refutation of the unguarded shape, and exhibits a model of this one: the
-operation that returns the element in range and panics otherwise, which is
-the real one). -/
+The guard is also what lets the removed key be named as `v.val[i.val]` with no `Inhabited` bound and no
+`!` index. `Translation/SatisfiabilityRatchetLaws.lean` proves the hypothesis from `LawPop`,
+`LawBlanketU32` and the byte-array wipe (`ArrZU8`); the model in `Translation/Satisfiability.lean` is
+bridged to nothing. -/
 def RemoveSkippedAtTotal : Prop :=
   ∀ (A : Type) (v : alloc.vec.Vec SkippedKey) (i : Usize)
     (hi : i.val < v.val.length),
@@ -967,11 +954,10 @@ each named as an assumption rather than left implicit:
   width, the second that at the derived-keys vector the wrapper holds what was
   put in it, since the two loops that build and read that vector need its
   length and not only a value; and
-* `RemoveSkippedAtTotal`: Aeneas does not model `remove_skipped_at`, so it reaches the
-  translation as an opaque function and this hypothesis states what it does
-  at an in-range index -- returns, with that index erased -- which is what
-  `remove_skipped_at` does. It says nothing out of range, where `remove_skipped_at`
-  panics; each use is under the scan's own length check, and the proof
+* `RemoveSkippedAtTotal`: `remove_skipped_at` is translated with a body (a swap loop, a wipe and
+  `Vec::pop`), so this hypothesis is a statement about a defined function. It states what the helper
+  does at an in-range index -- returns, with that index erased. It says nothing out of range, where
+  `remove_skipped_at` panics; each use is under the scan's own length check, and the proof
   discharges the guard from that branch.
 
 `receive` carries one precondition, and it is a real one rather than a
