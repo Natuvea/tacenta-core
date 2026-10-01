@@ -348,7 +348,7 @@ vector has one of two shapes.
     `short-or-malformed` is every other refusal, a state that breaks a
     semantic rule included.
 
-Two things no vector here pins.
+Three things no vector here pins.
 
 - **A short buffer with another version.** A buffer too short for its fixed
   fields that also has a version byte other than `0x01` may be refused as
@@ -356,12 +356,12 @@ Two things no vector here pins.
   Rejection). `Model.PersistedState` reads the version byte first and
   `tacenta-core` checks the length first; both conform, and no vector here
   offers such a buffer.
-- **A stored state of exactly `MAX_SKIPPED_STORE` keys offered as bytes.**
-  2,001 keys are refused in both files. The accepted side of the bound is
-  reached only through operations, and only in `sparse-ratchet-state.json`:
-  `replacement-bound-counts-resulting-store` leaves a store of exactly 2,000
-  keys (the vector is about 385 kilobytes, and its `-read-back` vector the
-  same). The Double Ratchet's file reaches 1,999.
+- **A Double Ratchet state of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys
+  are refused in both files. `ratchet-state.json` accepts at most 1,999 keys.
+  `sparse-ratchet-state.json` accepts exactly 2,000:
+  `replacement-bound-counts-resulting-store` leaves that store through
+  operations, and its `-read-back` vector offers the same 2,000 keys as bytes.
+  Each of the two vectors is about 385 kilobytes.
 - **A skip refused for the total bound.** An operations vector's refusal is
   `counter-exhaustion` or `no-chain`, and the schema has no kind for
   `SkippedStoreFull`, so no vector refuses a skip for the total bound. The
