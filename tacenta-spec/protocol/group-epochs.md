@@ -1454,7 +1454,8 @@ this case the rule does not make the head depend on the order of arrival.
 ### Displacement
 
 Let `H` be the head, at epoch number `n`, and `c` a sibling of it that passes
-every check against `P` = `prior`.
+every check against `P` = `prior` and that the rule for owner devices does not
+refuse (Owner devices, above).
 
 - If `c` ranks before `H`, the result is `displaced`. In one durable step `head`
   becomes `c` with its signature, `index[n]` becomes `c`'s commitment, `prior`
