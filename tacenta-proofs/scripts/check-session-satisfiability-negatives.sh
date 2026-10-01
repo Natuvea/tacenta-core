@@ -5,7 +5,8 @@
 # Three modules carry that evidence:
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
-#                                   contract, and one theorem that names them all.
+#                                   contract of the first Session proof layer, and one
+#                                   theorem that names them all.
 #   UnitSatisfiabilityJoint.lean    one interpretation of the unit's opaque constants
 #                                   that satisfies every axiom-level field of the four
 #                                   contract records, each shape bound to the real

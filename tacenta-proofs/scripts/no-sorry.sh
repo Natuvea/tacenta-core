@@ -84,9 +84,10 @@ python3 scripts/check-lifecycle-translation-coverage.py \
 bash scripts/check-lifecycle-translation-coverage-negatives.sh || fail=1
 report_time "lifecycle public-root coverage" "$t"
 
-# Each new Session primitive contract has a non-vacuity witness, and one
-# theorem depends on all thirteen names.  Mutation-test that coverage so deleting a
-# witness cannot leave the package green.
+# Each new Session primitive contract of the first proof layer has a non-vacuity witness,
+# and one theorem depends on all thirteen names.  The fourteenth, `DivCeilValue`, is held by
+# the required pins in attest.py.  Mutation-test that coverage so deleting a witness cannot
+# leave the package green.
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1
 report_time "Session contract satisfiability control" "$t"

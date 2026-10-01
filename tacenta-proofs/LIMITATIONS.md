@@ -1985,7 +1985,7 @@ a boundary function, which is why no `random32` declaration exists and why
 `tacenta_boundary` names, cannot see that route.
 `tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
 boundary declarations to the contracts the primitive-boundary decision
-names (ten in the record, twelve after its first dated note, thirteen after the second). Later phases assemble the lifecycle with its eight code leaves
+names (ten in the record, twelve after its first dated note, thirteen after the second, fourteen after the third). Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
@@ -1995,7 +1995,7 @@ tested and translated, not proved end to end.
 The eight-leaf `TacentaSessionUnit` makes the ratchet, Braid, erasure, wire,
 session and lifecycle bodies concrete in one Lean namespace. The primitive
 implementations remain outside that unit. The first Session proof layer names
-thirteen contracts, the cap the primitive-boundary decision now sets: ten over the
+thirteen contracts, the cap the primitive-boundary decision set until its note of 2026-10-01: ten over the
 primitive boundary, `DhCodecTotal`, `DhIdentityTotal`, `DhAgreeTotal`,
 `AeadOpenTotal`, `KemEncapsulateTotal`, `KemDecapsulateTotal`,
 `KemCiphertextLenTotal`, `XeddsaVerifyTotal`, `XeddsaSignTotal` and
@@ -2007,12 +2007,17 @@ over standard-library and `zeroize` operations Aeneas leaves opaque,
 `VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten
 and `AeadSealTotal`; the complete translation and its T1 layer showed the
 twelve, and the identity-key rule added `DhIdentityTotal` as the thirteenth;
-the record carries a dated note for each. These are the contracts over
+the record carries a dated note for each. These thirteen are the contracts over
 primitives. The contract records in `CLAIMS.md` (session lifecycle T1 section)
 hold further totalities over the ratchets, the Braid, the Triple Ratchet and the
-session layer, which this section does not list.
+session layer, which this section does not list. A fourteenth, `DivCeilValue`, the
+value `(a + 31) / 32` of `usize::div_ceil` at divisor 32, is a field of
+`EstablishResponderContracts` that the repair of the receive decoder hypothesis
+added; the note of 2026-10-01 counts it and recuts the cap at fourteen. Its separate
+witness is `divCeilValue_shape_satisfiable`, and the joint model also satisfies it
+(`model_DivCeilValue`); neither is a name of the coverage theorem below.
 
-Apart from `AeadSealBounded`, these contracts say that the outer Aeneas `Result` returns. They permit an
+Apart from `AeadSealBounded` and `DivCeilValue`, these contracts say that the outer Aeneas `Result` returns. `DivCeilValue` also says that `usize::div_ceil` at divisor 32 returns `(a + 31) / 32`, which the decoder bound needs. They permit an
 AEAD, KEM or signature check to return its ordinary inner refusal, and permit
 DH agreement to return `None`. They do not say that encryption is secure,
 that signatures are sound, that agreement outputs match, or that an accepted
@@ -2051,7 +2056,7 @@ constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
 thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`).
 `check-session-satisfiability-negatives.sh` removes each of the thirteen
 witnesses in turn, and requires elaboration to fail each time. The thirteen
-witnesses are separate, one per contract, so they do not show that the contracts
+witnesses are separate, one per contract of the first Session proof layer, so they do not show that the contracts
 hold together, and one of them could not have: the witness for `VecPopTotal` was a
 `Vec::pop` that returns and leaves the vector unchanged, which, given `ZeroizeTotal` and, for the second field, the blanket `Zeroize` law, makes two of the
 records' fields false (`UnitSatisfiabilityRatchet.lean`). It is now the `pop` of the joint model, and its shape
@@ -2109,8 +2114,10 @@ only one.
 statements than these (`pop` returns the last element, `truncate` is a prefix, `div_ceil` is ceiling division,
 `as_mut` is the identity borrow, `capacity` is at least the length: `FaithfulShape`), so the witness is the real
 operation on them and not a degenerate function with the weak property. The blanket `Zeroize` is modelled as the
-identity, which is not what it does; only its returning is used by a law (the array, vector and tuple `Zeroize` are the identity too). The laws are not in any record, so no product
-theorem and no record changed; they are assumptions of the inhabitation result only. `DecoderNewTotal` and
+identity, which is not what it does; only its returning is used by a law (the array, vector and tuple `Zeroize` are the identity too). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, so no product
+theorem and no record changed for them; they are assumptions of the inhabitation result only. `DivCeilValue` is the
+field `divCeilValue` of `EstablishResponderContracts`, added by the repair of the receive decoder hypothesis and counted as
+the fourteenth session contract. `DecoderNewTotal` and
 `EncoderNewTotal` stay fields of the records although `DivCeilValue` implies both; whether they can be removed
 is not checked.
 
