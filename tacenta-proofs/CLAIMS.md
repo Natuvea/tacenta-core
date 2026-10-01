@@ -480,7 +480,7 @@ Each is pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on `propext`
 and `Quot.sound`, except `ageStore_drops_the_expired`, `ageStore_only_removes`
 and `clearOldEpochs_store_le`, on `propext` alone.
 
-## Proved (tier T2, the sparse ratchet's total bound counts the store a skip leaves)
+## Proved (tier T2, in the model: the sparse ratchet's total bound counts the store a skip leaves)
 
 Location: `Proofs/SparseReplacementBound.lean`, about `Model.SparseRatchet`.
 
@@ -531,12 +531,17 @@ advance, or about a sequence of operations.
 - `Proofs.SparseReplacementBound.witness_premises_hold`: for the same store, the
   four premises of `skipMessageKeys_refused_iff` hold together: the epoch has a
   chain, its receiving chain is present, `ch.n < 2` and `2 <= ch.n + maxSkip`.
-  So the characterisation, and the other theorems that take `hc`, `hr` and
-  `hlo`, are about a set of states that is not empty.
+  So the characterisation is about a set of states that is not empty, and so
+  are the shared premises `hc`, `hr` and `hlo` of the other theorems. Their
+  further premises (a key stored at the counter, a key left in the range) are
+  not witnessed in this file.
 - `Proofs.SparseReplacementBound.witness_refused_one_key_further`: the same store
   with a skip from `0` to `4`, which stores four keys, is refused: `1997 + 4`
   passes the bound. With the witness above, both sides of
-  `skipMessageKeys_refused_iff` are shown inhabited.
+  `skipMessageKeys_refused_iff` are shown inhabited. The edge itself, a skip to
+  `3` that leaves exactly 2,000 keys, is covered by
+  `skipMessageKeys_refused_iff` and tested by the vector and the unit test; no
+  witness here sits on it.
 
 Each is pinned under `#guard_msgs` in `Proofs/SparseReplacementBound.lean`, on
 `propext` and `Quot.sound`, except `skipSurvivors_length_le`, on `propext`
@@ -545,37 +550,64 @@ alone, and the three witness theorems, on `propext`, `Classical.choice` and
 one fails the attestation. The statements of all ten are also pinned with
 `#guard_msgs in #check` in the same file, so a change to a premise or a
 conclusion fails the build where the proof would still go through. That is held
-by the build: no gate yet requires a statement pin to exist, so deleting one
-passes `attest.py` and the other gates.
+by the build: no gate yet requires a statement pin to exist, so deleting one and
+refreshing the manifests passes `attest.py` and the other gates.
 
 **What reaches the translated code.** `Tacenta.SpqrT3.skip_message_keys_refines`
 (tier T3, "the sparse post-quantum ratchet's translated code refines the model")
 has the text and the hypotheses it had. The model it names changed, so its
 refusal case is now the count above: when `skipMessageKeys` refuses, the
 translated code returns an error and `r.2 = s`, the state as it was, and when it
-succeeds the state refines the one the model returns. Its statement is pinned in
-`Translation/SparseSkipStatementPin.lean`, which the build holds and no gate yet
-requires: deleting that file and its import passes every gate today. The unit
+succeeds the state refines the one the model returns. The refusal case names no
+error. Which refusal the code returns, `TooManySkipped` or `SkippedStoreFull`,
+is not in the statement, and neither is the order of the two checks. A change
+that returns `TooManySkipped` for a full store passes the theorem after a
+one-token change to its proof. The session evicts only on `SkippedStoreFull`,
+and the session proofs take the refusal kind as a hypothesis (`hreason`). The
+refusal kind and the order are tested only, by `tacenta-spqr`'s unit tests and
+the differential harness. Its statement is pinned in
+`Translation/SparseSkipStatementPin.lean`. No other theorem uses the refusal
+clause `r.2 = s`: `receive_refines_continuation` and `receive_refines` state
+their refusals as an error alone. The clause is held only by that pin's text,
+which the build holds and no gate yet requires. Removing the clause from the
+theorem and from the pin together passes the build and every gate, and so does
+deleting the file and its import, once the manifests are refreshed. The unit
 copies are generated from it (`port-unit-proofs.sh`,
-`port-session-unit-proofs.sh`). Its hypotheses `hroom`
-and `hskiproom` are proved for a state `State::from_bytes` returns
+`port-session-unit-proofs.sh`). Its hypotheses `hroom` and `hskiproom` are proved for a state `State::from_bytes` returns
 ("Proved: what a decoded state satisfies"). Nothing in this change adds a
 hypothesis, an axiom or an entry to the trusted base.
 
 **Tested only.** That the Rust source, as distinct from its translation, refuses
 and accepts where the model does at the edges: `tacenta-spqr`'s tests
-`replacement_keys_make_room_at_the_exact_store_edge`,
+`replacement_keys_make_room_at_the_exact_store_edge` (which also holds the
+survivors' order),
 `a_sparse_store_refusal_is_atomic_when_replacement_would_still_overflow`,
-`a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound` and
-`the_purge_range_is_above_the_chain_number_and_up_to_the_target_only`; the
-vectors `replacement-bound-counts-resulting-store` and
+`a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound`,
+`the_purge_range_is_above_the_chain_number_and_up_to_the_target_only` and
+`a_skip_to_the_chain_number_stores_nothing_and_checks_nothing`; that the working
+copy of a refused skip is erased, by
+`a_skip_refused_for_the_total_bound_frees_no_secret` in
+`tacenta-core/tests/spqr_erasure_public.rs` (it relies on `Skipped` erasing on
+drop, which the translation ignores); the vectors
+`replacement-bound-counts-resulting-store` and
 `replacement-range-excludes-the-chain-counter` in `sparse-ratchet-state.json`;
-and three one-step sequences in the differential harness. They pin the
-behaviour of the source; they do not prove it. The translation they are
-compared with was regenerated with a macOS arm64 build of the pinned release,
-and no Linux x86_64 regeneration of `TacentaSpqr.lean`, `TacentaTripleUnit.lean`
-or `TacentaSessionUnit.lean` has been made (`GAP-REGISTER.md`,
+and three one-step sequences in the differential harness. They pin the behaviour
+of the source; they do not prove it, and none of them runs the translation. The
+translation the T3 proof is about was regenerated with a macOS arm64 build of
+the pinned release, and no Linux x86_64 regeneration of the four changed
+generated files (`TacentaSpqr.lean`, `TacentaTripleUnit.lean`,
+`TacentaSessionUnit.lean` and, for docstring line numbers only,
+`TacentaLifecycle.lean`) has been made (`GAP-REGISTER.md`,
 `HL-R1-SPARSE-TRANSLATION`).
+
+Not proved, and not checked by `State::invariant`: that no operation leaves a
+stored key at or past its epoch's receiving counter, and so that the counts
+before and after the deletion agree on every state the operations produce. It is
+read off the operations.
+`no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40 seeds of
+300 randomised steps (sends, epoch openings, in-order and late receives,
+duplicates, arbitrary numbers, stale epochs and eviction) and asserts it after
+every step. That is a sample, not a proof.
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
@@ -3019,8 +3051,11 @@ whose linux-x86_64 archive `aeneas-linux-x86_64.tar.gz` has SHA-256
 workflow checks that digest before extracting, and fails if the committed
 `Translation/Tacenta*.lean` differ from what that build produces. The digest
 is stated here so that a reader reproducing the translation elsewhere can
-check they hold the same binaries, not merely the same tag. The release ships
-for linux-x86_64 only.
+check they hold the same binaries, not merely the same tag. The release page
+lists archives for Linux and macOS on two architectures each. The digest above
+is the Linux x86_64 one, which the verification workflow checks; the macOS arm64
+archive used for the regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in
+`GAP-REGISTER.md` is not covered by that check.
 
 What the public tree can check about the translation is recorded in
 `manifests/translation-attestation.json`, written only by
