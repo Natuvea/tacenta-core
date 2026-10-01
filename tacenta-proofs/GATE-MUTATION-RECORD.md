@@ -130,8 +130,7 @@ One-off breaks of gates with no retained control (not in the tally, each on a fr
 
 | Break | Gate | Result |
 |---|---|---|
-| `<<<<<<< HEAD` appended to `README.md` | `check-conflict-markers.sh` | refused (exit 1, names `README.md` at the appended line: 222 at `dea57eaf`, 235 at the tagged commit) |
-| `theorem probe_hygiene : True := kdf_ck._proof_3` appended to `T1.lean` | `check-proof-hygiene.sh` | refused |
+| `| `theorem probe_hygiene : True := kdf_ck._proof_3` appended to `T1.lean` | `check-proof-hygiene.sh` | refused |
 | first registry row deleted from `tacenta-core/AUTHENTICATION-BOUNDARY.md` | `check_authentication_boundary.py` | refused |
 | a line appended to a triple-unit and to a session-unit source | `assemble-triple-unit.sh --check`, `assemble-session-unit.sh --check` | both refused |
 | a line appended to `UnitT1.lean` | `port-unit-proofs.sh --check` | refused |
@@ -141,6 +140,7 @@ One-off breaks of gates with no retained control (not in the tally, each on a fr
 | no `TACENTA_DIFFTEST` binary | `the_model_and_the_core_agree_on_generated_sequences` | `GITHUB_ACTIONS=true` or `TACENTA_DIFFTEST_REQUIRED=1`: panic, exit 101; neither: prints "skipping" and passes |
 | no base ref; empty receipts directory | `check-signoff.sh`; collector | both exit 1 |
 
+<<<<<<< HEAD
 ## Addendum, 2026-10-01: the evidence tooling, with a retained harness
 
 `tooling/mutate-evidence-gates.py` is the harness the section above says is not in this repository, for the receipt, manifest, pack,
@@ -311,3 +311,313 @@ Claimed equivalent, with the reason each verdict cannot change:
 What this does not show: that the harness's table is every check these tools make (it is the checks the cases were written for), that the
 receipts are produced by a hosted run, or anything about the gates outside this tooling. Equivalence is by reading the code and is not proved.
 `Rself` above is unchanged: the workflow and `tooling/required-steps.json` can still be edited together.
+
+
+## Re-run and extension, 2026-10-01
+
+The harness that applied the single edits above was not kept, so the record could not be repeated.
+`tooling/mutate-gates.py` is a harness, and `tooling/gate-mutations.json` holds the edits. For each edit it makes
+a disposable worktree of the commit under test, replaces one text in one file (which must occur exactly the stated
+number of times), commits that, runs the named control there and requires it to fail with output that contains `expect`,
+the name of a case or a diagnostic. A baseline of each control on the unchanged tree comes first, and a red baseline
+stops the run. The failing case is then classified: **accepted** when it saw the gate accept an input it must
+refuse; **behaviour** when it saw another wrong verdict (an honest input refused, a count or a call wrong, an
+assertion failed); **message only** when every failing line is a refusal whose diagnostic no longer matches, after
+the runner has been run to its end with its stop-on-failure switched off to see whether any other case fails for
+more. A message-only edit, and an edit no case notices, fails the run unless it carries an `equivalent` reason (its
+verdict cannot change) or an `uncovered` reason (a known gap, named); a listed edit that a case sees as accepted or
+as another wrong verdict is stale and fails the run. `python3 tooling/mutate-gates.py` runs all of them; `--only
+ID...` runs some; `-v` shows the failing output; `--json FILE` writes the results. Like `tooling/mutate-inventory.py` it is a local tool and nothing in
+CI runs it. `tooling/tests/run-mutate-gates-cases.sh` holds the harness to eleven cases of its own.
+
+Run on the tree this section was added to (the harness reads the commit it is run in, so the controls and the gates were the committed
+ones; only the documents changed afterwards), on macOS (Apple silicon), bash 3.2, Python 3.9 with PyYAML, Lean v4.31.0, on a machine
+shared with other builds. All 205 edits turn their control red. For 141 a case saw the gate accept an input it must
+refuse; for 49 a case saw another wrong verdict; 15 change only a diagnostic or survive
+and are listed below as equivalent or uncovered, with the reason each cannot be seen. 0 turned the control red for another reason than the one named.
+
+Rows of the 2026-09-30 table that survived then and have a case now: `S2`, `S4`, `S5` (the sign-off check), `CT1` to
+`CT5` (the constant-time reader), `CR1` (the skip-or-fail rule of `check-workflows.sh`), `B1` to `B6` (the manifest
+builder and `--validate`), `V4` and `C2` (the validator and collector, right commit and wrong tree). The one-off
+breaks of gates with no retained control (conflict markers, proof hygiene, the authentication boundary, the unit
+`--check` modes, `check-audit-reach.sh`, vector currency, the PyYAML rule, the differential harness, a missing base)
+each have a retained case now, except that the vector-currency and differential cases are not yet CI steps.
+
+### Equivalent edits
+
+| Id | File | Edit | Why its verdict cannot change |
+| --- | --- | --- | --- |
+| PK2 | `tooling/build-evidence-pack.py` | the builder accepts receipts of another schema version | `validate_receipts` and the manifest's own `--validate`, which run first, refuse a document of another schema version, so the same inputs are refused |
+| PK3 | `tooling/build-evidence-pack.py` | the builder accepts receipts for another candidate than the manifest | the candidate that `validate_receipts` takes comes from the manifest, and the comparison of the receipts' checks with the manifest's, which follows, refuses receipts for another candidate; the pack check refuses a pack that names one |
+| PK3a | `tooling/build-evidence-pack.py` | the builder compares the tree of the candidate but not its commit | the candidate that `validate_receipts` takes comes from the manifest, and the comparison of the receipts' checks with the manifest's, which follows, refuses receipts for another candidate; the pack check refuses a pack that names one |
+| PK3b | `tooling/build-evidence-pack.py` | the builder compares the commit of the candidate but not its tree | the candidate that `validate_receipts` takes comes from the manifest, and the comparison of the receipts' checks with the manifest's, which follows, refuses receipts for another candidate; the pack check refuses a pack that names one |
+| AL4 | `tooling/install-actionlint.sh` | an archive without the executable is not refused as such | the next line runs `$destination/actionlint -version`, which fails for a missing file under `set -e`, so the same archive is refused; only the message changes |
+| GA-triple-header | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh writes a copy for a leaf with no inner attribute block | the self-check of the written copy refuses the same leaf, and only which check says so changes |
+| GA-triple-use | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh accepts a copy with the inserted use line twice | with the guard removed the awk scan that follows is given a two-line start value and fails (exit 2), so the same leaf is refused; only the words change |
+| GA-triple-block | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh accepts a copy with the inserted block twice | the check that exactly one `use` line was inserted, which follows, refuses the same leaf, because the block it holds also carries one |
+| GA-braid-header | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh writes a copy for a leaf with no inner attribute block | the self-check of the written copy refuses the same leaf, and only which check says so changes |
+| GA-braid-use | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh accepts a copy with the inserted use line twice | with the guard removed the awk scan that follows is given a two-line start value and fails (exit 2), so the same leaf is refused; only the words change |
+| GA-braid-block | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh accepts a copy with the inserted block twice | the check that exactly one `use` line was inserted, which follows, refuses the same leaf, because the block it holds also carries one |
+
+### Uncovered edits (known gaps)
+
+| Id | File | Edit | Why no case sees it |
+| --- | --- | --- | --- |
+| GA-triple-diffq | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh does not compare the stripped copy with the leaf | the block is found exactly once at the written position or the check above refuses first; no leaf reaches this comparison with a difference, and the comparison is the self-check that catches a future change of the insertion code |
+| GA-triple-late | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh does not check where the inserted use landed | it fires when the scan for the header's end stops before an inner attribute; no leaf in the tree is read that way, and none was constructed |
+| GA-braid-diffq | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh does not compare the stripped copy with the leaf | the block is found exactly once at the written position or the check above refuses first; no leaf reaches this comparison with a difference, and the comparison is the self-check that catches a future change of the insertion code |
+| GA-braid-late | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh does not check where the inserted use landed | it fires when the scan for the header's end stops before an inner attribute; no leaf in the tree is read that way, and none was constructed |
+
+### Guard removal
+
+`python3 tooling/mutate-gates.py --guards FILE... --verdict`: for each gate file the harness finds every guard, an `if` or `elif` whose next
+line fails, replaces its condition by false one at a time and runs the controls that `tooling/gate-inventory.json` names for the gate. A guard
+whose removal changes no case's output is a survivor. With `--verdict`, a guard whose removal changes only a diagnostic and no verdict is a survivor
+too: its removal is seen by a case that expects the words, and the gate still refuses every input the cases give it.
+
+| Gate | Guards | Removal changes a verdict | Removal changes only a diagnostic | Survive | Lines |
+| --- | --- | --- | --- | --- | --- |
+| `tooling/check-ledger-review-receipt.py` | 13 | 12 | 1 | 0 | diagnostic only 25 |
+| `tooling/collect-assurance-receipts.py` | 14 | 10 | 4 | 0 | diagnostic only 40, diagnostic only 52, diagnostic only 60, diagnostic only 85 |
+| `tooling/write-assurance-receipt.py` | 6 | 2 | 4 | 0 | diagnostic only 40, diagnostic only 43, diagnostic only 46, diagnostic only 52 |
+| `tooling/build-evidence-pack.py` | 23 | 11 | 10 | 2 | diagnostic only 63, diagnostic only 77, diagnostic only 81, diagnostic only 122, diagnostic only 126, diagnostic only 132, diagnostic only 135, diagnostic only 139, diagnostic only 158, diagnostic only 176, survived 79, survived 98 |
+| `tooling/build-assurance-manifest.py` | 13 | 7 | 0 | 6 | survived 98, survived 123, survived 136, survived 139, survived 164, survived 169 |
+| `tooling/assurance_validation.py` | 28 | 12 | 5 | 11 | diagnostic only 78, diagnostic only 81, diagnostic only 84, diagnostic only 134, diagnostic only 169, survived 101, survived 107, survived 113, survived 116, survived 119, survived 122, survived 124, survived 126, survived 128, survived 130, survived 143 |
+| `tooling/check-lifecycle-boundary-surface.py` | 2 | 2 | 0 | 0 | none |
+| `tooling/check_authentication_boundary.py` | 2 | 1 | 1 | 0 | diagnostic only 528 |
+| `tooling/check-labels.sh` | 2 | 2 | 0 | 0 | none |
+| `tooling/check-traceability.py` | 1 | 1 | 0 | 0 | none |
+| `tooling/check-session-operation-traces.py` | 1 | 1 | 0 | 0 | none |
+| `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py` | 2 | 2 | 0 | 0 | none |
+| `tooling/check-conflict-markers.sh` | 1 | 1 | 0 | 0 | none |
+| `tooling/check-proof-hygiene.sh` | 1 | 1 | 0 | 0 | none |
+| `tooling/check-signoff.sh` | 1 | 1 | 0 | 0 | none |
+| `tooling/install-actionlint.sh` | 3 | 2 | 0 | 1 | survived 42 |
+| `tooling/seed-lake-packages.sh` | 1 | 0 | 0 | 1 | survived 60 |
+| `tooling/check-precondition-shapes.py` | 3 | 3 | 0 | 0 | none |
+
+Gates this does not cover: `tooling/check-vectors.py` and `tooling/check-workflows.sh` (their failures are not written in the form the harness reads),
+`tooling/check-audit-reach.sh` and `tooling/check-vectors-current.sh` (the controls need a built Lean workspace; pass `--link` with the `.lake` directories), and the
+assemblers' write-time guards, which are the `GA-*` edits above.
+
+### Gaps these runs found and closed in this change
+
+The label check had no case for two constants with one value (`AL-labels-dupes`). Nine of the thirteen guards of `tooling/check-ledger-review-receipt.py`,
+one of `check-lifecycle-translation-coverage.py`, the collector's receipt loader, the boundary-surface check's missing-root guard, the
+precondition-shape check's unterminated-string guard and four guards of the evidence-pack builder had no case needing them and now have one.
+The fresh-eyes review of this change then found fifteen single edits to the sign-off check, the constant-time reader, the conflict-marker check and the installers that
+every case accepted (`S6` to `S8`, `CT12` to `CT16`, `CM7`, `CM8`, `IE7` to `IE9`, `SL4`, `AL3`); each has a case. It found that edits `AB8`, `AB12`, `AR-mentions`, `IE5`
+and the seven `GN-port-*-count` edits were red only because a diagnostic changed; each has a case with an input the mutated gate accepts. Defects the new
+cases found: `tooling/build-assurance-manifest.py` printed a dirty tree's first path without its first character when that path was an unstaged change
+(the refusal itself was right); eight port scripts never printed their "committed copy differs" line, because a `diff | head` under `pipefail` ended the script
+first (the exit status was right).
+
+### All edits
+
+| Id | File | Edit | Control | Result |
+| --- | --- | --- | --- | --- |
+| S1 | `tooling/check-signoff.sh` | no commit is refused for a missing sign-off | `run-check-signoff-cases.sh` | seen as accepted |
+| S2 | `tooling/check-signoff.sh` | only the newest commit of the range is checked | `run-check-signoff-cases.sh` | seen as accepted |
+| S3 | `tooling/check-signoff.sh` | a missing base is not an error | `run-check-signoff-cases.sh` | seen as accepted |
+| S4 | `tooling/check-signoff.sh` | whole-line trailer match relaxed to a substring match | `run-check-signoff-cases.sh` | seen as accepted |
+| S5 | `tooling/check-signoff.sh` | any trailer is accepted, not only the author's | `run-check-signoff-cases.sh` | seen as accepted |
+| CT1 | `tooling/check-constant-time-asm.sh` | x86 conditional branches are not counted | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT2 | `tooling/check-constant-time-asm.sh` | aarch64 conditional branches are not counted | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT3 | `tooling/check-constant-time-asm.sh` | indirect calls and jumps are read as named callees | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT4 | `tooling/check-constant-time-asm.sh` | in CI, having neither Linux target is not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT5 | `tooling/check-constant-time-asm.sh` | subtle and conditional_ callees are not refused as such | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT6 | `tooling/check-constant-time-asm.sh` | the allowed length compare may follow a load | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT7 | `tooling/check-constant-time-asm.sh` | more than one length compare is allowed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT8 | `tooling/check-constant-time-asm.sh` | a function the gate cannot find is not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT9 | `tooling/check-constant-time-asm.sh` | several assembly files for one crate are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT10 | `tooling/check-constant-time-asm.sh` | main ignores a refused or unknown callee | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT11 | `tooling/check-constant-time-asm.sh` | main ignores a branch the reader counted | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CR1 | `tooling/check-workflows.sh` | in CI, missing PyYAML is a skip, not a failure | `run-check-workflows-cases.sh` | seen as accepted |
+| CR2 | `tooling/tests/run-check-workflows-cases.sh` | the case runner skips, and passes, in CI without PyYAML | `run-check-workflows-cases.sh` | seen as accepted |
+| CR3 | `tooling/check-workflows.sh` | in CI, a missing python3 is a skip, not a failure | `run-check-workflows-cases.sh` | seen as accepted |
+| B1 | `tooling/build-assurance-manifest.py` | --validate does not compare the manifest's identity with the commit under test | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B1a | `tooling/build-assurance-manifest.py` | --validate compares the tree of the identity but not its commit | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B1b | `tooling/build-assurance-manifest.py` | --validate compares the commit of the identity but not its tree | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B2 | `tooling/build-assurance-manifest.py` | --validate accepts a manifest that does not assert a clean tree | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B3 | `tooling/build-assurance-manifest.py` | --validate compares neither the digest nor the size of a source | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B3a | `tooling/build-assurance-manifest.py` | --validate does not compare the digest of a source | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B3b | `tooling/build-assurance-manifest.py` | --validate does not compare the size of a source | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B4 | `tooling/build-assurance-manifest.py` | --validate does not require a pending review requirement | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B4a | `tooling/build-assurance-manifest.py` | --validate accepts a review requirement that is not pending | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B5 | `tooling/build-assurance-manifest.py` | the builder accepts a dirty tree without --allow-dirty | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B5b | `tooling/build-assurance-manifest.py` | any ignored file is excused from the dirty-tree check | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| B5c | `tooling/build-assurance-manifest.py` | a manifest built with --allow-dirty on a dirty tree says the tree is clean | `run-build-assurance-manifest-cases.sh` | seen as another wrong verdict |
+| B6 | `tooling/build-assurance-manifest.py` | --validate does not re-validate the check set | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| V1 | `tooling/assurance_validation.py` | the validator reads the tree of a receipt's run but not its commit | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| V2 | `tooling/assurance_validation.py` | the validator reads the commit of a receipt's run but not its tree | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| V3 | `tooling/assurance_validation.py` | the validator reads the tree of the document's candidate but not its commit | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| V4 | `tooling/assurance_validation.py` | the validator reads the commit of the document's candidate but not its tree | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| C1 | `tooling/collect-assurance-receipts.py` | the collector reads the tree of a receipt's run but not its commit | `run-collect-assurance-receipts-cases.sh` | seen as accepted |
+| C2 | `tooling/collect-assurance-receipts.py` | the collector reads the commit of a receipt's run but not its tree | `run-collect-assurance-receipts-cases.sh` | seen as accepted |
+| CM1 | `tooling/check-conflict-markers.sh` | the separator line of a conflict is not a marker | `run-source-gate-cases.sh` | seen as accepted |
+| CM2 | `tooling/check-conflict-markers.sh` | the opening line of a conflict is not a marker | `run-source-gate-cases.sh` | seen as accepted |
+| CM3 | `tooling/check-conflict-markers.sh` | the closing line of a conflict is not a marker | `run-source-gate-cases.sh` | seen as accepted |
+| CM4 | `tooling/check-conflict-markers.sh` | markers are found and the check passes anyway | `run-source-gate-cases.sh` | seen as accepted |
+| CM5 | `tooling/check-conflict-markers.sh` | a .patch file is no longer exempt | `run-source-gate-cases.sh` | seen as another wrong verdict |
+| CM6 | `tooling/check-conflict-markers.sh` | a marker need not start the line | `run-source-gate-cases.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| PH1 | `tooling/check-proof-hygiene.sh` | the generated files are scanned too | `run-source-gate-cases.sh` | seen as another wrong verdict |
+| PH2 | `tooling/check-proof-hygiene.sh` | line comments are not stripped before matching | `run-source-gate-cases.sh` | seen as another wrong verdict |
+| PH3 | `tooling/check-proof-hygiene.sh` | the pattern no longer matches the translator's names | `run-source-gate-cases.sh` | seen as accepted |
+| PH4 | `tooling/check-proof-hygiene.sh` | a hit is printed nowhere and the check passes | `run-source-gate-cases.sh` | seen as accepted |
+| PH5 | `tooling/check-proof-hygiene.sh` | only some hand-written files are scanned | `run-source-gate-cases.sh` | seen as accepted |
+| PH6 | `tooling/check-proof-hygiene.sh` | a line with a trailing comment is not read at all | `run-source-gate-cases.sh` | seen as accepted |
+| AB1 | `tooling/check_authentication_boundary.py` | a function under #[cfg(test)] is not exempt | `run-source-gate-cases.sh` | seen as another wrong verdict |
+| AB3 | `tooling/check_authentication_boundary.py` | discovery stops at the first test module | `run-source-gate-cases.sh` | seen as accepted |
+| AB4 | `tooling/check_authentication_boundary.py` | unbalanced braces are not refused | `run-source-gate-cases.sh` | seen as accepted |
+| AB5 | `tooling/check_authentication_boundary.py` | a const fn is not a declaration | `run-source-gate-cases.sh` | seen as accepted |
+| AB6 | `tooling/check_authentication_boundary.py` | a declaration after a brace on the same line is not discovered | `run-source-gate-cases.sh` | seen as accepted |
+| AB7 | `tooling/check_authentication_boundary.py` | the verb parse is not a consuming verb | `run-source-gate-cases.sh` | seen as accepted |
+| AB8 | `tooling/check_authentication_boundary.py` | a registered row naming no function is accepted | `run-source-gate-cases.sh` | seen as accepted |
+| AB9 | `tooling/check_authentication_boundary.py` | a row under the wrong shape is accepted | `run-source-gate-cases.sh` | seen as accepted |
+| AB10 | `tooling/check_authentication_boundary.py` | two rows for one function are accepted | `run-source-gate-cases.sh` | seen as accepted |
+| AB11 | `tooling/check_authentication_boundary.py` | the problems found are not a failure | `run-source-gate-cases.sh` | seen as accepted |
+| AB12 | `tooling/check_authentication_boundary.py` | a function declared twice in one file is accepted | `run-source-gate-cases.sh` | seen as accepted |
+| NS-drop-lifecycle | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-lifecycle-translation-coverage.py is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-lifecycle | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-lifecycle-translation-coverage.py is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-lifecycle-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-lifecycle-translation-coverage-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-lifecycle-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-lifecycle-translation-coverage-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-satisfiability | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-session-satisfiability-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-satisfiability | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-session-satisfiability-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-port-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-port-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-port-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-port-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-dispatch-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-initial-dispatch-negatives.py is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-dispatch-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-initial-dispatch-negatives.py is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-compare-audit | `tacenta-proofs/scripts/no-sorry.sh` | the call of attest.py is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-compare-audit | `tacenta-proofs/scripts/no-sorry.sh` | the failure of attest.py is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-constructs | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-lean-constructs.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-constructs | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-lean-constructs.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-audit-reach | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-audit-reach.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-audit-reach | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-audit-reach.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-audit-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-audit-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-audit-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-audit-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-scan-ours | `tacenta-proofs/scripts/no-sorry.sh` | the log scan matches no first-party path | `run-proof-script-cases.sh` | seen as accepted |
+| NS-scan-verdict | `tacenta-proofs/scripts/no-sorry.sh` | an incomplete declaration found in the log is not a failure | `run-proof-script-cases.sh` | seen as accepted |
+| NS-regex-translation | `tacenta-proofs/scripts/no-sorry.sh` | a dependency path that contains Translation/ is read as ours | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-regex-proofs | `tacenta-proofs/scripts/no-sorry.sh` | the proofs package's own path is not read as ours | `run-proof-script-cases.sh` | seen as accepted |
+| NS-regex-properties | `tacenta-proofs/scripts/no-sorry.sh` | the property theorems' path is not read as ours | `run-proof-script-cases.sh` | seen as accepted |
+| NS-build-failure | `tacenta-proofs/scripts/no-sorry.sh` | a failing build does not stop the script | `run-proof-script-cases.sh` | seen as accepted |
+| NS-audit-lines-guard | `tacenta-proofs/scripts/no-sorry.sh` | a build log with no audit lines is compared as if it had them | `run-proof-script-cases.sh` | seen as accepted |
+| NS-audit-lines-verdict | `tacenta-proofs/scripts/no-sorry.sh` | a build log with no audit lines is reported and not failed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-replay-verdict | `tacenta-proofs/scripts/no-sorry.sh` | a module the kernel refuses is not a failure | `run-proof-script-cases.sh` | seen as accepted |
+| NS-replay-swallow | `tacenta-proofs/scripts/no-sorry.sh` | the replay's own failure is not collected | `run-proof-script-cases.sh` | seen as accepted |
+| NS-replay-properties | `tacenta-proofs/scripts/no-sorry.sh` | the property theorems are not replayed | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-replay-proofs | `tacenta-proofs/scripts/no-sorry.sh` | the model-layer proofs are not replayed | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-exit | `tacenta-proofs/scripts/no-sorry.sh` | the script exits zero whatever it found | `run-proof-script-cases.sh` | seen as accepted |
+| VF-sorry | `tacenta-proofs/scripts/verify.sh` | verify.sh does not search for sorry | `run-proof-script-cases.sh` | seen as accepted |
+| VF-admit | `tacenta-proofs/scripts/verify.sh` | verify.sh does not search for admit | `run-proof-script-cases.sh` | seen as accepted |
+| VF-exit | `tacenta-proofs/scripts/verify.sh` | verify.sh reports a sorry and exits zero | `run-proof-script-cases.sh` | seen as accepted |
+| VF-build | `tacenta-proofs/scripts/verify.sh` | verify.sh goes on after a failed build | `run-proof-script-cases.sh` | seen as accepted |
+| VF-scope | `tacenta-proofs/scripts/verify.sh` | verify.sh searches a directory that is not the proofs | `run-proof-script-cases.sh` | seen as accepted |
+| TC-olean | `tacenta-proofs/scripts/check-translation-coverage.sh` | a translation module with no olean is not a failure | `run-proof-script-cases.sh` | seen as accepted |
+| TC-glob | `tacenta-proofs/scripts/check-translation-coverage.sh` | a narrowed lakefile glob is not a failure | `run-proof-script-cases.sh` | seen as accepted |
+| TC-subdir | `tacenta-proofs/scripts/check-translation-coverage.sh` | a module in a subdirectory is not a failure | `run-proof-script-cases.sh` | seen as accepted |
+| TC-exit | `tacenta-proofs/scripts/check-translation-coverage.sh` | the script exits zero whatever it found | `run-proof-script-cases.sh` | seen as accepted |
+| B5a | `tooling/build-assurance-manifest.py` | an untracked file does not make the tree dirty | `run-build-assurance-manifest-cases.sh` | seen as accepted |
+| GN-triple-check | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh --check accepts a unit that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-braid-check | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh --check accepts a unit that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-session-left | `tacenta-proofs/scripts/assemble-session-unit.sh` | assemble-session-unit.sh --check ignores a file only the committed unit has | `check-generation-negatives.sh` | seen as accepted |
+| GN-session-right | `tacenta-proofs/scripts/assemble-session-unit.sh` | assemble-session-unit.sh --check ignores a file only the regenerated unit has | `check-generation-negatives.sh` | seen as accepted |
+| GN-session-diff | `tacenta-proofs/scripts/assemble-session-unit.sh` | assemble-session-unit.sh --check ignores a file whose bytes differ | `check-generation-negatives.sh` | seen as accepted |
+| GN-session-subdirs | `tacenta-proofs/scripts/assemble-session-unit.sh` | assemble-session-unit.sh --check does not descend into subdirectories | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-pqxdh-diff | `tacenta-proofs/scripts/port-session-pqxdh-proof.sh` | port-session-pqxdh-proof.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-pqxdh-count | `tacenta-proofs/scripts/port-session-pqxdh-proof.sh` | port-session-pqxdh-proof.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-erasure-diff | `tacenta-proofs/scripts/port-session-erasure-proof.sh` | port-session-erasure-proof.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-erasure-count | `tacenta-proofs/scripts/port-session-erasure-proof.sh` | port-session-erasure-proof.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-diff | `tacenta-proofs/scripts/port-session-braid-proof.sh` | port-session-braid-proof.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-count | `tacenta-proofs/scripts/port-session-braid-proof.sh` | port-session-braid-proof.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-refinement-diff | `tacenta-proofs/scripts/port-session-braid-refinement.sh` | port-session-braid-refinement.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-refinement-count | `tacenta-proofs/scripts/port-session-braid-refinement.sh` | port-session-braid-refinement.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-ratchet-import-diff | `tacenta-proofs/scripts/port-session-ratchet-import-proof.sh` | port-session-ratchet-import-proof.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-ratchet-import-count | `tacenta-proofs/scripts/port-session-ratchet-import-proof.sh` | port-session-ratchet-import-proof.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-import-diff | `tacenta-proofs/scripts/port-session-braid-import-proof.sh` | port-session-braid-import-proof.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-braid-import-count | `tacenta-proofs/scripts/port-session-braid-import-proof.sh` | port-session-braid-import-proof.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-unit-diff | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-unit-count | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh does not check how often a rewrite pattern matches (its own self-test refuses it) | `check-generation-negatives.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| GN-port-session-unit-diff | `tacenta-proofs/scripts/port-session-unit-proofs.sh` | port-session-unit-proofs.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-session-unit-count | `tacenta-proofs/scripts/port-session-unit-proofs.sh` | port-session-unit-proofs.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+| AR-orphan | `tacenta-proofs/scripts/check-audit-reach.sh` | an unreached module is not a failure | `check-audit-reach-negatives.sh` | seen as accepted |
+| AR-prefixes | `tacenta-proofs/scripts/check-audit-reach.sh` | an audit with other prefixes is accepted | `check-audit-reach-negatives.sh` | seen as accepted |
+| AR-mentions | `tacenta-proofs/scripts/check-audit-reach.sh` | an audit call in another form is not refused | `check-audit-reach-negatives.sh` | seen as accepted |
+| AR-one-call | `tacenta-proofs/scripts/check-audit-reach.sh` | an audit module with no call or two calls is accepted | `check-audit-reach-negatives.sh` | seen as accepted |
+| AR-exit | `tacenta-proofs/scripts/check-audit-reach.sh` | the script exits zero whatever it found | `check-audit-reach-negatives.sh` | seen as accepted |
+| AR-imports | `tacenta-proofs/scripts/check-audit-reach.sh` | imports are not followed, so nothing is reached | `check-audit-reach-negatives.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| AR-closure | `tacenta-proofs/scripts/check-audit-reach.sh` | the closure is not followed past the audit modules | `check-audit-reach-negatives.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| NS-drop-audit-reach-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-audit-reach-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-audit-reach-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-audit-reach-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| IE1 | `tooling/install-elan.sh` | the elan archive is run whatever its digest | `run-install-script-cases.sh` | seen as accepted |
+| IE2 | `tooling/install-elan.sh` | elan is never fetched | `run-install-script-cases.sh` | seen as accepted |
+| IE3 | `tooling/install-elan.sh` | an elan at the pinned release is fetched again | `run-install-script-cases.sh` | seen as another wrong verdict |
+| IE4 | `tooling/install-elan.sh` | the archive is not fetched from the pinned release tag | `run-install-script-cases.sh` | seen as another wrong verdict |
+| IE5 | `tooling/install-elan.sh` | the digest is not required | `run-install-script-cases.sh` | seen as accepted |
+| IE6 | `tooling/install-elan.sh` | another archive than the pinned one is fetched | `run-install-script-cases.sh` | seen as another wrong verdict |
+| AL1 | `tooling/install-actionlint.sh` | the actionlint archive is unpacked whatever its digest | `run-install-script-cases.sh` | seen as accepted |
+| AL2 | `tooling/install-actionlint.sh` | an unsupported platform is not a failure | `run-install-script-cases.sh` | seen as accepted |
+| SL1 | `tooling/seed-lake-packages.sh` | the dependency is left at the mirror's head, not the pinned revision | `run-install-script-cases.sh` | seen as another wrong verdict |
+| SL2 | `tooling/seed-lake-packages.sh` | a present dependency directory is cloned over | `run-install-script-cases.sh` | seen as another wrong verdict |
+| SL3 | `tooling/seed-lake-packages.sh` | a path dependency is cloned as a git one | `run-install-script-cases.sh` | seen as another wrong verdict |
+| DF1 | `tacenta-test-vectors/runners/rust/tests/differential.rs` | CI no longer requires the model executable | `run-differential-required-input-cases.sh` | seen as accepted |
+| DF2 | `tacenta-test-vectors/runners/rust/tests/differential.rs` | the required variable no longer requires the model executable | `run-differential-required-input-cases.sh` | seen as accepted |
+| DF3 | `tacenta-test-vectors/runners/rust/tests/differential.rs` | a path that is not a file counts as the executable | `run-differential-required-input-cases.sh` | seen as another wrong verdict |
+| VC1 | `tooling/check-vectors-current.sh` | a vector that differs from the model's output is not a failure | `run-check-vectors-current-cases.sh` | seen as accepted |
+| VC2 | `tooling/check-vectors-current.sh` | git status looks at a directory that holds no vector | `run-check-vectors-current-cases.sh` | seen as accepted |
+| VC3 | `tooling/check-vectors-current.sh` | the vectors are not regenerated | `run-check-vectors-current-cases.sh` | seen as accepted |
+| NS-drop-pin-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-pin-negatives.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-pin-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-pin-negatives.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| NS-drop-kernel-replay-neg | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-kernel-replay-negative.sh is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-kernel-replay-neg | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-kernel-replay-negative.sh is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+| AL-labels-verdict | `tooling/check-labels.sh` | the label check ignores what its parts found | `run-check-labels-cases.sh` | seen as accepted |
+| AL-labels-prefix | `tooling/check-labels.sh` | a label that is a prefix of another is accepted | `run-check-labels-cases.sh` | seen as accepted |
+| AL-labels-dupes | `tooling/check-labels.sh` | two constants with one label value are accepted | `run-check-labels-cases.sh` | seen as accepted |
+| AL-traceability | `tooling/check-traceability.py` | the traceability check always exits zero | `run-check-traceability-cases.sh` | seen as accepted |
+| AL-precondition | `tooling/check-precondition-shapes.py` | the precondition-shape check always exits zero | `run-check-precondition-shapes-cases.sh` | seen as accepted |
+| AL-boundary-surface | `tooling/check-lifecycle-boundary-surface.py` | the boundary-surface check always exits zero | `run-check-lifecycle-boundary-surface-cases.sh` | seen as accepted |
+| AL-vectors | `tooling/check-vectors.py` | the vector schema check always exits zero | `run-check-vectors-cases.sh` | seen as accepted |
+| AL-op-traces | `tooling/check-session-operation-traces.py` | the operation-trace check always exits zero | `run-check-session-operation-traces-cases.sh` | seen as accepted |
+| AL-ledger-receipt | `tooling/check-ledger-review-receipt.py` | the review-receipt check always exits zero | `run-check-ledger-review-receipt-cases.sh` | seen as accepted |
+| AL-evidence-pack | `tooling/build-evidence-pack.py` | the evidence-pack builder and verifier always exit zero | `run-build-evidence-pack-cases.sh` | seen as accepted |
+| AL-lifecycle-coverage | `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py` | the lifecycle coverage check always exits zero | `check-lifecycle-translation-coverage-negatives.sh` | seen as accepted |
+| PK1 | `tooling/build-evidence-pack.py` | the builder goes on with a manifest that does not validate | `run-build-evidence-pack-build-cases.sh` | seen as accepted |
+| PK2 | `tooling/build-evidence-pack.py` | the builder accepts receipts of another schema version | `run-build-evidence-pack-build-cases.sh` | message only, listed equivalent |
+| PK3 | `tooling/build-evidence-pack.py` | the builder accepts receipts for another candidate than the manifest | `run-build-evidence-pack-build-cases.sh` | message only, listed equivalent |
+| PK3a | `tooling/build-evidence-pack.py` | the builder compares the tree of the candidate but not its commit | `run-build-evidence-pack-build-cases.sh` | message only, listed equivalent |
+| PK3b | `tooling/build-evidence-pack.py` | the builder compares the commit of the candidate but not its tree | `run-build-evidence-pack-build-cases.sh` | message only, listed equivalent |
+| PK4 | `tooling/build-evidence-pack.py` | the builder writes into a non-empty output directory | `run-build-evidence-pack-build-cases.sh` | seen as accepted |
+| PK5 | `tooling/build-evidence-pack.py` | the builder does not compare the manifest's checks with the receipts | `run-build-evidence-pack-build-cases.sh` | seen as accepted |
+| PN1 | `tacenta-proofs/translation/Translation/UnitPins.lean` | an axiom pin is weakened with (drop info), which Lean refuses against the docstring | `check-pin-negatives.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| PN2 | `tacenta-proofs/translation/Translation/UnitSatisfiabilityRecords.lean` | a statement pin is weakened with (drop info), which Lean refuses against the docstring | `check-pin-negatives.sh` | seen as another wrong verdict (through the control's baseline step only) |
+| S6 | `tooling/check-signoff.sh` | any trailer that carries the author's string counts as a sign-off | `run-check-signoff-cases.sh` | seen as accepted |
+| S7 | `tooling/check-signoff.sh` | the committer, not the author, must have signed off | `run-check-signoff-cases.sh` | seen as accepted |
+| S8 | `tooling/check-signoff.sh` | a merge hides the commits it brings in | `run-check-signoff-cases.sh` | seen as accepted |
+| CT12 | `tooling/check-constant-time-asm.sh` | some x86 conditional jumps are not branches | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT13 | `tooling/check-constant-time-asm.sh` | only three aarch64 conditions are branches | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT14 | `tooling/check-constant-time-asm.sh` | an x86 lea counts as a load | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT15 | `tooling/check-constant-time-asm.sh` | aarch64 pair and unscaled loads are not loads | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT16 | `tooling/check-constant-time-asm.sh` | subtle::black_box is refused with the other subtle callees | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CM7 | `tooling/check-conflict-markers.sh` | the marker check also excludes source files | `run-source-gate-cases.sh` | seen as accepted |
+| CM8 | `tooling/check-conflict-markers.sh` | the marker check does not go to the repository root | `run-source-gate-cases.sh` | seen as accepted |
+| IE7 | `tooling/install-elan.sh` | the elan install does not take the lock | `run-install-script-cases.sh` | seen as another wrong verdict |
+| IE8 | `tooling/install-elan.sh` | elan is installed with a default toolchain | `run-install-script-cases.sh` | seen as another wrong verdict |
+| IE9 | `tooling/install-elan.sh` | elan is not put on the runner's path | `run-install-script-cases.sh` | seen as another wrong verdict |
+| SL4 | `tooling/seed-lake-packages.sh` | a fetched revision is not kept under a named ref | `run-install-script-cases.sh` | seen as another wrong verdict |
+| AL3 | `tooling/install-actionlint.sh` | only the first four hex digits of the digest are compared | `run-install-script-cases.sh` | seen as accepted |
+| AL4 | `tooling/install-actionlint.sh` | an archive without the executable is not refused as such | `run-install-script-cases.sh` | survived, listed equivalent |
+| GA-triple-header | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh writes a copy for a leaf with no inner attribute block | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-triple-use | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh accepts a copy with the inserted use line twice | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-triple-block | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh accepts a copy with the inserted block twice | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-triple-diffq | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh does not compare the stripped copy with the leaf | `check-generation-negatives.sh` | survived, listed uncovered |
+| GA-triple-late | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh does not check where the inserted use landed | `check-generation-negatives.sh` | survived, listed uncovered |
+| GA-braid-header | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh writes a copy for a leaf with no inner attribute block | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-braid-use | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh accepts a copy with the inserted use line twice | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-braid-block | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh accepts a copy with the inserted block twice | `check-generation-negatives.sh` | message only, listed equivalent |
+| GA-braid-diffq | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh does not compare the stripped copy with the leaf | `check-generation-negatives.sh` | survived, listed uncovered |
+| GA-braid-late | `tacenta-proofs/scripts/assemble-braid-unit.sh` | assemble-braid-unit.sh does not check where the inserted use landed | `check-generation-negatives.sh` | survived, listed uncovered |
+| GA-session-anchor | `tacenta-proofs/scripts/assemble-session-unit.sh` | assemble-session-unit.sh accepts a lifecycle root without its ratchet re-export | `check-generation-negatives.sh` | seen as accepted |
+| GA-triple-arg | `tacenta-proofs/scripts/assemble-triple-unit.sh` | assemble-triple-unit.sh accepts an argument it does not know | `check-generation-negatives.sh` | seen as accepted |
+| GA-port-unit-arg | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh accepts an argument it does not know | `check-generation-negatives.sh` | seen as accepted |
+| GA-port-session-unit-arg | `tacenta-proofs/scripts/port-session-unit-proofs.sh` | port-session-unit-proofs.sh accepts an argument it does not know | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-unit-diff-all | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh reports only the first copy that differs | `check-generation-negatives.sh` | seen as another wrong verdict |
