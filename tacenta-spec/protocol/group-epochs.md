@@ -1948,7 +1948,9 @@ not a conflict, as check 5 and Conflict write it; (E) as D, and a successor of
 the head signed by a device of the head's owner principal clears the conflict in
 the step that accepts it. Under A a writer the head removed can still publish a
 valid sibling and freeze every verifier that accepted the removal; under D it
-cannot, and the fork it makes is visible only as a refusal. Under A to D a
+cannot freeze a verifier that accepted the removal first, and the fork it makes
+is visible only as a refusal; Availability, under What is not checked, covers
+the verifiers that accepted the writer's sibling first. Under A to D a
 still-authorised writer can freeze a verifier by a sibling, by replay of an
 earlier sibling or by an honest race, and A to D give no way out. Default: D.
 Option D is a recommended default that this draft is written to under the

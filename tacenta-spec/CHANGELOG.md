@@ -93,25 +93,25 @@ is SemVer against the specified protocol (not the implementation).
   hash-chained group membership epochs. It proposes the canonical epoch body,
   its commitment and writer signature, genesis and successor acceptance as an
   ordered list of checks with a first-failure rule and a table of its five
-  results and 27 refusal kinds, batched operations that take effect atomically,
-  an owner, admin and member policy read against the predecessor only, an
-  optional policy verdict that can only refuse, key epochs, a conflict rule for
-  concurrent proposals, and the obligations an epoch places on a key engine and
-  on a product. The conflict rule refuses a sibling whose writer the head
-  removed and freezes a verifier that sees any other valid sibling. Nothing on
-  the page clears the freeze. The page states that it gives no way out of a
-  frozen state; that the window for a freeze is the staleness of any authority
-  device and not only a simultaneous race; that an authority can keep chosen
-  verifiers from ever accepting its own removal; that catching up an offline
-  device can stall under the default freshness rule; and that a frozen verifier
-  and a split group give no signal to a user. For a successor, only an owner of
-  the predecessor can cause the `unsupported` result. A device that joins after
-  genesis starts from a checkpoint, which may be the genesis epoch itself, that
-  an authenticated invitation carries, on seven ordered checks and a stated
-  trust assumption: the joiner trusts its inviter for the checkpoint and cannot
-  verify the chain before it. Identity keys of member devices are compared as
-  bytes, which relies on the verifier applying the identity-key rule of
-  `identities-and-devices.md` to the key of each new device (at the evidence
+  results and 27 refusal kinds, batched operations, including closing a group,
+  that take effect atomically, an owner, admin and member policy read against
+  the predecessor only, an optional policy verdict that can only refuse, key
+  epochs, a conflict rule for concurrent proposals, and the obligations an epoch
+  places on a key engine and on a product. The conflict rule refuses a sibling
+  whose writer the head removed and freezes a verifier that sees any other valid
+  sibling. Nothing on the page clears the freeze. The page states that it gives
+  no way out of a frozen state; that the window for a freeze is the staleness of
+  any authority device and not only a simultaneous race; that an authority can
+  keep chosen verifiers from ever accepting its own removal; that catching up an
+  offline device can stall under the default freshness rule; and that a frozen
+  verifier and a split group give no signal to a user. For a successor, only an
+  owner of the predecessor can cause the `unsupported` result. A device that
+  joins after genesis starts from a checkpoint, which may be the genesis epoch
+  itself, that an authenticated invitation carries, on seven ordered checks and
+  a stated trust assumption: the joiner trusts its inviter for the checkpoint
+  and cannot verify the chain before it. Identity keys of member devices are
+  compared as bytes, which relies on the verifier applying the identity-key rule
+  of `identities-and-devices.md` to the key of each new device (at the evidence
   check and at a checkpoint) and to a writer's key at the signature check. The
   page states a removal invariant, as a target that is not shown, with its
   adversary, assumptions and limits; it concerns recipient sets and retired key
