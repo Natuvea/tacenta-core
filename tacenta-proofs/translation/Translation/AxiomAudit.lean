@@ -10,6 +10,8 @@ import Translation.SpqrCodecT1
 import Translation.ErasureCodecT1
 import Translation.ErasureWitness
 import Translation.KemWitness
+import Translation.BraidPreserveWitness
+import Translation.BraidPreserveCorollary
 
 /-!
 The translation package's axiom audit, over everything the root `Translation`

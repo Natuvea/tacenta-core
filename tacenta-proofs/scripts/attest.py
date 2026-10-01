@@ -794,6 +794,74 @@ REQUIRED_PINS = frozenset(
         "oracleOf_kem_oracle_never_refuses",
         "oracleOf_kem_call_never_errs",
     )]
+    # The Braid's preservation results: every axiom pin of the six BraidPreserve modules that have
+    # one. They are the preservation theorems for the standalone Braid translation and, as a
+    # count-checked port, for the session unit, the one law they add and its model, the unit's
+    # decoder lemmas and decoded-Braid results, and the two receive corollaries. A pin outside this
+    # list can be deleted with its claim and the manifest regenerated without a refusal. The
+    # statement and definition pins in the same modules are not on any list.
+    + ["Tacenta.BraidPreserve." + n for n in (
+        "Braid.step_send_sized",
+        "Braid.step_receive_sized",
+        "State.clone_sized",
+        "Braid.send_sized",
+        "Braid.receive_sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.responder_sized",
+        "Braid.Run.sized",
+        "Braid.Constructed.sized",
+        "State.sized_ct1_bounded",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserve." + n for n in (
+        "Braid.step_send_sized",
+        "Braid.step_receive_sized",
+        "State.clone_sized",
+        "Braid.send_sized",
+        "Braid.receive_sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.responder_sized",
+        "Braid.Run.sized",
+        "Braid.Constructed.sized",
+        "State.sized_ct1_bounded",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+    )]
+    + ["Tacenta.BraidPreserveWitness." + n for n in (
+        "newMsgLen_iff",
+        "api_newMsgLen",
+        "erasure_laws_satisfiable",
+        "model_for_both_widths",
+    )]
+    + ["Tacenta.BraidPreserveCorollary." + n for n in (
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveDecoder." + n for n in (
+        "message_length_le",
+        "Good.new",
+        "Good.msg",
+        "Good.add",
+        "Good.clone",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveFacts." + n for n in (
+        "sized_decoders_bounded",
+        "invariant_true_gives_sized",
+        "from_bytes_sized",
+        "Braid.Run.sized_of_start",
+        "Braid.Run.inv",
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+        "inv_not_sized",
+        "TruncateLen_is",
+        "truncateLen_model",
+        "laws_model",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

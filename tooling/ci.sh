@@ -133,6 +133,8 @@ echo "== The Session unit's ratchet import proofs are the deterministic partial 
 bash tacenta-proofs/scripts/port-session-ratchet-import-proof.sh --check
 echo "== The Session unit's Braid import proof is the deterministic aggregate port =="
 bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check
+echo "== The Session unit's Braid preservation proof is the deterministic aggregate port =="
+bash tacenta-proofs/scripts/port-session-braid-preserve.sh --check
 
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;

@@ -11,7 +11,7 @@ trap cleanup EXIT
 git -C "$root" worktree add -q --detach "$work" HEAD >/dev/null
 t=tacenta-proofs/translation/Translation
 
-expect_refused() {  # name script source old new
+expect_refused() {  # name script source old new [expected text, default "unit edit"]
   git -C "$work" checkout -q --force HEAD -- .
   python3 - "$work/$3" "$4" "$5" <<'PY'
 import pathlib, sys
@@ -24,9 +24,10 @@ PY
   if out="$(cd "$work" && bash "tacenta-proofs/scripts/$2" --check 2>&1)"; then
     echo "port negative $1: the script accepted the broken source" >&2; exit 1
   fi
+  local want="${6:-unit edit}"
   case "$out" in
-    *"unit edit"*) ;;
-    *) echo "port negative $1: refused, but not by a unit edit: $out" >&2; exit 1 ;;
+    *"$want"*) ;;
+    *) echo "port negative $1: refused, but not by '$want': $out" >&2; exit 1 ;;
   esac
 }
 
@@ -38,4 +39,18 @@ expect_refused refinement-clone-step port-session-braid-refinement.sh "$t/BraidT
   "State.clone_bounds_refines hrel s_post" "State.clone_bounds_refines hrel s_post2"
 expect_refused import-inv-field port-session-braid-import-proof.sh "$t/ImportInv.lean" \
   "  ct1_bounded : Tacenta.BraidT1.State.ct1_bounded b.state" "  ct1b : Tacenta.BraidT1.State.ct1_bounded b.state"
+# The preservation port makes no unit edit: it is a count-checked substitution plus the unit's own
+# pins, so its anchors are the substitution counts, the marker of the pin section and a declaration after
+# the pins, which would be dropped from the unit.
+expect_refused preserve-substitution-count port-session-braid-preserve.sh "$t/BraidPreserve.lean" \
+  "open tacenta_braid
+open Tacenta.BraidT1" "open tacenta_braid
+open tacenta_braid
+open Tacenta.BraidT1" "occurs"
+expect_refused preserve-pin-marker port-session-braid-preserve.sh "$t/BraidPreserve.lean" \
+  "/-! ## Axiom pins" "/-! ## Pins" "pin section marker changed"
+expect_refused preserve-declaration-after-pins port-session-braid-preserve.sh "$t/BraidPreserve.lean" \
+  "/-! ## Definition pins" "theorem appended_after_the_pins : (1 : Nat) = 1 := rfl
+
+/-! ## Definition pins" "would be dropped from the unit"
 echo "port negatives: each broken anchor is refused by the port script that edits it"
