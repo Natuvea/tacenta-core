@@ -26,9 +26,11 @@ there is *also* native evaluation: every axiom it introduces is named
 `._native.bv_decide.ax_*`. So a proof by `bv_decide` trusts the Lean compiler in
 the same way a proof by `native_decide` does.
 
-That matters here more than anywhere else, because `bv_decide` is what makes the
-GF(2^16) field proofs possible at all. `Model.Gf65536.mul_assoc` alone rests on
-about forty such axioms. The field is proved, and it is proved by evaluation.
+That mattered here more than anywhere else while the GF(2^16) field was proved by
+`bv_decide`: `Model.Gf65536.mul_assoc` alone rested on about forty such axioms, and
+the inverse of every nonzero element on `native_decide`. Since 2026-10-01 the field
+is proved by the kernel (`Model/Gf65536.lean`, the comment "What is established"),
+and what remains evaluated in this file is the composite header's round trips.
 
 Stating that is not a hedge. It is the difference between "machine-checked" and
 "machine-checked by the kernel alone", and it belongs written down.
@@ -414,22 +416,31 @@ info: 'Proofs.SparseRatchetCorrectness.skipMessageKeys_preserves_map' depends on
    What sits at the trusted boundary: that `combine` cannot be inverted from a
    single input is a property of HKDF, not of anything proved here. -/
 
-/-! ## Trusted by evaluation
+/-! ## The field, proved by the kernel
 
-Everything below is true, and everything below is true because a compiled program
-said so. -/
+Until 2026-10-01 the two results below were trusted by evaluation; they rest on
+the kernel's three axioms now. -/
+
+/- Associativity of the field's product, the last of its laws.
+
+   It rested on about forty `bv_decide` certificates until 2026-10-01. Every law of
+   `Model/Gf65536.lean` is a kernel proof now: the operations are linear over GF(2),
+   so each law reduces to the sixteen single-bit values. -/
+/--
+info: 'Model.Gf65536.mul_assoc' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Gf65536.mul_assoc
 
 /- Every nonzero element of the field inverts.
 
-   Exhaustive over 65,535 elements, each requiring an exponentiation. There is no
-   route to this through the kernel: `decide` cannot reduce it and `bv_decide`
-   cannot model the exponentiation. So it is `native_decide`, and it is
+   Proved in the kernel, without enumerating the field: two has multiplicative
+   order exactly `65535`, which is a closed computation, so its powers are the
+   nonzero elements, and each is inverted by raising it to `65534`. It is
    load-bearing rather than decorative, because interpolation divides by the
    difference of two distinct nodes and this is what makes that a division. -/
 /--
-info: 'Model.Gf65536.mul_inv_cancel' depends on axioms: [propext,
- Quot.sound,
- Model.Gf65536.mul_inv_cancel._native.native_decide.ax_1_1]
+info: 'Model.Gf65536.mul_inv_cancel' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Model.Gf65536.mul_inv_cancel
@@ -437,21 +448,18 @@ info: 'Model.Gf65536.mul_inv_cancel' depends on axioms: [propext,
 /- The delta property: interpolation reproduces the points it was given.
 
    The erasure code's correctness argument runs through this, and the list below
-   is the whole of what it trusts. Five evaluated axioms: one `native_decide` for
-   invertibility above, and four `bv_decide` reflections for the field identities
-   the proof uses directly. -/
+   is the whole of what it trusts: the kernel's three axioms and nothing evaluated.
+   The field identities the proof uses are kernel proofs. -/
 /--
-info: 'Model.Polynomial.interp_eq' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Model.Gf65536.clmul_comm._native.bv_decide.ax_1_6,
- Model.Gf65536.mul_inv_cancel._native.native_decide.ax_1_1,
- Model.Gf65536.mul_one._native.bv_decide.ax_1_9,
- Model.Polynomial.combine_at._native.bv_decide.ax_1_10,
- Model.Polynomial.combine_at._native.bv_decide.ax_1_5]
+info: 'Model.Polynomial.interp_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Model.Polynomial.interp_eq
+
+/-! ## Trusted by evaluation
+
+Everything below is true, and everything below is true because a compiled program
+said so. -/
 
 /- The composite header parses unambiguously.
 

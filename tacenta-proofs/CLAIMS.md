@@ -678,14 +678,26 @@ The calculation on which both sides must agree exactly, and it rests on
 Location: `tacenta-model/Model/Gf65536.lean` and
 `tacenta-model/Model/Polynomial.lean`.
 
+- `mul_assoc`: the last of the field laws, and the one that rested on about forty
+  `bv_decide` certificates until 2026-10-01. Every law of `Model/Gf65536.lean`
+  (the additive laws, commutativity, both distributive laws, associativity, the
+  identities) is now proved by the kernel. The operations are linear over GF(2),
+  so each law reduces to the sixteen single-bit values (`linear_ext_w`), which
+  the kernel evaluates, and the exclusive-or arithmetic is settled one bit at a time.
 - `mul_inv_cancel`: every nonzero element has an inverse and `inv` returns it,
   for all sixty-five thousand five hundred and thirty-five. This doubles as an
-  irreducibility check on the reduction polynomial. Established by exhaustion
-  through `native_decide`, so it trusts the compiler; there is no kernel route,
-  because `decide` cannot reduce that many exponentiations and `bv_decide`
-  cannot model an exponentiation at all.
+  irreducibility check on the reduction polynomial. Proved by the kernel: two has
+  multiplicative order exactly `65535` (five closed computations, at `65535` and at
+  each of its four maximal divisors), so its powers are all the nonzero elements,
+  and each is inverted by raising it to `65534`. Until 2026-10-01 this was
+  established by exhaustion through `native_decide`, which trusts the compiler.
 - `interp_eq`: the delta property in the form a decoder states it, which is what
-  interpolation needs to recover a lost codeword.
+  interpolation needs to recover a lost codeword. It rests on the kernel's three
+  axioms alone, as does `unisolvence`.
+
+The three pins above list `propext`, `Classical.choice` and `Quot.sound` and nothing else, and
+`attest.py` still lists `mul_inv_cancel` and `interp_eq` among the pins that may be compiler-trusted;
+neither is now.
 
 ## Not needed: a concatenation lemma for the Triple Ratchet's combination
 
@@ -1764,8 +1776,9 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   model's.
 - `mul_refines`: multiplication in the translated erasure crate's field computes
   what `Model.Gf65536` says, for every input rather than at the thirty-eight
-  points the conformance vectors sample. It rests on one `bv_decide` reflection
-  beyond the kernel's axioms.
+  points the conformance vectors sample. It rests on the kernel's three axioms
+  alone; until 2026-10-01 it rested on one `bv_decide` reflection, in
+  `clmulUpto_sixteen`, which is now two spellings of the same exclusive or.
 
   **The field only.** `interpolate`, the chunk helpers, and both entry points of
   the encoder and decoder have T1 and no refinement, so `Model.Polynomial`'s

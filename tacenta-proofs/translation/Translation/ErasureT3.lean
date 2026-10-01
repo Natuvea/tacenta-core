@@ -1,4 +1,5 @@
 import Translation.TacentaErasure
+import Translation.ErasureFieldBits
 import Translation.ErasureT1
 import Model.Polynomial
 
@@ -21,7 +22,7 @@ closing section says what that would take.
 
 A field element is `Std.U16` on one side and `BitVec 16` on the other. The
 translation carries Aeneas's bounded scalars; the model carries bitvectors,
-because that is what `bv_decide` reasons about. One conversion, used everywhere.
+because that is what the model's field laws are stated over. One conversion, used everywhere.
 
 ## What this tier does not close
 
@@ -59,32 +60,6 @@ theorem add_refines (a b : Std.U16) :
 
 The Rust loops sixteen times; the model writes sixteen terms out. Relating them
 means unrolling, once per bit. -/
-
-/-- The product accumulated over the low `n` bits.
-
-The loop carries a partial result and the model writes a finished one, so
-neither can be rewritten into the other directly. This names the partial form,
-so the loop has an invariant to preserve and the model has something to be the
-sixteenth case of. -/
-def clmulUpto (b : BitVec 16) (x : BitVec 32) : Nat → BitVec 32
-  | 0 => 0#32
-  | n + 1 =>
-    clmulUpto b x n ^^^ (if (b >>> n) &&& 1#16 == 1#16 then x <<< n else 0#32)
-
-/-- One more bit. Stated so the loop's invariant can step without unfolding the
-whole recursion, which does not terminate under `simp`. -/
-theorem clmulUpto_succ (b : BitVec 16) (x : BitVec 32) (n : Nat) :
-    clmulUpto b x (n + 1)
-      = clmulUpto b x n ^^^ (if (b >>> n) &&& 1#16 == 1#16 then x <<< n else 0#32) :=
-  rfl
-
-/-- Sixteen bits in, the partial form is the model's. Sixteen unfoldings on one
-side and none on the other, which is what `decide` is for on a goal this
-concrete. -/
-theorem clmulUpto_sixteen (a b : BitVec 16) :
-    clmulUpto b (a.zeroExtend 32) 16 = Model.Gf65536.clmul a b := by
-  simp only [clmulUpto, Model.Gf65536.clmul]
-  bv_decide
 
 /-- The loop computes the partial product, and at sixteen that is the model's.
 
@@ -150,23 +125,6 @@ The same shape as the product and mirrored: the Rust walks a counter *down*
 from thirty-one, and the model writes sixteen folds out. What differs is that
 the direction makes the partial form count folds rather than bits, so the
 invariant relates the counter to `31 - i` rather than to `i`. -/
-
-/-- The reduction applied at bits thirty-one down to `32 - n`, which is `n`
-folds. Counting folds rather than bit positions is what keeps the recursion
-going the same way the model's `let` chain does, while the loop goes the other
-way. -/
-def reduceUpto (v : BitVec 32) : Nat → BitVec 32
-  | 0 => v
-  | n + 1 => Model.Gf65536.redAt (reduceUpto v n) (31 - n)
-
-/-- One more fold. Same purpose as `clmulUpto_succ`: a step the loop can take
-without the definition reaching a simp set. -/
-theorem reduceUpto_succ (v : BitVec 32) (n : Nat) :
-    reduceUpto v (n + 1) = Model.Gf65536.redAt (reduceUpto v n) (31 - n) := rfl
-
-/-- Sixteen folds in, truncated, the partial form is the model's reduction. -/
-theorem reduceUpto_sixteen (v : BitVec 32) :
-    (reduceUpto v 16).truncate 16 = Model.Gf65536.reduce v := rfl
 
 /-- The reduction's loop computes the partial form, and at fifteen it has done
 all sixteen folds.
@@ -259,21 +217,16 @@ theorem decoder_add_chunk_rejects_complete (self : Decoder) (chunk : Chunk)
 
 /-! ## What is pinned
 
-The field arithmetic rests on the kernel's axioms and one more. `bv_decide`
-reflects through native evaluation, and `clmulUpto_sixteen` is the single place
-this file reaches for it: sixteen unfoldings against an unrolled expression is
-what a SAT-backed decision procedure is for, and doing it by hand would be
-sixteen near-identical cases proving nothing extra.
+The field arithmetic rests on the kernel's axioms alone: the model's field laws
+are proved by the kernel (`Model.Gf65536`), and `clmulUpto_sixteen` is two
+spellings of the same exclusive or.
 
 Pinned here for the same reason the model layer's base is pinned. If a proof
 below starts resting on something new, this fails rather than being noticed by
 whoever greps for it next. -/
 
 /--
-info: 'Tacenta.ErasureT3.mul_refines' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- clmulUpto_sixteen._native.bv_decide.ax_1_8]
+info: 'Tacenta.ErasureT3.mul_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.ErasureT3.mul_refines

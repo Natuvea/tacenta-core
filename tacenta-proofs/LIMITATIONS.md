@@ -21,14 +21,20 @@ bitblasting to SAT, and its reflection step is *also* native evaluation: every
 axiom it introduces is named `._native.bv_decide.ax_*`. A proof by `bv_decide`
 trusts the Lean compiler exactly as a proof by `native_decide` does.
 
-That is load-bearing rather than incidental. `bv_decide` is what makes the
-GF(2^16) field proofs possible at all: `Model.Gf65536.mul_assoc`, the statement
-that this is a field and not merely probably a field, rests on about forty such
-axioms. `Model.Gf65536.mul_inv_cancel`, that every nonzero element inverts, is
-`native_decide` and there is no kernel route to it, because `decide` cannot
-reduce sixty-five thousand exponentiations and `bv_decide` cannot model an
-exponentiation at all. Interpolation divides by the difference of two distinct
-nodes, so the erasure code's correctness runs through that axiom.
+The GF(2^16) field is no longer where this matters. Until 2026-10-01
+`Model.Gf65536.mul_assoc`, the statement that this is a field and not merely
+probably a field, rested on about forty such axioms, and
+`Model.Gf65536.mul_inv_cancel`, that every nonzero element inverts, on
+`native_decide`. Every law of the field, the inverse of every nonzero element,
+`Model.Polynomial.interp_eq` and the translated field arithmetic
+`Tacenta.ErasureT3.mul_refines` are now proved by the kernel: `#print axioms`
+shows `propext`, `Classical.choice` and `Quot.sound` and nothing else. The
+operations are linear over GF(2), so each law follows from the law on the sixteen
+basis elements, which the kernel evaluates directly, and the inverses follow from
+the order of two, a closed computation (the comment "What is established" in
+`Model/Gf65536.lean`). Where `bv_decide` remains is the composite header's
+big-endian round trips (`Model.CompositeHeader`, `Serialization.readBe32_be32`),
+and the compiler-trust facts listed below.
 
 **Where this is and is not the case is pinned by the build, not described.**
 `Proofs.TrustedBase` prints the axioms of the load-bearing theorems under
@@ -100,8 +106,8 @@ named above settles the same fact, that `(1 : U64)` has value 1, by
 `native_decide` still. The generated copies on the three-leaf unit
 (`UnitSpqrT3.lean`) and on the eight-leaf Session unit (`SessionUnitSpqrT3.lean`,
 `SessionUnitTripleT3.lean`) carry those again and are not counted here. A fourteenth,
-`Model.Gf65536.mul_inv_cancel`, lives in the model and is pinned in
-`Proofs.TrustedBase`. `u8_zero`, `zeroSalt_agrees` and
+`Model.Gf65536.mul_inv_cancel`, lived in the model and was pinned in
+`Proofs.TrustedBase`; since 2026-10-01 it is proved by the kernel. `u8_zero`, `zeroSalt_agrees` and
 `decode_ec_after_encode_ec` are **not** among them: the first two close on
 `rfl`, and the third is proved from the encoder's and decoder's specifications;
 none uses `native_decide`, so they are kernel-only. `fPrefix_agrees` and
@@ -2386,24 +2392,28 @@ is defined over. It is a proved field, not a probable one.
 **Proved for every input.** The additive laws, commutativity, distributivity on
 both sides, and associativity.
 
-**Established by exhaustion.** That every nonzero element has the inverse `inv`
-returns, all sixty-five thousand five hundred and thirty-five. This doubles as an
-irreducibility check on the reduction polynomial, since a reducible one would
-leave some nonzero element a zero divisor with no inverse to return. Verified
-live by substituting a reducible polynomial and watching it fail.
+**Proved for every nonzero element.** That every nonzero element has the inverse
+`inv` returns, all sixty-five thousand five hundred and thirty-five. This doubles
+as an irreducibility check on the reduction polynomial, since a reducible one
+would leave some nonzero element a zero divisor with no inverse to return. Until
+2026-10-01 this was established by `native_decide`; it now follows, in the
+kernel, from the order of two, which is exactly `size - 1` (a closed computation
+at each of the four maximal divisors), so that the powers of two are the nonzero
+elements. Verified live by substituting a reducible polynomial and watching it
+fail.
 
 The one thing still assumed is the reduction polynomial itself, which is ours
 rather than the specification's: the published document fixes the field and not
 which irreducible polynomial defines it, so it is wire-sensitive in the way the
 derivation labels are, and is recorded in tacenta-spec/CONSTANTS.md.
 
-The rule that governs the solver here is worth carrying to any future work
-with it: **it settles statements mentioning one product and none mentioning
-two.** Every call in that file has
-a single product with the other factor constant, and the general laws are
-assembled from those by linearity. `Model.Gf65536.linear_ext` -- a linear map is
-determined by its values on the sixteen basis elements -- is the piece that makes
-that assembly possible.
+The rule that governed the solver, while the laws were settled by `bv_decide`, is
+worth carrying to any future work with one: **it settles statements mentioning
+one product and none mentioning two.** The laws are now proved by the kernel
+without a solver, and the same structure does the work:
+`Model.Gf65536.linear_ext_w` -- a linear map is determined by its values on the
+sixteen basis elements -- reduces a law about two maps that are linear in one
+argument to sixteen closed cases, which the kernel evaluates.
 
 ## Not yet proven
 
