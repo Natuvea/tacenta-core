@@ -312,25 +312,7 @@ cases=$((cases + 1))
 # forge PACK RELATIVE TEXT: change a packed source, then make every digest that
 # mentions it agree, so that the pack still verifies on its own.
 forge() {
-  python3 - "$1" "$2" "$3" <<'PY'
-import hashlib, json, pathlib, sys
-pack, relative, text = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
-target = pack / "source" / relative
-target.write_text(text)
-manifest_path = pack / "assurance-manifest.json"
-manifest = json.loads(manifest_path.read_text())
-for item in manifest["sources"]:
-    if item["path"] == relative:
-        item["sha256"], item["bytes"] = digest(target), target.stat().st_size
-manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-index_path = pack / "PACK-MANIFEST.json"
-index = json.loads(index_path.read_text())
-for entry in index["files"]:
-    path = pack / entry["path"]
-    entry["sha256"], entry["bytes"] = digest(path), path.stat().st_size
-index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
-PY
+  python3 "$here/forge-pack-source.py" "$1" "$2" "$3"
 }
 
 cp -R "$real/pack" "$work/forged-source"

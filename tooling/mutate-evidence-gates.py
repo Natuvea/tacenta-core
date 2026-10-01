@@ -50,6 +50,9 @@ COLLECTOR = "tooling/collect-assurance-receipts.py"
 PACK = "tooling/build-evidence-pack.py"
 PUBLISH = "tooling/publish-evidence-archive.py"
 REPRODUCE = "tooling/reproduce-evidence.py"
+REVIEW = "tooling/check-ledger-review-receipt.py"
+REVIEWED = "tooling/validate-reviewed-evidence.py"
+SECTIONS = "tooling/ledger-review-sections.py"
 
 # (id, file, old, new, what the edit does)
 MUTATIONS: list[tuple[str, str, str, str, str]] = [
@@ -147,6 +150,56 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     ("R9", REPRODUCE, '"--verify", str(args.pack.resolve())], worktree,', '"--help"], worktree,',
      "the candidate's own pack verifier is not run"),
     ("R10", REPRODUCE, 'builder.authenticate(args.pack, repo)', "pass", "the pack is not authenticated against git"),
+    # The review receipt checker, the section tool and the reviewed-evidence check.
+    ("L1", REVIEW, 'if receipt.get("schema_version") != SCHEMA_VERSION:', "if False:", "the receipt schema version is not checked"),
+    ("L2u", REVIEW, "unknown = sorted(set(receipt) - TOP_LEVEL - OPTIONAL_TOP_LEVEL)", "unknown = []", "an unknown receipt field is accepted"),
+    ("L2m", REVIEW, "missing = sorted(TOP_LEVEL - set(receipt))", "missing = []", "a missing receipt field is not named"),
+    ("L3", REVIEW, "if any(PLACEHOLDER in text for text in strings_in(receipt)):", "if False:", "a template placeholder is accepted"),
+    ("L4", REVIEW, 'if receipt.get("candidate") != pack_manifest["candidate"]:', "if False:", "a receipt for another candidate is accepted"),
+    ("L5", REVIEW, 'if not isinstance(binding, dict) or binding.get("manifest_sha256") != digest(pack / "PACK-MANIFEST.json"):',
+     "if not isinstance(binding, dict):", "the receipt need not bind the pack manifest"),
+    ("L6", REVIEW, 'isinstance(reviewer.get(k), str) and reviewer[k].strip() for k in ("identity", "independence_statement")',
+     'True for k in ("identity", "independence_statement")', "a receipt without reviewer identity is accepted"),
+    ("L7", REVIEW, "if not isinstance(artifacts, list) or not artifacts or not all(isinstance(item, str) and item for item in artifacts):",
+     "if False:", "a receipt without artifacts read is accepted"),
+    ("L8", REVIEW, "    if unnamed:\n", "    if False:\n", "a required artifact need not be named"),
+    ("L9", REVIEW, "if not isinstance(notes, list) or not all(isinstance(note, str) and note.strip() for note in notes):", "if False:",
+     "malformed cross-cutting notes are accepted"),
+    ("L10", REVIEW, "if not isinstance(claims, list) or not claims:", "if False:", "a receipt with no dispositions is accepted"),
+    ("L11", REVIEW, "if not isinstance(claim, dict) or set(claim) != CLAIM_FIELDS:", "if False:", "a disposition with other fields is accepted"),
+    ("L12", REVIEW, "if not isinstance(reference, str) or not reference or reference in seen:", "if False:",
+     "a repeated or empty reference is accepted"),
+    ("L13", REVIEW, 'if claim["disposition"] not in DISPOSITIONS:', "if False:", "an unknown disposition is accepted"),
+    ("L14", REVIEW, 'if not isinstance(claim["finding"], str):', "if False:", "a finding that is not text is accepted"),
+    ("L15", REVIEW, 'if claim["disposition"] != "accepted" and not claim["finding"].strip():', "if False:",
+     "a limit or finding without text is accepted"),
+    ("L16", REVIEW, "if reference not in sections:", "if False:", "a reference to a section the ledger lacks is accepted"),
+    ("L17", REVIEW, 'if not isinstance(claim["section_sha256"], str) or not SHA256.fullmatch(claim["section_sha256"]):', "if False:",
+     "a malformed section digest is accepted"),
+    ("L18", REVIEW, 'if claim["section_sha256"] != sections[reference]:', "if False:", "a disposition on other text than the pack's is accepted"),
+    ("L19", REVIEW, "    if uncovered:\n", "    if False:\n", "a section with no disposition is accepted"),
+    ("L20", REVIEW, "if require_no_findings and findings:", "if False:", "--require-no-findings does not refuse a finding"),
+    ("L21", REVIEW, 'if digest(path) != entries[0].get("sha256"):', "if False:", "the pack's CLAIMS.md is not held to its manifest digest"),
+    ("L22", REVIEW, "if len(entries) != 1 or not path.is_file():", "if False:", "a pack without CLAIMS.md is read as an empty ledger"),
+    ("L23", REVIEW, "        if title in sections:\n", "        if False:\n", "two sections with one title are accepted"),
+    ("L24", REVIEW, "    add(INTRODUCTION, text[: matches[0].start() if matches else len(text)])\n", "    pass\n",
+     "the ledger's introduction need not be dispositioned"),
+    ("L25", REVIEW, 'if pack_manifest.get("schema_version") != 1 or not isinstance(pack_manifest.get("candidate"), dict):', "if False:",
+     "the pack manifest schema is not checked"),
+    ("E1", REVIEWED, '"--pack", str(args.pack),\n            "--require-no-findings")', '"--pack", str(args.pack))',
+     "a reviewed candidate may carry a finding"),
+    ("E2", REVIEWED, '"--verify", str(args.pack), "--candidate-repo", str(ROOT))', '"--verify", str(args.pack))',
+     "the reviewed pack is not authenticated against git"),
+    ("E3", REVIEWED, 'if pack.get("candidate") != candidate:', "if False:", "the pack may name another candidate than the manifest"),
+    ("E4", REVIEWED, "if not packed_manifest.is_file() or hashlib.sha256(packed_manifest.read_bytes()).digest() != hashlib.sha256(args.manifest.read_bytes()).digest():",
+     "if False:", "the pack need not hold the reviewed manifest's bytes"),
+    ("E5", REVIEWED, 'run(sys.executable, str(ROOT / "tooling/build-assurance-manifest.py"), "--validate", str(args.manifest))', "pass",
+     "the manifest is not validated"),
+    ("S1", SECTIONS, "before[title] == section_digest", "True", "a changed section is reported unchanged"),
+    ("S2", SECTIONS, "gone = [title for title in before if title not in sections]", "gone = []", "a removed section is not reported"),
+    ("S3", SECTIONS, "if args.template.exists():", "if False:", "a template replaces an existing file"),
+    ("S4", SECTIONS, "if args.template and args.since:", "if False:", "--template is accepted with --since"),
+    ("S5", SECTIONS, "if receipt.get(\"schema_version\") != checker.SCHEMA_VERSION:", "if False:", "a schema 1 receipt serves as an earlier state"),
 ]
 
 
