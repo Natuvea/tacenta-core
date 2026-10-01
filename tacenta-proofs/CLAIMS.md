@@ -31,7 +31,11 @@ this section says in one place what is not proved.
   the lemmas are affected by a hypothesis or evidence record that is shown false or empty under stated conditions,
   sixteen of them vacuous as stated;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. What is proved, each
+  return as a whole, on every branch, against the model. One part of what they
+  do is proved of the translated code alone, with no contract record, no headroom and no model: what a
+  refused call leaves behind, and which fields a successful one writes (the
+  section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
+  below). What is proved, each
   under the named boundary hypotheses, lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
@@ -3145,6 +3149,80 @@ Among them are the figures `2^32 - 151` and `2^64 - 151` of `plaintext_bound_at_
 Not shown: that a store passes `PrekeyStore::invariant` or that the invariant bounds `last_resort_seen`; that a session with
 a pending initial message or an established ephemeral key passes `Session::invariant`; that any session here is one
 `establish_initiator` or `establish_responder` returns; that a send or a receive keeps the invariant.
+
+## Proved (what a refused lifecycle call leaves behind, on the translated code)
+
+Location: `Translation/UnitLifecycleAtomicity.lean`.
+
+Seven results about the Session unit's translation of `Session::decrypt_ratchet`, `Session::decrypt`,
+`Session::encrypt` and `establish_responder`. They take **no hypothesis about any opaque operation**: not a contract record,
+not a headroom record, not `OracleOf`, not the model. Each quantifies over every interpretation of the unit's opaque
+constants (the primitives, the random source, the key types, the standard-library calls), so none can be made empty by a
+hypothesis that nothing satisfies. Each is of one form: if the call returns normally as `ok (result, state', rng')`, and the
+result is a refusal (or a success), then `state'` is the state the call was given (or differs from it in the named
+fields). A call that fails or does not terminate has no such result; the lifecycle T1 theorems say, under their records, that
+the calls return.
+
+- `decrypt_ratchet_err_leaves_state`, `decrypt_err_leaves_state`: a refused call returns the session it was given, every
+  field. For `decrypt` that covers the initial-message dispatch, the repeat recognition and the inner receive; the one write
+  after the inner receive clears `pending_initial` and is on the success path.
+- `decrypt_ratchet_ok_writes`, `decrypt_ok_writes`: a successful call returns a session that differs from the given one in at
+  most the Triple Ratchet, the agreement and the ratchet private key, and for `decrypt` also the pending initial message,
+  which is cleared. The associated data, both identities and the established ephemeral are the ones given.
+- `encrypt_err_leaves_state`: a refused call returns the session it was given, or the error is `AgreementFailed` and the
+  only change is the agreement field, to a state that `Braid::failed` reports true of. That is the recorded exception, an
+  agreement send that reaches the terminal state and is committed so that every later call refuses (`triple-ratchet.md`).
+- `encrypt_ok_writes`: a successful call writes the Triple Ratchet and the agreement and nothing else. It never clears
+  `pending_initial`: an initiator keeps wrapping its messages until a decrypt succeeds.
+- `establish_responder_err_leaves_store`: a refused call returns the prekey store it was given, every field. The one-time
+  removals and the replay-record append come after the inner authenticated receive.
+
+What these do not say.
+
+- They relate nothing to `Model.Lifecycle`. The model has the same properties of itself (`decrypt_refusal_keeps_session`,
+  `establishResponder_refusal_keeps_store`, `encrypt_triple_refusal_keeps_state`); that the translated code refines the model,
+  on every branch, is the open T3 work (`GAP-REGISTER.md`, row `E2E-04`). They say which error a refusal carries only by
+  its being a refusal.
+- They say nothing about the random source: a refused call may have drawn from it, and `rng'` is unconstrained.
+- They say nothing about heap residue. The translation ignores `Drop` and `zeroize`, so what a discarded candidate state
+  leaves in memory is outside them.
+- They do not say what a successful `establish_responder` does to the prekey store beyond what the model and the tests say:
+  which entries are removed and in which order is not proved. The model removes a consumed one-time prekey with an
+  order-preserving filter and the code swaps the last entry into the slot (`GAP-REGISTER.md`, row `E2E-03`), so the model
+  cannot yet be the other side of such a theorem.
+- They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
+  count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
+- They do not show that a refusal is reached, and none shows that a success is. The terminal refusals are shown for every
+  session whose agreement reports failed: `encrypt_refuses_failed_agreement`, `decrypt_ratchet_refuses_failed_agreement` and
+  `decrypt_empty_message_refuses_failed_agreement` (`decrypt` on an empty message goes to `decrypt_ratchet`), and
+  `braid_failed_of_failed_state` shows that `Braid::failed` reports true of the closed value `State::Failed`. These are stated
+  of every such session and do not exhibit one: `lifecycle.Session` has fields of the opaque key types, no inhabitant of which is
+  derivable in Lean, so that a session value exists is not shown. No premise of the two `_ok_writes` theorems or of the
+  `establish_responder` theorem is shown to hold of any run. Whether the other arms are reached by honest sessions is shown by the
+  Rust tests that refuse a message and compare the exported session (`failed_decrypt_changes_nothing.rs`,
+  `a_failed_triple_send_does_not_commit_the_agreement`, `a_failed_initial_message_does_not_burn_prekeys`; `GAP-REGISTER.md`,
+  row `E2E-07`), not by a theorem. These four lemmas carry no axiom pin and are not on `REQUIRED_PINS`.
+
+None of the seven depends on a compiler-trust axiom. Each carries an axiom pin under `#guard_msgs`, and the statement of each is
+pinned under `#guard_msgs in #check` as well, so a weaker statement that keeps its axiom list fails the module while that pin
+stands. `attest.py` lists the seven in `REQUIRED_PINS`, which requires the axiom pin and not the statement pin; no gate requires
+a statement pin to exist, so a weaker statement whose statement pin is removed in the same commit is accepted once the manifests
+are regenerated. `check-attest-negatives.sh` deletes each axiom pin in turn. The axiom lists are long because the statements
+unfold the generated bodies; they are the unit's opaque constants that those bodies mention, not hypotheses.
+
+`tacenta-proofs/scripts/check-atomicity-negatives.py`, run from `no-sorry.sh`, holds the proofs against a changed body. They
+are one walk over each generated body, so a walk that could not tell a write before a refusal from none would prove the same
+statements of any body. The script extracts each of the four bodies from the generated file, requires the unmodified copy to be
+accepted by the module's proof, plants one change in a copy (the agreement committed before the AEAD check, the ratchet key
+committed on a Triple refusal, `pending_initial` cleared on a refusal or on a successful encrypt, the established ephemeral
+dropped on a refused repeat, the store changed on a refusal after the inner receive, among twelve) and requires the proof to
+fail with an unsolved goal that shows the planted field. Two of the twelve are in the recorded `encrypt` exception arm (a write
+to `pending_initial`, and a different error); the proof refuses those as an application type mismatch that shows the planted value. Each plant is at a place where the field can differ: two of the ten sit in the second of two
+textual matches, because the first is in the arm of a match on that field where the field is already empty. The controls do not
+test a refusal that rewinds the random source, a success of `decrypt_ratchet` or `decrypt` that writes the ratchet private key
+(those statements allow it), a success of `encrypt` that writes it (no distinct key is in scope to plant), or the exception arm
+taken without the committed state's `Braid::failed` being true. These are proof-dependency controls on copies of the generated Lean, not mutations of the Rust: a
+changed Rust source needs the pinned Linux toolchain to regenerate (`REPRODUCING.md`).
 
 ## Proved (bounded P6 session lifecycle observations)
 
