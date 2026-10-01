@@ -7,7 +7,12 @@ helper below is an explicit exception: it is specified first for the product's
 one-authority validation profile, without selecting a sender-key mechanism.
 
 A draft of signed group membership epochs is in group-epochs.md. It is not
-ratified, has had no human review, and does not select a sender-key mechanism.
+ratified and has had no human review. It does not select a cipher or a
+sender-key format, and it assumes that each accepted epoch starts a key epoch
+(its Open decision D-2), which the open question below on sender keys or
+pairwise fan-out does not assume. It lists several authorities and up to eight
+devices per account, a different profile from the one-authority,
+one-device-per-identity profile of the bounded fan-out helper below.
 
 The mechanism, in outline (tier `nominated`: this is the shape of sender keys
 that WhatsApp's white paper describes, listed under Published material): each
@@ -71,12 +76,13 @@ different part of the problem.
 | Signal, "Technology Preview: Signal Private Group System" (blog post, 9 December 2019); Chase, Perrin and Zaverucha, "The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption" (IACR ePrint 2019/1416; ACM CCS 2020) | Group state and membership, stored by the server encrypted. Members authenticate with keyed-verification anonymous credentials, so the server enforces access control without learning who is in a group. | Encrypting messages to the group. |
 | WhatsApp, "WhatsApp Encryption Overview" (technical white paper, edition of 4 April 2016) | One deployment's description of sender keys, which it calls a component of the Signal Protocol: a chain key ratcheted per message, a signature key, the sender key sent to the other members over the pairwise sessions, one ciphertext that the server fans out, and a reset when a member leaves. | A specification. It is a descriptive overview of another vendor's system, which Tacenta does not target, and it gives steps, not formats or derivations. |
 
-RFC 9420 (Messaging Layer Security, IETF, July 2023) is a published group key
-agreement protocol that also organizes group state into numbered epochs and
-handles member changes. It is not one of the sources in the table above. This
-project's design has not been compared with it, and a comparison is required
-before the key engine is fixed. group-epochs.md, Related published work, says
-the same of its signed membership epochs.
+RFC 9420, The Messaging Layer Security (MLS) Protocol (IETF, July 2023), is
+named here because it is published work on group messaging. It is not one of the
+sources in the table above, and this page states nothing about what it covers or
+how it relates to this outline. This project's design has not been compared with
+it, and a comparison is required before the key engine is fixed.
+group-epochs.md, Related published work, says the same of its signed membership
+epochs.
 
 ## Provenance rules for this page
 

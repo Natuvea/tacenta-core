@@ -92,38 +92,51 @@ is SemVer against the specified protocol (not the implementation).
 - `protocol/group-epochs.md`: new draft page, not ratified, for signed
   hash-chained group membership epochs. It proposes the canonical epoch body,
   its commitment and writer signature, genesis and successor acceptance as an
-  ordered list of checks with a first-failure rule, batched operations that take
-  effect atomically, an owner, admin and member policy read against the
-  predecessor only, a conflict rule for concurrent proposals, and the
-  obligations an epoch places on a key engine. The conflict rule refuses a
-  sibling whose writer the head removed and freezes a verifier that sees any
-  other valid sibling. Nothing on the page clears the freeze, and the page says
-  plainly that it gives no way out of a frozen state. Only an owner of the
-  predecessor can cause the `unsupported` result for a successor. A device that
-  joins after genesis starts from a checkpoint, which may be the genesis epoch
-  itself, that an authenticated invitation carries, on seven ordered checks and
-  a stated trust assumption: the joiner trusts its inviter for the checkpoint
-  and cannot verify the chain before it. Identity keys of member devices are
-  compared as bytes, which is safe because the verifier applies the identity-key
-  rule of `identities-and-devices.md` to the key of each new device (at the
-  evidence check and at a checkpoint) and to a writer's key at the signature
-  check. The page states a scoped early removal invariant, as a target that is
-  not shown, with its adversary, assumptions and limits, and says that it
-  concerns membership acceptance and recipient sets and not the derivation of
-  later key material. It names RFC 9420 (MLS) as related published work, says
-  that the page has not been compared with it, that it quotes no text of it and
-  that this repository does not record what the drafter had read of it, and says
-  a comparison is required before the key engine is fixed. It lists thirteen
-  open decisions. Six carry a recommended default marked as adopted on the
-  maintainer's word (go of 2026-09-29 or instruction of 2026-09-30), and the
-  default of a seventh, D-12, replaces an option that the plan of 2026-09-29
-  adopted; none has been reviewed otherwise. The page has had no human review,
-  and the reviews it has had were run by automated reviewers and are not
-  independent of the maintainer. It is not a conformance target until a reviewed
-  change ratifies it, and no model, vector or proof states it. The domain and
-  label constants and the bounds it proposes are not yet in `CONSTANTS.md` or
-  `tacenta-core/LABELS.md`, and its refusal kinds are in neither, since
-  `CONSTANTS.md` has no rows for refusal kinds.
+  ordered list of checks with a first-failure rule and a table of its five
+  results and 27 refusal kinds, batched operations that take effect atomically,
+  an owner, admin and member policy read against the predecessor only, an
+  optional policy verdict that can only refuse, key epochs, a conflict rule for
+  concurrent proposals, and the obligations an epoch places on a key engine and
+  on a product. The conflict rule refuses a sibling whose writer the head
+  removed and freezes a verifier that sees any other valid sibling. Nothing on
+  the page clears the freeze. The page states that it gives no way out of a
+  frozen state; that the window for a freeze is the staleness of any authority
+  device and not only a simultaneous race; that an authority can keep chosen
+  verifiers from ever accepting its own removal; that catching up an offline
+  device can stall under the default freshness rule; and that a frozen verifier
+  and a split group give no signal to a user. For a successor, only an owner of
+  the predecessor can cause the `unsupported` result. A device that joins after
+  genesis starts from a checkpoint, which may be the genesis epoch itself, that
+  an authenticated invitation carries, on seven ordered checks and a stated
+  trust assumption: the joiner trusts its inviter for the checkpoint and cannot
+  verify the chain before it. Identity keys of member devices are compared as
+  bytes, which relies on the verifier applying the identity-key rule of
+  `identities-and-devices.md` to the key of each new device (at the evidence
+  check and at a checkpoint) and to a writer's key at the signature check. The
+  page states a removal invariant, as a target that is not shown, with its
+  adversary, assumptions and limits; it concerns recipient sets and retired key
+  material and restates obligations on the key engine and the product, and it is
+  not about the derivation of later key material. It names RFC 9420 (MLS) as
+  related published work, says that the page has not been compared with it, that
+  it quotes no text of it and that this repository does not record what the
+  drafter had read of it, and says a comparison is required before the key
+  engine is fixed. It lists thirteen open decisions. Six carry a recommended
+  default marked as adopted on the maintainer's word (go of 2026-09-29 or
+  instruction of 2026-09-30), and the default of a seventh, D-12, replaces an
+  option that the plan of 2026-09-29 adopted; none has been reviewed otherwise.
+  The page has had no human review, and the reviews it has had were run by
+  automated reviewers and are not independent of the maintainer. It is not a
+  conformance target until a reviewed change ratifies it, and no model, vector
+  or proof states it. The domain and label constants and the bounds it proposes
+  are not yet in `CONSTANTS.md` or `tacenta-core/LABELS.md`, and its refusal
+  kinds are in neither, since `CONSTANTS.md` has no rows for refusal kinds. The
+  same pull request adds a paragraph to `protocol/group-messaging.md` that
+  points to the page and says it has had no human review, a paragraph there that
+  names RFC 9420 as published work that the project's design has not been
+  compared with, a sentence to `README.md` that the page is a draft with no
+  human review, and a sentence to `threat-model/exclusions.md` (EX-04) that the
+  page is a draft with no human review and that the exclusion stands until a
+  reviewed change ratifies it. These add no requirement and change no rule.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519

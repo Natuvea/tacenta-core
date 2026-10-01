@@ -46,25 +46,27 @@ changes. Those comments record tool-assisted reads and say that no reviewer
 independent of the maintainer has read the change; the comment on #200 adds that
 the maintainer has not read its specification text end to end, and the comment
 on #205 does not say whether a person read it (ASSURANCE.md, row 7). This page
-relies on text that no independent reader has read. The drafter read this page
-against their merged text; that reading is not a review. "Accepting a signed
-statement" has seven checks, in this order: account, issuer binding, signature,
-freshness, device id, identity key, policy. Four rules in these sections matter
-here. The identity-key check admits one spelling of an identity key, which is
-what makes the byte comparison of Open decision D-10 safe. "Identity keys" lists
-where a party applies that rule and says a decoder does not apply it, which
-bears on Decoding and on Signature. The freshness check must have no effect of
-its own, and a generation is recorded as seen only after the statement is
-accepted, in one atomic step that evaluates the rule again, which bears on the
-inputs to "Accepting a successor". And a verifier must not refuse a statement
-solely because a replacement's marker names no listed binding, which bears on
-the non-claim about a replacement's chain of custody. This page cites these
-sections by their names and by the names of their checks, never by their
-numbers, so a change to the order there would need those four places read again.
-The "Adopted" marks under Open decisions are drafting records, and they go with
-this note, as do the statements in the text that give a decision's adoption (in
-Joining from a checkpoint, The checkpoint, Aliasing and Inventory under What is
-not checked, and the introduction to Open decisions).
+relies on text that no independent reader has read. The drafter (the party that
+prepared this page's text for the maintainer; README.md, Development assistance,
+and ADR-0008, Context, say how changes are prepared) read this page against
+their merged text; that reading is not a review. "Accepting a signed statement"
+has seven checks, in this order: account, issuer binding, signature, freshness,
+device id, identity key, policy. Four rules in these sections matter here. The
+identity-key check admits one spelling of an identity key, which the byte
+comparison of Open decision D-10 relies on. "Identity keys" lists where a party
+applies that rule and says a decoder does not apply it, which bears on Decoding
+and on Signature. The freshness check must have no effect of its own, and a
+generation is recorded as seen only after the statement is accepted, in one
+atomic step that evaluates the rule again, which bears on the inputs to
+"Accepting a successor". And a verifier must not refuse a statement solely
+because a replacement's marker names no listed binding, which bears on the
+non-claim about a replacement's chain of custody. This page cites these sections
+by their names and by the names of their checks, never by their numbers, so a
+change to the order there would need those four places read again. The "Adopted"
+marks under Open decisions are drafting records, and they go with this note, as
+do the statements in the text that give a decision's adoption (in Joining from a
+checkpoint, The checkpoint, Aliasing and Inventory under What is not checked,
+and the introduction to Open decisions).
 
 ## Scope
 
@@ -86,8 +88,9 @@ This page specifies:
 - the key epoch of an epoch, and what a client must take from accepted state
   before it distributes or uses group key material (Key epochs; Obligations on
   the key engine);
-- one scoped property, the early removal invariant, stated as a target and not
-  shown, with its adversary, its assumptions and its limits.
+- one scoped property, the removal invariant, stated as a target and not shown,
+  about recipient sets and retired key material and not about how key material
+  is derived, with its adversary, its assumptions and its limits.
 
 It does not specify a group cipher, a sender-key format, how key material is
 derived or carried to a device (it states only which devices may be sent it:
@@ -124,13 +127,17 @@ first.
 ## Terms
 
 - **Account.** An account handle as an inventory statement names it: non-empty
-  UTF-8, at most `MAX_ACCOUNT_BYTES` (256) bytes, compared byte for byte. UTF-8
-  is as RFC 3629 defines it (Sources), so a surrogate code point or an overlong
-  form is not UTF-8. This page defines no normalisation, so two spellings are
-  two accounts.
+  UTF-8, at most `MAX_ACCOUNT_BYTES` (256) bytes (identities-and-devices.md,
+  Hosted device-inventory statements), compared byte for byte. UTF-8 is as RFC
+  3629 defines it (Sources), so a surrogate code point or an overlong form is
+  not UTF-8. This page defines no normalisation, so two spellings are two
+  accounts.
 - **Principal.** An account an epoch lists, with one role.
 - **Device binding.** `DeviceBinding` (identities-and-devices.md, Hosted
-  device-inventory statements), compared as its whole canonical encoding.
+  device-inventory statements), compared as its whole canonical encoding. The
+  page also uses "binding" for the key binding of an epoch (Key epochs) and for
+  the caller's issuer-key binding (Accepting a successor, Inputs), and says
+  which where it matters.
 - **Member.** The role with value 3 in policy version 1. The page says "member
   device" for a device that an epoch lists, and uses "members of the group" in
   ordinary prose for the participants of a group; neither is the role.
@@ -177,7 +184,8 @@ first.
   candidate need not list it.
 - **Marker.** The state `conflict`, which a verifier sets when it sees a valid
   sibling of its head. While it is set the verifier accepts nothing (Conflict).
-  A verifier whose marker is set is a frozen verifier.
+  A verifier whose marker is set is a frozen verifier. The page also calls the
+  result that sets the marker `conflict`, and the field of accepted state.
 - **Authority set.** The member devices of an epoch whose `update_authority` is
   1, each as a pair of its principal's account and its binding. A successor's
   writer must be in the predecessor's authority set and, for a sibling of the
@@ -442,6 +450,11 @@ the length test, while the order above places the bytes after the body at step
 and a tail that is not 64 bytes, the first bullet gives `malformed` and the
 order gives `wrong-version`. The page does not say which; this point is open.
 
+Two conditions in the list restate others: the limit on the total number of
+member devices is implied by the two counts before it, and the capability word
+is already required by the inventory profile (identities-and-devices.md,
+DeviceBinding).
+
 A body has a single canonical encoding. Two candidates with equal bodies have
 equal commitments whatever their signatures are.
 
@@ -564,9 +577,8 @@ principal has exactly one. Exactly one principal is the owner. A device has
 `update_authority` 1 exactly when its principal is an owner or an admin. This
 is the authority mapping of version 1.
 
-Let `w` be the writer's principal in `P` and `role_P(w)` its role there. The
-rules use roles in `P` only. A role, an authority flag or an operation in the
-candidate never authorises the candidate itself. The rules of `P`'s
+The rules use roles in `P` only. A role, an authority flag or an operation in
+the candidate never authorises the candidate itself. The rules of `P`'s
 `policy_version` govern successor check 11. Only version 1 exists on this page,
 and a candidate changes the version in force only by `set_policy`, which an
 owner writes. A lesser role therefore cannot reach `unsupported`: its
@@ -606,11 +618,12 @@ Further rules:
 ## Genesis
 
 Genesis is the epoch with `epoch_number` 0 and `predecessor_tag` 0. It has no
-predecessor and so no prior authority. Its legitimacy is a bootstrap anchor
-that the caller fixes separately, and does not come from a signature over
-itself (Open decision D-1). A verifier that holds no anchor for the group
-refuses every genesis candidate as `anchor-mismatch`. A genesis candidate is
-judged in this order, and refused on the first check that fails:
+predecessor and so no prior authority. Its legitimacy is a bootstrap anchor that
+the caller fixes separately, and does not come from a signature over itself
+(Open decision D-1). A verifier that holds no anchor for the group refuses every
+genesis candidate that decodes and passes the position check as
+`anchor-mismatch`. A genesis candidate is judged in this order, and the verifier
+stops at the first check that does not pass and returns its result:
 
 1. **Decode.** As Decoding above.
 2. **Position.** If the verifier has a head: the candidate's `group_id` equals
@@ -623,8 +636,10 @@ judged in this order, and refused on the first check that fails:
    `unsupported`. The anchor has already fixed the candidate, so this result
    cannot be caused by an unauthenticated one.
 5. **Shape.** The checks of "Accepting a successor", check 8, in that order.
-   Then, in addition, genesis lists exactly one principal, whose role is
-   owner, else `invalid-roles` (Open decision D-8).
+   Then, in addition, genesis lists exactly one principal, whose role is owner,
+   else `invalid-roles` (Open decision D-8). With one principal, successor check
+   8 already requires that its role be owner, so what this rule adds is the
+   count of principals.
 6. **Writer.** `writer_account` and `writer_binding` name a device listed in
    the candidate itself whose `update_authority` is 1, else
    `writer-not-authorised`. This is the only check that uses a candidate's own
@@ -746,7 +761,7 @@ absent and `index[0]` its commitment. The difference is that the creator's
 devices carry evidence that the joiner never saw (What a joiner cannot verify).
 A genesis epoch offered as a candidate, and not as a checkpoint, is judged under
 Genesis. The checks run in this order, and the verifier stops at the first that
-fails:
+does not pass and returns its result:
 
 1. **Decode.** As Decoding above: `malformed`, `wrong-version` or
    `non-canonical`.
@@ -756,9 +771,9 @@ fails:
    is not held is never equal to a commitment: The accepted state), and is
    otherwise `refused(already-started)`. A verifier that holds accepted state
    does not replace it with a checkpoint.
-3. **Anchor.** The epoch's commitment equals the anchor the caller supplies, else
-   `anchor-mismatch`. A verifier that is given no anchor refuses every checkpoint
-   as `anchor-mismatch`.
+3. **Anchor.** The epoch's commitment equals the anchor the caller supplies,
+   else `anchor-mismatch`. A verifier that is given no anchor refuses every
+   checkpoint that decodes and passes the position check as `anchor-mismatch`.
 4. **Profile.** `policy_version` is one the verifier supports, else
    `unsupported`. The anchor has already fixed the epoch, so an unauthenticated
    candidate cannot cause this result.
@@ -1086,19 +1101,20 @@ items before the next condition.
    also be in the head's authority set, else `refused(writer-not-authorised)`
    (Conflict; Open decision D-12).
 6. **Signature.** As Signature above, else `refused(bad-signature)`.
-7. **Profile.** Let `v` be the candidate's `policy_version`. The check passes
-   if the verifier supports `v`. Otherwise the result is `unsupported` when all
+7. **Profile.** Let `v` be the candidate's `policy_version`. The check passes if
+   the verifier supports `v`. Otherwise the result is `unsupported` when all
    three hold: the list has exactly one `set_policy`; that operation names `v`
    and the candidate's `policy_commitment`; and the principal of `P` whose
    account is `writer_account` has role 1. When they do not all hold, the check
    passes without judging `v`, and the candidate goes on to be refused. `P`'s
    version is supported (it was accepted under this check, or under check 4 of
    Genesis or of Joining from a checkpoint), so an unsupported `v` reaches a
-   header only through a `set_policy`. A header that is not what `apply` gives is
-   refused at check 9, and a `set_policy` written by a principal that is not an
-   owner is refused at check 11. So no candidate that names an unsupported
-   version is accepted, and an admin cannot force `unsupported` with any header
-   or operation list.
+   header only through a `set_policy`. A header that is not what `apply` gives
+   is refused at check 9, and a `set_policy` written by a principal that is not
+   an owner is refused at check 11. It follows from these checks, as this page
+   reads them, that no candidate that names an unsupported version is accepted
+   and that an admin cannot force `unsupported` with any header or operation
+   list. No model or test states this.
 8. **Shape.** Of the candidate's own principals: exactly one has role 1, else
    `refused(invalid-roles)`; every device's `update_authority` equals 1 when its
    principal's role is 1 or 2 and 0 otherwise, else
@@ -1130,7 +1146,9 @@ items before the next condition.
      candidate must carry the byte step 6 gives. Any other difference between a
      retained entry in the candidate and in `P` (its binding, its
      `inventory_generation`, its `inventory_commitment`, or an
-     `update_authority` that step 6 does not give) is a mismatch.
+     `update_authority` that step 6 does not give) is a mismatch. A stale
+     `update_authority` on its own is `authority-mismatch` at successor check 8,
+     which runs first.
 10. **Key epoch.** `key_epoch` equals `P`'s `key_epoch` plus 1, else
     `refused(key-epoch)` (Open decision D-2). A `P` whose `key_epoch` is
     2^64 - 1 has no successor, so every candidate for it is refused here.
@@ -1323,7 +1341,7 @@ which includes a removed device: a key engine could derive every later key from
 an earlier one and meet all four. That independence is what makes a removal mean
 anything against a device that keeps its keys. It is the key engine's
 obligation. This page does not list it among the four obligations above and does
-not establish it (The early removal invariant, What it does not claim).
+not establish it (The removal invariant, What it does not claim).
 
 ### Obligations at the product boundary
 
@@ -1511,12 +1529,13 @@ following.
 - **Identity.** That an identity key belongs to the person an administrator
   means (ASM-14; EX-09), or that two account handles denote different accounts.
 - **Aliasing.** Removal is per exact binding. Keys are compared as bytes (Open
-  decision D-10, option A adopted), which is safe because the verifier applies
-  the identity-key rule to the key of every device that enters accepted state,
-  and the rule admits one spelling of a key (The accepted state, Identity keys
-  in accepted state). So two member devices of one epoch cannot hold one key
-  under two spellings. A later epoch can still admit a removed key again under
-  another binding, and that is another member device (Open decision D-13).
+  decision D-10, option A adopted). That relies on the verifier applying the
+  identity-key rule to the key of every device that enters accepted state, and
+  on the rule admitting one spelling of a key (The accepted state, Identity keys
+  in accepted state). On that premise two member devices of one epoch cannot
+  hold one key under two spellings. A later epoch can still admit a removed key
+  again under another binding, and that is another member device (Open decision
+  D-13).
 - **Inventory.** That an inventory statement is current or complete, or that its
   issuer is honest. A compromised issuer can list a device for an account. It
   cannot admit that device: only an epoch written by an authorised writer does.
@@ -1624,7 +1643,7 @@ following.
   bytes). A verifier keeps `head` and `prior`, each up to the ceiling, and a
   32-byte index entry for every accepted epoch.
 
-## The early removal invariant (a target, not shown)
+## The removal invariant (a target, not shown)
 
 This section states one property so that a model and a proof can be written
 against it. It is a statement of what is to be shown. It is not shown: there is
@@ -1723,7 +1742,6 @@ scope).
    the group's members accepted, and its inviter was right about it (Joining
    from a checkpoint, Trust assumption). The invariant is stated from the
    checkpoint on.
-
 8. Nothing above is an assumption about how key material is derived. Whether a
    removed device can compute the material of a later epoch from what it held
    is not among the obligations stated on this page and is not covered by RM-1
@@ -1814,8 +1832,9 @@ version 1 as written here, and a product verdict is not part of acceptance; (B)
 only a product verdict decides, and the verifier checks that it names the right
 predecessor and candidate; (C) the verifier evaluates policy version 1, and a
 product verdict can only narrow. Options A and C put a role matrix in the
-verifier, which one reading of the contract between the verifier and a product
-would leave to the product. Default: C. Adopted: C (go of 2026-09-29).
+verifier, which one reading of the split between the verifier and the product
+(Layers; Scope) would leave to the product. Default: C. Adopted: C (go of
+2026-09-29).
 
 **D-4: what `policy_commitment` commits to.** Options: (A) nothing in version 1,
 so the field is a fixed constant; (B) an opaque 32-byte value a product defines,
@@ -1867,50 +1886,48 @@ Adopted: B (go of 2026-09-29). B is narrower than A.
 
 **D-10: aliasing of identity keys among member devices.** Options: (A) two
 member devices may not share the same 32 identity-key bytes; (B) they may not
-share an X25519 agreement class (session-establishment.md), which also refuses
-a respelling of one key. The identity-key check of "Accepting a signed
-statement" admits one spelling of a key (a canonical encoding of a point of the
-prime-order subgroup), and the verifier applies that rule to the key of every
-device that enters accepted state (The accepted state, Identity keys in accepted
-state). So no member device holds a respelling of another's key, and option A
-suffices; option B would add a comparison of agreement classes to a rule that
-already leaves one spelling of each key. Default: A. Adopted: A (instruction of
-2026-09-30). Keys are compared as bytes (check 8). The rule that makes a byte
-comparison safe is merged text and not a pending one: "Accepting a signed
+share an X25519 agreement class (session-establishment.md), which also refuses a
+respelling of one key. The identity-key check of "Accepting a signed statement"
+admits one spelling of a key (a canonical encoding of a point of the prime-order
+subgroup), and the verifier applies that rule to the key of every device that
+enters accepted state (The accepted state, Identity keys in accepted state). So
+no member device holds a respelling of another's key, and option A suffices;
+option B would add a comparison of agreement classes to a rule that already
+leaves one spelling of each key. Default: A. Adopted: A (instruction of
+2026-09-30). Keys are compared as bytes (check 8). The rule that the byte
+comparison relies on is merged text and not a pending one: "Accepting a signed
 statement" admits exactly one spelling of an identity key, and "Identity keys"
 says where a party applies it. session-establishment.md makes the same argument
 for a session: it compares the peer's identity key by bytes, because an identity
-key has one canonical spelling. That the verifier applies the rule itself at
-check 13, and does not rely on the caller's acceptance procedure for it, is a
-drafting choice made after the adoption and is not part of what was adopted. Its
-cost is one subgroup test per new device, and a candidate whose new device key
-fails the rule is `invalid-identity-key` where the procedure alone would give
-`evidence-refused`.
+key has one canonical spelling. Not part of the adoption: that the verifier
+applies the rule itself at check 13 and does not rely on the caller's acceptance
+procedure for it. Its cost is one subgroup test per new device, and a candidate
+whose new device key fails the rule is `invalid-identity-key` where the
+procedure alone would give `evidence-refused`.
 
 **D-11: joining or resuming from an epoch after genesis.** This page defines
 acceptance only against an accepted predecessor. A device that joins at epoch
 `n` needs an anchor for epoch `n`. Options: (A) it verifies the whole chain from
 genesis; (B) it accepts a checkpoint that an authorised writer of epoch `n`
 signed, trusting that writer's identity key as ASM-14 describes; (C) it accepts
-a checkpoint carried in an authenticated invitation. Recommended default: C.
-Adopted: C (instruction of 2026-09-30), as a stated trust assumption: the joiner
-trusts its inviter for the checkpoint (Joining from a checkpoint, Trust
-assumption). Not chosen: A's cost grows with the whole history of the group,
-since a joiner would fetch and verify every epoch since genesis, with the
-evidence each needs, and the chain grows with every change to the group. B is
-not a trust root: a checkpoint signed by a writer of epoch `n` is judged against
-nothing the joiner holds, and an attacker can sign a self-consistent epoch that
-lists itself. C trusts the inviter, which a joiner does anyway, and the page
-says so. The adoption fixes the choice and not the text. The section is new and
-has had no human review, and these parts of it are drafting choices made under
-C, not part of what was adopted: the checkpoint's two parts (a pinned commitment
-and the epoch), its seven checks, the identity-key check on its devices, the
-refusals `already-started` and `invalid-identity-key`, the rule that a verifier
-that holds state refuses a checkpoint, so that a device that resumes from one
-starts a new verifier, and the acceptance of a genesis epoch as a checkpoint
-under the same checks plus the two rules of Genesis that need no evidence. The
-choice does not settle the invitation, whose form and authentication are the
-product's.
+a checkpoint carried in an authenticated invitation. Default: C. Adopted: C
+(instruction of 2026-09-30), as a stated trust assumption: the joiner trusts its
+inviter for the checkpoint (Joining from a checkpoint, Trust assumption). Not
+chosen: A's cost grows with the whole history of the group, since a joiner would
+fetch and verify every epoch since genesis, with the evidence each needs, and
+the chain grows with every change to the group. B is not a trust root: a
+checkpoint signed by a writer of epoch `n` is judged against nothing the joiner
+holds, and an attacker can sign a self-consistent epoch that lists itself. C
+trusts the inviter, which a joiner does anyway, and the page says so. The
+adoption fixes the choice and not the text. The section is new and has had no
+human review, and these parts of it are drafting choices made under C, not part
+of what was adopted: the checkpoint's two parts (a pinned commitment and the
+epoch), its seven checks, the identity-key check on its devices, the refusals
+`already-started` and `invalid-identity-key`, the rule that a verifier that
+holds state refuses a checkpoint, so that a device that resumes from one starts
+a new verifier, and the acceptance of a genesis epoch as a checkpoint under the
+same checks plus the two rules of Genesis that need no evidence. The choice does
+not settle the invitation, whose form and authentication are the product's.
 
 **D-12: handling a conflict.** Options: (A) any valid sibling of the head is a
 conflict, and a conflict stops acceptance, proposing and distribution until an
