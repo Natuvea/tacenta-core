@@ -524,7 +524,7 @@ for f in UnitT1.lean UnitSpqrT1.lean UnitT3.lean UnitSpqrT3.lean; do
       echo "  tacenta-proofs/scripts/port-unit-proofs.sh and rebuild." >&2
     fi
     fail=1
-    diff -u "$src/$f" "$tmp/$f" | head -40 >&2
+    diff -u "$src/$f" "$tmp/$f" | head -40 >&2 || true
   fi
 done
 if [ "$fail" -ne 0 ]; then

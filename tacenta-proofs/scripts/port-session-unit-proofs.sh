@@ -229,7 +229,7 @@ fail=0
 for file in "${files[@]}"; do
   if ! diff -u "$src/$file" "$tmp/$file" >/dev/null; then
     fail=1
-    diff -u "$src/$file" "$tmp/$file" | head -40 >&2
+    diff -u "$src/$file" "$tmp/$file" | head -40 >&2 || true
   fi
 done
 if [ "$fail" -ne 0 ]; then
