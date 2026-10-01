@@ -57,21 +57,28 @@ This page specifies:
 
 - what a group epoch is, and the state a client keeps once it has accepted one;
 - the canonical encoding of an epoch, with its bounds and refusals;
-- genesis, and the checks for a successor, in a fixed order;
+- genesis, and the checks for a successor, in a fixed order, with the results
+  they return and the effect of each on the accepted state;
 - how a device that joins after genesis starts: a checkpoint that an
   authenticated invitation carries, the checks a joiner applies to it, and the
   trust it rests on (Joining from a checkpoint);
 - the operations an epoch carries, and how a batch of them takes effect;
 - policy version 1, an owner, admin and member baseline;
-- what a client must take from accepted state before it distributes or uses
-  group key material (Obligations on the key engine);
+- an optional policy verdict that a product supplies and that can only refuse
+  (Policy verdict);
+- the marker that a verifier sets when it sees a valid sibling of its head, and
+  that nothing on the page clears (Conflict);
+- the key epoch of an epoch, and what a client must take from accepted state
+  before it distributes or uses group key material (Key epochs; Obligations on
+  the key engine);
 - one scoped property, the early removal invariant, stated as a target and not
   shown, with its adversary, its assumptions and its limits.
 
 It does not specify a group cipher, a sender-key format, how key material is
-derived or distributed, the ordering or storage service that carries epochs,
-invitations (their form, and how they are authenticated), recovery from a lost
-or compromised authority, from a frozen verifier or from a fork, or a
+derived or carried to a device (it states only which devices may be sent it:
+Obligations on the key engine, 2), the ordering or storage service that carries
+epochs, invitations (their form, and how they are authenticated), recovery from
+a lost or compromised authority, from a frozen verifier or from a fork, or a
 product's roles and user interface. Where a rule below needs one of these, it
 names the boundary and says what it takes from the far side.
 
@@ -107,6 +114,9 @@ first.
 - **Principal.** An account an epoch lists, with one role.
 - **Device binding.** `DeviceBinding` (identities-and-devices.md, Hosted
   device-inventory statements), compared as its whole canonical encoding.
+- **Member.** The role with value 3 in policy version 1. The page says "member
+  device" for a device that an epoch lists, and uses "members of the group" in
+  ordinary prose for the participants of a group; neither is the role.
 - **Member device.** A device binding an accepted epoch lists under a
   principal. Only member devices are recipients of an epoch's key material.
 - **Epoch.** The unsigned body defined below and the writer's signature over it.
@@ -119,9 +129,20 @@ first.
   specify it. Where it says a verifier's coordinator, it means the coordinator
   of the product that runs that verifier, and Obligations at the product
   boundary (3) says what it must not do.
+- **Product, caller.** The product is the application that runs a verifier, with
+  the services it uses (Layers); its coordinator is the part that proposes and
+  distributes epochs. The caller is the code of the product that offers an epoch
+  to a verifier and supplies the inputs named under Accepting a successor,
+  Inputs.
 - **Head, prior.** The latest accepted epoch, and the accepted epoch before it.
   A verifier that started from a checkpoint has no prior until it accepts a
   successor of it.
+- **Successor.** A candidate whose `predecessor_commitment` is the commitment of
+  the head, so that its epoch number is the head's plus 1 (Accepting a
+  successor, check 2).
+- **Sibling.** A candidate that has the head's epoch number and the head's
+  predecessor, and a commitment other than the head's. It is judged against
+  `prior` and not against the head (Accepting a successor, check 2).
 - **Checkpoint.** A signed epoch, with its commitment, that an authenticated
   invitation gives to a device that has no accepted state for the group. The
   device takes it as its first head (Joining from a checkpoint). It may be the
@@ -130,19 +151,31 @@ first.
   Inputs).
 - **Joiner, inviter.** The device that starts from a checkpoint, and the party
   whose authenticated invitation carried it.
+- **Anchor.** The commitment that the caller supplies for a genesis epoch or a
+  checkpoint. The epoch's own commitment must equal it (genesis check 3,
+  checkpoint check 3). It does not come from a signature over the epoch (Open
+  decision D-1).
 - **Writer.** The device a candidate names as its signer, by `writer_account`
-  and `writer_binding`. Check 5 reads it in the predecessor. The candidate need
-  not list it.
+  and `writer_binding`. Successor check 5 reads it in the predecessor. The
+  candidate need not list it.
 - **Marker.** The state `conflict`, which a verifier sets when it sees a valid
   sibling of its head. While it is set the verifier accepts nothing (Conflict).
+  A verifier whose marker is set is a frozen verifier.
 - **Authority set.** The member devices of an epoch whose `update_authority` is
   1, each as a pair of its principal's account and its binding. A successor's
   writer must be in the predecessor's authority set and, for a sibling of the
-  head, in the head's as well.
+  head, in the head's as well. An authority device is a member device whose
+  `update_authority` is 1.
 - **Evidence.** Signed inventory statements supplied to acceptance beside a
   candidate. Evidence is not part of the epoch and is not signed by its writer.
 - **Key epoch.** The number `key_epoch` in an epoch's body. It names the
   generation of group key material that belongs to the epoch.
+- **Check numbers.** The page has three ordered lists of checks: Genesis (eight
+  checks), Joining from a checkpoint (seven) and Accepting a successor
+  (thirteen). Outside its own list a check is cited with the list: "successor
+  check 8", "genesis check 5", "checkpoint check 7". In Accepting a successor,
+  Conflict, Key epochs, What is not checked, the section on the removal
+  invariant and Open decisions, a bare "check N" is a successor check.
 
 ## Encoding conventions
 
@@ -188,9 +221,13 @@ sizes no epoch is longer than 2,167,845 bytes: 619,557 for everything but the
 operations (the 549 fixed bytes of the header, the writer and the signature, 512
 principals with 256-byte accounts, and 4096 devices with 77-byte bindings), and
 1,548,288 for 4096 operations of the longest kind. That is an upper bound and
-not a typical size; Open decision D-7 asks for a measurement. The three labels
-are prefix-free against each other and against the two group commitment labels
-in group-messaging.md.
+not a typical size; Open decision D-7 asks for a measurement. None of the three
+labels is a prefix of `EPOCH_DOMAIN`, of another of the three, or of a row of
+tacenta-core/LABELS.md (the two group commitment labels of group-messaging.md
+are among those rows), and none of them has any of those strings as a prefix.
+That was checked by comparing the strings, and no tool checks it. `EPOCH_DOMAIN`
+is the first part of an epoch body and is never signed or hashed by itself, so
+it has no terminator byte.
 
 ## The accepted state
 
@@ -232,9 +269,9 @@ is not held below the checkpoint a verifier started from, and above its head.
 Every rule that compares a commitment with an `index` entry reads it that way.
 
 Accepting an epoch is one durable step that replaces `head`, `prior` and the
-`index` entry together and retires the previous head's key material
-(Obligations on the key engine). It happens only while `conflict` is absent
-(check 3). A refusal changes none of the four.
+`index` entry together and retires the previous head's key material (Obligations
+on the key engine). It happens only while `conflict` is absent (successor check
+3). A refusal changes none of the four.
 
 ### Identity keys in accepted state
 
@@ -245,22 +282,24 @@ state, and each way a key can enter has one place where it does:
 
 | How the key enters | Where the rule is applied | Who applies it |
 |---|---|---|
-| A new device, at genesis (Genesis, check 8) or in a successor (check 13) | Check 13, to the `identity_public_key` of each new device. The caller's inventory acceptance procedure applies the identity-key check of "Accepting a signed statement" to every key in the statement as well | The verifier; and the procedure, again |
-| A device listed by a checkpoint | Joining from a checkpoint, check 7, to every key the epoch lists | The verifier |
-| The key of a checkpoint's writer that the checkpoint does not list | Verifying a signature, when check 6 verifies the signature | The verifier |
-| A device that a later epoch retains | Not applied again: the entry is kept byte for byte (check 9), so the key is one that passed | Nobody |
+| A new device, at genesis (genesis check 8) or in a successor (successor check 13) | Successor check 13, to the `identity_public_key` of each new device. The caller's inventory acceptance procedure applies the identity-key check of "Accepting a signed statement" to every key in the statement as well | The verifier; and the procedure, again |
+| A device listed by a checkpoint | Checkpoint check 7, to every key the epoch lists | The verifier |
+| The key of a checkpoint's writer that the checkpoint does not list | Verifying a signature, when checkpoint check 6 verifies the signature | The verifier |
+| A device that a later epoch retains | Not applied again: the entry is kept byte for byte (successor check 9), so the key is one that passed | Nobody |
 
 So every `identity_public_key` of a member device has passed the rule, and has
 exactly one spelling, whether or not the caller's acceptance procedure applies
 it. The verifier does not rely on the procedure for this. The cost is one test
-of the kind check 6 already runs on the writer's key, for each new device.
+of the kind that successor check 6 already runs on the writer's key, for each
+new device.
 
-So check 8 compares identity keys as bytes. Two member devices that hold one key
-cannot be spelled differently, and the comparison needs no curve arithmetic
-(Open decision D-10). A candidate that lists a respelling of a key already in
-the group is refused at check 13, as `invalid-identity-key`, and not at check 8,
-which sees two different byte strings. What the byte comparison does not cover
-is stated under Aliasing in What is not checked.
+So successor check 8 compares identity keys as bytes. Two member devices that
+hold one key cannot be spelled differently, and the comparison needs no curve
+arithmetic (Open decision D-10). A candidate that lists a respelling of a key
+already in the group is refused at successor check 13, as
+`invalid-identity-key`, and not at successor check 8, which sees two different
+byte strings. What the byte comparison does not cover is stated under Aliasing
+in What is not checked.
 
 ## Canonical encoding
 
@@ -330,6 +369,9 @@ operations that produced them (Open decision D-7).
   encoding of `binding`.
 - `operations` are sorted by the lexicographic order of the complete encoding
   of each operation, so its kind byte orders first.
+
+In the first order a proper prefix sorts before the longer string: an account
+`a` sorts before an account `ab`.
 
 The first order compares account bytes and the third compares whole encodings,
 in which the kind byte and then the `u32` length of the account come first, so
@@ -443,6 +485,13 @@ authorisation are evaluated against the predecessor, never against the result
 of another operation in the list. A candidate is one batch: it passes every
 check below and is accepted as one epoch, or it has no effect.
 
+A batch whose result would exceed a bound of Decoding (more than eight devices
+under a principal, more than 4096 devices or 512 principals in all) or that
+lists more than `MAX_EPOCH_OPERATIONS` operations has no candidate that both
+decodes and equals `apply`. The candidate that tells the truth does not decode,
+and a candidate that leaves a device out is refused as `projection-mismatch`
+(successor check 9). No further refusal kind exists for it.
+
 Let `P` be the predecessor and `ops` the operation list of a candidate.
 `apply(P, ops)` is the following, in this order:
 
@@ -460,22 +509,22 @@ Let `P` be the predecessor and `ops` the operation list of a candidate.
    has one, and from `P` otherwise; take `closure_state` 1 if the list has
    `close`, and `P`'s otherwise.
 
-Every difference between a candidate and its predecessor in the principals,
-the closure state and the policy fields is therefore named by an operation. A
-candidate that lists a device its predecessor did not, or omits one, without
-the matching operation, does not equal `apply(P, ops)` and is refused
-(check 9). The one byte of a retained device's entry that can change without
-an operation naming the device is its `update_authority`, and only when its
+Every difference between a candidate and its predecessor in the principals, the
+closure state and the policy fields is therefore named by an operation. A
+candidate that lists a device its predecessor did not, or omits one, without the
+matching operation, does not equal `apply(P, ops)` and is refused (successor
+check 9). The one byte of a retained device's entry that can change without an
+operation naming the device is its `update_authority`, and only when its
 principal's role changes (step 6). The epoch number, the key epoch, the
-predecessor commitment and the writer are not operations; checks 2, 5 and 10
-govern them.
+predecessor commitment and the writer are not operations; successor checks 2, 5
+and 10 govern them.
 
 A device removed and admitted again in the same batch is not a refresh. The
-batch is refused (check 9), whether the device is admitted under the same
-binding or under another binding with the same identity key (Open decision
+batch is refused (successor check 9), whether the device is admitted under the
+same binding or under another binding with the same identity key (Open decision
 D-13). To bring a removed binding back, a later epoch admits it as an ordinary
-admission, with evidence the caller's freshness rule accepts, and it receives
-no key material of any earlier key epoch.
+admission, with evidence the caller's freshness rule accepts, and it receives no
+key material of any earlier key epoch.
 
 A principal leaves the group when a batch removes every one of its devices and
 admits none for it. Leaving the group, or asking to be removed, is not an
@@ -497,24 +546,24 @@ is the authority mapping of version 1.
 Let `w` be the writer's principal in `P` and `role_P(w)` its role there. The
 rules use roles in `P` only. A role, an authority flag or an operation in the
 candidate never authorises the candidate itself. The rules of `P`'s
-`policy_version` govern check 11. Only version 1 exists on this page, and a
-candidate changes the version in force only by `set_policy`, which an owner
-writes. A lesser role therefore cannot reach `unsupported`: its `set_policy` is
-`writer-role-insufficient`, and a header that changes the version without one is
-a `projection-mismatch`. A former owner that the head has demoted to admin is a
-lesser role in the head but an owner in the head's predecessor. For a sibling of
-the head, whose `P` is that predecessor, it can therefore still cause
-`unsupported`, with no change of state and no marker. A sibling is not a
-successor of the head, so this does not stop a coordinator (Obligations at the
-product boundary, 3).
+`policy_version` govern successor check 11. Only version 1 exists on this page,
+and a candidate changes the version in force only by `set_policy`, which an
+owner writes. A lesser role therefore cannot reach `unsupported`: its
+`set_policy` is `writer-role-insufficient`, and a header that changes the
+version without one is a `projection-mismatch`. A former owner that the head has
+demoted to admin is a lesser role in the head but an owner in the head's
+predecessor. For a sibling of the head, whose `P` is that predecessor, it can
+therefore still cause `unsupported`, with no change of state and no marker. A
+sibling is not a successor of the head, so this does not stop a coordinator
+(Obligations at the product boundary, 3).
 
 | Operation | Who may write it | Restriction, read in `P` |
 |---|---|---|
-| `admit_device(a, d)` | an owner; an admin, when `a` is a member of `P` or not a principal of `P` (Open decision D-9) | `a` enters as a member if new; its evidence is checked (check 13) |
-| `remove_device(a, b)` | an owner; an admin, when `a` is a member (Open decision D-9) | `b` is a member device of `a` in `P` |
+| `admit_device(a, d)` | an owner; an admin, when `a`'s role in `P` is member (3) or `a` is not a principal of `P` (Open decision D-9) | `a` enters as a member if new; its evidence is checked (successor check 13) |
+| `remove_device(a, b)` | an owner; an admin, when `a`'s role in `P` is member (3) (Open decision D-9) | `b` is a member device of `a` in `P` |
 | `set_role(a, r)` | an owner | `a` is a principal of `P` other than the owner; `r` is 2 or 3 |
 | `transfer_ownership(n, f)` | an owner | `n` is a principal of `P` other than the owner; `f` is 2 or 3 |
-| `set_policy(v, c)` | an owner | `v` and `c` are the candidate's `policy_version` and `policy_commitment` (check 9). A `v` the verifier does not support gives `unsupported` (check 7) |
+| `set_policy(v, c)` | an owner | `v` and `c` are the candidate's `policy_version` and `policy_commitment` (successor check 9). A `v` the verifier does not support gives `unsupported` (successor check 7) |
 | `close` | an owner | the only operation in the list |
 
 Further rules:
@@ -529,9 +578,9 @@ Further rules:
   ownership, change the policy or close the group. Adding such an operation to
   a candidate the admin signs makes no difference, because the rule reads
   roles in `P`.
-- The result has at least one member device under every principal, at least
-  one under the owner, and one owner. Each of these follows from `apply` and
-  from check 8.
+- The result has at least one member device under every principal, at least one
+  under the owner, and one owner. Each of these follows from `apply` and from
+  successor check 8.
 
 ## Genesis
 
@@ -561,7 +610,8 @@ judged in this order, and refused on the first check that fails:
    authority set to authorise it, and only because the anchor has already fixed
    the candidate.
 7. **Signature.** As Signature above, else `bad-signature`.
-8. **Evidence.** Every member device is treated as newly admitted (check 13).
+8. **Evidence.** Every member device is treated as newly admitted (successor
+   check 13).
 
 On acceptance `head` is the candidate, `prior` is absent and `index[0]` is its
 commitment.
@@ -581,10 +631,10 @@ a trust assumption, and it is stated under Trust assumption below.** The whole
 section is new text, written for that default, and has had no human review.
 
 A checkpoint starts a verifier that has no accepted state for the group. A
-verifier that has state does not replace it with a checkpoint (check 2 below). A
-device that means to resume from a checkpoint discards its state for the group
-and starts as a new verifier. When a product should do that is the product's
-(Obligations at the product boundary, 5).
+verifier that has state does not replace it with a checkpoint (checkpoint check
+2 below). A device that means to resume from a checkpoint discards its state for
+the group and starts as a new verifier. When a product should do that is the
+product's (Obligations at the product boundary, 5).
 
 ### The checkpoint
 
@@ -612,10 +662,10 @@ checkpoint_epoch         a signed epoch (Canonical encoding): the body, then the
   D-7 goes to option B, the checkpoint carries the snapshot that option
   describes, and the checks below change with it.
 - **Where the epoch comes from.** The invitation may carry the epoch, or the
-  epoch may reach the joiner some other way. Check 3 below binds its body to the
-  commitment either way. The commitment does not cover the signature
-  (Commitment), so check 6 checks the signature on its own: a carrier that alters
-  the signature causes a `bad-signature` refusal and nothing else.
+  epoch may reach the joiner some other way. Checkpoint check 3 below binds its
+  body to the commitment either way. The commitment does not cover the signature
+  (Commitment), so checkpoint check 6 checks the signature on its own: a carrier
+  that alters the signature causes a `bad-signature` refusal and nothing else.
 - **Its bound.** The epoch is bounded as any epoch is (Decoding), and the
   commitment adds 32 bytes. This section sets no bound of its own. How large an
   epoch is in practice is what Open decision D-7 asks to be measured.
@@ -668,13 +718,14 @@ The epoch may be the genesis epoch of the group (`predecessor_tag` 0, epoch
 number 0). A joiner holds no inventory statement, and the last check of Genesis
 needs one for every device, so a genesis epoch that is offered as a checkpoint
 is judged by the checks below and not under Genesis. The checks add for it the
-two rules of Genesis that need no evidence, one in check 5 and one in check 6.
-A verifier that accepts it holds the state that a verifier holds after it
-accepted the same epoch under Genesis: `head` the epoch, `prior` absent and
-`index[0]` its commitment. The difference is that the creator's devices carry
-evidence that the joiner never saw (What a joiner cannot verify). A genesis
-epoch offered as a candidate, and not as a checkpoint, is judged under Genesis.
-The checks run in this order, and the verifier stops at the first that fails:
+two rules of Genesis that need no evidence, one in checkpoint check 5 and one in
+checkpoint check 6. A verifier that accepts it holds the state that a verifier
+holds after it accepted the same epoch under Genesis: `head` the epoch, `prior`
+absent and `index[0]` its commitment. The difference is that the creator's
+devices carry evidence that the joiner never saw (What a joiner cannot verify).
+A genesis epoch offered as a candidate, and not as a checkpoint, is judged under
+Genesis. The checks run in this order, and the verifier stops at the first that
+fails:
 
 1. **Decode.** As Decoding above: `malformed`, `wrong-version` or
    `non-canonical`.
@@ -703,13 +754,14 @@ The checks run in this order, and the verifier stops at the first that fails:
    authorised, because the joiner holds no predecessor to read authority from.
    For an epoch that is not a genesis epoch the writer need not be listed in the
    checkpoint: a device may sign the epoch that removes it.
-7. **Keys.** The `identity_public_key` of every member device the epoch lists, in
-   encoding order, passes the identity-key rule (identities-and-devices.md,
+7. **Keys.** The `identity_public_key` of every member device the epoch lists,
+   in encoding order, passes the identity-key rule (identities-and-devices.md,
    Identity keys), else `refused(invalid-identity-key)`. A joiner holds no
-   inventory statement for these devices, so the verifier applies the rule itself
-   here, and this is the only place it is applied to them (The accepted state,
-   Identity keys in accepted state). The writer's key, when the checkpoint does
-   not list the writer, is held to the same rule by check 6.
+   inventory statement for these devices, so the verifier applies the rule
+   itself here, and this is the only place it is applied to them (The accepted
+   state, Identity keys in accepted state). The writer's key, when the
+   checkpoint does not list the writer, is held to the same rule by checkpoint
+   check 6.
 
 On acceptance the verifier makes one durable step: `head` is the epoch with its
 signature and commitment, `prior` is absent, `index` holds the commitment at the
@@ -730,15 +782,15 @@ implementation, so the page's refusal kinds are in neither.
 ### After the checkpoint
 
 Successors are judged under "Accepting a successor", as for any head, and its
-check 2 says what the entries a joiner does not hold mean. Two things follow. The
-first successor is judged against the checkpoint as `P`, so the devices the
+check 2 says what the entries a joiner does not hold mean. Two things follow.
+The first successor is judged against the checkpoint as `P`, so the devices the
 checkpoint lists are retained ones unless that successor removes them: they need
-no evidence, and a retained one keeps its entry byte for byte (check 9). And a
-joiner judges no sibling of its checkpoint, so it can neither see a `conflict`
-at that slot nor be frozen by one. A checkpoint whose `closure_state` is 1 is
-accepted like any other and has no successor (check 4). Once the joiner accepts
-the first successor, `prior` is the checkpoint and the verifier is like any
-other.
+no evidence, and a retained one keeps its entry byte for byte (successor check
+9). And a joiner judges no sibling of its checkpoint, so it can neither see a
+`conflict` at that slot nor be frozen by one. A checkpoint whose `closure_state`
+is 1 is accepted like any other and has no successor (successor check 4). Once
+the joiner accepts the first successor, `prior` is the checkpoint and the
+verifier is like any other.
 
 ### What a joiner cannot verify
 
@@ -746,10 +798,10 @@ From a checkpoint a joiner cannot verify, and this page does not claim, any of
 the following. It takes each from the inviter.
 
 - That the group exists apart from the inviter's word, or that the epoch the
-  commitment names belongs to the group the joiner means to join. `group_id` is a
-  field of the body, and nothing binds it to a genesis. An inviter can name any
-  `group_id`, including one the joiner already holds for another group, and a
-  joiner that holds state for it refuses the checkpoint (check 2).
+  commitment names belongs to the group the joiner means to join. `group_id` is
+  a field of the body, and nothing binds it to a genesis. An inviter can name
+  any `group_id`, including one the joiner already holds for another group, and
+  a joiner that holds state for it refuses the checkpoint (checkpoint check 2).
 - That the checkpoint's writer was authorised by the epoch before it, that its
   operations produce its principals from that epoch, that its key epoch follows
   that epoch's or is below 2^64 - 1, or that policy version 1 allowed what it did
@@ -776,8 +828,8 @@ the following. It takes each from the inviter.
 It does check that the epoch is a well-formed epoch that its anchor names, that
 its policy version is supported, that its roles, authority flags and device keys
 are consistent with each other, that the key its `writer_binding` names signed
-it, and that every listed device key is an identity key (checks 5, 6 and 7
-above). None of this makes the checkpoint a verified one.
+it, and that every listed device key is an identity key (checkpoint checks 5, 6
+and 7 above). None of this makes the checkpoint a verified one.
 
 A checkpoint is not recovery. It starts a new verifier on the inviter's word. It
 does not choose between the branches of a fork, and a device that leaves one
@@ -795,12 +847,17 @@ A verifier decides on a candidate from these inputs, and from nothing else:
 - its accepted state (`head`, `prior`, `index`, `conflict`);
 - the candidate's bytes;
 - the offering mode: whether the caller offers an epoch as a candidate or as a
-  checkpoint (Joining from a checkpoint). It decides how an epoch whose
-  `predecessor_tag` is 0 is judged. Offered as a candidate, it is judged under
-  Genesis and needs evidence for every device. Offered as a checkpoint, it is
-  judged by the checks of Joining from a checkpoint, which need none. An epoch
-  whose `predecessor_tag` is 1, offered as a candidate to a verifier with no
-  head, is `missing-predecessor`;
+  checkpoint (Joining from a checkpoint). It decides which list of checks judges
+  the epoch. An epoch whose `predecessor_tag` is 0, offered as a candidate, is
+  judged under Genesis and needs evidence for every device; offered as a
+  checkpoint, it is judged by the checks of Joining from a checkpoint, which
+  need none. An epoch whose `predecessor_tag` is 1, offered as a candidate, is
+  judged by the checks of this section, and by a verifier with no head it is
+  `missing-predecessor`; offered as a checkpoint, it is judged by the checks of
+  Joining from a checkpoint. The mode also changes the kind that a verifier with
+  a head gives to an epoch of its own group that it has not accepted: offered as
+  a checkpoint it is `already-started`, and offered as a candidate it is judged
+  by its position (a genesis epoch is `superseded`);
 - the policy versions it supports (check 7). The signature rule and the
   identity-key rule (Signature; Identity keys) are fixed by
   identities-and-devices.md and are not inputs;
@@ -843,13 +900,66 @@ anchor the caller supplies is an input as well.
 | `refused(kind)` | The candidate fails a check. | None. |
 
 A kind named without `refused(...)` (`malformed`, `wrong-group`,
-`anchor-mismatch`, `bad-signature` and the others in Decoding, Genesis and
-Joining from a checkpoint) is the kind of a `refused` result. `duplicate`,
-`conflict`, `missing-predecessor` and `unsupported` are results of their own.
+`anchor-mismatch`, `bad-signature` and the others in Decoding, Genesis, Joining
+from a checkpoint and The checks) is the kind of a `refused` result.
+`duplicate`, `conflict`, `missing-predecessor` and `unsupported` are results of
+their own.
 
-A refusal is terminal for the same state and the same inputs: the same bytes
-are refused the same way. `evidence-refused` and `evidence-missing` depend on
-the caller's inputs and can change when those change.
+The table lists every result and every refusal kind that this page names, the
+checks that produce it, and what its condition reads at most: the candidate's
+bytes (bytes), also the verifier's accepted state (state), or also an input of
+the caller (input). The names are the spellings this draft uses. Whether a
+conforming implementation must report them is not decided here (The checks).
+
+| Name | Produced by | Reads |
+|---|---|---|
+| `accepted` | the end of each of the three lists, when every check passed | every check of the list |
+| `duplicate` | successor check 2; genesis check 2; checkpoint check 2 | state |
+| `conflict` | the end of the successor list, when `P` is `prior` | state |
+| `missing-predecessor` | successor check 2 | state |
+| `unsupported` | successor check 7; genesis check 4; checkpoint check 4 | input (the supported versions) |
+| `malformed` | check 1 of each of the three lists (Decoding) | bytes |
+| `wrong-version` | check 1 of each of the three lists (Decoding) | bytes |
+| `non-canonical` | check 1 of each of the three lists (Decoding) | bytes |
+| `wrong-group` | successor check 2; genesis check 2; checkpoint check 2 | state |
+| `superseded` | successor check 2; genesis check 2 | state |
+| `already-started` | checkpoint check 2 | state |
+| `anchor-mismatch` | genesis check 3; checkpoint check 3 | input (the anchor) |
+| `invalid-roles` | successor check 8; genesis check 5; checkpoint check 5 | bytes |
+| `authority-mismatch` | successor check 8; genesis check 5; checkpoint check 5 | bytes |
+| `duplicate-device` | successor check 8; genesis check 5; checkpoint check 5 | bytes |
+| `writer-not-authorised` | successor check 5; genesis check 6; checkpoint check 6, for a genesis epoch | state at successor check 5, bytes at the others |
+| `bad-signature` | successor check 6; genesis check 7; checkpoint check 6 | bytes |
+| `invalid-identity-key` | successor check 13; genesis check 8; checkpoint check 7 | bytes |
+| `blocked-by-conflict` | successor check 3 | state |
+| `group-closed` | successor check 4 | state |
+| `conflicting-operations` | successor check 9 | bytes |
+| `unknown-target` | successor check 9 | state |
+| `already-member` | successor check 9 | state |
+| `projection-mismatch` | successor check 9 | state |
+| `key-epoch` | successor check 10 | state |
+| `writer-role-insufficient` | successor check 11 | state |
+| `target-protected` | successor check 11 | state |
+| `verdict-mismatch` | successor check 12 | input (the verdict) |
+| `verdict-denied` | successor check 12 | input (the verdict) |
+| `evidence-missing` | successor check 13; genesis check 8 | input (the evidence) |
+| `evidence-mismatch` | successor check 13; genesis check 8 | input (the evidence) |
+| `evidence-refused` | successor check 13; genesis check 8; the recording step under Inputs | input (the acceptance procedure and the store it reads) |
+
+That is five results and 27 refusal kinds. Where several kinds can apply, the
+order of the checks decides which is reported. At successor check 13,
+`invalid-identity-key` reads bytes, but it is reached only after the evidence
+conditions for the same principal have passed, so the evidence decides whether
+it is reported.
+
+A refusal is terminal for the same state and the same inputs: the same bytes are
+refused the same way. A result or a kind marked state can change when the
+verifier accepts, or learns of, another epoch, so the order in which epochs
+reach a verifier can change it. A result or kind marked input can change when
+the caller's input changes: `anchor-mismatch`, `unsupported`, and the refusals
+of successor checks 12 and 13 (`verdict-mismatch`, `verdict-denied`,
+`evidence-missing`, `evidence-mismatch`, `invalid-identity-key` and
+`evidence-refused`).
 
 ### The checks
 
