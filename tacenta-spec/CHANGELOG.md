@@ -93,7 +93,7 @@ is SemVer against the specified protocol (not the implementation).
   hash-chained group membership epochs. It proposes the canonical epoch body,
   its commitment and writer signature, genesis and successor acceptance as an
   ordered list of checks with a first-failure rule and a table of its five
-  results and 27 refusal kinds, batched operations, including closing a group,
+  results and 28 refusal kinds, batched operations, including closing a group,
   that take effect atomically, an owner, admin and member policy read against
   the predecessor only, an optional policy verdict that can only refuse, key
   epochs, a rule for two valid epochs for one slot (ordered siblings), and the
@@ -102,9 +102,18 @@ is SemVer against the specified protocol (not the implementation).
   every check displaces the head if it ranks before it and is refused as
   `outranked` otherwise; the rank is the role and the position, in the shared
   predecessor, of the device that wrote each sibling, and, only between two
-  epochs of one device, the commitment. No sibling stops a verifier: two epochs
-  that one device signed for one slot are ranked by commitment and given to the
-  caller as a pair. This replaces an earlier rule of the same unreviewed draft,
+  epochs of one device, the commitment. Between two devices of the owner's
+  principal, a sibling whose writer the head removed or demoted is refused as
+  `removed-by-head` whatever its rank, so a lost or stolen owner device cannot
+  undo its removal where the removal arrived first; the page states that this
+  makes the head depend on the order of arrival when the removed device ranks
+  before its remover, mutual removal included. No sibling stops a verifier: two
+  epochs that one device signed for one slot are ranked by commitment and given
+  to the caller as a pair. Beside `superseded`, and beside `missing-predecessor`
+  at a checkpoint head, the verifier returns a hint, `possible-fork`, for a
+  candidate whose predecessor is the epoch it holds for the number before; the
+  hint has no effect, is not authenticated, and also fires without a fork. This
+  replaces an earlier rule of the same unreviewed draft,
   which froze a verifier for good at the first valid sibling of its head; that
   rule stays among the alternatives of Open decision D-12, with the reasons it
   was not chosen. The page states that a displaced epoch's key material is
@@ -119,7 +128,7 @@ is SemVer against the specified protocol (not the implementation).
   of arrival does not choose the head, and that verifiers that received
   different siblings then hold different records; that catching up an offline
   device can stall under the default freshness rule; and that a split group
-  gives no signal to a user. For a successor, only an
+  gives a user no signal beyond that hint. For a successor, only an
   owner of the predecessor can cause the `unsupported` result. A device that
   joins after genesis starts from a checkpoint, which may be the genesis epoch
   itself, that an authenticated invitation carries, on seven ordered checks and

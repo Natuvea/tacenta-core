@@ -28,9 +28,12 @@ in this repository.
 What this page does not give. It gives no secrecy of later key material from a
 removed device, since how key material is derived is not specified. It chooses
 between two competing epochs for one slot only while no successor of either has
-been accepted (Siblings). It gives no recovery from a fork deeper than that, no
-agreement among members once a successor has been built on the losing epoch,
-and no signal to a user that a group has split. Until a successor of an
+been accepted, and not even then when a device of the owner's principal removes
+another that ranks before it: the order of arrival decides that case (Siblings).
+It gives no recovery from a fork deeper than that, no agreement among members
+once a successor has been built on the losing epoch, and no signal to a user
+that a group has split, only a hint that anyone can cause and that a group that
+has not split also produces (Siblings, Fork hint). Until a successor of an
 accepted epoch is accepted, a competing epoch that ranks before it can replace
 it, so a removal is final at a verifier only from then on. It gives no evidence
 that anyone accepted an epoch before a checkpoint. It gives no anonymity. It has
@@ -86,8 +89,9 @@ This page specifies:
 - an optional policy verdict that a product supplies and that can only refuse
   (Policy verdict);
 - how a verifier chooses between its head and a valid sibling of it, by a fixed
-  order of their writers, while the head has no accepted successor, and what
-  that order does not resolve (Siblings);
+  order of their writers and one rule for two devices of the owner's principal,
+  while the head has no accepted successor, what that order does not resolve,
+  and a hint, with no effect, that a candidate may show a fork (Siblings);
 - the key epoch of an epoch, and what a client must take from accepted state
   before it distributes or uses group key material (Key epochs; Obligations on
   the key engine);
@@ -192,11 +196,17 @@ first.
 - **Rank.** The order in which a verifier places two siblings: by the role and
   the position, in their shared predecessor, of the device that wrote each, and,
   only between two epochs that one device wrote, by commitment (Siblings, Rank).
+  Between two devices of the owner's principal, a sibling whose writer the head
+  removed or demoted is refused before the rank is read (Siblings, Owner
+  devices).
 - **Displaced.** The result for a sibling of the head that passes every check
   and ranks before the head. The sibling becomes the head, and the epoch it
   replaces, a displaced epoch, is no longer accepted state (Siblings).
 - **Equivocation.** Two different epochs that one writer device signed for the
   same predecessor (Siblings, Equivocation).
+- **Fork hint.** The value `possible-fork`, which a verifier returns beside some
+  results for a candidate that may show a fork. It is not a result, changes
+  nothing and is not authenticated (Siblings, Fork hint).
 - **Authority set.** The member devices of an epoch whose `update_authority` is
   1, each as a pair of its principal's account and its binding. A candidate's
   writer must be in the authority set of its predecessor: the head for a
@@ -599,10 +609,12 @@ owner writes. A lesser role therefore cannot reach `unsupported`: its
 version without one is a `projection-mismatch`. A former owner that the head has
 demoted to admin is a lesser role in the head but an owner in the head's
 predecessor. For a sibling of the head, whose `P` is that predecessor, it can
-therefore still cause `unsupported`, with no change of state, and a sibling it
-writes ranks as the owner's (Siblings). A sibling is not a successor of the
-head, so `unsupported` for it does not stop a coordinator (Obligations at the
-product boundary, 3).
+therefore still cause `unsupported`, with no change of state. A sibling that
+another of its devices writes, one that did not write the head, is refused as
+`removed-by-head` once it has passed every check, and one that the head's own
+writer writes is ranked against the head by commitment (Siblings, Owner
+devices). A sibling is not a successor of the head, so `unsupported` for it
+does not stop a coordinator (Obligations at the product boundary, 3).
 
 | Operation | Who may write it | Restriction, read in `P` |
 |---|---|---|
@@ -841,9 +853,12 @@ no evidence, and a retained one keeps its entry byte for byte (successor check
 sibling that ranks before the checkpoint displaces it at the other verifiers of
 the group, the joiner cannot judge that sibling, and every later epoch of the
 group is `missing-predecessor` at the joiner, which stays at its checkpoint
-(Siblings). A checkpoint whose `closure_state` is 1 is accepted like any other
-and has no successor (successor check 3). Once the joiner accepts the first
-successor, `prior` is the checkpoint and the verifier is like any other.
+(Siblings). Beside `missing-predecessor` for that sibling the joiner returns the
+hint `possible-fork`, which shows only that a candidate names the checkpoint's
+predecessor (Siblings, Fork hint). A checkpoint whose `closure_state` is 1 is
+accepted like any other and has no successor (successor check 3). Once the
+joiner accepts the first successor, `prior` is the checkpoint and the verifier
+is like any other.
 
 ### What a joiner cannot verify
 
@@ -952,7 +967,8 @@ A verifier decides on a candidate from these inputs, and from nothing else:
   section requires of its freshness check: a candidate can still be refused on a
   later principal's evidence, so the caller records the generation of each
   statement as seen only when the candidate has passed every check, that is,
-  when it is `accepted` or `displaced`, or is a sibling refused as `outranked`.
+  when it is `accepted` or `displaced`, or is a sibling refused as `outranked`
+  or `removed-by-head`.
   That record is the atomic step the section describes, which evaluates the
   caller's freshness rule again against the value then stored. If it now
   refuses a statement of the candidate, the candidate is
@@ -989,13 +1005,16 @@ checkpoint the anchor the caller supplies is an input as well.
 | `duplicate` | The candidate is, by commitment, an epoch already accepted and not displaced (an entry of `index`). The signature bytes are not examined. | None. |
 | `missing-predecessor` | The candidate's predecessor is not an accepted epoch here: a gap, or another branch. | None. The verifier must obtain the predecessor before it can decide, except for a sibling of a checkpoint head, which it does not wait to judge (check 2). Anyone can produce this result from any bytes, so it is not by itself evidence of a gap (Obligations at the product boundary, 3). |
 | `unsupported` | The candidate, signed by an owner of its predecessor, sets a policy version this verifier does not implement. | None. It is not evidence that the candidate is invalid: the verifier has judged only checks 1 to 5 and the conditions of check 6. It cannot decide until it supports the version. Its coordinator does not propose or distribute while this is the only successor of the head that it has seen, and that ends when the verifier supports the version, which judges the candidate afresh, or when it accepts another successor of its head. Only an owner of the predecessor can cause it (check 6), so neither an unauthenticated candidate nor a lesser role can. For a genesis epoch or a checkpoint it is returned after the anchor (Genesis, Joining from a checkpoint, check 4). |
-| `refused(kind)` | The candidate fails a check, or, as `refused(outranked)`, is a sibling of the head that passes every check and does not rank before the head (Siblings). | None. |
+| `refused(kind)` | The candidate fails a check, or, as `refused(outranked)` or `refused(removed-by-head)`, is a sibling of the head that passes every check and does not displace the head (Siblings). | None. |
 
 A kind named without `refused(...)` (`malformed`, `wrong-group`,
 `anchor-mismatch`, `bad-signature` and the others in Decoding, Genesis, Joining
 from a checkpoint and The checks) is the kind of a `refused` result.
 `duplicate`, `displaced`, `missing-predecessor` and `unsupported` are results of
-their own.
+their own. Beside `refused(superseded)`, and beside `missing-predecessor` in one
+case, the verifier can also return the hint `possible-fork` (check 2; Siblings,
+Fork hint). The hint is not a result or a refusal kind, and no result depends on
+it.
 
 The table lists every result and every refusal kind that this page names, the
 checks that produce it, and what its condition reads at most: the candidate's
@@ -1037,8 +1056,9 @@ conforming implementation must report them is not decided here (The checks).
 | `evidence-mismatch` | successor check 12; genesis check 8 | input (the evidence) |
 | `evidence-refused` | successor check 12; genesis check 8; the recording step under Inputs | input (the acceptance procedure and the store it reads) |
 | `outranked` | the end of the successor list, when `P` is `prior` | every check of the list, and the head's writer and commitment (state) |
+| `removed-by-head` | the end of the successor list, when `P` is `prior` and the writers of the candidate and the head are two devices of the owner's principal (Siblings, Owner devices) | every check of the list, and the head's writer and operations (state) |
 
-That is five results and 27 refusal kinds. Where several kinds can apply, the
+That is five results and 28 refusal kinds. Where several kinds can apply, the
 order of the checks decides which is reported. At successor check 12,
 `invalid-identity-key` reads bytes, but it is reached only after the evidence
 conditions for the same principal have passed, so the evidence decides whether
@@ -1096,7 +1116,10 @@ items before the next condition.
      `index[n - 1]`, `missing-predecessor`;
    - `m` < `n`: a `duplicate` when the candidate's commitment is `index[m]`,
      otherwise `refused(superseded)`. The verifier does not judge a competing
-     epoch for a slot the chain has passed, whatever its rank (Siblings);
+     epoch for a slot the chain has passed, whatever its rank (Siblings). When
+     `index[m - 1]` is held and the candidate's `predecessor_commitment` is
+     `index[m - 1]`, the verifier also returns the hint `possible-fork`
+     (Siblings, Fork hint);
    - `m` > `n` + 1: `missing-predecessor`.
 
    In the checks below `P` is the predecessor this selects: the head for a
@@ -1109,7 +1132,9 @@ items before the next condition.
    from a checkpoint), `prior` is absent and `index[n - 1]` is not held. For
    that head the case `m` = `n` above is replaced by this: a `duplicate` when
    the candidate's commitment is `index[n]`, and otherwise
-   `missing-predecessor`. The head's predecessor is not an accepted epoch here,
+   `missing-predecessor`, with the hint `possible-fork` when the candidate's
+   `predecessor_commitment` is the head's own `predecessor_commitment`
+   (Siblings, Fork hint). The head's predecessor is not an accepted epoch here,
    so no sibling of the head can be judged, and the verifier does not wait to
    judge one: that is a limit and not a gap. The other cases read as written,
    and a candidate numbered below the checkpoint is `refused(superseded)`. When
@@ -1123,7 +1148,10 @@ items before the next condition.
    consulted, and the writer need not be listed in the candidate: a device may
    sign the epoch that removes it. For a sibling of the head `P` is `prior`, so
    a writer that the head removed is still judged by its authority in `prior`,
-   and its rank decides what its sibling does (Siblings; Open decision D-12).
+   and its rank decides what its sibling does, except that a device of the
+   owner's principal that another such device removed or demoted in the head
+   is refused at the end of the list (Siblings, Owner devices; Open decision
+   D-12).
 5. **Signature.** As Signature above, else `refused(bad-signature)`.
 6. **Profile.** Let `v` be the candidate's `policy_version`. The check passes if
    the verifier supports `v`. Otherwise the result is `unsupported` when all
@@ -1228,11 +1256,15 @@ first account.
 
 If every check passes, the result is `accepted` when `P` is the head. When `P`
 is `prior`, the candidate is a sibling of the head that passes every check
-against the head's predecessor, and the verifier compares its rank with the
-head's (Siblings, Rank): the result is `displaced` when the candidate ranks
-before the head, and `refused(outranked)` otherwise. When the candidate and the
-head have the same writer, the verifier gives the caller both signed epochs
-with the result (Siblings, Equivocation).
+against the head's predecessor, and the verifier compares it with the head
+(Siblings). When the writers of the candidate and of the head are two different
+devices of the owner's principal in `P`, and the head removes or demotes the
+candidate's writer, the result is `refused(removed-by-head)` (Siblings, Owner
+devices). Otherwise the verifier compares the candidate's rank with the head's
+(Siblings, Rank): the result is `displaced` when the candidate ranks before the
+head, and `refused(outranked)` otherwise. When the candidate and the head have
+the same writer, the verifier gives the caller both signed epochs with the
+result (Siblings, Equivocation).
 
 ### Effects
 
@@ -1243,9 +1275,10 @@ with the result (Siblings, Equivocation).
   signature and `index[m]` to its commitment, leaves `prior` as it was, and
   retires the displaced head's key material (Obligations on the key engine, 4
   and 5). The displaced epoch is no longer accepted state.
-- **outranked.** Accepted state does not change. The caller records the
-  generations of the candidate's statements (Inputs).
-- **every other result.** Nothing changes.
+- **outranked, removed-by-head.** Accepted state does not change. The caller
+  records the generations of the candidate's statements (Inputs).
+- **every other result.** Nothing changes. Nor does the hint `possible-fork`
+  change anything (Siblings, Fork hint).
 
 ### Policy verdict
 
@@ -1284,13 +1317,20 @@ write different successors of one epoch, or one writer writes two, the two are
 siblings: they have the same predecessor `P` and different commitments, and each
 can be valid against `P`. A verifier that holds one of them as its head and
 receives the other judges it against `P`, which is `prior`, by every check of
-Accepting a successor, and then compares the two by a fixed order, the rank. The
-one that ranks first is the head, and the other is not accepted state. The rank
-depends only on `P`, on which device wrote each sibling and, between two epochs
-of one device, on their commitments, so every verifier that holds `P` and
-receives the same siblings, in any order, ends on the same one, provided that it
-accepts no successor of any of them before the last one arrives (What the order
-does not resolve, below). This is Open decision D-12, option F.
+Accepting a successor, and then compares the two by a fixed order, the rank,
+after one rule for two devices of the owner's principal (Owner devices, below).
+The one that ranks first is the head, and the other is not accepted state. The
+rank depends only on `P`, on which device wrote each sibling and, between two
+epochs of one device, on their commitments, so every verifier that holds `P`,
+receives the same siblings that pass every check, in any order, and judges each
+of them the same way, ends on the same one (What the order does not resolve,
+below). That holds on two conditions. The verifier accepts no successor of any
+of them before the last one arrives, which no verifier can detect. And no
+sibling written by a device of the owner's principal removes or demotes another
+device of that principal that ranks before its writer and has written one of
+the siblings (Owner devices). This is Open decision D-12, option F. There is no
+sibling of genesis: a second genesis epoch is refused as `superseded` (genesis
+check 2).
 
 Siblings arise without bad faith. An authority device that is one epoch behind
 writes a sibling of a head it has not seen. Two devices of one account each
@@ -1339,7 +1379,51 @@ admin's. Among admins it follows the byte order of their account handles
 admin while that epoch has no successor, and an account that can choose its
 handle chooses its place; an owner that makes a principal an admin gives it
 that place. Among the devices of one principal it follows their bindings, so
-`device_id` first.
+`device_id` first. For the owner's principal that is not a choice among equals:
+the device that ranks first wins every dispute between the owner's devices that
+the rule for owner devices does not decide, and so holds the owner's power
+against the others at depth one. This page does not assign `device_id` and does
+not choose which device that is (Obligations at the product boundary, 7).
+
+### Owner devices
+
+Let the writers of a sibling `c` and of the head `H` be two different devices
+of the owner's principal in `P`. An epoch removes a device of that principal
+when its operations include `remove_device` for that device's binding, and it
+demotes every device of that principal when they include `transfer_ownership`.
+If `H` removes or demotes the writer of `c`, the result for `c` is
+`refused(removed-by-head)`, whatever its rank, and the caller records the
+generations of its statements as for `outranked` (Evidence of a sibling).
+Otherwise `c` is ranked against `H` as Rank says. Two epochs that one device
+wrote are always ranked, by commitment, and a sibling written by an admin is
+always ranked.
+
+So a device of the owner's principal that another of its devices removed, or
+that lost the owner role by a `transfer_ownership` that another of its devices
+wrote, cannot displace the head that did it, whatever its place: a lost or
+stolen owner device that ranks first cannot undo its removal at a verifier that
+accepted the removal first, and a transfer that a verifier has accepted is not
+redirected there by another device of the former owner. The rule only refuses.
+It never lets a sibling displace a head that ranks before it, so the head at
+one epoch number still moves only to an epoch that ranks before it
+(Displacement).
+
+It costs independence from the order of arrival in one case. When a sibling
+written by a device of the owner's principal removes or demotes another device
+of that principal that ranks before its writer, and that other device has
+written a sibling too, the head depends on which of the two a verifier received
+first. At a verifier that received the removal first, the other device's
+sibling is `removed-by-head`. At one that received the other device's sibling
+first, the removal ranks after it and is `outranked`. Two verifiers that
+receive them in different orders end on different heads, and nothing here
+brings them together. Mutual removal, in which each of two owner devices
+removes or demotes the other, is always such a case: the sibling that arrives
+second is refused, whichever it is. No rule on this page avoids that split
+without choosing which of two owner devices to believe. The rank alone believes
+the device that ranks first, a stolen one included; a rule that let the
+removal displace the other device's sibling whatever its rank would, with three
+or more owner devices, let a displaced epoch become the head again. Apart from
+this case the rule does not make the head depend on the order of arrival.
 
 ### Displacement
 
@@ -1365,20 +1449,20 @@ on is the sibling that ranks first among those it has received that pass every
 check, whatever order they came in, as long as it accepts no successor of any of
 them in between.
 
-A sibling whose writer the head removed, or demoted, is ranked like any other.
-Under policy version 1 and Open decision D-9 (option B) only an owner removes a
-device of an admin or demotes an admin, and the owner's devices rank before
-every admin's, so such a sibling written by an admin is always `outranked`. A
-device of the owner's principal that the head removed, or that lost its role by
-the head's `transfer_ownership`, still ranks in `P` as an owner device by its
-position: until the head has a successor, it displaces the epoch that removed or
-demoted it if it ranks before that epoch's writer, or is that writer and signs
-an epoch with a lower commitment. The owner's devices hold the owner's power,
-and an owner can race its own transfer in this way; a lost or stolen owner
-device that ranks first keeps that power until a successor of its removal is
-accepted (Recovery, under What is not checked). Refusing such a sibling
-outright would make the result depend on which of the two arrived first (Open
-decision D-12).
+A sibling whose writer the head removed, or demoted, is ranked like any other
+unless the head's writer is another device of the owner's principal (Owner
+devices, above). Under policy version 1 and Open decision D-9 (option B) only an
+owner removes a device of an admin or demotes an admin, and the owner's devices
+rank before every admin's, so such a sibling written by an admin is always
+`outranked`. A device of the owner's principal that another of its devices
+removed or demoted in the head is `removed-by-head`. The device that wrote a
+removal or a transfer can still displace it with an epoch of its own that has a
+lower commitment, so an owner can race its own transfer. And a device of the
+owner's principal that the head does not remove or demote still displaces the
+head if it ranks before the head's writer: a lost or stolen owner device that
+ranks first displaces, until it has a successor, any epoch of the owner's
+other devices that does not remove it, and its own sibling can remove those
+devices (Recovery, under What is not checked).
 
 ### Evidence of a sibling
 
@@ -1398,14 +1482,14 @@ same slot, as it would have been had it arrived first.
 The rule only sets those records aside. They stay recorded, since a stored value
 never decreases (identities-and-devices.md, Accepting a signed statement), and
 the record kept after the slot holds the generations of every sibling that
-passed every check at that verifier, the `outranked` ones included, so it does
-not depend on the order in which they came. Two limits follow. Two verifiers
-that received different sets of siblings hold different records: a later
-candidate whose statement is older than a generation that only one of them
-recorded can be accepted at one and refused at the other, as other uses of the
-procedure can already cause (Open decision D-6). And the displaced head's
-generations stay recorded, so a freshness rule that refuses a generation equal
-to a recorded one refuses the displaced head's admission when its proposer
+passed every check at that verifier, the `outranked` and `removed-by-head` ones
+included, so it does not depend on the order in which they came. Two limits
+follow. Two verifiers that received different sets of siblings hold different
+records: a later candidate whose statement is older than a generation that only
+one of them recorded can be accepted at one and refused at the other, as other
+uses of the procedure can already cause (Open decision D-6). And the displaced
+head's generations stay recorded, so a freshness rule that refuses a generation
+equal to a recorded one refuses the displaced head's admission when its proposer
 offers it again on the same statement; a rule that accepts an equal generation
 does not.
 
@@ -1447,15 +1531,24 @@ whose caller refuses the sibling's evidence (check 12), whose product's verdict
 denies it (check 11), or that does not support a policy version it sets
 (`unsupported`, check 6) keeps its head, and another is displaced.
 
+So do verifiers that receive in different orders a removal or demotion of a
+device of the owner's principal, written by a device of that principal that
+ranks after it, and a sibling written by the removed device (Owner devices).
+
 A verifier whose head is the checkpoint it started from judges no sibling of it
 (check 2), and cannot follow a sibling that displaces the checkpoint at the
 other verifiers (Joining from a checkpoint, After the checkpoint).
 
-A `close` has no successor (check 3), so it stays open to displacement for good:
-a sibling written by a device of the owner's principal that ranks before the
-device that wrote the `close`, or by that device with a lower commitment,
-displaces it whenever it arrives, and the group is open again at that verifier.
-No operation reopens a group; a displacement is not an operation.
+A `close` has no successor (check 3), so it is never final: a sibling written by
+a device of the owner's principal that ranks before the device that wrote the
+`close`, or by that device with a lower commitment, displaces it whenever it
+arrives, and the group is open again at that verifier. A `close` removes no
+device, so the rule for owner devices never protects it. And at a verifier that
+received first a sibling, written by another device of the owner's principal,
+that removes the device that wrote the `close`, the `close` is
+`removed-by-head` and never takes effect there (Owner devices). No operation
+reopens a group, but a displacement is not an operation, and a `close` is final
+at no verifier.
 
 The rank is a choice between branches at depth one and at no other depth. No
 rule here selects a winner from a service's order or a timestamp, and a
@@ -1465,6 +1558,36 @@ verifier on the other branch of a deeper fork is on a branch that nothing here
 brings back; starting a new verifier from a checkpoint does not choose between
 branches either (Joining from a checkpoint). Recovery from such a fork is
 separate work that this page does not specify.
+
+### Fork hint
+
+Let `m` be a candidate's epoch number and `n` the head's. A candidate that
+decodes and names the head's `group_id` (checks 1 and 2) can name, as its
+predecessor, an epoch that the verifier holds, and still not be the epoch the
+verifier holds for its own number: it would be a sibling of an accepted epoch.
+For such a candidate the verifier returns the hint `possible-fork` beside the
+result that check 2 gives, in two cases:
+
+- `m` < `n`, the result is `refused(superseded)`, and the candidate's
+  `predecessor_commitment` is `index[m - 1]`, where that entry is held;
+- the head is the checkpoint the verifier started from, `m` = `n`, the result
+  is `missing-predecessor`, and the candidate's `predecessor_commitment` is the
+  head's own `predecessor_commitment`.
+
+The hint has no rule behind it. It changes no result, no accepted state and no
+record, and the verifier keeps nothing for it. Nothing is verified for it:
+check 2 answers before check 5, so neither the signature nor the writer's
+authority has been checked, and anyone who knows the commitment of an accepted
+epoch can make a verifier return the hint with bytes of their own. It is not
+evidence of a fork. It is also returned without a fork: for a sibling that
+ranked after the epoch that won its slot and arrived after a successor of that
+epoch, and for every replay of such a sibling. A product may count the hint and
+show the count, and may verify a candidate that carried it by judging it, as a
+sibling, against the epoch at `m - 1` if the product kept that epoch. Because
+anyone can raise the hint as often as they can send bytes, a product bounds how
+often it counts it, shows it or acts on it, and does not stop proposing,
+discard state or start recovery on the hint alone. What a product does about a
+fork that is real is recovery, which this page does not specify.
 
 ## Key epochs
 
@@ -1558,14 +1681,18 @@ a sibling), and the product's tests are where they are exercised.
    `already-started`: an inviter chooses the `group_id` its epoch names, and can
    name one the device already holds.
 6. When an epoch that the coordinator proposed is displaced at its verifier, or
-   is refused there as `outranked`, the change it carried has not taken effect
-   at that slot. The coordinator does not treat it as made: it proposes the
-   change again, as a new batch against the new head, if the intent still
-   holds. Traffic sent under the displaced epoch's material is the product's to
-   send again, under the new head's material and to the new head's member
-   devices, if it is still to be delivered. A coordinator may serialise
-   proposals so that one writer proposes at a time; this page requires nothing
-   of that and does not rely on it.
+   is refused there as `outranked` or `removed-by-head`, the change it carried
+   has not taken effect at that slot. The coordinator does not treat it as
+   made: it proposes the change again, as a new batch against the new head, if
+   the intent still holds. Traffic sent under the displaced epoch's material is
+   the product's to send again, under the new head's material and to the new
+   head's member devices, if it is still to be delivered. A coordinator may
+   serialise proposals so that one writer proposes at a time; this page
+   requires nothing of that and does not rely on it.
+7. The product shows the owner which of the devices of the owner's principal
+   ranks first among them (Siblings, Rank), and treats the loss of any of those
+   devices, and of that one above all, as needing recovery outside this page
+   (Recovery, under What is not checked).
 
 ## What is not checked, and what is not claimed
 
@@ -1584,7 +1711,8 @@ following.
   device, a replayed losing epoch, a retry, or a second device of one account
   that proposes the same change leaves no verifier stopped, and leaves no two
   verifiers on different heads when the siblings reach each of them before a
-  successor of any of them does: each ends on the sibling that ranks first, and
+  successor of any of them does, outside the case of owner devices below: each
+  ends on the sibling that ranks first, and
   the writer of the other proposes again (Obligations at the product boundary,
   6). The page claims no more than that. A sibling that arrives after a
   successor of its head is `superseded`, so a race in which some verifiers
@@ -1596,7 +1724,10 @@ following.
   siblings first, and holds back the one that ranks first until a successor of
   another exists, can split a group when it chooses. Verifiers whose callers,
   verdicts or supported policy versions judge one sibling differently end on
-  different heads. And a head is not final until a successor of it is accepted,
+  different heads, and so do verifiers that receive in different orders a
+  removal of a device of the owner's principal by another that ranks after it
+  and a sibling of the removed device (Siblings, Owner devices). And a head is
+  not final until a successor of it is accepted,
   so a writer that ranks first can undo, at depth one, the epoch of any writer
   that ranks after it, as often as that writer proposes (Siblings, Rank).
 - **Removal of an authority.** An authority that an owner removes can still
@@ -1621,7 +1752,10 @@ following.
   authority device writes one.
 - **Silence.** A group that has split across branches gives no signal to a
   user on this page's rules. A split shows only as `missing-predecessor` or
-  `superseded`, which a gap, a delay or a replay also causes. A displacement is
+  `superseded`, which a gap, a delay or a replay also causes. The hint
+  `possible-fork` beside them is returned for a split, and also for a late
+  losing sibling, a replay and bytes that anyone can make, so it is not a
+  signal of a split on its own (Siblings, Fork hint). A displacement is
   returned to the caller as `displaced`, and equivocation as a pair of signed
   epochs with a result (Siblings, Equivocation); nothing requires the product to
   show either. A verifier on one branch keeps the key material of its head
@@ -1781,11 +1915,20 @@ following.
   the epoch learns them. Nothing here hides who is in a group.
 - **Recovery.** A lost or compromised owner, a compromised admin, or a fork
   between verifiers deeper than one epoch (Siblings, What the order does not
-  resolve). A lost or stolen device of the owner's principal that ranks before
-  the owner's other devices can displace its own removal until a successor of
-  the removal is accepted (Siblings, Displacement). Nothing on this page lets an
-  authority establish its own replacement. A checkpoint is not recovery
-  (Joining from a checkpoint).
+  resolve). A lost or stolen device of the owner's principal holds the owner's
+  power until an epoch that removes it has a successor at a verifier. If it is
+  faster than the owner's other devices, it can remove them, or transfer
+  ownership, and make that final with one more epoch; the owner's other devices
+  are then not authority devices of the head, and this page gives them no way
+  back. Its sibling cannot displace an epoch in which another of the owner's
+  devices removed it, at a verifier that accepted that epoch first, but where
+  its own sibling arrived first and it ranks before the remover, the removal is
+  `outranked`; and when it and another owner device remove each other in one
+  slot, the order of arrival decides and the group splits (Siblings, Owner
+  devices). If it ranks first among the owner's devices, it also displaces, at
+  depth one, any epoch of the others that does not remove it (Siblings,
+  Displacement). Nothing on this page lets an authority establish its own
+  replacement. A checkpoint is not recovery (Joining from a checkpoint).
 - **Post-quantum authority.** Writer signatures are classical XEdDSA
   signatures (EX-11).
 - **Storage.** A verifier whose stored state is rolled back or rewritten
@@ -1899,18 +2042,22 @@ What a sibling can undo. Until the verifier accepts a successor of `C`, a
 sibling of `C` that ranks before it displaces it (Siblings), and from that step
 `index` no longer holds `C` and the three statements are not made of it. Who can
 do that depends on who wrote `C`. If a device of the owner's principal wrote
-`C`, only another device of that principal that ranks before it, or the same
-device with a lower commitment, can: the owner's own devices. If an admin wrote
-`C`, as an admin's removal of a member device, a sibling written by any device
-of the owner's principal, by an admin device that ranks before `C`'s writer, or
-by `C`'s writer with a lower commitment displaces it, whether or not that
-sibling removes `r`. The removal then did not
-happen at that slot, `r` is a member device of the new head, and the proposer
-has to propose the removal again (Obligations at the product boundary, 6). A
-removal is therefore final at a verifier only once that verifier has accepted a
-successor of `C`. A verifier that accepts a sibling of `C`, and a successor of
-that sibling, before `C` arrives answers `C` with `superseded`, never makes `C`
-its head, and these three statements are not made of it (assumption 3).
+`C`, only the owner's own devices can: another device of that principal that
+ranks before `C`'s writer and that `C` does not remove or demote, or `C`'s
+writer with a lower commitment. A device of that principal that `C` removes or
+demotes cannot displace `C` (Siblings, Owner devices); where its sibling arrived
+before `C`, `C` is `outranked` and never becomes the head, if that device ranks
+before `C`'s writer. If an admin wrote `C`, as an admin's removal of a member
+device, a sibling written by any device of the owner's principal, by an admin
+device that ranks before `C`'s writer, or by `C`'s writer with a lower
+commitment displaces it, whether or not that sibling removes `r`. The removal
+then did not happen at that slot, `r` is a member device of the new head, and
+the proposer has to propose the removal again (Obligations at the product
+boundary, 6). A removal is therefore final at a verifier only once that verifier
+has accepted a successor of `C`. A verifier that accepts a sibling of `C`, and a
+successor of that sibling, before `C` arrives answers `C` with `superseded`,
+never makes `C` its head, and these three statements are not made of it
+(assumption 3).
 
 RM-1 to RM-3 restate obligations. RM-1 follows from Obligations on the key
 engine (2) once `r` is not a member device of the head. RM-2 follows from
@@ -2171,7 +2318,13 @@ ordered siblings, as Siblings writes it: there is no marker, and while the head
 has no accepted successor, a sibling of the head that passes every check
 displaces the head if it ranks before it, by the role and the position in the
 predecessor of the device that wrote it and, between two epochs of one device,
-by commitment, and is refused as `outranked` otherwise. Default: F.
+by commitment, and is refused as `outranked` otherwise; except that, when the
+sibling and the head were written by two devices of the owner's principal and
+the head removes or demotes the sibling's writer, the sibling is refused as
+`removed-by-head` whatever its rank; and the verifier returns the hint
+`possible-fork`, which has no effect, beside `superseded`, and beside
+`missing-predecessor` at a checkpoint head, for a candidate whose predecessor
+is the epoch it holds for the number before. Default: F.
 
 Not chosen. Under A and D one valid sibling stops a verifier for good, and
 under E until a device of the owner's principal clears it. An authority device
@@ -2193,11 +2346,17 @@ in the predecessor, which no body changes, and uses the commitment only between
 one device's own epochs. What F gives up: an accepted epoch is final only once
 it has a successor; a writer that ranks first can undo, at depth one, the epoch
 of any writer that ranks after it; and a fork deeper than one epoch still splits
-a group (Siblings, What the order does not resolve). F also drops D's refusal
-of a sibling whose writer the head removed. Under policy version 1 an admin
-that the head removed was removed by the owner, whose devices rank first, and
-for the owner's own devices the refusal would make the outcome depend on which
-sibling came first (Siblings, Displacement).
+a group (Siblings, What the order does not resolve). F keeps D's refusal of a
+sibling whose writer the head removed only between two devices of the owner's
+principal. Under policy version 1 an admin that the head removed was removed by
+the owner, whose devices rank first, so the rank already refuses its sibling.
+Between the owner's devices the rank alone would let a lost or stolen device
+that ranks first undo its own removal and remove the others; the refusal stops
+that where the removal arrived first, and makes the outcome depend on the order
+of arrival when the removed device ranks before its remover, mutual removal
+included (Siblings, Owner devices). The hint gives an operator something to
+count; it is not authenticated and fires without a fork too (Siblings, Fork
+hint).
 
 History. Option E was adopted (go of 2026-09-29). An earlier revision of this
 draft, which no one has reviewed, was written to D in place of E under the
