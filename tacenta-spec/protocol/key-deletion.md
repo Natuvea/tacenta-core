@@ -95,7 +95,9 @@ For a same-chain skip, delete the held `(DHr, n)` entries in the range that
 will be re-derived before checking the total-store bound. A re-derived pair
 replaces the held entry and consumes one slot only once. The operation checks
 the resulting store against `MAX_SKIPPED_STORE` and leaves the state unchanged
-when that check refuses it.
+when that check refuses it. The sparse ratchet's skip takes the same order on
+the pair of epoch and number (sparse-pq-ratchet.md, The store also has a total
+bound).
 
 ## What this implementation does
 

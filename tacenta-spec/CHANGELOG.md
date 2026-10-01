@@ -301,10 +301,26 @@ is SemVer against the specified protocol (not the implementation).
   decode. AES-CBC buffers now use the crates' zeroization features. The
   analogous SPQR container hardening remains a follow-up because its verified
   proof contracts still describe the old standard-library operations.
-- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
-  that the current sparse implementation checks the pre-purge store length,
-  while resulting-store replacement semantics and refusal atomicity remain an
-  open follow-up rather than current tested behaviour.
+- `protocol/sparse-pq-ratchet.md`, Receiving and The store also has a total
+  bound: the sparse ratchet's total bound is checked against the store a skip
+  would leave. A skip that steps a chain from `c` to `upto` is refused as
+  `TooManySkipped` when `upto - c` passes `MAX_SKIP`, then deletes the keys
+  stored for its epoch under the numbers it is about to store (`c < n <= upto`:
+  the counter itself is excluded, the number it steps to is included), counts
+  what remains, and is refused as `SkippedStoreFull` only when that count plus
+  `upto - c` passes `MAX_SKIPPED_STORE`. The deletion is made on a working
+  copy, and a refusal leaves the state unchanged. A key outside the range,
+  including one stored at the counter itself, is kept as it was. This is the
+  order `key-deletion.md` states for the Double Ratchet, which now names the
+  sparse ratchet as taking it too. An earlier entry here recorded that the
+  sparse implementation and model counted the store before the deletion and that
+  the change was an open follow-up (`HL-R1-SPARSE-TRANSLATION`); that entry is
+  replaced by this one, and the page states the rule as normative. It is the rule
+  the independent reader implemented and recorded as G12-05, where the page
+  named only what the implementation did. A state the operations produced holds
+  no key in the range, so the two counts differ only for a stored state that
+  does: such a state near the bound is no longer refused a request that
+  replaces its own keys.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. `key-deletion.md` states the order explicitly:
   delete held `(DHr, n)` pairs in the re-derived range, then require the
