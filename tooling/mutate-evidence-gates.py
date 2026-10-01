@@ -6,27 +6,38 @@ it. It answers one question for the receipt, manifest, evidence-pack and
 review-receipt tooling: if this check is removed or weakened, does a case runner
 go red? Each entry in `MUTATIONS` replaces one string, which must occur exactly
 once, in one tooling file of a throwaway copy of the repository's evidence
-tooling, commits the edit there, and runs the case runners named in
-`RUNNERS` until one fails. An edit that leaves every runner green is a
-SURVIVOR: a check no case holds, unless `EQUIVALENT` lists it with the reason
-its verdict cannot change.
+tooling, commits the edit there, and runs the case runners named in `RUNNERS`
+until one fails.
+
+Each edit is then one of three things. SEEN AS ACCEPTED: a case that expected a
+refusal saw an acceptance, or an honest input was refused, or an assertion
+failed; the check is held. SEEN AS MESSAGE: the first failing case was still
+refused, for another reason, and only its expected message no longer matched,
+and no other case of that runner fails for more than a message (the runner is
+run to its end to see). SURVIVED: every runner stayed green. An edit seen only as
+a message, or survived, fails the run unless `EQUIVALENT` lists it with the
+reason its verdict cannot change: the same inputs are refused by a later check,
+and only which check says so changes.
 
 A baseline run of the unedited copy comes first, and the harness stops if it is
 not green, because a red baseline would make every edit look caught.
 
     python3 tooling/mutate-evidence-gates.py            # every mutation
     python3 tooling/mutate-evidence-gates.py --list
+    python3 tooling/mutate-evidence-gates.py --check-table   # each old string occurs once
     python3 tooling/mutate-evidence-gates.py --only B1 --only V4
 
-It exits 1 if the baseline is red or any mutation survives that is not listed
-as equivalent. The copy holds `tooling/` and the files the case runners read; it
-is made from the committed tree at `HEAD`, so commit your edit first.
+It exits 1 if the baseline is red or an edit is neither seen as accepted nor
+listed as equivalent, and 2 if the tooling or the evidence files it copies differ
+from `HEAD`: the copy is made from the working-tree files, so a record that names
+a commit is only true of a clean tree.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +45,7 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -63,10 +75,28 @@ REVIEW = "tooling/check-ledger-review-receipt.py"
 REVIEWED = "tooling/validate-reviewed-evidence.py"
 SECTIONS = "tooling/ledger-review-sections.py"
 
-# Edits whose survival is expected, each with the reason it is no gap: the verdict
-# does not change, only which check says so. A survivor not listed here fails the run.
+# Edits that no case sees as more than a changed message, or that survive, because the
+# verdict cannot change: a later check refuses the same inputs, and only which check
+# says so changes. Each entry gives that reason. An edit not listed here must be seen as
+# accepted, and a listed edit that a case sees as accepted is stale and fails the run.
 EQUIVALENT = {
-    "RV3": "the comparison of the pack's manifest bytes with the given manifest, which follows it, refuses the same inputs",
+    "MT4": "the comparison with `git rev-parse HEAD`, which follows, refuses every id that is not the full commit and tree",
+    "MT10": "only the path printed in the refusal changes; the tree is dirty either way",
+    "PK2": "the tree lookup that follows fails for a commit the repository does not hold, so the same pack is refused",
+    "PK5": "the byte comparison that follows refuses a file the commit does not have, as different from the packed one",
+    "PB7": "without a receipt path the publisher fails on `None.exists()` before it uploads anything",
+    "RP1": "the byte comparison of the hosted receipts with the packed receipts, which follows, refuses the same inputs, because the receipts name their candidate",
+    "RP3": "the candidate's manifest builder, which runs next, refuses receipts that name another tree than the commit's, and the pack check refuses a pack that does",
+    "RP6": "the candidate's own verifier requires every file its builder writes, so the rebuilt pack has no file the given pack lacks, and a file only the given pack has fails the lookup that follows",
+    "RP9": "a pack that equals the rebuild byte for byte is one the candidate's builder wrote, which verifies",
+    "RP10": "a pack that equals the rebuild byte for byte has sources the builder copied from the commit",
+    "RC2m": "each required field is refused by its own check below",
+    "RC7": "an empty or missing list names none of the required artifacts, and a list of non-strings raises, so the same receipts are refused",
+    "RC10": "no claims leaves every section uncovered, and claims that are not a list are refused by the loop",
+    "RC16": "an unknown section raises KeyError at its digest lookup, so the same receipts are refused",
+    "RC17": "a digest that is not 64 lower-case hex digits never equals a section's digest",
+    "RC28": "an unhashable disposition raises TypeError at the membership test, which also refuses; the check keeps the refusal on the error path",
+    "RV3": "the pack verifier already requires the packed manifest to name the pack's candidate, and the comparison of the packed manifest bytes with the given manifest follows, so together they refuse the same inputs",
 }
 
 # (id, file, old, new, what the edit does)
@@ -168,7 +198,7 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
      "the candidate's own pack verifier is not run"),
     ("RP10", REPRODUCE, 'builder.authenticate(args.pack, repo)', "pass", "the pack is not authenticated against git"),
     # The review receipt checker, the section tool and the reviewed-evidence check.
-    ("RC1", REVIEW, 'if receipt.get("schema_version") != SCHEMA_VERSION:', "if False:", "the receipt schema version is not checked"),
+    ("RC1", REVIEW, 'if type(receipt.get("schema_version")) is not int or receipt["schema_version"] != SCHEMA_VERSION:', "if False:", "the receipt schema version is not checked"),
     ("RC2u", REVIEW, "unknown = sorted(set(receipt) - TOP_LEVEL - OPTIONAL_TOP_LEVEL)", "unknown = []", "an unknown receipt field is accepted"),
     ("RC2m", REVIEW, "missing = sorted(TOP_LEVEL - set(receipt))", "missing = []", "a missing receipt field is not named"),
     ("RC3", REVIEW, "if any(PLACEHOLDER in text for text in strings_in(receipt)):", "if False:", "a template placeholder is accepted"),
@@ -186,10 +216,10 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     ("RC11", REVIEW, "if not isinstance(claim, dict) or set(claim) != CLAIM_FIELDS:", "if False:", "a disposition with other fields is accepted"),
     ("RC12", REVIEW, "if not isinstance(reference, str) or not reference or reference in seen:", "if False:",
      "a repeated or empty reference is accepted"),
-    ("RC13", REVIEW, 'if claim["disposition"] not in DISPOSITIONS:', "if False:", "an unknown disposition is accepted"),
+    ("RC13", REVIEW, 'if not isinstance(claim["disposition"], str) or claim["disposition"] not in DISPOSITIONS:', "if False:", "an unknown disposition is accepted"),
     ("RC14", REVIEW, 'if not isinstance(claim["finding"], str):', "if False:", "a finding that is not text is accepted"),
-    ("RC15", REVIEW, 'if claim["disposition"] != "accepted" and not claim["finding"].strip():', "if False:",
-     "a limit or finding without text is accepted"),
+    ("RC15", REVIEW, 'if not claim["finding"].strip():', "if False:",
+     "a disposition without finding text is accepted"),
     ("RC16", REVIEW, "if reference not in sections:", "if False:", "a reference to a section the ledger lacks is accepted"),
     ("RC17", REVIEW, 'if not isinstance(claim["section_sha256"], str) or not SHA256.fullmatch(claim["section_sha256"]):', "if False:",
      "a malformed section digest is accepted"),
@@ -205,6 +235,58 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
      "the pack manifest schema is not checked"),
     ("RC26", REVIEW, 'return claim_sections(path.read_bytes().decode("utf-8"))', "return claim_sections(path.read_text())",
      "the ledger is read through the platform's newline translation"),
+    ("RC27", REVIEW, 'type(receipt.get("schema_version")) is not int or ', "", "a receipt with schema_version 2.0 is accepted"),
+    ("RC28", REVIEW, 'if not isinstance(claim["disposition"], str) or ', "if ", "a disposition that is not a string reaches the membership test"),
+    # Edits the fresh review of this branch made that no case saw (ids as in its report).
+    ("X1a", REVIEW, '"CLAIMS.md", "LIMITATIONS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n',
+     '"LIMITATIONS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n', "CLAIMS.md need not be named as read"),
+    ("X1b", REVIEW, '"CLAIMS.md", "LIMITATIONS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n',
+     '"CLAIMS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n', "LIMITATIONS.md need not be named as read"),
+    ("X1c", REVIEW, '"CLAIMS.md", "LIMITATIONS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n',
+     '"CLAIMS.md", "LIMITATIONS.md", "evidence-index.json", "ASSURANCE.md",\n', "verification-manifest.json need not be named as read"),
+    ("X1d", REVIEW, '"CLAIMS.md", "LIMITATIONS.md", "verification-manifest.json", "evidence-index.json", "ASSURANCE.md",\n',
+     '"CLAIMS.md", "LIMITATIONS.md", "verification-manifest.json", "ASSURANCE.md",\n', "evidence-index.json need not be named as read"),
+    ("X1e", REVIEW, '"ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md", "P6-L2-TARGET-DECISION.md",\n    "PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md",\n',
+     '"ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md",\n    "PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md",\n', "P6-L2-TARGET-DECISION.md need not be named as read"),
+    ("X1f", REVIEW, '"ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md", "P6-L2-TARGET-DECISION.md",\n    "PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md",\n',
+     '"ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md", "P6-L2-TARGET-DECISION.md",\n', "PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md need not be named as read"),
+    ("X2", REVIEW, "    elif isinstance(value, list):\n        for item in value:\n            yield from strings_in(item)",
+     "    elif isinstance(value, list):\n        for item in value:\n            if isinstance(item, dict):\n                yield from strings_in(item)",
+     "a placeholder in a list of strings (artifacts_read, cross_cutting_notes) is not found"),
+    ("X3", REVIEW, "add(match.group(1).rstrip(), text[match.start():end])", "add(match.group(1), text[match.start():end])",
+     "a section title keeps trailing whitespace (the carriage return of a CRLF ledger)"),
+    ("X4", REVIEW, "add(match.group(1).rstrip(), text[match.start():end])", "add(match.group(1).rstrip(), text[match.start():match.end()])",
+     "a section's digest covers its heading line only, not its text"),
+    ("X5", REVIEW, "end = matches[index + 1].start() if index + 1 < len(matches) else len(text)",
+     "end = matches[index + 1].start() if index + 1 < len(matches) else matches[index].end()", "the last section's digest covers its heading only"),
+    ("X6", REVIEW, "add(INTRODUCTION, text[: matches[0].start() if matches else len(text)])",
+     "add(INTRODUCTION, text[: (matches[0].start() if matches else len(text)) - 1])", "the introduction's digest leaves out its last byte"),
+    ("X7", REVIEW, "end = matches[index + 1].start() if index + 1 < len(matches) else len(text)",
+     "end = matches[index + 1].start() if index + 1 < len(matches) else len(text) - 1", "the last section's digest leaves out its last byte"),
+    ("X8", REVIEW, "add(match.group(1).rstrip(), text[match.start():end])", "add(match.group(1).rstrip(), text[match.start():end - 1])",
+     "every section's digest leaves out its last byte"),
+    ("X20", PACK, '    for entry in pack["files"]:\n        if not entry["path"].startswith("source/"):\n',
+     '    for entry in pack["files"][1:]:\n        if not entry["path"].startswith("source/"):\n', "authentication skips the first listed file"),
+    ("X20b", PACK, '    for entry in pack["files"]:\n        if not entry["path"].startswith("source/"):\n',
+     '    for entry in pack["files"][:-1]:\n        if not entry["path"].startswith("source/"):\n', "authentication skips the last listed file"),
+    ("X21", PACK, 'if not entry["path"].startswith("source/"):\n            continue',
+     'if not entry["path"].startswith("source/") or entry["path"].startswith("source/.github/"):\n            continue',
+     "the packed workflow and receipt action are not compared with git"),
+    ("X22", PACK, 'if not entry["path"].startswith("source/"):\n            continue',
+     'if not entry["path"].startswith("source/") or entry["path"].startswith("source/tooling/"):\n            continue',
+     "the packed tooling files (required-steps.json, the checkers) are not compared with git"),
+    ("X23", PACK, 'if not entry["path"].startswith("source/"):\n            continue',
+     'if not entry["path"].startswith("source/") or entry["path"].startswith("source/tacenta-spec/") or entry["path"].startswith("source/tacenta-test-vectors/"):\n            continue',
+     "the packed spec and vector files are not compared with git"),
+    ("X24", PACK, 'if not entry["path"].startswith("source/"):\n            continue',
+     'if not entry["path"].startswith("source/") or entry["path"].startswith("source/tacenta-proofs/manifests/") or entry["path"].startswith("source/tacenta-proofs/LIMITATIONS"):\n            continue',
+     "the packed verification manifest and LIMITATIONS.md are not compared with git"),
+    ("X40", REPRODUCE, "shutil.rmtree(scratch, ignore_errors=True)", "pass", "a reproduction leaves its scratch directory"),
+    ("X41", REPRODUCE, "sys.dont_write_bytecode = True\n", "", "a reproduction may leave bytecode in the repository"),
+    ("X50", BUILDER, 'identity.get("clean_tree") is not True:\n        fail("manifest does not assert a clean source tree")',
+     'not identity.get("clean_tree"):\n        fail("manifest does not assert a clean source tree")', "a truthy clean_tree is enough"),
+    ("X51", BUILDER, 'if data.get("schema_version") != 1:', 'if data.get("schema_version") not in (1, 1.0, 2):', "a manifest of schema_version 2 is accepted"),
+    ("X52", PUBLISH, 'if not isinstance(version, str) or not version:', 'if version is None:', "an empty version ID is recorded"),
     ("RV1", REVIEWED, '"--pack", str(args.pack),\n            "--require-no-findings")', '"--pack", str(args.pack))',
      "a reviewed candidate may carry a finding"),
     ("RV2", REVIEWED, '"--verify", str(args.pack), "--candidate-repo", str(ROOT))', '"--verify", str(args.pack))',
@@ -250,22 +332,76 @@ def git(directory: Path, *args: str) -> None:
                    cwd=directory, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+MESSAGE = re.compile(r"missing diagnostic|got rc=[1-9]")
+
+
+def wrong_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if line.startswith("WRONG")]
+
+
+def run_runner(directory: Path, runner: str, keep_going: bool = False) -> tuple[int, str]:
+    """Run one runner. With keep_going its errexit is switched off, so every case runs
+    and prints its own WRONG line instead of the first failure stopping the runner."""
+    script = directory / runner
+    if keep_going:
+        text = script.read_text().replace("set -euo pipefail", "set -uo pipefail", 1)
+        # The helpers switch errexit back on after each case; leave it off.
+        text = re.sub(r"(?m)^(\s*)set -e\s*$", r"\1:", text)
+        script = script.with_name(script.stem + "-keep-going.sh")
+        script.write_text(text)
+    completed = subprocess.run(["bash", str(script)], cwd=directory, text=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, timeout=3000, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    return completed.returncode, completed.stdout
+
+
 def run_runners(directory: Path, runners: list[str]) -> tuple[str | None, str]:
-    """The first runner that fails and its last lines, or (None, "") if all pass."""
+    """The first runner that fails and its output, or (None, "") if all pass."""
     for runner in runners:
-        completed = subprocess.run(["bash", str(directory / runner)], cwd=directory, text=True,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=900,
-                                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
-        if completed.returncode:
-            lines = [line for line in completed.stdout.strip().splitlines() if line.strip()]
-            shown = [line for line in lines if line.startswith("WRONG")] or lines[-2:]
-            return runner, " | ".join(shown)[:240]
+        code, output = run_runner(directory, runner)
+        if code:
+            return runner, output
     return None, ""
+
+
+def seen_as(directory: Path, runner: str, output: str) -> str:
+    """"accepted" if some case of the failing runner fails for more than a changed
+    message (it expected a refusal and saw an acceptance, an honest input was refused,
+    or an assertion failed), else "message"."""
+    wrong = wrong_lines(output)
+    if not wrong or not all(MESSAGE.search(line) for line in wrong):
+        return "accepted"
+    _, everything = run_runner(directory, runner, keep_going=True)
+    return "accepted" if any(not MESSAGE.search(line) for line in wrong_lines(everything)) else "message"
+
+
+def first_case(output: str) -> str:
+    wrong = wrong_lines(output)
+    if wrong:
+        match = re.match(r"WRONG\s+([^:]+):", wrong[0])
+        return match.group(1) if match else wrong[0][:80]
+    return "an assertion or a step that must pass failed"
+
+
+def evidence_files() -> list[str]:
+    spec = importlib.util.spec_from_file_location("builder", ROOT / BUILDER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    pack_spec = importlib.util.spec_from_file_location("packer", ROOT / PACK)
+    pack = importlib.util.module_from_spec(pack_spec)
+    pack_spec.loader.exec_module(pack)
+    return sorted(set(module.SOURCES) | set(pack.EXTRA) | {".gitignore", "tooling"})
+
+
+def dirty_evidence_files() -> list[str]:
+    status = subprocess.run(["git", "status", "--porcelain", "--", *evidence_files()], cwd=ROOT, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True).stdout
+    return [line for line in status.splitlines() if line.strip()]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--check-table", action="store_true")
     parser.add_argument("--only", action="append", default=[])
     args = parser.parse_args()
     mutations = [m for m in MUTATIONS if not args.only or m[0] in args.only]
@@ -277,17 +413,36 @@ def main() -> int:
     if unknown:
         print("unknown mutation id: " + ", ".join(sorted(unknown)), file=sys.stderr)
         return 2
+    if args.check_table:
+        bad = 0
+        for ident, file, old, _new, _what in MUTATIONS:
+            count = (ROOT / file).read_text().count(old)
+            if count != 1:
+                print(f"{ident}: the string to replace occurs {count} times in {file}, not once", file=sys.stderr)
+                bad += 1
+        missing = sorted(set(EQUIVALENT) - {m[0] for m in MUTATIONS})
+        if missing:
+            print("EQUIVALENT names edits the table does not have: " + ", ".join(missing), file=sys.stderr)
+            bad += 1
+        print(f"table: {len(MUTATIONS)} edits, {bad} problem(s)")
+        return 1 if bad else 0
+    dirty = dirty_evidence_files()
+    if dirty:
+        print("the tooling or an evidence file differs from HEAD, so the commit a record names is not what would run:\n  "
+              + "\n  ".join(dirty), file=sys.stderr)
+        return 2
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE).stdout.strip()
     with tempfile.TemporaryDirectory(prefix="mutate-evidence-") as scratch:
         base = Path(scratch) / "baseline"
         copy_tree(base)
         started = time.time()
-        failed, tail = run_runners(base, RUNNERS)
+        failed, output = run_runners(base, RUNNERS)
         if failed:
-            print(f"BASELINE RED: {failed}: {tail}", file=sys.stderr)
+            shown = (wrong_lines(output) or [line for line in output.splitlines() if line.strip()][-2:])
+            print(f"BASELINE RED: {failed}: {' | '.join(shown)[:240]}", file=sys.stderr)
             return 1
-        print(f"baseline green ({time.time() - started:.0f} s); {len(mutations)} mutation(s)")
-        survivors = []
-        equivalent = []
+        print(f"baseline green at {head} ({time.time() - started:.0f} s); {len(mutations)} mutation(s)")
+        accepted, message_equivalent, survived_equivalent, unexpected = [], [], [], []
         for ident, file, old, new, what in mutations:
             text = (base / file).read_text()
             if text.count(old) != 1:
@@ -298,19 +453,27 @@ def main() -> int:
             (work / file).write_text(text.replace(old, new))
             git(work, "commit", "-q", "-a", "-m", ident)
             home = HOME_RUNNER.get(file, 0)
-            caught, tail = run_runners(work, [RUNNERS[home]] + [r for i, r in enumerate(RUNNERS) if i != home])
+            runner, output = run_runners(work, [RUNNERS[home]] + [r for i, r in enumerate(RUNNERS) if i != home])
+            kind = seen_as(work, runner, output) if runner else "survived"
             shutil.rmtree(work)
-            if caught:
-                print(f"caught    {ident:5} {what}\n            by {caught.rsplit('/', 1)[1]}: {tail}")
+            label = f"{ident:5} {what}"
+            if kind == "accepted" and ident in EQUIVALENT:
+                unexpected.append(ident)
+                print(f"STALE     {label}\n            listed as equivalent, but {runner.rsplit('/', 1)[1]} sees it as accepted ({first_case(output)}): remove it from EQUIVALENT")
+            elif kind == "accepted":
+                accepted.append(ident)
+                print(f"caught    {label}\n            seen as accepted by {runner.rsplit('/', 1)[1]}: {first_case(output)}")
             elif ident in EQUIVALENT:
-                equivalent.append(ident)
-                print(f"SURVIVED  {ident:5} {what}\n            claimed equivalent: {EQUIVALENT[ident]}")
+                (message_equivalent if kind == "message" else survived_equivalent).append(ident)
+                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {first_case(output)}" if kind == "message" else "survived every runner"
+                print(f"EQUIVALENT {label}\n            {seen}; claimed equivalent: {EQUIVALENT[ident]}")
             else:
-                survivors.append(ident)
-                print(f"SURVIVED  {ident:5} {what}")
-        caught_count = len(mutations) - len(survivors) - len(equivalent)
-        print(f"{caught_count} caught, {len(equivalent)} survived as claimed equivalent, {len(survivors)} survived unexpectedly")
-        return 1 if survivors else 0
+                unexpected.append(ident)
+                seen = f"seen as message only by {runner.rsplit('/', 1)[1]}: {first_case(output)}" if kind == "message" else "survived every runner"
+                print(f"UNEXPECTED {label}\n            {seen}")
+        print(f"{len(mutations)} edits: {len(accepted)} seen as accepted, {len(message_equivalent)} seen as message only and claimed equivalent, "
+              f"{len(survived_equivalent)} survived and claimed equivalent, {len(unexpected)} unexpected" + (": " + ", ".join(unexpected) if unexpected else ""))
+        return 1 if unexpected else 0
 
 
 if __name__ == "__main__":
