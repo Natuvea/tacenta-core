@@ -14,8 +14,8 @@ this section says in one place what is not proved.
   are the functions a product actually calls. On the eight-leaf session unit
   their orchestration now has panic-freedom theorems (T1, below), conditional
   on the contract records named in their statements (15 to 45 named hypotheses
-  each; together the four records include eleven of the thirteen boundary
-  contracts of `LIMITATIONS.md`, and any one record includes three to eight of
+  each; together the four records include twelve of the fourteen boundary
+  contracts of `LIMITATIONS.md`, and any one record includes three to nine of
   them) and explicit headroom (three of the five, for `decrypt`, `decrypt_ratchet`
   and `establish_responder`, took a record that contained a false hypothesis,
   which has been restated for bounded decoders; the four records follow from an axiom base that one
@@ -2178,8 +2178,8 @@ statement, on an explicit headroom record and, for `decrypt_no_panic`,
 `SessionUnitT1.DerivedKeysModel`, which no record contains. The records are `EncryptContracts`
 (25 named hypotheses), `DecryptRatchetContracts` (38, taken by `decrypt_no_panic`
 and `decrypt_ratchet_no_panic`), `EstablishInitiatorContracts` (15) and
-`EstablishResponderContracts` (45), counting the fields of nested records. Eleven
-of the thirteen boundary contracts of `LIMITATIONS.md` ("The Session unit's
+`EstablishResponderContracts` (45), counting the fields of nested records. Twelve
+of the fourteen boundary contracts of `LIMITATIONS.md` ("The Session unit's
 primitive contracts") appear among those fields; `KemCiphertextLenTotal` and
 `XeddsaSignTotal` appear in none of the four records. The others are contracts
 on the ratchets, the Braid, the Triple Ratchet and the session layer; `invariant_gives_preconditions` derives the
@@ -2272,7 +2272,8 @@ block, or leaving it inside a comment, fails it. The pins hold axiom lists only.
 `SessionUnitT1.DerivedKeysModel` or to a headroom record, or a weaker theorem
 statement, fails a pin only if it names an operation the pin does not list. Nor do they show that the records can be met by themselves:
 `Translation/UnitSatisfiabilitySession.lean` exhibits a model for each of thirteen boundary contracts
-separately. That the four records and the class follow from an axiom base that has a model, in the sense
+separately (the fourteenth, `DivCeilValue`, has `divCeilValue_shape_satisfiable` in
+`Translation/SessionBraidReceiveRepair.lean`). That the four records and the class follow from an axiom base that has a model, in the sense
 of the section "Proved (one interpretation of the unit's opaque constants, and the four records from it)"
 below, under five laws and without the headroom records, is shown by other results. Two of the four,
 `DecryptRatchetContracts` and `EstablishResponderContracts`, contained a field that was false, which the repair
@@ -2521,7 +2522,7 @@ exact residual is in `LIMITATIONS.md`.
   drop-last law (the witness `popImpl` also returns the last element), and the shape carries `LawPop` as well as the totality, bound to the
   real `Vec::pop` by `Iff.rfl`. The function that returns and leaves the vector unchanged satisfies
   `VecPopShape` and not the law. The coverage theorem still names all thirteen witnesses. These thirteen
-  witnesses are separate, one per contract; that the contracts hold together is the joint model.
+  witnesses are separate, one for each contract of the first Session proof layer; that the contracts hold together is the joint model.
 
 Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
 deleting one fails it. The pins of the results about `Interp.real` and the records list the 48 interpreted

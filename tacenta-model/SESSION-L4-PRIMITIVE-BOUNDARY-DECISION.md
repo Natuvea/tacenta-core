@@ -86,12 +86,57 @@ totality only. What it computes is stated by `Model.IdentityKey.valid`, written
 from the page, and pinned by the identity-key vectors and by the differential;
 the refinement contract binds the model's `identityValid` oracle to the
 translated `is_valid_identity_key`.
+
+Note, 2026-10-01: the repair of the receive decoder hypothesis (#217) gave
+`EstablishResponderContracts` a field, `divCeilValue`: the value `(a + 31) / 32`
+of the opaque `usize::div_ceil` at divisor 32. `establish_responder_no_panic`
+takes it and uses it once, to bound the decoder a freshly built responder Braid
+holds. It is an assumption about a standard-library operation that Aeneas leaves
+opaque, as `VecPopTotal` is, and `establish_responder_no_panic` takes it through
+`EstablishResponderContracts`. Fields about other opaque operations that the
+records inherit from the leaf proofs, such as `RangeFullIndexTotal`, are not
+counted by this decision. `divCeilValue` is not inherited: no earlier field states
+the value, and it is the only field added to the four records in
+`UnitLifecyclePublicT1.lean` since the note of 2026-09-29. Two inherited fields,
+`DecoderNewTotal` and `EncoderNewTotal`, are each equivalent to `div_ceil`
+returning at divisor 32 (`decoderNew_iff` and `encoderNew_iff`,
+`UnitSatisfiabilityErasure.lean`). `divCeilValue` implies both and states more
+than they do, and both stay in the records, so it replaces neither.
+`AeadSealBounded` replaced `AeadSealTotal` at the same count only because
+`AeadSealTotal` was one of the counted contracts. So `divCeilValue` is a
+fourteenth session contract. #217 did not reopen this decision. This note does,
+and recuts the cap at fourteen. The tag `tacenta-assurance-v0.4.5` and main at
+#220 were reached after #217 and before this note, so each has a fourteenth
+contract under a cap of thirteen. No change is made to `chunk_count` in
+`tacenta-core/erasure/src/lib.rs`, the one production call of `usize::div_ceil`.
+Replacing that call with arithmetic that Aeneas translates would remove this
+contract. It changes a verified zone and regenerates the translation, so it is a
+separate change, and this note counts the contract instead. The separate witness
+is `divCeilValue_shape_satisfiable`, tied to the statement of `DivCeilValue` by
+`SessionBraidReceiveRepair.DivCeilValue_is` (`SessionBraidReceiveRepair.lean`);
+both are pinned and on `attest.py`'s required-pin floor, so deleting either is
+refused. The joint model also satisfies the law (`model_DivCeilValue` and
+`UnitSatisfiabilityJoint.DivCeilValue_is`, held by `all_shapes_are_predicates` and
+`model_satisfies_all_axiom_shapes`, both required pins). That is the witness in the
+session unit's satisfiability module that this decision asks for, and it holds
+together with the other contracts the four records contain. The coverage theorem
+`all_thirteen_contracts_satisfiable` is not renamed and still names the thirteen
+witnesses of the first Session proof layer; the fourteenth is not a name of that
+theorem. The five laws of the inhabitation result (#220) are a different thing.
+`LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not fields of any of
+the four contract records and no lifecycle theorem takes them:
+they are assumptions of that result only, recorded in
+`tacenta-proofs/LIMITATIONS.md`, and outside this budget. `DivCeilValue` is the
+fifth of those five laws and is counted here because it is a record field. A law
+that becomes a field of a record or a hypothesis of a lifecycle theorem is a new
+contract and reopens the cap.
+
 The complete translation requires ten new primitive contracts. Existing KDF
 and unit-composition contracts are inherited and named separately; the one
 fixed-width RNG contract above replaces a generic new RNG assumption. More
-than thirteen new session contracts requires this decision to be reopened and
+than fourteen new session contracts requires this decision to be reopened and
 the boundary to be recut before proof work continues (twelve until the note of
-2026-09-29).
+2026-09-29, thirteen until the note of 2026-10-01).
 
 ## Consequences and validation
 
