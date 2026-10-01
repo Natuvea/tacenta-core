@@ -181,6 +181,19 @@ t=$SECONDS
 bash scripts/check-hypothesis-witnesses.sh || fail=1
 report_time "hypothesis witnesses" "$t"
 
+# `check-audit-reach.sh` is itself a gate that was shown to refuse once, by hand. This plants an orphan
+# module in each source directory and a wrong audit call in a disposable worktree, with the builds above
+# linked in, and requires it to refuse each for its stated reason.
+t=$SECONDS
+bash scripts/check-audit-reach-negatives.sh || fail=1
+report_time "audit reach negatives" "$t"
+
+# The `#guard_msgs` pins state the axioms and the statements the documents cite. This edits one pin of each
+# kind in a disposable worktree and requires Lean to refuse it, so a pin that cannot fail is noticed.
+t=$SECONDS
+bash scripts/check-pin-negatives.sh || fail=1
+report_time "pin negatives" "$t"
+
 # Both of the checks above ask what the audit found. This one asks whether the
 # audit finds anything: it plants declarations the rule says to refuse, and the
 # one shape the rule says to allow, in a throwaway first-party module and
@@ -231,5 +244,9 @@ modules() {
 replay translation "the translation and its T1/T3 proofs" 4 $(modules translation Translation)
 replay .           "the model-layer proofs" 1 $(modules . Proofs)
 replay ../tacenta-model "the model and its property theorems" 1 $(modules ../tacenta-model Model Properties)
+
+# The replay above reports what `leanchecker` finds. This shows that, on the pinned toolchain, it finds
+# a declaration added with the kernel check switched off: two one-line modules, one sound and one not.
+bash scripts/check-kernel-replay-negative.sh || fail=1
 
 exit "$fail"
