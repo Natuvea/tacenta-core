@@ -63,7 +63,10 @@ def main() -> int:
         shutil.copyfile(root / relative, target)
     git(repo, "init", "-q")
     git(repo, "add", "-A")
-    git(repo, "commit", "-q", "-m", "candidate")
+    # The message names the destination so that two candidates made in the same second from
+    # the same files cannot share a commit id: a runner case that asks whether one candidate's
+    # commit is in another repository must not depend on how fast the machine is.
+    git(repo, "commit", "-q", "-m", f"candidate {args.event} {dest.name}")
 
     env = {**os.environ, "GITHUB_EVENT_NAME": args.event, "GITHUB_RUN_ID": "control", "GITHUB_RUN_ATTEMPT": "1",
            "PYTHONDONTWRITEBYTECODE": "1"}
