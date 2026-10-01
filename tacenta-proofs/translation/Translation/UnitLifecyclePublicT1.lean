@@ -1014,11 +1014,16 @@ theorem message_keys_no_panic
   all_goals simp_all
 
 
-/-- The receive half of the Braid's boundary contracts. **No term of this type exists:**
-`decoderMessage` is false (`Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total`), so
-every theorem that takes this record, directly or through `DecryptRatchetContracts` or
-`EstablishResponderContracts`, holds vacuously as stated. See `GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`. -/
+/-- The receive half of the Braid's boundary contracts.
+
+`decoderMessage` is stated for the decoders that need at most `MAX_CODEWORDS` chunks
+(`Tacenta.SessionUnitBraidT1.DecoderMessageTotal`).  The statement without that bound is false
+(`Tacenta.SessionBraidReceiveVacuity.decoderMessage_not_total`), and the version of this record
+that took it had no term, so the theorems that took the record held vacuously.  The receive theorems
+get the bound from the state (`Tacenta.SessionUnitBraidT1.State.decoders_bounded`), which
+`DecryptRatchetHeadroom` and `InvariantPreconditions` carry and `Session::invariant` supplies.
+
+See `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`. -/
 structure BraidReceiveContracts : Prop where
   decoderNew : Tacenta.SessionUnitBraidT1.DecoderNewTotal
   decoderAdd : Tacenta.SessionUnitBraidT1.DecoderAddChunkTotal
@@ -1099,6 +1104,7 @@ structure DecryptRatchetContracts {R : Type}
 structure DecryptRatchetHeadroom (self : lifecycle.Session) : Prop where
   triple : ReceiveHeadroom self.triple
   braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
+  braidDecoders : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.braid.state
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
 
 /-- The Triple invariant discharges every receive-capacity premise inherited
@@ -1138,6 +1144,7 @@ eventually reach. -/
 structure InvariantPreconditions (self : lifecycle.Session) : Prop where
   triple : ReceiveHeadroom self.triple
   braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
+  braidDecoders : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.braid.state
 
 /-- A successful whole-session invariant check necessarily traversed and
 accepted the common leaf-invariant boundary. -/
@@ -1175,9 +1182,10 @@ theorem invariant_gives_preconditions
     InvariantPreconditions self := by
   have hleaf := session_invariant_gives_leaf_check self h
   obtain ⟨htriple, hbraid⟩ := leaf_check_gives_leaf_invariants self hleaf
+  have hinv := Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_inv
+    hct1 self.braid hbraid
   exact ⟨triple_invariant_gives_receive_headroom self.triple htriple,
-    (Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_inv
-      hct1 self.braid hbraid).ct1_bounded⟩
+    hinv.ct1_bounded, hinv.decoders_bounded⟩
 
 theorem ratchet_init_receiver_empty
     (sk ourPub : Array U8 32#usize) (labels : tacenta_ratchet.LabelSet) :
@@ -1215,18 +1223,40 @@ theorem triple_init_receiver_headroom
     tacenta_spqr.MAX_SKIP]
   scalar_tac
 
+/-- The decoder a responder Braid starts with comes from `Decoder::new` on the header length plus
+the MAC length, so its `needed` is `chunk_count` of at most 4128, so at most 65536 by the value law
+of `div_ceil`. -/
+theorem hdr_decoder_bounded
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hhl : Tacenta.SessionUnitBraidT1.HeaderLenTotal) :
+    tacenta_braid.hdr_decoder ⦃ fun d => d.needed.val ≤ 65536 ⦄ := by
+  obtain ⟨v, hv, hvle⟩ := hhl
+  unfold tacenta_braid.hdr_decoder
+  simp only [hv, Aeneas.Std.bind_tc_ok]
+  step*
+  all_goals (try (simp only [global_simps]; scalar_tac))
+  obtain ⟨d, hd, hdle⟩ := Tacenta.SessionUnitDecoderBound.new_needed_le hdiv i1
+    (by simp only [global_simps] at i1_post; scalar_tac)
+  rw [hd]
+  simpa using hdle
+
+/-- A freshly built responder Braid meets both receive preconditions: the ciphertext cap
+(it holds no ciphertext) and the decoder bound. -/
 theorem braid_responder_headroom
     (hkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total)
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
-    (hdec : Tacenta.SessionUnitBraidT1.DecoderNewTotal)
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
     (hhl : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
     (secret : Slice U8) :
     tacenta_braid.Braid.responder secret ⦃ fun braid =>
-      Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state ⦄ := by
+      Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state ∧
+      Tacenta.SessionUnitBraidT1.State.decoders_bounded braid.state ⦄ := by
   unfold tacenta_braid.Braid.responder
   step with Tacenta.SessionUnitBraidT1.Auth.init_no_panic hkdf hz 1#u64 secret
-  step with Tacenta.SessionUnitBraidT1.hdr_decoder_no_panic hdec hhl
-  simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded]
+  step with hdr_decoder_bounded hdiv hhl
+  simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_bounded]
+  assumption
 
 theorem identity_ad_length (hdh : DhCodecTotal)
     (initiator responder : tacenta_boundary.dh.PublicKeyBytes) :
@@ -1264,6 +1294,7 @@ theorem decrypt_ratchet_no_panic {R : Type}
         boundary.braid.optionClone boundary.braid.zeroizingArray
         boundary.braid.arrayZeroize boundary.braid.rangeFullIndex
         self.braid braidMsg (DecryptRatchetHeadroom.braid headroom)
+        (DecryptRatchetHeadroom.braidDecoders headroom)
       rcases hag : ag_out with _ | o <;> simp only [hag, tacenta_spqr.Output.new]
       all_goals step with public_key_from_bytes_no_panic boundary.dhCodec decoded.header.dh
       all_goals step with private_key_agree_no_panic boundary.dhAgree self.ratchet_private
@@ -1313,6 +1344,12 @@ theorem decrypt_ratchet_no_panic {R : Type}
       all_goals split <;> simp
     · simp
 
+/-- The contracts `establish_responder_no_panic` takes.
+
+`divCeilValue` is the value law of `usize::div_ceil` at divisor 32.  It is used once, to bound the
+decoder a freshly built responder Braid holds (`braid_responder_headroom`), so it sits here and not
+in `BraidReceiveContracts`, which the decrypt theorems also take.  See `GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`. -/
 structure EstablishResponderContracts {R : Type}
     (rngCore : rand_core_1.RngCore R) where
   decrypt : DecryptRatchetContracts rngCore
@@ -1322,6 +1359,7 @@ structure EstablishResponderContracts {R : Type}
   sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
   spqrKdfInit : Tacenta.SessionUnitTripleT1.KdfInitTotal
   vecPop : VecPopTotal
+  divCeilValue : Tacenta.SessionUnitDecoderBound.DivCeilValue
 
 structure EstablishResponderHeadroom (store : lifecycle.PrekeyStore) : Prop where
   lastResortSeen : store.last_resort_seen.val.length + 1 ≤ Usize.max
@@ -1421,6 +1459,7 @@ theorem responder_initial_decrypt_headroom
     (ephemeral : alloc.vec.Vec U8)
     (htriple : ReceiveHeadroom triple)
     (hbraid : Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state)
+    (hdecoders : Tacenta.SessionUnitBraidT1.State.decoders_bounded braid.state)
     (had : identityAd.val.length = 66) :
     DecryptRatchetHeadroom
       {
@@ -1436,6 +1475,7 @@ theorem responder_initial_decrypt_headroom
   constructor
   · exact htriple
   · exact hbraid
+  · exact hdecoders
   · rw [had]
     exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
 
@@ -1526,12 +1566,12 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with public_key_as_bytes_no_panic contracts.decrypt.dhCodec pkb
               all_goals step with triple_init_receiver_headroom contracts.decrypt.triple.hkdf contracts.decrypt.triple.zeroizing contracts.spqrKdfInit contracts.decrypt.triple.spqrZeroize s3 a2 tacenta_ratchet.LabelSet.Tacenta
               all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
-              all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.decrypt.braid.decoderNew contracts.decrypt.braid.headerLen s4
+              all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.divCeilValue contracts.decrypt.braid.headerLen s4
               all_goals step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
               all_goals step with identity_public_no_panic contracts.decrypt.dhCodec ourIdentity
               all_goals step with identity_ad_length contracts.decrypt.dhCodec initiatorIdentity pkb1
               all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
-              all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post v_post
+              all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post1 braid_post2 v_post
               all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
               all_goals (rcases r7 with decrypted | decryptError)
               all_goals try
@@ -1799,7 +1839,9 @@ The pins hold axiom lists only. The theorem statements, the fields of the
 contract records, the class `SessionUnitT1.DerivedKeysModel` and the headroom
 records are hypotheses, and `#print axioms` shows only the operations they
 name. A proof that starts to depend on a new axiom fails the build here. `attest.py` also lists the
-six in `REQUIRED_PINS`, which also lists the results of `SessionBraidReceiveVacuity`, so deleting a pin block, or leaving it inside a comment,
+six in `REQUIRED_PINS`, which also lists the results of `SessionBraidReceiveVacuity` and
+`SessionBraidReceiveRepair` and the decoder-bound pins of `SessionUnitDecoderBound` and
+`SessionUnitBraidImportInv`, so deleting a pin block, or leaving it inside a comment,
 fails it, and refuses a pin
 labelled compiler-trusted unless `COMPILER_TRUSTED_PINS` names the theorem.
 -/

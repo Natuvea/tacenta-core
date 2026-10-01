@@ -50,9 +50,10 @@ parsers, the encoder and all nine refinement theorems.
 panic-freedom theorems and one lemma (`encrypt_no_panic`, `decrypt_no_panic`,
 `decrypt_ratchet_no_panic`, `establish_initiator_for_no_panic`,
 `establish_responder_no_panic` and `invariant_gives_preconditions`); none
-depends on a compiler-trust axiom, and three of the five panic-freedom theorems
-(`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`) are
-vacuous as stated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+depends on a compiler-trust axiom. Three of the five panic-freedom theorems
+(`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`) took a
+record with a false field until it was restated for bounded decoders, and no theorem shows
+that the records can be met (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `Translation.ImportInv` pins both halves of its chain: the two ratchets'
 `invariant_true_iff` and `from_bytes_establishes_inv`, together with the
 classical ratchet's two non-vacuity pins, which are kernel-only; and
@@ -266,8 +267,15 @@ excludes it.
   constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
   and the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
   hypotheses, below). In the eight-leaf session unit the erasure coder is translated, so
-  `DecoderMessageTotal` there is a statement about a definition, and it is refuted
-  (`Translation/SessionBraidReceiveVacuity.lean`); the other four erasure totals have not been
+  `DecoderMessageTotal` there is a statement about a definition. Stated for every decoder it was
+  refuted (`Translation/SessionBraidReceiveVacuity.lean`); it is now stated for decoders that need at
+  most `MAX_CODEWORDS` chunks, and the Braid receive theorems take that bound from the state
+  (`State.decoders_bounded`). It is true given that `Vec::truncate` returns
+  (`Translation/SessionBraidReceiveRepair.lean`). The statement is about the translation, whose
+  `Vec::with_capacity` never fails, so it also covers a decoder with a small `needed` and a huge
+  `size`, on which the Rust `Decoder::message` panics or aborts; `Decoder::invariant` rejects such a
+  decoder through `needed == chunk_count(size)`, which `decoders_bounded` does not carry, and a Braid
+  that passed `Braid::invariant` holds none. The other four erasure totals have not been
   shown satisfiable there.
 
 ## Secret deletion is partial
@@ -1251,8 +1259,8 @@ the crate that actually carries it.** `Session::encrypt` and
 `Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
 code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
 that code. On the eight-leaf session unit it has five conditional panic-freedom
-theorems, three of them vacuous as stated (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`), and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
+theorems, all five conditional on records that are not shown inhabited, three of them on a record that had a false field until it was restated
+(`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
 theorem that relates it to the model -- a separate question this does not
 answer.
 
@@ -1267,13 +1275,15 @@ One exception, added by `Translation/ImportInv.lean` and worth stating
 precisely because it is narrow. In `tacenta-ratchet`, `tacenta-spqr` and
 `tacenta-braid`, `from_bytes` now carries a **constructor** theorem: a state it
 returns satisfies that crate's own `invariant()` (for the first two, every
-clause of it; for the Braid, the single clause `ct1_bounded`), and the
+clause of it; for the Braid, the clause `ct1_bounded`, and in the complete session unit
+also `decoders_bounded`), and the
 invariant yields as many of the T1 and T3 preconditions as it reaches. That is not a T1 theorem -- it says nothing about
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
 session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
-translated and has conditional panic-freedom theorems for its entry points, three of
-them vacuous as stated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), but
+translated and has conditional panic-freedom theorems for its entry points, all five
+conditional on records that are not shown inhabited, three of them on a record that had a false field until it was restated (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`), but
 none for import or export, so nothing here says what a session restored
 from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
@@ -2039,15 +2049,19 @@ witnesses in turn, `random32_satisfiable` and `dh_identity_satisfiable`, and
 requires elaboration to fail each time. This establishes only that the assumptions are
 consistent; it does not prove that the real primitive implementations satisfy
 their value-level specifications. It covers those thirteen contracts only. The
-other 9 to 36 fields of each contract record in `CLAIMS.md` (the ratchet, Braid,
+other 9 to 37 fields of each contract record in `CLAIMS.md` (the ratchet, Braid,
 Triple Ratchet and session-layer totalities, and the class
 `SessionUnitT1.DerivedKeysModel`) have no satisfiability witness in the session
-unit, and no theorem shows that any of the four records is inhabited. Two are shown
-not to be: `DecryptRatchetContracts` and `EstablishResponderContracts` both contain
-`BraidReceiveContracts`, whose field `SessionUnitBraidT1.DecoderMessageTotal` is false for a
+unit, and no theorem shows that any of the four records is inhabited. Two of them, as they stood before the repair, are
+shown not to be: `DecryptRatchetContracts` and `EstablishResponderContracts` both contain
+`BraidReceiveContracts`, whose field `SessionUnitBraidT1.DecoderMessageTotal` was false for a
 decoder that needs `(Usize.max + 1) / 32` chunks
 (`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`).
+`SESSION-CONTRACT-VACUITY`). The field is now stated for decoders that need at most
+`MAX_CODEWORDS` chunks, and `EstablishResponderContracts` has one more field, `divCeilValue`, the
+value of `usize::div_ceil` at divisor 32, an assumption about an opaque standard-library function
+that is used once, to bound the decoder a freshly built responder Braid holds. Whether the records can be
+met is open.
 
 ## The erasure coding's field is proved
 
@@ -2081,8 +2095,8 @@ that assembly possible.
 - T1 (panic-freedom of the translated Rust of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
   for the verified zone only, which is the eight proved leaf crates and, on
-  the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems, three of them vacuous as
-  stated (no T3 result) and not the
+  the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems, all
+  conditional on records not shown inhabited, three of them on a record that had a false field until it was restated (no T3 result) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas

@@ -9,6 +9,7 @@ import Translation.SessionUnitRatchetImportInv
 import Translation.SessionUnitBraidImportInv
 import Translation.UnitSatisfiabilitySession
 import Translation.SessionBraidReceiveVacuity
+import Translation.SessionBraidReceiveRepair
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleInitialDispatch
@@ -24,9 +25,10 @@ also audited here. The lifecycle T3 branch lemmas take leaf outcomes as
 hypotheses. UnitLifecycleInitialDispatch composes the six initial-wrapper
 routes, conditional on refinement of the inner ratchet receive, and discharges
 that condition for terminal states and malformed payloads. Its T1 bridge
-proves inner-call existence under explicit contracts and headroom, and is vacuous as stated
-because those contracts include `BraidReceiveContracts` (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`). General
+proves inner-call existence under explicit contracts and headroom. Those contracts included a
+false field until it was restated for bounded decoders (`SessionBraidReceiveVacuity.lean`,
+`SessionBraidReceiveRepair.lean`; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`); no theorem
+shows that the records can be met. General
 receive refinement and the full public Session T3 theorem remain open. Every
 generated declaration and opaque boundary is visible to the
 same elaborated-environment audit used by the smaller units.

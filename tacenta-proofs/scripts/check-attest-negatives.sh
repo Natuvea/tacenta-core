@@ -243,8 +243,8 @@ PY
 done
 
 vacuity_pins="tacenta-proofs/translation/Translation/SessionBraidReceiveVacuity.lean"
-for n in decoderMessage_not_total braidReceiveContracts_false decryptRatchetContracts_false \
-         establishResponderContracts_empty message_eq_messageP all_tr_refute; do
+for n in decoderMessage_not_total braidReceiveContractsUnbounded_false decryptRatchetContractsUnbounded_false \
+         establishResponderContractsUnbounded_empty message_eq_messageP all_tr_refute; do
   make_case
   python3 - "$work/$vacuity_pins" "Tacenta.SessionBraidReceiveVacuity.$n" <<'PY'
 import pathlib, re, sys
@@ -261,6 +261,64 @@ path.write_text(new)
 PY
   expect_fail "required-pin-deleted-vacuity-$n" "\`Tacenta.SessionBraidReceiveVacuity.$n\` is on REQUIRED_PINS and has no axiom pin" --check
 done
+
+repair_pins="tacenta-proofs/translation/Translation/SessionBraidReceiveRepair.lean"
+for n in old_witness boundary_gt_max_codewords divCeilValue_shape_satisfiable \
+         decoderMessageTotal_is DivCeilValue_is \
+         old_witness_fails_bounded_premise old_witness_rejected_by_invariant \
+         decoderMessageTotal_of_truncate bounded_holds_unbounded_fails \
+         message_total_of_invariant boundary_exact mutant_premise_at_boundary_refuted; do
+  make_case
+  python3 - "$work/$repair_pins" "Tacenta.SessionBraidReceiveRepair.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-repair-$n" "\`Tacenta.SessionBraidReceiveRepair.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
+bound_pins="tacenta-proofs/translation/Translation/SessionUnitDecoderBound.lean"
+for n in add_chunk_keeps_needed clone_keeps_needed invariant_true_needed_le new_needed_le; do
+  make_case
+  python3 - "$work/$bound_pins" "Tacenta.SessionUnitDecoderBound.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-decoder-bound-$n" "\`Tacenta.SessionUnitDecoderBound.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
+make_case
+python3 - "$work/tacenta-proofs/translation/Translation/SessionUnitBraidImportInv.lean" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = "Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded"
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+expect_fail "required-pin-deleted-import-decoders-bounded" "\`Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded\` is on REQUIRED_PINS and has no axiom pin" --check
 
 make_case
 python3 - "$work/$session_pins" <<'PY'

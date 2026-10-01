@@ -654,12 +654,35 @@ REQUIRED_PINS = frozenset(
     )]
     + ["Tacenta.SessionBraidReceiveVacuity." + n for n in (
         "decoderMessage_not_total",
-        "braidReceiveContracts_false",
-        "decryptRatchetContracts_false",
-        "establishResponderContracts_empty",
+        "braidReceiveContractsUnbounded_false",
+        "decryptRatchetContractsUnbounded_false",
+        "establishResponderContractsUnbounded_empty",
         "message_eq_messageP",
         "all_tr_refute",
     )]
+    + ["Tacenta.SessionBraidReceiveRepair." + n for n in (
+        "old_witness",
+        "boundary_gt_max_codewords",
+        "divCeilValue_shape_satisfiable",
+        "decoderMessageTotal_is",
+        "DivCeilValue_is",
+        "old_witness_fails_bounded_premise",
+        "old_witness_rejected_by_invariant",
+        "decoderMessageTotal_of_truncate",
+        "bounded_holds_unbounded_fails",
+        "message_total_of_invariant",
+        "boundary_exact",
+        "mutant_premise_at_boundary_refuted",
+    )]
+    + ["Tacenta.SessionUnitDecoderBound." + n for n in (
+        "add_chunk_keeps_needed",
+        "clone_keeps_needed",
+        "invariant_true_needed_le",
+        "new_needed_le",
+    )]
+    + [
+        "Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded",
+    ]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {

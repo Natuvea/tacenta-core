@@ -100,9 +100,10 @@ translated Rust: `tacenta-wire` (the decoders), `tacenta-ratchet`,
 `tacenta-session` (the PQXDH derivation only), `tacenta-spqr`, `tacenta-braid`,
 `tacenta-triple`, `tacenta-protobuf` and `tacenta-erasure` (T1 for the coder, T3
 for the field arithmetic only). A ninth, `tacenta-lifecycle`, has conditional
-panic-freedom theorems on the eight-leaf session unit, three of which are vacuous as stated
-(`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and no refinement theorem.
-The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext, which no theorem shows a send keeps.
+panic-freedom theorems on the eight-leaf session unit, three of which took a record with a false
+field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`; no theorem shows the
+records can be met), and no refinement theorem.
+The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext, which no theorem shows a send keeps; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders, which no theorem shows a send or a receive keeps.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.

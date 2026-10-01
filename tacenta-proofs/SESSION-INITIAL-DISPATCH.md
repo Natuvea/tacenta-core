@@ -7,10 +7,14 @@ T3 or end-to-end encryption/decryption plan.
 Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts` or
 `BraidReceiveContracts`, directly or through `InitialRatchetBraidEvidenceContracts`
 (`decrypt_ratchet_refines_of_t1`, `braid_receive_evidence` and the
-`initial_ratchet_refines_of_t1` family), is vacuous as stated, because
-`BraidReceiveContracts` contains a false field (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`). The obligations listed below as discharged are discharged under
-that record, and stay open until it is repaired.
+`initial_ratchet_refines_of_t1` family), was vacuous as stated, because
+`BraidReceiveContracts` contained a false field (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`).
+
+Update, 2026-10-01: the field is now stated for decoders that need at most `MAX_CODEWORDS` chunks, and the
+headroom record carries that bound (`DecryptRatchetHeadroom.braidDecoders`). These theorems
+compile against the repaired record. The obligations listed below as discharged are discharged
+under records that no theorem shows can be met.
 
 ## What the theorem establishes
 
