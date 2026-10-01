@@ -94,6 +94,7 @@ EQUIVALENT = {
     "RC7": "an empty or missing list names none of the required artifacts, and a list of non-strings raises, so the same receipts are refused",
     "RC10": "no claims leaves every section uncovered, and claims that are not a list are refused by the loop",
     "RC16": "an unknown section raises KeyError at its digest lookup, so the same receipts are refused",
+    "RC14": "a finding that is not a string raises at the text check that follows, which also refuses",
     "RC17": "a digest that is not 64 lower-case hex digits never equals a section's digest",
     "RC28": "an unhashable disposition raises TypeError at the membership test, which also refuses; the check keeps the refusal on the error path",
     "RV3": "the pack verifier already requires the packed manifest to name the pack's candidate, and the comparison of the packed manifest bytes with the given manifest follows, so together they refuse the same inputs",

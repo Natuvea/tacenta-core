@@ -267,9 +267,10 @@ receipt grown-ledger 'pass'
 rebind "$work/grown-ledger.json" "$work/pack-grown"
 expect_refused_for_pack grown-ledger 'review receipt has no disposition for 1 CLAIMS.md section(s): A section added after the review' "$work/pack-grown"
 
-# A change inside a section, at the last byte of the last section, or at the last
-# byte of the introduction, with every digest of the pack brought up to date, no
-# longer matches the digest the receipt carries.
+# A change inside a section, at the last byte of the last section, or the removal of
+# the last byte of the introduction (changing it would join the next heading to the
+# line), with every digest of the pack brought up to date, no longer matches the
+# digest the receipt carries.
 digest_case() {
   cp -R "$pack" "$work/pack-$1"
   forge_claims "$work/pack-$1" "$2"
@@ -279,7 +280,7 @@ digest_case() {
 }
 digest_case middle "import re; ms = list(re.finditer(r'^## ', text, re.M)); k = (ms[len(ms) // 2].start() + ms[len(ms) // 2 + 1].start()) // 2; text = text[:k] + 'X' + text[k:]"
 digest_case last-byte-of-last "text = text[:-1] + 'Z'"
-digest_case last-byte-of-introduction "import re; a = re.search(r'^## ', text, re.M).start(); text = text[:a - 1] + 'Z' + text[a:]"
+digest_case last-byte-of-introduction "import re; a = re.search(r'^## ', text, re.M).start(); text = text[:a - 1] + text[a:]"
 
 # Two sections with one title: a reference could not say which was read.
 cp -R "$pack" "$work/pack-twice"
