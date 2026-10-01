@@ -25,31 +25,46 @@ in the repository requires or enforces a reading of this page by a person. The
 reports of the reviews mentioned above are not recorded on the pull request or
 in this repository.
 
+What this page does not give. It gives no secrecy of later key material from a
+removed device, since how key material is derived is not specified. It gives no
+recovery: a verifier that sees a valid sibling of its head stops accepting for
+good, and the page offers no way out, no choice between branches, and no signal
+to a user that either has happened. It gives no agreement among members who
+receive epochs in different orders, and no evidence that anyone accepted an
+epoch before a checkpoint. It gives no anonymity. It has no model, vector, code,
+proof or worked example, and its byte layout depends on decisions that are open
+(Open decisions D-2, D-4 and D-7).
+
 Dependency note, to be deleted at ratification: this page cites "Accepting a
 signed statement", "Identity keys" and "Verifying a signature" in
 identities-and-devices.md. "Accepting a signed statement" is on main (core pull
 request #200, merged as commit 4dcb8cc). "Identity keys", and the rule in
 "Verifying a signature" that the key a signature is checked under be an identity
 key, came with core pull request #205 (merged as commit e06f8f4). Both are on
-main. The drafter read this page against their merged text; that reading is not
-a review. "Accepting a signed statement" has seven checks, in this order:
-account, issuer binding, signature, freshness, device id, identity key, policy.
-Four rules in these sections matter here. The identity-key check admits one
-spelling of an identity key, which is what makes the byte comparison of Open
-decision D-10 safe. "Identity keys" lists where a party applies that rule and
-says a decoder does not apply it, which bears on Decoding and on Signature. The
-freshness check must have no effect of its own, and a generation is recorded as
-seen only after the statement is accepted, in one atomic step that evaluates the
-rule again, which bears on the inputs to "Accepting a successor". And a verifier
-must not refuse a statement solely because a replacement's marker names no
-listed binding, which bears on the non-claim about a replacement's chain of
-custody. This page cites these sections by their names and by the names of their
-checks, never by their numbers, so a change to the order there would need those
-four places read again. The "Adopted" marks under Open decisions are drafting
-records, and they go with this note, as do the statements in the text that give
-a decision's adoption (in Joining from a checkpoint, The checkpoint, Aliasing
-and Inventory under What is not checked, and the introduction to Open
-decisions).
+main. Both merged on a rule 7 comment written by the account that authored the
+changes. Those comments record tool-assisted reads and say that no reviewer
+independent of the maintainer has read the change; the comment on #200 adds that
+the maintainer has not read its specification text end to end, and the comment
+on #205 does not say whether a person read it (ASSURANCE.md, row 7). This page
+relies on text that no independent reader has read. The drafter read this page
+against their merged text; that reading is not a review. "Accepting a signed
+statement" has seven checks, in this order: account, issuer binding, signature,
+freshness, device id, identity key, policy. Four rules in these sections matter
+here. The identity-key check admits one spelling of an identity key, which is
+what makes the byte comparison of Open decision D-10 safe. "Identity keys" lists
+where a party applies that rule and says a decoder does not apply it, which
+bears on Decoding and on Signature. The freshness check must have no effect of
+its own, and a generation is recorded as seen only after the statement is
+accepted, in one atomic step that evaluates the rule again, which bears on the
+inputs to "Accepting a successor". And a verifier must not refuse a statement
+solely because a replacement's marker names no listed binding, which bears on
+the non-claim about a replacement's chain of custody. This page cites these
+sections by their names and by the names of their checks, never by their
+numbers, so a change to the order there would need those four places read again.
+The "Adopted" marks under Open decisions are drafting records, and they go with
+this note, as do the statements in the text that give a decision's adoption (in
+Joining from a checkpoint, The checkpoint, Aliasing and Inventory under What is
+not checked, and the introduction to Open decisions).
 
 ## Scope
 
@@ -79,8 +94,10 @@ derived or carried to a device (it states only which devices may be sent it:
 Obligations on the key engine, 2), the ordering or storage service that carries
 epochs, invitations (their form, and how they are authenticated), recovery from
 a lost or compromised authority, from a frozen verifier or from a fork, or a
-product's roles and user interface. Where a rule below needs one of these, it
-names the boundary and says what it takes from the far side.
+product's roles and user interface. It assumes that each accepted epoch starts a
+key epoch (Open decision D-2), and it does not choose between sender keys and
+pairwise fan-out (group-messaging.md, Open questions). Where a rule below needs
+one of these, it names the boundary and says what it takes from the far side.
 
 EX-04 (threat-model/exclusions.md) records groups as unspecified, and it stands
 until a reviewed change ratifies this page.
@@ -458,13 +475,17 @@ The writer signs with the identity key of `writer_binding`. The input is:
 EPOCH_SIGNING_LABEL || body
 ```
 
-and the signature is XEdDSA as identities-and-devices.md, Signing, defines it.
-A verifier checks it as Verifying a signature defines, under
+and the signature is XEdDSA as identities-and-devices.md, Signing, defines it. A
+verifier checks it as Verifying a signature defines, under
 `writer_binding.identity_public_key`. That procedure requires the key to be an
 identity key (identities-and-devices.md, Identity keys), so a signature under a
-writer key that is not one does not verify, and the result is `bad-signature`. The label is what keeps this signature from being accepted as
-an application signature, a prekey signature or an inventory-statement
-signature made by the same key.
+writer key that is not one does not verify, and the result is `bad-signature`.
+Verifying a signature answers only yes or no, so this page reports the writer's
+key as `bad-signature` and keeps `invalid-identity-key` for the keys of listed
+devices (error-handling.md, An invalid identity key is a third outcome). The
+label is what keeps this signature from being accepted as an application
+signature, a prekey signature or an inventory-statement signature made by the
+same key.
 
 ### Inventory commitment
 
@@ -804,10 +825,12 @@ the following. It takes each from the inviter.
   a joiner that holds state for it refuses the checkpoint (checkpoint check 2).
 - That the checkpoint's writer was authorised by the epoch before it, that its
   operations produce its principals from that epoch, that its key epoch follows
-  that epoch's or is below 2^64 - 1, or that policy version 1 allowed what it did
-  (Accepting a successor, checks 5, 9, 10 and 11). The joiner holds no
+  that epoch's or is below 2^64 - 1, or that policy version 1 allowed what it
+  did (Accepting a successor, checks 5, 9, 10 and 11). The joiner holds no
   predecessor. It checks only that the key the named writer holds signed the
-  body.
+  body. The operations that the head carries are stored with it and no check
+  reads them: a checkpoint can carry operations that contradict its principals
+  or its closure state, and the verifier holds it as given.
 - That any epoch before the checkpoint was written, signed or accepted by anyone,
   or that a device the group removed earlier is absent from the checkpoint.
 - That any device the checkpoint lists was admitted with evidence. The joiner
@@ -822,6 +845,29 @@ the following. It takes each from the inviter.
   leaves the checkpoint or an earlier epoch, it judges no sibling of the
   checkpoint (Accepting a successor, check 2), and it cannot tell whether the
   inviter gave every joiner the same checkpoint.
+- That the invitation is fresh, single-use or meant for this joiner. This page
+  asks of the caller only that the pinned commitment came from an invitation
+  authenticated as made by the inviter and as unmodified (Obligations at the
+  product boundary, 5). A genuine old invitation, replayed, gives a joiner a
+  genuine but stale head, and the rules of this page then treat the devices that
+  head lists as permitted recipients, including a device that a later epoch
+  removed. Withheld later epochs have the same effect after a legitimate join,
+  and a replay lets its sender choose how far back. An inviter can also give a
+  checkpoint whose epoch number is 2^64 - 1, which has no successor (The
+  checks).
+- That the signature authenticates anything about the group. At a checkpoint
+  that is not a genesis epoch, the signature check shows only that the key
+  `writer_binding` names signed the body, and the writer need not be listed in
+  the checkpoint. Anyone who can make the epoch can sign it under a key of their
+  own, and an inviter can then give its commitment as the anchor. With the
+  commitment pinned, the check adds only that the stored signature belongs to
+  the stored body.
+- That the chain can be verified from genesis in place of trusting the inviter
+  (Open decision D-11, option A). The evidence for an admission is not part of
+  the signed record (Evidence carriage), so verifying every epoch from genesis
+  would need every inventory statement ever used, and the page does not say that
+  anyone keeps them. Option A is therefore not a way out of trusting the inviter
+  on this page's terms.
 - That a listed key belongs to the person a member means (ASM-14; EX-09). It
   checks only that each key is an identity key.
 
@@ -879,14 +925,17 @@ A verifier decides on a candidate from these inputs, and from nothing else:
   statement is refused, none is recorded and nothing else changes;
 - optionally, a policy verdict (below).
 
-The decision is a deterministic function of them, with the caller's inventory
-acceptance procedure taken as it stands when the check runs. The procedure
-reads a store the caller keeps, and other uses of the same procedure can write
-that store, so two verifiers with the same state and the same bytes can differ
-(Open decision D-6). This page reads no clock (ASM-11), no directory, and no
-position or timestamp a service attached to the candidate. A caller's freshness
-rule is an input, and may itself read one. For genesis and for a checkpoint the
-anchor the caller supplies is an input as well.
+The decision is a function of these inputs, with the caller's inventory
+acceptance procedure taken as it stands when the check runs. The store that the
+procedure reads is not part of the verifier's accepted state: other uses of the
+same procedure can write it, so two verifiers with the same accepted state and
+the same bytes can differ (Open decision D-6). Whether a candidate is evaluated
+live or replayed is an input too. This page does not say who sets it, or that a
+coordinator may not, and whoever sets it chooses whether the freshness rule can
+refuse a stale statement. This page reads no clock (ASM-11), no directory, and
+no position or timestamp a service attached to the candidate. A caller's
+freshness rule is an input, and may itself read one. For genesis and for a
+checkpoint the anchor the caller supplies is an input as well.
 
 ### Results
 
@@ -1160,19 +1209,28 @@ binds the exact predecessor and candidate it was made about, so a verdict for
 another pair is refused. The product's own role model, invitation and consent
 rules are its own; nothing on this page proves that a candidate met them.
 
+A verdict is requested at check 12, before check 13 applies the identity-key
+rule to the new device keys and examines the evidence. A product's verdict code
+therefore sees candidates whose new keys have not passed the rule and whose
+evidence is unverified. identities-and-devices.md, Accepting a signed statement,
+applies the key rule to every entry before its policies for that reason. The
+verdict also applies to a sibling, like any candidate (check 12), so a product
+can refuse siblings and not be frozen. Two products that differ in this diverge
+on one group, and the page does not say that a product should or may do it.
+
 ## Conflict
 
 There is one accepted successor for a predecessor commitment. A replay of it is
 a `duplicate`. A different candidate for the same predecessor that passes every
-check is a `conflict`: two authorised writers proposed different successors
-from one epoch. A `conflict` needs a candidate that passes checks 1 to 13, so
-an unauthenticated candidate cannot cause one. Any writer that is still
-authorised can: by proposing a sibling, by replaying an earlier sibling, or by
-an honest race with another writer. So can anyone who holds the bytes of a
-valid sibling and delivers them, whether or not the writer meant them to be
-delivered. The writer is in the body, so the same content signed by two writers
-is two candidates and conflicts. A verifier whose head is the checkpoint it
-started from judges no sibling of it (Accepting a successor, check 2), so it
+check is a `conflict`: two authorised writers proposed different successors from
+one epoch. A `conflict` needs a candidate that passes checks 1 to 13, so an
+unauthenticated candidate cannot cause one. Any writer that is still authorised
+can: by proposing a sibling, by replaying an earlier sibling, or by an honest
+race with another writer. So can anyone who holds the bytes of a valid sibling
+and delivers them, whether or not the writer meant them to be delivered. No key
+is needed for that. The writer is in the body, so the same content signed by two
+writers is two candidates and conflicts. A verifier whose head is the checkpoint
+it started from judges no sibling of it (Accepting a successor, check 2), so it
 neither sees a `conflict` there nor can be frozen by one.
 
 Whether a sibling is a `conflict` depends on the caller's inputs. A sibling that
@@ -1309,30 +1367,103 @@ following.
   or as `superseded` (a slot the chain has passed, which is not judged). A
   `conflict` records nothing of who the writer was.
 - **Availability.** A `conflict` freezes a verifier for good as far as this page
-  goes: nothing on this page clears it (Conflict). Any writer that is still
-  authorised can freeze a verifier with a sibling, with a replayed sibling or
-  with an honest race against another writer, and so can anyone who delivers
-  the bytes of a valid sibling that a writer signed. Two authorised writers who
-  each propose a successor of one head are enough, and verifiers that receive
-  the two in different orders end on different heads, each frozen at the one it
+  goes: nothing on this page clears it (Conflict). The window in which a
+  verifier can be frozen is not a race between authorities that act together. It
+  is the staleness of any authority device. A device that writes an epoch
+  against a head that has since moved writes a sibling: because it was one epoch
+  behind, because a second device of the same account wrote one too, because a
+  retry assembled a batch again, or because a delivery service kept a candidate
+  that lost a race. Every verifier that has accepted the head and receives both
+  siblings before it accepts a successor of the head is frozen. A device two or
+  more epochs behind writes a candidate that is `superseded` at a verifier that
+  has accepted the head, so a device exactly one epoch behind is the case that
+  matters. The authority set can be every member device, since an owner can make
+  every principal an admin, and policy version 1 fixes authority by role, so the
+  page has no way to name the one device that proposes. A service that rejects
+  the loser of a race still holds a valid sibling, which nothing expires and
+  which freezes any verifier still at the head it was written for. No key is
+  needed for that: anyone who holds the bytes of a sibling that needs no
+  evidence, such as an epoch with no operation or one that only removes a
+  device, can deliver them to such a verifier. Verifiers that receive the
+  siblings in different orders end on different heads, each frozen at the one it
   saw first or not yet frozen. A product that lets one writer at a time propose
-  avoids the honest race; this page does not require it, and it does not stop
-  a writer that means to. This page gives no way out of a frozen state and no
-  way to bring verifiers on different branches together. A writer with
-  authority can also write an epoch with no operation, which starts a new key
-  epoch and the redistribution after it. An owner can write a policy version
-  that some verifiers do not implement (`unsupported`); they stop, and a group
-  that goes on without them is on another branch from them. The owner's epoch
-  need not be valid in any other respect for that: check 7 runs before checks 8
-  to 13, so an owner's candidate with such a `set_policy` and a wrong
-  `key_epoch`, or with an `admit_device` and no evidence, is `unsupported` too.
-  Nothing here bounds
-  how long an unsupported policy version, a gap or a missing statement keeps a
-  group from progressing. A freshness rule that reads a store other flows write
-  lets an account holder's own action (raising a generation) make some
-  verifiers refuse an in-flight epoch as `evidence-refused` and others accept
-  it; a verifier that refused it then holds an older head and refuses the
-  epochs after it as `missing-predecessor` (Open decision D-6).
+  does not cover a device that is behind, a second device of the same account, a
+  retry, or a service that kept a losing candidate, and this page does not
+  require it. This page gives no way out of a frozen state and no way to bring
+  verifiers on different branches together.
+- **Removal of an authority.** An authority that an owner removes can keep
+  chosen verifiers from ever accepting its removal. Let `C` be the owner's epoch
+  that removes it, and let the authority write another successor `S` of the same
+  head, even an epoch with no operation. A verifier that accepts `S` first
+  receives `C` as a sibling of its head. `C` passes check 5, because its owner
+  is still in the authority set of the head, which an admin cannot change: the
+  result is `conflict`, the verifier is frozen, and the removed authority is
+  still a member device of its head and a permitted recipient there (Obligations
+  on the key engine, 2). The rule that refuses a sibling from a writer the head
+  removed does not help, since the head is the authority's own `S`. The removal
+  invariant holds for the verifiers that accepted `C` and says nothing of these.
+- **Cadence.** A writer with authority can write an epoch with no operation.
+  Under Open decision D-2, option A, that starts a new key epoch and the
+  redistribution after it, and nothing on this page limits how often an
+  authority device writes one.
+- **Silence.** A frozen verifier, and a group that has split across branches,
+  give no signal to a user on this page's rules. A frozen verifier returns
+  `blocked-by-conflict` to its caller, and nothing requires the product to show
+  it. A split shows only as `missing-predecessor`, which a gap or a delay also
+  causes. A frozen verifier keeps the key material of its head current
+  (Obligations on the key engine, 3). Obligations at the product boundary (3)
+  stops its coordinator from proposing and distributing; it does not stop the
+  product from sending application traffic from that head, or from taking that
+  head's member devices as recipients, and peers that have moved on do not
+  accept that traffic as current.
+- **Catching up.** A device that has been away accepts the epochs it missed by
+  judging each of them again, and under the default freshness rule (Open
+  decision D-6, option A) that can stall for good. The caller's freshness rule
+  can refuse a generation that the caller has already recorded for the account,
+  for example from another group or a pairwise flow. A stored generation never
+  decreases (identities-and-devices.md, Accepting a signed statement,
+  freshness), so the same bytes with the same evidence are refused again as
+  `evidence-refused`, and the epochs after that one are `missing-predecessor`.
+  The same rule lets an account holder's own action (raising a generation) make
+  some verifiers refuse an in-flight epoch as `evidence-refused` and others
+  accept it. The page names a replay input to the freshness rule (Inputs) and
+  gives no criterion for setting it. It does not say who may set it, and whoever
+  sets it chooses whether a statement older than a revocation is accepted. It
+  also does not say who keeps the historical statements that a replay needs, or
+  the issuer-key bindings that signed them: the procedure reads those as they
+  stand when the check runs, and a binding that no longer resolves makes the
+  epoch `evidence-refused`.
+- **Unsupported versions.** An owner can write a policy version that some
+  verifiers do not implement (`unsupported`); they stop, and a group that goes
+  on without them is on another branch from them. The owner's epoch need not be
+  valid in any other respect for that: check 7 runs before checks 8 to 13, so an
+  owner's candidate with such a `set_policy` and a wrong `key_epoch`, or with an
+  `admit_device` and no evidence, is `unsupported` too. `unsupported` can be a
+  circular wait. Its exit is that the verifier supports the version or accepts
+  another successor of its head (Results). While `unsupported` is the only
+  successor of the head that a verifier has seen, its coordinator proposes
+  nothing (Obligations at the product boundary, 3), so if every verifier in the
+  group answers `unsupported`, no coordinator may propose, no other successor
+  appears, and the page provides no exit. A verifier keeps nothing when it
+  answers `unsupported` (Effects), so judging the candidate afresh needs the
+  product to hold it. The page gives an owner no way to learn which versions the
+  member devices support: the only capability bit is `GROUP_EPOCH_V1`, so a move
+  to a second policy version has no negotiation, and a device that does not
+  support it stops at `unsupported`. Nothing here bounds how long an unsupported
+  policy version, a gap or a missing statement keeps a group from progressing.
+- **Retention and re-offer.** A verifier keeps nothing about a candidate it has
+  not accepted, except the marker. When it answers `missing-predecessor`, the
+  product has to keep the candidate and offer it again after the predecessor is
+  accepted, and this page does not say for how long, in what order, or how many.
+  A candidate cannot be authenticated before its predecessor is accepted,
+  because authority is read from the predecessor, so a product that buffers
+  holds unauthenticated bytes, each up to 2,167,845 bytes, with no bound that
+  this page states. The order in which a backlog is offered decides whether a
+  verifier is frozen. With candidates A and B that are siblings, and C a
+  successor of A, a verifier that is offered A, B, C is frozen at B (and C is
+  `blocked-by-conflict`), and one that is offered A, C, B is not (B is then
+  `superseded`). Two products that offer a backlog in different orders end in
+  different states on the same bytes.
 - **Freshness.** A verifier decides against the head it has. It cannot know of
   a successor it has not received. A withheld successor is undetected, and a
   removed device can go on using what it holds with any peer that has not
@@ -1343,10 +1474,34 @@ following.
   nothing about the epochs before it.
 - **Order.** The order or position a service assigns never authorises a
   candidate, and never resolves a `conflict`.
+- **`duplicate`.** `duplicate` is decided from the commitment alone, and the
+  commitment excludes the signature (Commitment), so bytes that carry an
+  accepted epoch's body and a corrupt signature are `duplicate`. It is not
+  evidence that the bytes are valid. A caller that stores or forwards bytes it
+  has been told are duplicates can pass on the corrupt signature, and a joiner
+  given such bytes as a checkpoint is protected only by checkpoint check 6. A
+  store or negative cache keyed by commitment alone that keeps the first copy it
+  sees lets whoever delivers a body first, with a garbage signature, displace
+  the genuine copy: the verifier answers `bad-signature`, and a product that
+  drops later copies of that commitment as repeats never offers the genuine one.
+  The page does not require the caller to keep the signature it accepted first.
+- **Results before the signature.** Successor checks 2 to 5 return their results
+  before the signature is examined: `wrong-group`, `missing-predecessor`,
+  `duplicate`, `superseded`, `blocked-by-conflict`, `group-closed` and
+  `writer-not-authorised` are given for bytes that nobody has authenticated. A
+  product that shows these results to a sender, or to a peer that probes, tells
+  it whether the verifier is frozen, whether the group is closed, and which
+  pairs of account and binding are authority devices of the head. The anonymity
+  non-claim covers the roster only.
 - **Delivery.** That a recipient has received an epoch, that a removed device
   has learned of its removal, or that any message reached anyone.
 - **Recall.** Anything a removed device already received: plaintext,
   ciphertext, key material, or the accepted epochs it saw.
+- **Traffic under retired material.** Obligations on the key engine (3) leaves
+  to the engine what it does with retired material, such as decrypting a message
+  that arrives later. A removed device keeps its old keys. If a peer that has
+  accepted `C` still accepts a late arrival under that material, the removed
+  device can pass messages off as earlier ones. RM-2 says nothing about this.
 - **Honest members.** That members do not share plaintext or key material. An
   authorised writer can also write any epoch that policy version 1 allows,
   including one that harms the group.
@@ -1376,6 +1531,17 @@ following.
   serve a statement older than a revocation. A caller whose freshness rule (Open
   decision D-6) accepts it lets a writer admit a device that the account has
   since revoked. That rule is the caller's.
+- **Promotion and re-entry.** `set_role` and `transfer_ownership` name an
+  account, not its devices. `apply`, step 6, gives `update_authority` 1 to every
+  device under a principal whose role becomes owner or admin, including a device
+  that an admin added earlier while the principal was a member, and a device
+  whose admission rested on a statement from a compromised issuer. The operation
+  lists no devices, so it does not show the owner which devices gain authority.
+  Removal is by binding, and a removed device can return under another binding
+  if a writer allowed to admit for its account admits one that the account's
+  inventory lists (Open decision D-13; Aliasing). When the holder of the removed
+  device controls that inventory, as with a stolen phone, only the same-batch,
+  same-key case is refused.
 - **Chain of custody for a replacement.** That a binding's
   `replacement_predecessor` names any binding. This page gives it no meaning and
   no check above reads it. The inventory section does not let a verifier refuse
@@ -1385,6 +1551,19 @@ following.
 - **Evidence carriage.** Who stores or serves the inventory statements a
   candidate needs. A verifier without them cannot follow the chain past that
   epoch (`evidence-missing`).
+- **The evidence set.** Evidence is not signed by the writer, is not committed
+  in the epoch and is not authenticated in delivery. Successor check 13 refuses
+  a candidate for which the evidence holds more than one signed statement for a
+  principal's account (`evidence-mismatch`). A party that delivers the evidence
+  can therefore add a second genuine statement for that account, for example an
+  older one: the same candidate is refused at the verifiers given that set and
+  accepted at those given the clean one, and the refusal costs the verifier the
+  work of check 13 up to that point. The refusal is not terminal (Results), and
+  the page has no rule for choosing between two statements. Inputs calls the
+  evidence a set of signed inventory statements, and the page does not say how
+  an entry is counted that does not decode as a signed statement, that repeats a
+  statement with other signature bytes, or whose unsigned preimage equals
+  another entry's. Those points are open: this page fixes no result for them.
 - **Anonymity.** An epoch lists account handles and device keys. Whoever holds
   the epoch learns them. Nothing here hides who is in a group.
 - **Recovery.** A lost or compromised owner, a compromised admin, a frozen
@@ -1399,8 +1578,51 @@ following.
   its specification's and its proof's to show. It also covers what those
   obligations leave out: that a removed device cannot compute the key material of
   a later epoch (Obligations on the key engine).
+- **Agreement on key material.** An epoch commits to membership, roles, policy
+  and closure state, and to a `key_epoch` number. It does not commit to any key
+  material. Nothing on this page makes members check that they hold the same
+  material for an epoch, or that an admitted device received what the others
+  hold: `key_binding` is a record that each holder keeps (Obligations on the key
+  engine, 1). A member that gives different recipients different material, or
+  gives an admitted device material that no one else holds, breaks no check
+  here. What an epoch body commits to is fixed by the encoding.
+- **Single points of failure.** Policy version 1 makes some people necessary,
+  and the page does not weigh that. Only an owner adds or removes a device of an
+  owner or admin principal, sets a role, transfers ownership, sets the policy or
+  closes the group (Open decision D-9, option B). An owner whose devices, at
+  most eight, are all lost cannot be replaced: no one can transfer ownership,
+  and an admin cannot appoint an admin. An admin who loses a device needs the
+  owner to replace it. A member cannot remove its own device, and leaving the
+  group is not an operation, so a lost device stays a member device and a
+  permitted recipient until an admin or the owner commits its removal. `close`
+  cannot be undone, and a verifier that accepted a sibling first never accepts
+  it and is frozen. Recovery is not specified (Recovery).
+- **The atomic step.** The step in which a candidate is accepted spans three
+  stores: this page's accepted state, the caller's record of the generations it
+  has seen (Inputs), and the key engine's retirement of the previous head's
+  material. The page requires one atomic step across them and gives no order or
+  recovery for a failure part-way. If the generations are recorded and the head
+  is not, a freshness rule that refuses a generation already recorded refuses
+  the same epoch for good. If the head is kept and the generations are not, an
+  older statement can be accepted later. A restored backup returns an older head
+  and drops the marker (assumption 1 of the removal invariant excludes it), and
+  the page says nothing of what a verifier does after a restore.
 - **Sizes and costs.** That an epoch of the largest size is affordable to send,
-  fetch or verify.
+  fetch or verify. The ceiling of 2,167,845 bytes is derived from the bounds and
+  is not stated as a test that runs before anything is read, and the number and
+  total size of the signed statements in the evidence have no bound on this
+  page, although a verifier has to decode each to see which account it is for.
+  The loop over principals is the outer loop of successor check 13, so a
+  candidate whose last principal in byte order fails a cheap condition
+  (`evidence-missing`, `evidence-mismatch`) has already cost, for every earlier
+  principal with new devices, the whole work of the acceptance procedure; the
+  page does not say whether a verifier may remember a refusal. The size of an
+  epoch does not shrink with the size of the change: every epoch carries the
+  full state (Open decision D-7), so one operation in a group of 512 principals
+  with eight devices each is still at least 352,256 bytes of device entries
+  (4096 devices at 86 bytes, a binding without a replacement marker being 45
+  bytes). A verifier keeps `head` and `prior`, each up to the ceiling, and a
+  32-byte index entry for every accepted epoch.
 
 ## The early removal invariant (a target, not shown)
 
@@ -1451,13 +1673,20 @@ sibling that froze it is never accepted. It does not bring a removal about
 either. A verifier that is frozen before it accepts `C` stays on a head that
 still lists `r`, and these three statements are not made of it (assumption 3).
 
-RM-1 and RM-2 are properties of this page's checks together with the key
-engine's obligations. Much of RM-2's first clause follows from those
-obligations and from the head having moved. What depends on the checks is that
-the head moves by exactly one key epoch (check 10) and that a removal cannot be
-hidden in a batch (check 9), which RM-1's second clause needs. RM-3 is a
-property of the product's coordinator. This page's checks supply the
-accepted-state fact it depends on and nothing more.
+RM-1 to RM-3 restate obligations. RM-1 follows from Obligations on the key
+engine (2) once `r` is not a member device of the head. RM-2 follows from
+Obligations on the key engine (3) and (4), and, for its clause on `key_epoch`,
+from check 10. RM-3 is Obligations at the product boundary (2). With assumption
+5, that the engine and the product meet their obligations, the three statements
+are consequences of those obligations and of `apply`, and they have little
+security content beyond them. What the checks add is this: the head moves by
+exactly one key epoch (check 10), so material bound to an earlier epoch is never
+current in a later one; a removal cannot be hidden in a batch (check 9); and a
+removed binding is not a member device again unless a later epoch admits it with
+evidence (check 9 and `apply`). The three statements are about recipient sets
+and retired material. They are not a statement that a removed device is excluded
+from the group's secrets; that depends on the key engine (Obligations on the key
+engine; What it does not claim).
 
 ### Adversary
 
@@ -1482,8 +1711,10 @@ scope).
 2. XEdDSA signatures and SHA-256 are as ASM-03 and ASM-07 assume.
 3. The verifier has accepted `C`. Nothing is claimed of a verifier that has
    not.
-4. The remaining members run conforming implementations and do not give `r`
-   key material or plaintext.
+4. The remaining members run conforming implementations and do not give `r` key
+   material or plaintext. This excludes a writer in `P`'s authority set that
+   remains a member after `C` from giving `r` key material, although the
+   adversary below includes such a writer.
 5. The key engine meets Obligations on the key engine, and the product meets
    Obligations at the product boundary.
 6. The caller's inputs to acceptance (the anchor, the issuer binding and the
@@ -1498,6 +1729,12 @@ scope).
    is not among the obligations stated on this page and is not covered by RM-1
    to RM-3.
 
+Assumptions 1 and 2 cite entries of the threat model. Assumptions 4 to 7 are
+this page's own, and they are in no register (ADR-0008, rule 2 asks
+threat-model/assumptions.md to state what the protocol and the proofs assume).
+The identifiers RM-1 to RM-3 are labels used on this page and are not
+requirement identifiers.
+
 The inventory issuer is not an assumption of RM-1 or RM-2 once `C` is accepted:
 removal needs no evidence. The issuer matters to admission, which decides who is
 a member device to begin with.
@@ -1506,6 +1743,10 @@ a member device to begin with.
 
 - Instant or global revocation. It concerns a verifier that has accepted `C`.
 - Anything about a peer that has not accepted `C`, or an offline device.
+- That every verifier accepts `C`. An authority that `C` removes can keep chosen
+  verifiers from ever accepting it (Availability, under What is not checked):
+  they accept a sibling written by that authority first and are then frozen by
+  `C`.
 - That `r` learns it was removed.
 - Recall of anything `r` already received, or protection of past messages from
   `r`.
