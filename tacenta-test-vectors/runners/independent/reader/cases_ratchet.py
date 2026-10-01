@@ -239,7 +239,7 @@ def _():
     assert list(b.chains) == [1, 0]
 
 
-@case("CR-19 the sparse store's current total-bound evidence: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE; over a sequence of sends, receives and advances the store stays within the bound, while replacement semantics remain an open follow-up",
+@case("CR-19 the sparse store's total-bound evidence: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE; over a sequence of sends, receives and advances the store stays within the bound",
       f"{SP} The store also has a total bound: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE. No theorem carries the bound across this ratchet's sending, receiving or advancing, or across a sequence of them")
 def _():
     from tacenta_reader import persistence
@@ -301,8 +301,8 @@ def _():
     assert e.shortfall == 1
 
 
-@case("CR-21 (pass 12) the sparse store's total bound on a stored state that holds keys the next receive re-derives: the page now says the current implementation and model count the store before the purge, and that counting the resulting store is an open follow-up; the two counts give different verdicts on CR-18's own state, which the sparse reader accepts, and this reader keeps the resulting-store count CR-18 asserts (GAPS-12.md G12-05)",
-      f"{SP} The store also has a total bound: The current sparse implementation and model check the pre-purge store length; they do not yet implement resulting-store replacement semantics. The purge-before-check order, replacement semantics and refusal atomicity are the open `HL-R1-SPARSE-TRANSLATION` follow-up, not current sparse behaviour")
+@case("CR-21 (pass 12) the sparse store's total bound on a stored state that holds keys the next receive re-derives: the count before the purge and the count after it give different verdicts on CR-18's own state, which the sparse reader accepts; the page counts after the purge, as this reader does (GAPS-12.md G12-05)",
+      f"{SP} The store also has a total bound: steps 2 and 3 of the skip, and 'The count before the deletion and the count after it differ only for a state read from storage that holds a key in the range'")
 def _():
     from tacenta_reader import persistence
     _, c = _pair()
