@@ -89,8 +89,18 @@ is SemVer against the specified protocol (not the implementation).
   a caller can find such states beforehand by applying the rule to the stored
   keys). The encodings, the signature input and the persisted layouts are unchanged.
 
-- `protocol/group-epochs.md`: new draft page, not ratified, for signed
-  hash-chained group membership epochs. It proposes the canonical epoch body,
+- `protocol/group-epochs.md` and its parts: new draft, not ratified, for signed
+  hash-chained group membership epochs, written as an entry page,
+  `protocol/group-epochs.md`, and ten parts beside it, read in this order:
+  `group-epochs-encoding.md`, `group-epochs-genesis-and-joining.md`,
+  `group-epochs-successor.md`, `group-epochs-successor-effects.md`,
+  `group-epochs-siblings.md`, `group-epochs-siblings-forks.md`,
+  `group-epochs-key-epochs.md`, `group-epochs-limits.md`,
+  `group-epochs-removal.md` and `group-epochs-decisions.md`. The entry page
+  holds the status, the review record, the scope, the terms, the constants and
+  the accepted state, and lists the parts; each part says that it is part of the
+  draft and awaiting review, and a pointer to a section in another part names
+  that part's file. The draft proposes the canonical epoch body,
   its commitment and writer signature, genesis and successor acceptance as an
   ordered list of checks with a first-failure rule and a table of its five
   results and 28 refusal kinds, batched operations, including closing a group,
@@ -107,8 +117,8 @@ is SemVer against the specified protocol (not the implementation).
   `removed-by-head` whatever its rank. That protects a removal only against the
   devices it removes or demotes: an honest device that ranks before the
   removal's writer, and that the removal leaves in place, can still displace it,
-  so the page asks the product to have a removal written by the owner device
-  that ranks first among those it leaves in place. The page states that the rule
+  so the draft asks the product to have a removal written by the owner device
+  that ranks first among those it leaves in place. The draft states that the rule
   makes the head depend on the order of arrival, and lets a replay change it,
   when the removed device ranks before its remover, mutual removal included, and
   that a compromised owner device of any rank can keep the honest one that ranks
@@ -120,7 +130,7 @@ is SemVer against the specified protocol (not the implementation).
   hint has no effect, is not authenticated, and also fires without a fork. Open
   decision D-12 lists the alternatives to that rule, among them a rule that
   freezes a verifier for good at the first valid sibling of its head, with the
-  reasons they were not chosen. The page states that a displaced epoch's key
+  reasons they were not chosen. The draft states that a displaced epoch's key
   material is retired and its proposer proposes again, with back-off; that an
   accepted epoch, and so a removal, is final at a verifier only once a successor
   of it is accepted there; that a fork deeper than one epoch still splits a
@@ -150,12 +160,12 @@ is SemVer against the specified protocol (not the implementation).
   before it. Identity keys of member devices are compared as bytes, which relies
   on the verifier applying the identity-key rule of `identities-and-devices.md`
   to the key of each new device (at the evidence check and at a checkpoint) and
-  to a writer's key at the signature check. The page states a removal invariant,
+  to a writer's key at the signature check. The draft states a removal invariant,
   as a target that is not shown, with its adversary, assumptions and limits; it
   concerns recipient sets and retired key material and restates obligations on
   the key engine and the product, and it is not about the derivation of later
   key material. It names RFC 9420 (MLS) as related published work, says that the
-  page has not been compared with it, that it quotes no text of it and that this
+  draft has not been compared with it, that it quotes no text of it and that this
   repository does not record what the drafter had read of it, and says a
   comparison is required before the key engine is fixed. It lists thirteen open
   decisions. Six carry a recommended default marked as adopted on the
@@ -164,7 +174,7 @@ is SemVer against the specified protocol (not the implementation).
   adopted; their review is pending. Where its own text gives two readings that
   differ for some input (the kind reported for an input with another domain and
   a bad tail, and check 8's clause on a principal named by two operations), the
-  page marks the point as open. The page is a draft awaiting review: the passes
+  draft marks the point as open. The draft is awaiting review: the passes
   it has been through were working checks directed by the maintainer, and are
   not the rule-7 review. It is not a conformance target until a reviewed change
   ratifies it, and no model, vector or proof states it. The domain and

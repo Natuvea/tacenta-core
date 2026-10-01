@@ -9,7 +9,7 @@ one-authority validation profile, without selecting a sender-key mechanism.
 A draft of signed group membership epochs is in group-epochs.md. It is not
 ratified and is awaiting review. It does not select a cipher or a
 sender-key format, and it assumes that each accepted epoch starts a key epoch
-(its Open decision D-2), which the open question below on sender keys or
+(group-epochs-decisions.md, Open decision D-2), which the open question below on sender keys or
 pairwise fan-out does not assume. It lists several authorities and up to eight
 devices per account, a different profile from the one-authority,
 one-device-per-identity profile of the bounded fan-out helper below. With
@@ -17,7 +17,7 @@ several authorities two epochs can compete for one slot: the draft chooses
 between them by a fixed order of their writers while neither has an accepted
 successor (apart from one case between two devices of the owner's principal,
 where the order of arrival can decide), so an accepted epoch can be replaced by
-a competing one and its key material retired (its section Siblings). The outline
+a competing one and its key material retired (group-epochs-siblings.md, Siblings). The outline
 below does not say what happens to sender keys in that case.
 
 The mechanism, in outline (tier `nominated`: this is the shape of sender keys
@@ -87,7 +87,7 @@ named here because it is published work on group messaging. It is not one of the
 sources in the table above, and this page states nothing about what it covers or
 how it relates to this outline. This project's design has not been compared with
 it, and a comparison is required before the key engine is fixed.
-group-epochs.md, Related published work, says the same of its signed membership
+group-epochs-decisions.md, Related published work, says the same of its signed membership
 epochs, and that page is awaiting review.
 
 ## Provenance rules for this page
