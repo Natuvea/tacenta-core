@@ -44,7 +44,13 @@ def size : Nat := 65536
     cannot decode each other's chunks, so this is wire-sensitive in exactly the
     way the derivation labels are, and is recorded in
     `tacenta-spec/CONSTANTS.md` and specified in
-    `tacenta-spec/protocol/mlkem-braid.md` rather than settled here. -/
+    `tacenta-spec/protocol/mlkem-braid.md` rather than settled here.
+
+    No proof in this file uses this constant: the polynomial the proofs reason
+    about is the literal in `redAt` (and the literal `0x100B#16` in `xtime_eq`), and
+    among primitive polynomials the laws here do not tell them apart. What ties
+    the literal to the Rust constant is the translation proof
+    (`Translation/ErasureT3.lean`, `UnitErasureRsKernel.lean`). -/
 def reducer : Nat := 0x1100B
 
 /-- The reduction's low sixteen bits, which is what a carry-out folds back in:
@@ -155,9 +161,11 @@ rests on a solver or on compiled evaluation.
 **The inverses** are established through the multiplicative group: two has order
 exactly `size - 1`, which is a closed computation, so its powers are all of the
 nonzero elements, and every nonzero element is then an explicit power of two
-whose inverse `inv` returns. That doubles as an irreducibility check on the
-reduction polynomial: a reducible one would leave some nonzero element a zero
-divisor with no inverse for any implementation to return.
+whose inverse `inv` returns. That doubles as a check on the reduction polynomial:
+a reducible one would leave some nonzero element a zero divisor with no inverse
+for any implementation to return, and the argument asks for more than
+irreducibility, namely that two has order exactly `size - 1`, so a polynomial
+under which two has a smaller order is refused too.
 
 ## How
 
