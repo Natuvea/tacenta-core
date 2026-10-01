@@ -1793,7 +1793,8 @@ theorem skip_survivors_of_copy
 /-- `State.skip_message_keys` refines `Model.SparseRatchet.skipMessageKeys`: it
 steps the receiving chain forward to `upto`, storing every key passed, and
 fails exactly where the model does (no chain, chain retired, too many skipped,
-or the store full). -/
+or the store it would leave over the bound, counted after the keys it replaces
+are dropped). -/
 theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
     (hret : VecRetainAgrees)
     (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
