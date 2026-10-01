@@ -245,6 +245,66 @@ theorem replacement_accepts_where_the_count_before_the_deletion_refuses
   | none => exact absurd hres hsome
   | some _ => rfl
 
+/-- The four premises of `skipMessageKeys_refused_iff` hold, jointly, for the
+witness store: the epoch has a chain, its receiving chain is present, the request
+steps the chain forward and it is within `maxSkip`. So the characterisation is
+not about an empty set of states. -/
+theorem witness_premises_hold (rk ck k : Key) (dir : Direction) :
+    let st : State :=
+      { rk := rk, epoch := 0
+        chains := [(0, { send := none, receive := some { ck := ck, n := 0 } })]
+        skipped := [(0, 1, k), (0, 2, k)] ++
+          (List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, k)
+        direction := dir }
+    ∃ cs ch, findChains st 0 = some cs ∧ cs.receive = some ch ∧ ch.n < 2 ∧
+      2 ≤ ch.n + maxSkip := by
+  intro st
+  refine ⟨{ send := none, receive := some { ck := ck, n := 0 } }, { ck := ck, n := 0 },
+    ?_, rfl, ?_, ?_⟩
+  · simp [findChains, st]
+  · show 0 < 2; omega
+  · show 2 ≤ 0 + maxSkip; simp [maxSkip, Model.State.maxSkip]
+
+/-- The refusing side of the same store: a skip from `0` to `4` stores four keys,
+`1997 + 4` passes the bound, and it is refused. With the witness above, both
+sides of `skipMessageKeys_refused_iff` are shown inhabited. -/
+theorem witness_refused_one_key_further (rk ck k : Key) (dir : Direction) :
+    let st : State :=
+      { rk := rk, epoch := 0
+        chains := [(0, { send := none, receive := some { ck := ck, n := 0 } })]
+        skipped := [(0, 1, k), (0, 2, k)] ++
+          (List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, k)
+        direction := dir }
+    skipMessageKeys st 0 4 = none := by
+  intro st
+  have hc : findChains st 0 = some
+      { send := none, receive := some { ck := ck, n := 0 } } := by simp [findChains, st]
+  rw [skipMessageKeys_refused_iff st 0 4
+      { send := none, receive := some { ck := ck, n := 0 } } { ck := ck, n := 0 }
+      hc rfl (by show 0 < 4; omega)
+      (by show 4 ≤ 0 + maxSkip; simp [maxSkip, Model.State.maxSkip])]
+  have hfil : skipSurvivors st 0 0 4 =
+        (List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, k) := by
+    simp only [skipSurvivors, st, List.filter_append]
+    have h1 : List.filter
+          (fun x : Nat × Nat × Key =>
+            !(x.1 == 0 && decide (0 < x.2.1) && decide (x.2.1 ≤ 4)))
+          [(0, 1, k), (0, 2, k)] = [] := by simp
+    have h2 : List.filter
+          (fun x : Nat × Nat × Key =>
+            !(x.1 == 0 && decide (0 < x.2.1) && decide (x.2.1 ≤ 4)))
+          ((List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, k))
+          = (List.range (maxSkippedStore - 3)).map fun i => (0, 5000 + i, k) := by
+      rw [List.filter_eq_self]
+      intro a ha
+      obtain ⟨i, -, rfl⟩ := List.mem_map.mp ha
+      simp only [Bool.not_eq_true', Bool.and_eq_false_iff, decide_eq_false_iff_not]
+      right; omega
+    rw [h1, h2, List.nil_append]
+  rw [hfil, List.length_map, List.length_range]
+  show 2000 < (2000 - 3) + (4 - 0)
+  decide
+
 end Proofs.SparseReplacementBound
 
 /--
@@ -337,3 +397,94 @@ info: Proofs.SparseReplacementBound.replacement_accepts_where_the_count_before_t
 -/
 #guard_msgs in
 #check Proofs.SparseReplacementBound.replacement_accepts_where_the_count_before_the_deletion_refuses
+
+/--
+info: Proofs.SparseReplacementBound.mem_skipSurvivors_iff (st : Model.SparseRatchet.State) (e start upto : Nat)
+  (x : Nat × Nat × Model.State.Key) :
+  x ∈ Model.SparseRatchet.skipSurvivors st e start upto ↔
+    x ∈ st.skipped ∧ ¬(x.fst = e ∧ start < x.snd.fst ∧ x.snd.fst ≤ upto)
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.mem_skipSurvivors_iff
+
+/--
+info: Proofs.SparseReplacementBound.skipSurvivors_length_le (st : Model.SparseRatchet.State) (e start upto : Nat) :
+  (Model.SparseRatchet.skipSurvivors st e start upto).length ≤ st.skipped.length
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.skipSurvivors_length_le
+
+/--
+info: Proofs.SparseReplacementBound.skipMessageKeys_keeps_outside_range (st st' : Model.SparseRatchet.State) (e upto : Nat)
+  (cs : Model.SparseRatchet.Chains) (ch : Model.SparseRatchet.Chain)
+  (hc : Model.SparseRatchet.findChains st e = some cs) (hr : cs.receive = some ch) (hlo : ch.n < upto)
+  (h : Model.SparseRatchet.skipMessageKeys st e upto = some st') (x : Nat × Nat × Model.State.Key) (hx : x ∈ st.skipped)
+  (hout : ¬(x.fst = e ∧ ch.n < x.snd.fst ∧ x.snd.fst ≤ upto)) : x ∈ st'.skipped
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.skipMessageKeys_keeps_outside_range
+
+/--
+info: Proofs.SparseReplacementBound.skipMessageKeys_keeps_the_key_at_the_counter (st st' : Model.SparseRatchet.State)
+  (e upto : Nat) (cs : Model.SparseRatchet.Chains) (ch : Model.SparseRatchet.Chain)
+  (hc : Model.SparseRatchet.findChains st e = some cs) (hr : cs.receive = some ch) (hlo : ch.n < upto)
+  (h : Model.SparseRatchet.skipMessageKeys st e upto = some st') (x : Nat × Nat × Model.State.Key) (hx : x ∈ st.skipped)
+  (hn : x.snd.fst = ch.n) : x ∈ st'.skipped
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.skipMessageKeys_keeps_the_key_at_the_counter
+
+/--
+info: Proofs.SparseReplacementBound.skipMessageKeys_replaces_the_range (st st' : Model.SparseRatchet.State) (e upto : Nat)
+  (cs : Model.SparseRatchet.Chains) (ch : Model.SparseRatchet.Chain)
+  (hc : Model.SparseRatchet.findChains st e = some cs) (hr : cs.receive = some ch) (hlo : ch.n < upto)
+  (h : Model.SparseRatchet.skipMessageKeys st e upto = some st') (y : Nat × Nat × Model.State.Key)
+  (hy : y ∈ st'.skipped) (he : y.fst = e) (hlow : ch.n < y.snd.fst) (hhigh : y.snd.fst ≤ upto) :
+  y ∈
+    List.map (fun p => (e, p.fst, p.snd)) (Model.SparseRatchet.skipMessageKeys.deriveInto ch.ck ch.n (upto - ch.n)).snd
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.skipMessageKeys_replaces_the_range
+
+/--
+info: Proofs.SparseReplacementBound.witness_premises_hold (rk ck k : Model.State.Key) (dir : Model.SparseRatchet.Direction) :
+  have st :=
+    { rk := rk, epoch := 0, chains := [(0, { send := none, receive := some { ck := ck, n := 0 } })],
+      skipped :=
+        [(0, 1, k), (0, 2, k)] ++
+          List.map (fun i => (0, 5000 + i, k)) (List.range (Model.SparseRatchet.maxSkippedStore - 3)),
+      direction := dir };
+  ∃ cs ch,
+    Model.SparseRatchet.findChains st 0 = some cs ∧
+      cs.receive = some ch ∧ ch.n < 2 ∧ 2 ≤ ch.n + Model.SparseRatchet.maxSkip
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.witness_premises_hold
+
+/--
+info: Proofs.SparseReplacementBound.witness_refused_one_key_further (rk ck k : Model.State.Key)
+  (dir : Model.SparseRatchet.Direction) :
+  have st :=
+    { rk := rk, epoch := 0, chains := [(0, { send := none, receive := some { ck := ck, n := 0 } })],
+      skipped :=
+        [(0, 1, k), (0, 2, k)] ++
+          List.map (fun i => (0, 5000 + i, k)) (List.range (Model.SparseRatchet.maxSkippedStore - 3)),
+      direction := dir };
+  Model.SparseRatchet.skipMessageKeys st 0 4 = none
+-/
+#guard_msgs in
+#check Proofs.SparseReplacementBound.witness_refused_one_key_further
+
+/--
+info: 'Proofs.SparseReplacementBound.witness_premises_hold' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseReplacementBound.witness_premises_hold
+
+/--
+info: 'Proofs.SparseReplacementBound.witness_refused_one_key_further' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseReplacementBound.witness_refused_one_key_further

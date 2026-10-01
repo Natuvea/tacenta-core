@@ -875,6 +875,8 @@ REQUIRED_PINS = frozenset(
         "skipMessageKeys_keeps_the_key_at_the_counter",
         "skipMessageKeys_replaces_the_range",
         "replacement_accepts_where_the_count_before_the_deletion_refuses",
+        "witness_premises_hold",
+        "witness_refused_one_key_further",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
