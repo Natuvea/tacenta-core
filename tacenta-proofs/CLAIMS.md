@@ -2704,7 +2704,8 @@ deleting one fails it. The pins of the results about `Interp.real` and the recor
 constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
 axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
 The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng`, `records_of_axiom_base` and
-`vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by `#guard_msgs in #check`; no other statement in these modules is held, so a weaker statement that
+`vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by `#guard_msgs in #check`, and `attest.py` requires
+each of those four pins to exist and to compare the printed statement (`REQUIRED_STATEMENT_PINS`); no other statement in these modules is held, so a weaker statement that
 keeps its axiom list is not refused. What the pins do not hold is the classification itself, which fields are axiom-level and which are about
 translated functions: the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
@@ -2806,8 +2807,10 @@ No step of these proofs case-splits on the width of `usize`, and the only facts 
 opaque constant of the kernel whose value is 32 or 64, so a proof that does not choose between the
 two holds for both. Each of the nineteen results is pinned under `#guard_msgs` twice at the end of the
 file, once as an axiom list and once as its statement (`#check`), and `attest.py` requires every axiom
-pin (`REQUIRED_PINS`), so deleting one fails it. The statement pins are held by the build only: no
-check requires them to exist. The axiom lists name the opaque constants that the statements mention,
+pin (`REQUIRED_PINS`), so deleting one fails it. The build compares the text of each statement pin, and
+`attest.py` requires each of the nineteen to exist as an active `#guard_msgs in #check` whose options still compare the
+printed message (`REQUIRED_STATEMENT_PINS`), so deleting one, commenting one out or dropping its message fails it. `attest.py` does
+not read what a statement pin says. The axiom lists name the opaque constants that the statements mention,
 directly or through the definitions they unfold, and the proofs use none of them as assumptions;
 `keysSampled_receive_ct1_holds_chunk` mentions none and lists the three standard axioms only. None
 depends on a compiler-trust axiom. These results repair nothing, and they do not show that any other
