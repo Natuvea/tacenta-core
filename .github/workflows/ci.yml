@@ -647,6 +647,14 @@ jobs:
       - run: python3 tooling/collect-assurance-receipts.py --event '${{ github.event_name }}' --input-dir .assurance/receipts --output .assurance/assurance-receipts.json
       - run: python3 tooling/build-assurance-manifest.py --receipts .assurance/assurance-receipts.json --output .assurance/assurance-manifest.json
       - run: python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json
+      # The evidence pack for this candidate, built from the manifest and the
+      # receipts, checked against its own digests and against this commit's
+      # files, and rebuilt in a fresh checkout of this commit by the commit's
+      # own builders. The rebuild must equal the pack and the two uploaded
+      # files byte for byte.
+      - run: python3 tooling/build-evidence-pack.py --manifest .assurance/assurance-manifest.json --receipts .assurance/assurance-receipts.json --output .assurance/evidence-pack
+      - run: python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack --candidate-repo .
+      - run: python3 tooling/reproduce-evidence.py --pack .assurance/evidence-pack --hosted .assurance
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assurance-receipts
@@ -654,4 +662,10 @@ jobs:
             .assurance/assurance-receipts.json
             .assurance/assurance-manifest.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack
+          if-no-files-found: error
+          retention-days: 90
