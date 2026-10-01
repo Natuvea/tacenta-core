@@ -5,10 +5,10 @@ The receipt records a reader's findings on one frozen candidate's claims ledger.
 This checks what a program can: that the receipt binds the evidence pack
 manifest, that every section of the pack's `CLAIMS.md` has exactly one
 disposition and each was given on the text the pack holds (a digest of the
-section), that the artifacts the gate's record lists were named, and that the
-fields are well formed. A change to a section of `CLAIMS.md` after a
-disposition was recorded makes the digest disagree, which is what reopens the
-review for that section.
+section), that every disposition carries finding text, that the artifacts the
+gate's record lists were named, and that the fields are well formed. A change
+to a section of `CLAIMS.md` after a disposition was recorded makes the digest
+disagree, which is what reopens the review for that section.
 
 It cannot determine whether a human review was independent, whether the reader
 read what the receipt says, or whether a disposition is correct. It does not
@@ -117,7 +117,7 @@ def strings_in(value: object):
 
 
 def check_receipt(receipt: dict, pack: Path, pack_manifest: dict, require_no_findings: bool) -> int:
-    if receipt.get("schema_version") != SCHEMA_VERSION:
+    if type(receipt.get("schema_version")) is not int or receipt["schema_version"] != SCHEMA_VERSION:
         fail(f"review receipt schema_version must be {SCHEMA_VERSION}")
     unknown = sorted(set(receipt) - TOP_LEVEL - OPTIONAL_TOP_LEVEL)
     missing = sorted(TOP_LEVEL - set(receipt))
@@ -152,16 +152,16 @@ def check_receipt(receipt: dict, pack: Path, pack_manifest: dict, require_no_fin
     findings = []
     for claim in claims:
         if not isinstance(claim, dict) or set(claim) != CLAIM_FIELDS:
-            fail("review receipt has invalid claim disposition")
+            fail(f"review receipt has invalid claim disposition: each entry has exactly the fields {sorted(CLAIM_FIELDS)}")
         reference = claim["reference"]
         if not isinstance(reference, str) or not reference or reference in seen:
             fail("review receipt has duplicate or invalid claim reference")
         seen.add(reference)
-        if claim["disposition"] not in DISPOSITIONS:
+        if not isinstance(claim["disposition"], str) or claim["disposition"] not in DISPOSITIONS:
             fail(f"review receipt has invalid disposition for {reference}")
         if not isinstance(claim["finding"], str):
             fail(f"review receipt has invalid finding for {reference}")
-        if claim["disposition"] != "accepted" and not claim["finding"].strip():
+        if not claim["finding"].strip():
             fail(f"review receipt gives no finding text for {claim['disposition']} on {reference}")
         if claim["disposition"] == "finding":
             findings.append(reference)

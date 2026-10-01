@@ -61,7 +61,7 @@ r["artifacts_read"] = ["tacenta-proofs/CLAIMS.md and tacenta-proofs/LIMITATIONS.
                        "ASSURANCE.md", "ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md",
                        "tacenta-model/P6-L2-TARGET-DECISION.md", "tacenta-proofs/PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md"]
 for c in r["claims"]:
-    c["disposition"], c["finding"] = "accepted", ""
+    c["disposition"], c["finding"] = "accepted", "Read; the cited theorems and limits match."
 exec(program, {"r": r, "json": json})
 pathlib.Path(sys.argv[2]).write_text(json.dumps(r, indent=2) + "\n")
 PY
@@ -128,6 +128,7 @@ refuse wrong-pack 'does not bind the evidence-pack manifest' "r['evidence_pack']
 refuse no-pack-binding 'does not bind the evidence-pack manifest' "r['evidence_pack'] = {}"
 refuse pack-binding-absent 'review receipt fields are wrong: missing evidence_pack' "del r['evidence_pack']"
 refuse schema-one 'review receipt schema_version must be 2' "r['schema_version'] = 1"
+refuse schema-two-point-zero 'review receipt schema_version must be 2' "r['schema_version'] = 2.0"
 refuse unknown-field 'review receipt fields are wrong: unknown approved' "r['approved'] = True"
 refuse missing-field 'review receipt fields are wrong: missing claims' "del r['claims']"
 refuse placeholder 'still holds a template placeholder' "r['reviewer']['identity'] = 'REPLACE_WITH_REVIEWER_IDENTITY'"
@@ -141,6 +142,11 @@ refuse no-artifacts 'review receipt must list artifacts read' "r['artifacts_read
 refuse artifacts-not-strings 'review receipt must list artifacts read' "r['artifacts_read'] = [1]"
 refuse artifact-unnamed 'does not name these artifacts read: GAP-REGISTER.md' "r['artifacts_read'] = [a for a in r['artifacts_read'] if 'GAP-REGISTER' not in a]"
 refuse several-artifacts-unnamed 'does not name these artifacts read: ASSURANCE.md, ASSURANCE-OBLIGATIONS.md, GAP-REGISTER.md' "r['artifacts_read'] = [a for a in r['artifacts_read'] if 'ASSURANCE' not in a and 'GAP' not in a]"
+for artifact in CLAIMS.md LIMITATIONS.md verification-manifest.json evidence-index.json P6-L2-TARGET-DECISION.md PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md; do
+  refuse "unnamed-$artifact" "does not name these artifacts read: $artifact" "r['artifacts_read'] = [a.replace('$artifact', '') for a in r['artifacts_read']]"
+done
+refuse placeholder-in-artifacts 'still holds a template placeholder' "r['artifacts_read'].append('REPLACE_WITH_X')"
+refuse placeholder-in-notes 'still holds a template placeholder' "r['cross_cutting_notes'] = ['REPLACE_WITH_X']"
 refuse notes-malformed 'cross_cutting_notes must be a list of non-empty strings' "r['cross_cutting_notes'] = ['']"
 receipt with-notes "r['cross_cutting_notes'] = ['Scope: this receipt is for one candidate.']"
 expect_pass with-notes
@@ -153,6 +159,11 @@ refuse claim-without-digest 'review receipt has invalid claim disposition' "del 
 refuse duplicate-reference 'review receipt has duplicate or invalid claim reference' "r['claims'][1]['reference'] = r['claims'][0]['reference']"
 refuse empty-reference 'review receipt has duplicate or invalid claim reference' "r['claims'][1]['reference'] = ''"
 refuse invalid-disposition 'review receipt has invalid disposition for' "r['claims'][1]['disposition'] = 'approved'"
+refuse accepted-without-text 'gives no finding text for accepted on' "r['claims'][1]['finding'] = ''"
+refuse duplicate-exact 'duplicate or invalid claim reference' "r['claims'].append(dict(r['claims'][3]))"
+refuse unknown-disposition-with-text 'invalid disposition for' "r['claims'][1].update(disposition='rejected', finding='x')"
+refuse disposition-not-a-string 'invalid disposition for' "r['claims'][1]['disposition'] = ['accepted']"
+refuse claim-entry-fields 'each entry has exactly the fields' "del r['claims'][0]['section_sha256']"
 refuse finding-not-text 'review receipt has invalid finding for' "r['claims'][1]['finding'] = None"
 refuse limit-without-text 'review receipt gives no finding text for accepted-with-limit on' "r['claims'][1].update(disposition='accepted-with-limit', finding='  ')"
 refuse finding-without-text 'review receipt gives no finding text for finding on' "r['claims'][1].update(disposition='finding', finding='')"
@@ -194,6 +205,32 @@ r["evidence_pack"]["manifest_sha256"] = hashlib.sha256((pack / "PACK-MANIFEST.js
 receipt_path.write_text(json.dumps(r, indent=2) + "\n")
 PY
 }
+# craft_receipt PACK OUT: a receipt for the pack's own copy of the ledger, bound to the
+# pack's manifest as it is, with the section digests worked out here (the last section
+# of a title wins) and not by the tool under test. It is what a receipt written for an
+# altered pack would carry, so only a check of the pack itself can refuse it.
+craft_receipt() {
+  python3 - "$1" "$2" "$work/pass.json" <<'PY'
+import hashlib, json, pathlib, re, sys
+pack, out, base = map(pathlib.Path, sys.argv[1:4])
+text = (pack / "source/tacenta-proofs/CLAIMS.md").read_bytes().decode("utf-8")
+matches = list(re.finditer(r"^## (.+)$", text, re.M))
+sections = {}
+def add(title, body):
+    sections[title] = hashlib.sha256(body.encode()).hexdigest()
+add("Introduction (the text before the first section)", text[: matches[0].start()])
+for index, match in enumerate(matches):
+    end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+    add(match.group(1).rstrip(), text[match.start():end])
+r = json.loads(base.read_text())
+manifest = (pack / "PACK-MANIFEST.json")
+r["candidate"] = json.loads(manifest.read_text())["candidate"]
+r["evidence_pack"] = {"manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}
+r["claims"] = [{"reference": title, "disposition": "accepted", "finding": "Read; the cited theorems and limits match.",
+                "section_sha256": digest} for title, digest in sections.items()]
+out.write_text(json.dumps(r, indent=2) + "\n")
+PY
+}
 expect_refused_for_pack() {
   local name="$1" needle="$2" packdir="$3" out rc
   cases=$((cases + 1))
@@ -212,6 +249,8 @@ cp -R "$pack" "$work/pack-tampered"
 printf '\nA line added after the pack was made.\n' >> "$work/pack-tampered/source/tacenta-proofs/CLAIMS.md"
 receipt tampered-ledger "r['evidence_pack']['manifest_sha256'] = '$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$work/pack-tampered/PACK-MANIFEST.json")'"
 expect_refused_for_pack tampered-ledger 'evidence pack copy of CLAIMS.md does not match the pack manifest' "$work/pack-tampered"
+craft_receipt "$work/pack-tampered" "$work/tampered-ledger-crafted.json"
+expect_refused_for_pack tampered-ledger-crafted 'evidence pack copy of CLAIMS.md does not match the pack manifest' "$work/pack-tampered"
 
 # The ledger changed in the pack, with every digest brought up to date: a
 # receipt given on the old text no longer matches the changed section.
@@ -228,11 +267,24 @@ receipt grown-ledger 'pass'
 rebind "$work/grown-ledger.json" "$work/pack-grown"
 expect_refused_for_pack grown-ledger 'review receipt has no disposition for 1 CLAIMS.md section(s): A section added after the review' "$work/pack-grown"
 
+# A change inside a section, at the last byte of the last section, or at the last
+# byte of the introduction, with every digest of the pack brought up to date, no
+# longer matches the digest the receipt carries.
+digest_case() {
+  cp -R "$pack" "$work/pack-$1"
+  forge_claims "$work/pack-$1" "$2"
+  receipt "digest-$1" 'pass'
+  rebind "$work/digest-$1.json" "$work/pack-$1"
+  expect_refused_for_pack "digest-$1" 'was not given on the text the pack holds' "$work/pack-$1"
+}
+digest_case middle "import re; ms = list(re.finditer(r'^## ', text, re.M)); k = (ms[len(ms) // 2].start() + ms[len(ms) // 2 + 1].start()) // 2; text = text[:k] + 'X' + text[k:]"
+digest_case last-byte-of-last "text = text[:-1] + 'Z'"
+digest_case last-byte-of-introduction "import re; a = re.search(r'^## ', text, re.M).start(); text = text[:a - 1] + 'Z' + text[a:]"
+
 # Two sections with one title: a reference could not say which was read.
 cp -R "$pack" "$work/pack-twice"
 forge_claims "$work/pack-twice" "import re; first = re.search(r'^## (.+)$', text, re.M).group(0); text = text + '\n' + first + '\n\nA second section with the same title.\n'"
-receipt twice-ledger 'pass'
-rebind "$work/twice-ledger.json" "$work/pack-twice"
+craft_receipt "$work/pack-twice" "$work/twice-ledger.json"
 expect_refused_for_pack twice-ledger 'CLAIMS.md has two sections titled' "$work/pack-twice"
 
 # A ledger with Windows line endings: the digests are of the bytes, so the
@@ -248,7 +300,7 @@ r = json.loads(pathlib.Path(sys.argv[1]).read_text())
 r["reviewer"] = {"identity": "A. Reader", "independence_statement": "Did not write the ledger."}
 r["artifacts_read"] = ["CLAIMS.md LIMITATIONS.md verification-manifest.json evidence-index.json ASSURANCE.md ASSURANCE-OBLIGATIONS.md GAP-REGISTER.md P6-L2-TARGET-DECISION.md PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md"]
 for c in r["claims"]:
-    c["disposition"], c["finding"] = "accepted", ""
+    c["disposition"], c["finding"] = "accepted", "Read; the cited theorems and limits match."
 pathlib.Path(sys.argv[2]).write_text(json.dumps(r, indent=2) + "\n")
 PY
 }
@@ -261,6 +313,18 @@ a, b = (json.load(open(p))["claims"] for p in sys.argv[1:3])
 assert [c["reference"] for c in a] == [c["reference"] for c in b]
 assert all(x["section_sha256"] != y["section_sha256"] for x, y in zip(a, b))
 PY
+
+# The pack manifest lists the ledger twice.
+cp -R "$pack" "$work/pack-ledger-twice"
+python3 - "$work/pack-ledger-twice" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]) / "PACK-MANIFEST.json"
+d = json.loads(path.read_text())
+d["files"].append(dict(next(e for e in d["files"] if e["path"] == "source/tacenta-proofs/CLAIMS.md")))
+path.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
+PY
+craft_receipt "$work/pack-ledger-twice" "$work/ledger-twice.json"
+expect_refused_for_pack ledger-twice 'evidence pack has no source/tacenta-proofs/CLAIMS.md' "$work/pack-ledger-twice"
 
 # The pack has no copy of the ledger.
 cp -R "$pack" "$work/pack-without"
@@ -290,6 +354,7 @@ path = pathlib.Path(sys.argv[1])
 d = json.loads(path.read_text()); d["schema_version"] = 2
 path.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
 PY
+rebind "$work/pack-schema.json" "$work/pack-schema"
 expect_refused_for_pack pack-schema 'pack manifest has invalid schema or candidate' "$work/pack-schema"
 
 # ---- the section tool -----------------------------------------------------------
@@ -390,6 +455,33 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps(d, indent=2, sort_keys=True) + "
 PY
 expect_reviewed_fail reviewed-manifest-not-clean 'manifest does not assert a clean source tree' --manifest "$work/manifest-dirty.json" --pack "$pack" --receipt "$work/pass.json"
 expect_reviewed_fail reviewed-manifest-missing 'cannot read manifest' --manifest "$work/no-such-manifest.json" --pack "$pack" --receipt "$work/pass.json"
+# A manifest that --validate refuses and that the pack holds too (the pack's own
+# check does not look at an added field): only --validate refuses it.
+cp -R "$pack" "$work/pack-manifest-extra"
+python3 - "$work/pack-manifest-extra" <<'PY'
+import hashlib, json, pathlib, sys
+pack = pathlib.Path(sys.argv[1])
+manifest = pack / "assurance-manifest.json"
+d = json.loads(manifest.read_text())
+d["approved"] = True
+manifest.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
+index_path = pack / "PACK-MANIFEST.json"
+index = json.loads(index_path.read_text())
+for entry in index["files"]:
+    path = pack / entry["path"]
+    entry["sha256"], entry["bytes"] = hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size
+index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+PY
+receipt reviewed-extra-field 'pass'
+rebind "$work/reviewed-extra-field.json" "$work/pack-manifest-extra"
+expect_reviewed_fail reviewed-manifest-extra-field 'manifest fields are not exactly' --manifest "$work/pack-manifest-extra/assurance-manifest.json" --pack "$work/pack-manifest-extra" --receipt "$work/reviewed-extra-field.json"
+# A packed file that no manifest digest covers (the workflow), forged with every digest brought up to date.
+cp -R "$pack" "$work/pack-forged-workflow"
+python3 "$here/forge-pack-source.py" "$work/pack-forged-workflow" .github/workflows/ci.yml 'A different workflow, with digests made to agree.
+'
+receipt reviewed-forged-workflow 'pass'
+rebind "$work/reviewed-forged-workflow.json" "$work/pack-forged-workflow"
+expect_reviewed_fail reviewed-pack-forged-workflow 'packed source differs from the candidate commit: .github/workflows/ci.yml' --manifest "$hosted/assurance-manifest.json" --pack "$work/pack-forged-workflow" --receipt "$work/reviewed-forged-workflow.json"
 python3 "$here/make-candidate.py" "$root" "$work/other" --event push
 expect_reviewed_fail reviewed-manifest-of-another-candidate 'manifest candidate commit/tree does not match selected source' --manifest "$work/other/hosted/assurance-manifest.json" --pack "$pack" --receipt "$work/pass.json"
 # The candidate repository holds a different commit than the pack names.
