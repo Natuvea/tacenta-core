@@ -198,8 +198,9 @@ exhaustion (`ChainExhausted`) once the counter is `u64::MAX`.
 Stepping forward deletes any key stored for the epoch under a number it is
 about to store, then stores the keys it passes, in number order, after every
 key already in the store. With `c` the chain's counter and `upto` the number
-it steps to, the numbers it is about to store are those `n` with `c < n` and
-`n <= upto`. A key stored for the epoch at `c` itself, or below it, is outside
+it steps to (the message's number less one: the key for the message itself is
+derived after the skip and is not stored), the numbers it is about to store are
+those `n` with `c < n` and `n <= upto`. A key stored for the epoch at `c` itself, or below it, is outside
 that range and is kept as it was. No operation leaves a key stored at a number
 past its chain's counter, so this replaces a key only in a state read from
 storage, which the reader accepts (session-persistence.md, Semantic rules of
@@ -231,10 +232,11 @@ and number. A skip that steps the chain from `c` to `upto`, with `c < upto`:
 1. is refused as `TooManySkipped` when `upto - c` is more than `MAX_SKIP`;
 2. otherwise deletes every stored key for this epoch whose number `n` has
    `c < n` and `n <= upto`, which are the numbers it is about to store;
-3. counts the keys that remain, and is refused as `SkippedStoreFull` when that
-   count plus `upto - c` is more than `MAX_SKIPPED_STORE`;
+3. counts the keys that remain in the store, whatever their epoch, and is
+   refused as `SkippedStoreFull` when that count plus `upto - c` is more than
+   `MAX_SKIPPED_STORE`;
 4. otherwise stores the `upto - c` keys it derives, in number order, after the
-   keys that remain.
+   keys that remain, which keep the order they were stored in.
 
 So a key that a skip replaces takes one slot, not two. The deletion in step 2
 is made on a working copy, and a refusal at step 1 or step 3 leaves the state
@@ -244,12 +246,13 @@ in before it reached the skip is still spent (above). A skip with `upto <= c`
 stores nothing and checks nothing.
 
 A state the operations produced holds no key at a number past its chain's
-counter (Receiving), so step 2 deletes nothing there and the count in step 3 is
-the length of the store. The two counts, before and after the deletion, differ
-only for a state read from storage that holds a key in the range, and there the
-count after the deletion accepts a request that the count before it refuses: a
-stored state of `MAX_SKIPPED_STORE - 1` keys, two of which lie in the range of a
-skip that stores two, is not refused.
+counter (Receiving), so step 2 deletes nothing there and the number of keys
+step 3 counts is the length of the store. The count before the deletion and the
+count after it differ only for a state read from storage that holds a key in the
+range. There the check on the count after the deletion accepts a request that
+the same check on the count before it would refuse: a stored state of
+`MAX_SKIPPED_STORE - 1` keys, two of which lie in the range of a skip that
+stores two, is not refused.
 
 `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves this of
 one skip: a skip that succeeds leaves the store no longer than the larger of

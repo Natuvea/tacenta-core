@@ -305,22 +305,24 @@ is SemVer against the specified protocol (not the implementation).
   bound: the sparse ratchet's total bound is checked against the store a skip
   would leave. A skip that steps a chain from `c` to `upto` is refused as
   `TooManySkipped` when `upto - c` passes `MAX_SKIP`, then deletes the keys
-  stored for its epoch under the numbers it is about to store (`c < n <= upto`:
-  the counter itself is excluded, the number it steps to is included), counts
-  what remains, and is refused as `SkippedStoreFull` only when that count plus
-  `upto - c` passes `MAX_SKIPPED_STORE`. The deletion is made on a working
-  copy, and a refusal leaves the state as it was when the skip began. A key outside the range,
-  including one stored at the counter itself, is kept as it was. This is the
-  order `key-deletion.md` states for the Double Ratchet, which now names the
-  sparse ratchet as taking it too. An earlier entry here recorded that the
-  sparse implementation and model counted the store before the deletion and that
-  the change was an open follow-up (`HL-R1-SPARSE-TRANSLATION`); that entry is
-  replaced by this one, and the page states the rule as normative. It is the rule
-  the independent reader implemented and recorded as G12-05, where the page
-  named only what the implementation did. A state the operations produced holds
-  no key in the range, so the two counts differ only for a stored state that
-  does: such a state near the bound is no longer refused a request that
-  replaces its own keys.
+  stored for its epoch under the numbers it is about to store
+  (`c < n <= upto`: the counter itself is excluded, the number it steps to is
+  included), counts what remains, and is refused as `SkippedStoreFull` only
+  when that count plus `upto - c` passes `MAX_SKIPPED_STORE`. The deletion is
+  made on a working copy, and a refusal leaves the state as it was when the
+  skip began. A key outside the range, including one stored at the counter
+  itself, is kept as it was. This is the order `key-deletion.md` states for
+  the Double Ratchet, which now names the sparse ratchet as taking it too. An
+  earlier entry here recorded that the sparse implementation and model counted
+  the store before the deletion and that the change was an open follow-up
+  (`HL-R1-SPARSE-TRANSLATION`); that entry is replaced by this one, and the
+  page states the rule as normative. It is the rule the independent reader
+  implemented and recorded as G12-05, where the page named only what the
+  implementation did. A state the operations produced holds no key in the
+  range, so the two counts differ only for a stored state that does: such a
+  state near the bound is no longer refused a request that replaces its own
+  keys. An implementation that counted the store before the deletion, as the
+  earlier text of this page described, must count it after.
 - `tacenta-core/spqr` and `tacenta-model`: `skip_message_keys` and
   `Model.SparseRatchet.skipMessageKeys` follow the order the sparse page now
   states: the keys the skip is about to replace are dropped from a working copy
