@@ -9,19 +9,20 @@ a genesis or checkpoint check is named.
 ## Open decisions
 
 The draft's text uses a stated default for each only so that it can be read and
-checked as one piece. A default is not a decision made after review. Two
+checked as one piece. A default is not a decision made after review. Three
 dates appear in the marks below. On 2026-09-29 the maintainer said "go" to a
 recommended plan that named D-3, D-7, D-9, D-12 (then option E) and D-13; a mark
 "Adopted: X (go of 2026-09-29)" means the recommended default of that plan. On
 2026-09-30 the maintainer gave a general instruction to go with the
 recommendations; a mark "Adopted: X (instruction of 2026-09-30)" means a
-recommended default written to the draft on that instruction. The plan and the
-instructions are not recorded in this repository. Six decisions carry a mark:
-D-3, D-7, D-9 and D-13 (go of 2026-09-29), and D-10 and D-11 (instruction of
-2026-09-30). D-12 carries no mark: its default, F, is a recommended default that
-replaces D, an earlier default of this draft written under the instruction of
-2026-09-30, which had replaced option E, the option that the plan of 2026-09-29
-adopted. In none of these cases has the draft's review taken place yet.
+recommended default written to the draft on that instruction. On 2026-10-01 the
+maintainer gave an explicit go to option F of D-12; the mark "Adopted: F (go of
+2026-10-01)" means that decision. The plan and the instructions are not recorded
+in this repository. Seven decisions carry a mark: D-3, D-7, D-9 and D-13 (go of
+2026-09-29), D-10 and D-11 (instruction of 2026-09-30), and D-12 (go of
+2026-10-01). D-12's option F replaces D, an earlier default of this draft
+written under the instruction of 2026-09-30, which had replaced option E, the
+option that the plan of 2026-09-29 adopted. In none of these cases has the draft's review taken place yet.
 D-7 is adopted for the draft and is to be settled again with measurements before
 the encoding is frozen. D-1, D-2, D-4, D-5, D-6 and D-8 keep a default that the
 drafter chose and whose review is pending. Adopting a default fixes the choice
@@ -163,7 +164,8 @@ principal and the head removes or demotes the sibling's writer, the sibling is
 refused as `removed-by-head` whatever its rank; and the verifier returns the
 hint `possible-fork`, which has no effect, beside `superseded`, and beside
 `missing-predecessor` at a checkpoint head, for a candidate whose predecessor is
-the epoch it holds for the number before. Default: F.
+the epoch it holds for the number before. Default: F. Adopted: F (go of
+2026-10-01).
 
 Not chosen. Under A and D one valid sibling stops a verifier for good, and
 under E until a device of the owner's principal clears it. An authority device
@@ -203,10 +205,10 @@ without a fork too (group-epochs-siblings-forks.md, Siblings, Fork hint).
 History. Option E was adopted (go of 2026-09-29). An earlier revision of this
 draft, which was awaiting review, was written to D in place of E under the
 instruction of 2026-09-30, and froze a verifier at the first valid sibling of
-its head with no way out. F replaces D in the same draft. It is a
-recommended default that the draft is written to, it carries no mark, and its
-review is pending. Adopting a default fixes the choice and does not ratify
-the text.
+its head with no way out. F replaces D in the same draft. The draft was
+written to F as a recommended default, and the maintainer gave an explicit go to
+F on 2026-10-01. Its review is pending. Adopting a default fixes the choice and
+does not ratify the text.
 
 **D-13: the same key admitted again in the batch that removes it.** Options: (A)
 an `admit_device` naming an identity public key that a `remove_device` in the

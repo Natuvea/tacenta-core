@@ -168,10 +168,10 @@ is SemVer against the specified protocol (not the implementation).
   draft has not been compared with it, that it quotes no text of it and that this
   repository does not record what the drafter had read of it, and says a
   comparison is required before the key engine is fixed. It lists thirteen open
-  decisions. Six carry a recommended default marked as adopted on the
-  maintainer's word (go of 2026-09-29 or instruction of 2026-09-30), and the
-  default of a seventh, D-12, replaces an option that the plan of 2026-09-29
-  adopted; their review is pending. Where its own text gives two readings that
+  decisions. Seven carry a recommended default marked as adopted on the
+  maintainer's word (go of 2026-09-29, instruction of 2026-09-30, or go of
+  2026-10-01 for option F of D-12, which replaces an option that the plan of
+  2026-09-29 adopted); their review is pending. Where its own text gives two readings that
   differ for some input (the kind reported for an input with another domain and
   a bad tail, and check 8's clause on a principal named by two operations), the
   draft marks the point as open. The draft is awaiting review: the passes
