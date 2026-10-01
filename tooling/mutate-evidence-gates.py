@@ -196,6 +196,8 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
      "the ledger's introduction need not be dispositioned"),
     ("L25", REVIEW, 'if pack_manifest.get("schema_version") != 1 or not isinstance(pack_manifest.get("candidate"), dict):', "if False:",
      "the pack manifest schema is not checked"),
+    ("L26", REVIEW, 'return claim_sections(path.read_bytes().decode("utf-8"))', "return claim_sections(path.read_text())",
+     "the ledger is read through the platform's newline translation"),
     ("E1", REVIEWED, '"--pack", str(args.pack),\n            "--require-no-findings")', '"--pack", str(args.pack))',
      "a reviewed candidate may carry a finding"),
     ("E2", REVIEWED, '"--verify", str(args.pack), "--candidate-repo", str(ROOT))', '"--verify", str(args.pack))',

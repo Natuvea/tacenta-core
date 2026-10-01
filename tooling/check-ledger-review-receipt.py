@@ -100,7 +100,9 @@ def pack_sections(pack: Path, pack_manifest: dict) -> dict[str, str]:
         fail(f"evidence pack has no {CLAIMS_IN_PACK}")
     if digest(path) != entries[0].get("sha256"):
         fail("evidence pack copy of CLAIMS.md does not match the pack manifest")
-    return claim_sections(path.read_text())
+    # Bytes, decoded as UTF-8: the digests must not depend on the locale or on a
+    # platform's newline translation.
+    return claim_sections(path.read_bytes().decode("utf-8"))
 
 
 def strings_in(value: object):

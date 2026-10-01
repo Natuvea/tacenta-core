@@ -235,6 +235,33 @@ receipt twice-ledger 'pass'
 rebind "$work/twice-ledger.json" "$work/pack-twice"
 expect_refused_for_pack twice-ledger 'CLAIMS.md has two sections titled' "$work/pack-twice"
 
+# A ledger with Windows line endings: the digests are of the bytes, so the
+# template, a filled receipt and the checker agree, and the digests differ from
+# the same text with Unix line endings.
+cp -R "$pack" "$work/pack-crlf"
+forge_claims "$work/pack-crlf" "text = text.replace('\n', '\r\n')"
+python3 "$sections_tool" --pack "$work/pack-crlf" --template "$work/template-crlf.json" >/dev/null
+fill_for_template() {
+  python3 - "$1" "$2" <<'PY'
+import json, pathlib, sys
+r = json.loads(pathlib.Path(sys.argv[1]).read_text())
+r["reviewer"] = {"identity": "A. Reader", "independence_statement": "Did not write the ledger."}
+r["artifacts_read"] = ["CLAIMS.md LIMITATIONS.md verification-manifest.json evidence-index.json ASSURANCE.md ASSURANCE-OBLIGATIONS.md GAP-REGISTER.md P6-L2-TARGET-DECISION.md PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md"]
+for c in r["claims"]:
+    c["disposition"], c["finding"] = "accepted", ""
+pathlib.Path(sys.argv[2]).write_text(json.dumps(r, indent=2) + "\n")
+PY
+}
+fill_for_template "$work/template-crlf.json" "$work/crlf.json"
+cases=$((cases + 1))
+python3 "$checker" --receipt "$work/crlf.json" --pack "$work/pack-crlf" >/dev/null
+must "line endings are part of a section's digest" python3 - "$work/crlf.json" "$work/pass.json" <<'PY'
+import json, sys
+a, b = (json.load(open(p))["claims"] for p in sys.argv[1:3])
+assert [c["reference"] for c in a] == [c["reference"] for c in b]
+assert all(x["section_sha256"] != y["section_sha256"] for x, y in zip(a, b))
+PY
+
 # The pack has no copy of the ledger.
 cp -R "$pack" "$work/pack-without"
 python3 - "$work/pack-without" <<'PY'

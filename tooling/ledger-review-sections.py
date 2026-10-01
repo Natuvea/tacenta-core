@@ -38,13 +38,13 @@ _spec.loader.exec_module(checker)
 
 def earlier_sections(path: Path) -> dict[str, str]:
     if path.is_dir():
-        return checker.claim_sections((path / checker.CLAIMS_IN_PACK).read_text())
+        return checker.claim_sections((path / checker.CLAIMS_IN_PACK).read_bytes().decode("utf-8"))
     if path.suffix == ".json":
         receipt = checker.load(path, "earlier review receipt")
         if receipt.get("schema_version") != checker.SCHEMA_VERSION:
             checker.fail("the earlier receipt is not schema 2 and records no section digests; give its pack or its CLAIMS.md")
         return {c["reference"]: c["section_sha256"] for c in receipt.get("claims", [])}
-    return checker.claim_sections(path.read_text())
+    return checker.claim_sections(path.read_bytes().decode("utf-8"))
 
 
 def main() -> int:
