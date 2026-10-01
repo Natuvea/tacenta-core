@@ -65,7 +65,7 @@ Everything else is outside this specification, including:
 Unspecified. protocol/group-messaging.md is an outline, marked as a scaffold,
 and its mechanism is an open question. No requirement covers groups, sender
 keys or group membership. protocol/group-epochs.md is a draft of the
-membership-epoch part; it has had no human review, it adds no requirement to
+membership-epoch part; it is awaiting review, it adds no requirement to
 security-properties/ and no entry to this threat model, and until a reviewed
 change ratifies it this exclusion stands.
 

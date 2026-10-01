@@ -161,24 +161,24 @@ is SemVer against the specified protocol (not the implementation).
   decisions. Six carry a recommended default marked as adopted on the
   maintainer's word (go of 2026-09-29 or instruction of 2026-09-30), and the
   default of a seventh, D-12, replaces an option that the plan of 2026-09-29
-  adopted; none has been reviewed otherwise. Where its own text gives two
-  readings that differ for some input (the kind reported for an input with
-  another domain and a bad tail, and check 8's clause on a principal named by
-  two operations), the page marks the point as open. The page has had no human
-  review, and the reviews it has had were run by automated reviewers and are not
-  independent of the maintainer. It is not a conformance target until a reviewed
-  change ratifies it, and no model, vector or proof states it. The domain and
+  adopted; their review is pending. Where its own text gives two readings that
+  differ for some input (the kind reported for an input with another domain and
+  a bad tail, and check 8's clause on a principal named by two operations), the
+  page marks the point as open. The page is a draft awaiting review: the passes
+  it has been through were working checks directed by the maintainer, and are
+  not the rule-7 review. It is not a conformance target until a reviewed change
+  ratifies it, and no model, vector or proof states it. The domain and
   label constants and the bounds it proposes are not yet in `CONSTANTS.md` or
   `tacenta-core/LABELS.md`, and its refusal kinds are in neither, since
   `CONSTANTS.md` has no rows for refusal kinds. The same pull request adds to
-  `protocol/group-messaging.md` a paragraph that points to the page, says it has
-  had no human review and says that an accepted epoch of the draft can be
+  `protocol/group-messaging.md` a paragraph that points to the page, says it is
+  awaiting review and says that an accepted epoch of the draft can be
   replaced, with its key material, by a competing one; a paragraph there that
   names RFC 9420 as published work that the project's design has not been
-  compared with and says that the epochs page has had no human review; a
-  sentence to `README.md` that the page is a draft with no human review; and a
-  sentence to `threat-model/exclusions.md` (EX-04) that the page is a draft with
-  no human review and that the exclusion stands until a reviewed change ratifies
+  compared with and says that the epochs page is awaiting review; a
+  sentence to `README.md` that the page is a draft awaiting review; and a
+  sentence to `threat-model/exclusions.md` (EX-04) that the page is a draft
+  awaiting review and that the exclusion stands until a reviewed change ratifies
   it. These add no requirement and change no rule.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule

@@ -3,27 +3,27 @@
 Signed, hash-chained group membership epochs: what an epoch is, the bytes it
 is written as, and the checks a client applies before it accepts one.
 
-Status: draft. It has had no human review. The reviews it has had were run by
-automated reviewers working for the maintainer, and they are not independent of
-the maintainer. It is proposed for review under ADR-0008, rule 7, and it is not
-ratified. Until a reviewed change replaces this line, nothing on this page is a
-conformance target, no model or vector states it, and the decisions under Open
-decisions are open: a mark "Adopted" there means a recommended default that the
-maintainer said to go with, not a choice that anyone has reviewed. Adopting a
-default does not ratify the text it shapes. The page has the standing of a
-scaffold (README.md, "Normative status"), with more text.
+Status: draft, awaiting review. It is proposed for review under ADR-0008, rule
+7, and it is not ratified. Until a reviewed change replaces this line, nothing
+on this page is a conformance target, no model or vector states it, and the
+decisions under Open decisions are open: a mark "Adopted" there means a
+recommended default that the maintainer said to go with, not a decision made
+after review. Adopting a default does not ratify the text it shapes. The page
+has the standing of a scaffold (README.md, "Normative status"), with more text.
 
-Review record. ADR-0008, rule 7 requires that a change to this specification be
+Review record. ADR-0008, rule 7 asks that a change to this specification be
 reviewed against that record before it merges, by the maintainer or by a
 reviewer the maintainer delegates to, that the review be written on the pull
-request, and that the merge wait for green checks. It does not require that a
+request, and that the merge wait for green checks. It does not ask that a
 person read the change. The main branch requires the CI status checks and
 linear history and requires no pull-request review (ASSURANCE.md, row 7), and
 no job in the CI workflow checks the rules of this page: the one tool that
-opens it scans every tracked file for unresolved conflict markers. So nothing
-in the repository requires or enforces a reading of this page by a person. The
-reports of the reviews mentioned above are not recorded on the pull request or
-in this repository.
+opens it scans every tracked file for unresolved conflict markers. The
+maintainer intends a person to read this page before it merges; the repository
+does not enforce that. The review passes the page has been through so far were
+working checks directed by the maintainer. They are not the rule-7 review,
+which is pending, and their reports are not recorded on the pull request or in
+this repository.
 
 What this page does not give. It gives no secrecy of later key material from a
 removed device, since how key material is derived is not specified. It chooses
@@ -712,9 +712,9 @@ accepted predecessor, and a device that joins a group after genesis has none. It
 starts from a checkpoint instead: an epoch of the group, carried by an
 authenticated invitation, that it takes as its first head. This is Open decision
 D-11, option C, the recommended default, adopted on the maintainer's general
-instruction of 2026-09-30; the maintainer has not otherwise reviewed it. **It is
+instruction of 2026-09-30; its review is pending. **It is
 a trust assumption, and it is stated under Trust assumption below.** The whole
-section is new text, written for that default, and has had no human review.
+section is new text, written for that default, and is awaiting review.
 
 A checkpoint starts a verifier that has no accepted state for the group. A
 verifier that has state does not replace it with a checkpoint (checkpoint check
@@ -2453,7 +2453,7 @@ material to any peer that has not yet accepted `C`. A peer that has accepted
 ## Open decisions
 
 The page's text uses a stated default for each only so that it can be read and
-checked as one piece. A default is not a decision that anyone has reviewed. Two
+checked as one piece. A default is not a decision made after review. Two
 dates appear in the marks below. On 2026-09-29 the maintainer said "go" to a
 recommended plan that named D-3, D-7, D-9, D-12 (then option E) and D-13; a mark
 "Adopted: X (go of 2026-09-29)" means the recommended default of that plan. On
@@ -2465,10 +2465,10 @@ D-3, D-7, D-9 and D-13 (go of 2026-09-29), and D-10 and D-11 (instruction of
 2026-09-30). D-12 carries no mark: its default, F, is a recommended default that
 replaces D, an earlier default of this draft written under the instruction of
 2026-09-30, which had replaced option E, the option that the plan of 2026-09-29
-adopted. In none of these cases has the maintainer otherwise reviewed the page.
+adopted. In none of these cases has the page's review taken place yet.
 D-7 is adopted for the draft and is to be settled again with measurements before
 the encoding is frozen. D-1, D-2, D-4, D-5, D-6 and D-8 keep a default that the
-drafter chose and that no one has reviewed. Adopting a default fixes the choice
+drafter chose and whose review is pending. Adopting a default fixes the choice
 the text is written to, and it does not ratify the text.
 
 **D-1: how genesis is anchored, and what `group_id` is.** Options: (A) the
@@ -2578,8 +2578,8 @@ the chain grows with every change to the group. B is not a trust root: a
 checkpoint signed by a writer of epoch `n` is judged against nothing the joiner
 holds, and an attacker can sign a self-consistent epoch that lists itself. C
 trusts the inviter, which a joiner does anyway, and the page says so. The
-adoption fixes the choice and not the text. The section is new and has had no
-human review, and these parts of it are drafting choices made under C, not part
+adoption fixes the choice and not the text. The section is new and is awaiting
+review, and these parts of it are drafting choices made under C, not part
 of what was adopted: the checkpoint's two parts (a pinned commitment and the
 epoch), its seven checks, the identity-key check on its devices, the refusals
 `already-started` and `invalid-identity-key`, the rule that a verifier that
@@ -2645,11 +2645,11 @@ hint gives an operator something to count; it is not authenticated and fires
 without a fork too (Siblings, Fork hint).
 
 History. Option E was adopted (go of 2026-09-29). An earlier revision of this
-draft, which no one has reviewed, was written to D in place of E under the
+draft, which was awaiting review, was written to D in place of E under the
 instruction of 2026-09-30, and froze a verifier at the first valid sibling of
-its head with no way out. F replaces D in the same unreviewed draft. It is a
-recommended default that the draft is written to, it carries no mark, and no
-one has reviewed it. Adopting a default fixes the choice and does not ratify
+its head with no way out. F replaces D in the same draft. It is a
+recommended default that the draft is written to, it carries no mark, and its
+review is pending. Adopting a default fixes the choice and does not ratify
 the text.
 
 **D-13: the same key admitted again in the batch that removes it.** Options: (A)

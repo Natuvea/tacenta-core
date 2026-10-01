@@ -7,7 +7,7 @@ helper below is an explicit exception: it is specified first for the product's
 one-authority validation profile, without selecting a sender-key mechanism.
 
 A draft of signed group membership epochs is in group-epochs.md. It is not
-ratified and has had no human review. It does not select a cipher or a
+ratified and is awaiting review. It does not select a cipher or a
 sender-key format, and it assumes that each accepted epoch starts a key epoch
 (its Open decision D-2), which the open question below on sender keys or
 pairwise fan-out does not assume. It lists several authorities and up to eight
@@ -88,7 +88,7 @@ sources in the table above, and this page states nothing about what it covers or
 how it relates to this outline. This project's design has not been compared with
 it, and a comparison is required before the key engine is fixed.
 group-epochs.md, Related published work, says the same of its signed membership
-epochs, and that page has had no human review.
+epochs, and that page is awaiting review.
 
 ## Provenance rules for this page
 
