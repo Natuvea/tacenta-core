@@ -184,8 +184,9 @@ first.
   candidate need not list it.
 - **Marker.** The state `conflict`, which a verifier sets when it sees a valid
   sibling of its head. While it is set the verifier accepts nothing (Conflict).
-  A verifier whose marker is set is a frozen verifier. The page also calls the
-  result that sets the marker `conflict`, and the field of accepted state.
+  A verifier whose marker is set is a frozen verifier. The page also uses
+  `conflict` for the result that sets the marker and for the field of accepted
+  state.
 - **Authority set.** The member devices of an epoch whose `update_authority` is
   1, each as a pair of its principal's account and its binding. A successor's
   writer must be in the predecessor's authority set and, for a sibling of the
@@ -523,8 +524,9 @@ A batch whose result would exceed a bound of Decoding (more than eight devices
 under a principal, more than 4096 devices or 512 principals in all) or that
 lists more than `MAX_EPOCH_OPERATIONS` operations has no candidate that both
 decodes and equals `apply`. The candidate that tells the truth does not decode,
-and a candidate that leaves a device out is refused as `projection-mismatch`
-(successor check 9). No further refusal kind exists for it.
+and a candidate that leaves a device out is refused at successor check 9 as
+`projection-mismatch`, unless an earlier check refuses it. No further refusal
+kind exists for it.
 
 Let `P` be the predecessor and `ops` the operation list of a candidate.
 `apply(P, ops)` is the following, in this order:
@@ -608,9 +610,10 @@ Further rules:
   former owner then leaves the group as the transfer takes effect.
 - A closed epoch has no successor, and no operation reopens a group.
 - An admin cannot promote itself, appoint or demote an admin, transfer
-  ownership, change the policy or close the group. Adding such an operation to
-  a candidate the admin signs makes no difference, because the rule reads
-  roles in `P`.
+  ownership, change the policy or close the group. Such an operation in a
+  candidate that an admin signs is refused, as `writer-role-insufficient` at
+  successor check 11 unless an earlier check refuses the candidate first,
+  because the rule reads roles in `P`.
 - The result has at least one member device under every principal, at least one
   under the owner, and one owner. Each of these follows from `apply` and from
   successor check 8.
@@ -1076,9 +1079,9 @@ items before the next condition.
 
    An entry of `index` that is not held is never equal to a candidate's
    commitment (The accepted state). While the head is the checkpoint (Joining
-   from a checkpoint), `prior` is absent and `index[n - 1]` is not held, so the
-   case `m` = `n` reads:
-   a `duplicate` when the candidate's commitment is `index[n]`, and otherwise
+   from a checkpoint), `prior` is absent and `index[n - 1]` is not held. For
+   that head the case `m` = `n` above is replaced by this: a `duplicate` when
+   the candidate's commitment is `index[n]`, and otherwise
    `missing-predecessor`. The head's predecessor is not an accepted epoch here,
    so no sibling of the head can be judged, and the verifier does not wait to
    judge one: that is a limit and not a gap. The other cases read as written,
@@ -1129,7 +1132,12 @@ items before the next condition.
      public key that a `remove_device` in the list also names (Open decision
      D-13); there is more than one `transfer_ownership` or more than one
      `set_policy`; a principal is named by more than one `set_role` or
-     `transfer_ownership`; or `close` is listed with any other operation.
+     `transfer_ownership`; or `close` is listed with any other operation. The
+     clause on a principal named by more than one `set_role` or
+     `transfer_ownership` can be read as one count over both kinds, or as a
+     count within each kind. The readings differ for a list that names one
+     principal in a `set_role` and in a `transfer_ownership`, and this page does
+     not say which is meant; this point is open.
    - `refused(unknown-target)` if a `remove_device` names a binding that is not
      a member device of that account in `P`, or a `set_role` or
      `transfer_ownership` names an account that is not a principal of `P`.
@@ -1733,7 +1741,7 @@ scope).
 4. The remaining members run conforming implementations and do not give `r` key
    material or plaintext. This excludes a writer in `P`'s authority set that
    remains a member after `C` from giving `r` key material, although the
-   adversary below includes such a writer.
+   adversary above includes such a writer.
 5. The key engine meets Obligations on the key engine, and the product meets
    Obligations at the product boundary.
 6. The caller's inputs to acceptance (the anchor, the issuer binding and the
