@@ -52,8 +52,10 @@ panic-freedom theorems and one lemma (`encrypt_no_panic`, `decrypt_no_panic`,
 `establish_responder_no_panic` and `invariant_gives_preconditions`); none
 depends on a compiler-trust axiom. Three of the five panic-freedom theorems
 (`decrypt_no_panic`, `decrypt_ratchet_no_panic` and `establish_responder_no_panic`) took a
-record with a false field until it was restated for bounded decoders, and no theorem shows
-that the records can be met (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+record with a false field until it was restated for bounded decoders. The four records follow from an
+axiom base that one interpretation satisfies, under five laws about standard-library and `zeroize`
+operations. That is an argument about derivations. The headroom records are not shown satisfiable (the
+subsection "The four contract records follow from an axiom base that has a model, under five laws"; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `Translation.ImportInv` pins both halves of its chain: the two ratchets'
 `invariant_true_iff` and `from_bytes_establishes_inv`, together with the
 classical ratchet's two non-vacuity pins, which are kernel-only; and
@@ -275,8 +277,10 @@ excludes it.
   `Vec::with_capacity` never fails, so it also covers a decoder with a small `needed` and a huge
   `size`, on which the Rust `Decoder::message` panics or aborts; `Decoder::invariant` rejects such a
   decoder through `needed == chunk_count(size)`, which `decoders_bounded` does not carry, and a Braid
-  that passed `Braid::invariant` holds none. The other four erasure totals have not been
-  shown satisfiable there.
+  that passed `Braid::invariant` holds none. The other four erasure totals are proved in the session
+  unit (`UnitSatisfiabilityErasure.lean`): `DecoderAddChunkTotal` and `EncoderNextChunkTotal` with no
+  assumption about any opaque operation, `DecoderNewTotal` and `EncoderNewTotal` exactly when
+  `usize::div_ceil` returns at divisor 32.
 
 ## Secret deletion is partial
 
@@ -1259,8 +1263,8 @@ the crate that actually carries it.** `Session::encrypt` and
 `Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
 code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
 that code. On the eight-leaf session unit it has five conditional panic-freedom
-theorems, all five conditional on records that are not shown inhabited, three of them on a record that had a false field until it was restated
-(`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
+theorems, all conditional on records that are inhabited only in the sense of "The four contract records follow from an axiom base that has a model, under five laws" (three of them on a record that had a false field
+until it was restated; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and one lemma (`CLAIMS.md`, the session lifecycle T1 section) and no
 theorem that relates it to the model -- a separate question this does not
 answer.
 
@@ -1281,9 +1285,9 @@ invariant yields as many of the T1 and T3 preconditions as it reaches. That is n
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
 session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
-translated and has conditional panic-freedom theorems for its entry points, all five
-conditional on records that are not shown inhabited, three of them on a record that had a false field until it was restated (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`), but
+translated and has conditional panic-freedom theorems for its entry points, all
+conditional on records that are inhabited only in the sense of "The four contract records follow from an axiom base that has a model, under five laws" (three of them on a record that had a false field until it was
+restated; `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), but
 none for import or export, so nothing here says what a session restored
 from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
@@ -2044,24 +2048,110 @@ binding is a statement of intent about the oracle and not an assurance.
 
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
-thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`). The negative control removes each of two
-witnesses in turn, `random32_satisfiable` and `dh_identity_satisfiable`, and
-requires elaboration to fail each time. This establishes only that the assumptions are
-consistent; it does not prove that the real primitive implementations satisfy
-their value-level specifications. It covers those thirteen contracts only. The
-other 9 to 37 fields of each contract record in `CLAIMS.md` (the ratchet, Braid,
-Triple Ratchet and session-layer totalities, and the class
-`SessionUnitT1.DerivedKeysModel`) have no satisfiability witness in the session
-unit, and no theorem shows that any of the four records is inhabited. Two of them, as they stood before the repair, are
-shown not to be: `DecryptRatchetContracts` and `EstablishResponderContracts` both contain
-`BraidReceiveContracts`, whose field `SessionUnitBraidT1.DecoderMessageTotal` was false for a
-decoder that needs `(Usize.max + 1) / 32` chunks
-(`Translation/SessionBraidReceiveVacuity.lean`; `GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`). The field is now stated for decoders that need at most
-`MAX_CODEWORDS` chunks, and `EstablishResponderContracts` has one more field, `divCeilValue`, the
-value of `usize::div_ceil` at divisor 32, an assumption about an opaque standard-library function
-that is used once, to bound the decoder a freshly built responder Braid holds. Whether the records can be
-met is open.
+thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`).
+`check-session-satisfiability-negatives.sh` removes each of the thirteen
+witnesses in turn, and requires elaboration to fail each time. The thirteen
+witnesses are separate, one per contract, so they do not show that the contracts
+hold together, and one of them could not have: the witness for `VecPopTotal` was a
+`Vec::pop` that returns and leaves the vector unchanged, which, given `ZeroizeTotal` and, for the second field, the blanket `Zeroize` law, makes two of the
+records' fields false (`UnitSatisfiabilityRatchet.lean`). It is now the `pop` of the joint model, and its shape
+carries the law that `pop` drops the last element as well as the totality. This
+establishes only that the assumptions are consistent; it does not prove that the real
+primitive implementations satisfy their value-level specifications. That the four contract records
+hold together is the next subsection.
+
+### The four contract records follow from an axiom base that has a model, under five laws
+
+`EncryptContracts`, `DecryptRatchetContracts`, `EstablishInitiatorContracts` and
+`EstablishResponderContracts` (`CLAIMS.md`, the session lifecycle T1 section) are the
+hypotheses of the Session lifecycle theorems. A theorem whose hypothesis nothing can
+satisfy is true and says nothing, and two of the four records contained such a
+field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+
+**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 48 of the opaque axioms of
+`TacentaSessionUnit.lean` (6 types, 4 constants, 38 functions; of the unit's other 40 axioms, 39 are reached
+by no field, and the 40th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
+interpreted because no contract looks at it) in one structure, and shows that one
+interpretation satisfies every field of the four records that mentions only those constants,
+the two model classes and five laws about standard-library and `zeroize` operations. Each shape is bound to the
+predicate it replaces by `Iff.rfl`, except that `VecRetainTotal` is bound by regrouping its conjuncts. The thirteen distinct predicates among the records' fields that are
+statements about translated functions are proved from named laws (`UnitSatisfiabilityErasure.lean`,
+`UnitSatisfiabilityRatchet.lean`, and `SessionBraidReceiveRepair.lean` for the bounded
+`DecoderMessageTotal`). `UnitSatisfiabilityRecords.lean` proves that, at the real constants, the
+axiom parts of the four records, the class `SessionUnitT1.DerivedKeysModel` and those five laws give
+the four records, and that they have a model (`records_of_axiom_base`, `axiom_base_satisfiable`).
+
+**The sense of "inhabited".** Every axiom of the unit that a record reaches is an uninterpreted constant. The
+unit has 231 axioms in all: 88 uninterpreted constants (49 reached by the records, 39 not) and 143 compiler-trust
+facts about the byte length of format strings, none of which mentions an interpreted constant, so replacing the
+48 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
+constants; the second exhibits an assignment under which the base holds. So a derivation of `False` from a record at the real constants would, after the constants are replaced by
+the model's terms, become a derivation of `False` from facts that hold in the model. That last step is an
+argument about derivations and not a theorem inside Lean. Making it one needs a copy of every translated body
+that the record fields reach, each bound to the original by `Iff.rfl`; this is done for `Decoder::new` as an
+illustration and not for the records. Read the result as "the records are not contradictory, given the
+laws", and not as a statement about the Rust.
+
+**The laws, as assumptions about the real standard-library and `zeroize` functions.** The proofs of the fields about translated
+functions need five facts about opaque operations. Each is an assumption of this result, true of the real
+function as documented and not checked against it by any proof here. Four are stated by no record and one by
+only one.
+
+| Law | Statement | Used by | Needed? |
+|---|---|---|---|
+| `LawPop` (`UnitSatisfiabilityRatchet.lean`) | `Vec::pop` of a non-empty vector returns the vector without its last element. `VecPopTotal` says only that it returns. | `SessionUnitT1.RemoveSkippedAtTotal`, `SessionUnitSpqrT1.RemoveSkippedAtTotal` (the sparse field's length claim, the classical field's key and value claims) and the three loop contracts inside `VecRetainTotal` (they terminate only because `pop` shortens), so by `EncryptContracts`, `DecryptRatchetContracts` and `EstablishResponderContracts` | A `pop` that returns `(none, v)` for every vector falsifies both removal fields, given `ZeroizeTotal` and, for the classical one, `LawBlanketU32` (`..._false_of_noop_pop`); whether every `pop` that does not shorten does is not checked. Not shown to be exactly implied by a field. |
+| `LawAsMut` | `Option::as_mut` returns, at every type (the proofs use it at `Option<Chain>` only) | `SetChainsLoopTotal`, `ClearChainsLoop0Total`, through `Chains::zeroize` (same three records) | Forced at `Option<Chain>` by `SetChainsLoopTotal` (`setChainsLoopTotal_forces_asMut`) |
+| `LawBlanketU32` | the blanket `Zeroize` returns at `u32` | the classical `SessionUnitT1.RemoveSkippedAtTotal`, through `SkippedKey::zeroize` (`DecryptRatchetContracts`, `EstablishResponderContracts`) | Forced by that field with `ZeroizeTotal` (`ratchetRemoveSkippedAtTotal_forces_blanketU32`) |
+| `TruncateTotal` (`SessionUnitErasureT1.lean`, already the hypothesis of `message_no_panic`) | `Vec::truncate` returns at `Vec<u8>` | the bounded `DecoderMessageTotal`, so `DecryptRatchetContracts`, `EstablishResponderContracts` | Not checked whether the field forces it |
+| `DivCeilValue` (`SessionUnitDecoderBound.lean`) | `usize::div_ceil a 32` returns `(a + 31) / 32` | `DecoderNewTotal` and `EncoderNewTotal`, each exactly equivalent to "`div_ceil` returns at divisor 32" (`decoderNew_iff`, `encoderNew_iff`), so by `EncryptContracts` (through `EncoderNewTotal`), `DecryptRatchetContracts` and `EstablishResponderContracts` (`EstablishInitiatorContracts` has no erasure field and takes none of the five laws); stated by `EstablishResponderContracts` as `divCeilValue` and by no other | The two fields are equivalent to the weaker law, which is implied by this one |
+
+`LawPop`, `LawAsMut` and `LawBlanketU32` are new to this ledger. The model satisfies stronger
+statements than these (`pop` returns the last element, `truncate` is a prefix, `div_ceil` is ceiling division,
+`as_mut` is the identity borrow, `capacity` is at least the length: `FaithfulShape`), so the witness is the real
+operation on them and not a degenerate function with the weak property. The blanket `Zeroize` is modelled as the
+identity, which is not what it does; only its returning is used by a law (the array, vector and tuple `Zeroize` are the identity too). The laws are not in any record, so no product
+theorem and no record changed; they are assumptions of the inhabitation result only. `DecoderNewTotal` and
+`EncoderNewTotal` stay fields of the records although `DivCeilValue` implies both; whether they can be removed
+is not checked.
+
+**What is not shown.**
+
+- That the real primitives, or the real standard-library and `zeroize` functions, satisfy any field or any law. The
+  model is a model of the shapes (most types are `Unit`, and most functions return a default). It implements
+  `Vec::pop`, `Vec::truncate`, `usize::div_ceil`, `Option::as_mut` and `Vec::capacity` as the real operations. The
+  blanket `Zeroize`, `Array::zeroize`, `Vec::zeroize` and the tuple `Zeroize` are the identity, which is not what they do.
+- That the substitution step is sound inside Lean (above).
+- That the headroom records are inhabited. A lifecycle theorem is vacuous if no input meets its headroom record
+  (`EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`, `EstablishResponderHeadroom`)
+  either. They are numeric bounds on the call and on the session, and no state or input that meets them is
+  exhibited. A session that passes `Session::invariant` gives three of the four receive-headroom fields
+  (`invariant_gives_preconditions`); that such a session exists is not shown.
+- That a send or a receive keeps `State.decoders_bounded` and `State.ct1_bounded`. The lifecycle theorems are
+  single-step, and nothing shows that a state a theorem produces meets the premise of the next.
+- That the bounded `DecoderMessageTotal` is a statement about the real decoder. It is true of the translation:
+  `Vec::with_capacity` never fails in the Aeneas model, and the real function panics for an absurd capacity,
+  which `Decoder::invariant` excludes for a decoder a Braid holds.
+- The three fields that are stronger than the crate (next paragraph).
+- The classification of the fields (which are about opaque constants, which about translated functions) is
+  checked by the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`, which that script
+  appends to a copy of the joint module and runs, and not by `lake build`.
+
+**Three fields are stronger than the crate supports.** `SessionUnitSpqrT1.ZeroizeTotal`,
+`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that
+`Array::zeroize` and `Vec::zeroize` return for every instance record `inst : Zeroize Z`, including one whose
+`zeroize` fails. They are consistent: the joint model satisfies them, so they do not make any record empty. The real functions call `inst.zeroize`
+on each element and so fail on a failing instance, so the statements are false of the crate for such an
+instance (`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`). The unit calls
+`Array::zeroize` at 34 sites, all at the instance `Blanket U8` on a 32-byte array, and `Vec::zeroize` at 5, at
+`Pair (Blanket U64) Chains` (2), `Skipped` (2) and `SkippedKey` (1). The records are not changed here. A trial on a copy of this tree
+replaced the fields by the scoped statements at those instances (`ArrayZeroizeU8Total`, and the `Vec::zeroize` statement
+at the chain table and the skipped-key store). It needed three definitions and 17 further edits in four generated
+files (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`, `SessionUnitTripleT1`, `SessionUnitBraidT1`: 11 applications `hz inst a` become
+`hz _ a`, 4 uses of the `Vec::zeroize` conjunct, one in `array_zeroize_spec`, and the generic stepping lemma
+`zeroize_step`), and three axiom pins in `SessionBraidReceiveVacuity.lean` stopped matching. Nothing in the lifecycle,
+dispatch and record files needed an edit. One failure was not mechanical: with the chain table alone,
+`skip_message_keys_no_panic` stopped building, because its proof applies the conjunct to the skipped-key store as well.
+The trial is not part of this change, and the numbers are from that one build.
 
 ## The erasure coding's field is proved
 
@@ -2096,8 +2186,8 @@ that assembly possible.
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
   for the verified zone only, which is the eight proved leaf crates and, on
   the eight-leaf session unit, the lifecycle leaf's conditional T1 theorems, all
-  conditional on records not shown inhabited, three of them on a record that had a false field until it was restated (no T3 result) and not the
-  product. The assumptions it rests on are not all ones anybody chose. Where
+  conditional on records inhabited only in the sense of "The four contract records follow from an axiom base that has a model, under five laws" (three of them on a record that had a false field until it was restated; no T3 result)
+  and not the product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas
     translates the ratchet functions with the primitives opaque at the boundary.
