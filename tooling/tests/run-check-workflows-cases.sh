@@ -362,4 +362,40 @@ real_total="$(python3 "$work/real-tree-cases.py" "$root" "$work" "$checker")" ||
   exit 1
 }
 
-echo "check-workflows-cases: $total file cases, $real_total changes to the repository's own workflow and the empty-tree refusal gave the expected result"
+# The required-input rule, for the checker and for this runner: without python3 or PyYAML each skips and
+# passes locally and fails in CI, where a skip would be a green result for a check that did not run.
+# PyYAML is made unimportable by a `yaml.py` that raises, first on the module path; python3 is made
+# absent by a PATH that holds only the commands the two scripts use before the check.
+blocked="$work/no-yaml"
+mkdir -p "$blocked"
+printf 'raise ImportError("blocked by the required-input control")\n' > "$blocked/yaml.py"
+bash_bin="$(command -v bash)"
+bare="$work/bare-path"
+mkdir -p "$bare"
+for tool in git dirname; do ln -s "$(command -v "$tool")" "$bare/$tool"; done
+required_input() {  # name expected-exit expected-text script <env words...>
+  local name="$1" want="$2" needle="$3" script="$4" out rc
+  shift 4
+  set +e
+  out="$(cd "$empty_repo" && env -u GITHUB_ACTIONS "$@" "$bash_bin" "$script" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -ne "$want" ] || ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  required-input $name: expected exit $want and '$needle', got exit $rc:" >&2
+    printf '%s\n' "$out" >&2
+    exit 1
+  fi
+}
+for script in "$checker" "$here/run-check-workflows-cases.sh"; do
+  label="$(basename "$script")"
+  case "$script" in
+    "$checker") skip_yaml='pyyaml not installed, skipping'; skip_python='python3 not found, skipping' ;;
+    *) skip_yaml='python3 with pyyaml not found, skipping'; skip_python='python3 with pyyaml not found, skipping' ;;
+  esac
+  required_input "$label without PyYAML in CI" 1 'this is CI -- a check that cannot run is a failure' "$script" PYTHONPATH="$blocked" GITHUB_ACTIONS=true
+  required_input "$label without PyYAML locally" 0 "$skip_yaml" "$script" PYTHONPATH="$blocked"
+  required_input "$label without python3 in CI" 1 'this is CI -- a check that cannot run is a failure' "$script" PATH="$bare" GITHUB_ACTIONS=true
+  required_input "$label without python3 locally" 0 "$skip_python" "$script" PATH="$bare"
+done
+
+echo "check-workflows-cases: $total file cases, $real_total changes to the repository's own workflow, the empty-tree refusal and the skip-or-fail rule of the checker and of this runner (8 cases) gave the expected result"
