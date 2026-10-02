@@ -140,7 +140,6 @@ One-off breaks of gates with no retained control (not in the tally, each on a fr
 | no `TACENTA_DIFFTEST` binary | `the_model_and_the_core_agree_on_generated_sequences` | `GITHUB_ACTIONS=true` or `TACENTA_DIFFTEST_REQUIRED=1`: panic, exit 101; neither: prints "skipping" and passes |
 | no base ref; empty receipts directory | `check-signoff.sh`; collector | both exit 1 |
 
-<<<<<<< HEAD
 ## Addendum, 2026-10-01: the evidence tooling, with a retained harness
 
 `tooling/mutate-evidence-gates.py` is the harness the section above says is not in this repository, for the receipt, manifest, pack,
