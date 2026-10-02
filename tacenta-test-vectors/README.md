@@ -348,7 +348,7 @@ vector has one of two shapes.
     `short-or-malformed` is every other refusal, a state that breaks a
     semantic rule included.
 
-Two things no vector here pins.
+Three things no vector here pins.
 
 - **A short buffer with another version.** A buffer too short for its fixed
   fields that also has a version byte other than `0x01` may be refused as
@@ -356,9 +356,24 @@ Two things no vector here pins.
   Rejection). `Model.PersistedState` reads the version byte first and
   `tacenta-core` checks the length first; both conform, and no vector here
   offers such a buffer.
-- **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
-  both files, but the accepted side of the bound is not pinned, since its
-  vector would be about 290 kilobytes.
+- **A Double Ratchet state of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys
+  are refused in both files. The largest accepted store in
+  `ratchet-state.json` holds 1,999 keys; the reader accepts 2,000
+  (session-persistence.md, Semantic rules of the leaf formats) and no vector
+  offers one. `sparse-ratchet-state.json` offers an accepted store of exactly
+  2,000: `replacement-bound-counts-resulting-store` leaves that store through
+  operations, and its `-read-back` vector offers the same 2,000 keys as bytes.
+  Each of the two vectors is about 385 kilobytes.
+- **A sparse skip refused for either bound.** An operations vector's refusal
+  is `counter-exhaustion` or `no-chain`, and the schema has no kind for
+  `TooManySkipped` or `SkippedStoreFull`. No vector refuses a sparse skip for
+  the per-chain bound or for the total bound, none pins which of the two is
+  checked first, and none counts keys under another epoch against the total
+  bound. An implementation that never refuses, or that refuses one key late,
+  passes every vector here. The refusals, and that a refused skip leaves the
+  state it was run on unchanged, are pinned by `tacenta-spqr`'s tests and by a
+  one-step sequence in the differential harness, which checks the state the
+  refused receive was run on.
 
 ### The Triple Ratchet's state: `vectors/persistence/triple-ratchet-state.json`
 
@@ -821,7 +836,11 @@ from either implementation.
 - **The store's total bound.** Reaching `MAX_SKIPPED_STORE` means deriving
   thousands of message keys in the model's Lean SHA-256 and then reading a
   state holding them back at every later step. The refused side of the bound
-  is pinned by the `store-over-its-bound` vectors instead. The per-chain bound
+  is pinned by the `store-over-its-bound` vectors instead, and the sparse
+  ratchet's replacement at the bound by three one-step sequences built from
+  stored bytes: 1,999 keys, two of them re-derived, a skip that ends at the cap
+  and one that passes it by one, and a chain with keys held either side of the
+  range a skip replaces. The per-chain bound
   is driven: the step past `MAX_SKIP` in every run, and `MAX_SKIP` itself in
   the long run below.
 - **The one refusal the specification leaves open.** A buffer too short for

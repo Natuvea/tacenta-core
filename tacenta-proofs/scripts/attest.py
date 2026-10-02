@@ -914,6 +914,22 @@ REQUIRED_PINS = frozenset(
         "truncateLen_model",
         "laws_model",
     )]
+    # The sparse ratchet's total bound counts the store a skip leaves
+    # (Proofs/SparseReplacementBound.lean): the range of the deletion, that the
+    # refusal is the resulting count, what a successful skip leaves, what is kept
+    # and replaced, and the witness that the two counts differ.
+    + ["Proofs.SparseReplacementBound." + n for n in (
+        "mem_skipSurvivors_iff",
+        "skipSurvivors_length_le",
+        "skipMessageKeys_refused_iff",
+        "skipMessageKeys_leaves_survivors_then_batch",
+        "skipMessageKeys_keeps_outside_range",
+        "skipMessageKeys_keeps_the_key_at_the_counter",
+        "skipMessageKeys_replaces_the_range",
+        "replacement_accepts_where_the_count_before_the_deletion_refuses",
+        "witness_premises_hold",
+        "witness_refused_one_key_further",
+    )]
     # The headroom results: every axiom pin of the two UnitHeadroom modules.  They show the four headroom
     # records satisfiable, the exact numeric conditions they impose, what `Session::invariant` gives for
     # every session, and a session over fresh states that passes it.  A pin outside this list can be
@@ -1654,6 +1670,23 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "erasureAgrees_encoder",
         "erasureAgrees_iff_clauses",
         "erasureCloneAgrees",
+    )]
+    # The sparse ratchet's total-bound results (Proofs/SparseReplacementBound.lean and the
+    # skip refinement's statement pin).
+    + ["Proofs.SparseReplacementBound." + n for n in (
+        "mem_skipSurvivors_iff",
+        "replacement_accepts_where_the_count_before_the_deletion_refuses",
+        "skipMessageKeys_keeps_outside_range",
+        "skipMessageKeys_keeps_the_key_at_the_counter",
+        "skipMessageKeys_leaves_survivors_then_batch",
+        "skipMessageKeys_refused_iff",
+        "skipMessageKeys_replaces_the_range",
+        "skipSurvivors_length_le",
+        "witness_premises_hold",
+        "witness_refused_one_key_further",
+    )]
+    + ["Tacenta.SpqrT3." + n for n in (
+        "skip_message_keys_refines",
     )]
 )
 

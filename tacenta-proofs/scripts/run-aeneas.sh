@@ -62,9 +62,11 @@ for bin in charon aeneas; do
     echo "A different build produces a different translation, which the" >&2
     echo "proofs are not about." >&2
     echo "" >&2
-    echo "The release ships linux-x86_64 only, so on another platform the" >&2
-    echo "honest answer is to let CI do this: the verification workflow runs on every" >&2
-    echo "push against a dedicated runner." >&2
+    echo "The verification workflow checks the digest of the linux-x86_64 archive." >&2
+    echo "An archive for another platform from the same release can be used by" >&2
+    echo "setting AENEAS_TOOLS; what it produces counts only if it reproduces the" >&2
+    echo "committed files, and a linux-x86_64 run is the check that does not depend" >&2
+    echo "on your platform. The workflow runs on every push on a dedicated runner." >&2
     exit 1
   fi
 done
