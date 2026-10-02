@@ -12,13 +12,15 @@ product.
 
 ## What is shown
 
-* **A. The concrete branch evidence is empty.** `InitialRatchetConcreteBranchEvidence.randomDraw`
+* **A. The old concrete branch evidence is empty.** `InitialRatchetConcreteBranchEvidence.randomDraw`
   asks that every RNG state, not only the run's, has a trace with a head, as soon as one inner
   message decodes to a composite whose first agreement succeeds. With `OracleOf.random32`, which
   turns a state whose trace has a head into a state whose trace is the tail, that makes the trace
   of every state longer than every number (`concreteBranchEvidence_empty`). The two end-to-end
   evidence records that contain it are empty under the same premises
-  (`endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`).
+  (`endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`). No theorem takes these three
+  records now: they are replaced by the per-run records of section E, and the three results stand
+  as refutations of the old forms.
 * **B. Draw counts.** `byteRng` is a byte-stream random source (a list of bytes read from the
   front) and `byteTrace` reads it as 32-byte draws. At that source the translated `random_secret`
   meets the `random32` clause (`byte_random32`). Under `SignFillsOnce64Of`, a law that a signing
@@ -35,7 +37,15 @@ product.
   (`tacenta-core/kem/src/lib.rs`, `KEY_GENERATION_SEED_LEN`). Under `SignFillsOnce64` and
   `GenerateFillsOnce64` (one 64-byte fill each), the agreement contradicts `OracleOf.sigSign` at
   any such send whose trace has two entries (`braidSendTrace_conflicts_with_sigSign`): the same
-  64-byte fill cannot leave one draw and two draws behind.
+  64-byte fill cannot leave one draw and two draws behind. The model's `sendAgreement` now takes two
+  draws in that state and the dispatch layer takes `BraidSendTraceAgreementCounted`, so this result
+  stands as a refutation of the old form.
+* **E. The repaired records.** `concreteBranchEvidenceRun_of_run_parts` builds
+  `InitialRatchetConcreteBranchEvidenceRun` from parts that each speak about the run alone, and
+  `runRandomDraw_byte` meets its draw field at the byte-stream source with `random32`.
+  `braidSendTraceCounted_with_sigSign_byte` shows the counted draw clause and the two-draw signing
+  clause hold together at a send from `KeysUnsampled` with two draws left, under the two laws
+  (`braid_send_keysUnsampled_byte_trace` is its trace step).
 * **C. Numeric state records.** `RetryReceiveBounds`, `GeneratedTripleRefusalConditions` and
   `GeneratedTripleSuccessConditions` hold at the model's initial Triple state
   (`retryReceiveBounds_initAlice` and the two `_initAlice` results), and the first is not true of
@@ -74,7 +84,8 @@ namespace Tacenta.UnitLifecycleIntegrationScreen
 
 /-- `InitialRatchetConcreteBranchEvidence.randomDraw` quantifies over every RNG state. With
 `OracleOf.random32` it has no term once one inner message decodes to a composite whose first
-agreement succeeds. -/
+agreement succeeds. A refutation of the old form: the dispatch layer takes
+`InitialRatchetConcreteBranchEvidenceRun` now. -/
 theorem concreteBranchEvidence_empty
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView} {K : Model.Braid.Kem}
@@ -556,7 +567,8 @@ theorem braid_send_keysUnsampled_generate {R : Type} (rc : rand_core_1.RngCore R
 
 /-- `BraidSendTraceAgreement` lets a send from `KeysUnsampled` consume one trace entry, and
 `OracleOf.sigSign` lets a signature consume two. Under the two laws both are one 64-byte fill from
-the same state, so where two entries remain they cannot both hold. -/
+the same state, so where two entries remain they cannot both hold. A refutation of the old form:
+the dispatch layer takes `BraidSendTraceAgreementCounted` now (`braidSendTraceCounted_with_sigSign_byte`). -/
 theorem braidSendTrace_conflicts_with_sigSign
     (hsign : SignFillsOnce64) (hgen : GenerateFillsOnce64)
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -693,6 +705,100 @@ theorem sameEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCor
   refine ⟨{ oracle with dhAgree := f }, oracleOf_dhAgree_off_view codec oracleOf f hf,
     fun s p hp => hf s p hp, ?_⟩
   cases b <;> simp [Model.Lifecycle.sameEphemeralAgreement, f, hestablished, hincoming]
+
+/-! ## E. The repaired records: what replaces the two refuted forms
+
+`InitialRatchetConcreteBranchEvidenceRun` asks its fields of the run's own inner message and RNG
+state, and `BraidSendTraceAgreementCounted` lets a send from `keysUnsampled` consume the two draws of
+the 64-byte key-generation seed, matching the model's `sendAgreement`. The results of sections A and
+B' stay as refutations of the old forms. -/
+
+/-- The run's evidence record is built from parts that each speak about the run alone: one scoped
+Braid record for the inner message the run's initial message decodes to, the Triple and AEAD branch
+contracts of the run's refusal inputs, and one draw at the run's RNG state. -/
+theorem concreteBranchEvidenceRun_of_run_parts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R)
+    (hscoped : ∀ decoded : tacenta_wire.DecodedInitial,
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      InitialRatchetBraidEvidenceContractsScoped (K := K) view real model
+        decoded.message.deref)
+    (triple : ∀ {innerMessage : Slice Std.U8}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage rng),
+      tacenta_wire.decode_initial message = ok (.Ok input.decoded) →
+      InitialRatchetTripleBranchContracts input)
+    (aead : ∀ {innerMessage : Slice Std.U8}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage rng),
+      tacenta_wire.decode_initial message = ok (.Ok input.decoded) →
+      InitialRatchetAeadBranchContracts input)
+    (hdraw : ∃ draw rest, trace rng = draw :: rest) :
+    Nonempty (InitialRatchetConcreteBranchEvidenceRun (rc := rc) (crc := crc) (trace := trace)
+      (dh := dh) (K := K) (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :=
+  ⟨{ braidEvidence := fun input hdecode => hscoped input.decoded hdecode
+     tripleContracts := triple
+     aeadContracts := aead
+     randomDraw := fun _ _ _ _ _ _ _ => hdraw }⟩
+
+/-- The field that made the old record empty is met at the byte-stream source by every state with
+a draw left, together with `random32`. -/
+theorem runRandomDraw_byte (rng : List Std.U8) (draw : Model.Lifecycle.Key)
+    (rest : List Model.Lifecycle.Key) (h : byteTrace rng = draw :: rest) :
+    Random32Clause byteRng byteCrc byteTrace ∧ ∃ draw rest, byteTrace rng = draw :: rest :=
+  ⟨byte_random32Clause, draw, rest, h⟩
+
+/-- At the byte-stream source, a translated Braid send from `KeysUnsampled` consumes the two draws
+of the key-generation seed under `GenerateFillsOnce64`: the trace after the call is the trace
+before it without its first two entries. -/
+theorem braid_send_keysUnsampled_byte_trace (hgen : GenerateFillsOnce64)
+    (b : tacenta_braid.Braid) (epoch : Std.U64) (auth : tacenta_braid.Auth)
+    (hstate : b.state = .KeysUnsampled epoch auth) (rng rngNext : List Std.U8)
+    (out : tacenta_braid.Msg × Std.U64 × Option tacenta_braid.Output × tacenta_braid.Braid)
+    (hcall : tacenta_braid.Braid.send byteRng byteCrc b rng = ok (out, rngNext))
+    (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+    (htrace : byteTrace rng = d1 :: d2 :: rest) :
+    byteTrace rngNext = rest := by
+  obtain ⟨_, hgenCall⟩ := braid_send_keysUnsampled_generate byteRng byteCrc b epoch auth hstate
+    rng rngNext out hcall
+  obtain ⟨G, hG⟩ := hgen
+  rw [hG] at hgenCall
+  obtain ⟨s, hf, htr, _⟩ := byte_fill_64 htrace
+  rw [hf] at hgenCall
+  simp at hgenCall
+  rw [← hgenCall.2]
+  exact htr
+
+/-- The repaired agreement and the two-draw signing clause hold together: at the byte-stream source,
+under `SignFillsOnce64` and `GenerateFillsOnce64`, a send from `KeysUnsampled` with two draws left
+meets the draw clause of `BraidSendTraceAgreementCounted` (two entries consumed, as
+`braidSendDrawCount` says for that state), and the signing clause holds for one oracle. This takes the
+place of `braidSendTrace_conflicts_with_sigSign`, which refutes the old one-entry form. -/
+theorem braidSendTraceCounted_with_sigSign_byte (hS : SignFillsOnce64) (hgen : GenerateFillsOnce64)
+    (b : tacenta_braid.Braid) (epoch : Std.U64) (auth : tacenta_braid.Auth)
+    (hstate : b.state = .KeysUnsampled epoch auth) (modelBraid : Model.Braid.BraidState)
+    (hcount : Model.Lifecycle.braidSendDrawCount modelBraid = 2) (rng rngNext : List Std.U8)
+    (out : tacenta_braid.Msg × Std.U64 × Option tacenta_braid.Output × tacenta_braid.Braid)
+    (hcall : tacenta_braid.Braid.send byteRng byteCrc b rng = ok (out, rngNext))
+    (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+    (htrace : byteTrace rng = d1 :: d2 :: rest) :
+    (∃ draws rest', draws.length = Model.Lifecycle.braidSendDrawCount modelBraid ∧
+        byteTrace rng = draws ++ rest' ∧ byteTrace rngNext = rest') ∧
+      ∃ oracle : Model.Lifecycle.Oracle,
+        SigSignClause (tacenta_boundary.xeddsa.sign byteRng byteCrc) byteTrace oracle := by
+  refine ⟨⟨[d1, d2], rest, by simp [hcount], by simpa using htrace,
+    braid_send_keysUnsampled_byte_trace hgen b epoch auth hstate rng rngNext out hcall d1 d2 rest
+      htrace⟩, ?_⟩
+  obtain ⟨S, hS⟩ := hS
+  exact ⟨{ Model.Lifecycle.Examples.toyOracle [] with sigSign := sigSignOf S },
+    sigSignClause_of_law S _ (fun secret message rng => hS byteRng byteCrc secret message rng)
+      _ rfl⟩
 
 end Tacenta.UnitLifecycleIntegrationScreen
 
@@ -1551,3 +1657,227 @@ Tacenta.UnitLifecycleIntegrationScreen.KemShapeOf @tacenta_boundary.kem.encapsul
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleIntegrationScreen.KemShape
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidenceRun_of_run_parts' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidenceRun_of_run_parts
+
+/--
+info: @Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidenceRun_of_run_parts : ∀ {R : Type}
+  {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+  {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+  {real : lifecycle.Session} {model : Model.Lifecycle.Session} (message : Slice U8) (rng : R),
+  (∀ (decoded : tacenta_wire.DecodedInitial),
+      tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded) →
+        InitialRatchetBraidEvidenceContractsScoped view real model decoded.message.deref) →
+    (∀ {innerMessage : Slice U8} (input : InitialRatchetRefusalBranchInput innerMessage rng),
+        tacenta_wire.decode_initial message = ok (core.result.Result.Ok input.decoded) →
+          InitialRatchetTripleBranchContracts input) →
+      (∀ {innerMessage : Slice U8} (input : InitialRatchetRefusalBranchInput innerMessage rng),
+          tacenta_wire.decode_initial message = ok (core.result.Result.Ok input.decoded) →
+            InitialRatchetAeadBranchContracts input) →
+        (∃ draw rest, trace rng = draw :: rest) → Nonempty (InitialRatchetConcreteBranchEvidenceRun message rng)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidenceRun_of_run_parts
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.runRandomDraw_byte' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.runRandomDraw_byte
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.runRandomDraw_byte : ∀ (rng : List U8) (draw : Model.Lifecycle.Key)
+  (rest : List Model.Lifecycle.Key),
+  Tacenta.UnitLifecycleIntegrationScreen.byteTrace rng = draw :: rest →
+    Tacenta.UnitLifecycleIntegrationScreen.Random32Clause Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc Tacenta.UnitLifecycleIntegrationScreen.byteTrace ∧
+      ∃ draw rest, Tacenta.UnitLifecycleIntegrationScreen.byteTrace rng = draw :: rest
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.runRandomDraw_byte
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.braid_send_keysUnsampled_byte_trace' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.EncapsState,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ core.num.Usize.div_ceil,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.braid_send_keysUnsampled_byte_trace
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.braid_send_keysUnsampled_byte_trace : Tacenta.UnitLifecycleIntegrationScreen.GenerateFillsOnce64 →
+  ∀ (b : tacenta_braid.Braid) (epoch : U64) (auth : tacenta_braid.Auth),
+    b.state = tacenta_braid.State.KeysUnsampled epoch auth →
+      ∀ (rng rngNext : List U8) (out : tacenta_braid.Msg × U64 × Option tacenta_braid.Output × tacenta_braid.Braid),
+        tacenta_braid.Braid.send Tacenta.UnitLifecycleIntegrationScreen.byteRng
+              Tacenta.UnitLifecycleIntegrationScreen.byteCrc b rng =
+            ok (out, rngNext) →
+          ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+            Tacenta.UnitLifecycleIntegrationScreen.byteTrace rng = d1 :: d2 :: rest →
+              Tacenta.UnitLifecycleIntegrationScreen.byteTrace rngNext = rest
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.braid_send_keysUnsampled_byte_trace
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.braidSendTraceCounted_with_sigSign_byte' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.EncapsState,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.xeddsa.sign,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ core.num.Usize.div_ceil,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.braidSendTraceCounted_with_sigSign_byte
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.braidSendTraceCounted_with_sigSign_byte : Tacenta.UnitLifecycleIntegrationScreen.SignFillsOnce64 →
+  Tacenta.UnitLifecycleIntegrationScreen.GenerateFillsOnce64 →
+    ∀ (b : tacenta_braid.Braid) (epoch : U64) (auth : tacenta_braid.Auth),
+      b.state = tacenta_braid.State.KeysUnsampled epoch auth →
+        ∀ (modelBraid : Model.Braid.BraidState),
+          Model.Lifecycle.braidSendDrawCount modelBraid = 2 →
+            ∀ (rng rngNext : List U8)
+              (out : tacenta_braid.Msg × U64 × Option tacenta_braid.Output × tacenta_braid.Braid),
+              tacenta_braid.Braid.send Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc b rng =
+                  ok (out, rngNext) →
+                ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                  Tacenta.UnitLifecycleIntegrationScreen.byteTrace rng = d1 :: d2 :: rest →
+                    (∃ draws rest',
+                        draws.length = Model.Lifecycle.braidSendDrawCount modelBraid ∧
+                          Tacenta.UnitLifecycleIntegrationScreen.byteTrace rng = draws ++ rest' ∧
+                            Tacenta.UnitLifecycleIntegrationScreen.byteTrace rngNext = rest') ∧
+                      ∃ oracle,
+                        Tacenta.UnitLifecycleIntegrationScreen.SigSignClause
+                          (tacenta_boundary.xeddsa.sign Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                            Tacenta.UnitLifecycleIntegrationScreen.byteCrc)
+                          Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.braidSendTraceCounted_with_sigSign_byte
+
+/--
+info: def Model.Lifecycle.braidSendDrawCount : Model.Braid.BraidState → ℕ :=
+fun x =>
+  match x with
+  | Model.Braid.BraidState.keysUnsampled epoch auth => 2
+  | Model.Braid.BraidState.headerReceived epoch auth ekSeed hek ekDec => 1
+  | x => 0
+-/
+#guard_msgs in
+#print Model.Lifecycle.braidSendDrawCount
+
+/--
+info: def Model.Lifecycle.sendAgreement : Model.Lifecycle.Oracle →
+  Model.Braid.BraidState →
+    Option
+      ((Option Model.Braid.Msg × ℕ × Option Model.Braid.Output × Model.Braid.BraidState) × Model.Lifecycle.Oracle) :=
+fun oracle state =>
+  if Model.Lifecycle.braidSendNeedsDraw state = true then do
+    let __discr ← Model.Lifecycle.takeDraws (Model.Lifecycle.braidSendDrawCount state) oracle
+    match __discr with
+      | (draws, rest) =>
+        some (Model.Braid.send oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten) state, rest)
+  else some (Model.Braid.send oracle.braidKem 0 state, oracle)
+-/
+#guard_msgs in
+#print Model.Lifecycle.sendAgreement

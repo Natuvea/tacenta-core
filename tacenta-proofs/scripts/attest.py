@@ -1269,6 +1269,10 @@ REQUIRED_PINS = frozenset(
         "generatedTripleSuccessConditions_initAlice",
         "oracleOf_dhAgree_off_view",
         "sameEphemeralAgreement_unconstrained",
+        "concreteBranchEvidenceRun_of_run_parts",
+        "runRandomDraw_byte",
+        "braid_send_keysUnsampled_byte_trace",
+        "braidSendTraceCounted_with_sigSign_byte",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -1743,6 +1747,14 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "sameEphemeralAgreement_unconstrained",
         "sigSignClause_of_law",
         "sigSignClause_of_oracleOf",
+        "concreteBranchEvidenceRun_of_run_parts",
+        "runRandomDraw_byte",
+        "braid_send_keysUnsampled_byte_trace",
+        "braidSendTraceCounted_with_sigSign_byte",
+    )]
+    + ["Model.Lifecycle." + n for n in (
+        "braidSendDrawCount",
+        "sendAgreement",
     )]
 )
 
