@@ -3325,7 +3325,7 @@ the unmodified module and the unmodified lemma to be accepted, then makes one ch
 codeword, a claim of the old two-sided statement, a consistent-run definition without the codeword or without the fit, a weakened
 link between the draw and the candidate key) and requires Lean to refuse it.
 
-## Proved (tier T3, session retry prerequisites)
+## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleInitialDispatch.lean` and
 `Translation/AxiomAuditSessionUnit.lean`.
