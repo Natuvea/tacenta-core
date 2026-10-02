@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Validate that a P9 review receipt, pack and manifest share one candidate."""
+"""Validate that a P9 review receipt, pack and manifest share one candidate.
+
+Run from the candidate's own checkout. The manifest is validated against that
+checkout, the pack against its lists and its git history, and the receipt
+against the pack (every section of the ledger has a disposition on the text the
+pack holds) with no `finding` recorded: a candidate with a standing finding is
+not a reviewed candidate. Whether the reviewer was independent, and whether the
+dispositions are right, are not things this can check.
+"""
 from __future__ import annotations
 
 import argparse
@@ -33,8 +41,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         run(sys.executable, str(ROOT / "tooling/build-assurance-manifest.py"), "--validate", str(args.manifest))
-        run(sys.executable, str(ROOT / "tooling/build-evidence-pack.py"), "--verify", str(args.pack))
-        run(sys.executable, str(ROOT / "tooling/check-ledger-review-receipt.py"), "--receipt", str(args.receipt), "--pack", str(args.pack))
+        run(sys.executable, str(ROOT / "tooling/build-evidence-pack.py"), "--verify", str(args.pack), "--candidate-repo", str(ROOT))
+        run(sys.executable, str(ROOT / "tooling/check-ledger-review-receipt.py"), "--receipt", str(args.receipt), "--pack", str(args.pack),
+            "--require-no-findings")
         manifest = load(args.manifest)
         pack = load(args.pack / "PACK-MANIFEST.json")
         candidate = {"commit": manifest["identity"]["source_commit"], "tree": manifest["identity"]["source_tree"]}

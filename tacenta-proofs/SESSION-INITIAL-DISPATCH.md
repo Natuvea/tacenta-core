@@ -14,7 +14,7 @@ Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts
 Update, 2026-10-01: the field is now stated for decoders that need at most `MAX_CODEWORDS` chunks, and the
 headroom record carries that bound (`DecryptRatchetHeadroom.braidDecoders`). These theorems
 compile against the repaired record. The obligations listed below as discharged are discharged
-under records that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws"), with the headroom records not shown satisfiable.
+under records that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws"), with the headroom records satisfiable only in the sense and under the assumptions of `LIMITATIONS.md` ("The headroom records").
 
 Update, 2026-10-01, evidence records: that statement does not cover the hypotheses and records named
 here, which `Translation/DispatchEvidenceVacuity.lean` shows are false or empty under stated conditions
