@@ -1232,6 +1232,44 @@ REQUIRED_PINS = frozenset(
         "codewordViewSendOf_satisfiable",
         "scoped_chunk_fields_iff_consistent",
     )]
+    # The session contract integration (#203): the full-store failure correspondences and the retry
+    # prerequisites it claims, one block per module.
+    + ["Tacenta.UnitT3." + n for n in (
+        "receive_store_full_refines",
+    )]
+    + ["Tacenta.UnitSpqrT3." + n for n in (
+        "receive_store_full_refines",
+    )]
+    + ["Tacenta.UnitTripleT3." + n for n in (
+        "receive_store_full_refines_discharged",
+    )]
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "concrete_receive_attempt_store_full_from_contracts",
+        "concrete_receive_attempt_store_full_from_retry_bounds",
+        "fullStoreOfReal_ne_of_generated_ne",
+    )]
+    # The screen of the hypotheses that integration adds (`UnitLifecycleIntegrationScreen.lean`).
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "concreteBranchEvidence_empty",
+        "endToEndEvidence_empty",
+        "agreementEndToEndEvidence_empty",
+        "byte_random32",
+        "random32Clause_of_oracleOf",
+        "sigSignClause_of_oracleOf",
+        "kemClauses_of_oracleOf",
+        "sigSignClause_of_law",
+        "kemClauses_of_law",
+        "changed_rng_clauses_have_a_model",
+        "changed_rng_clauses_of_laws",
+        "braid_send_keysUnsampled_generate",
+        "braidSendTrace_conflicts_with_sigSign",
+        "retryReceiveBounds_initAlice",
+        "retryReceiveBounds_not_trivial",
+        "generatedTripleRefusalConditions_initAlice",
+        "generatedTripleSuccessConditions_initAlice",
+        "oracleOf_dhAgree_off_view",
+        "sameEphemeralAgreement_unconstrained",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1244,6 +1282,12 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitTripleT3.receive_refines_discharged",
         "Tacenta.UnitTripleT3.send_refines_discharged",
         "Tacenta.UnitTripleT3.spqr_agrees_for",
+        # The session contract integration (#203): the full-store failure correspondences rest on
+        # the same compiler-evaluated constants of the sparse ratchet as the receive theorems above.
+        "Tacenta.UnitSpqrT3.receive_store_full_refines",
+        "Tacenta.UnitTripleT3.receive_store_full_refines_discharged",
+        "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contracts",
+        "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds",
     }
 )
 
@@ -1654,6 +1698,51 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "erasureAgrees_encoder",
         "erasureAgrees_iff_clauses",
         "erasureCloneAgrees",
+    )]
+    # The session contract integration (#203) and its screen.
+    + ["Tacenta.UnitT3." + n for n in (
+        "receive_store_full_refines",
+    )]
+    + ["Tacenta.UnitSpqrT3." + n for n in (
+        "receive_store_full_refines",
+    )]
+    + ["Tacenta.UnitTripleT3." + n for n in (
+        "receive_store_full_refines_discharged",
+    )]
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "concrete_receive_attempt_store_full_from_contracts",
+        "concrete_receive_attempt_store_full_from_retry_bounds",
+        "fullStoreOfReal_ne_of_generated_ne",
+    )]
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "GenerateFillsOnce64",
+        "GenerateFillsOnce64Of",
+        "KemClauses",
+        "KemShape",
+        "KemShapeOf",
+        "Random32Clause",
+        "SigSignClause",
+        "SignFillsOnce64",
+        "SignFillsOnce64Of",
+        "agreementEndToEndEvidence_empty",
+        "braidSendTrace_conflicts_with_sigSign",
+        "braid_send_keysUnsampled_generate",
+        "byte_random32",
+        "changed_rng_clauses_have_a_model",
+        "changed_rng_clauses_of_laws",
+        "concreteBranchEvidence_empty",
+        "endToEndEvidence_empty",
+        "generatedTripleRefusalConditions_initAlice",
+        "generatedTripleSuccessConditions_initAlice",
+        "kemClauses_of_law",
+        "kemClauses_of_oracleOf",
+        "oracleOf_dhAgree_off_view",
+        "random32Clause_of_oracleOf",
+        "retryReceiveBounds_initAlice",
+        "retryReceiveBounds_not_trivial",
+        "sameEphemeralAgreement_unconstrained",
+        "sigSignClause_of_law",
+        "sigSignClause_of_oracleOf",
     )]
 )
 

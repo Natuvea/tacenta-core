@@ -303,6 +303,34 @@ info: 'Tacenta.UnitT3.receive_store_full_refines' depends on axioms: [propext,
 #print axioms Tacenta.UnitT3.receive_store_full_refines
 
 /--
+info: Tacenta.UnitT3.receive_store_full_refines : Tacenta.UnitT3.HmacAgrees →
+  Tacenta.UnitT3.HkdfAgrees →
+    Tacenta.UnitT3.ZeroizingRoundTrips →
+      Tacenta.UnitT1.RemoveSkippedAtTotal →
+        ∀ [Tacenta.UnitT1.DerivedKeysModel] (s : tacenta_triple_unit.tacenta_ratchet.State) (m : Model.State.State),
+          Tacenta.UnitT3.StateR s m →
+            ∀ (hdr : tacenta_triple_unit.tacenta_ratchet.Header) (mh : Model.State.Header),
+              Tacenta.UnitT3.HeaderR hdr mh →
+                ∀ (dh_out_recv dh_out_send new_dhs_pub : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                  (List.filter (Tacenta.UnitT3.matchesHeader mh) m.skipped).length ≤ 1 →
+                    max (↑s.skipped).length ↑tacenta_triple_unit.tacenta_ratchet.MAX_SKIPPED_STORE +
+                          ↑tacenta_triple_unit.tacenta_ratchet.MAX_SKIP ≤
+                        Aeneas.Std.Usize.max →
+                      ↑s.events + 1 < Aeneas.Std.U32.max →
+                        Aeneas.Std.WP.spec
+                          (tacenta_triple_unit.tacenta_ratchet.receive s hdr dh_out_recv dh_out_send new_dhs_pub)
+                          fun r =>
+                          r.1 =
+                              Aeneas.Std.core.result.Result.Err
+                                tacenta_triple_unit.tacenta_ratchet.RatchetError.SkippedStoreFull →
+                            Model.Ratchet.receiveDetailed m mh (Tacenta.UnitT3.keyOf dh_out_recv)
+                                (Tacenta.UnitT3.keyOf dh_out_send) (Tacenta.UnitT3.keyOf new_dhs_pub) =
+                              Except.error Model.Ratchet.ReceiveRefusal.skippedStoreFull
+-/
+#guard_msgs in
+#check @Tacenta.UnitT3.receive_store_full_refines
+
+/--
 info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -400,6 +428,42 @@ info: 'Tacenta.UnitSpqrT3.receive_store_full_refines' depends on axioms: [propex
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT3.receive_store_full_refines
+
+/--
+info: Tacenta.UnitSpqrT3.receive_store_full_refines : Tacenta.UnitSpqrT3.SpqrHkdfAgrees →
+  Tacenta.UnitSpqrT3.ZeroizingRoundTrips96 →
+    Tacenta.UnitSpqrT3.ZeroizingRoundTrips64 →
+      Tacenta.UnitSpqrT3.VecRetainAgrees →
+        Tacenta.UnitSpqrT1.VecRetainTotal →
+          Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees →
+            Tacenta.UnitSpqrT1.ZeroizeTotal →
+              Tacenta.UnitSpqrT1.OptionCloneTotal →
+                ∀ {s : tacenta_triple_unit.tacenta_spqr.State} {m : Model.SparseRatchet.State},
+                  Tacenta.UnitSpqrT3.StateRefines s m →
+                    ∀ (receiving_epoch : Aeneas.Std.U64) (out : Option tacenta_triple_unit.tacenta_spqr.Output)
+                      (n : Aeneas.Std.U64),
+                      ↑s.epoch + 1 < Aeneas.Std.U64.max →
+                        (↑s.chains).length + 2 < Aeneas.Std.Usize.max →
+                          (∀ p ∈ ↑s.chains, ↑p.1 + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+                            (∀ sk ∈ ↑s.skipped, ↑sk.epoch + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+                              (∀ (o : tacenta_triple_unit.tacenta_spqr.Output),
+                                  out = some o → ↑o.key_epoch + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+                                (↑s.skipped).length + ↑tacenta_triple_unit.tacenta_spqr.MAX_SKIP ≤
+                                    Aeneas.Std.Usize.max →
+                                  (List.filter (fun x => x.1 == ↑receiving_epoch && x.2.1 == ↑n) m.skipped).length ≤ 1 →
+                                    (∀ p ∈ ↑s.chains,
+                                        ∀ (ch : tacenta_triple_unit.tacenta_spqr.Chain),
+                                          p.2.send = some ch ∨ p.2.receive = some ch → ↑ch.n < Aeneas.Std.U64.max) →
+                                      Aeneas.Std.WP.spec (s.receive receiving_epoch out n) fun r =>
+                                        r.1 =
+                                            Aeneas.Std.core.result.Result.Err
+                                              tacenta_triple_unit.tacenta_spqr.SpqrError.SkippedStoreFull →
+                                          Model.SparseRatchet.receiveDetailed m (↑receiving_epoch)
+                                              (Option.map Tacenta.UnitSpqrT3.outputOf out) ↑n =
+                                            Except.error Model.SparseRatchet.ReceiveRefusal.skippedStoreFull
+-/
+#guard_msgs in
+#check @Tacenta.UnitSpqrT3.receive_store_full_refines
 
 /-! ## The Triple's refinement on the unit, with both bundles discharged
 
@@ -555,3 +619,72 @@ info: 'Tacenta.UnitTripleT3.receive_store_full_refines_discharged' depends on ax
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT3.receive_store_full_refines_discharged
+
+/--
+info: Tacenta.UnitTripleT3.receive_store_full_refines_discharged : Tacenta.UnitT3.HmacAgrees →
+  Tacenta.UnitT3.HkdfAgrees →
+    Tacenta.UnitT3.ZeroizingRoundTrips →
+      Tacenta.UnitT1.RemoveSkippedAtTotal →
+        ∀ [Tacenta.UnitT1.DerivedKeysModel],
+          Tacenta.UnitSpqrT3.ZeroizingRoundTrips96 →
+            Tacenta.UnitSpqrT3.ZeroizingRoundTrips64 →
+              Tacenta.UnitSpqrT3.VecRetainAgrees →
+                Tacenta.UnitSpqrT1.VecRetainTotal →
+                  Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees →
+                    Tacenta.UnitSpqrT1.ZeroizeTotal →
+                      Tacenta.UnitSpqrT1.OptionCloneTotal →
+                        ∀ {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State},
+                          Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs Tacenta.UnitTripleT3.spqrAbs
+                              s m →
+                            ∀ (header : tacenta_triple_unit.tacenta_triple.Header) (mh : Model.State.Header),
+                              Tacenta.UnitTripleT3.RatchetHeaderR header.dr mh →
+                                ∀ (dh_out_recv dh_out_send new_dhs_pub : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+                                  (output : Option tacenta_triple_unit.tacenta_spqr.Output),
+                                  (List.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n) m.classical.skipped).length ≤
+                                      1 →
+                                    max m.classical.skipped.length Model.State.maxSkippedStore + Model.State.maxSkip ≤
+                                        Aeneas.Std.Usize.max →
+                                      m.classical.events + 1 < Aeneas.Std.U32.max →
+                                        m.postQuantum.epoch + 1 < Aeneas.Std.U64.max →
+                                          m.postQuantum.chains.length + 2 < Aeneas.Std.Usize.max →
+                                            (∀ p ∈ m.postQuantum.chains,
+                                                p.1 + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+                                              (∀ sk ∈ m.postQuantum.skipped,
+                                                  sk.1 + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+                                                (∀ (o : tacenta_triple_unit.tacenta_spqr.Output),
+                                                    output = some o →
+                                                      ↑o.key_epoch + Model.SparseRatchet.epochsKept ≤
+                                                        Aeneas.Std.U64.max) →
+                                                  m.postQuantum.skipped.length + Model.SparseRatchet.maxSkip ≤
+                                                      Aeneas.Std.Usize.max →
+                                                    (List.filter
+                                                            (fun x => x.1 == ↑header.epoch && x.2.1 == ↑header.pq_n)
+                                                            m.postQuantum.skipped).length ≤
+                                                        1 →
+                                                      (∀ p ∈ m.postQuantum.chains,
+                                                          ∀ (ch : Model.SparseRatchet.Chain),
+                                                            p.2.send = some ch ∨ p.2.receive = some ch →
+                                                              ch.n < Aeneas.Std.U64.max) →
+                                                        Aeneas.Std.WP.spec
+                                                          (s.receive header dh_out_recv dh_out_send new_dhs_pub output)
+                                                          fun result =>
+                                                          ∀
+                                                            (realReason :
+                                                              tacenta_triple_unit.tacenta_triple.TripleError)
+                                                            (modelReason : Model.Triple.ReceiveRefusal),
+                                                            result = Aeneas.Std.core.result.Result.Err realReason →
+                                                              Tacenta.UnitTripleT3.receiveStoreFullRefusalOfReal
+                                                                    realReason =
+                                                                  some modelReason →
+                                                                Model.Triple.receiveDetailed m
+                                                                    { dr := mh, epoch := ↑header.epoch,
+                                                                      pqN := ↑header.pq_n }
+                                                                    (Tacenta.UnitTripleT3.keyOf dh_out_recv)
+                                                                    (Tacenta.UnitTripleT3.keyOf dh_out_send)
+                                                                    (Tacenta.UnitTripleT3.keyOf new_dhs_pub)
+                                                                    (Option.map Tacenta.UnitTripleT3.spqrOutputOf
+                                                                      output) =
+                                                                  Except.error modelReason
+-/
+#guard_msgs in
+#check @Tacenta.UnitTripleT3.receive_store_full_refines_discharged
