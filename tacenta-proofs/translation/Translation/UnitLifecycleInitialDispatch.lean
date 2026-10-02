@@ -59,19 +59,49 @@ def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
     kdfCk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfCkTotal contracts.hkdf contracts.spqrZeroizing64
     optionClone := contracts.optionClone }
 
+theorem message_key_material_roundtrip_of_zeroizing
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize)) :
+    Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip := by
+  intro value
+  exact hzKeys Tacenta.UnitLifecycleT1.messageKeyMaterialZeroize value
+
 def encrypt_contracts_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {K : Model.Braid.Kem}
     (braid : BraidSendRefinementContracts rc K)
     (triple : TripleSendRefinementContracts)
     (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
-    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
     (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal) :
     Tacenta.UnitLifecycleT1.EncryptContracts rc :=
   { braid := braid_send_contracts_to_t1 braid
     triple := triple_send_contracts_to_t1 triple
     aeadSeal := aead
-    messageKeyMaterial := messageKeyMaterial
+    messageKeyMaterial := message_key_material_roundtrip_of_zeroizing hzKeys
     dhCodec := dhCodec }
+
+/-! The same semantic send-contract packages used by T3 also discharge the
+    generated public encrypt call's T1 boundary.  This removes a parallel
+    caller-supplied `EncryptContracts` record: the concrete output below is
+    obtained from `Session.encrypt` itself and can be split by the public
+    result-indexed route theorem. -/
+theorem encrypt_result_of_send_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {K : Model.Braid.Kem}
+    (braid : BraidSendRefinementContracts rc K)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext) :
+    ∃ output, lifecycle.Session.encrypt rc crc real plaintext rng = ok output := by
+  let boundary := encrypt_contracts_of_send_contracts braid triple aead hzKeys dhCodec
+  obtain ⟨output, houtput⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.encrypt_no_panic rc crc boundary real plaintext rng headroom)
+  exact ⟨output, houtput.1⟩
 
 /-! ## Braid receive adapter
 
@@ -3296,6 +3326,146 @@ theorem concrete_receive_attempt_success_from_contracts
     hcb hsb hnewb hskiproom hone2 hcounter realCandidate realKey
   simpa [lifecycle.receive_attempt] using hcall
 
+/-! A real full-store refusal determines both the public model refusal and the
+    model half selected by the retry loop.  This small conversion is kept
+    executable by cases so neither fact can be chosen independently. -/
+def fullStoreOfReal : lifecycle.FullStore → Model.Lifecycle.FullStore
+  | .Classical => .classical
+  | .PostQuantum => .postQuantum
+
+/-- The concrete-to-model full-store map loses no information.  The retry
+    induction uses this fact when a generated switch-half comparison is
+    transported to the model loop. -/
+theorem fullStoreOfReal_injective : Function.Injective fullStoreOfReal := by
+  intro left right h
+  cases left <;> cases right <;> simp [fullStoreOfReal] at h ⊢
+
+theorem fullStoreOfReal_eq_iff {left right : lifecycle.FullStore} :
+    fullStoreOfReal left = fullStoreOfReal right ↔ left = right :=
+  ⟨fun h => fullStoreOfReal_injective h, fun h => congrArg fullStoreOfReal h⟩
+
+/-- Transport the generated switch-half test to the model's full-store
+    discriminator.  This is deliberately indexed by the actual translated
+    comparison rather than a caller-supplied inequality. -/
+theorem fullStoreOfReal_ne_of_generated_ne
+    {left right : lifecycle.FullStore}
+    (h : core.cmp.PartialEq.ne.trait_default
+      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok true) :
+    fullStoreOfReal left ≠ fullStoreOfReal right := by
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.full_store_ne_no_panic left right)
+  rw [h] at hresult
+  cases hresult
+  have hne : left ≠ right := hpost.mp rfl
+  intro hmodel
+  exact hne (fullStoreOfReal_injective hmodel)
+
+/-- The false arm of the same generated comparison transports equality. -/
+theorem fullStoreOfReal_eq_of_generated_ne_false
+    {left right : lifecycle.FullStore}
+    (h : core.cmp.PartialEq.ne.trait_default
+      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok false) :
+    fullStoreOfReal left = fullStoreOfReal right := by
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.full_store_ne_no_panic left right)
+  rw [h] at hresult
+  cases hresult
+  have hnotne : ¬ left ≠ right := by
+    intro hne
+    have hfalse : false = true := hpost.mpr hne
+    simp at hfalse
+  exact congrArg fullStoreOfReal (not_ne_iff.mp hnotne)
+
+theorem full_store_refusal_mapping_of_real {realReason : tacenta_triple.TripleError}
+    {half : lifecycle.FullStore}
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal realReason =
+        some modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  cases realReason with
+  | Classical reason =>
+      cases reason <;> cases half <;>
+        simp [lifecycle.full_store, Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal,
+          tripleReceiveRefusalOfReal, ratchetReceiveRefusalOfReal, Model.Lifecycle.fullStore,
+          fullStoreOfReal] at hfull ⊢
+  | PostQuantum reason =>
+      cases reason <;> cases half <;>
+        simp [lifecycle.full_store, Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal,
+          tripleReceiveRefusalOfReal, sparseReceiveRefusalOfReal, Model.Lifecycle.fullStore,
+          fullStoreOfReal] at hfull ⊢
+
+/-! Failure-side twin of `concrete_receive_attempt_success_from_contracts`.
+    For the two retryable errors, the exact generated attempt fixes the model
+    detailed refusal, its public mapping and the corresponding eviction half. -/
+theorem concrete_receive_attempt_store_full_from_contracts
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {s : tacenta_triple.State}
+    {m : Model.Triple.State}
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (header : tacenta_triple.Header)
+    (mh : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh)
+    (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (hone : (m.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max m.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : m.classical.events + 1 < Std.U32.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : m.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : m.postQuantum.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (m.postQuantum.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore)
+    (hcall : lifecycle.receive_attempt s header dh_out_recv dh_out_send new_dhs_pub output =
+      ok (.Err realReason))
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Model.Triple.receiveDetailed m
+          { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_recv)
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_send)
+          (Tacenta.SessionUnitTripleT3.keyOf new_dhs_pub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  obtain ⟨modelReason, hmap, hreason, hmodelFull⟩ :=
+    full_store_refusal_mapping_of_real hfull
+  have hpost := Tacenta.SessionUnitTripleT3.receive_store_full_refines_discharged
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel header mh hheader
+    dh_out_recv dh_out_send new_dhs_pub output hone hs hevents hepoch hroom hcb hsb
+    hnewb hskiproom hone2 hcounter
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists hpost
+  have hstateCall : tacenta_triple.State.receive s header dh_out_recv dh_out_send
+      new_dhs_pub output = ok (.Err realReason) := by
+    simpa [lifecycle.receive_attempt] using hcall
+  rw [hstateCall] at hresult
+  cases hresult
+  exact ⟨modelReason, hpost realReason modelReason rfl hmap, hreason, hmodelFull⟩
+
 /-- Expose the generated retry entry: a successful lifecycle receive that is
 not the direct attempt must first produce a full-store refusal and select a
 retry half. -/
@@ -3384,6 +3554,609 @@ theorem concrete_receive_with_eviction_of_receive
   unfold lifecycle.receive_with_eviction lifecycle.receive_attempt
   rw [hcall]
   simp
+
+/-! ## Retry-batch agreement
+
+The Rust retry loop doubles a `usize` with `saturating_add`; the executable
+model doubles an unbounded natural.  Equality therefore ceases to be the right
+relation at the platform ceiling.  `RetryBatchAgrees` keeps the model batch
+exact and caps only its concrete representation.  The eviction lemmas below
+show why this loses no observation: every model skipped store is itself
+representable, and eviction is already constant once its count covers that
+store. -/
+
+def RetryBatchAgrees (concrete : Std.Usize) (model : Nat) : Prop :=
+  concrete.val = min Usize.max model
+
+theorem retry_batch_agrees_value (concrete : Std.Usize) (model : Nat)
+    (h : RetryBatchAgrees concrete model) :
+    concrete.val = min Usize.max model := h
+
+theorem retry_batch_agrees_self (batch : Std.Usize) :
+    RetryBatchAgrees batch batch.val := by
+  unfold RetryBatchAgrees
+  rw [Nat.min_eq_right]
+  scalar_tac
+
+/-- This ceiling witness is a self-check for the cap in
+    `RetryBatchAgrees`: deleting `min Usize.max` makes it unprovable. -/
+example : RetryBatchAgrees core.num.Usize.MAX (Usize.max + 1) := by
+  simp [RetryBatchAgrees, core.num.Usize.MAX]
+
+theorem usize_saturating_add_val (left right : Std.Usize) :
+    (core.num.Usize.saturating_add left right).val =
+      min Usize.max (left.val + right.val) := by
+  simp only [core.num.Usize.saturating_add, UScalar.saturating_add, UScalar.val,
+    BitVec.toNat_ofNat]
+  have h : min (UScalar.max UScalarTy.Usize) (left.val + right.val)
+      < 2 ^ UScalarTy.Usize.numBits := by
+    exact Nat.lt_of_le_of_lt
+      (Nat.min_le_left (UScalar.max UScalarTy.Usize) (left.val + right.val))
+      (by
+        rw [UScalar.max_USize_eq]
+        simp [Usize.max, Usize.numBits])
+  have hmod := Nat.mod_eq_of_lt h
+  simp only [UScalar.val] at hmod
+  rw [hmod, UScalar.max_USize_eq]
+
+/-- The exact generated `saturating_add` equation advances the agreement to
+    the model's ordinary natural-number doubling. -/
+theorem retry_batch_agrees_saturating_double
+    (batch batchNext : Std.Usize) (modelBatch : Nat)
+    (hrel : RetryBatchAgrees batch modelBatch)
+    (hDouble : core.num.Usize.saturating_add batch batch = batchNext) :
+    RetryBatchAgrees batchNext (modelBatch * 2) := by
+  have hGenerated :
+      batchNext.val = min Usize.max (batch.val + batch.val) := by
+    rw [← hDouble]
+    exact usize_saturating_add_val batch batch
+  unfold RetryBatchAgrees at hrel ⊢
+  omega
+
+/-- A relation witness gives identical classical model eviction even when the
+    unbounded model batch has crossed the concrete ceiling. -/
+theorem retry_batch_agrees_classical_evict
+    (state : Model.State.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : state.skipped.length ≤ Usize.max) :
+    Model.Ratchet.evictOldest state concrete.val =
+      Model.Ratchet.evictOldest state model := by
+  unfold RetryBatchAgrees at hrel
+  by_cases hmodel : model ≤ Usize.max
+  · have heq : concrete.val = model := by omega
+    rw [heq]
+  · have hconcrete : concrete.val = Usize.max := by omega
+    apply Model.Ratchet.evictOldest_congr_of_length_le
+    · simpa [hconcrete] using hwidth
+    · omega
+
+/-- Sparse eviction has the same cap law as classical eviction. -/
+theorem retry_batch_agrees_sparse_evict
+    (state : Model.SparseRatchet.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : state.skipped.length ≤ Usize.max) :
+    Model.SparseRatchet.evictOldest state concrete.val =
+      Model.SparseRatchet.evictOldest state model := by
+  unfold RetryBatchAgrees at hrel
+  by_cases hmodel : model ≤ Usize.max
+  · have heq : concrete.val = model := by omega
+    rw [heq]
+  · have hconcrete : concrete.val = Usize.max := by omega
+    apply Model.SparseRatchet.evictOldest_congr_of_length_le
+    · simpa [hconcrete] using hwidth
+    · omega
+
+theorem retry_batch_agrees_triple_classical_evict
+    (state : Model.Triple.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : Model.Triple.classicalSkippedLength state ≤ Usize.max) :
+    Model.Triple.evictOldestClassical state concrete.val =
+      Model.Triple.evictOldestClassical state model := by
+  unfold Model.Triple.evictOldestClassical
+  change state.classical.skipped.length ≤ Usize.max at hwidth
+  rw [retry_batch_agrees_classical_evict state.classical concrete model hrel hwidth]
+
+theorem retry_batch_agrees_triple_sparse_evict
+    (state : Model.Triple.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : Model.Triple.postQuantumSkippedLength state ≤ Usize.max) :
+    Model.Triple.evictOldestPostQuantum state concrete.val =
+      Model.Triple.evictOldestPostQuantum state model := by
+  unfold Model.Triple.evictOldestPostQuantum
+  change state.postQuantum.skipped.length ≤ Usize.max at hwidth
+  rw [retry_batch_agrees_sparse_evict state.postQuantum concrete model hrel hwidth]
+
+private theorem usize_saturating_sub_val (left right : Std.Usize) :
+    (core.num.Usize.saturating_sub left right).val = left.val - right.val := by
+  unfold core.num.Usize.saturating_sub UScalar.saturating_sub UScalar.val
+  simp only [BitVec.toNat_ofNat, Nat.zero_max]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.lt_of_le_of_lt (Nat.sub_le left.bv.toNat right.bv.toNat) left.bv.isLt
+
+
+private theorem cast_u32_usize_val (value : Std.U32) :
+    (UScalar.cast .Usize value).val = value.val := by
+  rw [UScalar.cast_val_eq]
+  exact Nat.mod_eq_of_lt (by scalar_tac)
+
+private theorem u64_saturating_sub_val (left right : Std.U64) :
+    (core.num.U64.saturating_sub left right).val = left.val - right.val := by
+  unfold core.num.U64.saturating_sub UScalar.saturating_sub UScalar.val
+  simp only [BitVec.toNat_ofNat, Nat.zero_max]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.lt_of_le_of_lt (Nat.sub_le left.bv.toNat right.bv.toNat) left.bv.isLt
+
+private theorem saturating_usize_from_u64_refines
+    (value : Std.U64) :
+    ∃ result, lifecycle.saturating_usize_from_u64 value = ok result ∧
+      result.val = min Usize.max value.val := by
+  unfold lifecycle.saturating_usize_from_u64
+  simp [lift]
+  split
+  · rename_i hlarge
+    refine ⟨core.num.Usize.MAX, rfl, ?_⟩
+    rw [Nat.min_eq_left (Nat.le_of_lt hlarge)]
+    simp [core.num.Usize.MAX, UScalar.ofNatCore_val_eq]
+  · rename_i hsmall
+    refine ⟨UScalar.cast .Usize value, rfl, ?_⟩
+    rw [UScalar.cast_val_eq]
+    have hle : value.val ≤ Usize.max := by omega
+    rw [Nat.mod_eq_of_lt]
+    · exact (Nat.min_eq_right hle).symm
+    · exact lt_of_le_of_lt hle (by simp [Usize.max, Usize.numBits])
+
+private theorem usize_one_le : 1 ≤ Usize.max := by scalar_tac
+
+/-- The generated classical shortfall calculation refines the executable
+    lifecycle model.  The width premise is the exact fact needed to show that
+    the first saturating addition has not discarded part of the requested
+    batch. -/
+theorem concrete_receive_shortfall_classical_refines
+    (state : tacenta_triple.State) (modelState : Model.Triple.State)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (hcomposite : CompositeRefines composite modelComposite)
+    (hwidth : Model.Triple.classicalSkippedLength modelState +
+      (modelComposite.n.toNat - Model.Triple.receiveCount modelState) ≤ Usize.max) :
+    ∃ batch, lifecycle.receive_shortfall lifecycle.FullStore.Classical state composite =
+        ok batch ∧
+      RetryBatchAgrees batch
+        (Model.Lifecycle.receiveShortfall .classical modelState modelComposite) := by
+  have hclass := hstate.1
+  have hheld := congrArg (fun s : Model.State.State => s.skipped.length) hclass
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs] at hheld
+  have hreceive := congrArg (fun s : Model.State.State => s.nr) hclass
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs] at hreceive
+  simp [lifecycle.receive_shortfall,
+    tacenta_triple.State.classical_skipped_len,
+    tacenta_ratchet.State.skipped_len,
+    tacenta_triple.State.receive_count,
+    tacenta_ratchet.State.receive_count, lift,
+    hheld, hreceive, hcomposite.n,
+    usize_saturating_sub_val, usize_saturating_add_val,
+    RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+    Tacenta.SessionUnitT3.max_skipped_store_agrees]
+  have hUsizeOne : 1 ≤ Usize.max := usize_one_le
+  split
+  · simp_all [
+      Model.Triple.classicalSkippedLength, Model.Triple.receiveCount]
+  · simp_all only [
+      Model.Triple.classicalSkippedLength, Model.Triple.receiveCount]
+    refine ⟨_, rfl, ?_⟩
+    rw [usize_saturating_sub_val, usize_saturating_add_val,
+      usize_saturating_sub_val]
+    simp only [cast_u32_usize_val, Usize.ofNatCore_val_eq,
+      hcomposite.n, hreceive,
+      Tacenta.SessionUnitT3.max_skipped_store_agrees]
+    rw [Nat.min_eq_right hwidth]
+    omega
+
+
+/-- The generated sparse shortfall calculation refines the model calculation,
+    including the `findChains`/receive-counter lookup and both saturating
+    conversions.  A missing epoch or receive chain requests the common batch
+    of one on both sides. -/
+theorem concrete_receive_shortfall_post_quantum_refines
+    (state : tacenta_triple.State) (modelState : Model.Triple.State)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (hcomposite : CompositeRefines composite modelComposite)
+    (hwidth : ∀ received,
+      Model.Triple.postQuantumReceiveCount modelState modelComposite.pqEpoch.toNat =
+          some received →
+        Model.Triple.postQuantumSkippedLength modelState +
+          (modelComposite.pqN.toNat - 1 - received) ≤ Usize.max) :
+    ∃ batch, lifecycle.receive_shortfall lifecycle.FullStore.PostQuantum state composite =
+        ok batch ∧
+      RetryBatchAgrees batch
+        (Model.Lifecycle.receiveShortfall .postQuantum modelState modelComposite) := by
+  have hsparse : Tacenta.SessionUnitSpqrT3.StateRefines state.post_quantum
+      modelState.postQuantum := by
+    rw [← hstate.2]
+    exact Tacenta.SessionUnitTripleT3.spqrAbs_refines state.post_quantum
+  have hheld := congrArg
+    (fun s : Model.SparseRatchet.State => s.skipped.length) hstate.2
+  simp [Tacenta.SessionUnitTripleT3.spqrAbs] at hheld
+  obtain ⟨found, hfindCall, hfindModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitSpqrT3.findChains_refines hsparse composite.pq_epoch)
+  cases found with
+  | none =>
+      have hmodelFind : Model.SparseRatchet.findChains modelState.postQuantum
+          modelComposite.pqEpoch.toNat = none := by
+        rw [← hcomposite.pqEpoch]
+        exact hfindModel.symm
+      refine ⟨1#usize, ?_, ?_⟩
+      · simp [lifecycle.receive_shortfall,
+          tacenta_triple.State.post_quantum_receive_count,
+          tacenta_spqr.State.receive_count, hfindCall]
+      · simp [RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+          Model.Triple.postQuantumReceiveCount, hmodelFind]
+        scalar_tac
+  | some chains =>
+      have hmodelFind : Model.SparseRatchet.findChains modelState.postQuantum
+          modelComposite.pqEpoch.toNat =
+          some (Tacenta.SessionUnitSpqrT3.chainsOf chains) := by
+        rw [← hcomposite.pqEpoch]
+        exact hfindModel.symm
+      cases hreceive : chains.receive with
+      | none =>
+          refine ⟨1#usize, ?_, ?_⟩
+          · simp [lifecycle.receive_shortfall,
+              tacenta_triple.State.post_quantum_receive_count,
+              tacenta_spqr.State.receive_count, hfindCall, hreceive]
+          · simp [RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+              Model.Triple.postQuantumReceiveCount, hmodelFind,
+              Tacenta.SessionUnitSpqrT3.chainsOf, hreceive]
+            scalar_tac
+      | some chain =>
+          have hmodelCount : Model.Triple.postQuantumReceiveCount modelState
+              modelComposite.pqEpoch.toNat = some chain.n.val := by
+            simp [Model.Triple.postQuantumReceiveCount, hmodelFind,
+              Tacenta.SessionUnitSpqrT3.chainsOf,
+              Tacenta.SessionUnitSpqrT3.chainOf, hreceive]
+          have hroom := hwidth chain.n.val hmodelCount
+          let need64 := core.num.U64.saturating_sub
+            (core.num.U64.saturating_sub composite.pq_n 1#u64) chain.n
+          have hneed64 : need64.val =
+              modelComposite.pqN.toNat - 1 - chain.n.val := by
+            simp [need64, u64_saturating_sub_val, hcomposite.pqN]
+          obtain ⟨need, hneedCall, hneedValue⟩ :=
+            saturating_usize_from_u64_refines need64
+          have hneedLe : modelComposite.pqN.toNat - 1 - chain.n.val ≤ Usize.max := by
+            exact le_trans (Nat.le_add_left _ _) hroom
+          have hneedExact : need.val =
+              modelComposite.pqN.toNat - 1 - chain.n.val := by
+            rw [hneedValue, hneed64, Nat.min_eq_right hneedLe]
+          simp [lifecycle.receive_shortfall,
+            tacenta_triple.State.post_quantum_receive_count,
+            tacenta_spqr.State.receive_count, hfindCall, hreceive,
+            need64, hneedCall,
+            tacenta_triple.State.post_quantum_skipped_len,
+            tacenta_spqr.State.skipped_len, lift,
+            hheld, hneedExact, usize_saturating_add_val,
+            usize_saturating_sub_val,
+            Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees,
+            RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+            hmodelCount]
+          have hUsizeOne : 1 ≤ Usize.max := usize_one_le
+          split
+          · rename_i hzero
+            refine ⟨1#usize, rfl, ?_⟩
+            simp only [Model.Triple.postQuantumSkippedLength]
+            have hroom' : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) ≤ Usize.max := by
+              simpa [Model.Triple.postQuantumSkippedLength] using hroom
+            rw [Nat.min_eq_right hroom'] at hzero
+            simp only [show (1#usize).val = 1 by native_decide]
+            rw [Nat.max_eq_left (by omega), Nat.min_eq_right hUsizeOne]
+          · rename_i hpositive
+            refine ⟨_, rfl, ?_⟩
+            rw [usize_saturating_sub_val, usize_saturating_add_val]
+            simp only [Usize.ofNatCore_val_eq, hneedExact,
+              Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees]
+            have hroom' : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) ≤ Usize.max := by
+              simpa [Model.Triple.postQuantumSkippedLength] using hroom
+            rw [Nat.min_eq_right hroom'] at hpositive ⊢
+            have hresultLe : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) -
+                Model.SparseRatchet.maxSkippedStore ≤ Usize.max := by
+              omega
+            simp only [Model.Triple.postQuantumSkippedLength]
+            rw [Nat.max_eq_right (by omega), Nat.min_eq_right hresultLe]
+
+
+
+
+private theorem erase_first_skipped_sublist
+    (target : Model.Ratchet.SkippedEntry) (entries : List Model.Ratchet.SkippedEntry) :
+    (Model.Ratchet.eraseFirstSkipped target entries).Sublist entries := by
+  induction entries with
+  | nil => simp [Model.Ratchet.eraseFirstSkipped]
+  | cons head tail ih =>
+      by_cases hhead : head = target
+      · simp [Model.Ratchet.eraseFirstSkipped, hhead]
+      · simpa [Model.Ratchet.eraseFirstSkipped, hhead] using
+          List.Sublist.cons_cons head ih
+
+private theorem ratchet_evict_oldest_skipped_sublist
+    (state : Model.State.State) (count : Nat) :
+    (Model.Ratchet.evictOldest state count).1.skipped.Sublist state.skipped := by
+  induction count generalizing state with
+  | zero => simp [Model.Ratchet.evictOldest]
+  | succ count ih =>
+      cases hfirst : Model.Ratchet.oldestSkipped? state.skipped with
+      | none => simp [Model.Ratchet.evictOldest, hfirst]
+      | some target =>
+          simp only [Model.Ratchet.evictOldest, hfirst]
+          exact (ih (state := { state with skipped :=
+            Model.Ratchet.eraseFirstSkipped target state.skipped })).trans
+              (erase_first_skipped_sublist target state.skipped)
+
+private theorem ratchet_evict_oldest_events
+    (state : Model.State.State) (count : Nat) :
+    (Model.Ratchet.evictOldest state count).1.events = state.events := by
+  induction count generalizing state with
+  | zero => rfl
+  | succ count ih =>
+      cases hfirst : Model.Ratchet.oldestSkipped? state.skipped with
+      | none => simp [Model.Ratchet.evictOldest, hfirst]
+      | some target =>
+          simp only [Model.Ratchet.evictOldest, hfirst]
+          exact ih (state := { state with skipped :=
+            Model.Ratchet.eraseFirstSkipped target state.skipped })
+
+private theorem sparse_evict_oldest_skipped_sublist
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.skipped.Sublist state.skipped := by
+  simp [Model.SparseRatchet.evictOldest, List.drop_sublist]
+
+private theorem sparse_evict_oldest_epoch
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.epoch = state.epoch := by
+  simp [Model.SparseRatchet.evictOldest]
+
+private theorem sparse_evict_oldest_chains
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.chains = state.chains := by
+  simp [Model.SparseRatchet.evictOldest]
+
+/-- The exact model-side premises consumed every time the generated retry loop
+    invokes the Triple receive refinement.  Keeping them in one package makes
+    the arbitrary retry induction state what it actually preserves, rather
+    than accepting a fresh list of bounds at each iteration. -/
+structure RetryReceiveBounds
+    (state : Model.Triple.State) (header : tacenta_triple.Header)
+    (modelHeader : Model.State.Header) (output : Option tacenta_spqr.Output) : Prop where
+  classicalMatch : (state.classical.skipped.filter
+    (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length ≤ 1
+  classicalStoreRoom : max state.classical.skipped.length Model.State.maxSkippedStore +
+    Model.State.maxSkip ≤ Usize.max
+  classicalEvents : state.classical.events + 1 < Std.U32.max
+  sparseEpoch : state.postQuantum.epoch + 1 < Std.U64.max
+  sparseChainsRoom : state.postQuantum.chains.length + 2 < Usize.max
+  sparseChainEpochs : ∀ p ∈ state.postQuantum.chains,
+    p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseSkippedEpochs : ∀ sk ∈ state.postQuantum.skipped,
+    sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseOutputEpoch : ∀ o : tacenta_spqr.Output, output = some o →
+    o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseStoreRoom : state.postQuantum.skipped.length +
+    Model.SparseRatchet.maxSkip ≤ Usize.max
+  sparseMatch : (state.postQuantum.skipped.filter
+    (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1
+  sparseCounters : ∀ p ∈ state.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+    (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+
+/-- Failure-side consumer for the same preserved bounds package as the success
+    adapter below.  A concrete full-store refusal now fixes the model detailed
+    refusal and its eviction half without asking the retry induction to
+    reconstruct eleven leaf premises at each iteration. -/
+theorem concrete_receive_attempt_store_full_from_retry_bounds
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {state : tacenta_triple.State} {modelState : Model.Triple.State}
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (header : tacenta_triple.Header) (modelHeader : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr modelHeader)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (bounds : RetryReceiveBounds modelState header modelHeader output)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore)
+    (hcall : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+      ok (.Err realReason))
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Model.Triple.receiveDetailed modelState
+          { dr := modelHeader, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+          (Tacenta.SessionUnitTripleT3.keyOf newDhsPub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  exact concrete_receive_attempt_store_full_from_contracts
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hstate header modelHeader
+    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch
+    bounds.classicalStoreRoom bounds.classicalEvents bounds.sparseEpoch
+    bounds.sparseChainsRoom bounds.sparseChainEpochs bounds.sparseSkippedEpochs
+    bounds.sparseOutputEpoch bounds.sparseStoreRoom bounds.sparseMatch
+    bounds.sparseCounters realReason half hcall hfull
+
+/-- Consume the packaged retry invariant at the existing generated success
+    bridge.  The full-store bridge has the same eleven model premises, so the
+    package can be threaded through the later retry induction without
+    reconstructing bounds after every eviction. -/
+theorem concrete_receive_attempt_success_from_retry_bounds
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {state : tacenta_triple.State} {modelState : Model.Triple.State}
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (header : tacenta_triple.Header) (modelHeader : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr modelHeader)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (bounds : RetryReceiveBounds modelState header modelHeader output)
+    (realCandidate : tacenta_triple.State) (realKey : Array Std.U8 32#usize)
+    (hcall : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+      ok (.Ok (realCandidate, realKey))) :
+    ∃ modelCandidate modelKey,
+      Model.Triple.receive modelState
+          { dr := modelHeader, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+          (Tacenta.SessionUnitTripleT3.keyOf newDhsPub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+            some (modelCandidate, modelKey) ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realCandidate modelCandidate ∧
+      Tacenta.SessionUnitTripleT3.keyOf realKey = modelKey := by
+  exact concrete_receive_attempt_success_from_contracts
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hstate header modelHeader
+    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch
+    bounds.classicalStoreRoom bounds.classicalEvents bounds.sparseEpoch
+    bounds.sparseChainsRoom bounds.sparseChainEpochs bounds.sparseSkippedEpochs
+    bounds.sparseOutputEpoch bounds.sparseStoreRoom bounds.sparseMatch
+    bounds.sparseCounters realCandidate realKey hcall
+
+
+/-- Classical eviction removes skipped entries only, so every receive premise
+    either stays definitionally equal or becomes strictly easier. -/
+theorem RetryReceiveBounds.classical_evict
+    {state : Model.Triple.State} {header : tacenta_triple.Header}
+    {modelHeader : Model.State.Header} {output : Option tacenta_spqr.Output}
+    (bounds : RetryReceiveBounds state header modelHeader output) (count : Nat) :
+    RetryReceiveBounds (Model.Triple.evictOldestClassical state count).1
+      header modelHeader output := by
+  let nextClassical := (Model.Ratchet.evictOldest state.classical count).1
+  have hsub : nextClassical.skipped.Sublist state.classical.skipped := by
+    exact ratchet_evict_oldest_skipped_sublist state.classical count
+  have hlen := hsub.length_le
+  have hmatch := (hsub.filter
+    (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length_le
+  refine {
+    classicalMatch := ?_
+    classicalStoreRoom := ?_
+    classicalEvents := ?_
+    sparseEpoch := ?_
+    sparseChainsRoom := ?_
+    sparseChainEpochs := ?_
+    sparseSkippedEpochs := ?_
+    sparseOutputEpoch := ?_
+    sparseStoreRoom := ?_
+    sparseMatch := ?_
+    sparseCounters := ?_ }
+  · change (nextClassical.skipped.filter
+      (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length ≤ 1
+    exact le_trans hmatch bounds.classicalMatch
+  · change max nextClassical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max
+    exact le_trans (Nat.add_le_add_right
+      (max_le_max_right Model.State.maxSkippedStore hlen) Model.State.maxSkip)
+      bounds.classicalStoreRoom
+  · change nextClassical.events + 1 < Std.U32.max
+    rw [show nextClassical.events = state.classical.events by
+      exact ratchet_evict_oldest_events state.classical count]
+    exact bounds.classicalEvents
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseEpoch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseChainsRoom
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseChainEpochs
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseSkippedEpochs
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseOutputEpoch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseStoreRoom
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseMatch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseCounters
+
+/-- Sparse eviction is the symmetric preservation step.  Its chain table,
+    epoch and counters do not change, while its skipped store becomes a
+    sublist, preserving both matching and epoch predicates. -/
+theorem RetryReceiveBounds.post_quantum_evict
+    {state : Model.Triple.State} {header : tacenta_triple.Header}
+    {modelHeader : Model.State.Header} {output : Option tacenta_spqr.Output}
+    (bounds : RetryReceiveBounds state header modelHeader output) (count : Nat) :
+    RetryReceiveBounds (Model.Triple.evictOldestPostQuantum state count).1
+      header modelHeader output := by
+  let nextSparse := (Model.SparseRatchet.evictOldest state.postQuantum count).1
+  have hsub : nextSparse.skipped.Sublist state.postQuantum.skipped := by
+    exact sparse_evict_oldest_skipped_sublist state.postQuantum count
+  have hlen := hsub.length_le
+  have hmatch := (hsub.filter
+    (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length_le
+  refine {
+    classicalMatch := ?_
+    classicalStoreRoom := ?_
+    classicalEvents := ?_
+    sparseEpoch := ?_
+    sparseChainsRoom := ?_
+    sparseChainEpochs := ?_
+    sparseSkippedEpochs := ?_
+    sparseOutputEpoch := ?_
+    sparseStoreRoom := ?_
+    sparseMatch := ?_
+    sparseCounters := ?_ }
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalMatch
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalStoreRoom
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalEvents
+  · change nextSparse.epoch + 1 < Std.U64.max
+    rw [show nextSparse.epoch = state.postQuantum.epoch by
+      exact sparse_evict_oldest_epoch state.postQuantum count]
+    exact bounds.sparseEpoch
+  · change nextSparse.chains.length + 2 < Usize.max
+    rw [show nextSparse.chains = state.postQuantum.chains by
+      exact sparse_evict_oldest_chains state.postQuantum count]
+    exact bounds.sparseChainsRoom
+  · intro pair hmem
+    apply bounds.sparseChainEpochs pair
+    rw [← show nextSparse.chains = state.postQuantum.chains by
+      exact sparse_evict_oldest_chains state.postQuantum count]
+    exact hmem
+  · intro skipped hmem
+    apply bounds.sparseSkippedEpochs skipped
+    exact hsub.mem hmem
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.sparseOutputEpoch
+  · change nextSparse.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max
+    exact le_trans (Nat.add_le_add_right hlen Model.SparseRatchet.maxSkip)
+      bounds.sparseStoreRoom
+  · change (nextSparse.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1
+    exact le_trans hmatch bounds.sparseMatch
+  · intro pair hmem chain hchain
+    apply bounds.sparseCounters pair
+    · rw [← show nextSparse.chains = state.postQuantum.chains by
+        exact sparse_evict_oldest_chains state.postQuantum count]
+      exact hmem
+    · exact hchain
 
 /-! The first inner eviction loop chooses an index by scanning the skipped-key
 vector.  This safety lemma is the concrete fact needed before relating that
@@ -4065,6 +4838,76 @@ theorem concrete_classical_evict_stateR_step
   · exact hbody
   · exact hstate
 
+/-! The generated scan and removal calls discharge the one-step witness
+    directly.  Unlike the loop shells below, this theorem does not accept a
+    caller-supplied successor state: both the concrete and model successors
+    are obtained from the translated computation.  The width premise is the
+    one required by the generated `Usize` scan; removal preserves it by
+    shortening the skipped-key vector by exactly one.  `ReceiveHeadroom`
+    only supplies bounds against the host's `Usize.max`; it cannot imply this
+    conservative `UScalar.cMax .Usize` bound on a wider host. -/
+theorem concrete_classical_evict_body_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (count evicted : Std.Usize)
+    (hcount : evicted.val < count.val)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hlen : s.skipped.val.length ≠ 0) :
+    ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
+      (evicted1 : Std.Usize),
+      tacenta_ratchet.State.evict_oldest_loop0.body count s evicted
+        ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+      Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+      nextModel = (Model.Ratchet.evictOldest m 1).1 ∧
+      evicted1.val ≤ count.val ∧
+      evicted1.val = evicted.val + 1 ∧
+      nextState.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize := by
+  have hpositive : 0 < s.skipped.val.length := Nat.pos_of_ne_zero hlen
+  have hzero : (0#usize).val < s.skipped.val.length := by
+    simpa using hpositive
+  have hone : (1#usize).val ≤ s.skipped.val.length := by
+    scalar_tac
+  have hmin0 : ∀ (j : Std.Usize) (_hj : j.val < (1#usize).val)
+      (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[(0#usize).val]'hzero).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val := by
+    intro j hj hjlen
+    have hj0 : j = 0#usize := UScalar.eq_of_val_eq (by scalar_tac)
+    subst j
+    exact Nat.le_refl _
+  have hfirst0 : ∀ (_hc : (0#usize).val < s.skipped.val.length)
+      (j : Std.Usize) (hj : j.val < (0#usize).val)
+      (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[(0#usize).val]'hzero).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val := by
+    intro _hc j hj _hjlen
+    scalar_tac
+  obtain ⟨oldest, hscan, hr, hmin, hfirst⟩ := Std.WP.spec_imp_exists
+    (concrete_evict_oldest_scan_first s.skipped 0#usize 1#usize
+      hone hzero hmin0 hfirst0)
+  obtain ⟨target, discarded, v, htarget, hselector, hremove, hstate⟩ :=
+    concrete_classical_evict_one_step_model hvr hrel oldest hwidth hr hmin hfirst
+  have haddBound : evicted.val + (1#usize).val ≤ Usize.max := by
+    scalar_tac
+  obtain ⟨evicted1, hadd, hval⟩ := Std.WP.spec_imp_exists
+    (Usize.add_spec haddBound)
+  have hbound : evicted1.val ≤ count.val := by scalar_tac
+  have hbody := concrete_classical_evict_body_step s count evicted evicted1 oldest
+    discarded v hcount hscan hremove hadd hlen
+  have hvlen : v.val.length + 1 = s.skipped.val.length := by
+    obtain ⟨r, hremove', hlength⟩ :=
+      Tacenta.SessionUnitT1.RemoveSkippedAtTotal.lengths
+        hvr Global s.skipped oldest hr
+    rw [hremove] at hremove'
+    cases hremove'
+    exact hlength
+  refine ⟨{ s with skipped := v }, (Model.Ratchet.evictOldest m 1).1,
+    evicted1, hbody, hstate, rfl, hbound, ?_, ?_⟩
+  · simpa using hval
+  · change v.val.length ≤ UScalar.cMax UScalarTy.Usize
+    omega
+
 /-! The StateR loop invariant can now retain the model's exact fuel state.
     After each concrete eviction, `evictOldest_append` identifies the model
     post-state with the same initial state run for the returned counter. -/
@@ -4138,24 +4981,16 @@ theorem concrete_classical_evict_outer_model_stateR
         exact ⟨hnext, hbound1, by omega⟩
   · refine ⟨base, hrel, by rfl, by simp⟩
 
-/-! Strengthening the previous shell, this variant preserves the complete
-    model pair `(state, returned count)` for the requested fuel.  The
-    early-empty branch uses the model's empty-suffix law; the progressing
-    branch uses the one-step non-empty count law. -/
+/-! This callback-free outer theorem preserves the complete model pair
+    `(state, returned count)` for the requested fuel.  The early-empty branch
+    uses the model's empty-suffix law; the progressing branch obtains the
+    translated scan and removal results from
+    `concrete_classical_evict_body_refines`. -/
 theorem concrete_classical_evict_outer_model_pair
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
     (s : tacenta_ratchet.State) (base : Model.State.State) (count : Std.Usize)
     (hrel : Tacenta.SessionUnitT3.StateR s base)
-    (hstep : ∀ (state : tacenta_ratchet.State) (mstate : Model.State.State)
-      (evicted : Std.Usize),
-      Tacenta.SessionUnitT3.StateR state mstate →
-      evicted.val < count.val → state.skipped.val.length ≠ 0 →
-      ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
-        (evicted1 : Std.Usize),
-        tacenta_ratchet.State.evict_oldest_loop0.body count state evicted
-          ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
-        Tacenta.SessionUnitT3.StateR nextState nextModel ∧
-        nextModel = (Model.Ratchet.evictOldest mstate 1).1 ∧
-        evicted1.val ≤ count.val ∧ evicted1.val = evicted.val + 1) :
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize) :
     tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
       ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
         (Model.Ratchet.evictOldest base count.val) = (mstate, r.1.val) ⦄ := by
@@ -4164,8 +4999,9 @@ theorem concrete_classical_evict_outer_model_pair
     (measure := fun p => count.val - (Prod.snd p).val)
     (inv := fun p => ∃ mstate, Tacenta.SessionUnitT3.StateR p.1 mstate ∧
       (Model.Ratchet.evictOldest base p.2.val) = (mstate, p.2.val) ∧
-      p.2.val ≤ count.val)
-  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound⟩
+      p.2.val ≤ count.val ∧
+        p.1.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound, hwidthState⟩
     change evicted.val ≤ count.val at hbound
     by_cases hdone : count.val ≤ evicted.val
     · have heq : evicted.val = count.val := by omega
@@ -4190,7 +5026,8 @@ theorem concrete_classical_evict_outer_model_pair
         rw [hadd] at hsuffix
         exact ⟨mstate, hstate, hsuffix⟩
       · obtain ⟨nextState, nextModel, evicted1, hbody, hnext, hnextModel,
-          hbound1, hval⟩ := hstep state mstate evicted hstate hlt hempty
+          hbound1, hval, hwidthNext⟩ := concrete_classical_evict_body_refines
+            hvr hstate count evicted hlt hwidthState hempty
         refine Std.WP.spec_mono hbody ?_
         intro r hr
         simp [hr]
@@ -4212,8 +5049,48 @@ theorem concrete_classical_evict_outer_model_pair
         have hfull1' : Model.Ratchet.evictOldest base evicted1.val =
             (nextModel, evicted1.val) := by
           simpa [hval] using hfull1
-        refine ⟨⟨nextModel, hnext, hfull1', hbound1⟩, by omega⟩
-  · refine ⟨base, hrel, by rfl, by simp⟩
+        refine ⟨⟨nextModel, hnext, hfull1', hbound1, hwidthNext⟩, by omega⟩
+  · refine ⟨base, hrel, by rfl, by simp, hwidth⟩
+
+/-! The public classical eviction refinement.  Its final state and count are
+    determined by the concrete call and the model function; neither is a
+    caller-supplied witness. -/
+theorem concrete_classical_evict_oldest_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (s : tacenta_ratchet.State) (m : Model.State.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize) :
+    tacenta_ratchet.State.evict_oldest s count ⦃ fun r =>
+      Tacenta.SessionUnitT3.StateR r.2
+        (Model.Ratchet.evictOldest m count.val).1 ∧
+      r.1.val = (Model.Ratchet.evictOldest m count.val).2 ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest
+  apply Std.WP.spec_mono
+    (concrete_classical_evict_outer_model_pair hvr s m count hrel hwidth)
+  intro r hr
+  obtain ⟨mstate, hstate, hpair⟩ := hr
+  have hmstate : (Model.Ratchet.evictOldest m count.val).1 = mstate :=
+    congrArg Prod.fst hpair
+  have hcount : (Model.Ratchet.evictOldest m count.val).2 = r.1.val :=
+    congrArg Prod.snd hpair
+  exact ⟨hmstate.symm ▸ hstate, hcount.symm⟩
+
+/-! The real and model skipped-store measures coincide under the composed
+    state relation.  This lets a concrete T1 decrease close the model fuel
+    obligation used by the retry induction. -/
+theorem skipped_total_eq_of_state_refines
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs s m) :
+    Tacenta.UnitLifecycleT1.skippedTotal s =
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+  unfold Tacenta.UnitLifecycleT1.skippedTotal
+    Model.Triple.classicalSkippedLength Model.Triple.postQuantumSkippedLength
+  rw [← hrel.1, ← hrel.2]
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs,
+    Tacenta.SessionUnitTripleT3.spqrAbs, List.length_map]
 
 /-! The triple wrapper lifts the classical ratchet result into the lifecycle
     StateRefines relation.  Once the ratchet loop supplies its exact model
@@ -4391,6 +5268,116 @@ theorem model_evict_for_retry_post_quantum_of_concrete
   rw [hconcrete] at hr
   cases hr
   exact hpost
+
+/-! Classical lifecycle eviction at a capped concrete batch agrees with the
+    model's unbounded batch.  The output includes the state relation, concrete
+    headroom, and strict model skipped-total decrease for a nonzero eviction;
+    these are the induction facts needed by the later success-indexed retry
+    theorem.  The conservative selector-width premise remains explicit:
+    `ReceiveHeadroom` gives only the weaker host-`Usize.max` bound. -/
+theorem concrete_lifecycle_evict_for_retry_classical_capped_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (hrmSpqr : Tacenta.SessionUnitSpqrT1.RemoveSkippedAtTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (s : tacenta_triple.State) (m : Model.Triple.State)
+    (batch : Std.Usize) (modelBatch : Nat)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hbatch : RetryBatchAgrees batch modelBatch)
+    (hroom : Tacenta.UnitLifecycleT1.ReceiveHeadroom s)
+    (hwidth : s.classical.skipped.val.length ≤
+      UScalar.cMax UScalarTy.Usize) :
+    lifecycle.evict_for_retry s lifecycle.FullStore.Classical batch ⦃ fun r =>
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs
+        Tacenta.SessionUnitTripleT3.spqrAbs r.1
+        (Model.Triple.evictOldestClassical m modelBatch).1 ∧
+      r.2.val = (Model.Triple.evictOldestClassical m modelBatch).2 ∧
+      Tacenta.UnitLifecycleT1.ReceiveHeadroom r.1 ∧
+      (Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 ≤
+        Model.Triple.classicalSkippedLength m +
+          Model.Triple.postQuantumSkippedLength m) ∧
+      (0 < r.2.val →
+        Model.Triple.classicalSkippedLength
+            (Model.Triple.evictOldestClassical m modelBatch).1 +
+          Model.Triple.postQuantumSkippedLength
+            (Model.Triple.evictOldestClassical m modelBatch).1 <
+          Model.Triple.classicalSkippedLength m +
+            Model.Triple.postQuantumSkippedLength m) ⦄ := by
+  have hclass : Tacenta.SessionUnitT3.StateR s.classical m.classical := by
+    rw [← hrel.1]
+    exact Tacenta.SessionUnitTripleT3.ratchetAbs_stateR s.classical
+  have hratchetDirect := concrete_classical_evict_oldest_refines
+    hvr s.classical m.classical batch hclass hwidth
+  have hratchet : tacenta_ratchet.State.evict_oldest s.classical batch
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        Model.Ratchet.evictOldest m.classical batch.val = (mstate, r.1.val) ⦄ := by
+    apply Std.WP.spec_mono hratchetDirect
+    intro r hr
+    refine ⟨(Model.Ratchet.evictOldest m.classical batch.val).1, hr.1, ?_⟩
+    apply Prod.ext
+    · rfl
+    · exact hr.2.symm
+  obtain ⟨out, hcall, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.evict_for_retry_no_panic
+      hvr hrmSpqr hz s lifecycle.FullStore.Classical batch hroom)
+  rcases out with ⟨state1, evicted⟩
+  obtain ⟨mstate, hstate, hpair⟩ :=
+    model_evict_for_retry_classical_of_concrete s m batch state1 evicted
+      hrel hratchet hcall
+  have hmodelWidth : Model.Triple.classicalSkippedLength m ≤ Usize.max := by
+    unfold Model.Triple.classicalSkippedLength
+    rw [← hrel.1]
+    simpa [Tacenta.SessionUnitTripleT3.ratchetAbs, List.length_map] using
+      Nat.le_trans hwidth Usize.cMax_bound.1
+  have hcap := retry_batch_agrees_triple_classical_evict
+    m batch modelBatch hbatch hmodelWidth
+  have hpairModel : Model.Triple.evictOldestClassical m modelBatch =
+      (mstate, evicted.val) := hcap.symm.trans hpair
+  have hmstate : (Model.Triple.evictOldestClassical m modelBatch).1 = mstate :=
+    congrArg Prod.fst hpairModel
+  have hevicted : evicted.val =
+      (Model.Triple.evictOldestClassical m modelBatch).2 :=
+    (congrArg Prod.snd hpairModel).symm
+  have hstateModel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs state1
+      (Model.Triple.evictOldestClassical m modelBatch).1 := by
+    rw [hmstate]
+    exact hstate
+  have hmeasureStart := skipped_total_eq_of_state_refines hrel
+  have hmeasureEnd := skipped_total_eq_of_state_refines hstateModel
+  have hmodelLe :
+      Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 ≤
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+    calc
+      _ = Tacenta.UnitLifecycleT1.skippedTotal state1 := hmeasureEnd.symm
+      _ ≤ Tacenta.UnitLifecycleT1.skippedTotal s := hpost.2.1
+      _ = _ := hmeasureStart
+  have hmodelLt : 0 < evicted.val →
+      Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 <
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+    intro hpositive
+    have hdecrease := hpost.2.2 hpositive
+    calc
+      _ = Tacenta.UnitLifecycleT1.skippedTotal state1 := hmeasureEnd.symm
+      _ < Tacenta.UnitLifecycleT1.skippedTotal s := hdecrease
+      _ = _ := hmeasureStart
+  rw [hcall]
+  exact ⟨hstateModel, hevicted, hpost.1, hmodelLe, hmodelLt⟩
+
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
@@ -7873,6 +8860,25 @@ def InitialRatchetRefines {R : Type}
       StepRefines trace dh K output (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)
 
+/-! Inner-call evidence for the byte-different, agreement-equivalent route.
+    Unlike `InitialRatchetRefines`, this is intentionally independent of the
+    wire-byte equality branch. -/
+def InitialAgreementRatchetRefines {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Prop :=
+  ∀ (decoded : tacenta_wire.DecodedInitial) (established : alloc.vec.Vec Std.U8),
+    tacenta_wire.decode_initial message = ok (.Ok decoded) →
+    real.established_ephemeral = some established →
+    vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng = ok output ∧
+      StepRefines trace dh K output (Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)
+
 /-! ## T1-to-T3 bridge for the inner ratchet call
 
 The generated T1 theorem proves that `decrypt_ratchet` returns some concrete
@@ -7902,10 +8908,9 @@ theorem decrypt_ratchet_refines_of_t1
     (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real message rng headroom)
   exact ⟨output, hcall, hrefines output hcall⟩
 
-/-! The generated wrapper checks agreement before it enters the ratchet.  The
-    aggregate composition therefore carries the two concrete outcomes of that
-    check explicitly: equal ephemerals must agree, while unequal ephemerals
-    must produce the refusal-side oracle disagreement. -/
+/-- Superseded by `InitialDispatchBranchEvidence`, which asks for the agreement result of the one
+branch a run takes.  Kept unchanged so that its statement can still be examined
+(`DispatchEvidenceVacuity.initialSameEphemeralEvidence_false`); no consumer takes it. -/
 def InitialSameEphemeralEvidence
     (dh : DhView) (oracle : Model.Lifecycle.Oracle)
     (real : lifecycle.Session) (model : Model.Lifecycle.Session) : Prop :=
@@ -7916,6 +8921,8 @@ def InitialSameEphemeralEvidence
       Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
         (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true
 
+/-- Superseded by `InitialDispatchBranchEvidence`.  Kept unchanged so that its statement can
+still be examined; no consumer takes it. -/
 def InitialMismatchedEphemeralEvidence
     (dh : DhView) (oracle : Model.Lifecycle.Oracle)
     (real : lifecycle.Session) (model : Model.Lifecycle.Session) : Prop :=
@@ -7927,6 +8934,120 @@ def InitialMismatchedEphemeralEvidence
         oracle.dhAgree model.ratchetPrivate
           (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)
 
+/-! The generated wrapper checks agreement before it enters the ratchet.  The
+    aggregate composition therefore carries the two concrete outcomes of that
+    check explicitly: equal ephemerals must agree, while unequal ephemerals
+    must produce the refusal-side oracle disagreement. -/
+def InitialAgreementEquivalentEphemeralEvidence
+    (message : Slice Std.U8) (dh : DhView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session) : Prop :=
+  ∀ (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial),
+    tacenta_wire.decode_initial message = ok (.Ok decoded) →
+    real.established_ephemeral = some established →
+    vecOf established ≠ vecOf decoded.ephemeral →
+    lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true ∧
+      Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true
+
+/-! Concrete evidence for one dispatcher branch.  This is deliberately an
+    indexed sum over the decoded message and established ephemeral: callers
+    must provide the agreement result for the branch that actually occurred.
+    It replaces the older universal predicates for the public composition
+    path, which could be discharged or refuted using unrelated hypothetical
+    decoded inputs. -/
+inductive InitialDispatchBranchEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | decodeRefusal
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Err reason)) :
+      InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
+  | noEstablished
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hnone : real.established_ephemeral = none) :
+      InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
+  | ephemeralMismatch
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok false)
+      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+        oracle.dhAgree model.ratchetPrivate
+          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
+  | identityMismatch
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hephemeral : vecOf established = vecOf decoded.ephemeral)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true) :
+      InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
+  | sameIdentity
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hephemeral : vecOf established = vecOf decoded.ephemeral)
+      (hidentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true) :
+      InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
+theorem initial_dispatch_route_from_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (codec : DhCodecOf dh)
+    (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng) :
+    Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
+  cases branch with
+  | decodeRefusal ctx reason hdecode =>
+      exact ⟨.decodeRefusal (decrypt_initial_decode_refusal_refines rc crc trace dh K view
+        oracle real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode)⟩
+  | noEstablished ctx decoded hdecode hnone =>
+      exact ⟨initial_dispatch_no_established_from_premises ctx decoded hdecode hnone⟩
+  | ephemeralMismatch ctx established decoded hdecode hestablished hmismatch
+      hsameAgreement hagreementMismatch =>
+      exact ⟨initial_dispatch_ephemeral_mismatch_from_premises ctx established decoded hdecode
+        hestablished hmismatch hsameAgreement hagreementMismatch⟩
+  | identityMismatch ctx established decoded hdecode hestablished hephemeral hmismatch
+      hsameAgreement =>
+      exact ⟨initial_dispatch_identity_mismatch_from_premises (codec := codec) ctx established
+        decoded hdecode hestablished hephemeral hmismatch hsameAgreement⟩
+  | sameIdentity ctx established decoded hdecode hestablished hephemeral hidentity
+      hsameAgreement hmodelSame =>
+      obtain ⟨⟨result, next, rngNext⟩, hcall, hstep⟩ :=
+        hreceive decoded established hdecode hestablished hephemeral hidentity
+      have hw := decrypt_initial_repeat_step_refines rc crc trace dh codec K view oracle
+        real model message rng established decoded (result, next, rngNext)
+        ctx.hrel ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame
+        hcall hstep
+      cases result with
+      | Err reason => exact ⟨.repeatRefusal hw⟩
+      | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
 route supplied by the caller. -/
@@ -7937,37 +9058,68 @@ theorem initial_dispatch_route_from_ratchet
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
-    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
+    Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) :=
+  initial_dispatch_route_from_concrete_evidence codec hreceive branch
+
+/-! Route the byte-different but agreement-equivalent case through the same
+    result-shaped receive split as ordinary repeats.  This is the missing
+    branch in the byte-equality dispatcher: the real wrapper uses agreement,
+    not wire-byte equality, as its repeat predicate. -/
+theorem initial_dispatch_agreement_equivalent_route
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (codec : DhCodecOf dh)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hreceive : InitialAgreementRatchetRefines rc crc trace dh K view oracle
+      real model message rng)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hne : vecOf established ≠ vecOf decoded.ephemeral)
+    (hi : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true) :
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
-  rcases initial_decode_cases message with ⟨reason, hdecode⟩ | ⟨decoded, hdecode⟩
-  · exact ⟨.decodeRefusal (decrypt_initial_decode_refusal_refines rc crc trace dh K view
-      oracle real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode)⟩
-  · cases hestablished : real.established_ephemeral with
-    | none =>
-        exact ⟨initial_dispatch_no_established_from_premises ctx decoded hdecode hestablished⟩
-    | some established =>
-        by_cases he : vecOf established = vecOf decoded.ephemeral
-        · by_cases hi : vecOf decoded.identity =
-            Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)
-          · obtain ⟨⟨result, next, rngNext⟩, hcall, hstep⟩ :=
-              hreceive decoded established hdecode hestablished he hi
-            have hw := decrypt_initial_repeat_step_refines rc crc trace dh codec K view oracle
-              real model message rng established decoded (result, next, rngNext)
-              ctx.hrel ctx.htype hdecode hestablished he hi
-              (hsame established decoded he).1 (hsame established decoded he).2
-              hcall hstep
-            cases result with
-            | Err reason => exact ⟨.repeatRefusal hw⟩
-            | Ok plaintext => exact ⟨.repeatSuccess hw⟩
-          · exact ⟨initial_dispatch_identity_mismatch_from_premises (codec := codec)
-              ctx established decoded hdecode hestablished he hi
-              (hsame established decoded he).1⟩
-        · exact ⟨initial_dispatch_ephemeral_mismatch_from_premises
-            ctx established decoded hdecode hestablished he
-            (hmismatch established decoded he).1 (hmismatch established decoded he).2⟩
+  obtain ⟨⟨result, next, rngNext⟩, hcall, hstep⟩ :=
+    hreceive decoded established hdecode hestablished hi
+  have hw := decrypt_initial_repeat_agreement_step_refines rc crc trace dh codec K view
+    oracle real model message rng established decoded (result, next, rngNext)
+    ctx.hrel ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
+  cases result with
+  | Err reason => exact ⟨.repeatRefusal hw⟩
+  | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+
+theorem initial_dispatch_agreement_identity_mismatch_route
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (codec : DhCodecOf dh)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hne : vecOf established ≠ vecOf decoded.ephemeral)
+    (hmismatch : vecOf decoded.identity ≠
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true) :
+    Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
+  refine ⟨.identityMismatch ?_⟩
+  exact decrypt_initial_identity_mismatch_agreement_refines rc crc trace dh codec K view
+    oracle real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
+    hestablished hmismatch hsameAgreement
 
 /-- Initial-wrapper T3, conditional only on inner ratchet refinement and the
 codec contract. No route or branch callback is an input. -/
@@ -7979,11 +9131,10 @@ theorem decrypt_initial_refines_from_ratchet
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
-  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hsame hmismatch hreceive
+  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec branch hreceive
   exact initial_dispatch_join route
 
 /-! Split the T1-produced inner result before applying its semantic adapter.
@@ -8335,8 +9486,8 @@ inductive InitialRatchetRefusalRoute
 
 /-! Split the classifier into named branch providers before constructing a
     route.  Keeping the five callbacks separate prevents a provider for one
-    refusal family from silently serving another family; the ceiling callback
-    must discharge the explicit impossible-random-source case. -/
+    refusal family from silently serving another family; the ordered trace
+    head discharges the explicit impossible-random-source case. -/
 theorem initial_ratchet_refusal_case_dispatch
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -8346,12 +9497,13 @@ theorem initial_ratchet_refusal_case_dispatch
     {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
     (hcase : ∃ (modelReason : Model.Lifecycle.Refusal) (oracleNext : Model.Lifecycle.Oracle),
       InitialRatchetModelRefusalCase view oracle model message modelReason oracleNext)
-    (hceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (htrace : trace rng = oracle.draws)
+    (hrandomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf message) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False)
+      ∃ draw rest, trace rng = draw :: rest)
     (hfirstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
       Model.CompositeHeader.decodeDetailed (sliceOf message) =
         .ok (composite, ciphertext) →
@@ -8419,7 +9571,8 @@ theorem initial_ratchet_refusal_case_dispatch
   | secondDh composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond =>
       exact hsecondDh composite ciphertext draw oracleNext hdecode hfirst hdraw hsecond
   | ceiling composite ciphertext dhOutRecv hdecode hfirst hdraw =>
-      exact False.elim (hceiling composite ciphertext dhOutRecv hdecode hfirst hdraw)
+      exact False.elim (model_random32_none_impossible_of_trace_head trace oracle rng htrace
+        (hrandomDraw composite ciphertext dhOutRecv hdecode hfirst) hdraw)
   | triple composite ciphertext draw oracleAfter modelReason dhOutRecv dhOutSend
       hdecode hfirst hdraw hsecond htriple =>
       exact htripleProvider composite ciphertext draw oracleNext modelReason dhOutRecv dhOutSend
@@ -8539,23 +9692,19 @@ theorem decode_message_model_decode_of_nonrefusal
         hmodelDecodeDetailed, rfl, hcomposite⟩
 
 
-/-! Recover the indexed model refusal case from an already paired concrete
-    refusal result.  The old bridge accepted a separate model callback here;
-    this adapter instead destructures the exact model step carried by
-    `StepRefines`, proves that its result is an error (a refusal cannot refine
-    a model success), and then classifies the generated model transaction. -/
-theorem initial_ratchet_model_refusal_case_of_step
-    {R : Type} {trace : R → List Model.Lifecycle.Key}
-    {dh : DhView} {K : Model.Braid.Kem}
+/-! Recover the indexed model refusal case from the positive result relation.
+    A concrete refusal can refine only a model refusal, and the refusal-code
+    equality carried by `ResultRefines` fixes the exact public reason before
+    the generated model transaction is classified. -/
+theorem initial_ratchet_model_refusal_case_of_result_refines
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {reason : lifecycle.Error}
-    {next : lifecycle.Session} {rng rngNext : R}
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hnotbad : ∀ realReason,
       tacenta_wire.decode_message message ≠ ok (.Err realReason))
-    (hstep : StepRefines trace dh K (.Err reason, next, rngNext)
-      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    (hresult : ResultRefines (.Err reason)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result) :
     ∃ (oracleNext : Model.Lifecycle.Oracle)
       (modelReason : Model.Lifecycle.Refusal),
       Nonempty (InitialRatchetModelRefusalCase view oracle model message
@@ -8582,8 +9731,28 @@ theorem initial_ratchet_model_refusal_case_of_step
             ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
           exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
       | ok modelPlaintext =>
-          have hresult := hstep.result
           simp [ResultRefines, step, hs, hr] at hresult
+
+/-! `StepRefines` carries that same positive result relation together with the
+    successor-state and draw invariants.  Keep this adapter for callers that
+    already possess the full step witness. -/
+theorem initial_ratchet_model_refusal_case_of_step
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {reason : lifecycle.Error}
+    {next : lifecycle.Session} {rng rngNext : R}
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (hstep : StepRefines trace dh K (.Err reason, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Lifecycle.Refusal),
+      Nonempty (InitialRatchetModelRefusalCase view oracle model message
+        modelReason oracleNext) := by
+  exact initial_ratchet_model_refusal_case_of_result_refines hready hnotbad hstep.result
 
 /-! Package the complete result-shaped refusal evidence once, so the public
     splitter can consume branch-specific providers without passing an
@@ -8694,12 +9863,12 @@ structure InitialRatchetRefusalBranchProviders
     (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
       (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model) message rng) where
-  ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+  randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False
+      ∃ draw rest, trace rng = draw :: rest
   firstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
@@ -8774,14 +9943,14 @@ theorem initial_ratchet_refusal_route_of_branch_providers
       input.decoded.message.deref rng input.reason input.next input.rngNext) := by
   exact initial_ratchet_refusal_case_dispatch
     (hcase := ⟨input.modelReason, input.oracleNext, input.hcase⟩)
-    providers.ceiling providers.firstDh providers.secondDh providers.tripleProvider
+    input.htrace providers.randomDraw providers.firstDh providers.secondDh providers.tripleProvider
     providers.aeadProvider
 
 /-! Build the nonterminal route from the actual model refusal result.  The
     provider is indexed by the classifier above, so it must handle the exact
     model branch and cannot relabel a concrete refusal as a different family.
-    The random-source ceiling remains an explicit provider case until the
-    concrete RNG contract rules it out. -/
+    The random-source ceiling is eliminated from the provider's ordered trace
+    head at the branch dispatcher. -/
 theorem initial_ratchet_nonterminal_route_of_model_result
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -8842,6 +10011,69 @@ theorem initial_ratchet_nonterminal_route_of_model_result
       oracleNext := oracleNext, modelReason := modelReason,
       modelComposite := modelComposite, ciphertext := ciphertext,
       hdecodeModel := hdecodeModel, hmodelStep := hmodelStep, hcase := modelCase }
+  exact initial_ratchet_refusal_route_of_branch_providers input (hproviders input)
+
+/-! Agreement-equivalent counterpart of the nonterminal classifier.  It keeps
+    the same five typed refusal providers, but its wrapper premises are tied
+    to the decoded identity and actual agreement result rather than to a
+    byte-equality hypothesis. -/
+theorem initial_agreement_ratchet_nonterminal_route_of_model_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (htrace : trace rng = oracle.draws)
+    (hmodel : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        ∃ (oracleNext : Model.Lifecycle.Oracle)
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext))
+    (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetRefusalBranchProviders input) :
+    ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext) := by
+  intro decoded established hdecode hestablished hi reason next rngNext hnotbad hcall
+  obtain ⟨oracleNext, modelReason, ⟨modelCase⟩⟩ :=
+    hmodel decoded established hdecode hestablished hi reason next rngNext hnotbad hcall
+  obtain ⟨modelComposite, ciphertext, result⟩ :=
+    initial_ratchet_model_refusal_result_of_case view oracle oracleNext model
+      decoded.message.deref modelReason hready modelCase
+  let input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) decoded.message.deref rng :=
+    { decoded := decoded, established := established, reason := reason,
+      next := next, rngNext := rngNext, hnotbad := hnotbad, hcall := hcall,
+      hready := hready, htrace := htrace,
+      oracleNext := oracleNext, modelReason := modelReason,
+      modelComposite := modelComposite, ciphertext := ciphertext,
+      hdecodeModel := result.hdecodeModel, hmodelStep := result.hmodelStep,
+      hcase := modelCase }
   exact initial_ratchet_refusal_route_of_branch_providers input (hproviders input)
 
 
@@ -9129,24 +10361,19 @@ theorem initial_ratchet_dh_refusal_provider_of_evidence
     composite selected by the classifier; the route-producing adapter below
     supplies the model DH arm and reconciles it with `input.hcall`. -/
 structure InitialRatchetDhConcreteEvidence
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-      (real := real) (model := model) message rng)
+    (message : Slice Std.U8)
     (modelComposite : Model.CompositeHeader.Composite)
     (ciphertext : Bytes) where
   decoded : tacenta_wire.DecodedMessage
   realComposite : tacenta_wire.Composite
   evidence : BraidReceiveEvidence K view real model realComposite modelComposite
   hrealComposite : realComposite = decoded.header
-  hdecodeReal : tacenta_wire.decode_message input.decoded.message.deref =
-    ok (.Ok decoded)
+  hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded)
   hdecodeModel : Model.CompositeHeader.decodeDetailed
-      (sliceOf input.decoded.message.deref) =
+      (sliceOf message) =
     .ok (modelComposite, vecOf decoded.ciphertext)
   hcomposite : CompositeRefines decoded.header modelComposite
 
@@ -9163,7 +10390,9 @@ structure InitialRatchetDhConcreteProviders
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = none →
-      InitialRatchetDhConcreteEvidence input composite ciphertext
+      InitialRatchetDhConcreteEvidence (K := K) (view := view)
+        (real := real) (model := model)
+        input.decoded.message.deref composite ciphertext
   second : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
@@ -9172,7 +10401,9 @@ structure InitialRatchetDhConcreteProviders
         some dhOutRecv) →
       Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
       (∃ dhOutRecv : Model.Lifecycle.Key, oracle.dhAgree draw composite.dh = none) →
-      InitialRatchetDhConcreteEvidence input composite ciphertext
+      InitialRatchetDhConcreteEvidence (K := K) (view := view)
+        (real := real) (model := model)
+        input.decoded.message.deref composite ciphertext
 
 structure InitialRatchetDhRouteProviders
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -9206,17 +10437,15 @@ structure InitialRatchetDhRouteProviders
     `decoded`, header relation and ciphertext used by the first/second-DH
     adapters all come from the same generated decoder result. -/
 theorem initial_ratchet_dh_concrete_evidence_of_braid_contracts
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-      (real := real) (model := model) message rng)
+    (message : Slice Std.U8)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
     (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
     (hdecodeModel : Model.CompositeHeader.decodeDetailed
-      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
+      (sliceOf message) = .ok (modelComposite, ciphertext))
     (contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
@@ -9238,10 +10467,12 @@ theorem initial_ratchet_dh_concrete_evidence_of_braid_contracts
       (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1 <
       Std.U64.max) :
-    Nonempty (InitialRatchetDhConcreteEvidence input modelComposite ciphertext) := by
+    Nonempty (InitialRatchetDhConcreteEvidence (K := K) (view := view)
+      (real := real) (model := model)
+      message modelComposite ciphertext) := by
   obtain ⟨decoded, hdecodeReal, hciphertext, hdecodedComposite⟩ :=
-    decode_message_model_facts_of_nonrefusal input.decoded.message.deref
-      input.hnotbad modelComposite ciphertext hdecodeModel
+    decode_message_model_facts_of_nonrefusal message hnotbad modelComposite ciphertext
+      hdecodeModel
   have hcomposite' : CompositeRefines decoded.header modelComposite := by
     exact hdecodedComposite
   have hbraid := braid_receive_evidence view contracts real model headroom
@@ -9332,6 +10563,224 @@ structure InitialRatchetBraidEvidenceContractsScoped
   hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1 <
     Std.U64.max
 
+/-! The first two cross-family success/refusal contradictions are consequences
+    of the existing executable DH leaves.  They need the session-wide Braid
+    contracts, but do not need an already-classified concrete refusal result. -/
+theorem initial_ratchet_first_dh_model_refusal_excludes_success
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    (kem : KemView) (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
+    (contracts : InitialRatchetBraidEvidenceContractsScoped (K := K) view real model message)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (composite, ciphertext))
+    (hfirst : oracle.dhAgree model.ratchetPrivate composite.dh = none)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext)) : False := by
+  obtain ⟨evidence⟩ := initial_ratchet_dh_concrete_evidence_of_braid_contracts
+    message hnotbad composite ciphertext hdecode contracts.contracts headroom
+    contracts.hka contracts.hea contracts.hmac contracts.hkdf contracts.hlens
+    contracts.hvalek contracts.hct1len contracts.hct2len contracts.hheaderlen
+    contracts.hkcl contracts.hecl hrel
+    (fun realComposite hcomposite =>
+      contracts.hchunk realComposite composite ciphertext hdecode hcomposite)
+    (contracts.hhonest composite ciphertext hdecode) contracts.hepoch
+  have refusal := initial_ratchet_first_dh_refusal_evidence rc crc trace dh kem K view
+    oracle oracleOf codec real model message rng evidence.decoded composite
+    evidence.realComposite evidence.evidence evidence.hrealComposite hrel htrace hready
+    evidence.hdecodeReal evidence.hdecodeModel evidence.hcomposite hfirst
+  have hresult := Result.ok.inj (hcall.symm.trans refusal.hcall)
+  simp at hresult
+
+theorem initial_ratchet_second_dh_model_refusal_excludes_success
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    (kem : KemView) (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
+    (contracts : InitialRatchetBraidEvidenceContractsScoped (K := K) view real model message)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (draw : Model.Lifecycle.Key)
+    (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (composite, ciphertext))
+    (hfirst : ∃ dhOutRecv,
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv)
+    (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hsecond : ∃ dhOutRecv : Model.Lifecycle.Key,
+      oracle.dhAgree draw composite.dh = none)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext)) : False := by
+  obtain ⟨dhOutRecv, hfirst⟩ := hfirst
+  obtain ⟨_, hsecond⟩ := hsecond
+  obtain ⟨evidence⟩ := initial_ratchet_dh_concrete_evidence_of_braid_contracts
+    message hnotbad composite ciphertext hdecode contracts.contracts headroom
+    contracts.hka contracts.hea contracts.hmac contracts.hkdf contracts.hlens
+    contracts.hvalek contracts.hct1len contracts.hct2len contracts.hheaderlen
+    contracts.hkcl contracts.hecl hrel
+    (fun realComposite hcomposite =>
+      contracts.hchunk realComposite composite ciphertext hdecode hcomposite)
+    (contracts.hhonest composite ciphertext hdecode) contracts.hepoch
+  obtain ⟨rngAfter, ⟨refusal⟩⟩ := initial_ratchet_second_dh_refusal_evidence
+    rc crc trace dh kem K view oracle oracleNext oracleOf codec hz32 real model message rng
+    evidence.decoded composite evidence.realComposite evidence.evidence hrel htrace hready
+    evidence.hdecodeReal evidence.hdecodeModel evidence.hrealComposite evidence.hcomposite
+    draw dhOutRecv hfirst hdraw hsecond
+  have hresult := Result.ok.inj (hcall.symm.trans refusal.hcall)
+  simp at hresult
+
+theorem initial_ratchet_ceiling_model_refusal_impossible_of_trace_head
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {oracle : Model.Lifecycle.Oracle} {rng : R}
+    (htrace : trace rng = oracle.draws)
+    (htraceHead : ∃ draw rest, trace rng = draw :: rest)
+    (hdraw : Model.Lifecycle.random32 oracle = none)
+    : False :=
+  model_random32_none_impossible_of_trace_head trace oracle rng htrace
+    htraceHead hdraw
+
+/-! A generated success already fixes the concrete decoder, Braid message and
+    Braid successor.  Replaying the shared Braid contracts against the model
+    success facts therefore recovers the corresponding message/state
+    relations; callers do not need to restate them in the success provider. -/
+theorem initial_ratchet_success_braid_evidence_of_prefix_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (contracts : InitialRatchetBraidEvidenceContractsScoped (K := K) view real model message)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model) :
+    Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite) ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K successPrefix.braidCandidate.state
+        (Model.Braid.receive K model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2 := by
+  have hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason) := by
+    intro realReason hbad
+    rw [successPrefix.hdecode] at hbad
+    simp at hbad
+  obtain ⟨decoded, hdecodeReal, _hciphertext, hcomposite⟩ :=
+    decode_message_model_facts_of_nonrefusal message hnotbad facts.modelComposite
+      facts.ciphertext facts.hdecodeModel
+  have hdecodedResult : core.result.Result.Ok decoded =
+      core.result.Result.Ok successPrefix.decoded :=
+    Result.ok.inj (hdecodeReal.symm.trans successPrefix.hdecode)
+  have hdecoded : decoded = successPrefix.decoded := by
+    injection hdecodedResult
+  subst decoded
+  obtain ⟨evidence⟩ := braid_receive_evidence view contracts.contracts real model
+    headroom successPrefix.decoded.header facts.modelComposite contracts.hka contracts.hea
+    contracts.hmac contracts.hkdf contracts.hlens contracts.hvalek contracts.hct1len
+    contracts.hct2len contracts.hheaderlen contracts.hkcl contracts.hecl hrel hcomposite
+    (contracts.hchunk successPrefix.decoded.header facts.modelComposite facts.ciphertext
+      facts.hdecodeModel hcomposite)
+    (contracts.hhonest facts.modelComposite facts.ciphertext facts.hdecodeModel)
+    contracts.hepoch
+  have hmessage : evidence.message = successPrefix.m := by
+    injection evidence.hmessageCall.symm.trans successPrefix.hmessage
+  have hreceiveEvidence : real.braid.receive successPrefix.m =
+      ok (evidence.receivedEpoch, evidence.output, evidence.next) := by
+    simpa [hmessage] using evidence.hreceive
+  have hreceiveResult :
+      (evidence.receivedEpoch, evidence.output, evidence.next) =
+        (successPrefix.receivedEpoch, successPrefix.output,
+          successPrefix.braidCandidate) := by
+    apply Result.ok.inj
+    exact hreceiveEvidence.symm.trans successPrefix.hreceive
+  have hnext : evidence.next = successPrefix.braidCandidate := by
+    exact congrArg (fun value => value.2.2) hreceiveResult
+  exact ⟨by simpa [hmessage] using evidence.hmessageRel,
+    by simpa [hnext] using evidence.hnext⟩
+
+/-! The concrete success provider exposed at the public composition boundary.
+    Braid message/state refinement is intentionally absent: it is derived by
+    `initial_ratchet_success_braid_evidence_of_prefix_contracts` from the exact
+    generated success prefix, the exact model success facts, and the shared
+    Braid contracts below. -/
+structure InitialRatchetContractSuccessProvider {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Type where
+  hdirect : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (direct : tacenta_triple.State × Array Std.U8 32#usize),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Ok direct) →
+    direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hretry : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Err realReason) →
+    lifecycle.full_store realReason = ok (some half) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hrel : SessionRefines dh K real model
+  contracts : InitialRatchetBraidEvidenceContractsScoped (K := K) view real model message
+  headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real
+  hkem : K = oracle.braidKem
+  hprivate : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next), dh.privateKey successPrefix.candidatePrivate = facts.draw
+  hbytes : vecOf plaintext = facts.modelPlaintext
+  htrace : trace rngNext = oracleNext.draws
+
+noncomputable def initial_ratchet_success_splice_of_contract_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (provider : InitialRatchetContractSuccessProvider
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (oracleNext := oracleNext)
+      (real := real) (model := model) (message := message) (rng := rng)
+      (rngNext := rngNext) (plaintext := plaintext) (next := next) facts) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  have braid := initial_ratchet_success_braid_evidence_of_prefix_contracts (trace := trace)
+    successPrefix facts provider.contracts provider.headroom provider.hrel
+  exact initial_ratchet_success_splice_of_concrete_receive_case successPrefix facts
+    (provider.hdirect successPrefix) (provider.hretry successPrefix) provider.hrel
+    braid.1 provider.hkem braid.2 (provider.hprivate successPrefix)
+    provider.hbytes provider.htrace
+
 noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -9349,7 +10798,7 @@ noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
   refine { first := ?_, second := ?_ }
   · intro composite ciphertext hdecode hfirst
     exact Classical.choice (initial_ratchet_dh_concrete_evidence_of_braid_contracts
-      input composite ciphertext
+      input.decoded.message.deref input.hnotbad composite ciphertext
       hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
       evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
       evidence.hkcl evidence.hecl hrel
@@ -9358,7 +10807,7 @@ noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
       (evidence.hhonest composite ciphertext hdecode) evidence.hepoch)
   · intro composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond
     exact Classical.choice (initial_ratchet_dh_concrete_evidence_of_braid_contracts
-      input composite ciphertext
+      input.decoded.message.deref input.hnotbad composite ciphertext
       hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
       evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
       evidence.hkcl evidence.hecl hrel
@@ -9417,12 +10866,12 @@ def initial_ratchet_refusal_branch_providers_of_dh
       (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
       (real := real) (model := model) message rng)
     (dhProviders : InitialRatchetDhRouteProviders input)
-    (ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False)
+      ∃ draw rest, trace rng = draw :: rest)
     (tripleProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
       (modelReason : Model.Triple.ReceiveRefusal)
@@ -9467,7 +10916,7 @@ def initial_ratchet_refusal_branch_providers_of_dh
       Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         input.decoded.message.deref rng input.reason input.next input.rngNext)) :
     InitialRatchetRefusalBranchProviders input :=
-  { ceiling := ceiling
+  { randomDraw := randomDraw
     firstDh := dhProviders.firstDh
     secondDh := dhProviders.secondDh
     tripleProvider := tripleProvider
@@ -10581,8 +12030,8 @@ noncomputable def initial_ratchet_aead_route_provider_of_concrete_evidence
 
 /-! Assemble all four nonterminal refusal families from concrete evidence.
     The constructor is the public branch boundary: DH, Triple, and AEAD are
-    each result-indexed, while the ceiling case remains the explicit
-    impossible-random-source obligation. -/
+    each result-indexed, while the ceiling case is eliminated from an ordered
+    RNG-trace head rather than an arbitrary contradiction callback. -/
 noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10603,16 +12052,16 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     (dhEvidence : InitialRatchetDhConcreteProviders input)
     (tripleEvidence : InitialRatchetTripleConcreteProviders input)
     (aeadEvidence : InitialRatchetAeadConcreteProviders input)
-    (ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False) :
+      ∃ draw rest, trace rng = draw :: rest) :
     InitialRatchetRefusalBranchProviders input := by
   let dhProviders := initial_ratchet_dh_route_providers_of_concrete_evidence
     input kem codec oracleOf hz32 hrel htrace hready dhEvidence
-  exact initial_ratchet_refusal_branch_providers_of_dh input dhProviders ceiling
+  exact initial_ratchet_refusal_branch_providers_of_dh input dhProviders randomDraw
     (initial_ratchet_triple_route_provider_of_concrete_evidence
       input kem codec oracleOf hz32 hrel htrace hready tripleEvidence)
     (initial_ratchet_aead_route_provider_of_concrete_evidence
@@ -10622,10 +12071,12 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     refusal result, a success result, and a receive provider from different
     generated calls.  Every field is indexed by the exact `decrypt_ratchet`
     equation it explains. -/
-/-! The success half is indexed once by the concrete generated `Ok` result.
-    The model step equation and the receive provider are returned together so
-    they cannot be assembled from different model successors. -/
-structure InitialRatchetSuccessModelResult
+/-! The success half is indexed once by the concrete generated `Ok` result and
+    supplies the concrete receive provider for whichever success result the
+    executable model actually computes.  The provider supplies matching-family
+    plaintext and state evidence; the separate cross-family record below is
+    limited to ruling out result-family mismatches. -/
+structure InitialRatchetGeneratedSuccessProvider
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
@@ -10633,20 +12084,47 @@ structure InitialRatchetSuccessModelResult
     (message : Slice Std.U8) (rng : R)
     (decoded : tacenta_wire.DecodedInitial)
     (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R) where
-  modelNext : Model.Lifecycle.Session
-  modelPlaintext : Bytes
-  oracleNext : Model.Lifecycle.Oracle
-  hmodel : Model.Lifecycle.decryptRatchet view oracle model
-      (sliceOf decoded.message.deref) =
-    { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext }
-  provider : ∀ (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
-      decoded.message.deref),
-    InitialRatchetConcreteSuccessProvider
-      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-      (view := view) (oracle := oracle) (oracleNext := oracleNext)
-      (real := real) (model := model) (message := decoded.message.deref)
-      (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
-      facts
+  provider : ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+      (oracleNext : Model.Lifecycle.Oracle),
+    Model.Lifecycle.decryptRatchet view oracle model
+        (sliceOf decoded.message.deref) =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } →
+    ∀ (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+        decoded.message.deref),
+      InitialRatchetContractSuccessProvider
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (oracleNext := oracleNext)
+        (real := real) (model := model) (message := decoded.message.deref)
+        (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
+        facts
+
+/-! Keep the remaining result-family gap explicit and narrow.  Matching
+    refusal/refusal results are aligned by the five generated refusal leaves,
+    while matching success/success results are aligned by the concrete success
+    splice.  These two fields state only the cross-family cases that those
+    same-family proofs cannot inhabit. -/
+structure InitialRatchetGeneratedCrossFamilyEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) : Prop where
+  refusalNotModelSuccess : ∀ (reason : lifecycle.Error) (next : lifecycle.Session)
+      (rngNext : R) (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+      (oracleNext : Model.Lifecycle.Oracle),
+    lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Err reason, next, rngNext) →
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } →
+    False
+  successNotModelRefusal : ∀ (plaintext : alloc.vec.Vec Std.U8)
+      (next : lifecycle.Session) (rngNext : R) (modelNext : Model.Lifecycle.Session)
+      (modelReason : Model.Lifecycle.Refusal) (oracleNext : Model.Lifecycle.Oracle),
+    lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext) →
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .error modelReason, oracle := oracleNext } →
+    False
 
 structure InitialRatchetSuccessResultEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -10664,38 +12142,257 @@ structure InitialRatchetSuccessResultEvidence
       ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Ok plaintext, next, rngNext) →
-        Nonempty (InitialRatchetSuccessModelResult
+        Nonempty (InitialRatchetGeneratedSuccessProvider
           (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
           (view := view) (oracle := oracle) (real := real) (model := model)
           message rng decoded plaintext next rngNext)
 
-structure InitialRatchetModelResultEvidence
+/-! The same success-result package for the agreement-equivalent branch.  The
+    inner ratchet call does not inspect the wire-byte equality predicate, so
+    retaining that premise here would make the concrete composition vacuous
+    again. -/
+structure InitialAgreementRatchetSuccessResultEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     (message : Slice Std.U8) (rng : R) where
-  refusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
-      (decoded : tacenta_wire.DecodedInitial)
+  result : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        Nonempty (InitialRatchetGeneratedSuccessProvider
+          (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+          (view := view) (oracle := oracle) (real := real) (model := model)
+          message rng decoded plaintext next rngNext)
+
+/-! Result-alignment packages used by the public composition.  The narrow
+    cross-family record rules out refusal/success mismatches.  Exact refusal
+    codes come from the generated refusal leaves, while plaintext equality
+    comes from the separately indexed concrete success provider. -/
+structure InitialRatchetGeneratedResultEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) where
+  crossFamily : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
       real.established_ephemeral = some established →
       vecOf established = vecOf decoded.ephemeral →
       vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
-        (∀ realReason,
-          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Err reason, next, rngNext) →
-        ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal),
-          Nonempty (InitialRatchetModelRefusalCase view oracle model
-            decoded.message.deref modelReason oracleNext)
-  successResult : InitialRatchetSuccessResultEvidence
+      InitialRatchetGeneratedCrossFamilyEvidence
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        decoded.message.deref rng
+  success : InitialRatchetSuccessResultEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
     message rng
+
+structure InitialAgreementRatchetGeneratedResultEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) where
+  crossFamily : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      InitialRatchetGeneratedCrossFamilyEvidence
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        decoded.message.deref rng
+  success : InitialAgreementRatchetSuccessResultEvidence
+    (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+    (view := view) (oracle := oracle) (real := real) (model := model)
+    message rng
+
+/-! Classify an actual concrete refusal without assuming the complete positive
+    result relation.  If the executable model produced a success, the narrow
+    cross-family evidence closes that impossible arm.  Otherwise the model
+    equation and generated decoder relation reconstruct the exact indexed
+    refusal case. -/
+theorem initial_ratchet_model_refusal_case_of_cross_family
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R} {reason : lifecycle.Error}
+    {next : lifecycle.Session}
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (cross : InitialRatchetGeneratedCrossFamilyEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Err reason, next, rngNext)) :
+    ∃ (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Lifecycle.Refusal),
+      Nonempty (InitialRatchetModelRefusalCase view oracle model message
+        modelReason oracleNext) := by
+  obtain ⟨_decoded, modelComposite, ciphertext, _hdecoded, hdecodeModel,
+    _hcipher, _hcomposite⟩ := decode_message_model_decode_of_nonrefusal message hnotbad
+  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
+  cases hs : step with
+  | mk modelNext modelResult oracleNext =>
+      cases hr : modelResult with
+      | error modelReason =>
+          have hmodelError : step.result = .error modelReason := by
+            simp [hs, hr]
+          have hsession : modelNext = model := by
+            have hk := Model.Lifecycle.decryptRatchet_refusal_keeps_session view oracle
+              model (sliceOf message) modelReason hmodelError
+            simpa [step, hs] using hk
+          have hmodelStep :
+              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+                { session := model, result := .error modelReason, oracle := oracleNext } := by
+            simp [step, hs, hr, hsession]
+          obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
+            view oracle oracleNext model message modelReason hready
+            ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
+          exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
+      | ok modelPlaintext =>
+          have hmodelSuccess :
+              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+                { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } := by
+            simp [step, hs, hr]
+          exact False.elim (cross.refusalNotModelSuccess reason next rngNext modelNext
+            modelPlaintext oracleNext hcall hmodelSuccess)
+
+/-! Dual result-family inversion for a concrete success.  The executable
+    model step is inspected directly; only the model-refusal arm needs the
+    narrow cross-family evidence.  Plaintext equality is deliberately left to
+    the concrete AEAD success splice. -/
+theorem initial_ratchet_model_success_result_of_cross_family
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (cross : InitialRatchetGeneratedCrossFamilyEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+      (oracleNext : Model.Lifecycle.Oracle),
+      Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+        { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } := by
+  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
+  cases hs : step with
+  | mk modelNext modelResult oracleNext =>
+      cases hr : modelResult with
+      | error modelReason =>
+          have hmodelRefusal :
+              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+                { session := modelNext, result := .error modelReason, oracle := oracleNext } := by
+            simp [step, hs, hr]
+          exact False.elim (cross.successNotModelRefusal plaintext next rngNext modelNext
+            modelReason oracleNext hcall hmodelRefusal)
+      | ok modelPlaintext =>
+          exact ⟨modelNext, modelPlaintext, oracleNext, by simp [step, hs, hr]⟩
+
+theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (evidence : InitialAgreementRatchetGeneratedResultEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts) := by
+  intro decoded established hdecode hestablished hi plaintext next rngNext hcall
+  let cross := evidence.crossFamily decoded established hdecode hestablished hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
+    initial_ratchet_model_success_result_of_cross_family cross hcall
+  have hready : Model.Lifecycle.agreementFailed model = false := by
+    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+    · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
+    · cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+  obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
+    model modelNext decoded.message.deref modelPlaintext hready hmodel
+  refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
+  exact initial_ratchet_success_splice_of_contract_provider successPrefix facts
+    (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
+
+theorem initial_agreement_ratchet_success_step_of_bundled_model_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (evidence : InitialAgreementRatchetGeneratedResultEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        StepRefines trace dh K (.Ok plaintext, next, rngNext)
+          (Model.Lifecycle.decryptRatchet view oracle model
+            (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage) := by
+  intro decoded established hdecode hestablished hi plaintext next rngNext hcall
+  let cross := evidence.crossFamily decoded established hdecode hestablished hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
+    initial_ratchet_model_success_result_of_cross_family cross hcall
+  have hready : Model.Lifecycle.agreementFailed model = false := by
+    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+    · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
+    · cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+  obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
+    model modelNext decoded.message.deref modelPlaintext
+    hready hmodel
+  exact initial_ratchet_success_step_from_evidence (R := R)
+      (let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+          rc crc hz32 hzKeys real decoded.message.deref rng rngNext plaintext next hcall)
+       initial_ratchet_success_evidence_of_splice successPrefix facts
+         (initial_ratchet_success_splice_of_contract_provider successPrefix facts
+           (provider.provider modelNext modelPlaintext oracleNext hmodel facts))
+         hcall)
 
 /-! Convert the bundled model success result into the callback consumed by the
     result-shaped splitter.  Both projections below call the same bundled
@@ -10707,7 +12404,7 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
-    (evidence : InitialRatchetSuccessResultEvidence
+    (evidence : InitialRatchetGeneratedResultEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
@@ -10728,18 +12425,20 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
             InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
               successPrefix facts) := by
   intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
-  obtain ⟨result⟩ :=
-    evidence.result decoded established hdecode hestablished he hi plaintext next rngNext hcall
-  have hmodel := result.hmodel
+  let cross := evidence.crossFamily decoded established hdecode hestablished he hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
+    initial_ratchet_model_success_result_of_cross_family cross hcall
   have hready : Model.Lifecycle.agreementFailed model = false := by
     by_cases hfailed : Model.Lifecycle.agreementFailed model = true
     · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
     · cases h : Model.Lifecycle.agreementFailed model <;> simp_all
-  obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle result.oracleNext
-    model result.modelNext decoded.message.deref result.modelPlaintext hready hmodel
-  refine ⟨result.oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
-  exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
-    (result.provider facts)
+  obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
+    model modelNext decoded.message.deref modelPlaintext hready hmodel
+  refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
+  exact initial_ratchet_success_splice_of_contract_provider successPrefix facts
+    (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 /-! Package the per-input evidence constructors so the public bridge can
     request a single concrete branch-evidence object instead of an opaque
@@ -10748,7 +12447,9 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
     one included, so the scoped Braid record is asked of every such message
     whether or not an honest run could carry it; this structure is read as
     unsatisfiable at states whose decoder holds a chunk (`CLAIMS.md` gives the
-    reading). -/
+    reading).  `randomDraw` exposes the ordered draw needed after a
+    successful first agreement; the adapter below uses it to prove that the
+    model's random-source ceiling branch is unreachable. -/
 structure InitialRatchetConcreteBranchEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10770,19 +12471,30 @@ structure InitialRatchetConcreteBranchEvidence
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
         (real := real) (model := model) innerMessage innerRng),
       InitialRatchetAeadBranchContracts input
-  ceiling : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
-      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-        (real := real) (model := model) innerMessage innerRng)
+  randomDraw : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
-      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+      Model.CompositeHeader.decodeDetailed (sliceOf innerMessage) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False
+      ∃ draw rest, trace innerRng = draw :: rest
+
+structure InitialAgreementRatchetEndToEndEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) where
+  concrete : InitialRatchetConcreteBranchEvidence
+    (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+    (view := view) (oracle := oracle) (real := real) (model := model)
+  result : InitialAgreementRatchetGeneratedResultEvidence
+    (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+    (view := view) (oracle := oracle) (real := real) (model := model)
+    message rng
 
 /-! The public composition consumes one coherent evidence object.  Keeping the
-    concrete branch package and the result-indexed model package together is
+    concrete branch package and the result-alignment package together is
     more than cosmetic: both are indexed by the same real/model session and
     message, so the dispatcher cannot accidentally pair branch evidence from
     one generated call with refusal/success callbacks from another call. -/
@@ -10795,7 +12507,7 @@ structure InitialRatchetEndToEndEvidence
   concrete : InitialRatchetConcreteBranchEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
-  model : InitialRatchetModelResultEvidence
+  result : InitialRatchetGeneratedResultEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
     message rng
@@ -10829,7 +12541,8 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
       (evidence.tripleContracts input))
     (initial_ratchet_aead_providers_of_branch_contracts input
       (evidence.aeadContracts input))
-    (evidence.ceiling input)
+    (evidence.randomDraw (innerMessage := input.decoded.message.deref)
+      (innerRng := innerRng))
 
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -11229,6 +12942,171 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
           reason next rngNext hnotbad hcall)
   · exact hsuccess
 
+/-! Result-shaped T1 split for the agreement-equivalent wrapper route.  This
+    is deliberately separate from the byte-equality splitter above: both
+    callbacks are still indexed by the actual generated result, but neither
+    is allowed to smuggle in an unrelated wire-byte premise. -/
+theorem initial_agreement_ratchet_refines_of_t1_result_split_with_model_refusal_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hmodelRefusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
+      (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        ∃ (oracleNext : Model.Lifecycle.Oracle)
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext))
+    (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetRefusalBranchProviders input)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        StepRefines trace dh K (.Ok plaintext, next, rngNext)
+          (Model.Lifecycle.decryptRatchet view oracle model
+            (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+    InitialAgreementRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  intro decoded established hdecode hestablished hi
+  obtain ⟨output, hcall, _⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real
+      decoded.message.deref rng headroom)
+  rcases output with ⟨result, next, rngNext⟩
+  cases result with
+  | Err reason =>
+      refine ⟨(.Err reason, next, rngNext), hcall, ?_⟩
+      by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+      · obtain ⟨hterminal, hstep⟩ := decrypt_ratchet_terminal_guard_step_refines rc crc
+          trace dh K view oracle real model decoded.message.deref rng
+          ctx.hrel ctx.htrace hfailed
+        have heq := Result.ok.inj (hcall.symm.trans hterminal)
+        cases heq
+        exact hstep
+      · have hready : Model.Lifecycle.agreementFailed model = false := by
+          cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+        by_cases hbad : ∃ realReason,
+            tacenta_wire.decode_message decoded.message.deref = ok (.Err realReason)
+        · let realReason := Classical.choose hbad
+          have hbadDecode := Classical.choose_spec hbad
+          obtain ⟨hdecodeCall, hdecodeStep⟩ := decrypt_ratchet_decode_refusal_refines rc crc
+            trace dh K view oracle real model decoded.message.deref rng realReason
+            ctx.hrel ctx.htrace hready hbadDecode
+          have heq := Result.ok.inj (hcall.symm.trans hdecodeCall)
+          cases heq
+          exact hdecodeStep
+        · let hnotbad : ∀ realReason,
+            tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason) := by
+              simpa using hbad
+          obtain ⟨route⟩ := initial_agreement_ratchet_nonterminal_route_of_model_result
+            hready ctx.htrace (hmodelRefusal hready) hproviders decoded established
+            hdecode hestablished hi reason next rngNext hnotbad hcall
+          exact (initial_ratchet_refusal_evidence_of_route route).hstep
+  | Ok plaintext =>
+      exact ⟨(.Ok plaintext, next, rngNext), hcall,
+        hsuccess decoded established hdecode hestablished hi plaintext next rngNext hcall⟩
+
+/-! Concrete agreement-class bridge.  The DH, Triple, AEAD, refusal and
+    generated-success providers are the same indexed package used by the
+    ordinary initial path; only the wrapper's agreement predicate differs. -/
+theorem initial_agreement_ratchet_refines_of_t1_with_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (codec : DhCodecOf dh)
+    (kem : KemView)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (evidence : InitialAgreementRatchetEndToEndEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    InitialAgreementRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  exact initial_agreement_ratchet_refines_of_t1_result_split_with_model_refusal_provider
+    ctx boundary headroom hz32 hzKeys
+    (fun hready decoded established hdecode hestablished hi reason next rngNext
+        hnotbad hcall =>
+      initial_ratchet_model_refusal_case_of_cross_family hready hnotbad
+        (evidence.result.crossFamily decoded established hdecode hestablished hi) hcall)
+    (initial_ratchet_refusal_branch_providers_of_evidence_package
+      kem codec oracleOf hz32 hzKeys headroom ctx.hrel evidence.concrete)
+    (initial_agreement_ratchet_success_step_of_bundled_model_result
+      hz32 hzKeys evidence.result)
+
+theorem decrypt_initial_agreement_of_t1_with_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (codec : DhCodecOf dh)
+    (kem : KemView)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hne : vecOf established ≠ vecOf decoded.ephemeral)
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (evidence : InitialAgreementRatchetEndToEndEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
+  let hreceive := initial_agreement_ratchet_refines_of_t1_with_concrete_evidence
+    codec kem oracleOf ctx boundary headroom hz32 hzKeys evidence
+  by_cases hi : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)
+  · obtain ⟨route⟩ := initial_dispatch_agreement_equivalent_route codec ctx hreceive
+      established decoded hdecode hestablished hne hi hsameAgreement hmodelSame
+    exact initial_dispatch_join route
+  · obtain ⟨route⟩ := initial_dispatch_agreement_identity_mismatch_route codec ctx
+      established decoded hdecode hestablished hne hi hsameAgreement
+    exact initial_dispatch_join route
+
 /-! Variant of the public splitter that starts from one exact concrete
     refusal evidence callback.  The model refusal case is recovered from that
     callback's `StepRefines` witness, rather than supplied as a second
@@ -11429,16 +13307,19 @@ theorem initial_ratchet_refines_of_t1_with_concrete_evidence
       message rng) :
     InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
   exact initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
-    ctx boundary headroom hz32 hzKeys evidence.model.refusal
+    ctx boundary headroom hz32 hzKeys
+    (fun hready decoded established hdecode hestablished he hi reason next rngNext
+        hnotbad hcall =>
+      initial_ratchet_model_refusal_case_of_cross_family hready hnotbad
+        (evidence.result.crossFamily decoded established hdecode hestablished he hi) hcall)
     (initial_ratchet_refusal_branch_providers_of_evidence_package
       kem codec oracleOf hz32 hzKeys headroom ctx.hrel evidence.concrete)
-    (initial_ratchet_success_callback_of_bundled_model_result
-      evidence.model.successResult)
+    (initial_ratchet_success_callback_of_bundled_model_result evidence.result)
 
 /-! The public initial-message bridge now reuses that exact inner witness.  The
-    refusal side is indexed by the concrete model result and its five typed
-    branch providers; the success side is indexed by the generated `Ok` result
-    and a concrete receive provider. -/
+    refusal side evaluates and classifies the concrete model result before
+    selecting one of five typed branch providers; the success side is indexed
+    by the generated `Ok` result and a concrete receive provider. -/
 theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -11450,8 +13331,7 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     (kem : KemView)
     (oracleOf : OracleOf rc crc dh kem trace oracle)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11462,7 +13342,7 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
-  exact decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
+  exact decrypt_initial_refines_from_ratchet codec ctx branch
     (initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx boundary
       headroom hz32 hzKeys evidence)
 
@@ -11483,8 +13363,7 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
     (kem : KemView)
     (oracleOf : OracleOf rc crc dh kem trace oracle)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11506,7 +13385,7 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
           lifecycle.Session.decrypt rc crc real message rng = ok output ∧
           output.2.1.pending_initial.map (pendingInitialOf dh) = none)) := by
   let witness := decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
-    codec kem oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence
+    codec kem oracleOf ctx branch boundary headroom hz32 hzKeys evidence
   refine ⟨witness, ?_⟩
   exact public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
     real model message rng witness
@@ -11567,11 +13446,10 @@ theorem decrypt_initial_terminal_refines
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (hfailed : Model.Lifecycle.agreementFailed model = true) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng :=
-  decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
+  decrypt_initial_refines_from_ratchet codec ctx branch
     (initial_ratchet_refines_terminal ctx hfailed)
 
 /-- The selector's pending-state consequences follow from the same constructed
@@ -11584,8 +13462,7 @@ theorem initial_dispatch_atomicity_from_ratchet
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (hsame : InitialSameEphemeralEvidence dh oracle real model)
-    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+    (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
     (∃ reason output,
       (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result = .error reason ∧
@@ -11595,7 +13472,7 @@ theorem initial_dispatch_atomicity_from_ratchet
       (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result = .ok plaintext ∧
       lifecycle.Session.decrypt rc crc real message rng = ok output ∧
       output.2.1.pending_initial.map (pendingInitialOf dh) = none) := by
-  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hsame hmismatch hreceive
+  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec branch hreceive
   exact initial_dispatch_select_atomicity route
 
 /-- The inner premise is also discharged for malformed ratchet payloads. This
@@ -11665,8 +13542,7 @@ inductive SessionDecryptEvidence {R : Type}
       (codec : DhCodecOf dh)
       (oracleOf : OracleOf rc crc dh kem trace oracle)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-      (hsame : InitialSameEphemeralEvidence dh oracle real model)
-      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+      (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
       (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
       (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
       (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11677,18 +13553,39 @@ inductive SessionDecryptEvidence {R : Type}
         (view := view) (oracle := oracle) (real := real) (model := model)
         message rng) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAgreementAccepted
+      (codec : DhCodecOf dh)
+      (oracleOf : OracleOf rc crc dh kem trace oracle)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hne : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+      (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+      (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+      (hzKeys : ZeroizingRoundTrips
+        (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+      (evidence : InitialAgreementRatchetEndToEndEvidence
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        message rng) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialTerminal
       (codec : DhCodecOf dh)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-      (hsame : InitialSameEphemeralEvidence dh oracle real model)
-      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+      (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
       (hfailed : Model.Lifecycle.agreementFailed model = true) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialMalformed
       (codec : DhCodecOf dh)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-      (hsame : InitialSameEphemeralEvidence dh oracle real model)
-      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+      (branch : InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng)
       (hready : Model.Lifecycle.agreementFailed model = false)
       (hbad : ∀ decoded : tacenta_wire.DecodedInitial,
         tacenta_wire.decode_initial message = ok (.Ok decoded) →
@@ -11727,6 +13624,20 @@ inductive SessionDecryptEvidence {R : Type}
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok true) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAgreementIdentityMismatch
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hne : vecOf established ≠ vecOf decoded.ephemeral)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialRepeatRefusal
       (codec : DhCodecOf dh)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
@@ -11741,6 +13652,37 @@ inductive SessionDecryptEvidence {R : Type}
       (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
       (hestablished : real.established_ephemeral = some established)
       (hephemeral : vecOf established = vecOf decoded.ephemeral)
+      (hidentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (hinner : lifecycle.Session.decrypt_ratchet rc crc real
+        (alloc.vec.Vec.deref decoded.message) rng =
+        ok (.Err realReason, real, rngNext))
+      (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage =
+        { session := modelNext, result := .error modelReason, oracle := oracleNext })
+      (hstep : StepRefines trace dh K (.Err realReason, real, rngNext)
+        (Model.Lifecycle.decryptRatchet view oracle model
+          (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAgreementRepeatRefusal
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (rngNext : R)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (realReason : lifecycle.Error)
+      (modelReason : Model.Lifecycle.Refusal)
+      (modelNext : Model.Lifecycle.Session)
+      (oracleNext : Model.Lifecycle.Oracle)
+      (htraceNext : trace rngNext = oracleNext.draws)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hne : vecOf established ≠ vecOf decoded.ephemeral)
       (hidentity : vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc
           (dh.publicKey real.peer_identity_public))
@@ -11773,6 +13715,39 @@ inductive SessionDecryptEvidence {R : Type}
       (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
       (hestablished : real.established_ephemeral = some established)
       (hephemeral : vecOf established = vecOf decoded.ephemeral)
+      (hidentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (hinner : lifecycle.Session.decrypt_ratchet rc crc real
+        (alloc.vec.Vec.deref decoded.message) rng =
+        ok (.Ok plaintext, realNext, rngNext))
+      (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage =
+        { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+      (hbytes : vecOf plaintext = modelPlaintext)
+      (hstep : StepRefines trace dh K (.Ok plaintext, realNext, rngNext)
+        (Model.Lifecycle.decryptRatchet view oracle model
+          (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAgreementRepeatSuccess
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (rngNext : R)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (plaintext : alloc.vec.Vec Std.U8)
+      (modelPlaintext : Bytes)
+      (realNext : lifecycle.Session)
+      (modelNext : Model.Lifecycle.Session)
+      (oracleNext : Model.Lifecycle.Oracle)
+      (htraceNext : trace rngNext = oracleNext.draws)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hne : vecOf established ≠ vecOf decoded.ephemeral)
       (hidentity : vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc
           (dh.publicKey real.peer_identity_public))
@@ -11833,14 +13808,24 @@ theorem public_session_decrypt_end_to_end
   | initialDecodeRefusal reason hrel htrace htype hdecode =>
       exact decrypt_initial_decode_refusal_refines rc crc trace dh K view oracle real model
         message rng reason hrel htrace htype hdecode
-  | initialAccepted codec oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence =>
-      exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx hsame
-        hmismatch boundary headroom hz32 hzKeys evidence).1
-  | initialTerminal codec ctx hsame hmismatch hfailed =>
-      exact decrypt_initial_terminal_refines codec ctx hsame hmismatch hfailed
-  | initialMalformed codec ctx hsame hmismatch hready hbad =>
-      exact decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
-        (initial_ratchet_refines_decode_refusal ctx hready hbad)
+  | initialAccepted codec oracleOf ctx branch boundary headroom hz32 hzKeys evidence =>
+      let hreceive := initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx
+        boundary headroom hz32 hzKeys evidence
+      obtain ⟨route⟩ := initial_dispatch_route_from_concrete_evidence codec hreceive branch
+      exact initial_dispatch_join route
+  | initialAgreementAccepted codec oracleOf ctx established decoded hdecode hestablished hne
+      hsameAgreement hmodelSame boundary headroom hz32 hzKeys evidence =>
+      exact decrypt_initial_agreement_of_t1_with_concrete_evidence codec kem oracleOf ctx
+        established decoded hdecode hestablished hne hsameAgreement hmodelSame boundary
+        headroom hz32 hzKeys evidence
+  | initialTerminal codec ctx branch hfailed =>
+      let hreceive := initial_ratchet_refines_terminal ctx hfailed
+      obtain ⟨route⟩ := initial_dispatch_route_from_concrete_evidence codec hreceive branch
+      exact initial_dispatch_join route
+  | initialMalformed codec ctx branch hready hbad =>
+      let hreceive := initial_ratchet_refines_decode_refusal ctx hready hbad
+      obtain ⟨route⟩ := initial_dispatch_route_from_concrete_evidence codec hreceive branch
+      exact initial_dispatch_join route
   | initialNoEstablished ctx decoded hdecode hnone =>
       exact decrypt_initial_without_established_refines rc crc trace dh K view oracle real model
         message rng decoded ctx.hrel ctx.htrace ctx.htype hdecode hnone
@@ -11854,6 +13839,11 @@ theorem public_session_decrypt_end_to_end
       exact (decrypt_initial_identity_mismatch_refines rc crc trace dh codec K view oracle real model
         message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode hestablished
         hephemeral hmismatch hsameAgreement)
+  | initialAgreementIdentityMismatch codec ctx established decoded hdecode hestablished hne
+      hmismatch hsameAgreement =>
+      exact decrypt_initial_identity_mismatch_agreement_refines rc crc trace dh codec K view oracle
+        real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
+        hestablished hmismatch hsameAgreement
   | initialRepeatRefusal codec ctx rngNext established decoded realReason modelReason modelNext
       oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame hinner
       hmodelStep hstep =>
@@ -11861,6 +13851,13 @@ theorem public_session_decrypt_end_to_end
         real model message rng rngNext established decoded realReason modelReason modelNext
         ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
         hmodelSame hinner hmodelStep hstep
+  | initialAgreementRepeatRefusal codec ctx rngNext established decoded realReason modelReason
+      modelNext oracleNext htraceNext hdecode hestablished hne hidentity hsameAgreement hmodelSame
+      hinner hmodelStep hstep =>
+      exact decrypt_initial_repeat_agreement_refusal_exact rc crc trace dh codec K view oracle
+        oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
+        ctx.hrel htraceNext ctx.htype hdecode hestablished hidentity hsameAgreement hmodelSame
+        hinner hmodelStep hstep
   | initialRepeatSuccess codec ctx rngNext established decoded plaintext modelPlaintext realNext
       modelNext oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame hinner
       hmodelStep hbytes hstep =>
@@ -11868,6 +13865,13 @@ theorem public_session_decrypt_end_to_end
         real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
         ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
         hmodelSame hinner hmodelStep hbytes hstep
+  | initialAgreementRepeatSuccess codec ctx rngNext established decoded plaintext modelPlaintext
+      realNext modelNext oracleNext htraceNext hdecode hestablished hne hidentity hsameAgreement
+      hmodelSame hinner hmodelStep hbytes hstep =>
+      exact decrypt_initial_repeat_agreement_success_exact rc crc trace dh codec K view oracle
+        oracleNext real model message rng rngNext established decoded plaintext modelPlaintext
+        realNext modelNext ctx.hrel htraceNext ctx.htype hdecode hestablished hidentity
+        hsameAgreement hmodelSame hinner hmodelStep hbytes hstep
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
         innerOutput htype hinner hstep
@@ -11902,5 +13906,1034 @@ theorem public_session_decrypt_end_to_end_with_atomicity
   let witness := public_session_decrypt_end_to_end evidence
   exact ⟨witness, public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
     real model message rng witness⟩
+
+/-! Public send composition from the actual generated result.  T1 obtains the
+    `Session.encrypt` output from the same Braid and Triple contract packages
+    used by T3.  The terminal branch is discharged directly below.  The two
+    remaining Triple refusal/success providers are indexed by the actual
+    result.  One generated Braid-success package resolves the model's ordered
+    no-draw/draw split before either provider is called, while the Braid-failure
+    route is constructed from the exact generated send and its ordered trace
+    agreement.  A caller can therefore no longer hide terminal routing or
+    choose a send-randomness branch independently of the executable model. -/
+inductive EncryptGeneratedNonterminalPrefix {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid) (rngNext : R) : Type where
+  | braidFailed
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok true)
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+  | tripleRefusal
+      {sparseOutput : Option tacenta_spqr.Output}
+      {candidate : tacenta_triple.State} {reason : tacenta_triple.TripleError}
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+      (hsparse : RealSparseConversion realOutput sparseOutput)
+      (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+        ok (candidate, .Err reason))
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+  | tripleSuccess
+      {sparseOutput : Option tacenta_spqr.Output}
+      {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
+      {mk : Array Std.U8 32#usize}
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+      (hsparse : RealSparseConversion realOutput sparseOutput)
+      (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+        ok (candidate, .Ok (header, mk)))
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+
+/-! Invert the generated `Session.encrypt` control flow only as far as the
+    first semantic leaf after `Braid.send`.  The result records whether the
+    concrete next Braid is terminal, the exact Triple candidate refused, or
+    the exact Triple candidate succeeded.  Later providers therefore cannot
+    manufacture a convenient Triple branch detached from the public call. -/
+noncomputable def encrypt_generated_nonterminal_prefix_of_output
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {rng : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid} {rngNext : R}
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
+    (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext)) :
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  cases hnext : tacenta_braid.Braid.failed realBraidNext with
+  | fail error =>
+      unfold lifecycle.Session.encrypt at houtput
+      simp [hrealReady, hsend, hnext] at houtput
+  | div =>
+      unfold lifecycle.Session.encrypt at houtput
+      simp [hrealReady, hsend, hnext] at houtput
+  | ok failed =>
+      cases failed with
+      | true => exact .braidFailed hnext houtput
+      | false =>
+          cases hout : realOutput with
+          | none =>
+              cases hcandidate : lifecycle.send_candidate real.triple realEpoch none with
+              | fail error =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+              | div =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+              | ok value =>
+                  rcases value with ⟨candidate, sent⟩
+                  cases sent with
+                  | Err reason =>
+                      exact .tripleRefusal hnext (.none rfl) hcandidate houtput
+                  | Ok value =>
+                      rcases value with ⟨header, mk⟩
+                      exact .tripleSuccess hnext (.none rfl) hcandidate houtput
+          | some realSparse =>
+              cases hconvert : tacenta_spqr.Output.new realSparse.key_epoch realSparse.key with
+              | fail error =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+              | div =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+              | ok sparseOutput =>
+                  cases hcandidate : lifecycle.send_candidate real.triple realEpoch
+                      (some sparseOutput) with
+                  | fail error =>
+                      unfold lifecycle.Session.encrypt at houtput
+                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                  | div =>
+                      unfold lifecycle.Session.encrypt at houtput
+                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                  | ok value =>
+                      rcases value with ⟨candidate, sent⟩
+                      cases sent with
+                      | Err reason =>
+                          exact .tripleRefusal hnext
+                            (.some realSparse sparseOutput rfl hconvert) hcandidate houtput
+                      | Ok value =>
+                          rcases value with ⟨header, mk⟩
+                          exact .tripleSuccess hnext
+                            (.some realSparse sparseOutput rfl hconvert) hcandidate houtput
+
+/-! The generated implementation prefix determines which public evidence
+    family a remaining provider may return.  In particular, a Braid-failure
+    prefix cannot be discharged with a Triple route, even if a caller happens
+    to possess unrelated Triple evidence for the same starting state. -/
+def EncryptEvidenceForGeneratedPrefix
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid} {rngNext : R} :
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext → Type
+  | .braidFailed _ _ =>
+      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng
+  | .tripleRefusal _ _ _ _ =>
+      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng
+  | .tripleSuccess _ _ _ _ =>
+      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng
+
+/-! The remaining Braid boundary is an ordered-RNG agreement, not a callback
+    that may return an arbitrary completed route.  Its no-draw clause states
+    that the concrete RNG trace is unchanged.  Its draw clauses expose the
+    exact consumed head and tie the generated Braid result to that head's
+    model randomness. -/
+structure BraidSendTraceAgreement
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (rng : R) : Prop where
+  encodersLive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid
+  braidKem : oracle.braidKem = K
+  noDrawTrace : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = false →
+    trace rngNext = trace rng
+  drawTrace : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest
+  drawPost : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    ∀ draw rest, trace rng = draw :: rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draw ∧
+      (∀ modelMessage,
+        (Model.Braid.send K rand model.braid).1 = some modelMessage →
+          Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+      realEpoch.val = (Model.Braid.send K rand model.braid).2.2.2.epoch - 1 ∧
+      Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+        (Model.Braid.send K rand model.braid).2.2.1 ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
+        (Model.Braid.send K rand model.braid).2.2.2
+
+theorem braid_send_message_some_of_ready
+    (K : Model.Braid.Kem) (rand : Nat) (state : Model.Braid.BraidState)
+    (hready : Model.Lifecycle.braidFailed state = false) :
+    ∃ message, (Model.Braid.send K rand state).1 = some message := by
+  cases state <;> simp [Model.Lifecycle.braidFailed, Model.Braid.send] at hready ⊢
+
+/-! A nonterminal generated Braid send has one concrete model successor and
+    one concrete trace successor.  Packaging them here lets the Triple branch
+    consume the result without choosing the model message, epoch, output,
+    successor, or RNG branch independently of the executable send. -/
+structure GeneratedBraidSuccessEvidence
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (rng : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid) (rngNext : R) : Type where
+  oracleNext : Model.Lifecycle.Oracle
+  modelMessage : Model.Braid.Msg
+  modelEpoch : Nat
+  modelOutput : Option Model.Braid.Output
+  modelBraidNext : Model.Braid.BraidState
+  session : SessionRefines dh K real model
+  ready : Model.Lifecycle.agreementFailed model = false
+  realSend : tacenta_braid.Braid.send rc crc real.braid rng =
+    ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext)
+  modelSend : Model.Lifecycle.sendAgreement oracle model.braid =
+    some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext)
+  message : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage
+  epoch : realEpoch.val = modelEpoch
+  output : Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput modelOutput
+  next : Tacenta.SessionUnitBraidT3.StateRefines K
+    realBraidNext.state modelBraidNext
+  notFailed : Model.Lifecycle.braidFailed modelBraidNext = false
+  traceNext : trace rngNext = oracleNext.draws
+
+theorem braid_success_evidence_of_generated
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {rng rngNext : R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid}
+    (contracts : BraidSendRefinementContracts rc K)
+    (agreement : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hnextReal : tacenta_braid.Braid.failed realBraidNext = ok false) :
+    Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
+      realMessage realEpoch realOutput realBraidNext rngNext) := by
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+  | false =>
+      have hpost := braid_send_post_of_contracts contracts real.braid rng hrel.braid
+        agreement.encodersLive hsend
+      obtain ⟨modelMessageOpt, modelEpoch, modelOutput, modelBraidNext,
+          hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
+        braid_send_model_result_of_no_draw (R := R) oracle model.braid agreement.braidKem
+          realMessage realEpoch realOutput realBraidNext hdraw hpost
+      obtain ⟨modelMessage, hmessageSome⟩ :=
+        braid_send_message_some_of_ready oracle.braidKem 0 model.braid hmodelReady
+      have hpairs :
+          (Model.Braid.send oracle.braidKem 0 model.braid, oracle) =
+            ((modelMessageOpt, modelEpoch, modelOutput, modelBraidNext), oracle) := by
+        exact Option.some.inj
+          ((Model.Lifecycle.sendAgreement_no_draw oracle model.braid hdraw).symm.trans
+            hsendModel)
+      have hmessageOpt : modelMessageOpt = some modelMessage := by
+        exact (congrArg (fun value => value.1.1) hpairs).symm.trans hmessageSome
+      subst modelMessageOpt
+      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
+      rw [hnextReal] at hfailed
+      exact ⟨{
+        oracleNext := oracle
+        modelMessage := modelMessage
+        modelEpoch := modelEpoch
+        modelOutput := modelOutput
+        modelBraidNext := modelBraidNext
+        session := hrel
+        ready := hready
+        realSend := hsend
+        modelSend := hsendModel
+        message := hmessage modelMessage rfl
+        epoch := hepoch
+        output := houtput
+        next := hnext
+        notFailed := (Result.ok.inj hfailed).symm
+        traceNext := (agreement.noDrawTrace _ _ _ _ _ hsend hdraw).trans htrace
+      }⟩
+  | true =>
+      obtain ⟨draw, rest, modelMessageOpt, modelEpoch, modelOutput, modelBraidNext,
+          hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
+        braid_send_model_result_of_draw (R := R) trace oracle model.braid agreement.braidKem
+          realMessage realEpoch realOutput realBraidNext rng rngNext htrace
+          (agreement.drawTrace _ _ _ _ _ hsend hdraw) hdraw
+          (agreement.drawPost _ _ _ _ _ hsend hdraw)
+      have horacle : oracle.draws = draw :: rest := htrace.symm.trans hhead
+      obtain ⟨modelMessage, hmessageSome⟩ := braid_send_message_some_of_ready
+        oracle.braidKem (Model.Lifecycle.braidRandomness draw) model.braid hmodelReady
+      have hpairs :
+          (Model.Braid.send oracle.braidKem (Model.Lifecycle.braidRandomness draw)
+              model.braid, { oracle with draws := rest }) =
+            ((modelMessageOpt, modelEpoch, modelOutput, modelBraidNext),
+              { oracle with draws := rest }) := by
+        exact Option.some.inj
+          ((Model.Lifecycle.sendAgreement_draw oracle model.braid draw rest hdraw horacle).symm.trans
+            hsendModel)
+      have hmessageOpt : modelMessageOpt = some modelMessage := by
+        exact (congrArg (fun value => value.1.1) hpairs).symm.trans hmessageSome
+      subst modelMessageOpt
+      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
+      rw [hnextReal] at hfailed
+      exact ⟨{
+        oracleNext := { oracle with draws := rest }
+        modelMessage := modelMessage
+        modelEpoch := modelEpoch
+        modelOutput := modelOutput
+        modelBraidNext := modelBraidNext
+        session := hrel
+        ready := hready
+        realSend := hsend
+        modelSend := hsendModel
+        message := hmessage modelMessage rfl
+        epoch := hepoch
+        output := houtput
+        next := hnext
+        notFailed := (Result.ok.inj hfailed).symm
+        traceNext := by simpa using htail
+      }⟩
+
+/-! The refusal provider supplies only finite-store facts which the generated
+    call and the Triple contracts cannot derive themselves.  The generated
+    Triple result determines the exact model refusal and its public-error map;
+    the provider supplies neither classification nor a completed route. -/
+structure GeneratedTripleRefusalConditions
+    (model : Model.Lifecycle.Session)
+    (sparseOutput : Option tacenta_spqr.Output) : Type where
+  derivedKeys : Tacenta.SessionUnitT1.DerivedKeysModel
+  room : model.triple.postQuantum.chains.length + 1 < Usize.max
+  chainBound : ∀ p ∈ model.triple.postQuantum.chains,
+    p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  skippedBound : ∀ sk ∈ model.triple.postQuantum.skipped,
+    sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  newBound : ∀ o : tacenta_spqr.Output, sparseOutput = some o →
+    o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  epochBound : model.triple.postQuantum.epoch + 1 < Std.U64.max
+  counterBound : ∀ p ∈ model.triple.postQuantum.chains,
+    ∀ ch : Model.SparseRatchet.Chain,
+    (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+
+/-! The success provider supplies only the sparse finite-store premises which
+    the generated Triple call cannot infer.  Associated-data, ciphertext and
+    initial-message headroom all follow from the public `EncryptHeadroom`, the
+    concrete AEAD length contract and `SessionRefines`; the bridge below derives
+    them at the exact generated successor rather than accepting serialization
+    facts or a preassembled route from the caller. -/
+structure GeneratedTripleSuccessConditions
+    (model : Model.Lifecycle.Session)
+    (realEpoch : Std.U64) (sparseOutput : Option tacenta_spqr.Output) : Type where
+  derivedKeys : Tacenta.SessionUnitT1.DerivedKeysModel
+  room : model.triple.postQuantum.chains.length + 1 < Usize.max
+  chainBound : ∀ p ∈ model.triple.postQuantum.chains,
+    p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  skippedBound : ∀ sk ∈ model.triple.postQuantum.skipped,
+    sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  newBound : ∀ o : tacenta_spqr.Output, sparseOutput = some o →
+    o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  epochBound : model.triple.postQuantum.epoch + 1 < Std.U64.max
+  counterBound : ∀ p ∈ model.triple.postQuantum.chains,
+    ∀ ch : Model.SparseRatchet.Chain,
+    (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+
+/-! The real AEAD length contract bounds the model oracle at the exact same
+    arguments because `OracleOf` equates the two outputs byte for byte. -/
+theorem oracle_aead_seal_length_bound
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {oracle : Model.Lifecycle.Oracle}
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (key1 key2 : Array Std.U8 32#usize) (iv : Array Std.U8 16#usize)
+    (plaintext ad : Slice Std.U8) :
+    (oracle.aeadSeal (arrayOf key1) (arrayOf key2) (arrayOf iv)
+      (sliceOf plaintext) (sliceOf ad)).length ≤ plaintext.val.length + 48 := by
+  obtain ⟨ciphertext, hcall, hvalue⟩ :=
+    oracleOf.aeadSeal key1 key2 iv plaintext ad
+  obtain ⟨bounded, hboundedCall, hbounded⟩ := aead key1 key2 iv plaintext ad
+  have heq : ciphertext = bounded := Result.ok.inj (hcall.symm.trans hboundedCall)
+  subst bounded
+  have hlength := congrArg List.length hvalue
+  simp [vecOf] at hlength
+  omega
+
+/-! Construct the complete refusal route from the exact generated Braid
+    successor, exact sparse conversion and contract-backed Triple result. -/
+theorem encrypt_triple_refusal_evidence_of_generated
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng rngNext : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid}
+    {sparseOutput : Option tacenta_spqr.Output}
+    {candidate : tacenta_triple.State} {realReason : tacenta_triple.TripleError}
+    (contracts : TripleSendRefinementContracts)
+    (conditions : GeneratedTripleRefusalConditions model sparseOutput)
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Err realReason))
+    (braidEvidence : Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle
+      real model rng realMessage realEpoch realOutput realBraidNext rngNext)) :
+    Nonempty (EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
+      (K := K) (view := view) (oracle := oracle) (model := model)
+      (realMessage := realMessage) (rngNext := rngNext)
+      (.tripleRefusal hnext hsparse hsendCandidate houtput)) := by
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := conditions.derivedKeys
+  obtain ⟨braidEvidence⟩ := braidEvidence
+  have hmodelEpoch : realEpoch.val = braidEvidence.modelEpoch := braidEvidence.epoch
+  have houtputRefines : Tacenta.SessionUnitBraidT3.OptionOutputRefines
+      realOutput braidEvidence.modelOutput := braidEvidence.output
+  have hmodelOutput := sparse_output_of_conversion houtputRefines hsparse
+  have hmodelOf : ∀ modelReason,
+      Model.Triple.sendDetailed model.triple realEpoch.val
+          (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+          .error modelReason →
+      Model.Triple.sendDetailed model.triple braidEvidence.modelEpoch
+          (Model.Lifecycle.sparseOutputOf braidEvidence.modelOutput) =
+          .error modelReason := by
+    intro modelReason hdetail
+    rw [← hmodelEpoch, hmodelOutput]
+    exact hdetail
+  obtain ⟨modelReason, _hdetail, _hreason⟩ :=
+    triple_refusal_evidence_of_exact_candidate_and_contracts contracts
+      braidEvidence.session.triple realEpoch sparseOutput conditions.room
+      conditions.chainBound conditions.skippedBound conditions.newBound
+      conditions.epochBound conditions.counterBound hsendCandidate
+  exact ⟨.refusal (modelReason := modelReason) contracts conditions.room
+    conditions.chainBound conditions.skippedBound conditions.newBound
+    conditions.epochBound conditions.counterBound hsparse
+    braidEvidence.session braidEvidence.ready braidEvidence.realSend hsendCandidate
+    braidEvidence.modelSend braidEvidence.next braidEvidence.notFailed hmodelOf
+    braidEvidence.traceNext⟩
+
+/-! Construct either concrete Triple-success route from the exact generated
+    Braid successor, sparse conversion and Triple candidate.  The contract
+    theorem fixes the model successor/header/key; only the indexed headroom
+    facts remain supplied by the caller. -/
+theorem encrypt_triple_success_evidence_of_generated
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng rngNext : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid}
+    {sparseOutput : Option tacenta_spqr.Output}
+    {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
+    {mk : Array Std.U8 32#usize}
+    (contracts : TripleSendRefinementContracts)
+    (conditions : GeneratedTripleSuccessConditions model realEpoch sparseOutput)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codewordView : CodewordViewSendOf view)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Ok (header, mk)))
+    (braidEvidence : Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle
+      real model rng realMessage realEpoch realOutput realBraidNext rngNext)) :
+    Nonempty (EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
+      (K := K) (view := view) (oracle := oracle) (model := model)
+      (realMessage := realMessage) (rngNext := rngNext)
+      (.tripleSuccess hnext hsparse hsendCandidate houtput)) := by
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := conditions.derivedKeys
+  obtain ⟨braidEvidence⟩ := braidEvidence
+  have hmodelOutput := sparse_output_of_conversion braidEvidence.output hsparse
+  obtain ⟨modelCandidate, modelHeader, modelMk, htripleAtRealEpoch,
+      htripleNext, hheader, hmk⟩ :=
+    triple_success_evidence_of_exact_candidate_and_contracts contracts
+      braidEvidence.session.triple realEpoch sparseOutput conditions.room
+      conditions.chainBound conditions.skippedBound conditions.newBound
+      conditions.epochBound conditions.counterBound hsendCandidate
+  have htripleModel : Model.Triple.sendDetailed model.triple braidEvidence.modelEpoch
+      (Model.Lifecycle.sparseOutputOf braidEvidence.modelOutput) =
+        .ok (modelCandidate, modelHeader, modelMk) := by
+    rw [← braidEvidence.epoch, hmodelOutput]
+    exact htripleAtRealEpoch
+  have hmk' : arrayOf mk = modelMk := by
+    change mk.val.map Tacenta.SessionUnitBraidT3.u8 = modelMk
+    change mk.val.map Tacenta.SessionUnitTripleT3.u8 = modelMk at hmk
+    have hu8 : Tacenta.SessionUnitBraidT3.u8 = Tacenta.SessionUnitTripleT3.u8 := by
+      funext byte
+      rfl
+    rw [hu8]
+    exact hmk
+  have hrealAssociatedRoom :=
+    Tacenta.UnitLifecycleT1.EncryptHeadroom.associatedData headroom
+  have hassociatedDataRoom : model.identityAd.length + 106 ≤ Usize.max := by
+    have hidentityLength := congrArg List.length braidEvidence.session.identityAd
+    simp [vecOf] at hidentityLength
+    omega
+  obtain ⟨realComposite, modelComposite, _hcompositeReal, hcompositeModel,
+      hcompositeRel⟩ :=
+    composite_of_refines view model.braid header modelHeader realMessage
+      braidEvidence.modelMessage hheader braidEvidence.message codewordView
+  obtain ⟨realKeys, _hkeysCall, hkeysValue⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.message_keys_refines contracts.hkdf hz80 mk
+      tacenta_ratchet.LabelSet.Tacenta)
+  have hkeysValue' :
+      (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+        Model.State.messageKeys modelMk .tacenta := by
+    change (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+      Model.State.messageKeys (arrayOf mk) .tacenta at hkeysValue
+    rw [hmk'] at hkeysValue
+    exact hkeysValue
+  obtain ⟨realAd, _hrealAd, hrealAdValue⟩ := Std.WP.spec_imp_exists
+    (concat_ad_refines (alloc.vec.Vec.deref real.identity_ad) realComposite
+      modelComposite hcompositeRel hrealAssociatedRoom)
+  have had : sliceOf (alloc.vec.Vec.deref realAd) =
+      Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite) := by
+    change vecOf realAd = _
+    rw [hrealAdValue]
+    change Model.Messages.concatAd (vecOf real.identity_ad)
+      (Model.CompositeHeader.encode modelComposite) = _
+    rw [braidEvidence.session.identityAd]
+  have hciphertextBound := oracle_aead_seal_length_bound oracleOf aead
+    realKeys.1 realKeys.2.1 realKeys.2.2 plaintext
+      (alloc.vec.Vec.deref realAd)
+  have hkey1 : arrayOf realKeys.1 =
+      (Model.State.messageKeys modelMk .tacenta).1 := by
+    simpa only using congrArg Prod.fst hkeysValue'
+  have hkey2 : arrayOf realKeys.2.1 =
+      (Model.State.messageKeys modelMk .tacenta).2.1 := by
+    simpa only using congrArg (fun keys => keys.2.1) hkeysValue'
+  have hkey3 : arrayOf realKeys.2.2 =
+      (Model.State.messageKeys modelMk .tacenta).2.2 := by
+    simpa only using congrArg (fun keys => keys.2.2) hkeysValue'
+  rw [hkey1, hkey2, hkey3, had] at hciphertextBound
+  have hciphertextRoom :
+      let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader
+            braidEvidence.modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max := by
+    rw [hcompositeModel]
+    simp only [Option.get!_some]
+    have hratchetRoom :=
+      Tacenta.UnitLifecycleT1.EncryptHeadroom.ratchetMessage headroom
+    omega
+  cases hpending : real.pending_initial with
+  | none =>
+      exact ⟨.successNoInitial contracts conditions.room conditions.chainBound
+        conditions.skippedBound conditions.newBound conditions.epochBound
+        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
+        braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
+        htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
+        hassociatedDataRoom
+        hciphertextRoom⟩
+  | some pending =>
+      have hmodelCompositeLength :=
+        composite_encode_length_of_refines realComposite modelComposite hcompositeRel
+      have hmodelRatchetLength :
+          let keys := Model.State.messageKeys modelMk .tacenta
+          let ad := Model.Messages.concatAd model.identityAd
+            (Model.CompositeHeader.encode modelComposite)
+          (Model.CompositeHeader.encodeMessage modelComposite
+            (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+              (sliceOf plaintext) ad)).length =
+            102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+              (sliceOf plaintext) ad).length := by
+        simp [Model.CompositeHeader.encodeMessage, hmodelCompositeLength]
+      have hkemLength : (pendingInitialOf dh pending).kemCiphertext.length =
+          pending.kem_ciphertext.val.length := by
+        simp [pendingInitialOf, vecOf]
+      have hinitialHeadroom :=
+        Tacenta.UnitLifecycleT1.EncryptHeadroom.initial headroom
+      rw [hpending] at hinitialHeadroom
+      have hinitialRoom :
+          let composite :=
+            (Model.Lifecycle.compositeOf view model.braid modelHeader
+              braidEvidence.modelMessage).get!
+          let keys := Model.State.messageKeys modelMk .tacenta
+          let ad := Model.Messages.concatAd model.identityAd
+            (Model.CompositeHeader.encode composite)
+          let ratchetMessage := Model.CompositeHeader.encodeMessage composite
+            (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
+          84 + (pendingInitialOf dh pending).kemCiphertext.length +
+            ratchetMessage.length ≤ Usize.max := by
+        rw [hcompositeModel]
+        simp only [Option.get!_some]
+        rw [hkemLength, hmodelRatchetLength]
+        omega
+      exact ⟨.successInitial contracts conditions.room conditions.chainBound
+        conditions.skippedBound conditions.newBound conditions.epochBound
+        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
+        braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
+        htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
+        hz80 hz32 hzKeys hassociatedDataRoom
+        hciphertextRoom hinitialRoom⟩
+
+def encrypt_braid_failure_evidence_of_generated
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {rng rngNext : R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid}
+    (contracts : BraidSendRefinementContracts rc K)
+    (agreement : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok true) :
+    EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng := by
+  have hfailed : ∀ modelNext : Model.Braid.BraidState,
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
+        Model.Lifecycle.braidFailed modelNext = true := by
+    intro modelNext hnextRel
+    have hrefines := braid_failed_refines K realBraidNext modelNext hnextRel
+    rw [hnext] at hrefines
+    exact (Result.ok.inj hrefines).symm
+  cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+  | false =>
+      exact .braidNoDraw contracts agreement.encodersLive agreement.braidKem hrel hready htrace
+        hdraw hsend hfailed ((agreement.noDrawTrace _ _ _ _ _ hsend hdraw).trans htrace)
+  | true =>
+      exact .braidDraw contracts agreement.braidKem hrel hready htrace hdraw hsend
+        (agreement.drawTrace _ _ _ _ _ hsend hdraw)
+        (agreement.drawPost _ _ _ _ _ hsend hdraw) hfailed
+
+structure EncryptNonterminalRouteProviders
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) : Type where
+  refusal : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
+    ∀ sparseOutput candidate reason,
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) →
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok false) →
+    (hsparse : RealSparseConversion realOutput sparseOutput) →
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Err reason)) →
+    Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
+      realMessage realEpoch realOutput realBraidNext rngNext) →
+    GeneratedTripleRefusalConditions model sparseOutput
+  success : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
+    ∀ sparseOutput candidate header mk,
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) →
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok false) →
+    (hsparse : RealSparseConversion realOutput sparseOutput) →
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Ok (header, mk))) →
+    Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
+      realMessage realEpoch realOutput realBraidNext rngNext) →
+    GeneratedTripleSuccessConditions model realEpoch sparseOutput
+
+theorem public_session_encrypt_of_send_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
+    (braid : BraidSendRefinementContracts rc K)
+    (braidTrace : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codec : DhCodecOf dh) (codewordView : CodewordViewSendOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (providers : EncryptNonterminalRouteProviders rc crc trace dh kem K view oracle
+      real model plaintext rng) :
+    PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
+  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts (crc := crc)
+    braid triple aead hzKeys dhCodec real plaintext rng headroom
+  cases hfailed : Model.Lifecycle.agreementFailed model with
+  | true =>
+      exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+        (.braid (.terminal hrel htrace hfailed))
+  | false =>
+      obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts (crc := crc)
+        braid real.braid rng
+      rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
+      let generatedPrefix :=
+        encrypt_generated_nonterminal_prefix_of_output (crc := crc)
+          hrel hfailed houtput hsend
+      cases generatedPrefix with
+      | braidFailed hnext hgeneratedOutput =>
+          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+            (.braid (encrypt_braid_failure_evidence_of_generated braid braidTrace hrel htrace
+              hfailed hsend hnext))
+      | @tripleRefusal sparseOutput candidate reason hnext hsparse hsendCandidate
+          hgeneratedOutput =>
+          let braidEvidence := braid_success_evidence_of_generated braid braidTrace hrel htrace
+            hfailed hsend hnext
+          let conditions := providers.refusal output realMessage realEpoch realOutput
+            realBraidNext rngNext sparseOutput candidate reason hgeneratedOutput hnext hsparse
+            hsendCandidate braidEvidence
+          let tripleEvidence := encrypt_triple_refusal_evidence_of_generated
+            (kem := kem) (view := view) triple conditions hgeneratedOutput hnext hsparse
+            hsendCandidate braidEvidence
+          obtain ⟨tripleEvidence⟩ := tripleEvidence
+          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+            (.triple tripleEvidence)
+      | @tripleSuccess sparseOutput candidate header mk hnext hsparse hsendCandidate
+          hgeneratedOutput =>
+          let braidEvidence := braid_success_evidence_of_generated braid braidTrace hrel htrace
+            hfailed hsend hnext
+          let conditions := providers.success output realMessage realEpoch realOutput
+            realBraidNext rngNext sparseOutput candidate header mk hgeneratedOutput hnext hsparse
+            hsendCandidate braidEvidence
+          let tripleEvidence := encrypt_triple_success_evidence_of_generated
+            (kem := kem) triple conditions headroom aead oracleOf codewordView
+            hz80 hz32 hzKeys hgeneratedOutput hnext hsparse hsendCandidate braidEvidence
+          obtain ⟨tripleEvidence⟩ := tripleEvidence
+          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+            (.triple tripleEvidence)
+
+/-! ## Exact positive receive prefix (experimental composition interface)
+
+The full `InitialRatchetModelSuccessFacts` record necessarily includes the
+Triple result and the AEAD plaintext.  That is too late a boundary for the
+public result split: after decoding, the two DH agreements and the ordered
+random draw have succeeded, the proof still has to derive the Triple result
+from the exact generated receive prefix and only then relate the AEAD result.
+
+This record stops at that boundary.  In particular it contains neither a
+Triple candidate/message key nor an AEAD outcome. -/
+structure InitialRatchetModelPositivePrefix
+    (view : Model.Lifecycle.CodewordView) (oracle oracleAfter : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8) : Type where
+  modelComposite : Model.CompositeHeader.Composite
+  ciphertext : Bytes
+  modelDhOutRecv : Model.Lifecycle.Key
+  draw : Model.Lifecycle.Key
+  modelDhOutSend : Model.Lifecycle.Key
+  hready : Model.Lifecycle.agreementFailed model = false
+  hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+    .ok (modelComposite, ciphertext)
+  hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+    some modelDhOutRecv
+  hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleAfter)
+  hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend
+
+def InitialRatchetModelSuccessFacts.toPositivePrefix
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) :
+    InitialRatchetModelPositivePrefix view oracle oracleNext model message :=
+  { modelComposite := facts.modelComposite
+    ciphertext := facts.ciphertext
+    modelDhOutRecv := facts.modelDhOutRecv
+    draw := facts.draw
+    modelDhOutSend := facts.modelDhOutSend
+    hready := facts.hready
+    hdecodeModel := facts.hdecodeModel
+    hmodelFirst := facts.hmodelFirst
+    hmodelDraw := facts.hmodelDraw
+    hmodelSecond := facts.hmodelSecond }
+
+/-! Evidence for the positive Triple receive is indexed by the exact
+`InitialRatchetSuccessPrefix` recovered from the generated Rust result.  The
+model candidate and message key are existential data produced here, rather
+than fields chosen in the earlier model prefix.  The aligned branch records
+whether those exact results came from the direct receive or the bounded retry
+path.  AEAD evidence remains deliberately absent. -/
+structure InitialRatchetExactSuccessReceiveEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message) : Type where
+  modelTripleCandidate : Model.Triple.State
+  modelMk : Model.Lifecycle.Key
+  hmodelReceive : Model.Lifecycle.receiveWithEviction model.triple
+    modelPrefix.modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1) =
+    .ok (modelTripleCandidate, modelMk)
+  branch : InitialRatchetSuccessReceiveBranch
+    successPrefix.decoded.header modelPrefix.modelComposite
+    successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (modelTripleCandidate, modelMk)
+
+/-! The provider cannot manufacture a receive result before seeing the
+generated success prefix.  Its only method is universally indexed by that
+prefix and returns the corresponding exact receive evidence. -/
+structure InitialRatchetExactSuccessReceiveProvider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message) : Type where
+  receive : ∀ successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next,
+    Nonempty (InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)
+
+/-! Recover the exact generated prefix from the actual `decrypt_ratchet = Ok`
+equation before invoking the receive provider.  The sigma result preserves
+the dependency between the chosen prefix and its receive evidence. -/
+noncomputable def initial_ratchet_exact_success_receive_of_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (provider : InitialRatchetExactSuccessReceiveProvider
+      (rc := rc) (crc := crc) (real := real) (rng := rng) (rngNext := rngNext)
+      (plaintext := plaintext) (next := next) modelPrefix) :
+    Nonempty (Sigma fun successPrefix : InitialRatchetSuccessPrefix rc crc real
+      message rng rngNext plaintext next =>
+        InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix) := by
+  let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+    rc crc hz32 hzKeys real message rng rngNext plaintext next hcall)
+  exact ⟨⟨successPrefix, Classical.choice (provider.receive successPrefix)⟩⟩
+
+/-! Complete the old model-success record only after the exact receive
+evidence and the AEAD result have both been established.  This is the adapter
+that lets the staged interface feed the existing success splice without
+weakening that splice. -/
+def initial_ratchet_model_success_facts_of_positive_receive
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (receive : InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)
+    (modelPlaintext : Bytes)
+    (hmodelAead : oracle.aeadOpen
+      (Model.State.messageKeys receive.modelMk .tacenta).1
+      (Model.State.messageKeys receive.modelMk .tacenta).2.1
+      (Model.State.messageKeys receive.modelMk .tacenta).2.2
+      modelPrefix.ciphertext
+      (Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelPrefix.modelComposite)) =
+      some modelPlaintext) :
+    InitialRatchetModelSuccessFacts view oracle oracleAfter model message :=
+  { modelComposite := modelPrefix.modelComposite
+    ciphertext := modelPrefix.ciphertext
+    modelPlaintext := modelPlaintext
+    modelDhOutRecv := modelPrefix.modelDhOutRecv
+    draw := modelPrefix.draw
+    modelDhOutSend := modelPrefix.modelDhOutSend
+    modelTripleCandidate := receive.modelTripleCandidate
+    modelMk := receive.modelMk
+    hready := modelPrefix.hready
+    hdecodeModel := modelPrefix.hdecodeModel
+    hmodelFirst := modelPrefix.hmodelFirst
+    hmodelDraw := modelPrefix.hmodelDraw
+    hmodelSecond := modelPrefix.hmodelSecond
+    hmodelTriple := receive.hmodelReceive
+    hmodelAead := hmodelAead }
+
+/-! Direct-arm constructor.  It feeds the exact generated direct result into
+the existing discharged Triple theorem.  The resulting model candidate/key
+and aligned branch are therefore consequences of the concrete call and the
+named Triple contracts, rather than caller-selected outcomes. -/
+theorem initial_ratchet_exact_success_receive_of_direct_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (hAttempt : lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput =
+        ok (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)))
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    (hrel : SessionRefines dh K real model)
+    (hrecvKey : modelPrefix.modelDhOutRecv =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.recvSecret)
+    (hsendKey : modelPrefix.modelDhOutSend =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.sendSecret)
+    (hnewKey : oracle.dhPublic modelPrefix.draw =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.newPublicBytes)
+    (hmodelOutput :
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid
+            modelPrefix.modelComposite)).2.1) =
+      successPrefix.sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    (mh : Model.State.Header)
+    (hmodelHeader : Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite =
+      { dr := mh, epoch := successPrefix.realHeader.epoch.val,
+        pqN := successPrefix.realHeader.pq_n.val })
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR
+      successPrefix.realHeader.dr mh)
+    (hone : (model.triple.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max model.triple.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : model.triple.classical.events + 1 < Std.U32.max)
+    (hepoch : model.triple.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : model.triple.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ model.triple.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ model.triple.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, successPrefix.sparseOutput = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : model.triple.postQuantum.skipped.length +
+      Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (model.triple.postQuantum.skipped.filter
+      (fun x => x.1 == successPrefix.realHeader.epoch.val &&
+        x.2.1 == successPrefix.realHeader.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ model.triple.postQuantum.chains,
+      ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max) :
+    Nonempty (InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix) := by
+  have hrealDirect := initial_ratchet_success_prefix_direct_receive successPrefix hAttempt
+  obtain ⟨modelCandidate, modelKey, hmodelDirect, haligned⟩ :=
+    aggregate_receive_aligned_case_of_direct_contracts
+      successPrefix.decoded.header modelPrefix.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+      (oracle.dhPublic modelPrefix.draw) successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid
+            modelPrefix.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel.triple
+      hrecvKey hsendKey hnewKey hmodelOutput mh hmodelHeader hheader hone hs hevents
+      hepoch hroom hcb hsb hnewb hskiproom hone2 hcounter hrealDirect
+  let hmodelReceive := model_receive_with_eviction_of_receive model.triple
+    modelPrefix.modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    (modelCandidate, modelKey) hmodelDirect
+  refine ⟨{
+    modelTripleCandidate := modelCandidate
+    modelMk := modelKey
+    hmodelReceive := hmodelReceive
+    branch := ?_
+  }⟩
+  exact initial_ratchet_success_branch_of_aligned_case
+    successPrefix.decoded.header modelPrefix.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw) successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (modelCandidate, modelKey) successPrefix.htriple hmodelReceive haligned
 
 end Tacenta.UnitLifecycleT3

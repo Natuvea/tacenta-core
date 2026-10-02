@@ -284,6 +284,25 @@ info: 'Tacenta.UnitT3.receive_refines' depends on axioms: [propext,
 #print axioms Tacenta.UnitT3.receive_refines
 
 /--
+info: 'Tacenta.UnitT3.receive_store_full_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.tacenta_kdf.hmac_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.pop,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitT3.receive_store_full_refines
+
+/--
 info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -354,6 +373,33 @@ info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT3.receive_refines
+
+/--
+info: 'Tacenta.UnitSpqrT3.receive_store_full_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
+ tacenta_triple_unit.alloc.vec.Vec.pop,
+ tacenta_triple_unit.core.option.Option.as_mut,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSpqrT3.receive_store_full_refines
 
 /-! ## The Triple's refinement on the unit, with both bundles discharged
 
@@ -479,3 +525,33 @@ info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [prop
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT3.receive_refines_discharged
+
+/--
+info: 'Tacenta.UnitTripleT3.receive_store_full_refines_discharged' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.tacenta_kdf.hmac_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
+ tacenta_triple_unit.alloc.vec.Vec.pop,
+ tacenta_triple_unit.core.option.Option.as_mut,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitTripleT3.receive_store_full_refines_discharged

@@ -210,6 +210,24 @@ PY
 expect_fail "missing-claimed-theorem" 'CLAIMS.md claims `P9MissingTheorem` but no such theorem is declared' --check
 
 make_case
+python3 - "$work/tacenta-proofs/translation/Translation/UnitLifecyclePublicT1.lean" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+pattern = re.compile(
+    r"/-- info: 'Tacenta\.UnitLifecycleT1\.encrypt_no_panic' depends on axioms: "
+    r"\[.*?\] -/\n#guard_msgs in\n"
+    r"#print axioms Tacenta\.UnitLifecycleT1\.encrypt_no_panic\n",
+    re.S,
+)
+text, count = pattern.subn("", text)
+if count != 1:
+    raise SystemExit(f"expected one Session T1 pin, removed {count}")
+path.write_text(text)
+PY
+expect_fail "claimed-session-t1-without-pin" 'claimed Session T1 theorem `Tacenta.UnitLifecycleT1.encrypt_no_panic` is not axiom-pinned' --check
+
+make_case
 rm "$work/tacenta-proofs/manifests/verification-manifest.json"
 expect_fail "missing-verification-manifest" "tacenta-proofs/manifests/verification-manifest.json is missing" --check
 

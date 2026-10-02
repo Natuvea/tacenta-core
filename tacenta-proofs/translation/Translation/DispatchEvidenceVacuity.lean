@@ -34,12 +34,17 @@ about the product.
   and the oracle's `dhPublic` clause that contradicts `PublicKeyNotConstant`, a statement about the
   real X25519 public-key function that this repository tests and does not prove (the two
   `false_of_publicKeyNotConstant` results).
-* **E.** `OracleOf.kemEncapsulateSuccess` makes the model's KEM oracle accept every public key at
-  every draw that a trace has, and the translated `encapsulate` never return `Err` while the trace
-  has a draw (`oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`). This is not a
-  refutation: `encapsulate` is an opaque constant, and that the shipped function returns `Err` on a
-  malformed key is read from `tacenta-core/boundary/src/kem.rs` and tested for a wrong length
-  (`GAP-REGISTER.md`, row `E2E-04`).
+* **E.** The KEM success clause `OracleOf` had before its repair, kept as
+  `KemEncapsulateUnguarded`, makes the model's KEM oracle accept every public key at every draw
+  that a trace has, and the translated `encapsulate` never return `Err` while the trace has a draw
+  (`oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`). This is not a refutation:
+  `encapsulate` is an opaque constant, and that the shipped function returns `Err` on a malformed
+  key is read from `tacenta-core/boundary/src/kem.rs` and tested for a wrong length
+  (`GAP-REGISTER.md`, row `E2E-04`). `OracleOf` no longer has that clause.
+
+The records of results A and C and the old KEM field of result E are no longer taken by any
+theorem; each is kept unchanged, with a doc comment naming its replacement, so that the results
+here still elaborate as stated.
 
 **Platform width.** No result case-splits on the width of `usize`, and none uses a fact about
 `Usize.max` other than the bounds Aeneas proves for the platform constant, which is `U32.max` or
@@ -927,42 +932,56 @@ section KemOracle
 open tacenta_session_unit
 open Tacenta.UnitLifecycleT3
 
-/-! ## E. What `OracleOf.kemEncapsulateSuccess` costs inside the model
+/-! ## E. What the unguarded KEM success clause cost inside the model
 
-The clause asserts, for every public key and every RNG state that still has a draw, that the
-translated `encapsulate` returns `Ok` with the oracle's result. The shipped function returns
-`Err(KemError)` for a wrong length or a failed `validate_public_key` before it draws
-(`tacenta-core/boundary/src/kem.rs`). `GAP-REGISTER.md`, row `E2E-04`, records that. The two
-theorems show what the clause asserts inside the model: the model's oracle never refuses an
-encapsulation key at any draw, and the call never returns `Err` while the trace has a draw, so the
-premise of the clause `kemEncapsulateError` cannot hold while a draw remains. -/
+Before the KEM repair, `OracleOf.kemEncapsulateSuccess` asserted, for every public key and every RNG
+state that still has a draw, that the translated `encapsulate` returns `Ok` with the oracle's
+result. The shipped function returns `Err(KemError)` for a wrong length or a failed
+`validate_public_key` before it draws (`tacenta-core/boundary/src/kem.rs`). `OracleOf` now asks for
+success only where the model's `kemEncaps` returns `some`, and adds a pre-draw refusal clause
+(`kemInvalidKey`) and a converse (`kemEncapsulateError`), so the two theorems below are stated of
+`KemEncapsulateUnguarded`, the old field kept as a definition that no consumer takes. They show
+what the old field asserted inside the model: the model's oracle never refuses an encapsulation
+key at any draw, and the call never returns `Err` while the trace has a draw.
+`UnitLifecycleIntegrationScreen.lean` shows the repaired clauses follow from three laws about the
+shipped function that a model with a refused key satisfies. -/
 
-/-- `OracleOf.kemEncapsulateSuccess` is unguarded: for every public key and every RNG
-state that still has a draw, the translated boundary call returns `Ok`.  So the clause
-makes the model's oracle never refuse an encapsulation key at any draw. -/
+/-- The `kemEncapsulateSuccess` field of `OracleOf` before the KEM repair, unchanged: success
+for every public key at every draw. No consumer takes it. -/
+def KemEncapsulateUnguarded {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle) : Prop :=
+  ∀ publicKey rng draw rest, trace rng = draw :: rest →
+    ∃ result rng',
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+        ok (.Ok result, rng') ∧
+      trace rng' = rest ∧
+      encapsulationOf (.Ok result) = oracle.kemEncaps (sliceOf publicKey) draw
+
+/-- The unguarded clause makes the model's oracle never refuse an encapsulation key at any draw. -/
 theorem oracleOf_kem_oracle_never_refuses
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {trace : R → List Model.Lifecycle.Key}
     {oracle : Model.Lifecycle.Oracle}
-    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (kemClause : KemEncapsulateUnguarded rc crc trace oracle)
     (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
     (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) :
     ∃ r, oracle.kemEncaps (sliceOf publicKey) draw = some r := by
-  obtain ⟨result, rng', _, _, hres⟩ := oracleOf.kemEncapsulateSuccess publicKey rng draw rest h
+  obtain ⟨result, rng', _, _, hres⟩ := kemClause publicKey rng draw rest h
   exact ⟨_, hres.symm⟩
 
-/-- And the boundary call itself never returns `Err` while the RNG has a draw. -/
+/-- And under it the boundary call itself never returns `Err` while the RNG has a draw. -/
 theorem oracleOf_kem_call_never_errs
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {trace : R → List Model.Lifecycle.Key}
     {oracle : Model.Lifecycle.Oracle}
-    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (kemClause : KemEncapsulateUnguarded rc crc trace oracle)
     (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
     (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest)
     (rng' : R) (error : tacenta_boundary.kem.KemError) :
     tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (.Err error, rng') := by
   intro hcall
-  obtain ⟨result, rng'', hok, _, _⟩ := oracleOf.kemEncapsulateSuccess publicKey rng draw rest h
+  obtain ⟨result, rng'', hok, _, _⟩ := kemClause publicKey rng draw rest h
   rw [hcall] at hok
   have := Result.ok.inj hok
   have := (Prod.mk.inj this).1
@@ -1735,19 +1754,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses' depend
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.rand_core_1.error.Error,
- tacenta_session_unit.tacenta_boundary.aead.decrypt,
- tacenta_session_unit.tacenta_boundary.aead.encrypt,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
- tacenta_session_unit.tacenta_boundary.kem.KeyPair,
- tacenta_session_unit.tacenta_boundary.kem.decapsulate,
- tacenta_session_unit.tacenta_boundary.kem.encapsulate,
- tacenta_session_unit.tacenta_boundary.xeddsa.sign,
- tacenta_session_unit.tacenta_boundary.xeddsa.verify,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate]
 -/
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
@@ -1755,10 +1762,10 @@ info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses' depend
 /--
 info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
-  {trace : R → List Model.Lifecycle.Key} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
-  {oracle : Model.Lifecycle.Oracle} (oracleOf : Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle)
-  (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
-  (h : trace rng = draw :: rest) : ∃ r, oracle.kemEncaps (Tacenta.UnitLifecycleT3.sliceOf publicKey) draw = some r
+  {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
+  (kemClause : Tacenta.DispatchEvidenceVacuity.KemEncapsulateUnguarded rc crc trace oracle) (publicKey : Slice U8)
+  (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) :
+  ∃ r, oracle.kemEncaps (Tacenta.UnitLifecycleT3.sliceOf publicKey) draw = some r
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
@@ -1768,19 +1775,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs' depends on 
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.rand_core_1.error.Error,
- tacenta_session_unit.tacenta_boundary.aead.decrypt,
- tacenta_session_unit.tacenta_boundary.aead.encrypt,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
- tacenta_session_unit.tacenta_boundary.kem.KeyPair,
- tacenta_session_unit.tacenta_boundary.kem.decapsulate,
- tacenta_session_unit.tacenta_boundary.kem.encapsulate,
- tacenta_session_unit.tacenta_boundary.xeddsa.sign,
- tacenta_session_unit.tacenta_boundary.xeddsa.verify,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate]
 -/
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs
@@ -1788,10 +1783,10 @@ info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs' depends on 
 /--
 info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
-  {trace : R → List Model.Lifecycle.Key} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
-  {oracle : Model.Lifecycle.Oracle} (oracleOf : Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle)
-  (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
-  (h : trace rng = draw :: rest) (rng' : R) (error : tacenta_session_unit.tacenta_boundary.kem.KemError) :
+  {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
+  (kemClause : Tacenta.DispatchEvidenceVacuity.KemEncapsulateUnguarded rc crc trace oracle) (publicKey : Slice U8)
+  (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) (rng' : R)
+  (error : tacenta_session_unit.tacenta_boundary.kem.KemError) :
   tacenta_session_unit.tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (core.result.Result.Err error, rng')
 -/
 #guard_msgs in

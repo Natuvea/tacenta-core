@@ -25,9 +25,10 @@ abbrev Iv := Bytes
 /-- Results supplied by the trusted primitive boundary.
 
     `draws` is ordered. Operations that need randomness consume its head and
-    return the oracle containing its tail. `kemEncaps` and `sigSign` take that
-    draw explicitly, so using the wrong draw or calling them in the wrong order
-    changes the model result. A KEM refusal is allowed to preserve the oracle:
+    return the oracle containing its tail. KEM encapsulation consumes one
+    32-byte draw; XEdDSA signing consumes two consecutive 32-byte draws (the
+    64-byte `Z` buffer filled by the shipping signer). Using the wrong draw or
+    calling a primitive in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
     the shipping boundary validates the public key before it asks the RNG for
     bytes. -/
 structure Oracle where
@@ -48,10 +49,12 @@ structure Oracle where
   identityValid : Key → Bool
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
   aeadOpen : Key → Key → Iv → Bytes → Bytes → Option Bytes
+  /-- Whether the public key passes the boundary's pre-RNG validation. -/
+  kemValid : Bytes → Bool
   kemEncaps : Bytes → Key → Option (Bytes × Key)
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
-  sigSign : Key → Bytes → Key → Bytes
+  sigSign : Key → Bytes → Key → Key → Bytes
 
 /-- Executable view of the erasure codeword relation already used by the Braid
     refinement. A wire codeword does not reveal the Braid model's ghost source,
@@ -101,17 +104,21 @@ def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
     matches the boundary's validation-before-`fill_bytes` order. -/
 def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     Option (Option (Bytes × Key) × Oracle) := do
+  if !oracle.kemValid publicKey then
+    return (none, oracle)
   let (draw, rest) ← takeDraw oracle
   match oracle.kemEncaps publicKey draw with
   | none => some (none, oracle)
   | some result => some (some result, rest)
 
-/-- Signing consumes exactly one draw and binds the result to the secret,
-    message and draw supplied to the primitive. -/
+/-- Signing consumes exactly two ordered 32-byte draws, which together model
+    the signer's 64-byte `Z` buffer, and binds the result to the secret,
+    message and both draws supplied to the primitive. -/
 def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
-    Option (Bytes × Oracle) := do
-  let (draw, rest) ← takeDraw oracle
-  some (oracle.sigSign secret message draw, rest)
+  Option (Bytes × Oracle) := do
+  let (draw1, afterFirst) ← takeDraw oracle
+  let (draw2, rest) ← takeDraw afterFirst
+  some (oracle.sigSign secret message draw1 draw2, rest)
 
 /-- The two Braid send states that make a fresh 32-byte random draw. Other
     states accept a `rand` argument in the leaf model but do not inspect it, so
@@ -176,11 +183,13 @@ theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
 
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
+    oracle.kemValid publicKey = true →
     kemEncapsulate oracle publicKey =
       match oracle.kemEncaps publicKey draw with
       | none => some (none, oracle)
       | some result => some (some result, { oracle with draws := rest }) := by
-  simp [kemEncapsulate, takeDraw, h]
+  intro hvalid
+  simp [kemEncapsulate, takeDraw, h, hvalid]
 
 /-- A malformed KEM key is a no-draw refusal. This regression theorem is
     deliberately indexed by the model's refusal result and catches a model
@@ -188,14 +197,22 @@ theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
 theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
     (rest : List Key) (publicKey : Bytes)
     (h : oracle.draws = draw :: rest)
+    (hvalid : oracle.kemValid publicKey = true)
     (hkem : oracle.kemEncaps publicKey draw = none) :
     kemEncapsulate oracle publicKey = some (none, oracle) := by
-  simp [kemEncapsulate, takeDraw, h, hkem]
+  simp [kemEncapsulate, takeDraw, h, hvalid, hkem]
 
-theorem sign_cons (oracle : Oracle) (draw : Key) (rest : List Key)
-    (secret : Key) (message : Bytes) (h : oracle.draws = draw :: rest) :
+theorem kemEncapsulate_refusal_with_empty_trace (oracle : Oracle)
+    (publicKey : Bytes) (hvalid : oracle.kemValid publicKey = false)
+    (h : oracle.draws = []) :
+    kemEncapsulate oracle publicKey = some (none, oracle) := by
+  simp [kemEncapsulate, hvalid, h]
+
+theorem sign_cons (oracle : Oracle) (draw1 draw2 : Key) (rest : List Key)
+    (secret : Key) (message : Bytes)
+    (h : oracle.draws = draw1 :: draw2 :: rest) :
     sign oracle secret message =
-      some (oracle.sigSign secret message draw, { oracle with draws := rest }) := by
+      some (oracle.sigSign secret message draw1 draw2, { oracle with draws := rest }) := by
   simp [sign, takeDraw, h]
 
 /-! ## Repeated initial recognition
@@ -864,6 +881,82 @@ def receiveWithEviction (state : Model.Triple.State)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
 
+/-- Public, result-shaped view of the bounded receive retry loop.  This is a
+    transparent relation to the private recursive definition: downstream
+    proofs can state and compose the observable result without naming that
+    private definition directly. -/
+def ReceiveWithEvictionLoopResult (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key)) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub
+    output pending half batch fuel = result
+
+/-- The transparent result relation is functional in its result argument.
+    This anonymous check deliberately depends on both witnesses: weakening
+    the relation to `True`, or dropping `result`, makes the proof fail. -/
+example (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (left right : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hLeft : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel left)
+    (hRight : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel right) :
+    left = right := by
+  unfold ReceiveWithEvictionLoopResult at hLeft hRight
+  exact hLeft.symm.trans hRight
+
+/-- A nonempty eviction followed by a successful detailed receive is a
+    successful public retry-loop result. -/
+theorem receiveWithEvictionLoopResult_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (evictedState resultState : Model.Triple.State)
+    (evicted : Nat) (messageKey : Key)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .ok (resultState, messageKey)) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) (.ok (resultState, messageKey)) := by
+  unfold ReceiveWithEvictionLoopResult
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
+/-- Reattach a public loop-result witness to the public lifecycle receive
+    wrapper at its exact initial shortfall and fuel. -/
+theorem receiveWithEviction_of_loop_result
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hLoop : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output reason half (receiveShortfall half state composite)
+      (Model.Triple.classicalSkippedLength state
+        + Model.Triple.postQuantumSkippedLength state + 1) result) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output =
+      result := by
+  unfold ReceiveWithEvictionLoopResult at hLoop
+  simp [receiveWithEviction, hDirect, hFull, hLoop]
+
 /-- A single successful retry is exposed for the translation composition.
 The theorem names the direct refusal, the selected full-store half, the
 working-copy eviction and the successful retry; it does not hide those facts
@@ -944,6 +1037,34 @@ theorem receiveWithEvictionLoop_continue_same_half
         newDhsPub output reason half (batch * 2) fuel := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull]
 
+/-- Lift a result for the decremented same-half retry into a result for the
+    current retry step.  Only the public result relation crosses this API. -/
+theorem receiveWithEvictionLoopResult_continue_same_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hNext : ReceiveWithEvictionLoopResult evictedState composite header
+      dhOutRecv dhOutSend newDhsPub output reason half (batch * 2) fuel result) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) result := by
+  unfold ReceiveWithEvictionLoopResult at hNext ⊢
+  exact (receiveWithEvictionLoop_continue_same_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half batch fuel
+    evictedState evicted hEvict hNonzero hRetry hFull).trans hNext
+
 /-! Public proposition wrapper for the private loop equation.  Translation
     proofs can carry this relation across the model boundary without naming
     the implementation-private recursive function. -/
@@ -1016,6 +1137,36 @@ theorem receiveWithEvictionLoop_continue_switch_half
   cases half <;> cases nextHalf <;>
     simp_all [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull, hDifferent]
 
+/-- Lift a result for a retry that switches full-store halves into a result
+    for the current retry step. -/
+theorem receiveWithEvictionLoopResult_continue_switch_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half)
+    (hNext : ReceiveWithEvictionLoopResult evictedState composite header
+      dhOutRecv dhOutSend newDhsPub output reason nextHalf
+      (receiveShortfall nextHalf evictedState composite) fuel result) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) result := by
+  unfold ReceiveWithEvictionLoopResult at hNext ⊢
+  exact (receiveWithEvictionLoop_continue_switch_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half nextHalf batch fuel
+    evictedState evicted hEvict hNonzero hRetry hFull hDifferent).trans hNext
+
 def receiveWithEvictionLoopSwitchHalf
     (state : Model.Triple.State)
     (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
@@ -1078,6 +1229,26 @@ theorem receiveWithEvictionLoop_zero_evict
     receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
       pending half batch (fuel + 1) = .error pending := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict]
+
+/-- A zero-entry eviction preserves and returns the pending refusal without
+    making another receive attempt. -/
+theorem receiveWithEvictionLoopResult_zero_evict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, 0)) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) (.error pending) := by
+  unfold ReceiveWithEvictionLoopResult
+  exact receiveWithEvictionLoop_zero_evict state composite header dhOutRecv
+    dhOutSend newDhsPub output pending half batch fuel evictedState hEvict
 
 def receiveWithEvictionLoopZeroEvict
     (state : Model.Triple.State)
@@ -1844,9 +2015,10 @@ def toyOracle (draws : List Key) : Oracle where
       some (ciphertext.drop Model.Kdf.hashLen)
     else none
   kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
+  kemValid := fun _ => true
   kemDecaps := fun _ _ => some (List.replicate 32 0xee)
   sigVerify := fun _ _ _ => true
-  sigSign := fun _ _ _ => List.replicate 64 0x55
+  sigSign := fun _ _ _ _ => List.replicate 64 0x55
 
 def toyAlice (secret : Key) : Session :=
   { triple := Model.Triple.initAlice secret (List.replicate 32 0x21)
