@@ -1,7 +1,8 @@
 # Gap register
 
 Current register for assurance gate 2. Historical independent-reader reports stay
-unchanged under `tacenta-test-vectors/runners/independent/`; this file records
+unchanged under `tacenta-test-vectors/runners/independent/`, except for run tallies and the
+one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 

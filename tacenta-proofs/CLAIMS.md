@@ -566,15 +566,16 @@ one-token change to its proof. The session evicts only on `SkippedStoreFull`,
 and the session proofs take the refusal kind as a hypothesis (`hreason`). The
 refusal kind and the order are tested only, by `tacenta-spqr`'s unit tests and
 the differential harness. Its statement is pinned in
-`Translation/SparseSkipStatementPin.lean`. No other theorem uses the refusal
-clause `r.2 = s`: `receive_refines_continuation` and `receive_refines` state
-their refusals as an error alone. The clause is held only by that pin's text,
+`Translation/SparseSkipStatementPin.lean`. No other proof reads the refusal
+clause `r.2 = s` of this statement: `receive_refines_continuation` discards it, and
+`receive_refines_continuation` and `receive_refines` state their refusals as an
+error alone. The clause is held only by that pin's text,
 which the build holds and no gate yet requires. Removing the clause from the
 theorem and from the pin together passes the build and every gate, and so does
 deleting the file and its import, once the manifests are refreshed. The unit
 copies are generated from it (`port-unit-proofs.sh`,
-`port-session-unit-proofs.sh`). Its hypotheses `hroom` and `hskiproom` are proved for a state `State::from_bytes` returns
-("Proved: what a decoded state satisfies"). Nothing in this change adds a
+`port-session-unit-proofs.sh`). Its hypotheses `hroom` and `hskiproom` are proved for a state
+`State::from_bytes` returns ("Proved: what a decoded state satisfies"). Nothing in this change adds a
 hypothesis, an axiom or an entry to the trusted base.
 
 **Tested only.** That the Rust source, as distinct from its translation, refuses
