@@ -349,7 +349,11 @@ def main():
                     'invert-encrypt-braid-draw-trace': '  drawTrace :',
                     'invert-encrypt-braid-draw-post': '  drawPost :',
                 }
-                start = source.find(markers[name])
+                # The three trace clauses are those of the live, counted agreement; the
+                # superseded one-draw form earlier in the file is taken by no proof.
+                base = (source.find('structure BraidSendTraceAgreementCounted')
+                        if name.startswith('invert-encrypt-braid-') else 0)
+                start = source.find(markers[name], base) if base >= 0 else -1
                 target = source.find(before, start)
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: named provider guard is missing')

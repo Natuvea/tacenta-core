@@ -194,7 +194,7 @@ example :
     let start : State :=
       { alice := toyAlice toySecret
         bob := toyBob toySecret
-        aliceOracle := toyOracle [toyAgreementDraw]
+        aliceOracle := toyOracle toyAgreementDraws
         bobOracle := toyOracle [List.replicate 32 0x32, List.replicate 32 0x33]
         queue := []
         history := []
@@ -216,7 +216,7 @@ example :
     let start : State :=
       { alice := toyAlice toySecret
         bob := toyBob toySecret
-        aliceOracle := toyOracle [toyAgreementDraw]
+        aliceOracle := toyOracle toyAgreementDraws
         bobOracle := toyOracle [List.replicate 32 0x32, List.replicate 32 0x33]
         queue := []
         history := []
@@ -239,7 +239,7 @@ example :
     let start : State :=
       { alice := toyAlice toySecret
         bob := toyBob toySecret
-        aliceOracle := toyOracle [toyAgreementDraw]
+        aliceOracle := toyOracle toyAgreementDraws
         bobOracle := toyOracle [List.replicate 32 0x32]
         queue := []
         history := []
@@ -259,7 +259,7 @@ example :
     let start : State :=
       { alice := toyAlice toySecret
         bob := toyBob toySecret
-        aliceOracle := toyOracle [toyAgreementDraw]
+        aliceOracle := toyOracle toyAgreementDraws
         bobOracle := toyOracle []
         queue := []
         history := []

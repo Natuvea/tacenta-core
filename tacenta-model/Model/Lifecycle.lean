@@ -120,7 +120,7 @@ def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
   let (draw2, rest) ← takeDraw afterFirst
   some (oracle.sigSign secret message draw1 draw2, rest)
 
-/-- The two Braid send states that make a fresh 32-byte random draw. Other
+/-- The two Braid send states that read fresh randomness. Other
     states accept a `rand` argument in the leaf model but do not inspect it, so
     the lifecycle must not consume a caller draw there. -/
 def braidSendNeedsDraw : Model.Braid.BraidState → Bool
@@ -128,20 +128,53 @@ def braidSendNeedsDraw : Model.Braid.BraidState → Bool
   | .headerReceived .. => true
   | _ => false
 
-/-- Interpret the Braid's 32-byte draw as the natural-number randomness used
+/-- How many ordered 32-byte draws a Braid send reads: key generation fills a
+    64-byte seed `d || z` (mlkem-braid.md, "Key generation draws 64 random
+    bytes"), which is two draws, and the first half of encapsulation fills 32
+    bytes `m`, which is one. The other states read none. -/
+def braidSendDrawCount : Model.Braid.BraidState → Nat
+  | .keysUnsampled .. => 2
+  | .headerReceived .. => 1
+  | _ => 0
+
+/-- Interpret the Braid's random bytes as the natural-number randomness used
     by its existing model. This is the same complete byte string, little-endian,
     rather than a fresh or reordered value. -/
 def braidRandomness (draw : Key) : Nat := Model.Messages.leValue draw
 
+/-- Take `n` ordered draws, or `none` if the oracle holds fewer. -/
+def takeDraws : Nat → Oracle → Option (List Key × Oracle)
+  | 0, oracle => some ([], oracle)
+  | n + 1, oracle => do
+      let (draw, afterFirst) ← takeDraw oracle
+      let (draws, rest) ← takeDraws n afterFirst
+      some (draw :: draws, rest)
+
+theorem takeDraws_append (oracle : Oracle) (draws rest : List Key)
+    (h : oracle.draws = draws ++ rest) :
+    takeDraws draws.length oracle = some (draws, { oracle with draws := rest }) := by
+  induction draws generalizing oracle with
+  | nil =>
+    cases oracle
+    simp_all [takeDraws]
+  | cons draw draws ih =>
+    have hfirst : takeDraw oracle = some (draw, { oracle with draws := draws ++ rest }) := by
+      simp [takeDraw, h]
+    simp only [List.length_cons, takeDraws, hfirst, Option.bind_eq_bind, Option.bind_some]
+    rw [ih { oracle with draws := draws ++ rest } rfl]
+    simp
+
 /-- Run the agreement send and consume exactly the randomness the shipping
-    state consumes. The KEM record is the existing Braid model boundary carried
-    by the oracle; it is not an additional shipping primitive. -/
+    state consumes: two draws for key generation, one for the first half of
+    encapsulation, none otherwise. The KEM record is the existing Braid model
+    boundary carried by the oracle; it is not an additional shipping
+    primitive. -/
 def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
     Option ((Option Model.Braid.Msg × Nat × Option Model.Braid.Output ×
       Model.Braid.BraidState) × Oracle) :=
   if braidSendNeedsDraw state then do
-    let (draw, rest) ← takeDraw oracle
-    some (Model.Braid.send oracle.braidKem (braidRandomness draw) state, rest)
+    let (draws, rest) ← takeDraws (braidSendDrawCount state) oracle
+    some (Model.Braid.send oracle.braidKem (braidRandomness draws.flatten) state, rest)
   else
     some (Model.Braid.send oracle.braidKem 0 state, oracle)
 
@@ -173,13 +206,15 @@ theorem sendAgreement_of_no_draw_exists
   rw [sendAgreement_no_draw oracle state h]
   rw [braid_send_random_irrelevant_of_no_draw oracle.braidKem state h rand]
 
-theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
-    (draw : Key) (rest : List Key) (hn : braidSendNeedsDraw state = true)
-    (hd : oracle.draws = draw :: rest) :
+theorem sendAgreement_draws (oracle : Oracle) (state : Model.Braid.BraidState)
+    (draws rest : List Key) (hn : braidSendNeedsDraw state = true)
+    (hcount : draws.length = braidSendDrawCount state)
+    (hd : oracle.draws = draws ++ rest) :
     sendAgreement oracle state =
-      some (Model.Braid.send oracle.braidKem (braidRandomness draw) state,
+      some (Model.Braid.send oracle.braidKem (braidRandomness draws.flatten) state,
         { oracle with draws := rest }) := by
-  simp [sendAgreement, hn, takeDraw, hd]
+  rw [sendAgreement, if_pos hn, ← hcount, takeDraws_append oracle draws rest hd]
+  rfl
 
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
@@ -1939,6 +1974,9 @@ namespace Examples
 def toySecret : Key := List.replicate 32 0x42
 def toyAgreementDraw : Key := List.replicate 32 0x31
 
+/-- The two draws the toy initiator's first Braid send reads for key generation. -/
+def toyAgreementDraws : List Key := [toyAgreementDraw, List.replicate 32 0x34]
+
 def toyPrekeyStore : PrekeyStore :=
   { state :=
       { (default : StoredPrekeys) with
@@ -1989,7 +2027,7 @@ example :
   simp [lastResortReplayCheck]
 
 def toyCodewordSourceFor (secret : Key) : Bytes :=
-  match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraw)
+  match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraws.flatten)
       (Model.Braid.initAlice secret)).1 with
   | some message => message.data.map (fun chunk => chunk.source) |>.getD []
   | none => []
@@ -2102,7 +2140,7 @@ def toyOneTimeEstablishedSecret : Key :=
     wire codecs and the AEAD boundary. Fixed toy primitives make it executable;
     the boundary-refinement work later replaces them with related Rust calls. -/
 example :
-    let sent := encrypt toyView (toyOracle [toyAgreementDraw])
+    let sent := encrypt toyView (toyOracle toyAgreementDraws)
       (toyAlice toySecret) [0xde, 0xad]
     (match sent.result with
       | .error _ => false
@@ -2124,7 +2162,7 @@ example :
       | .error _ => false
       | .ok alice =>
           let sent := encrypt (toyViewFor toyEstablishedSecret)
-            (toyOracle [toyAgreementDraw]) alice [0xde, 0xad]
+            (toyOracle toyAgreementDraws) alice [0xde, 0xad]
           match sent.result with
           | .error _ => false
           | .ok wire =>
@@ -2148,7 +2186,7 @@ example :
       | .error _ => false
       | .ok alice =>
           let sent := encrypt (toyViewFor toyOneTimeEstablishedSecret)
-            (toyOracle [toyAgreementDraw]) alice [0xca, 0xfe]
+            (toyOracle toyAgreementDraws) alice [0xca, 0xfe]
           match sent.result with
           | .error _ => false
           | .ok wire =>

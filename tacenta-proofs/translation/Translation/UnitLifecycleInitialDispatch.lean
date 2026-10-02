@@ -14063,6 +14063,10 @@ def EncryptEvidenceForGeneratedPrefix
     that the concrete RNG trace is unchanged.  Its draw clauses expose the
     exact consumed head and tie the generated Braid result to that head's
     model randomness. -/
+/-- Superseded by `BraidSendTraceAgreementCounted`: this form lets a send from `keysUnsampled`
+consume one trace entry, while the shipped key generation fills a 64-byte seed, two entries at a
+byte-stream source. Kept unchanged so that `braidSendTrace_conflicts_with_sigSign` still states
+its conflict with the two-draw signing clause; no consumer takes it. -/
 structure BraidSendTraceAgreement
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (K : Model.Braid.Kem)
@@ -14086,6 +14090,44 @@ structure BraidSendTraceAgreement
     Model.Lifecycle.braidSendNeedsDraw model.braid = true →
     ∀ draw rest, trace rng = draw :: rest → ∃ rand,
       rand = Model.Lifecycle.braidRandomness draw ∧
+      (∀ modelMessage,
+        (Model.Braid.send K rand model.braid).1 = some modelMessage →
+          Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+      realEpoch.val = (Model.Braid.send K rand model.braid).2.2.2.epoch - 1 ∧
+      Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+        (Model.Braid.send K rand model.braid).2.2.1 ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
+        (Model.Braid.send K rand model.braid).2.2.2
+
+/-- The ordered-RNG agreement for the Braid send, with the draw count of the state: a send from
+`keysUnsampled` consumes two trace entries (the 64-byte key-generation seed), one from
+`headerReceived` one (the 32-byte encapsulation randomness), and the model's randomness is the
+consumed draws joined (`Model.Lifecycle.braidSendDrawCount`, `sendAgreement`). -/
+structure BraidSendTraceAgreementCounted
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (rng : R) : Prop where
+  encodersLive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid
+  braidKem : oracle.braidKem = K
+  noDrawTrace : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = false →
+    trace rngNext = trace rng
+  drawTrace : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    ∃ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+      trace rng = draws ++ rest ∧ trace rngNext = rest
+  drawPost : ∀ realMessage realEpoch realOutput realBraidNext rngNext,
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+      trace rng = draws ++ rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draws.flatten ∧
       (∀ modelMessage,
         (Model.Braid.send K rand model.braid).1 = some modelMessage →
           Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
@@ -14141,7 +14183,7 @@ theorem braid_success_evidence_of_generated
     {realOutput : Option tacenta_braid.Output}
     {realBraidNext : tacenta_braid.Braid}
     (contracts : BraidSendRefinementContracts rc K)
-    (agreement : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (agreement : BraidSendTraceAgreementCounted rc crc trace K oracle real model rng)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rng = oracle.draws)
     (hready : Model.Lifecycle.agreementFailed model = false)
@@ -14192,23 +14234,23 @@ theorem braid_success_evidence_of_generated
         traceNext := (agreement.noDrawTrace _ _ _ _ _ hsend hdraw).trans htrace
       }⟩
   | true =>
-      obtain ⟨draw, rest, modelMessageOpt, modelEpoch, modelOutput, modelBraidNext,
-          hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
+      obtain ⟨draws, rest, modelMessageOpt, modelEpoch, modelOutput, modelBraidNext,
+          hcount, hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
         braid_send_model_result_of_draw (R := R) trace oracle model.braid agreement.braidKem
           realMessage realEpoch realOutput realBraidNext rng rngNext htrace
           (agreement.drawTrace _ _ _ _ _ hsend hdraw) hdraw
           (agreement.drawPost _ _ _ _ _ hsend hdraw)
-      have horacle : oracle.draws = draw :: rest := htrace.symm.trans hhead
+      have horacle : oracle.draws = draws ++ rest := htrace.symm.trans hhead
       obtain ⟨modelMessage, hmessageSome⟩ := braid_send_message_some_of_ready
-        oracle.braidKem (Model.Lifecycle.braidRandomness draw) model.braid hmodelReady
+        oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten) model.braid hmodelReady
       have hpairs :
-          (Model.Braid.send oracle.braidKem (Model.Lifecycle.braidRandomness draw)
+          (Model.Braid.send oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten)
               model.braid, { oracle with draws := rest }) =
             ((modelMessageOpt, modelEpoch, modelOutput, modelBraidNext),
               { oracle with draws := rest }) := by
         exact Option.some.inj
-          ((Model.Lifecycle.sendAgreement_draw oracle model.braid draw rest hdraw horacle).symm.trans
-            hsendModel)
+          ((Model.Lifecycle.sendAgreement_draws oracle model.braid draws rest hdraw hcount
+            horacle).symm.trans hsendModel)
       have hmessageOpt : modelMessageOpt = some modelMessage := by
         exact (congrArg (fun value => value.1.1) hpairs).symm.trans hmessageSome
       subst modelMessageOpt
@@ -14532,7 +14574,7 @@ def encrypt_braid_failure_evidence_of_generated
     {realOutput : Option tacenta_braid.Output}
     {realBraidNext : tacenta_braid.Braid}
     (contracts : BraidSendRefinementContracts rc K)
-    (agreement : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (agreement : BraidSendTraceAgreementCounted rc crc trace K oracle real model rng)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rng = oracle.draws)
     (hready : Model.Lifecycle.agreementFailed model = false)
@@ -14590,7 +14632,7 @@ theorem public_session_encrypt_of_send_contracts
     {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
     {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
     (braid : BraidSendRefinementContracts rc K)
-    (braidTrace : BraidSendTraceAgreement rc crc trace K oracle real model rng)
+    (braidTrace : BraidSendTraceAgreementCounted rc crc trace K oracle real model rng)
     (triple : TripleSendRefinementContracts)
     (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
     (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)

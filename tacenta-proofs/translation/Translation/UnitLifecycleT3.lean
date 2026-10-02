@@ -1916,11 +1916,12 @@ theorem braid_send_model_result_of_draw
     (realOutput : Option tacenta_braid.Output)
     (realNext : tacenta_braid.Braid) (rng rngNext : R)
     (htrace : trace rng = oracle.draws)
-    (hdraw : ∃ draw rest, trace rng = draw :: rest ∧
-      trace rngNext = rest)
+    (hdraw : ∃ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model ∧
+      trace rng = draws ++ rest ∧ trace rngNext = rest)
     (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model = true)
-    (hpost : ∀ draw rest, trace rng = draw :: rest → ∃ rand,
-      rand = Model.Lifecycle.braidRandomness draw ∧
+    (hpost : ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model →
+      trace rng = draws ++ rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draws.flatten ∧
       (∀ modelMessage,
         (Model.Braid.send K rand model).1 = some modelMessage →
           Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
@@ -1929,11 +1930,12 @@ theorem braid_send_model_result_of_draw
         (Model.Braid.send K rand model).2.2.1 ∧
       Tacenta.SessionUnitBraidT3.StateRefines K realNext.state
         (Model.Braid.send K rand model).2.2.2) :
-    ∃ (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+    ∃ (draws : List Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
       (modelMessage : Option Model.Braid.Msg) (modelEpoch : Nat)
       (modelOutput : Option Model.Braid.Output)
       (modelNext : Model.Braid.BraidState),
-      trace rng = draw :: rest ∧ trace rngNext = rest ∧
+      draws.length = Model.Lifecycle.braidSendDrawCount model ∧
+      trace rng = draws ++ rest ∧ trace rngNext = rest ∧
       Model.Lifecycle.sendAgreement oracle model =
         some ((modelMessage, modelEpoch, modelOutput, modelNext),
           { oracle with draws := rest }) ∧
@@ -1943,13 +1945,13 @@ theorem braid_send_model_result_of_draw
       realEpoch.val = modelEpoch ∧
       Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput modelOutput ∧
       Tacenta.SessionUnitBraidT3.StateRefines K realNext.state modelNext := by
-  obtain ⟨draw, rest, hhead, htail⟩ := hdraw
-  obtain ⟨rand, hrand', hmsg, hepoch, hout, hnext⟩ := hpost draw rest hhead
-  have horacle : oracle.draws = draw :: rest := htrace.symm.trans hhead
+  obtain ⟨draws, rest, hcount, hhead, htail⟩ := hdraw
+  obtain ⟨rand, hrand', hmsg, hepoch, hout, hnext⟩ := hpost draws rest hcount hhead
+  have horacle : oracle.draws = draws ++ rest := htrace.symm.trans hhead
   let sent := Model.Braid.send K rand model
   have hsentDraw : Model.Lifecycle.sendAgreement oracle model =
       some (sent, { oracle with draws := rest }) := by
-    rw [Model.Lifecycle.sendAgreement_draw oracle model draw rest hneedsDraw horacle]
+    rw [Model.Lifecycle.sendAgreement_draws oracle model draws rest hneedsDraw hcount horacle]
     simp [sent, hrand', hkem]
   rcases hsent : sent with ⟨modelMessage, modelEpoch, modelOutput, modelNext⟩
   have htuple : Model.Braid.send K rand model =
@@ -1963,8 +1965,8 @@ theorem braid_send_model_result_of_draw
   rw [hsent] at hsentDraw
   have hsendEpoch' : modelEpoch = modelNext.epoch - 1 := by
     simpa only [Prod.fst, Prod.snd] using hsendEpoch
-  refine ⟨draw, rest, modelMessage, modelEpoch, modelOutput, modelNext,
-    hhead, htail, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨draws, rest, modelMessage, modelEpoch, modelOutput, modelNext,
+    hcount, hhead, htail, ?_, ?_, ?_, ?_, ?_⟩
   · exact hsentDraw
   · intro decoded hdecoded
     exact hmsg decoded hdecoded
@@ -3845,10 +3847,12 @@ theorem encrypt_braid_failure_of_draw_send
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
     (htrace : trace rng = oracle.draws)
-    (hdraw : ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
+    (hdraw : ∃ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+      trace rng = draws ++ rest ∧ trace rngNext = rest)
     (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
-    (hpost : ∀ draw rest, trace rng = draw :: rest → ∃ rand,
-      rand = Model.Lifecycle.braidRandomness draw ∧
+    (hpost : ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+      trace rng = draws ++ rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draws.flatten ∧
       (∀ modelMessage,
         (Model.Braid.send K rand model.braid).1 = some modelMessage →
           Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
@@ -3864,8 +3868,8 @@ theorem encrypt_braid_failure_of_draw_send
       lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
-  obtain ⟨draw, rest, modelMessage, modelEpoch, modelOutput, modelBraidNext,
-      hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
+  obtain ⟨draws, rest, modelMessage, modelEpoch, modelOutput, modelBraidNext,
+      hcount, hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
     braid_send_model_result_of_draw (R := R) trace oracle model.braid hkem
       realMessage realEpoch realOutput realBraidNext rng rngNext
       htrace hdraw hneedsDraw hpost
@@ -3967,11 +3971,13 @@ theorem public_encrypt_braid_failure_draw_of_contracts
     (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
     (hdraw : ∀ result rngNext,
       tacenta_braid.Braid.send rngCore cryptoRng real.braid rng = ok (result, rngNext) →
-      ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
+      ∃ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+        trace rng = draws ++ rest ∧ trace rngNext = rest)
     (hpost : ∀ (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
       (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid),
-      ∀ draw rest, trace rng = draw :: rest → ∃ rand,
-      rand = Model.Lifecycle.braidRandomness draw ∧
+      ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+      trace rng = draws ++ rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draws.flatten ∧
       (∀ modelMessage,
         (Model.Braid.send K rand model.braid).1 = some modelMessage →
           Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
@@ -3987,9 +3993,10 @@ theorem public_encrypt_braid_failure_draw_of_contracts
     PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
   obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts contracts real.braid rng
   rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
-  obtain ⟨draw, rest, hhead, htail⟩ := hdraw _ _ hsend
-  let hpost' : ∀ draw rest, trace rng = draw :: rest → ∃ rand,
-      rand = Model.Lifecycle.braidRandomness draw ∧
+  obtain ⟨draws, rest, hcount, hhead, htail⟩ := hdraw _ _ hsend
+  let hpost' : ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+      trace rng = draws ++ rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draws.flatten ∧
       (∀ modelMessage,
         (Model.Braid.send K rand model.braid).1 = some modelMessage →
           Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
@@ -3998,13 +4005,13 @@ theorem public_encrypt_braid_failure_draw_of_contracts
         (Model.Braid.send K rand model.braid).2.2.1 ∧
       Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
         (Model.Braid.send K rand model.braid).2.2.2 := by
-    intro draw' rest' hhead'
+    intro draws' rest' hcount' hhead'
     obtain ⟨rand', hrand', hmsg', hepoch', houtput', hnext'⟩ :=
-      hpost realMessage realEpoch realOutput realBraidNext draw' rest' hhead'
+      hpost realMessage realEpoch realOutput realBraidNext draws' rest' hcount' hhead'
     exact ⟨rand', hrand', hmsg', hepoch', houtput', hnext'⟩
   exact encrypt_braid_failure_of_draw_send rngCore cryptoRng trace dh K view oracle
     real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext hkem hrel
-    hready hsend htrace ⟨draw, rest, hhead, htail⟩ hneedsDraw hpost'
+    hready hsend htrace ⟨draws, rest, hcount, hhead, htail⟩ hneedsDraw hpost'
     (fun modelNext hnext => hfailed modelNext realBraidNext hnext)
 
 def realSparseOutputOf (output : Option tacenta_braid.Output) :
@@ -5976,9 +5983,11 @@ inductive EncryptRouteEvidence {R : Type}
       (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
       (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
         ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
-      (hdraw : ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
-      (hpost : ∀ draw rest, trace rng = draw :: rest → ∃ rand,
-        rand = Model.Lifecycle.braidRandomness draw ∧
+      (hdraw : ∃ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+        trace rng = draws ++ rest ∧ trace rngNext = rest)
+      (hpost : ∀ draws rest, draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+        trace rng = draws ++ rest → ∃ rand,
+        rand = Model.Lifecycle.braidRandomness draws.flatten ∧
         (∀ modelMessage,
           (Model.Braid.send K rand model.braid).1 = some modelMessage →
             Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
