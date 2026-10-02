@@ -4,51 +4,29 @@
 wrapper around the ratchet receive. This does **not** close the full Session
 T3 or end-to-end encryption/decryption plan.
 
-Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts` or
-`BraidReceiveContracts`, directly or through `InitialRatchetBraidEvidenceContracts`
-(since 2026-10-01 the dispatch theorems take `InitialRatchetBraidEvidenceContractsScoped`)
-(`decrypt_ratchet_refines_of_t1`, `braid_receive_evidence` and the
-`initial_ratchet_refines_of_t1` family), was vacuous as stated, because
-`BraidReceiveContracts` contained a false field (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`).
+Status, 2026-10-02. Every theorem on this page that takes `DecryptRatchetContracts` or
+`BraidReceiveContracts` was vacuous as stated until the false field of `BraidReceiveContracts` was
+restated for decoders that need at most `MAX_CODEWORDS` chunks (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`). The obligations listed below as discharged are discharged under records
+that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an
+axiom base that has a model, under five laws"), with the headroom records satisfiable only in the sense
+and under the assumptions of `LIMITATIONS.md` ("The headroom records").
 
-Update, 2026-10-01: the field is now stated for decoders that need at most `MAX_CODEWORDS` chunks, and the
-headroom record carries that bound (`DecryptRatchetHeadroom.braidDecoders`). These theorems
-compile against the repaired record. The obligations listed below as discharged are discharged
-under records that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws"), with the headroom records satisfiable only in the sense and under the assumptions of `LIMITATIONS.md` ("The headroom records").
+No theorem on this page takes `InitialSameEphemeralEvidence`, `InitialMismatchedEphemeralEvidence`,
+`InitialRatchetBraidEvidenceContracts`, the earlier Triple and AEAD concrete evidence, `CodewordViewOf`
+or the earlier concrete branch and end-to-end records. The dispatch theorems take the per-branch
+`InitialDispatchBranchEvidence`, whose repeated-initial premises about the model are a choice of oracle
+(`sameEphemeralAgreement_unconstrained`), and the per-run records `InitialRatchetEndToEndEvidenceRun` and
+`InitialAgreementRatchetEndToEndEvidenceRun`, which are not shown satisfiable as a whole and do not
+cover a run whose agreement chunk is inconsistent, refused or accepted. An intermediate form on the
+integrated branch asked every RNG state for a draw and is empty (`concreteBranchEvidence_empty`,
+`Translation/UnitLifecycleIntegrationScreen.lean`). The form these theorems took before the integration
+had a `ceiling` field and is not decided here. The notes dated 2026-09-30 to 2026-10-01 that this status
+replaces described the tree before the integration; `GAP-REGISTER.md`, rows `SESSION-CONTRACT-VACUITY`
+and `DISPATCH-EVIDENCE-VACUITY`, keep that history.
 
-Update, 2026-10-01, evidence records: that statement does not cover the hypotheses and records named
-here, which `Translation/DispatchEvidenceVacuity.lean` shows are false or empty under stated conditions
-(`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, gives the conditions). `InitialSameEphemeralEvidence`
-is false for every argument, so `decrypt_initial_refines_from_ratchet`, `initial_dispatch_route_from_ratchet`,
-`initial_dispatch_atomicity_from_ratchet`, `decrypt_initial_terminal_refines`,
-`decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
-`decrypt_initial_end_to_end_with_concrete_evidence` are vacuous as stated, and so are the three
-constructors `initialAccepted`, `initialTerminal` and `initialMalformed` of `SessionDecryptEvidence`.
-`InitialRatchetBraidEvidenceContracts` has no term when the model Braid is in one of six state and
-message-type pairs and its decoder holds a chunk, and `InitialRatchetTripleConcreteEvidence` and
-`InitialRatchetAeadConcreteEvidence` force the oracle's `dhPublic` to be constant, which contradicts the
-real X25519 public-key function under a statement that is tested and not proved. The evidence record of
-`initial_ratchet_refines_of_t1_with_concrete_evidence` asks for the first of these for every refusal input,
-so that theorem has no term whenever such an input exists and the model Braid is in one of the six states.
-Of the theorems listed below as discharging obligations, `decrypt_initial_terminal_refines` is one of those
-named in this note. The ten theorems of `UnitLifecycleT3.lean` that take `CodewordViewOf`, among them
-`public_encrypt_end_to_end`, are vacuous as stated under a condition on `Encoder::new`, which the register
-row states. The list of assumptions below omits two that `initial_dispatch_route_from_ratchet` takes, `hsame`
-and `hmismatch`, which are `InitialSameEphemeralEvidence` and `InitialMismatchedEphemeralEvidence`; the first
-is false and the second is false of the real function by reading.
-
-Update, 2026-10-02, after the integration of the session contract branch: no theorem on this page takes
-`InitialSameEphemeralEvidence`, `InitialMismatchedEphemeralEvidence`, `InitialRatchetBraidEvidenceContracts`, the old
-Triple and AEAD concrete evidence or `CodewordViewOf` any more; the dispatch theorems, `initial_dispatch_route_from_ratchet`
-among them, take the per-branch `InitialDispatchBranchEvidence`, whose two repeated-initial premises about the model are a
-choice of oracle (`sameEphemeralAgreement_unconstrained`). The note above describes the tree before that. The accepted-initial
-theorems that take an end-to-end evidence record (`initial_ratchet_refines_of_t1_with_concrete_evidence`,
-`decrypt_initial_end_to_end_with_concrete_evidence`, `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
-the two agreement-route forms) take the per-run records `InitialRatchetEndToEndEvidenceRun` and
-`InitialAgreementRatchetEndToEndEvidenceRun`; the record they replaced asked every RNG state for a draw and is empty
-(`concreteBranchEvidence_empty`, `Translation/UnitLifecycleIntegrationScreen.lean`; `GAP-REGISTER.md`, row
-`DISPATCH-EVIDENCE-VACUITY`).
+The checkpoints below are a work log. The build and gate results they report were run on the commits
+they name and are not retained in this repository.
 
 ## What the theorem establishes
 
@@ -494,9 +472,9 @@ retry loop.
 `fullStoreOfReal` is now proved injective. Separate adapters transport the
 actual generated `PartialEq::ne` result into model equality or inequality, so
 a later switch-half case cannot select a model half independently. Those
-adapters reuse `UnitLifecycleT1.full_store_ne_no_panic` and therefore inherit
-the two existing compiler-evaluated discriminant facts pinned by that theorem;
-the Session unit axiom audit records them explicitly.
+adapters reuse `UnitLifecycleT1.full_store_ne_no_panic`. On this tree that
+theorem is kernel-checked, so the axiom pin of `fullStoreOfReal_ne_of_generated_ne`
+names the three standard axioms only (`Translation/AxiomAuditSessionUnit.lean`).
 
 The failure-side Triple bridge now has
 `concrete_receive_attempt_store_full_from_retry_bounds`, the exact analogue of

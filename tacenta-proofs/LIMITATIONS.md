@@ -2141,16 +2141,49 @@ binding is a statement of intent about the oracle and not an assurance.
 The hypotheses and evidence records of the lifecycle T3 branch lemmas and initial-dispatch theorems
 (`UnitLifecycleT3.lean`, `UnitLifecycleInitialDispatch.lean`) do not make those theorems claims.
 `Translation/DispatchEvidenceVacuity.lean` proves five of the earlier records false or empty under stated
-conditions, and `Translation/UnitLifecycleIntegrationScreen.lean` proves two records the integration of the session
-contract branch added empty or contradictory: a consumer structure that asked every RNG state for a draw, and a
-Braid send agreement that let key generation consume one draw where the shipped code fills a 64-byte seed. No
-theorem takes any of these seven now. The dispatch theorems take per-run evidence, which can be supplied for a run
-whose agreement chunk is consistent and not for a refused run whose chunk is not, and the model's Braid key
-generation takes two draws. The oracle's restated KEM and signing clauses follow from laws read from the source and
-have a model with a refused key; its other clauses are not shown to hold, and the per-run records are derived from
-their parts, not shown satisfiable as a whole. The model's comparison of a repeated initial ephemeral is not
-constrained by `OracleOf`. `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and
-what closes the row.
+conditions, and `Translation/UnitLifecycleIntegrationScreen.lean` proves four records the integration of the session
+contract branch added empty or contradictory: a consumer structure that asked every RNG state for a draw and the two
+end-to-end records that contain it, and a Braid send agreement that let key generation consume one draw where the
+shipped code fills a 64-byte seed. No theorem of the two modules takes any of the nine records shown false, empty or
+contradictory, or the old KEM field. The dispatch theorems take per-run evidence, which can be supplied for a run
+whose agreement chunk is consistent and not for a run whose chunk is not, refused or accepted; of its scoped Braid
+record only the two chunk fields are decided. The oracle's restated KEM and signing clauses follow from laws read
+from the source and have a model with a refused key. The restated KEM success clause binds the code only where the
+model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses are not
+shown to hold, and the per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
+model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
+`DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
+lemmas cover a refused message only if the agreement chunk it carries is a codeword of one source that fits the
+decoder it is fed to. When the receiving decoder already holds a chunk, a message an attacker sends with an altered
+chunk falls outside them. `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
+message can reach a refusal that no theorem here describes.
+
+The integration changes what `Model/Lifecycle.lean` computes in three places, each a normative model change under
+ADR-0008 rule 7. The Braid send reads two draws at `KeysUnsampled` and one at `HeaderReceived`
+(`braidSendDrawCount`). KEM encapsulation refuses a key that the oracle's `kemValid` rejects before it reads a draw,
+so `initiate` at such a key with no draw left returns the KEM refusal and not the ceiling. XEdDSA signing reads two
+draws, and the oracle's `sigSign` takes both. The first is a correction of the model: its `sendAgreement` read one
+32-byte draw at `KeysUnsampled` from #161 until this change, while `mlkem-braid.md` has said since 2026-09-11 that key
+generation draws 64 bytes, and `tacenta-core` fills a 64-byte seed there. The tags `tacenta-assurance-v0.4.2` to
+`tacenta-assurance-v0.4.5` contain the one-draw model. No claimed theorem takes the one-draw form; the dispatch
+theorems that took it are not claims, and with the signing clause they had no model
+(`braidSendTrace_conflicts_with_sigSign`). The second fixes an order the specification leaves open: the model draws
+the initiator's ephemeral key before it checks the bundle's KEM key, and the check refuses before the 32 bytes of `m`
+are read. `GAPS-13.md` (G13-04, under `READER-OPEN-GAPS`) records that the order is not stated, and the independent
+reader chose the other order. The model follows `establish_initiator_for`.
+
+The lifecycle model draws randomness as 32-byte entries of one ordered trace, and reads a 64-byte fill as two
+consecutive entries. `RngCore` does not promise that one 64-byte fill equals two 32-byte fills; the model assumes
+it. The proofs assume three laws about the shipped functions:
+`SignFillsOnce64`, `GenerateFillsOnce64` and `KemShape` (`UnitLifecycleIntegrationScreen.lean`). They are read from the
+source and are not proved. No vector is generated by `Model.Lifecycle.encrypt`. The session end-to-end vector
+(`session-e2e.json`, produced by the project runner and not by the model) runs the shipped `Session::encrypt` against
+a random source that allows exactly one 64-byte fill for the first send and none for the second
+(`tacenta-test-vectors/runners/rust/src/session_e2e.rs`), so it pins the 64-byte draw of the first send. No check
+relates that vector to the model; the model's examples in `Model/Lifecycle.lean` follow the same draw order with toy
+values. No request of the `difftest` executable runs `Model.Lifecycle.encrypt`: `Difftest.runSession` would, through
+`Model.LifecycleTrace.run`, and no request handler calls it. No test holds the `HeaderReceived` draw of the shipped
+Braid to 32 bytes; it is read from `encapsulate1`.
 
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all

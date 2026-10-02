@@ -32,7 +32,14 @@ this section says in one place what is not proved.
   records the accepted-initial decrypt lemmas take are asked of the run alone, and the one they replace is shown
   empty; the dispatch records are not shown satisfiable as a whole;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. One part of what they
+  return as a whole, on every branch, against the model. The decrypt lemmas that take the per-run evidence records cover a
+  message only if the agreement chunk it carries is a codeword of one source that fits the decoder it is fed to, whether the
+  message is refused or accepted. When the receiving decoder already holds a chunk, a message an attacker sends with an
+  altered chunk falls outside them: `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
+  message can reach a refusal that no theorem here describes. Most of the encrypt and decrypt lemmas also take the oracle
+  record `OracleOf`. Only its KEM, signing and `random32` clauses are shown to hold of the shipped functions, and only under
+  laws read from the source (the KEM success clause is met as well by an oracle that never encapsulates); its DH, AEAD, KEM
+  decapsulation, signature verification and identity-validity clauses are not. One part of what they
   do is proved of the translated code alone, with no contract record, no headroom and no model: what a
   refused call leaves behind, and which fields a successful one writes (the
   section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
@@ -581,11 +588,12 @@ model it names changed, so its refusal case is now the count above: when
 the state as it was, and when it succeeds the state refines the one the model
 returns. The first conjunct's refusal case names no error, and the second speaks
 only of a `SkippedStoreFull` result, so whether a full store is refused as
-`TooManySkipped` or `SkippedStoreFull` is not in the statement, and neither is
-the order of the two checks. A change that returns `TooManySkipped` for a full
-store passes the theorem after a one-token change to its proof. The session evicts only on `SkippedStoreFull`,
+`TooManySkipped` or `SkippedStoreFull` is not in the statement. The order of the
+two checks is pinned in one direction only: the second conjunct rules out a
+`SkippedStoreFull` result for a request beyond `MAX_SKIP`. A full store refused
+as `TooManySkipped` still passes the theorem after a one-token change to its proof. The session evicts only on `SkippedStoreFull`,
 and the session proofs take the refusal kind as a hypothesis (`hreason`). The
-refusal kind and the order are tested only, by `tacenta-spqr`'s unit tests and
+refusal kind, and the order in the other direction, are tested only, by `tacenta-spqr`'s unit tests and
 the differential harness. Its statement is pinned in
 `Translation/SparseSkipStatementPin.lean`. No other proof reads the refusal
 clause `r.2 = s` of this statement: `receive_refines_continuation` discards it, and
@@ -2608,9 +2616,9 @@ state, which the single-step lifecycle theorems do not reach. The three theorems
 no longer fail for a hypothesis in their records, in the sense and under the five laws of the sections named
 above. The headroom they take is met by some input, in the sense and under the assumptions recorded in
 `LIMITATIONS.md` ("The headroom records"); no theorem shows that a session the crate produces meets it. The dispatch theorems compile
-against the repaired record and are not claims. Seventeen theorems of the two modules, ten of them encrypt-side
-lemmas of `UnitLifecycleT3.lean`, are affected for a different reason, which the section "Proved (a negative
-result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)" below gives. The standalone Braid theorems in `BraidT1.lean`
+against the repaired record and are not claims. The evidence hypotheses of the lifecycle dispatch layer are a
+separate matter, which the section "Proved (a negative result: five evidence hypotheses and records of the
+lifecycle dispatch layer are false or empty)" below gives. The standalone Braid theorems in `BraidT1.lean`
 and `BraidT3.lean` are not affected, because there the decoder is an opaque type and the field
 can be satisfied (`Translation/ErasureWitness.lean`, `erasure_hypotheses_satisfiable`, proves the
 standalone Braid's seven erasure totals jointly satisfiable). The decoders the Braid holds are
@@ -3146,14 +3154,17 @@ sixth point and not a refutation.
   results are conditional on it, on the codec and on the clause, and none of the three is shown
   satisfiable inside Lean.
 - `oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`: the KEM success clause
-  `OracleOf` had before its repair, kept as `KemEncapsulateUnguarded`, makes the model's KEM oracle
+  `OracleOf` had before it was restated, kept as `KemEncapsulateUnguarded`, makes the model's KEM oracle
   accept every public key at every draw that a trace has, and the translated `encapsulate` never
   return `Err` while the trace has a draw. This is not a refutation, because `encapsulate` is an
   opaque constant: the shipped function returns `Err` on a key of the wrong length (tested by
   `malformed_inputs_are_rejected`) and on a key that fails `validate_public_key` (read from
   `tacenta-core/boundary/src/kem.rs`; `GAP-REGISTER.md`, row `E2E-04`). The two statements took
-  `OracleOf` before the repair and take the kept field now; `OracleOf` asks for success only where
-  the model's `kemEncaps` returns `some`.
+  `OracleOf` before the restatement and take the kept field now, which is the old field's text
+  unchanged; their statement pins and axiom pins changed with them, which makes them two of the three
+  pinned statements the integration of the session contract branch changed (the third is
+  `Tacenta.SpqrT3.skip_message_keys_refines`, above). `OracleOf` asks for success only where the
+  model's `kemEncaps` returns `some`.
 
 No step of these proofs case-splits on the width of `usize`, and the only facts they use about
 `Usize.max` are the bounds Aeneas proves for the platform constant. `System.Platform.numBits` is an
@@ -3419,8 +3430,8 @@ What these do not show.
   laws about the shipped functions at a byte-stream source (`changed_rng_clauses_of_laws`, in the section on the integration's
   hypotheses below); its other clauses are not shown to hold. `public_session_encrypt_of_send_contracts` also takes
   `BraidSendTraceAgreementCounted`, whose draw clause holds together with `OracleOf.sigSign` under two laws at a Braid send from
-  `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); its old one-draw form contradicted it
-  (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
+  `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); the one-draw form the session contract branch introduced
+  contradicted it (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
   the per-branch `InitialDispatchBranchEvidence`, whose model-side premises are a choice of oracle
   (`sameEphemeralAgreement_unconstrained`).
 - That the consumer structure is satisfiable in general. The old `InitialRatchetConcreteBranchEvidence` is empty at any model
@@ -3428,10 +3439,13 @@ What these do not show.
   scoped Braid record of every inner message that reaches a refusal, an inconsistent one included. The seven dispatch theorems
   that reached it (five through the end-to-end records, `public_session_decrypt_end_to_end` and its `_with_atomicity` form through
   two constructors of `SessionDecryptEvidence`) take `InitialRatchetConcreteBranchEvidenceRun` now, whose fields are asked of the
-  run's own inner message and RNG state. Its Braid field can be met for a consistent run (`scoped_record_gives_consistent` and
-  `scoped_chunk_fields_iff_consistent`) and not for a refused run whose chunk is inconsistent, which those theorems therefore do not
-  cover; `decrypt_ratchet` checks nothing about the agreement chunk before the AEAD tag, so such a run can reach a refusal. That
-  the record's Triple and AEAD branch contracts can be supplied for a run is not shown.
+  run's own inner message and RNG state. The two chunk fields of its scoped Braid record are met exactly when the run is
+  consistent (`scoped_chunk_fields_iff_consistent`); the record's other fields (`BraidReceiveContracts`, the Braid agreement laws
+  and the epoch bound) are not decided here, so that the record can be supplied for any run is not shown. Its Braid field, and
+  the success provider of its result field, can be met for a consistent run and not for a run whose chunk is inconsistent,
+  whether the run is refused or accepted (`scoped_record_gives_consistent`), which those theorems therefore do not cover;
+  `decrypt_ratchet` checks nothing about the agreement chunk before the AEAD tag, so such a run can reach a refusal. That the
+  record's Triple and AEAD branch contracts can be supplied for a run is not shown.
 - The agreement hypotheses of the Braid in the session unit, which are not decided here.
 
 A view that meets the send clause and the scoped chunk fields of one consistent run together exists
@@ -3481,6 +3495,14 @@ These are prerequisites for the bounded eviction retry. They do not prove that
 the retry loop terminates or refines its model, do not compose the success
 path, and do not prove public `Session::decrypt` end to end.
 
+`concrete_receive_attempt_store_full_from_contracts` and
+`concrete_receive_attempt_store_full_from_retry_bounds` are compiler-trusted:
+their axiom lists include eight per-declaration `native_decide` axioms, seven
+from the Session unit's sparse ratchet refinement (its labels, its `MAX_SKIP`
+constants and one step of `receive_refines_continuation`) and one from the
+Triple's `combine_info_agrees`. `fullStoreOfReal_ne_of_generated_ne` is
+kernel-only.
+
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 
 Location: `Translation/UnitLifecycleIntegrationScreen.lean`.
@@ -3489,7 +3511,9 @@ The integration of the session contract branch changed the oracle record `Oracle
 the model's `kemEncaps` returns `some`, a pre-draw refusal clause `kemInvalidKey`, two draws for signing) and added evidence
 records to the dispatch layer. These results decide some of them. They are about hypotheses, not about the product.
 
-- `concreteBranchEvidence_empty`, `endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`: refutations of the old form.
+- `concreteBranchEvidence_empty`, `endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`: refutations of the form the
+  session contract branch introduced. The form the dispatch layer had before the integration (a `ceiling` field in place of
+  `randomDraw`) differs and is not decided here.
   The field `randomDraw` of `InitialRatchetConcreteBranchEvidence` asks that every RNG state, not only the run's, has a trace with
   a head once one inner message decodes to a composite whose first agreement succeeds. With `OracleOf.random32`, which turns a
   state whose trace has a head into a state whose trace is the tail, the trace of every state would be longer than every number,
@@ -3509,33 +3533,47 @@ records to the dispatch layer. These results decide some of them. They are about
 - `changed_rng_clauses_have_a_model`: there are a signing function, a key-generation function and an encapsulation function that
   meet the three laws (`SignFillsOnce64Of`, `GenerateFillsOnce64Of`, `KemShapeOf`), and an oracle whose KEM refuses the empty key,
   such that `random32`, `sigSign` and the three KEM clauses hold together at the byte-stream source. So the changed clauses are
-  not met only by an oracle that never refuses, and a byte-stream source meets the two-draw signing clause.
+  not met only by an oracle that never refuses, and a byte-stream source meets the two-draw signing clause. They are also met by
+  an oracle whose `kemEncaps` never returns `some`, because the success clause binds the code only where the model predicts a
+  success, so `OracleOf` does not tie the model's encapsulation to the code on a key the code accepts. The pinned statement does
+  not show a KEM that ever succeeds.
 - `changed_rng_clauses_of_laws`: the same derivation at the shipped constants. Under `SignFillsOnce64` and `KemShape`, the laws
   stated of `xeddsa::sign` and `kem::encapsulate`, there is an oracle for which the changed clauses and `random32` hold at the
   byte-stream source. The two laws are assumptions read from `tacenta-core/boundary/src/xeddsa.rs` and
   `tacenta-core/boundary/src/kem.rs`; no theorem proves them of the opaque constants.
 - `braid_send_keysUnsampled_generate`, `braidSendTrace_conflicts_with_sigSign`: a translated Braid send from `KeysUnsampled`
-  returns the RNG state that key generation returned. A refutation of the old form: `BraidSendTraceAgreement` lets such a send
+  returns the RNG state that key generation returned. A refutation of the form the session contract branch introduced (the
+  dispatch layer had no such record before it): `BraidSendTraceAgreement` lets such a send
   consume one trace entry, and `OracleOf.sigSign` lets a signature consume two. Under `SignFillsOnce64` and `GenerateFillsOnce64`
   (each function fills one 64-byte buffer; the second is read from `IncrementalKeyPair::generate`, `tacenta-core/kem/src/lib.rs`,
   whose seed is 64 bytes), both are one 64-byte fill from the same state, so the old agreement contradicts `OracleOf.sigSign` at
-  any send from `KeysUnsampled` whose trace has two entries. No theorem takes the old agreement now: the model's `sendAgreement`
-  takes two draws in that state, and `public_session_encrypt_of_send_contracts` takes `BraidSendTraceAgreementCounted`.
-- `concreteBranchEvidenceRun_of_run_parts`, `runRandomDraw_byte`: the run's evidence record is built from parts that each speak
-  about the run alone, one scoped Braid record for the inner message the run's initial message decodes to, the Triple and AEAD
-  branch contracts of the run's refusal inputs, and one draw at the run's RNG state; and at the byte-stream source every state with
-  a draw left meets the draw part, together with `random32`. The scoped record's chunk fields are met exactly when the run is
-  consistent (`scoped_chunk_fields_iff_consistent`), so the record can be supplied for a consistent run and cannot be for a refused
-  run whose chunk is inconsistent; such a run is outside what the theorems that take it cover. That the Triple and AEAD branch
-  contracts of a run can be supplied is not shown here.
+  any send from `KeysUnsampled` whose trace has two entries. No theorem takes that agreement now: the model's `sendAgreement`
+  takes two draws in that state, and `public_session_encrypt_of_send_contracts` takes `BraidSendTraceAgreementCounted`. The
+  model change corrects the model against `mlkem-braid.md`, which already said that key generation draws 64 bytes:
+  `sendAgreement` read one 32-byte draw at `KeysUnsampled` from #161 until this integration, and the tags
+  `tacenta-assurance-v0.4.2` to `tacenta-assurance-v0.4.5` contain that one-draw model. No claimed theorem took it.
+- `concreteBranchEvidenceRun_of_run_parts`, `runRandomDraw_byte`: the first is the record's constructor. It packages given parts
+  into the run's evidence record (one scoped Braid record for the inner message the run's initial message decodes to, the Triple
+  and AEAD branch contracts of the run's refusal inputs, and a draw at the run's RNG state), so the record holds exactly when its
+  four parts do, and each part names only the run's inner message and RNG state. Because this module builds the record from
+  those parts, a field added to the record that the parts do not give fails the build. The second restates that a byte-stream
+  state with a draw left has one, together with `byte_random32`: the draw part asks only that the run's state has a draw, which
+  `random32` does not contradict. Neither shows that any part can be supplied. The two chunk fields of the scoped Braid record
+  are met exactly when the run is consistent (`scoped_chunk_fields_iff_consistent`); the record's other fields
+  (`BraidReceiveContracts`, the Braid agreement laws and the epoch bound) are not decided here. Its Braid field, and the success
+  provider of its result field, can be met for a consistent run and not for a run whose chunk is inconsistent, whether the run is
+  refused or accepted, which the theorems that take it therefore do not cover. That the Triple and AEAD branch contracts of a run
+  can be supplied is not shown here.
 - `braid_send_keysUnsampled_byte_trace`, `braidSendTraceCounted_with_sigSign_byte`: at the byte-stream source, under
   `GenerateFillsOnce64`, a translated Braid send from `KeysUnsampled` leaves the trace without its first two entries; with
   `SignFillsOnce64` as well, the draw clause of `BraidSendTraceAgreementCounted` and the two-draw signing clause hold together at
-  such a send with two draws left. Its other clauses (the refinement of the model send by the generated result, and the
-  `headerReceived` draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
+  such a send with two draws left. The result restates the draw clause and does not name `BraidSendTraceAgreementCounted`, and
+  no theorem constructs the record; its body carries a `#print` pin (below), so a stronger record, an empty one included, fails
+  the build at that pin. Its other clauses (the refinement of the model send by the generated result, and the `headerReceived`
+  draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
 - `retryReceiveBounds_initAlice`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
   `generatedTripleSuccessConditions_initAlice`: `RetryReceiveBounds` and the two finite-store condition records hold at the
-  model's initial Triple state, the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
+  initiator's initial Triple state, `Model.Triple.initAlice` (the responder's, `Model.Triple.initBob`, is not decided), the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
   the first fails at a sparse epoch of `u64::MAX`. That they hold at the states the retry loop reaches is not shown here.
 - `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: given the DH codec, `OracleOf` still holds when the
   oracle's `dhAgree` is changed at second arguments that are not 32 bytes long, so for two strings that are not 32 bytes long
@@ -3546,12 +3584,20 @@ records to the dispatch layer. These results decide some of them. They are about
 
 What these do not show: that `OracleOf` as a whole is satisfiable (its `dh`, `aead`, `kemDecapsulate`, `sigVerify` and
 `identityValid` clauses are not decided here); that the shipped functions meet the three laws; that any dispatch theorem is
-non-vacuous. No proof case-splits on the width of `usize`; the only fact used about `Usize.max` is that it is at least
-`2^32 - 1`, which holds at both widths. None depends on a compiler-trust axiom. Each result carries an axiom pin and a statement
+non-vacuous. No proof here chooses a width of `usize`; the one fact used, that `Usize.max` is at least `2^32 - 1`, is proved for
+both widths by `small_le_usize_max`. None depends on a compiler-trust axiom. Each result carries an axiom pin and a statement
 pin, and the definitions of the three clauses and the three laws, with the laws at the shipped constants (`SignFillsOnce64`,
-`GenerateFillsOnce64`, `KemShape`), carry `#print` pins, as do the model's `braidSendDrawCount` and `sendAgreement`, so a change
-to the draw count fails the build; `attest.py` requires all of them (`REQUIRED_PINS`,
-`REQUIRED_STATEMENT_PINS`), and `check-attest-negatives.sh` deletes each axiom pin in turn.
+`GenerateFillsOnce64`, `KemShape`), carry `#print` pins, as do the model's `braidSendDrawCount`, `braidSendNeedsDraw`,
+`takeDraw`, `braidRandomness` and `sendAgreement` (and `takeDraws`, whose body is pinned through its equation
+`takeDraws.eq_def`, because `#print` shows a structurally recursive definition only in compiled form), so a change to the draw
+count, or to how the drawn bytes become the Braid's randomness, fails the build. The bodies of the five records the dispatch
+layer takes and no theorem here constructs (`OracleOf`, `BraidSendTraceAgreementCounted`, `InitialRatchetTripleBranchContracts`,
+`InitialRatchetAeadBranchContracts`, `InitialRatchetBraidEvidenceContractsScoped`) carry `#print` pins too, so a field added to,
+removed from or changed in one of them fails the build. These are text pins: they hold what the records say, not that they can
+be met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`), and `check-attest-negatives.sh` deletes
+each axiom pin, and each of the model and record definition pins, in turn. In the model package, examples in
+`Model/Lifecycle.lean` hold `braidSendDrawCount` to `mlkem-braid.md` at one state of each of the twelve kinds and check the draws
+an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one.
 
 ## Proved (bounded P6 session lifecycle observations)
 
