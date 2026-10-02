@@ -3168,8 +3168,8 @@ impl Session {
         // a thousand keys. Either way the first batch never exceeds what the
         // message displaces, except by the keys the store holds in the range
         // the skip re-derives, which the purge removes and the batch counts
-        // as well. The post-quantum store holds such keys only in a state read
-        // from storage. The classical store holds them after a peer returns to
+        // as well. The post-quantum store holds such keys, as far as the operations
+        // can be read, only in a state read from storage. The classical store holds them after a peer returns to
         // a ratchet key it had left.
         //
         // The batch is reset when the *other* store reports full, because the

@@ -279,6 +279,8 @@ fn a_skip_refused_for_the_total_bound_frees_no_secret() {
     assert_eq!(state.skipped_len(), 2000);
     unsafe {
         // Sixteen of the held keys are enough: an unerased copy holds all of them.
+        // KEYS is a static mut, which the file indexes on purpose.
+        #[allow(clippy::needless_range_loop)]
         for i in 0..16 {
             KEYS[i] = key_of(i as u64 * 125);
         }
