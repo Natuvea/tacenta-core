@@ -2141,16 +2141,16 @@ binding is a statement of intent about the oracle and not an assurance.
 The hypotheses and evidence records of the lifecycle T3 branch lemmas and initial-dispatch theorems
 (`UnitLifecycleT3.lean`, `UnitLifecycleInitialDispatch.lean`) do not make those theorems claims.
 `Translation/DispatchEvidenceVacuity.lean` proves five of the earlier records false or empty under stated
-conditions; since their restatement and the integration of the session contract branch no theorem takes any
-of them. Of the records the integration adds, `Translation/UnitLifecycleIntegrationScreen.lean` proves that
-`InitialRatchetConcreteBranchEvidence` has no term at any model state at which one inner message passes the
-first agreement, given `OracleOf`, so the five accepted-initial decrypt theorems that take it are vacuous there,
-and that under two laws about the shipped signing and key-generation functions (each fills one 64-byte buffer,
-read from the source) `BraidSendTraceAgreement` contradicts the oracle's signing clause at a Braid send from
-`KeysUnsampled` with two trace entries left. The oracle's restated KEM and signing clauses follow from laws read
-from the source and have a model with a refused key; its other clauses are not shown to hold. The model's
-comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
-`DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row.
+conditions, and `Translation/UnitLifecycleIntegrationScreen.lean` proves two records the integration of the session
+contract branch added empty or contradictory: a consumer structure that asked every RNG state for a draw, and a
+Braid send agreement that let key generation consume one draw where the shipped code fills a 64-byte seed. No
+theorem takes any of these seven now. The dispatch theorems take per-run evidence, which can be supplied for a run
+whose agreement chunk is consistent and not for a refused run whose chunk is not, and the model's Braid key
+generation takes two draws. The oracle's restated KEM and signing clauses follow from laws read from the source and
+have a model with a refused key; its other clauses are not shown to hold, and the per-run records are derived from
+their parts, not shown satisfiable as a whole. The model's comparison of a repeated initial ephemeral is not
+constrained by `OracleOf`. `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and
+what closes the row.
 
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all

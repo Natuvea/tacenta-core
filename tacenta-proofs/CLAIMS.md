@@ -29,10 +29,8 @@ this section says in one place what is not proved.
   evidence in `UnitLifecycleInitialDispatch.lean` is derived from a leaf refinement
   that takes no contract record; the Braid receive evidence there takes
   `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; the evidence
-  record that the five accepted-initial decrypt lemmas and two constructors of the public decrypt's evidence take
-  is shown empty at every model state at which one inner message passes the first agreement, and the Braid send
-  agreement of the public encrypt lemma contradicts the signing clause of the oracle record under two laws at a
-  key-generation send;
+  records the accepted-initial decrypt lemmas take are asked of the run alone, and the one they replace is shown
+  empty; the dispatch records are not shown satisfiable as a whole;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
   return as a whole, on every branch, against the model. One part of what they
   do is proved of the translated code alone, with no contract record, no headroom and no model: what a
@@ -3286,23 +3284,20 @@ What these do not show.
   `CodewordViewSendOf` now, and most also take `OracleOf`. Its KEM and signing clauses are restated, and they follow from two
   laws about the shipped functions at a byte-stream source (`changed_rng_clauses_of_laws`, in the section on the integration's
   hypotheses below); its other clauses are not shown to hold. `public_session_encrypt_of_send_contracts` also takes
-  `BraidSendTraceAgreement`, which contradicts `OracleOf.sigSign` under two laws at a Braid send from `KeysUnsampled`
+  `BraidSendTraceAgreementCounted`, whose draw clause holds together with `OracleOf.sigSign` under two laws at a Braid send from
+  `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); its old one-draw form contradicted it
   (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
   the per-branch `InitialDispatchBranchEvidence`, whose model-side premises are a choice of oracle
   (`sameEphemeralAgreement_unconstrained`).
-- That the consumer structure is satisfiable. It is not: `InitialRatchetConcreteBranchEvidence` has no term at any model state at
-  which one inner message passes the first agreement, given `OracleOf` (`concreteBranchEvidence_empty`, in the section on the
-  integration's hypotheses below), and seven dispatch theorems reach it, five through the two end-to-end records and
-  `public_session_decrypt_end_to_end` and its `_with_atomicity` form through two constructors of `SessionDecryptEvidence`.
-  Separately, it asks the scoped Braid record of every inner message that reaches a refusal, an inconsistent message included. An inconsistent message can reach a refusal: `decrypt_ratchet` checks
-  nothing about the agreement chunk before the AEAD tag, and no field of `InitialRatchetRefusalBranchInput` mentions the chunk.
-  For a model Braid state whose decoder holds a chunk, a message whose chunk bytes differ from the held source's codeword at
-  their index cannot meet both `IncomingChunkRefines` and `HonestChunk`, so on that reading the structure is unsatisfiable at
-  such states and the five theorems are not shown non-vacuous there. No Lean statement says this, because no `Session` value
-  can be built in the tree. The unpinned lemma `scoped_record_gives_consistent` ties the record to the consistent-run condition:
-  from the record, a message that decodes to a composite related to the wire composite gives a consistent run, so the structure
-  is satisfiable only if every refused inner message that decodes in that way is a consistent run. Guarding the fields by a
-  consistency premise on the run is the repair, and it changes the signatures of the dispatch theorems that reach the structure.
+- That the consumer structure is satisfiable in general. The old `InitialRatchetConcreteBranchEvidence` is empty at any model
+  state at which one inner message passes the first agreement, given `OracleOf` (`concreteBranchEvidence_empty`), and it asked the
+  scoped Braid record of every inner message that reaches a refusal, an inconsistent one included. The seven dispatch theorems
+  that reached it (five through the end-to-end records, `public_session_decrypt_end_to_end` and its `_with_atomicity` form through
+  two constructors of `SessionDecryptEvidence`) take `InitialRatchetConcreteBranchEvidenceRun` now, whose fields are asked of the
+  run's own inner message and RNG state. Its Braid field can be met for a consistent run (`scoped_record_gives_consistent` and
+  `scoped_chunk_fields_iff_consistent`) and not for a refused run whose chunk is inconsistent, which those theorems therefore do not
+  cover; `decrypt_ratchet` checks nothing about the agreement chunk before the AEAD tag, so such a run can reach a refusal. That
+  the record's Triple and AEAD branch contracts can be supplied for a run is not shown.
 - The agreement hypotheses of the Braid in the session unit, which are not decided here.
 
 A view that meets the send clause and the scoped chunk fields of one consistent run together exists
@@ -3360,20 +3355,14 @@ The integration of the session contract branch changed the oracle record `Oracle
 the model's `kemEncaps` returns `some`, a pre-draw refusal clause `kemInvalidKey`, two draws for signing) and added evidence
 records to the dispatch layer. These results decide some of them. They are about hypotheses, not about the product.
 
-- `concreteBranchEvidence_empty`, `endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`: the field `randomDraw` of
-  `InitialRatchetConcreteBranchEvidence` asks that every RNG state, not only the run's, has a trace with a head once one inner
-  message decodes to a composite whose first agreement succeeds. With `OracleOf.random32`, which turns a state whose trace has a
-  head into a state whose trace is the tail, the trace of every state would be longer than every number, so the record has no
-  term, given `OracleOf`, one such message and one RNG state. The two end-to-end evidence records contain it and are empty under
-  the same premises. Every run that gets past the first agreement supplies such a message. The five dispatch theorems that take
-  one of the two end-to-end records also take `OracleOf`, so they are vacuous at every model state at which one inner message
-  passes the first agreement: `initial_ratchet_refines_of_t1_with_concrete_evidence`,
-  `initial_agreement_ratchet_refines_of_t1_with_concrete_evidence`, `decrypt_initial_end_to_end_with_concrete_evidence`,
-  `decrypt_initial_agreement_of_t1_with_concrete_evidence` and
-  `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`. The constructors `initialAccepted` and
-  `initialAgreementAccepted` of `SessionDecryptEvidence` carry `OracleOf` and one of the two records, so they have no term there,
-  and `public_session_decrypt_end_to_end` says nothing through them; its other thirteen constructors are not decided here. The
-  proof uses no law.
+- `concreteBranchEvidence_empty`, `endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`: refutations of the old form.
+  The field `randomDraw` of `InitialRatchetConcreteBranchEvidence` asks that every RNG state, not only the run's, has a trace with
+  a head once one inner message decodes to a composite whose first agreement succeeds. With `OracleOf.random32`, which turns a
+  state whose trace has a head into a state whose trace is the tail, the trace of every state would be longer than every number,
+  so the record has no term, given `OracleOf`, one such message and one RNG state, and the two old end-to-end records that
+  contain it are empty under the same premises. The proof uses no law. No theorem takes these three records now: the dispatch
+  theorems and the two accepted constructors of `SessionDecryptEvidence` take `InitialRatchetConcreteBranchEvidenceRun` and the
+  two `...EndToEndEvidenceRun` records, whose fields are asked of the run's own inner message and RNG state (below).
 - `byte_random32`: at `byteRng`, a random source that reads a list of bytes from the front, with `byteTrace` reading it as 32-byte
   draws, the translated `random_secret` meets the `random32` clause.
 - `random32Clause_of_oracleOf`, `sigSignClause_of_oracleOf`, `kemClauses_of_oracleOf`: `Random32Clause`, `SigSignClause` and
@@ -3392,13 +3381,24 @@ records to the dispatch layer. These results decide some of them. They are about
   byte-stream source. The two laws are assumptions read from `tacenta-core/boundary/src/xeddsa.rs` and
   `tacenta-core/boundary/src/kem.rs`; no theorem proves them of the opaque constants.
 - `braid_send_keysUnsampled_generate`, `braidSendTrace_conflicts_with_sigSign`: a translated Braid send from `KeysUnsampled`
-  returns the RNG state that key generation returned. `BraidSendTraceAgreement`, a hypothesis of
-  `public_session_encrypt_of_send_contracts`, lets such a send consume one trace entry, and `OracleOf.sigSign` lets a signature
-  consume two. Under `SignFillsOnce64` and `GenerateFillsOnce64` (each function fills one 64-byte buffer; the second is read from
-  `IncrementalKeyPair::generate`, `tacenta-core/kem/src/lib.rs`, whose seed is 64 bytes), both are one 64-byte fill from the
-  same state, so the agreement contradicts `OracleOf.sigSign` at any send from `KeysUnsampled` whose trace has two entries. So
-  `public_session_encrypt_of_send_contracts` is vacuous at such runs under the two laws. The model's `sendAgreement` takes one
-  32-byte draw in that state; the repair is a model change to two draws, or an agreement that reads the seed as two entries.
+  returns the RNG state that key generation returned. A refutation of the old form: `BraidSendTraceAgreement` lets such a send
+  consume one trace entry, and `OracleOf.sigSign` lets a signature consume two. Under `SignFillsOnce64` and `GenerateFillsOnce64`
+  (each function fills one 64-byte buffer; the second is read from `IncrementalKeyPair::generate`, `tacenta-core/kem/src/lib.rs`,
+  whose seed is 64 bytes), both are one 64-byte fill from the same state, so the old agreement contradicts `OracleOf.sigSign` at
+  any send from `KeysUnsampled` whose trace has two entries. No theorem takes the old agreement now: the model's `sendAgreement`
+  takes two draws in that state, and `public_session_encrypt_of_send_contracts` takes `BraidSendTraceAgreementCounted`.
+- `concreteBranchEvidenceRun_of_run_parts`, `runRandomDraw_byte`: the run's evidence record is built from parts that each speak
+  about the run alone, one scoped Braid record for the inner message the run's initial message decodes to, the Triple and AEAD
+  branch contracts of the run's refusal inputs, and one draw at the run's RNG state; and at the byte-stream source every state with
+  a draw left meets the draw part, together with `random32`. The scoped record's chunk fields are met exactly when the run is
+  consistent (`scoped_chunk_fields_iff_consistent`), so the record can be supplied for a consistent run and cannot be for a refused
+  run whose chunk is inconsistent; such a run is outside what the theorems that take it cover. That the Triple and AEAD branch
+  contracts of a run can be supplied is not shown here.
+- `braid_send_keysUnsampled_byte_trace`, `braidSendTraceCounted_with_sigSign_byte`: at the byte-stream source, under
+  `GenerateFillsOnce64`, a translated Braid send from `KeysUnsampled` leaves the trace without its first two entries; with
+  `SignFillsOnce64` as well, the draw clause of `BraidSendTraceAgreementCounted` and the two-draw signing clause hold together at
+  such a send with two draws left. Its other clauses (the refinement of the model send by the generated result, and the
+  `headerReceived` draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
 - `retryReceiveBounds_initAlice`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
   `generatedTripleSuccessConditions_initAlice`: `RetryReceiveBounds` and the two finite-store condition records hold at the
   model's initial Triple state, the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
@@ -3415,7 +3415,8 @@ What these do not show: that `OracleOf` as a whole is satisfiable (its `dh`, `ae
 non-vacuous. No proof case-splits on the width of `usize`; the only fact used about `Usize.max` is that it is at least
 `2^32 - 1`, which holds at both widths. None depends on a compiler-trust axiom. Each result carries an axiom pin and a statement
 pin, and the definitions of the three clauses and the three laws, with the laws at the shipped constants (`SignFillsOnce64`,
-`GenerateFillsOnce64`, `KemShape`), carry `#print` pins; `attest.py` requires all of them (`REQUIRED_PINS`,
+`GenerateFillsOnce64`, `KemShape`), carry `#print` pins, as do the model's `braidSendDrawCount` and `sendAgreement`, so a change
+to the draw count fails the build; `attest.py` requires all of them (`REQUIRED_PINS`,
 `REQUIRED_STATEMENT_PINS`), and `check-attest-negatives.sh` deletes each axiom pin in turn.
 
 ## Proved (bounded P6 session lifecycle observations)

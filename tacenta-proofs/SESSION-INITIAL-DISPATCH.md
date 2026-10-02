@@ -45,9 +45,10 @@ among them, take the per-branch `InitialDispatchBranchEvidence`, whose two repea
 choice of oracle (`sameEphemeralAgreement_unconstrained`). The note above describes the tree before that. The accepted-initial
 theorems that take an end-to-end evidence record (`initial_ratchet_refines_of_t1_with_concrete_evidence`,
 `decrypt_initial_end_to_end_with_concrete_evidence`, `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
-the two agreement-route forms) are vacuous at every model state at which one inner message passes the first agreement, because
-`InitialRatchetConcreteBranchEvidence` asks every RNG state for a draw (`concreteBranchEvidence_empty`,
-`Translation/UnitLifecycleIntegrationScreen.lean`; `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`).
+the two agreement-route forms) take the per-run records `InitialRatchetEndToEndEvidenceRun` and
+`InitialAgreementRatchetEndToEndEvidenceRun`; the record they replaced asked every RNG state for a draw and is empty
+(`concreteBranchEvidence_empty`, `Translation/UnitLifecycleIntegrationScreen.lean`; `GAP-REGISTER.md`, row
+`DISPATCH-EVIDENCE-VACUITY`).
 
 ## What the theorem establishes
 
