@@ -184,10 +184,10 @@ def main():
          'provider.hrel'),
         ('restore-arbitrary-ceiling',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
-         '      ∃ draw rest, trace innerRng = draw :: rest',
+         '      ∃ draw rest, trace rng = draw :: rest',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
-         'evidence.randomDraw'),
+         'evidence.randomDraw input.decoded hdecode'),
         ('restore-preassembled-positive-receive-provider',
          '  receive : ∀ successPrefix : InitialRatchetSuccessPrefix rc crc real message\n'
          '      rng rngNext plaintext next,\n'
@@ -318,7 +318,14 @@ def main():
             # concrete terminal-discharge theorem, not a duplicated signature.
             # For the terminal guard, mutate its concrete-discharge theorem only.
             mutated = tmp / f'{name}.lean'
-            if name == 'bypass-ephemeral':
+            if name == 'restore-arbitrary-ceiling':
+                # The live per-run record, not the superseded all-states one.
+                start = source.find('structure InitialRatchetConcreteBranchEvidenceRun')
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: run draw field is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name == 'bypass-ephemeral':
                 marker = '| initialAgreementAccepted'
                 start = source.find(marker)
                 target = source.find(before, start)
