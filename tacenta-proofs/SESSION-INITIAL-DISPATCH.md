@@ -6,6 +6,7 @@ T3 or end-to-end encryption/decryption plan.
 
 Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts` or
 `BraidReceiveContracts`, directly or through `InitialRatchetBraidEvidenceContracts`
+(since 2026-10-01 the dispatch theorems take `InitialRatchetBraidEvidenceContractsScoped`)
 (`decrypt_ratchet_refines_of_t1`, `braid_receive_evidence` and the
 `initial_ratchet_refines_of_t1` family), was vacuous as stated, because
 `BraidReceiveContracts` contained a false field (`GAP-REGISTER.md`, row
@@ -51,7 +52,9 @@ and clears pending state only on success.
 public `Session.decrypt` refinement witness. The companion
 `initial_dispatch_atomicity_from_ratchet` derives refusal preservation and
 success clearance of the pending-state **projection**. It does not claim
-byte-for-byte identity of every concrete session field on refusal.
+byte-for-byte identity of every concrete session field on refusal. `decrypt_err_leaves_state`
+(`Translation/UnitLifecycleAtomicity.lean`) states it of the translated `decrypt`, with no hypothesis
+about any opaque operation.
 
 The assumptions are explicit: initial message classification, the existing
 session relation and RNG trace, `DhCodecOf`, and `InitialRatchetRefines` for

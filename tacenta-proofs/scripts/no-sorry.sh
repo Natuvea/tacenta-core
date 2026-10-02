@@ -105,12 +105,32 @@ report_time "numeric-precondition witnesses and controls" "$t"
 t=$SECONDS
 bash scripts/check-port-negatives.sh || fail=1
 report_time "port-script unit-edit controls" "$t"
+# The evidence about the Braid refinement agreements of the Session unit (the model of the six KEM
+# and KDF agreements, the erasure halves, the state witnesses, the entry points) is held to
+# mutations: a shape, a model field, a witness or a pinned statement changed one at a time must
+# be refused, after the unmodified modules are accepted.
+t=$SECONDS
+bash scripts/check-braid-agreement-negatives.sh || fail=1
+report_time "Braid agreement witnesses control" "$t"
 # The initial dispatcher must retain its matching-key guards. These controls
 # elaborate disposable copies after the positive build above; timeout or a
 # compiler/dependency failure is never counted as a rejected mutation.
 t=$SECONDS
 python3 scripts/check-initial-dispatch-negatives.py || fail=1
 report_time "initial dispatcher proof-dependency controls" "$t"
+# The lifecycle frame proofs (`UnitLifecycleAtomicity.lean`) are one walk over each generated body.
+# Plant a write in a copy of each body and require the same walk to refuse it, after requiring it
+# to accept the unmodified copy; timeout, a compiler that does not start and a syntax error are
+# never counted as a refusal.
+t=$SECONDS
+python3 scripts/check-atomicity-negatives.py || fail=1
+report_time "lifecycle frame-proof controls" "$t"
+# The restated dispatch records' witnesses (`UnitLifecycleRepair.lean`): a witness for a wrong or
+# weaker statement would hold nothing, so make one change to a copy of each and require Lean to
+# refuse it, after requiring the unmodified copies to be accepted.
+t=$SECONDS
+python3 scripts/check-repair-negatives.py || fail=1
+report_time "restated dispatch record controls" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

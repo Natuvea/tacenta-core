@@ -13,6 +13,18 @@ import Translation.SessionBraidReceiveRepair
 import Translation.UnitSatisfiabilityErasure
 import Translation.UnitSatisfiabilityRatchet
 import Translation.UnitSatisfiabilityRecords
+import Translation.UnitSatisfiabilityBraidAgreements
+import Translation.UnitSatisfiabilityErasureAgrees
+import Translation.UnitSatisfiabilityBraidStates
+import Translation.UnitBraidEntryPoints
+import Translation.UnitErasureRsDefs
+import Translation.UnitErasureRsKernel
+import Translation.UnitErasureRsAlgebra
+import Translation.UnitErasureRsModel
+import Translation.UnitErasureRsEncoder
+import Translation.UnitErasureRsDecoder
+import Translation.UnitErasureRsStatements
+import Translation.UnitErasureRsGlue
 import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
@@ -25,6 +37,8 @@ import Translation.NumericBoundarySession
 import Translation.NumericWitnessSession
 import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
+import Translation.UnitLifecycleAtomicity
+import Translation.UnitLifecycleRepair
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
