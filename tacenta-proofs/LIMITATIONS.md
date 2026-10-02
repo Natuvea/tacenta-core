@@ -1833,8 +1833,8 @@ narrower than the claim that was removed:
   enumeration is not complete (the codec theorems' `pos + 41 ≤ usize::MAX` and
   `len + 48 ≤ usize::MAX` have no shape) and nothing in the tree checks it. Those
   theorems are about shapes and are joined to no theorem; their statements are
-  held by `#guard_msgs in #check` pins in the build, and no gate requires a pin to
-  exist.
+  held by `#guard_msgs in #check` pins in the build; `attest.py` requires each pin
+  to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says.
 - The store bounds the classical ratchet's `receive` carries are satisfied by
   every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
   `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
@@ -2282,7 +2282,8 @@ derivations and not a theorem inside Lean, and not a statement that the real `Pr
 satisfy `ValidKeyShape`, or that the real `Option::eq` behaves.
 
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
-`#guard_msgs in #check` statement pin, which the build holds and no gate requires to exist. The other 32 are held by the build
+`#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
+it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
 and by their axiom pin alone, and the axiom pin lists axioms and not the statement, so a weaker statement of any of them that
 keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the width bound and the four controls.
 
@@ -2371,8 +2372,9 @@ following and leave the following open.
   refinements and not of the receive refinements.
 - **What holds the statements.** Each result has an axiom pin that `attest.py` requires. The statements and the
   definitions that carry the claim (`State.sized`, `Braid.Run` with its constructors, `Good`, `Laws`) are held by
-  `#guard_msgs in #check` and `#guard_msgs in #print` pins that the build checks while they are present, and no gate
-  requires one to exist: deleting a statement pin, or weakening a result that has none, fails no gate. The results with no
+  `#guard_msgs in #check` and `#guard_msgs in #print` pins that the build checks and `attest.py` requires to exist
+  (`REQUIRED_STATEMENT_PINS`). `attest.py` does not read what a pin says, so a statement changed together with its pin's
+  expected message is accepted, and weakening a result that has no pin fails no gate. The results with no
   statement pin are `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and
   `Good.clone`; the other results have one.
 

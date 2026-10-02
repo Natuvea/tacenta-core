@@ -35,8 +35,9 @@ theorem in the first-party modules was reduced to comparison leaves, and the lea
 script that did that is not in this tree, so nothing here checks that the list is complete or stays complete.
 
 The statement of each shape theorem and of the two theorems at the end is held by a `#guard_msgs in #check`
-pin after the namespace: a changed statement stops the build until its pin is changed too. No gate requires
-a statement pin to exist, so deleting a pin and changing its statement together is accepted.
+pin after the namespace: a changed statement stops the build until its pin is changed too. `attest.py` requires
+each statement pin to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says, so a statement changed
+together with its pin's expected message is accepted.
 -/
 
 namespace Tacenta.NumericShapeWitness

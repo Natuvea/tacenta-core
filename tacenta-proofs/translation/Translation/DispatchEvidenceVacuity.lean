@@ -980,8 +980,8 @@ The axiom lists name constants that occur in the statements of the results (the 
 operations the hypotheses are about), not assumptions the proofs make; the results that need no
 constant list the three standard axioms only. The statement pins fix what each result says: a
 weaker hypothesis list or a different conclusion fails the build here, and an axiom pin alone
-would not notice it. `attest.py` lists the axiom pins in `REQUIRED_PINS`, so deleting one fails
-it. -/
+would not notice it. `attest.py` lists the axiom pins in `REQUIRED_PINS` and the statement pins in
+`REQUIRED_STATEMENT_PINS`, so deleting one fails it. -/
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty' depends on axioms: [propext,

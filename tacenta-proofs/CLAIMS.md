@@ -2244,9 +2244,11 @@ carry the claim by
 `#guard_msgs in #print` pins (`State.sized`, `Braid.sized`, `Braid.Run` with its constructors,
 `Braid.Constructed`, `Braid.Start`, `Braid.Decoded`, `Reach`, `Good`, `NewMsgLen`, `TruncateLen`,
 `TruncateLenShape`, `Laws`, in the standalone and unit files that define them). These are held by the
-build and by the axiom pin, and **no gate requires a statement pin or a definition pin to exist**: deleting
-one fails nothing, and weakening a result whose statement has no pin changes nothing a gate reads. The
-results whose statements are held only by the build and the axiom pin, with no statement pin, are
+build and by the axiom pin. `attest.py` requires each of these pins to exist (`REQUIRED_STATEMENT_PINS`),
+so deleting one, commenting one out, removing its `#guard_msgs` or giving it an option that compares
+nothing fails it. It does not read what a pin says, so a statement changed together with its pin's
+expected message is accepted, and weakening a result whose statement has no pin changes nothing a gate
+reads. The results whose statements are held only by the build and the axiom pin, with no statement pin, are
 `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and `Good.clone`.
 
 ## Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)
@@ -2735,9 +2737,12 @@ Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of
 deleting one fails it. The pins of the results about `Interp.real` and the records list the 48 interpreted
 constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
 axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
-The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng`, `records_of_axiom_base` and
-`vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by `#guard_msgs in #check`, and `attest.py` requires
-each of those four pins to exist and to compare the printed statement (`REQUIRED_STATEMENT_PINS`); no other statement in these modules is held, so a weaker statement that
+The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng` and `records_of_axiom_base`
+(in `UnitSatisfiabilityRecords.lean`) and of `vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by
+`#guard_msgs in #check`, and `attest.py` requires each of those four pins to exist as an active `#guard_msgs in #check`
+whose options still compare the printed message (`REQUIRED_STATEMENT_PINS`). It does not read what a pin says, so a
+statement weakened together with its pin's expected message is accepted by that check, and only the build, which compares
+the text, and the diff of the pin show it. No other statement in these modules is held, so a weaker statement that
 keeps its axiom list is not refused. What the pins do not hold is the classification itself, which fields are axiom-level and which are about
 translated functions: the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
@@ -2841,8 +2846,12 @@ two holds for both. Each of the nineteen results is pinned under `#guard_msgs` t
 file, once as an axiom list and once as its statement (`#check`), and `attest.py` requires every axiom
 pin (`REQUIRED_PINS`), so deleting one fails it. The build compares the text of each statement pin, and
 `attest.py` requires each of the nineteen to exist as an active `#guard_msgs in #check` whose options still compare the
-printed message (`REQUIRED_STATEMENT_PINS`), so deleting one, commenting one out or dropping its message fails it. `attest.py` does
-not read what a statement pin says. The axiom lists name the opaque constants that the statements mention,
+printed message (`REQUIRED_STATEMENT_PINS`), so deleting one, commenting one out, removing its `#guard_msgs`, nesting it
+under another `... in` or giving it an option such as `(drop info)` fails it; removing its expected message fails the
+build, not this check. `attest.py` does not read what a statement pin says, so a statement that is weakened together with
+its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the
+pin show it; a pin holds the printed statement, in which a definition appears by name, so changing a definition changes
+no pin unless the definition has its own `#print` pin. The axiom lists name the opaque constants that the statements mention,
 directly or through the definitions they unfold, and the proofs use none of them as assumptions;
 `keysSampled_receive_ct1_holds_chunk` mentions none and lists the three standard axioms only. None
 depends on a compiler-trust axiom. These results repair nothing, and they do not show that any other
@@ -2955,8 +2964,9 @@ a compiler-trust axiom. The statements of `headroom_of_axiom_base`, `headroom_hy
 `invariant_session_meets_both`, `invariant_session_of_axiom_base`, `invariant_hypotheses_satisfiable`,
 `decryptHeadroom_of_invariant`, `encryptHeadroom_iff_of_invariant`, `sessionOf_invariant`, `emptyChain_headroom`,
 `epochZero_bounds`, `session_emptyChainTable_fails_invariant` and `session_epochZero_fails_invariant` are also pinned by
-`#guard_msgs in #check`, which the build holds and which no gate requires to exist, so deleting one of those pins is not
-refused. The other 32 results are held only by the build, which accepts whatever statement is written if it proves it, and
+`#guard_msgs in #check`, which the build holds and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`), so deleting
+one of those pins is refused; `attest.py` does not read what a pin says, so a statement changed together with its pin's
+expected message is accepted. The other 32 results are held only by the build, which accepts whatever statement is written if it proves it, and
 by their axiom pin, which lists axioms and not the statement, so a weaker statement of any of them that keeps its axiom list
 passes every gate: `usize_max_ge`, `plaintext_bound_at_widths`, `freshTriple_headroom`, `freshBraid_bounds`,
 `decryptHeadroom_sessionOf_iff`, `invariantPreconditions_sessionOf`, `decryptHeadroom_satisfiable`,
@@ -3208,8 +3218,9 @@ real run reaches a size, or that the Rust source has the constant the translatio
   aggregate theorem names every shape theorem so that deleting one is an error. The shape theorems are about shapes and not about
   theorems: nothing in the tree joins a shape to the premises that have it, so a premise added to a theorem with a shape outside
   the 61 is not noticed there. The statement of each shape theorem and of the two theorems at the end is held by a
-  `#guard_msgs in #check` pin in the module, so a changed statement stops the build until its pin is changed too; no gate
-  requires a statement pin to exist, so deleting a pin and changing its statement together is accepted. The join to the central
+  `#guard_msgs in #check` pin in the module, so a changed statement stops the build until its pin is changed too;
+  `attest.py` requires each of these pins to exist (`REQUIRED_STATEMENT_PINS`) and does not read what a pin says, so a
+  statement changed together with its pin's expected message is accepted. The join to the central
   theorems is the witness section above.
 
 The 27 theorems of the five bound modules are pinned with `#guard_msgs in #print axioms`; each lists only `propext`,
