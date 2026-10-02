@@ -416,6 +416,30 @@ AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_ful
 UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view sameEphemeralAgreement_unconstrained concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
 LIST
 
+# The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
+# are in the proofs package, not the translation package, so they have their own block.
+for n in mem_skipSurvivors_iff skipSurvivors_length_le skipMessageKeys_refused_iff \
+         skipMessageKeys_leaves_survivors_then_batch skipMessageKeys_keeps_outside_range \
+         skipMessageKeys_keeps_the_key_at_the_counter skipMessageKeys_replaces_the_range \
+         replacement_accepts_where_the_count_before_the_deletion_refuses \
+         witness_premises_hold witness_refused_one_key_further; do
+  make_case
+  python3 - "$work/tacenta-proofs/Proofs/SparseReplacementBound.lean" "Proofs.SparseReplacementBound.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-SparseReplacementBound-$n" "\`Proofs.SparseReplacementBound.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys

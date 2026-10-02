@@ -171,7 +171,12 @@ epochs):
     - the sparse ratchet's store bound, for one skip: a skip that succeeds
       leaves the store no longer than the larger of its previous length and
       `MAX_SKIPPED_STORE`:
-      `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded`.
+      `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded`;
+    - a sparse skip that steps the chain and succeeds leaves at most
+      `MAX_SKIPPED_STORE` keys, and is refused exactly when the keys that
+      survive the deletion plus the keys to store pass that bound:
+      `Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`
+      and `Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`.
 - **Does not cover:**
   - The bound across `Model.Ratchet.receive`. A receive is not a
     `Proofs.MemorySafety.Step`, and no theorem says the state it returns is

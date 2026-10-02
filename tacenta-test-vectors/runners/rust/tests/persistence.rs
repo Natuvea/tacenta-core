@@ -120,7 +120,15 @@ fn persistence_vectors_pass() {
         ),
         (
             "sparse-ratchet-state",
-            &[],
+            // Not a ceiling, but held the same way: operations from a stored
+            // state that the total bound's resulting-store count accepts
+            // (sparse-pq-ratchet.md, The store also has a total bound), and the
+            // range of keys a skip replaces. A regeneration that dropped one fails
+            // here, and so does a crate that counts the store before the purge.
+            &[
+                "replacement-bound-counts-resulting-store",
+                "replacement-range-excludes-the-chain-counter",
+            ],
             &[
                 "advance-onto-u64-max-refused",
                 "send-past-u64-max-refused",
