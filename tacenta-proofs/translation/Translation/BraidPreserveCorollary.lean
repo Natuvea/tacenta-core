@@ -182,7 +182,8 @@ info: 'Tacenta.BraidPreserveCorollary.Braid.Run.receive_refines' depends on axio
 /-! ## Statement pins
 
 The axiom pins hold the constants a result depends on and not what it says.  These hold the
-statements of the results below while they are present; no gate requires a statement pin to exist. -/
+statements of the results below; `attest.py` requires each statement pin to exist
+(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
 
 /--
 info: Tacenta.BraidPreserveCorollary.Braid.Run.receive_no_panic (hl : Laws) (hencaps1 : Encapsulate1Total)

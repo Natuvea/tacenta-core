@@ -153,7 +153,8 @@ info: 'Tacenta.SessionUnitBraidPreserveDecoder.Good.clone' depends on axioms: [p
 /-! ## Statement pins
 
 The axiom pins hold the constants a result depends on and not what it says.  These hold the
-statements of the results below while they are present; no gate requires a statement pin to exist. -/
+statements of the results below; `attest.py` requires each statement pin to exist
+(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
 
 /--
 info: Tacenta.SessionUnitBraidPreserveDecoder.Good.new (hl : Tacenta.SessionUnitBraidPreserveDecoder.Laws) {m : Usize}
@@ -166,7 +167,8 @@ info: Tacenta.SessionUnitBraidPreserveDecoder.Good.new (hl : Tacenta.SessionUnit
 /-! ## Definition pins
 
 The definitions that carry the claim.  A change to a clause, a constructor or a law fails the
-build while its pin is present; no gate requires a definition pin to exist. -/
+build while its pin is present; `attest.py` requires each definition pin to exist
+(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
 
 /--
 info: def Tacenta.SessionUnitBraidPreserveDecoder.Good : ℕ → Decoder → Prop :=

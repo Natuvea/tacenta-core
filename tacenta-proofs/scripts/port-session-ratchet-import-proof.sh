@@ -41,6 +41,9 @@ substitutions = [
     ("Tacenta.T1", "Tacenta.SessionUnitT1", 20),
     ("open tacenta_ratchet", "open tacenta_session_unit.tacenta_ratchet", 1),
     ("open tacenta_spqr", "open tacenta_session_unit.tacenta_spqr", 1),
+    # prose: the discharge theorem the sparse section's notes point at, under its session-unit name
+    ("DecodedStateDischarge.spqr_receive_premises",
+     "SessionUnitDecodedStateDischarge.session_unit_spqr_receive_premises", 3),
 ]
 for old, new, expected in substitutions:
     found = text.count(old)

@@ -921,6 +921,248 @@ REQUIRED_PINS = frozenset(
         "invariant_session_of_axiom_base",
         "invariant_hypotheses_satisfiable",
     )]
+    # The numeric-precondition modules: every axiom pin of the witnesses, the discharge theorems and the boundary
+    # arithmetic. `scripts/check-precondition-witnesses.sh` holds the statements of the `sat_` and discharge theorems
+    # to the signatures of the theorems they are about, and its table is the other half of this list.
+    + ["Tacenta.NumericBoundary." + n for n in (
+        "both_widths",
+        "classical_store_cap_fits",
+        "classical_skip_cap_fits",
+        "spqr_chain_cap_fits",
+        "spqr_skip_cap_fits",
+        "ratchet_codec_cap_fits",
+        "spqr_codec_cap_fits",
+        "erasure_cap_fits",
+        "erasure_room_exact_at_32",
+        "clock_ceiling_excludes_only_parked",
+        "epoch_ceiling_excludes_only_top",
+    )]
+    + ["Tacenta.NumericBoundaryLeaf." + n for n in (
+        "ratchet_constants",
+        "spqr_constants",
+        "erasure_constants",
+        "protobuf_constants",
+        "code_matches_model",
+        "max_events_is_parked",
+        "clock_ceiling_summary",
+    )]
+    + ["Tacenta.NumericBoundaryTriple." + n for n in (
+        "unit_ratchet_constants",
+        "unit_spqr_constants",
+        "unit_code_matches_model",
+    )]
+    + ["Tacenta.NumericBoundarySession." + n for n in (
+        "session_unit_ratchet_constants",
+        "session_unit_spqr_constants",
+        "session_unit_erasure_constants",
+        "session_unit_code_matches_model",
+    )]
+    + ["Tacenta.NumericShapeWitness." + n for n in (
+        "usize_max_cases",
+        "every_shape_is_satisfiable",
+    )]
+    + ["Tacenta.NumericWitnessLeaf." + n for n in (
+        "sat_T1_receive_no_panic",
+        "sat_T3_receive_refines",
+        "sat_ImportInv_Ratchet_decoded_receive_refines",
+        "sat_SpqrT1_receive_no_panic",
+        "sat_SpqrT1_send_no_panic",
+        "sat_SpqrT3_receive_refines",
+        "sat_SpqrT3_send_refines",
+        "sat_BraidT1_Braid_receive_no_panic",
+        "sat_BraidT1_Braid_step_receive_no_panic",
+        "sat_BraidT3_Braid_receive_refines",
+        "sat_BraidT3_step_receive_refines",
+        "sat_BraidT3_Braid_send_refines",
+        "sat_BraidT3_step_send_refines",
+        "spqrS_inv",
+        "ratS_inv",
+        "spqr_receive_premises_at_witness",
+        "spqr_send_premises_at_witness",
+        "spqr_advance_premises_at_witness",
+        "spqr_maybe_advance_premises_at_witness",
+        "spqr_clear_old_epochs_premises_at_witness",
+        "ratchet_receive_premises_at_witness",
+        "braid_receive_premises_at_witness",
+        "braid_step_receive_premises_at_witness",
+    )]
+    + ["Tacenta.NumericWitnessTriple." + n for n in (
+        "sat_UnitT1_receive_no_panic",
+        "sat_UnitT3_receive_refines",
+        "sat_UnitSpqrT1_receive_no_panic",
+        "sat_UnitSpqrT1_send_no_panic",
+        "sat_UnitSpqrT3_receive_refines",
+        "sat_UnitSpqrT3_send_refines",
+        "sat_UnitTripleT1_State_receive_no_panic",
+        "sat_UnitTripleT1_State_send_no_panic",
+        "sat_UnitTripleT3_receive_refines",
+        "sat_UnitTripleT3_receive_refines_discharged",
+        "sat_UnitTripleT3_send_refines",
+        "sat_UnitTripleT3_send_refines_discharged",
+    )]
+    + ["Tacenta.NumericWitnessSession." + n for n in (
+        "sat_SessionUnitT1_receive_no_panic",
+        "sat_SessionUnitT3_receive_refines",
+        "sat_SessionUnitRatchetImportInv_Ratchet_decoded_receive_refines",
+        "sat_SessionUnitSpqrT1_receive_no_panic",
+        "sat_SessionUnitSpqrT1_send_no_panic",
+        "sat_SessionUnitSpqrT3_receive_refines",
+        "sat_SessionUnitSpqrT3_send_refines",
+        "sat_SessionUnitTripleT1_State_receive_no_panic",
+        "sat_SessionUnitTripleT1_State_send_no_panic",
+        "sat_SessionUnitTripleT3_receive_refines",
+        "sat_SessionUnitTripleT3_receive_refines_discharged",
+        "sat_SessionUnitTripleT3_send_refines",
+        "sat_SessionUnitTripleT3_send_refines_discharged",
+        "sat_SessionUnitBraidT1_Braid_receive_no_panic",
+        "sat_SessionUnitBraidT1_Braid_step_receive_no_panic",
+        "sat_SessionUnitBraidT3_Braid_receive_refines",
+        "sat_SessionUnitBraidT3_step_receive_refines",
+        "sat_SessionUnitBraidT3_Braid_send_refines",
+        "sat_SessionUnitBraidT3_step_send_refines",
+        "session_unit_spqrS_inv",
+        "session_unit_ratS_inv",
+        "session_unit_spqr_receive_premises_at_witness",
+        "session_unit_spqr_send_premises_at_witness",
+        "session_unit_spqr_advance_premises_at_witness",
+        "session_unit_spqr_maybe_advance_premises_at_witness",
+        "session_unit_spqr_clear_old_epochs_premises_at_witness",
+        "session_unit_ratchet_receive_premises_at_witness",
+        "session_unit_braid_receive_premises_at_witness",
+        "session_unit_braid_step_receive_premises_at_witness",
+        "triple_receive_premises_at_witness",
+        "triple_send_premises_at_witness",
+    )]
+    + ["Tacenta.DecodedStateDischarge." + n for n in (
+        "spqr_epoch_family",
+        "spqr_receive_premises",
+        "spqr_send_premises",
+        "spqr_advance_premises",
+        "spqr_maybe_advance_premises",
+        "spqr_clear_old_epochs_premises",
+        "ratchet_receive_premises",
+        "braid_receive_premises",
+        "braid_step_receive_premises",
+    )]
+    + ["Tacenta.SessionUnitDecodedStateDischarge." + n for n in (
+        "session_unit_spqr_epoch_family",
+        "session_unit_spqr_receive_premises",
+        "session_unit_spqr_send_premises",
+        "session_unit_spqr_advance_premises",
+        "session_unit_spqr_maybe_advance_premises",
+        "session_unit_spqr_clear_old_epochs_premises",
+        "session_unit_ratchet_receive_premises",
+        "session_unit_braid_receive_premises",
+        "session_unit_braid_step_receive_premises",
+        "triple_receive_premises",
+        "triple_send_premises",
+        "decrypt_headroom_of_invariant",
+        "decrypt_ratchet_no_panic_of_invariant",
+        "decrypt_no_panic_of_invariant",
+    )]
+    # The hypotheses of the leaf and three-leaf-unit theorems that are statements about translated
+    # functions, proved from named laws about opaque constants, and the decoder acceptance witnesses.
+    # Every axiom pin of the eight modules below.
+    + ["Tacenta.SatisfiabilitySpqrLaws." + n for n in (
+        "kdfRkTotal",
+        "kdfCkTotal",
+        "spqrRemoveSkippedAtTotal",
+        "setChainsLoopTotal",
+        "clearChainsLoop0Total",
+        "clearSkippedLoopTotal",
+        "vecRetainTotal",
+        "defined_fields_hold",
+        "removeSkippedAtAgrees",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainAgrees",
+        "LawPop_is",
+        "LawAsMut_is",
+        "LawCapacity_is",
+        "LawVecZeroize_is",
+        "LawHkdf_is",
+        "SpqrCodec_ZeroizingVecTotal_is",
+        "zeroizing_vec_satisfiable",
+        "laws_jointly_satisfiable",
+        "defined_hyps_from_axiom_hyps",
+        "spqr_zeroizeTotal_conflicts",
+        "laws_of_shape",
+        "hkdf_total_satisfiable",
+        "pop_satisfiable",
+        "capacity_satisfiable",
+        "vec_zeroize_satisfiable",
+        "vec_zeroize_conflicts",
+    )]
+    + ["Tacenta.SatisfiabilityRatchetLaws." + n for n in (
+        "ratchetRemoveSkippedAtTotal",
+        "LawPop_is",
+        "LawBlanketU32_is",
+        "ArrZU8_is",
+        "RatchetCodec_ZeroizingVecTotal_is",
+        "zeroizing_vec_satisfiable",
+        "pop_satisfiable",
+        "blanket_satisfiable",
+        "arrZU8_satisfiable",
+        "ratchet_laws_jointly_satisfiable",
+    )]
+    + ["Tacenta.SatisfiabilityBraidZeroize." + n for n in (
+        "braid_arrayZeroizeTotal_conflicts",
+    )]
+    + ["Tacenta.UnitSatisfiabilityTripleLaws." + n for n in (
+        "kdfRkTotal",
+        "kdfCkTotal",
+        "kdfInitTotal",
+        "spqrRemoveSkippedAtTotal",
+        "ratchetRemoveSkippedAtTotal",
+        "setChainsLoopTotal",
+        "clearChainsLoop0Total",
+        "clearSkippedLoopTotal",
+        "vecRetainTotal",
+        "defined_fields_hold",
+        "removeSkippedAtAgrees",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainAgrees",
+        "LawPop_is",
+        "LawAsMut_is",
+        "LawCapacity_is",
+        "LawVecZeroize_is",
+        "LawBlanketU32_is",
+        "LawHkdf_is",
+        "laws_jointly_satisfiable",
+        "laws_of_shape",
+        "defined_hyps_from_axiom_hyps",
+        "RoundTrips80_is",
+        "roundTrips80_satisfiable",
+        "TripleZeroizeTotal_is",
+        "arrZ32_satisfiable",
+        "arrZ32_of_general",
+        "spqrZeroizeTotal_conflicts",
+        "hkdf_total_satisfiable",
+        "pop_satisfiable",
+        "capacity_satisfiable",
+        "vec_zeroize_satisfiable",
+        "blanket_satisfiable",
+        "vec_zeroize_conflicts",
+    )]
+    + ["Tacenta.SpqrFromBytesWitness." + n for n in (
+        "spqr_from_bytes_accepts_witness",
+        "spqr_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.BraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.SessionUnitBraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.RatchetDecodedWitness." + n for n in (
+        "ratchet_witness_events",
+        "decoded_receive_refines_premises_satisfiable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -937,6 +1179,354 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitTripleT3.send_refines_discharged",
         "Tacenta.UnitTripleT3.spqr_agrees_for",
     }
+)
+
+# The statement-pin floor: declarations whose STATEMENT is pinned by
+# `#guard_msgs in #check @name`, and whose pin may not be deleted, commented out,
+# left without its `#guard_msgs`, or given an option that makes it compare nothing.
+# `REQUIRED_PINS` is the same floor for the `#print axioms` pins; a statement pin
+# was held by the Lean build only, so deleting every one of them, or weakening a
+# statement while keeping its axiom list, was accepted by every gate. The names
+# are fully qualified, written as the pin writes them, in blocks keyed by module
+# (one block per module, so a branch appends its own block and two branches do not
+# touch the same lines). `check_statement_pins` states what counts as a pin.
+# Removing a name is a change to this script and, because the verification manifest
+# records the floor, to the manifest as well (`check_statement_floor_recorded`).
+REQUIRED_STATEMENT_PINS = frozenset(
+    ["Tacenta.DispatchEvidenceVacuity." + n for n in (
+        "same_ephemeral_agreement_empty",
+        "initialSameEphemeralEvidence_false",
+        "codewordViewOf_false",
+        "codewordViewOf_false_of_encoderNewTotal",
+        "record_empty_of_nonempty_decoder",
+        "record_empty_headerSent",
+        "record_empty_ekSentCt1Received",
+        "record_empty_noHeaderReceived",
+        "record_empty_ct1Sampled_ek",
+        "record_empty_ct1Sampled_ekCt1Ack",
+        "record_empty_ct1Acknowledged",
+        "keysSampled_receive_ct1_holds_chunk",
+        "tripleConcreteEvidence_forces_constant_dhPublic",
+        "aeadConcreteEvidence_forces_constant_dhPublic",
+        "constant_dhPublic_false_of_publicKeyNotConstant",
+        "tripleConcreteEvidence_false_of_publicKeyNotConstant",
+        "aeadConcreteEvidence_false_of_publicKeyNotConstant",
+        "oracleOf_kem_oracle_never_refuses",
+        "oracleOf_kem_call_never_errs",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRecords." + n for n in (
+        "axiom_base_satisfiable",
+        "axiom_base_satisfiable_for_total_rng",
+        "records_of_axiom_base",
+    )]
+    + ["Tacenta.UnitSatisfiabilitySession." + n for n in (
+        "vec_pop_satisfiable",
+    )]
+    # Every statement pin of the Braid preservation, shape-witness and other modules that were
+    # on the tree when the floor was first applied to them; each branch adds its own block below.
+    + ["Tacenta.BraidPreserve." + n for n in (
+        "Braid.Constructed",
+        "Braid.Constructed.sized",
+        "Braid.Run",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+        "Braid.Run.sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.receive_sized",
+        "Braid.responder_sized",
+        "Braid.send_sized",
+        "Braid.sized",
+        "Braid.step_receive_sized",
+        "Braid.step_send_sized",
+        "State.clone_sized",
+        "State.sized",
+        "State.sized_ct1_bounded",
+    )]
+    + ["Tacenta.BraidPreserveCorollary." + n for n in (
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+    )]
+    + ["Tacenta.BraidPreserveDecoder." + n for n in (
+        "Good",
+        "Laws",
+        "NewMsgLen",
+        "Reach",
+    )]
+    + ["Tacenta.BraidPreserveWitness." + n for n in (
+        "erasure_laws_satisfiable",
+        "newMsgLen_iff",
+    )]
+    + ["Tacenta.NumericShapeWitness." + n for n in (
+        "S01",
+        "S02",
+        "S03",
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08",
+        "S09",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26",
+        "S27",
+        "S28",
+        "S29",
+        "S30",
+        "S31",
+        "S32",
+        "S33",
+        "S34",
+        "S35",
+        "S36",
+        "S37",
+        "S38",
+        "S39",
+        "S40",
+        "S41",
+        "S42",
+        "S43",
+        "S44",
+        "S45",
+        "S46",
+        "S47",
+        "S48",
+        "S49",
+        "S50",
+        "S51",
+        "S52",
+        "S53",
+        "S54",
+        "S55",
+        "S56",
+        "S57",
+        "S58",
+        "S59",
+        "S60",
+        "S61",
+        "every_shape_is_satisfiable",
+        "usize_max_cases",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserve." + n for n in (
+        "Braid.Constructed",
+        "Braid.Constructed.sized",
+        "Braid.Run",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+        "Braid.Run.sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.receive_sized",
+        "Braid.responder_sized",
+        "Braid.send_sized",
+        "Braid.sized",
+        "Braid.step_receive_sized",
+        "Braid.step_send_sized",
+        "State.clone_sized",
+        "State.sized",
+        "State.sized_ct1_bounded",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveDecoder." + n for n in (
+        "Good",
+        "Good.new",
+        "Laws",
+        "TruncateLen",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveFacts." + n for n in (
+        "Braid.Decoded",
+        "Braid.Run.inv",
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+        "Braid.Run.sized_of_start",
+        "Braid.Start",
+        "TruncateLenShape",
+        "TruncateLen_is",
+        "from_bytes_sized",
+        "inv_not_sized",
+        "invariant_true_gives_sized",
+        "laws_model",
+        "sized_decoders_bounded",
+        "truncateLen_model",
+    )]
+    # Statement pins added by the headroom and hypothesis-witness modules.
+    + ["Tacenta.BraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.RatchetDecodedWitness." + n for n in (
+        "decoded_receive_refines_premises_satisfiable",
+        "ratchet_witness_events",
+    )]
+    + ["Tacenta.SatisfiabilityBraidZeroize." + n for n in (
+        "PropagatesFailureBraid",
+        "braid_arrayZeroizeTotal_conflicts",
+    )]
+    + ["Tacenta.SatisfiabilityRatchetLaws." + n for n in (
+        "ArrZU8",
+        "ArrZU8_is",
+        "LawBlanketU32",
+        "LawBlanketU32_is",
+        "LawPop",
+        "LawPop_is",
+        "RatchetCodec_ZeroizingVecTotal_is",
+        "arrZU8_satisfiable",
+        "blanket_satisfiable",
+        "pop_satisfiable",
+        "ratchetRemoveSkippedAtTotal",
+        "ratchet_laws_jointly_satisfiable",
+        "zeroizing_vec_satisfiable",
+    )]
+    + ["Tacenta.SatisfiabilitySpqrLaws." + n for n in (
+        "AsMutShape",
+        "CapacityShape",
+        "HkdfTotalShape",
+        "LawAsMut",
+        "LawAsMut_is",
+        "LawCapacity",
+        "LawCapacity_is",
+        "LawHkdf",
+        "LawHkdf_is",
+        "LawPop",
+        "LawPop_is",
+        "LawVecZeroize",
+        "LawVecZeroize_is",
+        "LawZeroizing",
+        "Laws",
+        "LawsShape",
+        "PopShape",
+        "PropagatesFailure",
+        "PropagatesFailureVec",
+        "SpqrCodec_ZeroizingVecTotal_is",
+        "VecZeroizeShape",
+        "as_mut_satisfiable",
+        "capacity_satisfiable",
+        "clearChainsLoop0Total",
+        "clearOldEpochsAgrees",
+        "clearSkippedLoopTotal",
+        "defined_fields_hold",
+        "defined_hyps_from_axiom_hyps",
+        "hkdf_total_satisfiable",
+        "kdfCkTotal",
+        "kdfRkTotal",
+        "laws_jointly_satisfiable",
+        "laws_of_shape",
+        "pop_satisfiable",
+        "removeSkippedAtAgrees",
+        "setChainsAgrees",
+        "setChainsLoopTotal",
+        "spqrRemoveSkippedAtTotal",
+        "spqr_zeroizeTotal_conflicts",
+        "vecRetainAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainTotal",
+        "vec_zeroize_conflicts",
+        "vec_zeroize_satisfiable",
+        "zeroizing_vec_satisfiable",
+    )]
+    + ["Tacenta.SessionUnitBraidFromBytesWitness." + n for n in (
+        "braid_from_bytes_accepts_witness",
+        "braid_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.SpqrFromBytesWitness." + n for n in (
+        "spqr_from_bytes_accepts_witness",
+        "spqr_from_bytes_establishes_inv_nonvacuous",
+    )]
+    + ["Tacenta.UnitHeadroomInvariant." + n for n in (
+        "decryptHeadroom_of_invariant",
+        "emptyChain_headroom",
+        "encryptHeadroom_iff_of_invariant",
+        "epochZero_bounds",
+        "invariant_hypotheses_satisfiable",
+        "invariant_session_meets_both",
+        "invariant_session_of_axiom_base",
+        "sessionOf_invariant",
+        "session_emptyChainTable_fails_invariant",
+        "session_epochZero_fails_invariant",
+    )]
+    + ["Tacenta.UnitHeadroomSatisfiable." + n for n in (
+        "decrypt_headroom_of_contracts",
+        "encryptHeadroom_sessionOf_iff",
+        "encrypt_headroom_of_contracts",
+        "headroom_hypotheses_satisfiable",
+        "headroom_of_axiom_base",
+        "initiatorHeadroom_iff",
+        "initiator_headroom_of_contracts",
+        "responderHeadroom_iff",
+        "responder_headroom_of_contracts",
+    )]
+    + ["Tacenta.UnitSatisfiabilityTripleLaws." + n for n in (
+        "AsMutShape",
+        "BlanketU32Shape",
+        "CapacityShape",
+        "HkdfTotalShape",
+        "LawAsMut",
+        "LawAsMut_is",
+        "LawBlanketU32",
+        "LawBlanketU32_is",
+        "LawCapacity",
+        "LawCapacity_is",
+        "LawHkdf",
+        "LawHkdf_is",
+        "LawPop",
+        "LawPop_is",
+        "LawVecZeroize",
+        "LawVecZeroize_is",
+        "LawZeroizing",
+        "Laws",
+        "LawsShape",
+        "PopShape",
+        "PropagatesFailure",
+        "PropagatesFailureVec",
+        "RoundTrips80_is",
+        "TripleZeroizeTotal_is",
+        "VecZeroizeShape",
+        "arrZ32_of_general",
+        "arrZ32_satisfiable",
+        "as_mut_satisfiable",
+        "blanket_satisfiable",
+        "capacity_satisfiable",
+        "clearChainsLoop0Total",
+        "clearOldEpochsAgrees",
+        "clearSkippedLoopTotal",
+        "defined_fields_hold",
+        "defined_hyps_from_axiom_hyps",
+        "hkdf_total_satisfiable",
+        "kdfCkTotal",
+        "kdfInitTotal",
+        "kdfRkTotal",
+        "laws_jointly_satisfiable",
+        "laws_of_shape",
+        "pop_satisfiable",
+        "ratchetRemoveSkippedAtTotal",
+        "removeSkippedAtAgrees",
+        "roundTrips80_satisfiable",
+        "setChainsAgrees",
+        "setChainsLoopTotal",
+        "spqrRemoveSkippedAtTotal",
+        "spqrZeroizeTotal_conflicts",
+        "vecRetainAgrees",
+        "vecRetainAgreesOfLaws",
+        "vecRetainTotal",
+        "vec_zeroize_conflicts",
+        "vec_zeroize_satisfiable",
+    )]
 )
 
 
@@ -1024,6 +1614,403 @@ def axiom_pins():
                 }
             )
     return sorted(pins, key=lambda x: (x["file"], x["theorem"]))
+
+
+# ---------------------------------------------------------------------------
+# The statement pins
+#
+# A statement pin is `#guard_msgs in` immediately followed by `#check @name` (or
+# `#check name`, or `#print name`), with the expected message in the docstring
+# above it. Lean's build compares the message, so the pin ties a claimed result to
+# the statement it was written with. Nothing in the build requires the pin to
+# exist: a deleted pin is a smaller file that builds. `REQUIRED_STATEMENT_PINS` is
+# what requires it, and `check_statement_pins` is what decides a pin counts.
+#
+# What it reads, on the comment-, string- and character-literal-stripped text
+# (`lean_code`, so `--` in a string, `/-` nested in a block comment and a pin inside
+# a docstring are read the way Lean reads them):
+#
+#   * `#guard_msgs`, optionally `( options )`, then `in`, then a command that is
+#     `#check` or `#print` followed by an optional `@` and exactly one name and
+#     nothing else before the next command at column 0 (a `#check` of an
+#     application or a term is not a pin of a name);
+#   * the name must equal the floor name character for character, and the pin must
+#     sit outside every `namespace`, `section` and `mutual` block, so no name
+#     resolution is guessed at: the pins are written after the namespace's `end`,
+#     with the full name;
+#   * the `#guard_msgs` must be the whole command: when it is the argument of an
+#     earlier `... in` (`#guard_msgs (drop error) in`, `set_option ... in`,
+#     `open ... in`) the outer command can swallow the pin's mismatch or change what
+#     the pin prints, so the pin is refused and is written as its own command;
+#   * the options must still compare the `info` message `#check` prints. `#guard_msgs`
+#     takes the first option that covers a message kind: `check` compares it, `drop`
+#     discards it and `pass` prints it without comparing, and when options are given
+#     and none covers `info` the message passes through unchecked. So `(drop info)`,
+#     `(drop all)`, `(pass info)`, `(drop warning)` alone and `(drop all, check info)`
+#     leave a pin that fails only if its docstring is non-empty, which is to say
+#     they accept the pin with its docstring removed. `(check info, drop warning)`
+#     and `(whitespace := normalized)` are accepted. `whitespace := lax` is refused:
+#     it compares the message with its whitespace removed, so it is not the text the
+#     build is claimed to compare. An option this reading does not know is refused,
+#     so a new Lean option fails closed;
+#   * the pin's module must be reachable by imports from an audit module (a file
+#     named `AxiomAudit*.lean` that holds a `run_cmd Model.AxiomAudit.run` line), which
+#     is `check-audit-reach.sh`'s rule read from the header text instead of
+#     `lean --deps`. Lake builds every file under a library's globs whether or not
+#     anything imports it, so a pin file outside the import closure is built; what
+#     the reach rule refuses is a pin in a file that is in a scanned tree but built
+#     by no library (and so never checked), and the one place that decides whether
+#     an audit sees the module at all.
+#
+# What it cannot see: it reads text, not the elaborated environment. It does not
+# know that the name resolves to a declaration of the shape the claim describes (the
+# build does: the docstring holds the printed statement); it does not run Lean, so a
+# pin that elaborates to a message that matches a docstring written to match it is
+# as good as the build says; it does not read what a pin says, so a statement weakened
+# together with its pin's expected message is accepted (the build compares the text;
+# the diff of the pin shows the change); it does not follow `open`, a file-level
+# `set_option` that elides the printed statement, a macro that expands to
+# `#guard_msgs`, `#guard_msgs` written inside a `run_cmd`, or a header that is more
+# than 20,000 characters long; a definition changed under an unchanged name changes
+# no pin that mentions it by name; it reads the first-party trees in `PROOF_TREES`
+# only; and it never decides that a pinned statement is the right one.
+# ---------------------------------------------------------------------------
+
+# `mutual` is closed by an `end` like a namespace and a section, so it is a frame too; without it
+# the `end` of a `mutual` block would pop a `namespace` that is still open.
+_FRAME_TOKEN = re.compile(r"(?<![\w.«'])(?P<kw>namespace|section|mutual|end)(?![\w.'])")
+_PIN_HEAD = re.compile(r"(?<![\w.'«])#guard_msgs(?![\w.'!?])")
+_WORD_IN = re.compile(r"in(?![\w.'!?])")
+_PIN_NAME = re.compile(r"(?:«[^»\n]*»|[\w'!?.])+")
+# A command ends at the end of the file or at the next command, which starts in column 0.
+_COMMAND_END = re.compile(r"[ \t]*(?:\Z|\n(?:[ \t]*\n)*(?:[ \t]*\Z|\S))")
+_SPEC_KIND = re.compile(r"(?:(drop|check|pass)\s+)?(info|warning|error|all)")
+_SPEC_WHITESPACE = re.compile(r"whitespace\s*:=\s*(exact|normalized|lax)")
+_SPEC_ORDERING = re.compile(r"ordering\s*:=\s*(exact|sorted)")
+_AUDIT_CALL = re.compile(r"^run_cmd Model\.AxiomAudit\.run\b", re.M)
+
+
+def _skip_space(text, i):
+    while i < len(text) and text[i].isspace():
+        i += 1
+    return i
+
+
+def _named_command(words, names, j, lenient=False):
+    """Read `#check [@]name` or `#print [axioms] name` at `j`, a command that
+    must end after the name (unless `lenient`, for the search of comments, where
+    what follows is a comment's own text). `(command, name)`; `("other", None)`
+    for any other command or a name followed by more text."""
+    for keyword in ("#check", "#print"):
+        if not words.startswith(keyword, j) or re.match(r"[\w'!?]", words[j + len(keyword):j + len(keyword) + 1]):
+            continue
+        k = _skip_space(words, j + len(keyword))
+        command = "check" if keyword == "#check" else "print"
+        if command == "check" and words.startswith("@", k):
+            k = _skip_space(words, k + 1)
+        elif command == "print":
+            axioms = re.compile(r"axioms(?![\w.'!?])").match(words, k)
+            if axioms:
+                command = "print-axioms"
+                k = _skip_space(words, axioms.end())
+        name = _PIN_NAME.match(names, k)
+        if name and (lenient or _COMMAND_END.match(words, name.end())):
+            return command, name.group(0)
+        return "other", None
+    return "other", None
+
+
+def guard_option_problem(options):
+    """Why a `#guard_msgs` option list leaves a `#check` message uncompared, or
+    None when it still compares it. See the block comment above."""
+    if options is None:
+        return None
+    covers_info, any_filter = None, False
+    for element in (e.strip() for e in options.split(",")):
+        kind = _SPEC_KIND.fullmatch(element)
+        if kind:
+            any_filter = True
+            if kind.group(2) in ("info", "all") and covers_info is None:
+                covers_info = (kind.group(1) or "check", element)
+            continue
+        whitespace = _SPEC_WHITESPACE.fullmatch(element)
+        if whitespace:
+            if whitespace.group(1) == "lax":
+                return ("`whitespace := lax` compares the message with its whitespace "
+                        "removed, which is not the text the pin is claimed to hold")
+            continue
+        if _SPEC_ORDERING.fullmatch(element):
+            continue
+        return f"the option `{element}` is not one this gate reads, so it cannot say what is compared"
+    if not any_filter:
+        return None
+    if covers_info is None:
+        return ("no option covers `info`, so the message `#check` prints passes "
+                "through without being compared")
+    if covers_info[0] != "check":
+        return (f"`{covers_info[1]}` is the first option that covers `info` and it does "
+                f"not compare it, so the pin holds nothing")
+    return None
+
+
+def scan_statement_pins(words, names, scoped):
+    """Every `#guard_msgs [options] in <command>` in `words` (`lean_code` of the
+    file, or, with `scoped` false, the text with its comment markers blanked, to
+    find pins that sit in comments), as dicts: `pos`, `command` (`check`, `print`, `print-axioms`, `other`), `name`,
+    `options`, `frames` (the open `namespace`/`section` scopes, when `scoped`) and
+    `cmd_pos`, where the command starts."""
+    out = []
+    tokens = list(_FRAME_TOKEN.finditer(words)) if scoped else []
+    frames, ti = [], 0
+    for head in _PIN_HEAD.finditer(words):
+        while ti < len(tokens) and tokens[ti].start() < head.start():
+            token, ti = tokens[ti], ti + 1
+            if token.group("kw") == "end":
+                if frames:
+                    frames.pop()
+            else:
+                found = _INLINE_NAME.match(names, token.end())
+                frames.append((token.group("kw"), found.group(1) if found and token.group("kw") != "mutual" else ""))
+        j = _skip_space(words, head.end())
+        options = None
+        if words.startswith("(", j):
+            close = words.find(")", j)
+            if close < 0:
+                continue
+            options = " ".join(words[j + 1:close].split())
+            j = _skip_space(words, close + 1)
+        keyword = _WORD_IN.match(words, j)
+        if keyword is None:
+            continue
+        j = _skip_space(words, keyword.end())
+        command, name = _named_command(words, names, j, lenient=not scoped)
+        # A pin that is the argument of an earlier `... in` (`#guard_msgs (drop error) in`,
+        # `set_option pp... in`, `open ... in`) is not the outermost command: the outer one can
+        # swallow the pin's own mismatch or change what the pin prints.
+        k = head.start()
+        while k > 0 and words[k - 1].isspace():
+            k -= 1
+        wrapped = words[max(0, k - 2):k] == "in" and not re.match(r"[\w.'!?]", words[k - 3:k - 2])
+        out.append({"pos": head.start(), "command": command, "name": name,
+                    "options": options, "frames": list(frames), "cmd_pos": j, "wrapped": wrapped})
+    return out
+
+
+def statement_pin_survey():
+    """Every statement pin in the first-party Lean trees: `live` (Lean elaborates
+    it), `raw_only` (the same shape inside a comment, docstring or string) and
+    `unguarded` (a `#check name` or `#print name` that no `#guard_msgs` governs), each with its file
+    and line; and `guards`, the count of every live `#guard_msgs ... in` command."""
+    survey = {"live": [], "raw_only": [], "unguarded": [], "guards": 0}
+    for p in proof_files():
+        text = p.read_text()
+        if "#guard_msgs" not in text and "#check" not in text:
+            continue
+        rel = str(p.relative_to(ROOT))
+        words, names = lean_code(text), lean_code(text, keep_names=True)
+
+        def located(d):
+            return dict(d, file=rel, line=text.count("\n", 0, d["pos"]) + 1)
+
+        live = scan_statement_pins(words, names, True)
+        survey["guards"] += len(live)
+        survey["live"] += [located(d) for d in live]
+        seen = {d["pos"] for d in live}
+        # The same text with the comment markers (`--`, `/-`, `/--`, `-/`) blanked, so a
+        # pin that sits in a comment reads as a pin; offsets are unchanged.
+        bare = re.sub(r"/-+|-+/|--+", lambda m: " " * len(m.group()), text)
+        survey["raw_only"] += [located(d) for d in scan_statement_pins(bare, bare, False)
+                               if d["pos"] not in seen]
+        governed = {d["cmd_pos"] for d in live}
+        for m in re.finditer(r"(?<![\w.'«])#(?:check|print)(?![\w'!?])", words):
+            if m.start() in governed:
+                continue
+            command, name = _named_command(words, names, m.start())
+            if command in ("check", "print"):
+                survey["unguarded"].append(located({"pos": m.start(), "name": name,
+                                                    "command": command}))
+    return survey
+
+
+def module_name(rel):
+    """`tacenta-proofs/translation/Translation/X.lean` -> `Translation.X`."""
+    for package in ("tacenta-proofs/translation/", "tacenta-proofs/", "tacenta-model/"):
+        if rel.startswith(package):
+            return rel[len(package):-len(".lean")].replace("/", ".")
+    return None
+
+
+def _module_path(module):
+    package = {"Model": "tacenta-model", "Properties": "tacenta-model",
+               "Proofs": "tacenta-proofs", "Translation": "tacenta-proofs/translation"
+               }.get(module.split(".")[0])
+    if package is None:
+        return None
+    path = ROOT / package / (module.replace(".", "/") + ".lean")
+    return path if path.exists() else None
+
+
+def lean_imports(path):
+    """The modules a file's header imports, read from its first 20,000 characters."""
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        head = lean_code(handle.read(20000))
+    pos = 0
+    keyword = re.compile(r"\s*(?:module|prelude)(?![\w.'])").match(head)
+    if keyword:
+        pos = keyword.end()
+    found = []
+    pattern = re.compile(r"\s*(?:(?:public|meta)\s+)*import\s+(?:all\s+)?(\S+)")
+    while True:
+        match = pattern.match(head, pos)
+        if match is None:
+            return found
+        found.append(match.group(1))
+        pos = match.end()
+
+
+def audit_reach():
+    """The first-party modules the audit modules import, directly or not: a file
+    named `AxiomAudit*.lean` holding a `run_cmd Model.AxiomAudit.run` line is an
+    audit module. The Lean-backed `check-audit-reach.sh` fixes the audit modules by
+    name and asks Lean for the imports; this reads the same graph from the header."""
+    todo = [module_name(str(p.relative_to(ROOT))) for p in proof_files()
+            if p.name.startswith("AxiomAudit") and _AUDIT_CALL.search(lean_code(p.read_text()))]
+    reached = set()
+    while todo:
+        module = todo.pop()
+        if module is None or module in reached:
+            continue
+        reached.add(module)
+        path = _module_path(module)
+        if path is not None:
+            todo.extend(lean_imports(path))
+    return reached
+
+
+def check_statement_pins(survey=None, reached=None):
+    """Refuse a statement pin on `REQUIRED_STATEMENT_PINS` that is absent, inside a
+    comment or a string, not under `#guard_msgs`, given options that compare
+    nothing, the argument of an earlier `... in`, written inside a `namespace`,
+    a `section` or a `mutual` block, or in a module no audit module imports.
+    One message per floor name, naming it."""
+    survey = survey or statement_pin_survey()
+    if reached is None:
+        reached = audit_reach()
+    problems = []
+    for name in sorted(REQUIRED_STATEMENT_PINS):
+        head = f"`{name}` is on REQUIRED_STATEMENT_PINS and"
+        candidates = [d for d in survey["live"]
+                      if d["name"] == name and d["command"] in ("check", "print")]
+        reasons = []
+        for d in candidates:
+            where, why = f"{d['file']}:{d['line']}", None
+            if guard_option_problem(d["options"]):
+                why = (f"its `#guard_msgs ({d['options']})` at {where} is vacuous: "
+                       + guard_option_problem(d["options"]))
+            elif d.get("wrapped"):
+                why = (f"its `#guard_msgs` at {where} is the argument of an earlier `... in`, which "
+                       "can swallow its mismatch or change what it prints; write the pin as its own command")
+            elif d["frames"]:
+                scope = ".".join(n for _, n in d["frames"] if n) or "section"
+                why = (f"its statement pin at {where} sits inside `{scope}`; write it after "
+                       "`end` with the full name, so no name resolution is guessed")
+            elif module_name(d["file"]) not in reached:
+                why = (f"its statement pin is in {d['file']}, which no audit module imports "
+                       "(check-audit-reach.sh holds the same rule)")
+            else:
+                reasons = None
+                break
+            reasons.append(why)
+        if reasons is None:
+            continue
+        if reasons:
+            problems += [f"{head} {r}" for r in reasons]
+            continue
+        commented = [d for d in survey["raw_only"]
+                     if d["name"] == name and d["command"] in ("check", "print")]
+        loose = [d for d in survey["unguarded"] if d["name"] == name]
+        if commented:
+            problems.append(
+                f"{head} its statement pin at {commented[0]['file']}:{commented[0]['line']} sits "
+                "inside a comment, a docstring or a string, where Lean does not check it")
+        elif loose:
+            problems.append(
+                f"{head} `#{loose[0]['command']} {name}` at {loose[0]['file']}:{loose[0]['line']} is not "
+                "under `#guard_msgs in`, so the build compares nothing")
+        else:
+            problems.append(
+                f"{head} has no statement pin: no active `#guard_msgs in` followed by "
+                f"`#check @{name}` or `#print {name}` exists in the first-party Lean trees")
+    return problems
+
+
+def check_statement_floor_recorded():
+    """Refuse a floor that is shorter than the one the committed verification
+    manifest records, and refuse to run without that record. Regenerating the
+    manifest after deleting a pin and its floor entry would otherwise write the
+    smaller floor and pass; this makes the removal a hand edit of the manifest's
+    `statement_pin_floor`, which a diff of a generated file shows. The check fails
+    closed: a manifest that is missing, unreadable or without a floor list, a
+    recorded floor that is empty and a script floor that is empty are each a
+    problem, because each would otherwise leave nothing to compare with. What it
+    cannot see is an edit of the script and of the manifest's list together, or the
+    whole floor removed in those two edits; it does not compare with the base branch."""
+    rel = (MANIFESTS / "verification-manifest.json").relative_to(ROOT)
+    if not REQUIRED_STATEMENT_PINS:
+        return ["REQUIRED_STATEMENT_PINS is empty, so no statement pin is required to exist"]
+    path = ROOT / rel
+    keep = f"; restore {rel} from git instead of regenerating without it"
+    if not path.exists():
+        return [f"{rel} is missing, so the statement-pin floor it records cannot be "
+                "compared with REQUIRED_STATEMENT_PINS" + keep]
+    try:
+        document = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        return [f"{rel} cannot be read ({type(error).__name__}), so the statement-pin floor "
+                "it records cannot be compared with REQUIRED_STATEMENT_PINS" + keep]
+    recorded = document.get("statement_pin_floor") if isinstance(document, dict) else None
+    if not isinstance(recorded, list) or not all(isinstance(n, str) for n in recorded):
+        return [f"{rel} has no `statement_pin_floor` list, so the statement-pin floor it records "
+                "cannot be compared with REQUIRED_STATEMENT_PINS" + keep]
+    if not recorded:
+        return [f"{rel} records an empty `statement_pin_floor`, so it holds no floor to compare "
+                "with REQUIRED_STATEMENT_PINS" + keep]
+    return [
+        f"`{n}` is on the statement-pin floor that verification-manifest.json records and "
+        "is not on REQUIRED_STATEMENT_PINS: a floor entry is removed by editing both, and "
+        "regenerating does not do it"
+        for n in sorted(set(recorded) - REQUIRED_STATEMENT_PINS)
+    ]
+
+
+def statement_pin_inventory():
+    """Print what the statement-pin survey found, for the report and for a reader
+    who asks how many pins there are and which are not held."""
+    survey, pins = statement_pin_survey(), axiom_pins()
+    live = [d for d in survey["live"] if d["command"] in ("check", "print")]
+    named = Counter(d["name"] for d in live)
+    axiom = {p["theorem"] for p in pins}
+    files = Counter(d["file"] for d in live)
+    others = [d for d in survey["live"] if d["command"] == "other"]
+    print(f"{survey['guards']} live `#guard_msgs ... in` commands: "
+          f"{sum(1 for d in survey['live'] if d['command'] == 'print-axioms')} axiom pins, "
+          f"{len(live)} statement pins, {len(others)} of another shape")
+    print(f"statement pins by command: check {sum(1 for d in live if d['command'] == 'check')}, "
+          f"print {sum(1 for d in live if d['command'] == 'print')}")
+    print(f"statement pins with options: {sum(1 for d in live if d['options'])}; "
+          f"inside a namespace or section: {sum(1 for d in live if d['frames'])}")
+    print(f"shapes in a comment, docstring or string (not counted): "
+          f"{sum(1 for d in survey['raw_only'] if d['command'] != 'other')}")
+    print(f"`#check name` or `#print name` under no `#guard_msgs`: {len(survey['unguarded'])}")
+    print(f"on REQUIRED_STATEMENT_PINS: {len(REQUIRED_STATEMENT_PINS)}; "
+          f"statement pins not on it: {sorted(set(named) - REQUIRED_STATEMENT_PINS) or 'none'}; "
+          f"floor names with no statement pin: {sorted(REQUIRED_STATEMENT_PINS - set(named)) or 'none'}")
+    print(f"statement pins with no axiom pin: {sorted(set(named) - axiom) or 'none'}")
+    print(f"axiom pins with no statement pin: {len(axiom - set(named))} of {len(axiom)}")
+    print(f"statement pinned more than once: {sorted(n for n, c in named.items() if c > 1) or 'none'}")
+    for file, count in sorted(files.items()):
+        print(f"  {count:3d}  {file}")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1844,6 +2831,9 @@ def build():
     problems += check_claims(claim_list, declared)
     problems += check_completeness(claim_list, pins)
     problems += check_pin_lists(pins)
+    survey = statement_pin_survey()
+    problems += check_statement_pins(survey)
+    problems += check_statement_floor_recorded()
     problems += check_zones_match_translation()
     problems += check_assembly_sources()
 
@@ -1857,9 +2847,19 @@ def build():
         "generated_at_commit": commit,
         "toolchains": toolchains(),
         "axiom_pins": pins,
+        # Every active statement pin, and the floor that may not shrink. The floor is
+        # recorded so that removing a name from it shows in this file, and so that
+        # `check_statement_floor_recorded` can refuse a regeneration that shortens it.
+        "statement_pins": sorted(
+            ({"theorem": d["name"], "file": d["file"], "command": d["command"]}
+             for d in survey["live"] if d["command"] in ("check", "print")),
+            key=lambda x: (x["file"], x["theorem"])),
+        "statement_pin_floor": sorted(REQUIRED_STATEMENT_PINS),
         "counts": {
             "pinned_theorems": len(pins),
             "kernel_only": sum(1 for p in pins if p["trust"] == "kernel"),
+            "statement_pins": sum(1 for d in survey["live"] if d["command"] in ("check", "print")),
+            "statement_pin_floor": len(REQUIRED_STATEMENT_PINS),
             "opaque_external": sum(1 for p in pins if p["trust"] == "opaque-external"),
             "compiler_trusted": sum(1 for p in pins if p["trust"] == "compiler"),
             "declared_theorems": len(declared),
@@ -1904,7 +2904,8 @@ def report(problems, heading):
 
 
 USAGE = """usage: attest.py [--check | --check-translation | --refresh-translation
-                 | --write-axiom-allowlist | --compare-audit <lake build log>]
+                 | --write-axiom-allowlist | --compare-audit <lake build log>
+                 | --statement-pin-inventory]
 
   (no flag)              regenerate verification-manifest.json and
                          source-commit-attestation.json; verify the generated
@@ -1926,6 +2927,11 @@ USAGE = """usage: attest.py [--check | --check-translation | --refresh-translati
                          it added or removed. Not for CI; run it after
                          --refresh-translation when a regeneration changed
                          the axioms, and commit the result on its own.
+  --statement-pin-inventory
+                         print how many statement pins (`#guard_msgs in #check
+                         @name`) the Lean trees hold, which are on the floor
+                         REQUIRED_STATEMENT_PINS, and which are not held; reads
+                         only, gates nothing
   --compare-audit <log>  compare the `audit-axiom:` lines the axiom audit
                          printed into a translation-package build log with the
                          per-file axiom lists recorded in
@@ -1954,12 +2960,14 @@ def main():
         return 0
     args = set(argv)
     known = {"--check", "--check-translation", "--refresh-translation",
-             "--write-axiom-allowlist"}
+             "--write-axiom-allowlist", "--statement-pin-inventory"}
     if args - known or len(args) > 1:
         print(USAGE, file=sys.stderr)
         return 2
     if "--write-axiom-allowlist" in args:
         return write_axiom_allowlist()
+    if "--statement-pin-inventory" in args:
+        return statement_pin_inventory()
     check = "--check" in args
     check_only_translation = "--check-translation" in args
     refresh = "--refresh-translation" in args
@@ -2031,6 +3039,8 @@ def main():
             f"attest: manifests current "
             f"({verification['counts']['pinned_theorems']} pinned theorems, "
             f"{verification['counts']['kernel_only']} on the kernel alone; "
+            f"{verification['counts']['statement_pins']} statement pins, "
+            f"{verification['counts']['statement_pin_floor']} on the floor; "
             f"{len(current['generated_files'])} generated files match their attestation)"
         )
         return 0

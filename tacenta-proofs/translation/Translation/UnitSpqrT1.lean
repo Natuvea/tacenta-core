@@ -34,28 +34,20 @@ namespace Tacenta.UnitSpqrT1
 
 open tacenta_triple_unit tacenta_triple_unit.tacenta_spqr
 
-/-- `Vec::remove` at an in-range index returns the input with that index
-erased, **for this crate's copy of it**. Out of range `Vec::remove` panics,
-and the hypothesis says nothing there: it is a fact the real operation
-satisfies for every quantified input, and its one use below sits under the
-loop guard `i < len` the source checks first, from which the proof discharges
+/-- `State::remove_skipped_at` at an in-range index returns with the vector one shorter. The helper is
+translated, including its swaps and wipe; its last call, `Vec::pop`, is opaque. In the standalone
+crates each translation declares its own `alloc.vec.Vec.pop`, so this crate's and `tacenta_ratchet`'s
+are different constants (in the three-leaf unit they are one), and an assumption discharged for one says
+nothing about the other. Out of range the helper panics, and the hypothesis says nothing there. Its one
+use below sits under the loop guard `i < len` the source checks first, from which the proof discharges
 the premise.
 
-`T1.lean` states the same assumption and it does not apply here. Each
-translation unit declares its own opaque `alloc.vec.Vec.remove`, so
-`tacenta_ratchet`'s and `tacenta_spqr`'s are *different constants* and an
-assumption discharged for one says nothing about the other.
+`T1.lean` states a similar assumption for the classical ratchet's helper and it does not apply here. A
+reader counting assumptions by name rather than by constant will undercount.
 
-That is worth naming, because it is invisible until a proof fails and it
-multiplies the trusted base: one modelling gap in Aeneas becomes one
-assumption per translated crate that touches it, and a reader counting
-assumptions by name rather than by constant will undercount.
-
-The guard is also what makes this satisfiable without an `[Inhabited T]`
-bound: stated for every index, the existential would ask at `T := Empty` for
-an element of an empty type, and `try_skipped_no_panic` and
-`receive_no_panic` below would be provable from `False` (see `T1.lean`'s twin
-and `Translation/Satisfiability.lean`). -/
+The guard is also what makes this satisfiable: stated for every index, the length clause would be false
+at an empty vector, and `try_skipped_no_panic` and `receive_no_panic` below would be provable from
+`False`. -/
 def RemoveSkippedAtTotal : Prop :=
   ∀ (v : alloc.vec.Vec Skipped) (i : Usize), i.val < v.val.length →
     ∃ r, State.remove_skipped_at v i = ok r ∧
@@ -75,19 +67,11 @@ def ZeroizeTotal : Prop :=
   ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
     ∃ r, Array.Insts.ZeroizeZeroize.zeroize inst a = ok r
 
-/-- `Vec::retain` returns, never grows the vector, and never invents an
-element `retain` didn't already hold.
-
-The **fifth** constant, arriving exactly where the trace said it would. Aeneas
-does not model `retain`, so this crate assumes its own copy returns. The length
-clause is not decoration: `set_chains` pushes after retaining, and without
-knowing the retain did not grow the vector there is nothing to bound the push
-against. The membership clause is not decoration either: `receive`'s own
-per-chain counter bound needs to survive `advance`'s call to this, and the
-only way a survivor's counter is still bounded is if `retain` drew it from the
-input rather than fabricating it -- a much weaker claim than exposing the
-predicate itself, which stays this file's business, not this assumption's. -/
-
+/-- `set_chains_loop` returns, never grows the chain table and leaves the skipped store alone. The
+translation scans explicitly and no longer calls `Vec::retain`. The length clause is not decoration:
+`set_chains` pushes after scanning, and without knowing the scan did not grow the table there is
+nothing to bound the push against. This is the first of the three loop contracts inside
+`VecRetainTotal`; the other two are the `clear_old_epochs` scans. -/
 def SetChainsLoopTotal : Prop :=
   ∀ (st : State) (e : U64) (i : Usize), i.val ≤ st.chains.length →
     ∃ r, State.set_chains_loop st e i = ok r ∧
@@ -782,7 +766,7 @@ proposition as its namesake.**
 The sparse helper is translated, including its swaps and wipe; its final
 `Vec::pop` is opaque, so the assumption states the helper's complete result
 under its checked index guard. It is distinct from the classical ratchet's
-`VecRemoveTotal`, and an assumption discharged for one says nothing about the
+`T1.RemoveSkippedAtTotal`, and an assumption discharged for one says nothing about the
 other.
 
 **So count the trusted base by constant, not by name.** One modelling gap in

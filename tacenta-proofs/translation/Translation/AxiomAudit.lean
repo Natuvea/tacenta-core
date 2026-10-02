@@ -12,12 +12,24 @@ import Translation.ErasureWitness
 import Translation.KemWitness
 import Translation.BraidPreserveWitness
 import Translation.BraidPreserveCorollary
+import Translation.NumericBoundary
+import Translation.NumericBoundaryLeaf
+import Translation.NumericShapeWitness
+import Translation.NumericWitnessLeaf
+import Translation.DecodedStateDischarge
+import Translation.SatisfiabilitySpqrLaws
+import Translation.SatisfiabilityRatchetLaws
+import Translation.SatisfiabilityBraidZeroize
+import Translation.SpqrFromBytesWitness
+import Translation.BraidFromBytesWitness
+import Translation.RatchetDecodedWitness
 
 /-!
 The translation package's axiom audit, over everything the root `Translation`
 module imports plus the modules it cannot (`SpqrT3`, `BraidT3`,
-`PreconditionShapes`, `Satisfiability`, `ErasureWitness`, `KemWitness`, which the `Translation.*`
-glob builds on their own). The three-leaf unit's proofs cannot be imported
+`PreconditionShapes`, `Satisfiability`, `ErasureWitness`, `KemWitness`, `SatisfiabilitySpqrLaws`,
+`SatisfiabilityRatchetLaws`, `SatisfiabilityBraidZeroize`, `SpqrFromBytesWitness`,
+`BraidFromBytesWitness`, `RatchetDecodedWitness`, which the `Translation.*` glob builds on their own). The three-leaf unit's proofs cannot be imported
 alongside these -- `TacentaTripleUnit` and `TacentaRatchet` both define
 `instDiscriminantRatchetErrorIsize`, the same limit `lakefile.toml` records --
 so they have their own audit in `Translation/AxiomAuditTripleUnit.lean`. The
@@ -32,6 +44,9 @@ only, since Aeneas declares every opaque external as an `axiom`;
 set, so a new one fails there rather than being reclassified. Both `Model`
 and `Translation` prefixes are audited here: the model is imported into this
 package, and a widening in it would reach every refinement theorem.
+
+The numeric-precondition modules of the standalone leaves are walked here: `NumericBoundary`,
+`NumericBoundaryLeaf`, `NumericShapeWitness`, `NumericWitnessLeaf` and `DecodedStateDischarge`.
 -/
 
 run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
