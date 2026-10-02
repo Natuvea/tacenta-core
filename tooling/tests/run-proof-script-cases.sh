@@ -66,7 +66,7 @@ sh_controls=(check-lifecycle-translation-coverage-negatives.sh check-session-sat
   check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh
   check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh)
 py_controls=(check-lifecycle-translation-coverage.py check-initial-dispatch-negatives.py check-atomicity-negatives.py
-  check-repair-negatives.py attest.py)
+  check-repair-negatives.py check-send-refusal-negatives.py check-sparse-store-full-negatives.py attest.py)
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
 for s in "${py_controls[@]}"; do stub_py "$s"; done
 # check-translation-coverage.sh is the real script in the no-sorry cases (its fixture is complete below).
@@ -129,6 +129,7 @@ for called in check-translation-coverage.sh check-lifecycle-translation-coverage
   check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh \
   check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh \
   check-atomicity-negatives.py check-repair-negatives.py \
+  check-send-refusal-negatives.py check-sparse-store-full-negatives.py \
   'lake build translation' 'lake build tacenta-proofs' 'lake build tacenta-model' \
   'leanchecker translation Translation.Alpha' 'leanchecker translation Translation.Beta' \
   'leanchecker tacenta-proofs Proofs.Gamma' 'leanchecker tacenta-model Model.Delta' \
