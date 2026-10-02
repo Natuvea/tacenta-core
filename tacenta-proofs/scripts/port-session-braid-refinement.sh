@@ -170,7 +170,7 @@ if [ "$check" -eq 0 ]; then
 fi
 
 if ! diff -u "$dest" "$tmp" >/dev/null; then
-  diff -u "$dest" "$tmp" | head -40 >&2
+  diff -u "$dest" "$tmp" | head -40 >&2 || true
   echo "port-session-braid-refinement: committed copy differs; regenerate and rebuild" >&2
   exit 1
 fi
