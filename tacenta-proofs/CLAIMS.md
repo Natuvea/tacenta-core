@@ -572,14 +572,18 @@ refreshing the manifests passes `attest.py` and the other gates.
 
 **What reaches the translated code.** `Tacenta.SpqrT3.skip_message_keys_refines`
 (tier T3, "the sparse post-quantum ratchet's translated code refines the model")
-has the text and the hypotheses it had. The model it names changed, so its
-refusal case is now the count above: when `skipMessageKeys` refuses, the
-translated code returns an error and `r.2 = s`, the state as it was, and when it
-succeeds the state refines the one the model returns. The refusal case names no
-error. Which refusal the code returns, `TooManySkipped` or `SkippedStoreFull`,
-is not in the statement, and neither is the order of the two checks. A change
-that returns `TooManySkipped` for a full store passes the theorem after a
-one-token change to its proof. The session evicts only on `SkippedStoreFull`,
+has the hypotheses it had. Its statement is now two-part: the single-part
+statement pinned with the total bound is its first conjunct, unchanged, and the
+second, added by the session contract integration, says that a
+`SkippedStoreFull` result is the detailed model refusal `skippedStoreFull`. The
+model it names changed, so its refusal case is now the count above: when
+`skipMessageKeys` refuses, the translated code returns an error and `r.2 = s`,
+the state as it was, and when it succeeds the state refines the one the model
+returns. The first conjunct's refusal case names no error, and the second speaks
+only of a `SkippedStoreFull` result, so whether a full store is refused as
+`TooManySkipped` or `SkippedStoreFull` is not in the statement, and neither is
+the order of the two checks. A change that returns `TooManySkipped` for a full
+store passes the theorem after a one-token change to its proof. The session evicts only on `SkippedStoreFull`,
 and the session proofs take the refusal kind as a hypothesis (`hreason`). The
 refusal kind and the order are tested only, by `tacenta-spqr`'s unit tests and
 the differential harness. Its statement is pinned in
