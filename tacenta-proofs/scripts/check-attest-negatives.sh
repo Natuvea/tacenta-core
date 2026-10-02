@@ -655,7 +655,8 @@ for name in Model.Lifecycle.braidSendDrawCount Model.Lifecycle.sendAgreement \
   Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted \
   Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts \
   Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts \
-  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped; do
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped \
+  Tacenta.UnitLifecycleT3.verified; do
   make_case
   python3 - "$work/tacenta-proofs/translation/Translation/UnitLifecycleIntegrationScreen.lean" "$name" <<'PY'
 import pathlib, re, sys

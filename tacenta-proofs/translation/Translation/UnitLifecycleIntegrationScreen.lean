@@ -2362,3 +2362,18 @@ constructor:
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped
+
+/-! The record pins hold each record's text, in which every definition it mentions appears by
+name, so a change to one of those definitions changes no pin above. The definitions a proof uses
+are held by those proofs. `verified` is mentioned only by the `sigVerify` clause of `OracleOf` and no
+proof uses it, so its body is pinned here. -/
+
+/--
+info: def Tacenta.UnitLifecycleT3.verified : core.result.Result Unit Unit → Bool :=
+fun x =>
+  match x with
+  | core.result.Result.Ok a => true
+  | core.result.Result.Err a => false
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.verified

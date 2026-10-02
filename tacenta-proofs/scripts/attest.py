@@ -1786,6 +1786,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts",
         "InitialRatchetBraidEvidenceContractsScoped",
+        "verified",
     )]
     # The sparse ratchet's total-bound results (Proofs/SparseReplacementBound.lean and the
     # skip refinement's statement pin).
