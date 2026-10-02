@@ -445,12 +445,28 @@ def evictOldest (st : State) (count : Nat) : State × Nat :=
   let evicted := min count st.skipped.length
   ({ st with skipped := st.skipped.drop evicted }, evicted)
 
+/-- The stored keys that survive a skip from the chain's counter `start` to
+    `upto` on epoch `e`: everything except the keys stored for `e` under a
+    number `n` with `start < n ≤ upto`, which are the numbers the skip is about
+    to store (sparse-pq-ratchet.md, Receiving). The lower end is strict: a key
+    stored at the counter itself, or below it, is outside the range and is
+    kept. The upper end is the number the chain steps to, which is included. -/
+def skipSurvivors (st : State) (e start upto : Nat) : List (Nat × Nat × Key) :=
+  st.skipped.filter fun x =>
+    !(x.1 == e && decide (start < x.2.1) && decide (x.2.1 ≤ upto))
+
 /-- Step the receiving chain forward to `upto`, storing every key passed.
 
-    `none` when the request exceeds `maxSkip`, or when the chain has been
-    retired. Storing replaces rather than accumulates, for the same reason the
-    Double Ratchet's does: the store is a map on `(epoch, number)` and a peer
-    must not be able to make one pair hold two keys. -/
+    `none` when the request exceeds `maxSkip`, when the keys that survive the
+    deletion of the ones about to be replaced, plus the keys to store, would
+    pass `maxSkippedStore`, or when the chain has been retired. The total bound
+    is checked against the store the skip would leave
+    (sparse-pq-ratchet.md, The store also has a total bound), so a key that is
+    replaced takes one slot and not two. A refusal is `none`, which leaves the
+    caller its state: nothing is deleted. Storing replaces rather than
+    accumulates, for the same reason the Double Ratchet's does: the store is a
+    map on `(epoch, number)` and a peer must not be able to make one pair hold
+    two keys. -/
 def skipMessageKeys (st : State) (e : Nat) (upto : Nat) : Option State :=
   match findChains st e with
   | none => none
@@ -462,15 +478,13 @@ def skipMessageKeys (st : State) (e : Nat) (upto : Nat) : Option State :=
         some st
       else if upto > ch.n + maxSkip then
         none
-      else if st.skipped.length + (upto - ch.n) > maxSkippedStore then
+      else if (skipSurvivors st e ch.n upto).length + (upto - ch.n) > maxSkippedStore then
         none
       else
         let res := deriveInto ch.ck ch.n (upto - ch.n)
         some (setChains
           { st with
-            skipped := (st.skipped.filter
-                          (fun x => !(x.1 == e && decide (ch.n < x.2.1)
-                                      && decide (x.2.1 ≤ upto))))
+            skipped := skipSurvivors st e ch.n upto
                       ++ res.2.map (fun p => (e, p.1, p.2)) }
           e { cs with receive := some { ck := res.1, n := upto } })
 where
