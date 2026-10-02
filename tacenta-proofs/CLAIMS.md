@@ -3590,14 +3590,22 @@ pin, and the definitions of the three clauses and the three laws, with the laws 
 `GenerateFillsOnce64`, `KemShape`), carry `#print` pins, as do the model's `braidSendDrawCount`, `braidSendNeedsDraw`,
 `takeDraw`, `braidRandomness` and `sendAgreement` (and `takeDraws`, whose body is pinned through its equation
 `takeDraws.eq_def`, because `#print` shows a structurally recursive definition only in compiled form), so a change to the draw
-count, or to how the drawn bytes become the Braid's randomness, fails the build. The bodies of the five records the dispatch
-layer takes and no theorem here constructs (`OracleOf`, `BraidSendTraceAgreementCounted`, `InitialRatchetTripleBranchContracts`,
-`InitialRatchetAeadBranchContracts`, `InitialRatchetBraidEvidenceContractsScoped`) carry `#print` pins too, so a field added to,
-removed from or changed in one of them fails the build. These are text pins: they hold what the records say, not that they can
-be met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`), and `check-attest-negatives.sh` deletes
-each axiom pin, and each of the model and record definition pins, in turn. In the model package, examples in
+count, or to how the drawn bytes become the Braid's randomness, fails the translation build (the model package builds without
+the pin). The bodies of the five records the dispatch layer takes and no theorem here constructs (`OracleOf`,
+`BraidSendTraceAgreementCounted`, `InitialRatchetTripleBranchContracts`, `InitialRatchetAeadBranchContracts`,
+`InitialRatchetBraidEvidenceContractsScoped`) carry `#print` pins too, so a field added to, removed from or changed in one of
+them fails the build. The pins hold the text of each record, in which every definition it mentions appears by name, so a change
+to the body of one of those definitions changes no record pin. A proof that uses the definition still notices (strengthening
+`EncodersLive` fails `BraidT3.lean`), and the other definitions the records name are held by the proofs that use them, not by a
+pin; `verified`, which only the `sigVerify` clause of `OracleOf` mentions and no proof uses, has its own `#print` pin, without
+which a change to it passed the build and every gate. These are text pins: they hold what the records say, not that they can be
+met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the eleven
+definition pins (`REQUIRED_PRINT_FORM`), because `#check @name` holds the type of a definition and not its body; `takeDraws`
+is held by its equation pin and may take either form. `check-attest-negatives.sh` deletes each axiom pin, and each of the model
+and record definition pins, in turn, and plants the `#check` form for two of them. In the model package, examples in
 `Model/Lifecycle.lean` hold `braidSendDrawCount` to `mlkem-braid.md` at one state of each of the twelve kinds and check the draws
-an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one.
+an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one. They are
+anonymous, so no gate requires them; the pin on `braidSendDrawCount` is the part that is required.
 
 ## Proved (bounded P6 session lifecycle observations)
 
