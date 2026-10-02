@@ -989,21 +989,17 @@ unit" below gives the details.
 all, so there is nothing for `UnitTripleT3.lean`'s `receive_refines` to
 compose a triple-level failure claim from.
 
-**`send_refines`'s failure branch is not symmetric between the two
-ratchets.** `RatchetAgreesFor`'s send clause states a failure-implies-model-
-failure fact for `NoSendingChain` only, matching `Translation/T3.lean`'s own
-`send_refines` -- the theorem this bundle exists to mirror -- which proves
-that fact for that one classical `RatchetError` and no other. It says nothing
-about `ChainExhausted`, the real `u32` send counter's exhaustion. The model
-now refuses the same send (`Model.Ratchet.send` at `ns = u32::MAX`), so a
-send clause covering every classical error would hold of the honest
-abstraction, but `T3.lean` does not prove it; a conclusion asked of a
-hypothesis that ranges wider than what is proved is an overclaim even when
-the bundle is true, so the clause is narrowed to what `T3.lean` proves. `send_refines`'s own stated postcondition matches: it
-proves the failure correspondence for every post-quantum error and for the
-classical ratchet's `NoSendingChain` refusal, and proves nothing about a
-classical `ChainExhausted` failure -- the same correspondence
-`T3.lean` leaves unstated, one layer up rather than newly introduced here.
+**`send_refines`'s failure branch states the exact refusal on both ratchets.**
+`RatchetAgreesFor`'s and `SpqrAgreesFor`'s send clauses state, for every error
+the inner send returns, the detailed model refusal it corresponds to
+(`sendRefusalOfReal`), matching `Translation/T3.lean`'s and
+`Translation/SpqrT3.lean`'s own `send_refines`, which now prove that for every
+error: on the classical side `NoSendingChain` and `ChainExhausted`, the real
+`u32` send counter's exhaustion at `ns = u32::MAX`. The composed
+`send_refines` states the Triple refusal for every error. Earlier the classical
+clause covered `NoSendingChain` only, because `T3.lean` proved nothing about
+`ChainExhausted`; that gap is closed by the stronger leaf statement, not by a
+wider hypothesis.
 `SpqrAgreesFor`'s analogous clause is unconditional and genuinely holds:
 `hcounter` already rules out the post-quantum counter's own exhaustion.
 
@@ -2142,19 +2138,18 @@ model's `identityValid` oracle to the translated `is_valid_identity_key`
 binding yet, because no T3 statement about establishment exists, so the
 binding is a statement of intent about the oracle and not an assurance.
 
-Seventeen of the lifecycle T3 branch lemmas and initial-dispatch theorems (`UnitLifecycleT3.lean`,
-`UnitLifecycleInitialDispatch.lean`) are affected by a hypothesis or evidence record that is shown false
-or empty, and sixteen of them are vacuous as stated, so they say nothing about `Session::encrypt` or
-`Session::decrypt`. `InitialSameEphemeralEvidence` is false. `CodewordViewOf` is false given that
-`Encoder::new` returns on two 33-byte messages, which is the law that `usize::div_ceil` returns at
-divisor 32. `InitialRatchetBraidEvidenceContracts` has no term when the model Braid, with its epoch below
-2^64, is in one of six state and message-type pairs and its decoder holds a chunk. Under the statement
-`PublicKeyNotConstant` about the real `PrivateKey::public_key`, which is tested and not proved,
-`InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` are false for a refusal
-run. The oracle record `OracleOf` also asserts that the KEM oracle accepts every key, which the shipped
-`encapsulate` contradicts for a key of the wrong length (tested) and for a key that fails
-`validate_public_key` (read from the source). None of the seventeen is a claim.
-`Translation/DispatchEvidenceVacuity.lean` proves each result, and `GAP-REGISTER.md`, row
+The hypotheses and evidence records of the lifecycle T3 branch lemmas and initial-dispatch theorems
+(`UnitLifecycleT3.lean`, `UnitLifecycleInitialDispatch.lean`) do not make those theorems claims.
+`Translation/DispatchEvidenceVacuity.lean` proves five of the earlier records false or empty under stated
+conditions; since their restatement and the integration of the session contract branch no theorem takes any
+of them. Of the records the integration adds, `Translation/UnitLifecycleIntegrationScreen.lean` proves that
+`InitialRatchetConcreteBranchEvidence` has no term at any model state at which one inner message passes the
+first agreement, given `OracleOf`, so the five accepted-initial decrypt theorems that take it are vacuous there,
+and that under two laws about the shipped signing and key-generation functions (each fills one 64-byte buffer,
+read from the source) `BraidSendTraceAgreement` contradicts the oracle's signing clause at a Braid send from
+`KeysUnsampled` with two trace entries left. The oracle's restated KEM and signing clauses follow from laws read
+from the source and have a model with a refused key; its other clauses are not shown to hold. The model's
+comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row.
 
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated

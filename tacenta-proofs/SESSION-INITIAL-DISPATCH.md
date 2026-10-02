@@ -38,6 +38,17 @@ row states. The list of assumptions below omits two that `initial_dispatch_route
 and `hmismatch`, which are `InitialSameEphemeralEvidence` and `InitialMismatchedEphemeralEvidence`; the first
 is false and the second is false of the real function by reading.
 
+Update, 2026-10-02, after the integration of the session contract branch: no theorem on this page takes
+`InitialSameEphemeralEvidence`, `InitialMismatchedEphemeralEvidence`, `InitialRatchetBraidEvidenceContracts`, the old
+Triple and AEAD concrete evidence or `CodewordViewOf` any more; the dispatch theorems, `initial_dispatch_route_from_ratchet`
+among them, take the per-branch `InitialDispatchBranchEvidence`, whose two repeated-initial premises about the model are a
+choice of oracle (`sameEphemeralAgreement_unconstrained`). The note above describes the tree before that. The accepted-initial
+theorems that take an end-to-end evidence record (`initial_ratchet_refines_of_t1_with_concrete_evidence`,
+`decrypt_initial_end_to_end_with_concrete_evidence`, `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
+the two agreement-route forms) are vacuous at every model state at which one inner message passes the first agreement, because
+`InitialRatchetConcreteBranchEvidence` asks every RNG state for a draw (`concreteBranchEvidence_empty`,
+`Translation/UnitLifecycleIntegrationScreen.lean`; `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`).
+
 ## What the theorem establishes
 
 `initial_dispatch_route_from_ratchet` constructs the six routes from the
