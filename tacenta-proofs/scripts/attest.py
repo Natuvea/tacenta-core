@@ -683,6 +683,58 @@ REQUIRED_PINS = frozenset(
     + [
         "Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bounded",
     ]
+    # The Braid agreements of the Session unit: the witnesses that the six KEM and KDF agreements and
+    # the laws have a model, the erasure halves that need no compiler-trust axiom, the state-level
+    # witnesses, and the entry points with five defined-function hypotheses discharged.
+    + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
+        "braid_agreement_shapes_are_predicates",
+        "braid_agreements_have_a_model",
+    )]
+    + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
+        "erasureCloneAgrees",
+        "erasureAgrees_iff_clauses",
+        "erasureAgrees_encoder",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
+        "ingredients",
+        "twelve_states",
+        "six_receive_witnesses",
+        "initiator_refines",
+        "responder_refines",
+    )]
+    + ["Tacenta.UnitBraidEntryPoints." + n for n in (
+        "defined_hypotheses_given_erasure",
+        "Braid.receive_refines_given_erasure",
+        "Braid.send_refines_given_erasure",
+        "defined_hypotheses_of_laws",
+        "Braid.receive_refines_of_laws",
+        "Braid.send_refines_of_laws",
+        "twelve_states_of_laws",
+        "six_receive_witnesses_of_laws",
+    )]
+    # The Reed-Solomon proof that the translated erasure coder of the Session unit refines the model:
+    # the nine statements of the plan and the two results of the glue. None rests on a compiler-trust
+    # axiom.
+    + ["Tacenta.UnitErasureRs." + n for n in (
+        "K_weights",
+        "K_coefficients",
+        "K_evaluate",
+        "K_algebra",
+        "E_new",
+        "E_next",
+        "D_add",
+        "D_message",
+        "M_recover",
+    )]
+    + ["Tacenta.UnitErasureRs.Glue." + n for n in (
+        "erasureAgrees_decoder",
+        "erasureAgrees",
+    )]
+    # The field, kernel-only since the model's field lemmas stopped using `bv_decide` and
+    # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
+    # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
+    + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    + ["Model.Polynomial.interp_eq", "Tacenta.ErasureT3.mul_refines"]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
     # proved from named laws, the shapes bound to the real predicates, the faithful-`pop`
@@ -1179,13 +1231,27 @@ REQUIRED_PINS = frozenset(
         "ratchet_witness_events",
         "decoded_receive_refines_premises_satisfiable",
     )]
+    # What a refused lifecycle call leaves behind (`UnitLifecycleAtomicity.lean`): the seven frame
+    # results, each pinned by its axiom list and by its statement. They take no hypothesis about
+    # any opaque operation, so a weaker statement is the only way one could become empty.
+    + ["Tacenta.UnitLifecycleAtomicity." + n for n in (
+        "decrypt_ratchet_err_leaves_state",
+        "decrypt_ratchet_ok_writes",
+        "decrypt_err_leaves_state",
+        "decrypt_ok_writes",
+        "establish_responder_err_leaves_store",
+        "encrypt_err_leaves_state",
+        "encrypt_ok_writes",
+    )]
+    # The restated dispatch records and that honest runs meet them (`UnitLifecycleRepair.lean`).
+    + ["Tacenta.UnitLifecycleRepair." + n for n in (
+        "codewordViewSendOf_satisfiable",
+        "scoped_chunk_fields_iff_consistent",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
-        "Model.Gf65536.mul_inv_cancel",
-        "Model.Polynomial.interp_eq",
         "Proofs.Serialization.decode_encode_composite",
-        "Tacenta.ErasureT3.mul_refines",
         "Tacenta.SessionT3.shared_secret_refines_some",
         "Tacenta.SpqrT3.receive_refines",
         "Tacenta.SpqrT3.send_refines",
@@ -1542,6 +1608,68 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "vecRetainTotal",
         "vec_zeroize_conflicts",
         "vec_zeroize_satisfiable",
+    )]
+    # Statement pins of the Braid agreement witnesses, the erasure field and the lifecycle frame and repair results.
+    + ["Tacenta.UnitBraidEntryPoints.Braid." + n for n in (
+        "receive_refines_given_erasure",
+        "receive_refines_of_laws",
+        "send_refines_given_erasure",
+        "send_refines_of_laws",
+    )]
+    + ["Tacenta.UnitBraidEntryPoints." + n for n in (
+        "defined_hypotheses_given_erasure",
+        "defined_hypotheses_of_laws",
+        "six_receive_witnesses_of_laws",
+        "twelve_states_of_laws",
+    )]
+    + ["Tacenta.UnitErasureRs.Glue." + n for n in (
+        "erasureAgrees",
+        "erasureAgrees_decoder",
+    )]
+    + ["Tacenta.UnitErasureRs." + n for n in (
+        "D_add",
+        "D_message",
+        "E_new",
+        "E_next",
+        "K_algebra",
+        "K_coefficients",
+        "K_evaluate",
+        "K_weights",
+        "M_recover",
+    )]
+    + ["Tacenta.UnitLifecycleAtomicity." + n for n in (
+        "decrypt_err_leaves_state",
+        "decrypt_ok_writes",
+        "decrypt_ratchet_err_leaves_state",
+        "decrypt_ratchet_ok_writes",
+        "encrypt_err_leaves_state",
+        "encrypt_ok_writes",
+        "establish_responder_err_leaves_store",
+    )]
+    + ["Tacenta.UnitLifecycleRepair." + n for n in (
+        "codewordViewSendOf_satisfiable",
+        "scoped_chunk_fields_iff_consistent",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
+        "braid_agreement_shapes_are_predicates",
+        "braid_agreements_have_a_model",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
+        "FeedsDecoder",
+        "Good_iff",
+        "RecvWitness_iff",
+        "ingredients",
+        "initiator_refines",
+        "modelTag",
+        "responder_refines",
+        "six_receive_witnesses",
+        "stateTag",
+        "twelve_states",
+    )]
+    + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
+        "erasureAgrees_encoder",
+        "erasureAgrees_iff_clauses",
+        "erasureCloneAgrees",
     )]
     # The sparse ratchet's total-bound results (Proofs/SparseReplacementBound.lean and the
     # skip refinement's statement pin).
