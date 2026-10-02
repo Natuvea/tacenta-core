@@ -3,9 +3,12 @@ import Translation.UnitLifecycleInitialDispatch
 /-!
 # Restated dispatch records, and when the restated fields can be met
 
-Three records the lifecycle T3 and dispatch layer takes ask more than a run can supply, on the
-reading given for each below, so the theorems that take them are not claims. Each is restated
+Three records the lifecycle T3 and dispatch layer took asked more than a run can supply, on the
+reading given for each below, so the theorems that took them were not claims. Each is restated
 here under a new name, with the consumers switched to it and the old definition kept unchanged.
+The dispatch theorems now take the per-run record `InitialRatchetConcreteBranchEvidenceRun`
+(`UnitLifecycleIntegrationScreen.lean` screens it), and `OracleOf`'s KEM clauses are restated
+there.
 
 * `CodewordViewOf` carries a `receive` clause that asks a view to name one source for each wire
   chunk. No consumer uses it: the encrypt-side theorems use only `send`. `CodewordViewSendOf`
@@ -29,20 +32,24 @@ here under a new name, with the consumers switched to it and the old definition 
   `UnitLifecycleT3.lean`, from the oracle's `random32` and `dhPublic` clauses and the key codec.
 
 What this does not show. That the other hypotheses of the dispatch theorems are met: `OracleOf`'s
-KEM success clause is not shown to hold of the shipped `encapsulate`, the same-ephemeral evidence
-records are not shown satisfiable, and the Braid agreements are the hypothesis screen H1's to
-decide. That `InitialRatchetConcreteBranchEvidence`, which asks the scoped Braid record of every
-inner message that reaches a refusal, is satisfiable. It is read as unsatisfiable at states whose
-decoder holds a chunk, because an inconsistent message can reach a refusal (`decrypt_ratchet`
-checks nothing about the agreement chunk before the AEAD tag) and cannot meet both
-`IncomingChunkRefines` and `HonestChunk`; `scoped_record_gives_consistent` is the formal handle,
-and no Lean statement says more because no `Session` value can be built in the tree. The theorems
-that take these records are not claims.
+KEM clauses are shown to hold of the shipped `encapsulate` only under a law read from the source,
+and its success clause binds the code only where the model predicts a success
+(`UnitLifecycleIntegrationScreen.lean`); the same-ephemeral evidence records are not shown
+satisfiable; and the Braid agreements are screened in `UnitLifecycleIntegrationScreen.lean`, which
+does not show that they can be met as a whole. That the superseded
+`InitialRatchetConcreteBranchEvidence`, which asked the scoped Braid record of every inner message
+that reaches a refusal, was satisfiable. It was read as unsatisfiable at states whose decoder holds
+a chunk, because an inconsistent message can reach a refusal (`decrypt_ratchet` checks nothing about
+the agreement chunk before the AEAD tag) and cannot meet both `IncomingChunkRefines` and
+`HonestChunk`; `scoped_record_gives_consistent` is the formal handle, and no Lean statement says
+more because no `Session` value can be built in the tree. The per-run record asks the scoped record
+of the run's own message only, so the dispatch theorems that take it say nothing about a run whose
+chunk is inconsistent. The theorems that take these records are not claims.
 
 A view that meets the send clause and the scoped chunk fields of one consistent run together
 exists (`send_and_scoped_chunk_fields_joint`), because the two constrain different fields of a
-`CodewordView`. Whether one view meets the scoped fields for every inner message is the
-consumer-structure item above.
+`CodewordView`. Whether one view meets the scoped fields for every inner message was the question
+the superseded structure raised; the per-run record does not raise it.
 -/
 
 namespace Tacenta.UnitLifecycleRepair
@@ -229,9 +236,9 @@ theorem send_and_scoped_chunk_fields_joint (st : Model.Braid.BraidState)
   · exact hhon
 
 /-- From the scoped record, a message that decodes to a composite related to the wire composite
-gives a consistent run. So the consumer structure `InitialRatchetConcreteBranchEvidence`, which asks
-the record of every inner message that reaches a refusal, is satisfiable only if every such message
-that decodes in that way is a consistent run. -/
+gives a consistent run. So the superseded structure `InitialRatchetConcreteBranchEvidence`, which
+asked the record of every inner message that reaches a refusal, could be satisfied only if every such
+message that decodes in that way is a consistent run. -/
 theorem scoped_record_gives_consistent {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {real : lifecycle.Session}
     {model : Model.Lifecycle.Session} {message : Slice Std.U8}

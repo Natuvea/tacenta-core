@@ -79,8 +79,8 @@ theorem braid_kdf_contracts_of_session
 The lifecycle model has ten primitive operations and twelve contract clauses:
 KEM encapsulation has one success clause and two refusal clauses. Each clause
 below names the complete translated argument list. Randomness is one ordered trace:
-`random_secret`, KEM encapsulation and signing must each consume exactly its
-head and return a state interpreted by the tail. -/
+`random_secret` and KEM encapsulation each consume the trace's head and signing
+its first two entries, and each returns a state interpreted by the rest. -/
 
 def arrayOf {n : Usize} (a : Array Std.U8 n) : Bytes :=
   a.val.map Tacenta.SessionUnitBraidT3.u8
@@ -149,7 +149,9 @@ structure OracleOf {R : Type}
   /-- A model refusal is allowed for malformed public keys; only a model
       `some` result obliges the real boundary to produce the matching success.
       This keeps the contract satisfiable for the wrapper's pre-RNG length
-      refusal while still making a predicted success observable. -/
+      refusal while still making a predicted success observable. It binds the
+      code only where the model's `kemEncaps` returns `some`, so an oracle that
+      never encapsulates meets it. -/
 kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
     trace rng = draw :: rest →
     oracle.kemEncaps (sliceOf publicKey) draw = some expected →

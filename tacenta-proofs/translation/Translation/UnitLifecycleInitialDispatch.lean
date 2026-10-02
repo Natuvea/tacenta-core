@@ -3853,7 +3853,7 @@ theorem concrete_receive_shortfall_post_quantum_refines
                 (modelComposite.pqN.toNat - 1 - chain.n.val) ≤ Usize.max := by
               simpa [Model.Triple.postQuantumSkippedLength] using hroom
             rw [Nat.min_eq_right hroom'] at hzero
-            simp only [show (1#usize).val = 1 by native_decide]
+            simp only [show (1#usize).val = 1 by simp]
             rw [Nat.max_eq_left (by omega), Nat.min_eq_right hUsizeOne]
           · rename_i hpositive
             refine ⟨_, rfl, ?_⟩
@@ -10531,10 +10531,9 @@ decoder holds a chunk they ask the chunk of every composite to be a codeword of 
 including the chunk of a composite no honest peer sends.  `Model.CompositeHeader.decodeDetailed` is
 a function, so the scoped fields speak about exactly one composite, the one the run receives, and a
 view meets them exactly when the run is consistent (`ConsistentChunkRun`,
-`UnitLifecycleRepair.lean`).  The old record is kept unchanged and no consumer takes it.  The
-consumer structure `InitialRatchetConcreteBranchEvidence` still takes this scoped record for every
-inner message that reaches a refusal, an inconsistent one included, and is read as unsatisfiable at
-states whose decoder holds a chunk; `CLAIMS.md` says so. -/
+`UnitLifecycleRepair.lean`).  The old record is kept unchanged and no consumer takes it.  Its
+consumer is `InitialRatchetConcreteBranchEvidenceRun`, which asks it of the run's own inner message
+only. -/
 structure InitialRatchetBraidEvidenceContractsScoped
     {K : Model.Braid.Kem} (view : Model.Lifecycle.CodewordView)
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
@@ -12443,9 +12442,10 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
     (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 /-! Superseded by `InitialRatchetConcreteBranchEvidenceRun`, which asks its fields of the run's own
-    inner message and RNG state only. This form is kept unchanged so that
-    `UnitLifecycleIntegrationScreen.concreteBranchEvidence_empty` still states that it is empty; no
-    consumer takes it.
+    inner message and RNG state only. This form, as the session contract branch left it, is kept so
+    that `UnitLifecycleIntegrationScreen.concreteBranchEvidence_empty` still states that it is empty;
+    no theorem the claims rest on takes it. It differs from the form this module had before the
+    integration, which had a `ceiling` field in place of `randomDraw` and is not decided here.
 
     Package the per-input evidence constructors so the public bridge can
     request a single concrete branch-evidence object instead of an opaque
@@ -12486,6 +12486,9 @@ structure InitialRatchetConcreteBranchEvidence
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
       ∃ draw rest, trace innerRng = draw :: rest
 
+/-- Superseded by `InitialAgreementRatchetEndToEndEvidenceRun`. Kept unchanged so that
+`UnitLifecycleIntegrationScreen.agreementEndToEndEvidence_empty` still states that it is empty; no
+theorem the claims rest on takes it. -/
 structure InitialAgreementRatchetEndToEndEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -12500,11 +12503,15 @@ structure InitialAgreementRatchetEndToEndEvidence
     (view := view) (oracle := oracle) (real := real) (model := model)
     message rng
 
-/-! The public composition consumes one coherent evidence object.  Keeping the
-    concrete branch package and the result-alignment package together is
-    more than cosmetic: both are indexed by the same real/model session and
-    message, so the dispatcher cannot accidentally pair branch evidence from
-    one generated call with refusal/success callbacks from another call. -/
+/-! The public composition consumed one coherent evidence object.  Keeping the
+    concrete branch package and the result-alignment package together was
+    more than cosmetic: both were indexed by the same real/model session and
+    message, so the dispatcher could not pair branch evidence from one
+    generated call with refusal/success callbacks from another call.  The
+    per-run records below keep that indexing. -/
+/-- Superseded by `InitialRatchetEndToEndEvidenceRun`. Kept unchanged so that
+`UnitLifecycleIntegrationScreen.endToEndEvidence_empty` still states that it is empty; no theorem the
+claims rest on takes it. -/
 structure InitialRatchetEndToEndEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -14178,12 +14185,13 @@ def EncryptEvidenceForGeneratedPrefix
 /-! The remaining Braid boundary is an ordered-RNG agreement, not a callback
     that may return an arbitrary completed route.  Its no-draw clause states
     that the concrete RNG trace is unchanged.  Its draw clauses expose the
-    exact consumed head and tie the generated Braid result to that head's
-    model randomness. -/
+    exact consumed draws and tie the generated Braid result to their model
+    randomness. -/
 /-- Superseded by `BraidSendTraceAgreementCounted`: this form lets a send from `keysUnsampled`
 consume one trace entry, while the shipped key generation fills a 64-byte seed, two entries at a
-byte-stream source. Kept unchanged so that `braidSendTrace_conflicts_with_sigSign` still states
-its conflict with the two-draw signing clause; no consumer takes it. -/
+byte-stream source. This form, as the session contract branch left it, is kept so that
+`braidSendTrace_conflicts_with_sigSign` still states its conflict with the two-draw signing clause;
+no consumer takes it. The module had no such record before the integration. -/
 structure BraidSendTraceAgreement
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (K : Model.Braid.Kem)

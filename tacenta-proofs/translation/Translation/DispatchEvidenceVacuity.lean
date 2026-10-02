@@ -34,7 +34,7 @@ about the product.
   and the oracle's `dhPublic` clause that contradicts `PublicKeyNotConstant`, a statement about the
   real X25519 public-key function that this repository tests and does not prove (the two
   `false_of_publicKeyNotConstant` results).
-* **E.** The KEM success clause `OracleOf` had before its repair, kept as
+* **E.** The KEM success clause `OracleOf` had before it was restated, kept as
   `KemEncapsulateUnguarded`, makes the model's KEM oracle accept every public key at every draw
   that a trace has, and the translated `encapsulate` never return `Err` while the trace has a draw
   (`oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`). This is not a refutation:
@@ -943,10 +943,12 @@ success only where the model's `kemEncaps` returns `some`, and adds a pre-draw r
 `KemEncapsulateUnguarded`, the old field kept as a definition that no consumer takes. They show
 what the old field asserted inside the model: the model's oracle never refuses an encapsulation
 key at any draw, and the call never returns `Err` while the trace has a draw.
-`UnitLifecycleIntegrationScreen.lean` shows the repaired clauses follow from three laws about the
-shipped function that a model with a refused key satisfies. -/
+`UnitLifecycleIntegrationScreen.lean` shows the restated clauses follow from three laws about the
+shipped function that a model with a refused key satisfies. The restated success clause binds the
+code only where the model's `kemEncaps` returns `some`, so an oracle that never encapsulates also
+meets it. -/
 
-/-- The `kemEncapsulateSuccess` field of `OracleOf` before the KEM repair, unchanged: success
+/-- The `kemEncapsulateSuccess` field of `OracleOf` before the KEM clauses were restated, unchanged: success
 for every public key at every draw. No consumer takes it. -/
 def KemEncapsulateUnguarded {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)

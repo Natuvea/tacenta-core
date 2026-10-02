@@ -20,16 +20,21 @@ product.
   evidence records that contain it are empty under the same premises
   (`endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`). No theorem takes these three
   records now: they are replaced by the per-run records of section E, and the three results stand
-  as refutations of the old forms.
+  as refutations of the forms the session contract branch introduced. The forms this layer had
+  before the integration (a `ceiling` field in place of `randomDraw`) differ and are not decided
+  here.
 * **B. Draw counts.** `byteRng` is a byte-stream random source (a list of bytes read from the
   front) and `byteTrace` reads it as 32-byte draws. At that source the translated `random_secret`
   meets the `random32` clause (`byte_random32`). Under `SignFillsOnce64Of`, a law that a signing
   function fills one 64-byte buffer and touches the RNG nowhere else, the two-draw `sigSign` clause
   holds (`sigSignClause_of_law`); under `KemShapeOf`, a law that encapsulation refuses an invalid
   key before it draws and otherwise fills one 32-byte buffer, the three KEM clauses hold
-  (`kemClauses_of_law`). `changed_rng_clauses_have_a_model` gives one assignment of the two
-  functions that meets both laws with a key the KEM refuses, so the changed clauses are met
-  together with `random32` and are not met only by an oracle that never refuses.
+  (`kemClauses_of_law`). `changed_rng_clauses_have_a_model` gives one assignment of the three
+  functions that meets the three laws with a key the KEM refuses, so the changed clauses are met
+  together with `random32` and are not met only by an oracle that never refuses. They are also met
+  by an oracle whose `kemEncaps` never returns `some`: the KEM success clause binds the code only
+  where the model predicts a success, so `OracleOf` does not tie the model's encapsulation to the
+  code on a key the code accepts, and the pinned statement does not show a KEM that ever succeeds.
   `changed_rng_clauses_of_laws` is the same derivation at the shipped constants.
 * **B'. The Braid's key generation.** `BraidSendTraceAgreement`, a hypothesis of
   `public_session_encrypt_of_send_contracts`, asks a Braid send from `KeysUnsampled` to consume one
@@ -39,17 +44,28 @@ product.
   any such send whose trace has two entries (`braidSendTrace_conflicts_with_sigSign`): the same
   64-byte fill cannot leave one draw and two draws behind. The model's `sendAgreement` now takes two
   draws in that state and the dispatch layer takes `BraidSendTraceAgreementCounted`, so this result
-  stands as a refutation of the old form.
-* **E. The repaired records.** `concreteBranchEvidenceRun_of_run_parts` builds
-  `InitialRatchetConcreteBranchEvidenceRun` from parts that each speak about the run alone, and
-  `runRandomDraw_byte` meets its draw field at the byte-stream source with `random32`.
+  stands as a refutation of the form the session contract branch introduced; the layer had no such
+  record before.
+* **D. The model's repeat recognition.** `OracleOf` constrains `dhAgree` only at the 32-byte views
+  the DH codec produces, so the model's verdict on two encoded ephemerals is a choice of oracle
+  (`oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`).
+* **E. The restated records.** `concreteBranchEvidenceRun_of_run_parts` is the constructor of
+  `InitialRatchetConcreteBranchEvidenceRun`: the record holds exactly when its four parts do, and
+  each part names only the run's inner message and RNG state. Because this module builds the record
+  from those parts, a field added to the record that the parts do not give fails the build.
+  `runRandomDraw_byte` notes that the draw part asks only that the run's state has a draw, which
+  `random32` does not contradict at the byte-stream source. Neither shows that the scoped Braid
+  record, or the Triple and AEAD branch contracts, can be supplied for any run.
   `braidSendTraceCounted_with_sigSign_byte` shows the counted draw clause and the two-draw signing
   clause hold together at a send from `KeysUnsampled` with two draws left, under the two laws
-  (`braid_send_keysUnsampled_byte_trace` is its trace step).
+  (`braid_send_keysUnsampled_byte_trace` is its trace step). It restates the draw clause and does
+  not name `BraidSendTraceAgreementCounted`; the record's body carries a `#print` pin (below), so a
+  changed record fails the build, and nothing here shows the whole record can be met.
 * **C. Numeric state records.** `RetryReceiveBounds`, `GeneratedTripleRefusalConditions` and
-  `GeneratedTripleSuccessConditions` hold at the model's initial Triple state
-  (`retryReceiveBounds_initAlice` and the two `_initAlice` results), and the first is not true of
-  every state (`retryReceiveBounds_not_trivial`).
+  `GeneratedTripleSuccessConditions` hold at the initiator's initial Triple state,
+  `Model.Triple.initAlice` (`retryReceiveBounds_initAlice` and the two `_initAlice` results), and
+  the first is not true of every state (`retryReceiveBounds_not_trivial`). The responder's initial
+  state, `Model.Triple.initBob`, is not decided.
 
 ## The sense of the laws
 
@@ -61,9 +77,9 @@ opaque declarations of the unit, read from `tacenta-core/boundary/src/xeddsa.rs`
 `tacenta-core/boundary/src/kem.rs` (`encapsulate`), and no theorem here proves them. The model
 results show they are not contradictory. Result A uses no law.
 
-**Platform width.** No proof case-splits on the width of `usize`. The only fact used about
-`Usize.max` is that it is at least `2^32 - 1` (`Tacenta.SessionUnitSessionT1.small_le_usize_max`),
-which holds at both widths, so every result holds for both.
+**Platform width.** No proof here chooses a width of `usize`. The one fact used about `Usize.max`,
+that it is at least `2^32 - 1`, is proved for both widths by
+`Tacenta.SessionUnitSessionT1.small_le_usize_max`, so every result holds for both.
 
 ## What this does not show
 
@@ -84,7 +100,8 @@ namespace Tacenta.UnitLifecycleIntegrationScreen
 
 /-- `InitialRatchetConcreteBranchEvidence.randomDraw` quantifies over every RNG state. With
 `OracleOf.random32` it has no term once one inner message decodes to a composite whose first
-agreement succeeds. A refutation of the old form: the dispatch layer takes
+agreement succeeds. A refutation of the form the session contract branch introduced (the form
+before the integration had a `ceiling` field and is not decided here): the dispatch layer takes
 `InitialRatchetConcreteBranchEvidenceRun` now. -/
 theorem concreteBranchEvidence_empty
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -567,8 +584,8 @@ theorem braid_send_keysUnsampled_generate {R : Type} (rc : rand_core_1.RngCore R
 
 /-- `BraidSendTraceAgreement` lets a send from `KeysUnsampled` consume one trace entry, and
 `OracleOf.sigSign` lets a signature consume two. Under the two laws both are one 64-byte fill from
-the same state, so where two entries remain they cannot both hold. A refutation of the old form:
-the dispatch layer takes `BraidSendTraceAgreementCounted` now (`braidSendTraceCounted_with_sigSign_byte`). -/
+the same state, so where two entries remain they cannot both hold. A refutation of the form the
+session contract branch introduced: the dispatch layer takes `BraidSendTraceAgreementCounted` now (`braidSendTraceCounted_with_sigSign_byte`). -/
 theorem braidSendTrace_conflicts_with_sigSign
     (hsign : SignFillsOnce64) (hgen : GenerateFillsOnce64)
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -608,7 +625,7 @@ theorem braidSendTrace_conflicts_with_sigSign
   · rw [hf] at hgenCall; simp at hgenCall
   · rw [hf] at hgenCall; simp at hgenCall
 
-/-! ## C. The numeric state records hold at the model's initial Triple state -/
+/-! ## C. The numeric state records hold at the initiator's initial Triple state -/
 
 theorem retryReceiveBounds_initAlice (sk ourPub peerPub dhOut : Model.Lifecycle.Key)
     (labels : Model.State.LabelSet) (header : tacenta_triple.Header)
@@ -706,16 +723,18 @@ theorem sameEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCor
     fun s p hp => hf s p hp, ?_⟩
   cases b <;> simp [Model.Lifecycle.sameEphemeralAgreement, f, hestablished, hincoming]
 
-/-! ## E. The repaired records: what replaces the two refuted forms
+/-! ## E. The restated records: what replaces the two refuted forms
 
 `InitialRatchetConcreteBranchEvidenceRun` asks its fields of the run's own inner message and RNG
 state, and `BraidSendTraceAgreementCounted` lets a send from `keysUnsampled` consume the two draws of
 the 64-byte key-generation seed, matching the model's `sendAgreement`. The results of sections A and
-B' stay as refutations of the old forms. -/
+B' stay as refutations of the forms the session contract branch introduced. Restating removes the
+emptiness and the contradiction shown there; it does not show that the new records can be met. -/
 
-/-- The run's evidence record is built from parts that each speak about the run alone: one scoped
+/-- The record's constructor: it packages given parts into the run's evidence record (one scoped
 Braid record for the inner message the run's initial message decodes to, the Triple and AEAD branch
-contracts of the run's refusal inputs, and one draw at the run's RNG state. -/
+contracts of the run's refusal inputs, and a draw at the run's RNG state). It shows no part can be
+supplied; it bounds the record, since a field the parts do not give fails the build here. -/
 theorem concreteBranchEvidenceRun_of_run_parts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -747,8 +766,8 @@ theorem concreteBranchEvidenceRun_of_run_parts
      aeadContracts := aead
      randomDraw := fun _ _ _ _ _ _ _ => hdraw }⟩
 
-/-- The field that made the old record empty is met at the byte-stream source by every state with
-a draw left, together with `random32`. -/
+/-- The draw part asks only that the run's state has a draw: a byte-stream state with a draw left
+has one, together with `byte_random32`. The second conjunct is the hypothesis restated. -/
 theorem runRandomDraw_byte (rng : List Std.U8) (draw : Model.Lifecycle.Key)
     (rest : List Model.Lifecycle.Key) (h : byteTrace rng = draw :: rest) :
     Random32Clause byteRng byteCrc byteTrace ∧ ∃ draw rest, byteTrace rng = draw :: rest :=
@@ -775,11 +794,13 @@ theorem braid_send_keysUnsampled_byte_trace (hgen : GenerateFillsOnce64)
   rw [← hgenCall.2]
   exact htr
 
-/-- The repaired agreement and the two-draw signing clause hold together: at the byte-stream source,
+/-- The counted agreement's draw clause and the two-draw signing clause hold together: at the byte-stream source,
 under `SignFillsOnce64` and `GenerateFillsOnce64`, a send from `KeysUnsampled` with two draws left
 meets the draw clause of `BraidSendTraceAgreementCounted` (two entries consumed, as
-`braidSendDrawCount` says for that state), and the signing clause holds for one oracle. This takes the
-place of `braidSendTrace_conflicts_with_sigSign`, which refutes the old one-entry form. -/
+`braidSendDrawCount` says for that state), and the signing clause holds for one oracle. The result
+restates the draw clause in its own words and does not name the record. This takes the place of
+`braidSendTrace_conflicts_with_sigSign`, which refutes the one-entry form the session contract branch
+introduced. -/
 theorem braidSendTraceCounted_with_sigSign_byte (hS : SignFillsOnce64) (hgen : GenerateFillsOnce64)
     (b : tacenta_braid.Braid) (epoch : Std.U64) (auth : tacenta_braid.Auth)
     (hstate : b.state = .KeysUnsampled epoch auth) (modelBraid : Model.Braid.BraidState)
