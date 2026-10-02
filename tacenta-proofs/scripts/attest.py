@@ -1807,6 +1807,19 @@ REQUIRED_STATEMENT_PINS = frozenset(
     )]
 )
 
+# Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
+# not the body, so it would hold nothing of what these pins are for.
+REQUIRED_PRINT_FORM = frozenset(
+    ["Model.Lifecycle." + n for n in (
+        "braidSendDrawCount", "sendAgreement", "braidSendNeedsDraw", "takeDraw", "braidRandomness",
+    )]
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
+        "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+)
+assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
+
 
 def check_pin_lists(pins):
     """Refuse a lost required pin, an unlisted compiler-trusted pin and a repeat."""
@@ -2195,6 +2208,9 @@ def check_statement_pins(survey=None, reached=None):
             elif module_name(d["file"]) not in reached:
                 why = (f"its statement pin is in {d['file']}, which no audit module imports "
                        "(check-audit-reach.sh holds the same rule)")
+            elif name in REQUIRED_PRINT_FORM and d["command"] != "print":
+                why = (f"its pin at {where} is `#check @{name}`, which prints the type and not the "
+                       f"body; it is on REQUIRED_PRINT_FORM, so write `#print {name}`")
             else:
                 reasons = None
                 break

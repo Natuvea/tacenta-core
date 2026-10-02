@@ -674,6 +674,22 @@ PY
   expect_fail "statement-pin-deleted-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
 done
 
+# A definition on REQUIRED_PRINT_FORM is held by `#print`: its pin rewritten as `#check @`, which
+# prints the type and not the body, is refused, for a model definition and for a record. A floor
+# name not on that list (`takeDraws`, whose body is held by its equation pin) may take either form.
+screen="tacenta-proofs/translation/Translation/UnitLifecycleIntegrationScreen.lean"
+for name in Model.Lifecycle.braidSendDrawCount Tacenta.UnitLifecycleT3.OracleOf; do
+  make_case
+  replace_in "$screen" $'#guard_msgs in\n#print '"$name"$'\n' $'#guard_msgs in\n#check @'"$name"$'\n'
+  expect_fail "definition-pin-check-form-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and its pin at $screen:" --check
+  expect_fail "definition-pin-check-form-$name-says-why" "is \`#check @$name\`, which prints the type and not the body" --check
+  expect_fail "definition-pin-check-form-$name-refused-by-refresh" "is \`#check @$name\`, which prints the type and not the body"
+done
+make_case
+replace_in "$screen" $'#guard_msgs in\n#print Model.Lifecycle.takeDraws\n' $'#guard_msgs in\n#check @Model.Lifecycle.takeDraws\n'
+expect_pass "statement-pin-check-form-off-the-print-list"
+expect_pass "statement-pin-check-form-off-the-print-list-then-checked" --check
+
 # The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
 # changed, so the source attestation is stale until it is regenerated; regenerating
 # refuses on the same statement-pin problems `--check` does, so an accepted case is a
