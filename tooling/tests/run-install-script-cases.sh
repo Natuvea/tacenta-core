@@ -16,6 +16,10 @@
 # real releases. Only a run that downloads them shows that, and the hosted `checks` and `proofs` jobs do.
 set -euo pipefail
 
+# The hosted job exports the pinned version and digest to every step. A case that sets only one of the two
+# must see the other unset, or the 'no version' and 'no digest' cases pass for the caller's environment.
+unset ELAN_VERSION ELAN_SHA256
+
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
