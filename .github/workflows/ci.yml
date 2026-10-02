@@ -235,12 +235,16 @@ jobs:
         run: python3 ../independent/reader/test_session_e2e_sweep.py
       - id: vectors_session_reader
         run: cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
+      # The differential harness fails, and does not skip, when the model's
+      # executable is missing and CI or the variable requires it.
+      - id: vectors_differential_cases
+        run: bash ../../../tooling/tests/run-differential-required-input-cases.sh
       - uses: ./.github/actions/assurance-receipt
         with:
           id: vectors
           classification: required
           command: conformance-and-independent-readers
-          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }},vectors_differential_cases=${{ steps.vectors_differential_cases.outcome }}"
 
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not
@@ -312,19 +316,16 @@ jobs:
         run: bash tacenta-proofs/scripts/verify.sh
       - id: proofs_vectors
         name: The committed vectors are current with the model
-        run: |
-          bash tacenta-test-vectors/regenerate-vectors.sh
-          vector_status="$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)"
-          if [ -n "$vector_status" ]; then
-            printf '%s\n' "$vector_status" >&2
-            exit 1
-          fi
+        run: bash tooling/check-vectors-current.sh
+      - id: proofs_vectors_control
+        name: A changed committed vector is refused
+        run: bash tooling/tests/run-check-vectors-current-cases.sh
       - uses: ./.github/actions/assurance-receipt
         with:
           id: proofs
           classification: required
           command: model-proofs-and-vector-currency
-          required-outcomes: "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }}"
+          required-outcomes: "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }},proofs_vectors_control=${{ steps.proofs_vectors_control.outcome }}"
 
   # The committed Rust-to-Lean translation and the T1/T3 proofs over it, plus
   # the model and model-layer proofs, all built and scanned for incomplete
@@ -552,6 +553,12 @@ jobs:
         run: bash tooling/tests/run-build-evidence-pack-cases.sh
       - id: checks_38
         run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
+      # The controls for the checks above that had none (conflict markers, proof
+      # hygiene, the authentication boundary, `no-sorry.sh`, `verify.sh`, the
+      # translation coverage script, the eleven `--check` modes, the installers)
+      # and the generated inventory of gates and controls. Needs no toolchain.
+      - id: checks_41
+        run: bash tooling/tests/run-gate-controls.sh
       # Pull requests check every added commit in the conditional sign-off job.
       # A push to main must also check the commits introduced by that push:
       # otherwise a squash or merge commit can bypass the only DCO gate after
@@ -583,14 +590,14 @@ jobs:
           id: checks
           classification: required
           command: source-and-assurance-checks
-          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_40=${{ steps.checks_40.outcome }}"
+          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }}"
       - if: github.event_name == 'push'
         uses: ./.github/actions/assurance-receipt
         with:
           id: checks
           classification: required
           command: source-and-assurance-checks
-          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_39=${{ steps.checks_39.outcome }},checks_40=${{ steps.checks_40.outcome }}"
+          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_39=${{ steps.checks_39.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }}"
 
   # Every commit a pull request adds is signed off by its author under the
   # Developer Certificate of Origin (CONTRIBUTING.md). Only pull requests: a
