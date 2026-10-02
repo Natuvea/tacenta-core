@@ -301,10 +301,81 @@ is SemVer against the specified protocol (not the implementation).
   decode. AES-CBC buffers now use the crates' zeroization features. The
   analogous SPQR container hardening remains a follow-up because its verified
   proof contracts still describe the old standard-library operations.
-- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
-  that the current sparse implementation checks the pre-purge store length,
-  while resulting-store replacement semantics and refusal atomicity remain an
-  open follow-up rather than current tested behaviour.
+- `protocol/sparse-pq-ratchet.md`, Receiving and The store also has a total
+  bound. Relaxation: a stored sparse ratchet state that holds a key in the
+  range a skip replaces is no longer refused for the total bound on the count
+  taken before the deletion. A state the operations produce holds no such key
+  (read off the operations; no theorem states it), so the two counts differ
+  only for a stored state that does. The total bound is checked against the
+  store a skip would leave. A skip that steps a chain from `c` to `upto` is
+  refused as `TooManySkipped` when `upto - c` passes `MAX_SKIP`. Otherwise it
+  deletes the keys stored for its epoch under the numbers it is about to store
+  (`c < n <= upto`: the counter itself is excluded, the number it steps to is
+  included), counts what remains, and is refused as `SkippedStoreFull` only
+  when that count plus `upto - c` passes `MAX_SKIPPED_STORE`. The deletion is
+  made on a working copy, and a refusal inside the skip leaves the state as it
+  was when the skip began; a receive that folded an agreement's secret in
+  before the skip is still spent. A key outside the range, including one
+  stored at the counter itself, is kept as it was. This is the order
+  `key-deletion.md` states for the Double Ratchet, which now names the sparse
+  ratchet as taking it too. An earlier entry here recorded that the sparse
+  implementation and model counted the store before the deletion and that the
+  change was an open follow-up (`HL-R1-SPARSE-TRANSLATION` in
+  `GAP-REGISTER.md`, which stays open for the translation evidence). That
+  entry, which stands in the tags `tacenta-assurance-v0.3.0` to
+  `tacenta-assurance-v0.4.5`, is superseded by this one, and the page states
+  the rule as normative. The independent reader, which is project-controlled
+  evidence (`GAP-REGISTER.md`, `READER-INDEPENDENCE`), already counted the
+  store after the deletion
+  (`tacenta-test-vectors/runners/independent/reader/tacenta_reader/spqr.py`,
+  case CR-18) and recorded the page's silence as G12-05
+  (`tacenta-test-vectors/runners/independent/GAPS-12.md`). Two of its case
+  titles and one cite string were edited to quote this page, and its documented
+  run tally and one note on G12-05 were updated. No reader has read the new text.
+  Through a session the earlier count did not lose such a message: the session
+  evicted the oldest stored keys and retried. The difference a session shows
+  is in eviction. Where the replaced keys were not the oldest, the earlier
+  count evicted up to as many other stored keys as the store held in the
+  range, and this count keeps them when the skip fits once the replaced keys
+  are dropped. When it does not, both counts evict the same first batch. On the
+  state of `replacement-bound-counts-resulting-store` in
+  `sparse-ratchet-state.json`, whose two replaced keys are the
+  oldest, the two counts leave the same store. An implementation that counted
+  the store before the deletion, as the earlier text of this page described,
+  must count it after. This changes no byte written to the wire or to storage
+  by a state the operations produce, and it is not a security fix: on the
+  evidence recorded here no operation produces a state that the two counts
+  treat differently.
+- `protocol/sparse-pq-ratchet.md`, Receiving: the page now states what the
+  implementation, the model and the reader already did. The stored-key lookup
+  comes before anything else about the chain is consulted, so a state read
+  from storage can answer a receive whatever the chain's counter, whether or
+  not the epoch's receiving chain is absent, and for a message numbered zero.
+  The list of ways a stored key is deleted now includes its replacement by a
+  skip. The steps of a skip name the epoch they act on, the receiving chain of
+  the epoch the message names, and the count in step 3 is over the whole
+  store, whatever the epoch.
+- `tacenta-core/spqr` and `tacenta-model`: `skip_message_keys` and
+  `Model.SparseRatchet.skipMessageKeys` follow the order the sparse page now
+  states: the keys the skip is about to replace are dropped from a working
+  copy and the total bound is checked against that copy plus the keys to
+  store. A refusal inside the skip leaves the state as it was when the skip
+  began. The two previously counted the store before the deletion and could
+  refuse a stored state near the bound for a request that only replaces its
+  own keys.
+- `sparse-ratchet-state.json`: add `replacement-bound-counts-resulting-store`,
+  a 1,999-key store whose two held keys a skip replaces, leaving exactly
+  2,000, and `replacement-range-excludes-the-chain-counter`, a chain with keys
+  held at its own number, inside the replaced range, at the number the skip
+  steps to, above it and under another epoch, with the key at the counter and
+  the keys above and under the other epoch kept. Each has its `-read-back`
+  vector. No existing vector changes. Only the first of the two tells this
+  rule from the earlier one: the second gives the same result on the code
+  before this change and pins the range the page now states. No operations
+  vector refuses a skip for the total bound, since the file's operation
+  refusals are `counter-exhaustion` and `no-chain`. The refusal half of the
+  rule is checked by the crate's tests, by the differential harness against
+  the model and by the independent reader's cases, and by no vector file.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. `key-deletion.md` states the order explicitly:
   delete held `(DHr, n)` pairs in the re-derived range, then require the

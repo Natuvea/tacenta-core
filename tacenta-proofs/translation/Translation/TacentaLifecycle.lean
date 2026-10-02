@@ -4003,7 +4003,7 @@ def lifecycle.PrekeyStore.take_one_time_kem
         })
 
 /-- [tacenta_lifecycle::lifecycle::push_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3309:0-3312:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3325:0-3328:1 -/
 def lifecycle.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -4457,7 +4457,7 @@ def lifecycle.PrekeyStore.to_bytes
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::take_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3314:0-3331:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3330:0-3347:1 -/
 def lifecycle.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -8646,7 +8646,7 @@ def serialization.concat_ad
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3005:4-3213:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3005:4-3229:5 -/
 def lifecycle.Session.decrypt_ratchet
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -9268,11 +9268,11 @@ def lifecycle.Session.decrypt
         ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::SESSION_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3220:0-3220:33 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3236:0-3236:33 -/
 @[global_simps, irreducible] def lifecycle.SESSION_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::SessionDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3228:0-3260:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3244:0-3276:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.SessionDecodeError where
@@ -9283,7 +9283,7 @@ inductive lifecycle.SessionDecodeError where
 | Inconsistent : lifecycle.SessionDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::SessionDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3226:9-3226:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 3242:9-3242:14
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.SessionDecodeError) :
@@ -9292,7 +9292,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::SessionDecodeError> for tacenta_lifecycle::lifecycle::SessionDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3226:22-3226:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 3242:22-3242:31
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   (self : lifecycle.SessionDecodeError) (other : lifecycle.SessionDecodeError)
@@ -9304,14 +9304,14 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::SessionDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3226:33-3226:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 3242:33-3242:35
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.SessionDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::SessionDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3226:37-3226:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 3242:37-3242:42
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.SessionDecodeError) (f : core.fmt.Formatter) :
@@ -9330,14 +9330,14 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Inconsistent")
 
 /-- [tacenta_lifecycle::lifecycle::StoredSessionIdentities]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3264:0-3269:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3280:0-3285:1
     Visibility: public -/
 structure lifecycle.StoredSessionIdentities where
   ours : Bool
   peer : Bool
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3263:9-3263:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 3279:9-3279:14
     Visibility: public -/
 def lifecycle.StoredSessionIdentities.Insts.CoreCloneClone.clone
   (self : lifecycle.StoredSessionIdentities) :
@@ -9346,7 +9346,7 @@ def lifecycle.StoredSessionIdentities.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::StoredSessionIdentities> for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3263:22-3263:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 3279:22-3279:31
     Visibility: public -/
 def
   lifecycle.StoredSessionIdentities.Insts.CoreCmpPartialEqStoredSessionIdentities.eq
@@ -9359,14 +9359,14 @@ def
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3263:33-3263:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 3279:33-3279:35
     Visibility: public -/
 def lifecycle.StoredSessionIdentities.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.StoredSessionIdentities) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3263:37-3263:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 3279:37-3279:42
     Visibility: public -/
 def lifecycle.StoredSessionIdentities.Insts.CoreFmtDebug.fmt
   (self : lifecycle.StoredSessionIdentities) (f : core.fmt.Formatter) :
@@ -9378,7 +9378,7 @@ def lifecycle.StoredSessionIdentities.Insts.CoreFmtDebug.fmt
     "StoredSessionIdentities") (toStr "ours") dyn (toStr "peer") dyn1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3344:4-3368:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3360:4-3384:5 -/
 def lifecycle.PendingInitial.from_bytes
   (bytes : Slice Std.U8) : Result (Option lifecycle.PendingInitial) := do
   let i := Slice.len bytes
@@ -9448,7 +9448,7 @@ def lifecycle.PendingInitial.from_bytes
         lifecycle.PendingInitial residual
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import_unchecked]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3707:4-3793:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3723:4-3809:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -9719,7 +9719,7 @@ def lifecycle.Session.import_unchecked
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
 /-- [tacenta_lifecycle::lifecycle::scan_stored_session_identities]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3281:0-3291:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3297:0-3307:1
     Visibility: public -/
 def lifecycle.scan_stored_session_identities
   (bytes : Slice Std.U8) :
@@ -9735,7 +9735,7 @@ def lifecycle.scan_stored_session_identities
   | core.result.Result.Err error => ok (core.result.Result.Err error)
 
 /-- [tacenta_lifecycle::lifecycle::scan_stored_prekey_identity]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3300:0-3307:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3316:0-3323:1
     Visibility: public -/
 def lifecycle.scan_stored_prekey_identity
   (bytes : Slice Std.U8) :
@@ -9751,7 +9751,7 @@ def lifecycle.scan_stored_prekey_identity
   | core.result.Result.Err error => ok (core.result.Result.Err error)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::to_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3334:4-3342:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3350:4-3358:5 -/
 def lifecycle.PendingInitial.to_bytes
   (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
@@ -9772,7 +9772,7 @@ def lifecycle.PendingInitial.to_bytes
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3411:4-3469:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3427:4-3485:5
     Visibility: public -/
 def lifecycle.Session.export
   (self : lifecycle.Session) :
@@ -9878,7 +9878,7 @@ def lifecycle.Session.export
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::leaf_invariants]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3695:4-3697:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3711:4-3713:5 -/
 def lifecycle.Session.leaf_invariants
   (self : lifecycle.Session) : Result Bool := do
   let b ← tacenta_triple.State.invariant self.triple
@@ -9887,13 +9887,13 @@ def lifecycle.Session.leaf_invariants
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::is_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3703:4-3705:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3719:4-3721:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::structural_invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3538:4-3689:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3554:4-3705:5 -/
 def lifecycle.Session.structural_invariant
   (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
@@ -10604,7 +10604,7 @@ def lifecycle.Session.structural_invariant
       else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3531:4-3533:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3547:4-3549:5
     Visibility: public -/
 def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   let b ← lifecycle.Session.structural_invariant self
@@ -10613,7 +10613,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3501:4-3510:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3517:4-3526:5
     Visibility: public -/
 def lifecycle.Session.import
   (bytes : Slice Std.U8) :

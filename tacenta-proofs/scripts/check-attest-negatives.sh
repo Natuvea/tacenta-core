@@ -384,6 +384,30 @@ SessionUnitBraidFromBytesWitness Tacenta.SessionUnitBraidFromBytesWitness braid_
 RatchetDecodedWitness Tacenta.RatchetDecodedWitness ratchet_witness_events decoded_receive_refines_premises_satisfiable
 LIST
 
+# The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
+# are in the proofs package, not the translation package, so they have their own block.
+for n in mem_skipSurvivors_iff skipSurvivors_length_le skipMessageKeys_refused_iff \
+         skipMessageKeys_leaves_survivors_then_batch skipMessageKeys_keeps_outside_range \
+         skipMessageKeys_keeps_the_key_at_the_counter skipMessageKeys_replaces_the_range \
+         replacement_accepts_where_the_count_before_the_deletion_refuses \
+         witness_premises_hold witness_refused_one_key_further; do
+  make_case
+  python3 - "$work/tacenta-proofs/Proofs/SparseReplacementBound.lean" "Proofs.SparseReplacementBound.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-SparseReplacementBound-$n" "\`Proofs.SparseReplacementBound.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys
