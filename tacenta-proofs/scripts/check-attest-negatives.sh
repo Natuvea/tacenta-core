@@ -647,6 +647,32 @@ replace_in "$print_file" $'#guard_msgs in\n#print '"$print_name"$'\n' $'#print '
 expect_fail "definition-pin-without-guard-msgs" "\`$print_name\` is on REQUIRED_STATEMENT_PINS and \`#print $print_name\` at $print_file:" --check
 expect_fail "definition-pin-without-guard-msgs-says-why" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
 
+# The model's draw functions and the record bodies of the integration screen: each definition pin
+# (and the one equation pin) deleted in turn is refused as a missing statement pin.
+for name in Model.Lifecycle.braidSendDrawCount Model.Lifecycle.sendAgreement \
+  Model.Lifecycle.braidSendNeedsDraw Model.Lifecycle.takeDraws Model.Lifecycle.takeDraws.eq_def \
+  Model.Lifecycle.takeDraw Model.Lifecycle.braidRandomness Tacenta.UnitLifecycleT3.OracleOf \
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted \
+  Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts \
+  Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts \
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped; do
+  make_case
+  python3 - "$work/tacenta-proofs/translation/Translation/UnitLifecycleIntegrationScreen.lean" "$name" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "statement-pin-deleted-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+done
+
 # The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
 # changed, so the source attestation is stale until it is regenerated; regenerating
 # refuses on the same statement-pin problems `--check` does, so an accepted case is a

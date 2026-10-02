@@ -1902,3 +1902,463 @@ fun oracle state =>
 -/
 #guard_msgs in
 #print Model.Lifecycle.sendAgreement
+
+/--
+info: def Model.Lifecycle.braidSendNeedsDraw : Model.Braid.BraidState → Bool :=
+fun x =>
+  match x with
+  | Model.Braid.BraidState.keysUnsampled epoch auth => true
+  | Model.Braid.BraidState.headerReceived epoch auth ekSeed hek ekDec => true
+  | x => false
+-/
+#guard_msgs in
+#print Model.Lifecycle.braidSendNeedsDraw
+
+/--
+info: def Model.Lifecycle.takeDraws : ℕ →
+  Model.Lifecycle.Oracle → Option (List Model.Lifecycle.Key × Model.Lifecycle.Oracle) :=
+fun x x_1 =>
+  Nat.brecOn (motive := fun x => Model.Lifecycle.Oracle → Option (List Model.Lifecycle.Key × Model.Lifecycle.Oracle)) x
+    Model.Lifecycle.takeDraws._f x_1
+-/
+#guard_msgs in
+#print Model.Lifecycle.takeDraws
+
+/-! `#print` of a structurally recursive definition prints its compiled form, which names the body
+only through an auxiliary, so the body of `takeDraws` is pinned through its equation, and the one
+draw it repeats through `takeDraw`. -/
+
+/--
+info: Model.Lifecycle.takeDraws.eq_def : ∀ (x : ℕ) (x_1 : Model.Lifecycle.Oracle),
+  Model.Lifecycle.takeDraws x x_1 =
+    match x, x_1 with
+    | 0, oracle => some ([], oracle)
+    | n.succ, oracle => do
+      let __discr ← Model.Lifecycle.takeDraw oracle
+      match __discr with
+        | (draw, afterFirst) => do
+          let __discr ← Model.Lifecycle.takeDraws n afterFirst
+          match __discr with
+            | (draws, rest) => some (draw :: draws, rest)
+-/
+#guard_msgs in
+#check @Model.Lifecycle.takeDraws.eq_def
+
+/--
+info: def Model.Lifecycle.takeDraw : Model.Lifecycle.Oracle → Option (Model.Lifecycle.Key × Model.Lifecycle.Oracle) :=
+fun oracle =>
+  match oracle.draws with
+  | [] => none
+  | draw :: rest =>
+    some
+      (draw,
+        { draws := rest, braidKem := oracle.braidKem, dhPublic := oracle.dhPublic, dhAgree := oracle.dhAgree,
+          identityValid := oracle.identityValid, aeadSeal := oracle.aeadSeal, aeadOpen := oracle.aeadOpen,
+          kemValid := oracle.kemValid, kemEncaps := oracle.kemEncaps, kemDecaps := oracle.kemDecaps,
+          sigVerify := oracle.sigVerify, sigSign := oracle.sigSign })
+-/
+#guard_msgs in
+#print Model.Lifecycle.takeDraw
+
+/--
+info: def Model.Lifecycle.braidRandomness : Model.Lifecycle.Key → ℕ :=
+fun draw => Model.Messages.leValue draw
+-/
+#guard_msgs in
+#print Model.Lifecycle.braidRandomness
+
+/-! The bodies of the records the dispatch layer takes and no theorem here constructs. These are
+text pins: a field added to, removed from or changed in one of them fails the build here, so a
+stronger record, an empty one included, is not accepted silently. They do not show that any record
+can be met. -/
+
+/--
+info: structure Tacenta.UnitLifecycleT3.OracleOf {R : Type} (rngCore : rand_core_1.RngCore R)
+  (cryptoRng : rand_core_1.CryptoRng R) (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+  (oracle : Model.Lifecycle.Oracle) : Prop
+number of parameters: 7
+fields:
+  Tacenta.UnitLifecycleT3.OracleOf.dhPublic : ∀ (secret : tacenta_boundary.dh.PrivateKey),
+      ∃ publicKey, secret.public_key = ok publicKey ∧ dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret)
+  Tacenta.UnitLifecycleT3.OracleOf.dhAgree : ∀ (secret : tacenta_boundary.dh.PrivateKey)
+      (publicKey : tacenta_boundary.dh.PublicKeyBytes),
+      ∃ result,
+        secret.agree publicKey = ok result ∧
+          Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
+  Tacenta.UnitLifecycleT3.OracleOf.identityValid : ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
+      ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey)
+  Tacenta.UnitLifecycleT3.OracleOf.aeadSeal : ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize)
+      (ad plaintext : Slice U8),
+      ∃ ciphertext,
+        tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
+          vecOf ciphertext = oracle.aeadSeal (arrayOf key1) (arrayOf key2) (arrayOf iv) (sliceOf ad) (sliceOf plaintext)
+  Tacenta.UnitLifecycleT3.OracleOf.aeadOpen : ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize)
+      (ciphertext associatedData : Slice U8),
+      ∃ result,
+        tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData = ok result ∧
+          resultOptionOf vecOf result =
+            oracle.aeadOpen (arrayOf key1) (arrayOf key2) (arrayOf iv) (sliceOf ciphertext) (sliceOf associatedData)
+  Tacenta.UnitLifecycleT3.OracleOf.kemEncapsulateSuccess : ∀ (publicKey : Slice U8) (rng : R)
+      (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+      (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
+      trace rng = draw :: rest →
+        oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+          ∃ result rng',
+            tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Ok result, rng') ∧
+              trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected
+  Tacenta.UnitLifecycleT3.OracleOf.kemInvalidKey : ∀ (publicKey : Slice U8) (rng : R)
+      (error : tacenta_boundary.kem.KemError),
+      oracle.kemValid (sliceOf publicKey) = false →
+        tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Err error, rng)
+  Tacenta.UnitLifecycleT3.OracleOf.kemEncapsulateError : ∀ (publicKey : Slice U8) (rng : R)
+      (error : tacenta_boundary.kem.KemError),
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Err error, rng) →
+        oracle.kemValid (sliceOf publicKey) = false ∧
+          ∀ (draw : Model.Lifecycle.Key), oracle.kemEncaps (sliceOf publicKey) draw = none
+  Tacenta.UnitLifecycleT3.OracleOf.kemDecapsulate : ∀ (keyPair : tacenta_boundary.kem.KeyPair) (ciphertext : Slice U8),
+      ∃ result,
+        tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
+          resultOptionOf arrayOf result = oracle.kemDecaps (kem.keyPair keyPair) (sliceOf ciphertext)
+  Tacenta.UnitLifecycleT3.OracleOf.sigVerify : ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes) (message : Slice U8)
+      (signature : Std.Array U8 64#usize),
+      ∃ result,
+        tacenta_boundary.xeddsa.verify publicKey message signature = ok result ∧
+          verified result = oracle.sigVerify (dh.publicKey publicKey) (sliceOf message) (arrayOf signature)
+  Tacenta.UnitLifecycleT3.OracleOf.sigSign : ∀ (secret : Std.Array U8 32#usize) (message : Slice U8) (rng : R)
+      (draw1 draw2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+      trace rng = draw1 :: draw2 :: rest →
+        ∃ signature rng',
+          tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng = ok (signature, rng') ∧
+            trace rng' = rest ∧ arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw1 draw2
+  Tacenta.UnitLifecycleT3.OracleOf.random32 : ∀ (rng : R) (draw : Model.Lifecycle.Key)
+      (rest : List Model.Lifecycle.Key),
+      trace rng = draw :: rest →
+        ∃ value rng',
+          lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧ arrayOf value = draw ∧ trace rng' = rest
+constructor:
+  Tacenta.UnitLifecycleT3.OracleOf.mk {R : Type} {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {dh : DhView} {kem : KemView} {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
+    (dhPublic :
+      ∀ (secret : tacenta_boundary.dh.PrivateKey),
+        ∃ publicKey, secret.public_key = ok publicKey ∧ dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret))
+    (dhAgree :
+      ∀ (secret : tacenta_boundary.dh.PrivateKey) (publicKey : tacenta_boundary.dh.PublicKeyBytes),
+        ∃ result,
+          secret.agree publicKey = ok result ∧
+            Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey))
+    (identityValid :
+      ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
+        ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey))
+    (aeadSeal :
+      ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (ad plaintext : Slice U8),
+        ∃ ciphertext,
+          tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
+            vecOf ciphertext =
+              oracle.aeadSeal (arrayOf key1) (arrayOf key2) (arrayOf iv) (sliceOf ad) (sliceOf plaintext))
+    (aeadOpen :
+      ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (ciphertext associatedData : Slice U8),
+        ∃ result,
+          tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData = ok result ∧
+            resultOptionOf vecOf result =
+              oracle.aeadOpen (arrayOf key1) (arrayOf key2) (arrayOf iv) (sliceOf ciphertext) (sliceOf associatedData))
+    (kemEncapsulateSuccess :
+      ∀ (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+        (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
+        trace rng = draw :: rest →
+          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+            ∃ result rng',
+              tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+                  ok (core.result.Result.Ok result, rng') ∧
+                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected)
+    (kemInvalidKey :
+      ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
+        oracle.kemValid (sliceOf publicKey) = false →
+          tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Err error, rng))
+    (kemEncapsulateError :
+      ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
+        tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Err error, rng) →
+          oracle.kemValid (sliceOf publicKey) = false ∧
+            ∀ (draw : Model.Lifecycle.Key), oracle.kemEncaps (sliceOf publicKey) draw = none)
+    (kemDecapsulate :
+      ∀ (keyPair : tacenta_boundary.kem.KeyPair) (ciphertext : Slice U8),
+        ∃ result,
+          tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
+            resultOptionOf arrayOf result = oracle.kemDecaps (kem.keyPair keyPair) (sliceOf ciphertext))
+    (sigVerify :
+      ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes) (message : Slice U8) (signature : Std.Array U8 64#usize),
+        ∃ result,
+          tacenta_boundary.xeddsa.verify publicKey message signature = ok result ∧
+            verified result = oracle.sigVerify (dh.publicKey publicKey) (sliceOf message) (arrayOf signature))
+    (sigSign :
+      ∀ (secret : Std.Array U8 32#usize) (message : Slice U8) (rng : R) (draw1 draw2 : Model.Lifecycle.Key)
+        (rest : List Model.Lifecycle.Key),
+        trace rng = draw1 :: draw2 :: rest →
+          ∃ signature rng',
+            tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng = ok (signature, rng') ∧
+              trace rng' = rest ∧ arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw1 draw2)
+    (random32 :
+      ∀ (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+        trace rng = draw :: rest →
+          ∃ value rng',
+            lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
+              arrayOf value = draw ∧ trace rng' = rest) :
+    OracleOf rngCore cryptoRng dh kem trace oracle
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.OracleOf
+
+/--
+info: structure Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted {R : Type} (rc : rand_core_1.RngCore R)
+  (crc : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key) (K : Model.Braid.Kem)
+  (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session) (model : Model.Lifecycle.Session) (rng : R) : Prop
+number of parameters: 9
+fields:
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.encodersLive : Tacenta.SessionUnitBraidT3.EncodersLive
+      model.braid
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.braidKem : oracle.braidKem = K
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.noDrawTrace : ∀ (realMessage : tacenta_braid.Msg)
+      (realEpoch : U64) (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+      tacenta_braid.Braid.send rc crc real.braid rng =
+          ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+        Model.Lifecycle.braidSendNeedsDraw model.braid = false → trace rngNext = trace rng
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.drawTrace : ∀ (realMessage : tacenta_braid.Msg)
+      (realEpoch : U64) (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+      tacenta_braid.Braid.send rc crc real.braid rng =
+          ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+        Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+          ∃ draws rest,
+            draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+              trace rng = draws ++ rest ∧ trace rngNext = rest
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.drawPost : ∀ (realMessage : tacenta_braid.Msg)
+      (realEpoch : U64) (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+      tacenta_braid.Braid.send rc crc real.braid rng =
+          ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+        Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+          ∀ (draws rest : List Model.Lifecycle.Key),
+            draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+              trace rng = draws ++ rest →
+                ∃ rand,
+                  rand = Model.Lifecycle.braidRandomness draws.flatten ∧
+                    (∀ (modelMessage : Model.Braid.Msg),
+                        (Model.Braid.send K rand model.braid).1 = some modelMessage →
+                          Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+                      ↑realEpoch = (Model.Braid.send K rand model.braid).2.2.2.epoch - 1 ∧
+                        Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+                            (Model.Braid.send K rand model.braid).2.2.1 ∧
+                          Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
+                            (Model.Braid.send K rand model.braid).2.2.2
+constructor:
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted.mk {R : Type} {rc : rand_core_1.RngCore R}
+    {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {K : Model.Braid.Kem}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session} {model : Model.Lifecycle.Session} {rng : R}
+    (encodersLive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid) (braidKem : oracle.braidKem = K)
+    (noDrawTrace :
+      ∀ (realMessage : tacenta_braid.Msg) (realEpoch : U64) (realOutput : Option tacenta_braid.Output)
+        (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+        tacenta_braid.Braid.send rc crc real.braid rng =
+            ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+          Model.Lifecycle.braidSendNeedsDraw model.braid = false → trace rngNext = trace rng)
+    (drawTrace :
+      ∀ (realMessage : tacenta_braid.Msg) (realEpoch : U64) (realOutput : Option tacenta_braid.Output)
+        (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+        tacenta_braid.Braid.send rc crc real.braid rng =
+            ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+          Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+            ∃ draws rest,
+              draws.length = Model.Lifecycle.braidSendDrawCount model.braid ∧
+                trace rng = draws ++ rest ∧ trace rngNext = rest)
+    (drawPost :
+      ∀ (realMessage : tacenta_braid.Msg) (realEpoch : U64) (realOutput : Option tacenta_braid.Output)
+        (realBraidNext : tacenta_braid.Braid) (rngNext : R),
+        tacenta_braid.Braid.send rc crc real.braid rng =
+            ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+          Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+            ∀ (draws rest : List Model.Lifecycle.Key),
+              draws.length = Model.Lifecycle.braidSendDrawCount model.braid →
+                trace rng = draws ++ rest →
+                  ∃ rand,
+                    rand = Model.Lifecycle.braidRandomness draws.flatten ∧
+                      (∀ (modelMessage : Model.Braid.Msg),
+                          (Model.Braid.send K rand model.braid).1 = some modelMessage →
+                            Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+                        ↑realEpoch = (Model.Braid.send K rand model.braid).2.2.2.epoch - 1 ∧
+                          Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+                              (Model.Braid.send K rand model.braid).2.2.1 ∧
+                            Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
+                              (Model.Braid.send K rand model.braid).2.2.2) :
+    BraidSendTraceAgreementCounted rc crc trace K oracle real model rng
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted
+
+/--
+info: structure Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts {R : Type} {rc : rand_core_1.RngCore R}
+  {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+  {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+  {model : Model.Lifecycle.Session} {inputMessage : Slice U8} {inputRng : R}
+  (input : InitialRatchetRefusalBranchInput inputMessage inputRng) : Prop
+number of parameters: 13
+fields:
+  Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts.braid : InitialRatchetBraidEvidenceContractsScoped view
+      real model input.decoded.message.deref
+  Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts.branch : ∀ (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (draw : Model.Lifecycle.Key) (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Triple.ReceiveRefusal) (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) = Except.ok (composite, ciphertext) →
+        oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+          Model.Lifecycle.random32 oracle = some (draw, oracleNext) →
+            oracle.dhAgree draw composite.dh = some dhOutSend →
+              Model.Lifecycle.receiveWithEviction model.triple composite (Model.Lifecycle.tripleHeaderOf composite)
+                    dhOutRecv dhOutSend (oracle.dhPublic draw)
+                    (Model.Lifecycle.sparseOutputOf
+                      (Model.Braid.receive oracle.braidKem model.braid
+                            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+                  Except.error modelReason →
+                ∃ realReason, InitialRatchetTripleConcreteEvidenceScoped input realReason composite modelReason
+constructor:
+  Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts.mk {R : Type} {rc : rand_core_1.RngCore R}
+    {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {inputMessage : Slice U8} {inputRng : R}
+    {input : InitialRatchetRefusalBranchInput inputMessage inputRng}
+    (braid : InitialRatchetBraidEvidenceContractsScoped view real model input.decoded.message.deref)
+    (branch :
+      ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes) (draw : Model.Lifecycle.Key)
+        (oracleNext : Model.Lifecycle.Oracle) (modelReason : Model.Triple.ReceiveRefusal)
+        (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+        Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) = Except.ok (composite, ciphertext) →
+          oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+            Model.Lifecycle.random32 oracle = some (draw, oracleNext) →
+              oracle.dhAgree draw composite.dh = some dhOutSend →
+                Model.Lifecycle.receiveWithEviction model.triple composite (Model.Lifecycle.tripleHeaderOf composite)
+                      dhOutRecv dhOutSend (oracle.dhPublic draw)
+                      (Model.Lifecycle.sparseOutputOf
+                        (Model.Braid.receive oracle.braidKem model.braid
+                              (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+                    Except.error modelReason →
+                  ∃ realReason, InitialRatchetTripleConcreteEvidenceScoped input realReason composite modelReason) :
+    InitialRatchetTripleBranchContracts input
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts
+
+/--
+info: structure Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts {R : Type} {rc : rand_core_1.RngCore R}
+  {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+  {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+  {model : Model.Lifecycle.Session} {inputMessage : Slice U8} {inputRng : R}
+  (input : InitialRatchetRefusalBranchInput inputMessage inputRng) : Prop
+number of parameters: 13
+fields:
+  Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts.braid : InitialRatchetBraidEvidenceContractsScoped view real
+      model input.decoded.message.deref
+  Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts.branch : ∀ (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (draw : Model.Lifecycle.Key) (oracleNext : Model.Lifecycle.Oracle)
+      (messageKey dhOutRecv dhOutSend : Model.Lifecycle.Key) (tripleCandidate : Model.Triple.State),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) = Except.ok (composite, ciphertext) →
+        oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+          Model.Lifecycle.random32 oracle = some (draw, oracleNext) →
+            oracle.dhAgree draw composite.dh = some dhOutSend →
+              Model.Lifecycle.receiveWithEviction model.triple composite (Model.Lifecycle.tripleHeaderOf composite)
+                    dhOutRecv dhOutSend (oracle.dhPublic draw)
+                    (Model.Lifecycle.sparseOutputOf
+                      (Model.Braid.receive oracle.braidKem model.braid
+                            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+                  Except.ok (tripleCandidate, messageKey) →
+                oracle.aeadOpen (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).1
+                      (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).2.1
+                      (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).2.2 ciphertext
+                      (Model.Messages.concatAd model.identityAd (Model.CompositeHeader.encode composite)) =
+                    none →
+                  InitialRatchetAeadConcreteEvidenceScoped input composite tripleCandidate messageKey
+constructor:
+  Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts.mk {R : Type} {rc : rand_core_1.RngCore R}
+    {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {inputMessage : Slice U8} {inputRng : R}
+    {input : InitialRatchetRefusalBranchInput inputMessage inputRng}
+    (braid : InitialRatchetBraidEvidenceContractsScoped view real model input.decoded.message.deref)
+    (branch :
+      ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes) (draw : Model.Lifecycle.Key)
+        (oracleNext : Model.Lifecycle.Oracle) (messageKey dhOutRecv dhOutSend : Model.Lifecycle.Key)
+        (tripleCandidate : Model.Triple.State),
+        Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) = Except.ok (composite, ciphertext) →
+          oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+            Model.Lifecycle.random32 oracle = some (draw, oracleNext) →
+              oracle.dhAgree draw composite.dh = some dhOutSend →
+                Model.Lifecycle.receiveWithEviction model.triple composite (Model.Lifecycle.tripleHeaderOf composite)
+                      dhOutRecv dhOutSend (oracle.dhPublic draw)
+                      (Model.Lifecycle.sparseOutputOf
+                        (Model.Braid.receive oracle.braidKem model.braid
+                              (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+                    Except.ok (tripleCandidate, messageKey) →
+                  oracle.aeadOpen (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).1
+                        (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).2.1
+                        (Model.State.messageKeys messageKey Model.State.LabelSet.tacenta).2.2 ciphertext
+                        (Model.Messages.concatAd model.identityAd (Model.CompositeHeader.encode composite)) =
+                      none →
+                    InitialRatchetAeadConcreteEvidenceScoped input composite tripleCandidate messageKey) :
+    InitialRatchetAeadBranchContracts input
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts
+
+/--
+info: structure Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped {K : Model.Braid.Kem}
+  (view : Model.Lifecycle.CodewordView) (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+  (message : Slice U8) : Prop
+number of parameters: 5
+fields:
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hea : Tacenta.SessionUnitBraidT3.ErasureAgrees
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees
+      K
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hct2len : Tacenta.SessionUnitBraidT1.Ct2LenTotal
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hheaderlen : Tacenta.SessionUnitBraidT1.HeaderLenTotal
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hecl : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hchunk : ∀ (realComposite : tacenta_wire.Composite)
+      (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) = Except.ok (modelComposite, ciphertext) →
+        CompositeRefines realComposite modelComposite →
+          IncomingChunkRefines view model.braid realComposite modelComposite
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hhonest : ∀
+      (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) = Except.ok (modelComposite, ciphertext) →
+        Tacenta.SessionUnitBraidT3.HonestChunk model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.hepoch : ↑(Tacenta.SessionUnitBraidT1.State.epoch_val
+            real.braid.state) +
+        1 <
+      U64.max
+constructor:
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped.mk {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice U8} (contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts)
+    (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees)
+    (hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees) (hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees)
+    (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K)
+    (hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal) (hct2len : Tacenta.SessionUnitBraidT1.Ct2LenTotal)
+    (hheaderlen : Tacenta.SessionUnitBraidT1.HeaderLenTotal) (hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees)
+    (hecl : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees)
+    (hchunk :
+      ∀ (realComposite : tacenta_wire.Composite) (modelComposite : Model.CompositeHeader.Composite)
+        (ciphertext : Bytes),
+        Model.CompositeHeader.decodeDetailed (sliceOf message) = Except.ok (modelComposite, ciphertext) →
+          CompositeRefines realComposite modelComposite →
+            IncomingChunkRefines view model.braid realComposite modelComposite)
+    (hhonest :
+      ∀ (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+        Model.CompositeHeader.decodeDetailed (sliceOf message) = Except.ok (modelComposite, ciphertext) →
+          Tacenta.SessionUnitBraidT3.HonestChunk model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hepoch : ↑(Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state) + 1 < U64.max) :
+    InitialRatchetBraidEvidenceContractsScoped view real model message
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped

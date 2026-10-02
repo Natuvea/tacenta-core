@@ -1771,6 +1771,21 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
+        "braidSendNeedsDraw",
+        "takeDraws",
+        "takeDraws.eq_def",
+        "takeDraw",
+        "braidRandomness",
+    )]
+    # The bodies of the records the dispatch layer takes and no theorem constructs
+    # (Translation/UnitLifecycleIntegrationScreen.lean): text pins, so a changed record fails
+    # the build.
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "OracleOf",
+        "BraidSendTraceAgreementCounted",
+        "InitialRatchetTripleBranchContracts",
+        "InitialRatchetAeadBranchContracts",
+        "InitialRatchetBraidEvidenceContractsScoped",
     )]
     # The sparse ratchet's total-bound results (Proofs/SparseReplacementBound.lean and the
     # skip refinement's statement pin).
