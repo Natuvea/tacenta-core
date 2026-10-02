@@ -3,6 +3,9 @@ import Translation.TacentaTripleUnit
 import Translation.UnitPins
 import Translation.UnitSpqrT3
 import Translation.UnitSatisfiabilityTriple
+import Translation.NumericBoundaryTriple
+import Translation.NumericWitnessTriple
+import Translation.UnitSatisfiabilityTripleLaws
 
 /-!
 The three-leaf translation unit's half of the translation package's axiom
@@ -24,7 +27,8 @@ refinement on the unit, `Translation.UnitTripleT3`. It imports two modules
 directly because nothing else does: `Translation.UnitSpqrT3`, the sparse
 ratchet's refinement, which nothing pins, and
 `Translation.UnitSatisfiabilityTriple`, the satisfiability witnesses for the
-Triple's refinement on the unit. Those are the only proofs in this island,
+Triple's refinement on the unit, and `Translation.UnitSatisfiabilityTripleLaws`, which proves the
+unit's defined-function hypotheses from named laws. Those are the only proofs in this island,
 and this is the only module that reaches them, so the audit walks them here or
 nowhere: `scripts/no-sorry.sh` compares the `audit-axiom:` lines with the
 recorded manifest, and a module nothing imports would be built, scanned and

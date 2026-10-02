@@ -35,7 +35,7 @@ about either inner ratchet's behaviour is written by hand; what they state about
 the inner states is the numeric preconditions the inner theorems need, carried
 through the abstraction. What they do assume is the boundary the inner
 refinements themselves take: the HMAC and HKDF agreements,
-the `zeroize` round trips, three `Vec` agreements, `VecRemoveTotal`,
+the `zeroize` round trips, the `Vec` agreements (`VecRetainAgrees`, `RemoveSkippedAtAgrees`), `RemoveSkippedAtTotal`,
 `DerivedKeysModel`, `OptionCloneTotal` and the general `ZeroizeTotal`.
 
 Three things are worth knowing about that trade.
@@ -733,7 +733,7 @@ theorem spqr_init_refines (h : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
 /-- `RatchetAgreesFor`, proved. Every clause is `UnitT3.lean`'s theorem for that
 call, a field read, or `UnitTripleT1.lean`'s clone lemma, and the hypotheses are
 the boundary those take: `HmacAgrees`, `HkdfAgrees`, `ZeroizingRoundTrips`,
-`VecRemoveTotal` and `DerivedKeysModel` for the classical calls, and
+`RemoveSkippedAtTotal` and `DerivedKeysModel` for the classical calls, and
 `OptionCloneTotal` for `clone`. -/
 theorem ratchet_agrees_for (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
@@ -864,7 +864,7 @@ ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance.
 
 One cost is not collapsed. Each bundle covers its ratchet's whole calling surface,
 so `send_refines_discharged` assumes the boundary of the receive path as well
-(`VecRemoveTotal`, `DerivedKeysModel`, `RemoveSkippedAtAgrees`), which
+(`RemoveSkippedAtTotal`, `DerivedKeysModel`, `RemoveSkippedAtAgrees`), which
 its own proof never reaches. -/
 
 theorem send_refines_discharged
