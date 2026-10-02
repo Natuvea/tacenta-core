@@ -63,7 +63,8 @@ STUB
 }
 sh_controls=(check-lifecycle-translation-coverage-negatives.sh check-session-satisfiability-negatives.sh
   check-port-negatives.sh check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh
-  check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh)
+  check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh
+  check-precondition-witnesses.sh check-hypothesis-witnesses.sh)
 py_controls=(check-lifecycle-translation-coverage.py check-initial-dispatch-negatives.py attest.py)
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
 for s in "${py_controls[@]}"; do stub_py "$s"; done
@@ -125,6 +126,7 @@ for called in check-translation-coverage.sh check-lifecycle-translation-coverage
   check-lifecycle-translation-coverage-negatives.sh check-session-satisfiability-negatives.sh \
   check-port-negatives.sh check-initial-dispatch-negatives.py 'attest.py --compare-audit' \
   check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh \
+  check-precondition-witnesses.sh check-hypothesis-witnesses.sh \
   'lake build translation' 'lake build tacenta-proofs' 'lake build tacenta-model' \
   'leanchecker translation Translation.Alpha' 'leanchecker translation Translation.Beta' \
   'leanchecker tacenta-proofs Proofs.Gamma' 'leanchecker tacenta-model Model.Delta' \
