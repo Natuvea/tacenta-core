@@ -9,9 +9,9 @@ plus the pinned toolchain (Lean +
 Charon/Aeneas) to reproduce them.
 
 Status: live. A script checks that every theorem the ledger names exists in the
-file it names and that every axiom-pinned theorem (369 at this commit) is named in
+file it names and that every axiom-pinned theorem (579 at this commit) is named in
 the ledger. Whether a pin is current is checked by the Lean build, which fails on a
-wrong pin; the script does not check it. The other 74 claimed theorems carry no pin. No recorded review of the theorem
+wrong pin; the script does not check it. The other 83 claimed theorems carry no pin. No recorded review of the theorem
 statements by a reader who did not write the ledger exists in this repository.
 Three tiers of proof run here. **T1** is panic-freedom of the translated Rust; **T2** is
 functional properties of the Lean model; **T3** is refinement of the translated

@@ -551,6 +551,49 @@ fn sparse_state_bytes(
     out
 }
 
+/// One stored sparse key: its epoch, its message number and the key.
+type SparseSkipped = (u64, u64, [u8; 32]);
+
+/// The skipped-key entries of a sparse ratchet's stored bytes, in the order
+/// stored, and the receiving counter of the chain for `epoch`
+/// (`session-persistence.md`, Sparse ratchet state). The sequences below that
+/// check the replacement bound use this to prove that the keys they say are
+/// replaced, or kept, were present before the step and are what they should be
+/// after it.
+fn sparse_store_and_counter(bytes: &[u8], epoch: u64) -> Option<(Vec<SparseSkipped>, Option<u64>)> {
+    const CHAINS_ENTRY: usize = 8 + 2 * 41;
+    const ENTRY: usize = 8 + 8 + 32;
+    let chains = u32::from_be_bytes(bytes.get(42..46)?.try_into().ok()?) as usize;
+    let mut counter = None;
+    for c in 0..chains {
+        let at = SPARSE_FIXED_PREFIX + c * CHAINS_ENTRY;
+        let entry = bytes.get(at..at + CHAINS_ENTRY)?;
+        if u64::from_be_bytes(entry[0..8].try_into().ok()?) == epoch {
+            // send chain, then receive chain: presence(1) || ck(32) || n(8)
+            let receive = &entry[8 + 41..];
+            if receive[0] == 0x01 {
+                counter = Some(u64::from_be_bytes(receive[33..41].try_into().ok()?));
+            }
+        }
+    }
+    let count_at = SPARSE_FIXED_PREFIX + chains * CHAINS_ENTRY;
+    let count = u32::from_be_bytes(bytes.get(count_at..count_at + 4)?.try_into().ok()?) as usize;
+    if count > tacenta_spqr::MAX_SKIPPED_STORE
+        || bytes.len() != count_at + 4 + count.checked_mul(ENTRY)?
+    {
+        return None;
+    }
+    let mut entries = Vec::with_capacity(count);
+    for chunk in bytes[count_at + 4..].chunks(ENTRY) {
+        entries.push((
+            u64::from_be_bytes(chunk[0..8].try_into().ok()?),
+            u64::from_be_bytes(chunk[8..16].try_into().ok()?),
+            chunk[16..48].try_into().ok()?,
+        ));
+    }
+    Some((entries, counter))
+}
+
 // ---------------------------------------------------------------------------
 // Reading the model's answer
 // ---------------------------------------------------------------------------
@@ -702,6 +745,9 @@ struct Observed {
     keys_used: usize,
     store_shrank_beyond_one: usize,
     ratchet_replacement_bound: usize,
+    sparse_replacement_bound: usize,
+    sparse_replacement_refused: usize,
+    sparse_purge_range: usize,
     skip_refused: usize,
     imports: usize,
     imports_accepted: usize,
@@ -1078,6 +1124,7 @@ fn check_sparse(
     steps: &[SStep],
     answer: &[String],
     seen: &mut Observed,
+    marker: SparseMarker,
 ) -> Result<(), String> {
     use tacenta_spqr::State;
 
@@ -1158,6 +1205,42 @@ fn check_sparse(
         let before = state.clone();
         let epoch_before = state.epoch();
         let stored_before = state.skipped_len();
+        // A marked sequence is one receive, at its first step. What its start
+        // holds is read from the stored bytes and checked against what the
+        // marker says the sequence is about, so that a change of the generator
+        // that no longer builds the state fails here and not by passing.
+        let marked = marker != SparseMarker::None && i == 0;
+        let held_before = if marked {
+            let (entries, counter) = sparse_store_and_counter(before.to_bytes().as_slice(), 0)
+                .ok_or("the marked start did not have a canonical store")?;
+            let n = match step {
+                SStep::Receive { n, .. } => *n,
+                SStep::Send { .. } => return Err("a marked sequence was not a receive".into()),
+            };
+            let (want_len, want_counter, want_n) = match marker {
+                SparseMarker::ReplacementEdge => (tacenta_spqr::MAX_SKIPPED_STORE - 1, 0, 4),
+                SparseMarker::ReplacementRefused => (tacenta_spqr::MAX_SKIPPED_STORE - 1, 0, 5),
+                SparseMarker::PurgeRange => (7, 4, 7),
+                SparseMarker::None => unreachable!(),
+            };
+            if entries.len() != want_len || counter != Some(want_counter) || n != want_n {
+                return Err(
+                    "a marked start did not have its stated store, counter and message".into(),
+                );
+            }
+            let held = |number: u64| {
+                entries
+                    .iter()
+                    .find(|e| e.0 == 0 && e.1 == number)
+                    .map(|e| e.2)
+            };
+            if held(1).is_none() || held(2).is_none() {
+                return Err("a marked start lacked the held keys it replaces".into());
+            }
+            Some(entries)
+        } else {
+            None
+        };
         let outcome = match step {
             SStep::Send { epoch, out } => {
                 let o = out.map(|(e, k)| Output::new(e, k));
@@ -1186,6 +1269,71 @@ fn check_sparse(
                     // out, or a sparse epoch retiring with its keys.
                     seen.store_shrank_beyond_one += 1;
                 }
+                if let Some(held) = &held_before {
+                    let (entries, counter) =
+                        sparse_store_and_counter(state.to_bytes().as_slice(), 0)
+                            .ok_or("the marked result was not a canonical store")?;
+                    let old_key =
+                        |number: u64| held.iter().find(|e| e.0 == 0 && e.1 == number).map(|e| e.2);
+                    let new_key = |number: u64| {
+                        entries
+                            .iter()
+                            .find(|e| e.0 == 0 && e.1 == number)
+                            .map(|e| e.2)
+                    };
+                    match marker {
+                        SparseMarker::ReplacementEdge => {
+                            // The store ends at the cap, and each of the two
+                            // held keys is now a different key, stored last.
+                            if after != tacenta_spqr::MAX_SKIPPED_STORE
+                                || counter != Some(4)
+                                || [1u64, 2]
+                                    .iter()
+                                    .any(|n| new_key(*n).is_none() || new_key(*n) == old_key(*n))
+                                || new_key(3).is_none()
+                                || entries.len() < 3
+                                || entries[entries.len() - 3..]
+                                    .iter()
+                                    .map(|e| e.1)
+                                    .collect::<Vec<_>>()
+                                    != [1, 2, 3]
+                            {
+                                return Err(
+                                    "the replacement-bound receive did not replace both held keys \
+                                     and end at the cap"
+                                        .into(),
+                                );
+                            }
+                            seen.sparse_replacement_bound += 1;
+                        }
+                        SparseMarker::PurgeRange => {
+                            // 4 and 8 are kept as they were. 5 and 6 are new
+                            // keys, in the last two places in number order. 1 to
+                            // 3 are held keys below the chain, untouched.
+                            let kept = [1u64, 2, 3, 4, 8]
+                                .iter()
+                                .all(|n| new_key(*n).is_some() && new_key(*n) == old_key(*n));
+                            let replaced = [5u64, 6]
+                                .iter()
+                                .all(|n| new_key(*n).is_some() && new_key(*n) != old_key(*n));
+                            let last: Vec<u64> =
+                                entries.iter().rev().take(2).map(|e| e.1).collect();
+                            if !kept || !replaced || counter != Some(7) || last != [6, 5] {
+                                return Err(
+                                    "the purge-range receive did not keep the chain's own number \
+                                     and the number above the range, or did not replace 5 and 6"
+                                        .into(),
+                                );
+                            }
+                            seen.sparse_purge_range += 1;
+                        }
+                        SparseMarker::ReplacementRefused | SparseMarker::None => {
+                            return Err(
+                                "a sequence marked as refused was taken by the crate".into()
+                            );
+                        }
+                    }
+                }
                 compare_state(i + 1, state.to_bytes().as_slice(), &bytes, &readback, &{
                     sparse_readback(state.to_bytes().as_slice())
                 })?;
@@ -1201,6 +1349,21 @@ fn check_sparse(
                 seen.refused += 1;
                 if e == SpqrError::TooManySkipped || e == SpqrError::SkippedStoreFull {
                     seen.skip_refused += 1;
+                }
+                if marked {
+                    // The refusal is the total bound's and nothing else, and it
+                    // changed nothing: the state the refused receive was run on is
+                    // the one it started in, the held keys included.
+                    if marker != SparseMarker::ReplacementRefused
+                        || e != SpqrError::SkippedStoreFull
+                        || state.to_bytes().as_slice() != before.to_bytes().as_slice()
+                    {
+                        return Err(format!(
+                            "the marked receive was refused as {e:?}, or changed the state it \
+                             was refused on"
+                        ));
+                    }
+                    seen.sparse_replacement_refused += 1;
                 }
                 if e == SpqrError::NoChain {
                     seen.sparse_no_chain_refused += 1;
@@ -1527,9 +1690,33 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
     }
 }
 
+/// What a sparse sequence is built to show, beyond agreeing with the model:
+/// the total bound counts the store a skip leaves (`sparse-pq-ratchet.md`, The
+/// store also has a total bound). `check_sparse` verifies, from the stored bytes
+/// before and after the one step, that the sequence did what its marker says, so
+/// a marker cannot be met by a step that stored nothing or refused for another
+/// reason.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SparseMarker {
+    None,
+    /// 1,999 stored keys, two of them under numbers a skip re-derives, and a
+    /// skip that stores three: 1,997 survive and 1,997 + 3 is exactly the cap.
+    /// Counted before the replacement, 1,999 + 3 would be refused.
+    ReplacementEdge,
+    /// The same store and a skip that stores four: 1,997 + 4 passes the cap by
+    /// one. The model refuses it, the crate refuses it as `SkippedStoreFull`,
+    /// and the refused crate state is the one it started in.
+    ReplacementRefused,
+    /// A chain at 4 with keys held at 4, 5, 6 and 8 and a message that skips to
+    /// 6: the keys at 5 and 6 are replaced, the one at the chain's own number
+    /// and the one above the range are kept as they were.
+    PurgeRange,
+}
+
 struct SparseSequence {
     start: Start,
     steps: Vec<SStep>,
+    marker: SparseMarker,
 }
 
 fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence {
@@ -1537,6 +1724,57 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
     let cks = rng.key();
     let ckr = rng.key();
     let ceiling = u64::MAX;
+
+    // Three deliberately large or exact sequences for the total bound, each a
+    // single step so that serialising the 1,999-key store after every random
+    // continuation adds nothing. They distinguish the count of the store a skip
+    // leaves from the count made before the purge (sparse-pq-ratchet.md, The
+    // store also has a total bound). Template numbers 10 to 12 use these; the
+    // others still reach every start below through `template % 10`.
+    if (10..=12).contains(&template) {
+        let steps_for = |n: u64| {
+            vec![SStep::Receive {
+                epoch: 0,
+                out: None,
+                n,
+            }]
+        };
+        if template == 12 {
+            // The chain stands at 4. Keys 1 to 3 are held as after message 4,
+            // and 4 (the chain's own number), 5, 6 and 8 are held as well. None is
+            // held at 7, the message received: a held key for the message
+            // number is read from the store without a skip.
+            let mut store = Vec::new();
+            for n in 1..=6u64 {
+                store.push((0u64, n, rng.key()));
+            }
+            store.push((0u64, 8u64, rng.key()));
+            let b = sparse_state_bytes(&rk, 0, 0x01, Some((&cks, 0)), Some((&ckr, 4)), &store);
+            return SparseSequence {
+                start: Start::Stored(b),
+                steps: steps_for(7),
+                marker: SparseMarker::PurgeRange,
+            };
+        }
+        let mut store = vec![(0u64, 1u64, rng.key()), (0u64, 2u64, rng.key())];
+        for n in 0..(tacenta_spqr::MAX_SKIPPED_STORE - 3) as u64 {
+            store.push((0u64, 5_000 + n, rng.key()));
+        }
+        let b = sparse_state_bytes(&rk, 0, 0x01, Some((&cks, 0)), Some((&ckr, 0)), &store);
+        return if template == 10 {
+            SparseSequence {
+                start: Start::Stored(b),
+                steps: steps_for(4),
+                marker: SparseMarker::ReplacementEdge,
+            }
+        } else {
+            SparseSequence {
+                start: Start::Stored(b),
+                steps: steps_for(5),
+                marker: SparseMarker::ReplacementRefused,
+            }
+        };
+    }
 
     let (start, mut steps, mut epoch, mut send_n, mut recv_n) = match template % 10 {
         0 | 1 => {
@@ -1704,7 +1942,11 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
         }
     }
 
-    SparseSequence { start, steps }
+    SparseSequence {
+        start,
+        steps,
+        marker: SparseMarker::None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -4768,7 +5010,7 @@ fn run_sparse_once(exe: &Path, start: &Start, steps: &[SStep]) -> Result<(), Str
     let request = start.request("sparse", &encode_sparse(steps));
     let answers = ask_model(exe, std::slice::from_ref(&request));
     let mut seen = Observed::default();
-    check_sparse(start, steps, &answers[0], &mut seen)
+    check_sparse(start, steps, &answers[0], &mut seen, SparseMarker::None)
 }
 
 /// The shortest prefix, then the shortest subsequence, that still disagrees.
@@ -4868,7 +5110,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         }
     }
     for (at, s) in &round.sparse {
-        if let Err(e) = check_sparse(&s.start, &s.steps, &answers[*at], &mut seen) {
+        if let Err(e) = check_sparse(&s.start, &s.steps, &answers[*at], &mut seen, s.marker) {
             let (minimal, message) = shrink(&s.steps, &mut |steps: &[SStep]| {
                 run_sparse_once(&exe, &s.start, steps)
             });
@@ -4902,6 +5144,8 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
          {} refused at a skip bound; \
          ceilings reached: ns {}, nr {}, sparse epoch {}, sparse send {}, sparse receive {}; \
          sparse post-retirement NoChain refusals {}; \
+         sparse replacement-bound sequences: {} taken at the cap, {} refused past it, \
+         {} purge ranges; \
          {} imports ({} accepted, {} wrong-version, {} short-or-malformed)",
         seen.steps,
         seen.accepted,
@@ -4917,6 +5161,9 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         seen.sparse_send_ceiling,
         seen.sparse_receive_ceiling,
         seen.sparse_no_chain_refused,
+        seen.sparse_replacement_bound,
+        seen.sparse_replacement_refused,
+        seen.sparse_purge_range,
         seen.imports,
         seen.imports_accepted,
         seen.imports_wrong_version,
@@ -4964,6 +5211,18 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.sparse_no_chain_refused > 0,
         "no sparse post-retirement operation was refused as NoChain"
+    );
+    assert!(
+        seen.sparse_replacement_bound > 0,
+        "no sparse sequence reached the resulting-size replacement bound at the cap"
+    );
+    assert!(
+        seen.sparse_replacement_refused > 0,
+        "no sparse sequence was refused one key past the cap with the state unchanged"
+    );
+    assert!(
+        seen.sparse_purge_range > 0,
+        "no sparse sequence checked the purge range's two ends"
     );
     assert!(
         seen.imports_accepted > 0 && seen.imports_wrong_version > 0 && seen.imports_malformed > 0,
