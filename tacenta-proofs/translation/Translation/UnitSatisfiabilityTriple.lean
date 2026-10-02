@@ -41,19 +41,23 @@ they hold together:
   `zeroizing_joint_satisfiable` witnesses all five at once.
 * `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.RemoveSkippedAtAgrees` constrain
   two different removal operations after the ratchet hardening: the classical
-  and sparse ratchets' respective `remove_skipped_at` helpers.
-  `vec_remove_joint_satisfiable` witnesses both together.
+  and sparse ratchets' respective `remove_skipped_at` helpers, which are defined
+  functions. `vec_remove_joint_satisfiable` exhibits two abstract functions that satisfy
+  the two shapes, and `vec_remove_joint_is` bridges the hypotheses to the shapes applied to
+  the defined helpers, so the pair says nothing about whether the bodies meet the shapes
+  (a void bridge). That they do, under named laws about the opaque constants the bodies
+  reach, is `UnitSatisfiabilityTripleLaws.lean`.
 
 The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
 `UnitSpqrT3.SpqrHkdfAgrees` and `UnitTripleT3.TripleHkdfAgrees` are, by `Iff.rfl`),
-`UnitSpqrT3.VecAppendAgrees`, `UnitSpqrT1.OptionCloneTotal` and the general
+`UnitSpqrT1.OptionCloneTotal` and the general
 `UnitSpqrT1.ZeroizeTotal`, each constrain a constant no other hypothesis here
 mentions. `UnitSpqrT3.VecRetainAgrees` is deliberately not listed: the generated
 translation now exposes the concrete `set_chains` and `clear_old_epochs`
 entrypoints, so its agreement proposition is result-shaped and tied to those
 actual operations rather than to an abstract standard-library `retain` oracle.
-Its concrete provider belongs with the translated implementation proof, not with
-this independent consistency witness. That the separately witnessed hypotheses
+Its concrete provider is `UnitSatisfiabilityTripleLaws.vecRetainAgrees`, which proves it
+from named laws, not this independent consistency witness. That the separately witnessed hypotheses
 combine is an argument about independent opaque constants, made in this comment
 and not checked by Lean.
 
@@ -258,8 +262,8 @@ The generated sparse translation contains explicit `set_chains` and
 result and state relation of those two concrete entrypoints. The old abstract
 `alloc.vec.Vec.retain` witness is intentionally gone: it no longer names a
 constant in the generated surface and would make this file prove consistency of
-a different program. The concrete provider is supplied by the sparse refinement
-proof and remains an explicit argument in the examples below.
+a different program. The concrete provider is `UnitSatisfiabilityTripleLaws.vecRetainAgrees`; the
+examples below keep it as an explicit argument.
  -/
 
 /-! ## `Option`'s clone -/

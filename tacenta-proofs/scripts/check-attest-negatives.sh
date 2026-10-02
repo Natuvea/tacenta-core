@@ -21,6 +21,14 @@
 #   pin lists              -- a required pin deleted or left in a comment, a
 #                             compiler-trust pin the script does not list, a
 #                             pin block copied over another
+#   statement pins         -- a required statement pin deleted, commented out,
+#                             moved into a docstring or a string, left without
+#                             its `#guard_msgs`, given an option that compares
+#                             nothing, nested under another `... in`, written
+#                             inside a namespace (also one that a `mutual` block
+#                             follows), moved to a module no audit imports,
+#                             dropped from the floor, or the floor's record
+#                             missing, unreadable, keyless or emptied
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -356,6 +364,24 @@ SessionUnitBraidPreserveDecoder Tacenta.SessionUnitBraidPreserveDecoder message_
 SessionUnitBraidPreserveFacts Tacenta.SessionUnitBraidPreserveFacts sized_decoders_bounded invariant_true_gives_sized from_bytes_sized Braid.Run.sized_of_start Braid.Run.inv Braid.Run.receive_no_panic Braid.Run.receive_refines inv_not_sized TruncateLen_is truncateLen_model laws_model
 UnitHeadroomSatisfiable Tacenta.UnitHeadroomSatisfiable usize_max_ge plaintext_bound_at_widths freshTriple_headroom freshBraid_bounds decryptHeadroom_sessionOf_iff invariantPreconditions_sessionOf encryptHeadroom_sessionOf_iff initiatorHeadroom_iff responderHeadroom_iff decryptHeadroom_satisfiable encryptHeadroom_satisfiable encryptHeadroom_satisfiable_pending initiatorHeadroom_satisfiable responderHeadroom_satisfiable initiatorHeadroom_not_trivial responderHeadroom_not_trivial decryptHeadroom_not_trivial encryptHeadroom_not_trivial nonempty_privateKey_of_dhCodec nonempty_publicKey_of_dhCodec nonempty_derivedZeroizing encrypt_headroom_of_contracts decrypt_headroom_of_contracts initiator_headroom_of_contracts responder_headroom_of_contracts headroomInhabitants_is model_headroomInhabitants axiom_base_model headroom_of_axiom_base headroom_hypotheses_satisfiable
 UnitHeadroomInvariant Tacenta.UnitHeadroomInvariant validKeyShape_is model_validKeyShape optionEqU64Shape_is optionEqImpl_shape structural_sessionOf freshTriple_invariant freshBraid_invariant sessionOf_invariant emptyChainTable_fails_invariant epochZero_braid_fails_invariant emptyChain_headroom epochZero_bounds session_emptyChainTable_fails_invariant session_epochZero_fails_invariant structural_gives_ad invariant_gives_ad_length decryptHeadroom_of_invariant encryptHeadroom_iff_of_invariant invariant_session_meets_both invariant_session_of_axiom_base invariant_hypotheses_satisfiable
+NumericBoundary Tacenta.NumericBoundary both_widths classical_store_cap_fits classical_skip_cap_fits spqr_chain_cap_fits spqr_skip_cap_fits ratchet_codec_cap_fits spqr_codec_cap_fits erasure_cap_fits erasure_room_exact_at_32 clock_ceiling_excludes_only_parked epoch_ceiling_excludes_only_top
+NumericBoundaryLeaf Tacenta.NumericBoundaryLeaf ratchet_constants spqr_constants erasure_constants protobuf_constants code_matches_model max_events_is_parked clock_ceiling_summary
+NumericBoundaryTriple Tacenta.NumericBoundaryTriple unit_ratchet_constants unit_spqr_constants unit_code_matches_model
+NumericBoundarySession Tacenta.NumericBoundarySession session_unit_ratchet_constants session_unit_spqr_constants session_unit_erasure_constants session_unit_code_matches_model
+NumericShapeWitness Tacenta.NumericShapeWitness usize_max_cases every_shape_is_satisfiable
+NumericWitnessLeaf Tacenta.NumericWitnessLeaf sat_T1_receive_no_panic sat_T3_receive_refines sat_ImportInv_Ratchet_decoded_receive_refines sat_SpqrT1_receive_no_panic sat_SpqrT1_send_no_panic sat_SpqrT3_receive_refines sat_SpqrT3_send_refines sat_BraidT1_Braid_receive_no_panic sat_BraidT1_Braid_step_receive_no_panic sat_BraidT3_Braid_receive_refines sat_BraidT3_step_receive_refines sat_BraidT3_Braid_send_refines sat_BraidT3_step_send_refines spqrS_inv ratS_inv spqr_receive_premises_at_witness spqr_send_premises_at_witness spqr_advance_premises_at_witness spqr_maybe_advance_premises_at_witness spqr_clear_old_epochs_premises_at_witness ratchet_receive_premises_at_witness braid_receive_premises_at_witness braid_step_receive_premises_at_witness
+NumericWitnessTriple Tacenta.NumericWitnessTriple sat_UnitT1_receive_no_panic sat_UnitT3_receive_refines sat_UnitSpqrT1_receive_no_panic sat_UnitSpqrT1_send_no_panic sat_UnitSpqrT3_receive_refines sat_UnitSpqrT3_send_refines sat_UnitTripleT1_State_receive_no_panic sat_UnitTripleT1_State_send_no_panic sat_UnitTripleT3_receive_refines sat_UnitTripleT3_receive_refines_discharged sat_UnitTripleT3_send_refines sat_UnitTripleT3_send_refines_discharged
+NumericWitnessSession Tacenta.NumericWitnessSession sat_SessionUnitT1_receive_no_panic sat_SessionUnitT3_receive_refines sat_SessionUnitRatchetImportInv_Ratchet_decoded_receive_refines sat_SessionUnitSpqrT1_receive_no_panic sat_SessionUnitSpqrT1_send_no_panic sat_SessionUnitSpqrT3_receive_refines sat_SessionUnitSpqrT3_send_refines sat_SessionUnitTripleT1_State_receive_no_panic sat_SessionUnitTripleT1_State_send_no_panic sat_SessionUnitTripleT3_receive_refines sat_SessionUnitTripleT3_receive_refines_discharged sat_SessionUnitTripleT3_send_refines sat_SessionUnitTripleT3_send_refines_discharged sat_SessionUnitBraidT1_Braid_receive_no_panic sat_SessionUnitBraidT1_Braid_step_receive_no_panic sat_SessionUnitBraidT3_Braid_receive_refines sat_SessionUnitBraidT3_step_receive_refines sat_SessionUnitBraidT3_Braid_send_refines sat_SessionUnitBraidT3_step_send_refines session_unit_spqrS_inv session_unit_ratS_inv session_unit_spqr_receive_premises_at_witness session_unit_spqr_send_premises_at_witness session_unit_spqr_advance_premises_at_witness session_unit_spqr_maybe_advance_premises_at_witness session_unit_spqr_clear_old_epochs_premises_at_witness session_unit_ratchet_receive_premises_at_witness session_unit_braid_receive_premises_at_witness session_unit_braid_step_receive_premises_at_witness triple_receive_premises_at_witness triple_send_premises_at_witness
+DecodedStateDischarge Tacenta.DecodedStateDischarge spqr_epoch_family spqr_receive_premises spqr_send_premises spqr_advance_premises spqr_maybe_advance_premises spqr_clear_old_epochs_premises ratchet_receive_premises braid_receive_premises braid_step_receive_premises
+SessionUnitDecodedStateDischarge Tacenta.SessionUnitDecodedStateDischarge session_unit_spqr_epoch_family session_unit_spqr_receive_premises session_unit_spqr_send_premises session_unit_spqr_advance_premises session_unit_spqr_maybe_advance_premises session_unit_spqr_clear_old_epochs_premises session_unit_ratchet_receive_premises session_unit_braid_receive_premises session_unit_braid_step_receive_premises triple_receive_premises triple_send_premises decrypt_headroom_of_invariant decrypt_ratchet_no_panic_of_invariant decrypt_no_panic_of_invariant
+SatisfiabilitySpqrLaws Tacenta.SatisfiabilitySpqrLaws kdfRkTotal kdfCkTotal spqrRemoveSkippedAtTotal setChainsLoopTotal clearChainsLoop0Total clearSkippedLoopTotal vecRetainTotal defined_fields_hold removeSkippedAtAgrees setChainsAgrees clearOldEpochsAgrees vecRetainAgreesOfLaws vecRetainAgrees LawPop_is LawAsMut_is LawCapacity_is LawVecZeroize_is LawHkdf_is SpqrCodec_ZeroizingVecTotal_is zeroizing_vec_satisfiable laws_jointly_satisfiable defined_hyps_from_axiom_hyps spqr_zeroizeTotal_conflicts laws_of_shape hkdf_total_satisfiable pop_satisfiable capacity_satisfiable vec_zeroize_satisfiable vec_zeroize_conflicts
+SatisfiabilityRatchetLaws Tacenta.SatisfiabilityRatchetLaws ratchetRemoveSkippedAtTotal LawPop_is LawBlanketU32_is ArrZU8_is RatchetCodec_ZeroizingVecTotal_is zeroizing_vec_satisfiable pop_satisfiable blanket_satisfiable arrZU8_satisfiable ratchet_laws_jointly_satisfiable
+SatisfiabilityBraidZeroize Tacenta.SatisfiabilityBraidZeroize braid_arrayZeroizeTotal_conflicts
+UnitSatisfiabilityTripleLaws Tacenta.UnitSatisfiabilityTripleLaws kdfRkTotal kdfCkTotal kdfInitTotal spqrRemoveSkippedAtTotal ratchetRemoveSkippedAtTotal setChainsLoopTotal clearChainsLoop0Total clearSkippedLoopTotal vecRetainTotal defined_fields_hold removeSkippedAtAgrees setChainsAgrees clearOldEpochsAgrees vecRetainAgreesOfLaws vecRetainAgrees LawPop_is LawAsMut_is LawCapacity_is LawVecZeroize_is LawBlanketU32_is LawHkdf_is laws_jointly_satisfiable laws_of_shape defined_hyps_from_axiom_hyps RoundTrips80_is roundTrips80_satisfiable TripleZeroizeTotal_is arrZ32_satisfiable arrZ32_of_general spqrZeroizeTotal_conflicts hkdf_total_satisfiable pop_satisfiable capacity_satisfiable vec_zeroize_satisfiable blanket_satisfiable vec_zeroize_conflicts
+SpqrFromBytesWitness Tacenta.SpqrFromBytesWitness spqr_from_bytes_accepts_witness spqr_from_bytes_establishes_inv_nonvacuous
+BraidFromBytesWitness Tacenta.BraidFromBytesWitness braid_from_bytes_accepts_witness braid_from_bytes_establishes_inv_nonvacuous
+SessionUnitBraidFromBytesWitness Tacenta.SessionUnitBraidFromBytesWitness braid_from_bytes_accepts_witness braid_from_bytes_establishes_inv_nonvacuous
+RatchetDecodedWitness Tacenta.RatchetDecodedWitness ratchet_witness_events decoded_receive_refines_premises_satisfiable
 LIST
 
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
@@ -428,6 +454,239 @@ assert n == 1, n
 path.write_text(new)
 PY
 expect_fail "pin-block-copied-over-another" "theorems pinned more than once: Tacenta.UnitLifecycleT1.decrypt_no_panic" --check
+
+# ---------------------------------------------------------------------------
+# Statement pins. `#guard_msgs in #check @name` holds a theorem's statement, and
+# only the Lean build compared it: a deleted pin is a smaller file that builds, and
+# the pins are not axiom pins, so REQUIRED_PINS does not see them. The floor
+# REQUIRED_STATEMENT_PINS does. One floor name stands for the class: each mutation
+# is made to the statement pin of `record_empty_headerSent`, and every one must be
+# refused by the floor's own message naming that declaration. Deleting each pin of
+# the floor in turn would test the same loop once per name. The accepted spellings are
+# cases too, because a refusal is only evidence if the pin can be accepted.
+# ---------------------------------------------------------------------------
+
+stmt_name="Tacenta.DispatchEvidenceVacuity.record_empty_headerSent"
+stmt_file="tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean"
+stmt_head="\`$stmt_name\` is on REQUIRED_STATEMENT_PINS and"
+
+# Rewrite the statement pin of $stmt_name in $stmt_file. `mode` picks the mutation;
+# `option` is the text between the parentheses of `#guard_msgs` for mode `options`.
+rewrite_statement_pin() {
+  python3 - "$work/$stmt_file" "$stmt_name" "$1" "${2:-}" <<'PY'
+import pathlib, re, sys
+path, name, mode, option = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+text = path.read_text()
+pin = re.compile(r"#guard_msgs in\n#check @?" + re.escape(name) + r"\n")
+hits = pin.findall(text)
+assert len(hits) == 1, hits
+block = hits[0]
+new = {
+    "delete": "",
+    "line-comment": "".join("-- " + line + "\n" for line in block.splitlines()),
+    "block-comment": "/-\n" + block + "-/\n",
+    # The inner `-/` closes only the inner comment, so the pin is still commented out.
+    "nested-comment": "/- outer\n/- inner -/\n" + block + "-/\n",
+    "docstring": "/-- the pin of the next theorem:\n" + block + "-/\ndef statement_pin_doc : Nat := 0\n",
+    "string": 'def statement_pin_text : String := "\n' + block + '"\n',
+    "no-guard": "#check @" + name + "\n",
+    "options": "#guard_msgs (" + option + ") in\n#check @" + name + "\n",
+    "rename": "#guard_msgs in\n#check @" + name + "_renamed\n",
+    "namespace": "namespace StatementPinScope\n" + block + "end StatementPinScope\n",
+    # A `mutual` block closes with `end`, which must not pop the namespace around the pin.
+    "mutual": ("namespace StatementPinScope\nmutual\ndef statementPinA : Nat -> Nat\n  | 0 => 0\n"
+               "  | n + 1 => statementPinB n\ndef statementPinB : Nat -> Nat\n  | 0 => 0\n"
+               "  | n + 1 => statementPinA n\nend\n" + block + "end StatementPinScope\n"),
+    # The pin as the argument of an earlier `... in`: the outer command can swallow the
+    # pin's own mismatch (`drop`) or change what it prints (`set_option`, `open`).
+    "wrapped-drop-error": "#guard_msgs (drop error) in\n" + block,
+    "wrapped-drop-all": "#guard_msgs (drop all) in\n" + block,
+    "wrapped-set-option": "set_option pp.deepTerms false in\n" + block,
+    "wrapped-open": "open Nat in\n" + block,
+    "term": "#guard_msgs in\n#check @" + name + " x\n",
+    "at-sign": "#guard_msgs in\n#check @" + name + "\n",
+}[mode]
+path.write_text(text.replace(block, new))
+PY
+}
+
+make_case
+expect_pass "statement-pins-unmodified-tree" --check
+
+make_case
+rewrite_statement_pin delete
+expect_fail "statement-pin-deleted" "$stmt_head has no statement pin: no active \`#guard_msgs in\` followed by \`#check @$stmt_name\`" --check
+expect_fail "statement-pin-deleted-refused-by-refresh" "$stmt_head has no statement pin"
+
+for mode in line-comment block-comment nested-comment docstring string; do
+  make_case
+  rewrite_statement_pin "$mode"
+  expect_fail "statement-pin-$mode" "$stmt_head its statement pin at $stmt_file:" --check
+  expect_fail "statement-pin-$mode-says-why" "sits inside a comment, a docstring or a string, where Lean does not check it" --check
+done
+
+make_case
+rewrite_statement_pin no-guard
+expect_fail "statement-pin-without-guard-msgs" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
+
+make_case
+rewrite_statement_pin rename
+expect_fail "statement-pin-renamed-declaration" "$stmt_head has no statement pin" --check
+
+make_case
+rewrite_statement_pin term
+expect_fail "statement-pin-of-an-application-not-a-name" "$stmt_head has no statement pin" --check
+
+make_case
+rewrite_statement_pin namespace
+expect_fail "statement-pin-inside-namespace" "its statement pin at $stmt_file:" --check
+expect_fail "statement-pin-inside-namespace-says-why" "sits inside \`StatementPinScope\`; write it after \`end\` with the full name" --check
+
+# The mutual block that follows a namespace is the same refusal as the namespace alone.
+make_case
+rewrite_statement_pin mutual
+expect_fail "statement-pin-after-mutual-inside-namespace" "its statement pin at $stmt_file:" --check
+expect_fail "statement-pin-after-mutual-inside-namespace-says-why" "sits inside \`StatementPinScope\`; write it after \`end\` with the full name" --check
+
+# A pin that is the argument of an earlier `... in` is not the outermost command.
+for mode in wrapped-drop-error wrapped-drop-all wrapped-set-option wrapped-open; do
+  make_case
+  rewrite_statement_pin "$mode"
+  expect_fail "statement-pin-$mode" "its \`#guard_msgs\` at $stmt_file:" --check
+  expect_fail "statement-pin-$mode-says-why" "is the argument of an earlier \`... in\`, which can swallow its mismatch or change what it prints; write the pin as its own command" --check
+done
+
+# Options that leave the `#check` message uncompared. `#guard_msgs` takes the first
+# option that covers a kind of message, and a message no option covers passes through.
+# Each is refused for its own reason, so a wrong reason string goes red.
+covers="is the first option that covers \`info\` and it does not compare it, so the pin holds nothing"
+uncovered="no option covers \`info\`, so the message \`#check\` prints passes through without being compared"
+for entry in "drop all|$covers" "drop info|$covers" "pass info|$covers" "pass all|$covers" \
+             "drop warning|$uncovered" "drop warning, drop error|$uncovered" "drop all, check info|$covers" \
+             "whitespace := lax|compares the message with its whitespace removed" \
+             "error := true|the option \`error := true\` is not one this gate reads, so it cannot say what is compared"; do
+  option="${entry%%|*}"
+  reason="${entry#*|}"
+  make_case
+  rewrite_statement_pin options "$option"
+  expect_fail "statement-pin-option-$option" "its \`#guard_msgs ($option)\` at $stmt_file:" --check
+  expect_fail "statement-pin-option-$option-says-why" "$reason" --check
+done
+
+# A definition pin (`#print`) with its `#guard_msgs` removed is refused for that, not as an
+# absent pin.
+print_name="Tacenta.BraidPreserve.Braid.sized"
+print_file="tacenta-proofs/translation/Translation/BraidPreserve.lean"
+make_case
+replace_in "$print_file" $'#guard_msgs in\n#print '"$print_name"$'\n' $'#print '"$print_name"$'\n'
+expect_fail "definition-pin-without-guard-msgs" "\`$print_name\` is on REQUIRED_STATEMENT_PINS and \`#print $print_name\` at $print_file:" --check
+expect_fail "definition-pin-without-guard-msgs-says-why" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
+
+# The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
+# changed, so the source attestation is stale until it is regenerated; regenerating
+# refuses on the same statement-pin problems `--check` does, so an accepted case is a
+# regeneration that succeeds and a `--check` after it.
+for option in "check info, drop warning" "whitespace := normalized" "ordering := sorted" "info"; do
+  make_case
+  rewrite_statement_pin options "$option"
+  expect_pass "statement-pin-accepted-option-$option"
+  expect_pass "statement-pin-accepted-option-$option-then-checked" --check
+done
+
+make_case
+rewrite_statement_pin at-sign
+expect_pass "statement-pin-accepted-with-at-sign"
+expect_pass "statement-pin-accepted-with-at-sign-then-checked" --check
+
+# A pin in a module that no audit module imports: the pin moves to a new file under the
+# translation package, which nothing imports.
+make_case
+rewrite_statement_pin delete
+cat > "$work/tacenta-proofs/translation/Translation/OrphanStatementPin.lean" <<EOF
+import Translation.DispatchEvidenceVacuity
+
+#guard_msgs in
+#check @$stmt_name
+EOF
+expect_fail "statement-pin-in-a-module-no-audit-imports" "its statement pin is in tacenta-proofs/translation/Translation/OrphanStatementPin.lean, which no audit module imports" --check
+
+# The floor cannot be shortened by deleting a pin and its name and regenerating: the
+# verification manifest records the floor, and a floor shorter than the record is refused.
+shorten_floor() {
+  python3 - "$work/tacenta-proofs/scripts/attest.py" "$stmt_name" <<'PY'
+import pathlib, sys
+path, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+start = text.index("REQUIRED_STATEMENT_PINS = frozenset(")
+last = name.rsplit(".", 1)[1]
+line = '        "' + last + '",\n'
+at = text.index(line, start)
+path.write_text(text[:at] + text[at + len(line):])
+PY
+}
+
+make_case
+shorten_floor
+rewrite_statement_pin delete
+expect_fail "statement-floor-shortened" "\`$stmt_name\` is on the statement-pin floor that verification-manifest.json records and is not on REQUIRED_STATEMENT_PINS" --check
+expect_fail "statement-floor-shortened-refused-by-refresh" "is on the statement-pin floor that verification-manifest.json records and is not on REQUIRED_STATEMENT_PINS"
+
+# The limit of the record: a floor entry is removed by editing the script, the pin and the
+# manifest's own list together, a hand edit of a generated file that the diff shows. The
+# case is here so that the limit is on record and not found by deleting.
+make_case
+shorten_floor
+rewrite_statement_pin delete
+edit_json tacenta-proofs/manifests/verification-manifest.json \
+  "data['statement_pin_floor'].remove('$stmt_name')"
+expect_pass "statement-floor-shortened-by-hand-edit-and-regenerated"
+expect_pass "statement-floor-shortened-by-hand-edit-then-checked" --check
+
+# The record does not fail open: with the script's floor shortened and its pin deleted, a
+# manifest that is missing, unreadable, without a floor list or with an empty one leaves
+# nothing to compare with, and is refused, by `--check` and by a regeneration alike.
+floor_record="tacenta-proofs/manifests/verification-manifest.json"
+shortened_floor_without_pin() {
+  make_case
+  shorten_floor
+  rewrite_statement_pin delete
+}
+no_floor="so the statement-pin floor it records cannot be compared with REQUIRED_STATEMENT_PINS"
+
+shortened_floor_without_pin
+rm "$work/$floor_record"
+expect_fail "statement-floor-record-missing" "$floor_record is missing, $no_floor" --check
+expect_fail "statement-floor-record-missing-refused-by-refresh" "$floor_record is missing, $no_floor"
+
+shortened_floor_without_pin
+echo '{' > "$work/$floor_record"
+expect_fail "statement-floor-record-unreadable" "$floor_record cannot be read (JSONDecodeError), $no_floor" --check
+expect_fail "statement-floor-record-unreadable-refused-by-refresh" "cannot be read (JSONDecodeError), $no_floor"
+
+shortened_floor_without_pin
+edit_json "$floor_record" "del data['statement_pin_floor']"
+expect_fail "statement-floor-record-keyless" "$floor_record has no \`statement_pin_floor\` list, $no_floor" --check
+expect_fail "statement-floor-record-keyless-refused-by-refresh" "has no \`statement_pin_floor\` list, $no_floor"
+
+shortened_floor_without_pin
+edit_json "$floor_record" "data['statement_pin_floor'] = None"
+expect_fail "statement-floor-record-null" "$floor_record has no \`statement_pin_floor\` list, $no_floor" --check
+
+shortened_floor_without_pin
+edit_json "$floor_record" "data['statement_pin_floor'] = []"
+expect_fail "statement-floor-record-emptied" "$floor_record records an empty \`statement_pin_floor\`" --check
+expect_fail "statement-floor-record-emptied-refused-by-refresh" "records an empty \`statement_pin_floor\`"
+
+# The whole floor emptied in the script, and its record deleted with it, is not "0 on the floor".
+make_case
+replace_in tacenta-proofs/scripts/attest.py "def check_statement_pins(survey=None, reached=None):" \
+  "REQUIRED_STATEMENT_PINS = frozenset()
+
+
+def check_statement_pins(survey=None, reached=None):"
+edit_json "$floor_record" "del data['statement_pin_floor']"
+expect_fail "statement-floor-emptied" "REQUIRED_STATEMENT_PINS is empty, so no statement pin is required to exist" --check
+expect_fail "statement-floor-emptied-refused-by-refresh" "REQUIRED_STATEMENT_PINS is empty"
 
 # ---------------------------------------------------------------------------
 # The translation record.

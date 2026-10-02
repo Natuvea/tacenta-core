@@ -25,14 +25,18 @@ calls this file assumes anything *about the value of* are `hkdf_sha256` and
 the `zeroize` wrapper its expansion goes through, both inside the translated
 (non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so there is one KDF
 assumption below and one wrapper round trip per width rather than a family of
-them, and every `_refines` theorem for translated code is proved outright
-against those, not assumed.
+them. The `_refines` theorems for translated code are proved against those and against the
+retain and removal agreements named in the closing section, `VecRetainAgrees` and
+`RemoveSkippedAtAgrees`, which are assumed here as statements about translated functions
+(`CLAIMS.md` records where each is proved from laws about opaque constants, for the leaf crate and
+the three-leaf unit; the session unit's copies are not proved from them).
+`set_chains_refines` and `clear_old_epochs_refines` are `VecRetainAgrees` applied to its
+arguments, not proved outright.
 
 That is not the whole trusted base, and this file does not pretend it is:
-`Vec::retain`, `Vec::pop`, `Zeroize`, and `Option::clone`
+`Vec::pop`, `Zeroize` and `Option::clone`
 are each their own opaque call too, carried over as assumptions from
-`SpqrT1.lean` (three of them strengthened past bare totality, one genuinely
-new) rather than reproved here. See the closing section for the full count
+`SpqrT1.lean` (two of them strengthened past bare totality) rather than reproved here. See the closing section for the full count
 and why it is eight, not one. -/
 
 open Aeneas Aeneas.Std Result
@@ -468,7 +472,7 @@ shorter. Both are strictly stronger than `SpqrT1.lean`'s totality, so this
 file does not also carry that hypothesis.
 
 `RemoveSkippedAtAgrees` speaks only under the index bound `i < len`, which is the
-condition under which the real `Vec::remove` returns at all (out of range it
+condition under which the removal helper's result is specified (out of range it
 panics) and is the loop guard its one call site checks first; the proof
 discharges the premise from that branch. That guard is also what lets the
 removed element be named as `v.val[i.val]` with no `Inhabited` bound and no
@@ -476,9 +480,7 @@ removed element be named as `v.val[i.val]` with no `Inhabited` bound and no
 `Inhabited` instance's `default`, quantified over every instance, the
 hypothesis would be refutable (two instances on `Bool`, one empty vector,
 one axiom returning one value), and `try_skipped_refines` and
-`receive_refines` would be provable from `False`.
-`Translation/Satisfiability.lean` models this shape, and keeps the
-refutation of the unguarded one. -/
+`receive_refines` would be provable from `False`. -/
 
 /-
 The current translation contains explicit scan loops rather than an opaque
@@ -2254,14 +2256,14 @@ and its two projections, `advance_chains_len_le`/`advance_skipped_len_le`/
 and the generic `List.filter_filter_length_le`. None claims more than the
 specific bound its call site needed.
 
-**Eight assumptions back this file, six of them new constants and two reused
-outright from `SpqrT1.lean`.** `SpqrHkdfAgrees` states agreement one level
+**Eight assumptions back this file, five of them new constants and three reused
+outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`).** `SpqrHkdfAgrees` states agreement one level
 below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
 `hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
 through on its way to being split -- subsumes both, so this file states the
 KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`
-likewise state what `retain` and the custom wipe-before-pop helper return, and
+likewise state what the retain scans and the custom wipe-before-pop helper return, and
 are each strictly stronger than their `SpqrT1.lean` namesake; the retain
 totality is also carried explicitly for the capacity-preserving replacement.
 `Tacenta.SessionUnitSpqrT1.ZeroizeTotal` and `Tacenta.SessionUnitSpqrT1.OptionCloneTotal`
@@ -2272,7 +2274,7 @@ only required to complete.
 As with `SpqrT1.lean` and `BraidT3.lean`, count by constant, not by name:
 none of these eight is the same proposition as any other file's assumption of
 a similar shape, including `T1.lean`'s or `BraidT1.lean`'s own copies of
-`Vec::retain`/`Vec::pop`, `Zeroize`, a KDF call, or
+`Vec::pop`, `Zeroize`, a KDF call, or
 `T3.lean`'s `ZeroizingRoundTrips`/`ZeroizingRoundTrips80` at the ratchet's own
 wrapper constants.
 
@@ -2322,9 +2324,10 @@ no longer speak about.
 One consequence outside this file: `ImportInv.lean`'s `inv_gives_epoch_room`
 derives `epoch < u64::MAX` from the crate's `invariant`, which was `hepoch`
 before and is now strictly weaker than it. The invariant does not exclude
-`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hcb`,
-`hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
-discharge. -/
+`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hnewb`
+and `hcounter` as a premise the decoded-state chain does not discharge. (`hcb`
+and `hsb` follow from the invariant together with `hepoch`; in the standalone
+translation that is `DecodedStateDischarge.spqr_receive_premises`.) -/
 
 -- The trust base of the two refinements, held by the build: three `native_decide`
 -- label facts under `send_refines`, and those three, the three bound facts and
