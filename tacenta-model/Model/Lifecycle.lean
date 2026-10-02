@@ -24,13 +24,16 @@ abbrev Iv := Bytes
 
 /-- Results supplied by the trusted primitive boundary.
 
-    `draws` is ordered. Operations that need randomness consume its head and
-    return the oracle containing its tail. KEM encapsulation consumes one
-    32-byte draw; XEdDSA signing consumes two consecutive 32-byte draws (the
-    64-byte `Z` buffer filled by the shipping signer). Using the wrong draw or
-    calling a primitive in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
-    the shipping boundary validates the public key before it asks the RNG for
-    bytes. -/
+    `draws` is ordered. Operations that need randomness consume entries from
+    its front and return the oracle holding the rest. KEM encapsulation
+    consumes one 32-byte draw; XEdDSA signing consumes two consecutive 32-byte
+    draws (the 64-byte `Z` buffer filled by the shipping signer). Using the
+    wrong draw or calling a primitive in the wrong order changes the model
+    result. A KEM refusal is allowed to preserve the oracle: the shipping
+    boundary validates the public key before it asks the RNG for bytes. The
+    Braid send reads two entries at `KeysUnsampled` (key generation, 64 bytes)
+    and one at `HeaderReceived` (the first half of encapsulation, 32 bytes);
+    see `braidSendDrawCount`. -/
 structure Oracle where
   draws : List Key
   braidKem : Model.Braid.Kem
@@ -2257,6 +2260,85 @@ example :
       | .error reason => reason == .unknownPrekeyId
       | .ok _ => false) = true := by
   decide +kernel
+
+/-! ### Randomness drawn by a Braid send
+
+`mlkem-braid.md` (The KEM split, Sending): key generation draws 64 bytes, which is two draws; the
+first half of encapsulation draws 32 bytes, which is one; no other send draws. The toy KEM reads
+only the low byte of its randomness, so these examples are what holds the draw count to the page. -/
+
+/-- The draw count at one state of each of the twelve kinds. -/
+example :
+    let a := Model.Braid.Auth.init 1 (List.replicate 32 42)
+    let dec := Model.Braid.Decoder.new 96
+    let enc := Model.Braid.encode []
+    braidSendDrawCount (.keysUnsampled 1 a) = 2 ∧
+    braidSendDrawCount (.keysSampled 1 a [] [] enc) = 0 ∧
+    braidSendDrawCount (.headerSent 1 a [] dec enc) = 0 ∧
+    braidSendDrawCount (.ct1Received 1 a [] [] enc) = 0 ∧
+    braidSendDrawCount (.ekSentCt1Received 1 a [] [] dec) = 0 ∧
+    braidSendDrawCount (.noHeaderReceived 1 a dec) = 0 ∧
+    braidSendDrawCount (.headerReceived 1 a [] [] dec) = 1 ∧
+    braidSendDrawCount (.ct1Sampled 1 a [] [] [] [] enc dec) = 0 ∧
+    braidSendDrawCount (.ekReceivedCt1Sampled 1 a [] [] [] [] enc) = 0 ∧
+    braidSendDrawCount (.ct1Acknowledged 1 a [] [] [] [] dec) = 0 ∧
+    braidSendDrawCount (.ct2Sampled 1 a enc) = 0 ∧
+    braidSendDrawCount .failed = 0 := by
+  decide
+
+/-- A state needs a draw exactly when its count is not zero. -/
+example (state : Model.Braid.BraidState) :
+    braidSendNeedsDraw state = true ↔ braidSendDrawCount state ≠ 0 := by
+  cases state <;> simp [braidSendNeedsDraw, braidSendDrawCount]
+
+/-- The initiator's first send reads two entries and leaves the rest. -/
+example :
+    (encrypt toyView (toyOracle (toyAgreementDraws ++ [List.replicate 32 0x77]))
+      (toyAlice toySecret) [0xde, 0xad]).oracle.draws = [List.replicate 32 0x77] := by
+  native_decide
+
+/-- With one entry left that send refuses and consumes nothing. -/
+example :
+    (match (encrypt toyView (toyOracle [toyAgreementDraw]) (toyAlice toySecret)
+        [0xde, 0xad]).result with
+      | .error .ceiling => true
+      | _ => false) = true ∧
+    (encrypt toyView (toyOracle [toyAgreementDraw]) (toyAlice toySecret)
+        [0xde, 0xad]).oracle.draws = [toyAgreementDraw] := by
+  native_decide
+
+/-- The responder's first send reads one entry; a state that does not draw reads none. -/
+example :
+    let a := Model.Braid.Auth.init 1 (List.replicate 32 42)
+    let spare := List.replicate 32 0x77
+    (match sendAgreement (toyOracle [toyAgreementDraw, spare])
+        (.headerReceived 1 a (List.replicate 32 1) (List.replicate 32 2)
+          (Model.Braid.Decoder.new 64)) with
+      | some (_, o) => o.draws == [spare]
+      | none => false) = true ∧
+    (match sendAgreement (toyOracle [toyAgreementDraw, spare])
+        (.ct2Sampled 1 a (Model.Braid.encode [])) with
+      | some (_, o) => o.draws == [toyAgreementDraw, spare]
+      | none => false) = true := by
+  native_decide
+
+/-- Establishment and the first send over one draw stream, in the order of the session end-to-end
+vector (`alice_ephemeral_secret` 32, `alice_kem_encapsulation_m` 32, `alice_ratchet_secret` 32,
+`alice_braid_keygen_d_z` 64): all five entries are used and none is left. -/
+example :
+    let stream : List Key := [List.replicate 32 0x12, List.replicate 32 0x13,
+      List.replicate 32 0x14, List.replicate 32 0x31, List.replicate 32 0x34]
+    let initiated := establishInitiator (toyOracle stream) toyAliceIdentity toyBundle
+      toyBobIdentity.publicKey
+    (match initiated.result with
+      | .error _ => false
+      | .ok alice =>
+          initiated.oracle.draws.length == 2 &&
+          (let sent := encrypt (toyViewFor toyEstablishedSecret) initiated.oracle alice
+              [0xde, 0xad]
+           (match sent.result with | .ok _ => true | .error _ => false) &&
+           sent.oracle.draws.isEmpty)) = true := by
+  native_decide
 
 end Examples
 
