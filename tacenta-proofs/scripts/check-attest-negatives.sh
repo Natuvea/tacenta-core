@@ -215,9 +215,9 @@ import pathlib, re, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 pattern = re.compile(
-    r"/-- info: 'Tacenta\.UnitLifecycleT1\.encrypt_no_panic' depends on axioms: "
-    r"\[.*?\] -/\n#guard_msgs in\n"
-    r"#print axioms Tacenta\.UnitLifecycleT1\.encrypt_no_panic\n",
+    r"/--\s*info: 'Tacenta\.UnitLifecycleT1\.encrypt_no_panic' depends on axioms: "
+    r"\[.*?\]\s*-/\s*\n#guard_msgs in\s*\n"
+    r"#print axioms\s+Tacenta\.UnitLifecycleT1\.encrypt_no_panic\n",
     re.S,
 )
 text, count = pattern.subn("", text)
