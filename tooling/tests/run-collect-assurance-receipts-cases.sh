@@ -244,6 +244,7 @@ cases=$((cases + 2))
 
 # ---- the collector --------------------------------------------------------
 refuse foreign 'receipt rust was not produced for the selected candidate' rust "data['run']['commit'] = '0' * 40"
+refuse foreign-tree 'receipt rust was not produced for the selected candidate' rust "data['run']['tree'] = '0' * 40"
 refuse wrong-classification 'required receipt audit must be an applicable required check' audit "data['classification'] = 'optional'"
 refuse wrong-event 'receipt vectors event does not match selected event push' vectors "data['environment']['event'] = 'pull_request'"
 

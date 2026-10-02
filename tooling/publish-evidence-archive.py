@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Upload one verified evidence pack to the configured immutable S3 archive."""
+"""Upload one verified evidence pack to the configured immutable S3 archive.
+
+The pack is verified, and authenticated against the git history of this
+checkout (or of `--candidate-repo`), before anything is uploaded: the archive's
+retention is COMPLIANCE, so an object cannot be deleted once written, and a pack
+whose sources are not the candidate commit's files must never reach it.
+"""
 from __future__ import annotations
 
 import argparse
@@ -23,9 +29,11 @@ def main() -> int:
     parser.add_argument("--bucket", default=DEFAULT_BUCKET)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--candidate-repo", type=Path, default=ROOT)
     args = parser.parse_args()
     try:
-        verified = subprocess.run([sys.executable, str(ROOT / "tooling/build-evidence-pack.py"), "--verify", str(args.pack)], cwd=ROOT)
+        verified = subprocess.run([sys.executable, str(ROOT / "tooling/build-evidence-pack.py"), "--verify", str(args.pack),
+                                   "--candidate-repo", str(args.candidate_repo)], cwd=ROOT)
         if verified.returncode:
             fail("evidence pack did not verify")
         manifest_path = args.pack / "PACK-MANIFEST.json"
@@ -44,7 +52,9 @@ def main() -> int:
             if path.is_symlink() or not path.is_file():
                 fail(f"verified pack entry is not a regular file: {relative}")
             files.append(path)
-        files = sorted(files)
+        # The pack's own manifest goes last, so a prefix that was cut short by a
+        # failure has no manifest and cannot be mistaken for a whole pack.
+        files = sorted(files, key=lambda path: (path.relative_to(args.pack).as_posix() == "PACK-MANIFEST.json", path))
         if args.dry_run:
             print(f"archive dry run: s3://{args.bucket}/{prefix}/ ({len(files)} files)")
             return 0
