@@ -21,14 +21,20 @@ bitblasting to SAT, and its reflection step is *also* native evaluation: every
 axiom it introduces is named `._native.bv_decide.ax_*`. A proof by `bv_decide`
 trusts the Lean compiler exactly as a proof by `native_decide` does.
 
-That is load-bearing rather than incidental. `bv_decide` is what makes the
-GF(2^16) field proofs possible at all: `Model.Gf65536.mul_assoc`, the statement
-that this is a field and not merely probably a field, rests on about forty such
-axioms. `Model.Gf65536.mul_inv_cancel`, that every nonzero element inverts, is
-`native_decide` and there is no kernel route to it, because `decide` cannot
-reduce sixty-five thousand exponentiations and `bv_decide` cannot model an
-exponentiation at all. Interpolation divides by the difference of two distinct
-nodes, so the erasure code's correctness runs through that axiom.
+The GF(2^16) field is no longer where this matters. Until 2026-10-01
+`Model.Gf65536.mul_assoc`, the statement that this is a field and not merely
+probably a field, rested on about forty such axioms, and
+`Model.Gf65536.mul_inv_cancel`, that every nonzero element inverts, on
+`native_decide`. Every law of the field, the inverse of every nonzero element,
+`Model.Polynomial.interp_eq` and the translated field arithmetic
+`Tacenta.ErasureT3.mul_refines` are now proved by the kernel: `#print axioms`
+shows `propext`, `Classical.choice` and `Quot.sound` and nothing else. The
+operations are linear over GF(2), so each law follows from the law on the sixteen
+basis elements, which the kernel evaluates directly, and the inverses follow from
+the order of two, a closed computation (the comment "What is established" in
+`Model/Gf65536.lean`). Where `bv_decide` remains is the composite header's
+big-endian round trips (`Model.CompositeHeader`, `Serialization.readBe32_be32`),
+and the compiler-trust facts listed below.
 
 **Where this is and is not the case is pinned by the build, not described.**
 `Proofs.TrustedBase` prints the axioms of the load-bearing theorems under
@@ -100,8 +106,8 @@ named above settles the same fact, that `(1 : U64)` has value 1, by
 `native_decide` still. The generated copies on the three-leaf unit
 (`UnitSpqrT3.lean`) and on the eight-leaf Session unit (`SessionUnitSpqrT3.lean`,
 `SessionUnitTripleT3.lean`) carry those again and are not counted here. A fourteenth,
-`Model.Gf65536.mul_inv_cancel`, lives in the model and is pinned in
-`Proofs.TrustedBase`. `u8_zero`, `zeroSalt_agrees` and
+`Model.Gf65536.mul_inv_cancel`, lived in the model and was pinned in
+`Proofs.TrustedBase`; since 2026-10-01 it is proved by the kernel. `u8_zero`, `zeroSalt_agrees` and
 `decode_ec_after_encode_ec` are **not** among them: the first two close on
 `rfl`, and the third is proved from the encoder's and decoder's specifications;
 none uses `native_decide`, so they are kernel-only. `fPrefix_agrees` and
@@ -1441,10 +1447,11 @@ the only evidence that the decoder accepts anything is the Rust round-trip tests
   the code that ships. Nothing in the manifest may say otherwise until that
   gap closes.
 
-  The refinement rests on one axiom beyond the kernel's, and only one: a
-  `bv_decide` reflection in the step that relates the loop's sixteen turns to
-  the model's sixteen written terms. It is pinned under `#guard_msgs` in
-  `Translation/ErasureT3.lean`, so a fourth cannot appear unnoticed.
+  The refinement rests on the kernel's three axioms alone.
+  `#print axioms Tacenta.ErasureT3.mul_refines` is pinned under `#guard_msgs` in
+  `Translation/ErasureT3.lean`, so a compiler-trust axiom cannot appear
+  unnoticed. Until 2026-10-01 it rested on one `bv_decide` reflection, in
+  `clmulUpto_sixteen`.
 
   Worth naming because this is the crate where the claim is worth most and was
   cheapest to get. A decoder consumes codewords an attacker supplies, and every
@@ -2378,6 +2385,40 @@ following and leave the following open.
   statement pin are `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and
   `Good.clone`; the other results have one.
 
+### The Braid refinement agreements of the Session unit: what is assumed, and what has a model
+
+`step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines`
+(`SessionUnitBraidT3.lean`) rest on assumptions that this section lists, with what the build holds
+about each (`CLAIMS.md`, the section on the Braid refinement agreements).
+
+**Assumed, about opaque constants.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem` and
+`Model.Kdf`: `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
+`BraidHkdfAgrees` and `BraidHmacAgrees`. Nothing shows that the real ML-KEM wrapper, libcrux or the real
+KDF satisfies them. What is shown is that they are consistent: one interpretation of the unit's opaque
+constants satisfies all six, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
+by the substitution argument above, which is an argument about derivations and not a theorem inside
+Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` says nothing about the real
+`K`. `ValidateEkAgrees K` holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
+coefficient check the real function makes after the hash; such a `K` exists, but the check is read from the
+source (`kem/src/lib.rs`) and no test runs a vector that matches the hash and fails the check.
+
+**Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
+theorem about the translated coder under two laws, because the translation leaves two library functions
+opaque: `usize::div_ceil` at divisor 32 returns `(a + 31) / 32` (`DivCeilValue`, already a field of
+`EstablishResponderContracts`), and `Vec::truncate` keeps the prefix (`TruncatePrefix`, which strengthens
+the existing `TruncateTotal` from returning to returning the prefix). Both are the documented behaviour of the
+standard library functions, and both hold in the interpretation above. The proof is about the
+translation: `Vec::with_capacity` never fails there, where the real function panics for an absurd
+capacity.
+
+**Not shown.** That a send or a receive keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch
+headroom: the state witnesses are single steps. That `MsgRefines` and `HonestChunk` hold of a message a peer
+sends: `MsgRefines` holds of a real chunk of any content when the decoder needs at least one chunk, so
+`HonestChunk` is the only hypothesis that excludes a spliced stream. That a decoder restored by
+`Decoder::from_bytes` refines a model decoder: one that holds chunks of no common message refines none,
+so the refinement theorems apply to states reachable from a fresh Braid and to restored states equal to
+such a state.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking
@@ -2386,24 +2427,31 @@ is defined over. It is a proved field, not a probable one.
 **Proved for every input.** The additive laws, commutativity, distributivity on
 both sides, and associativity.
 
-**Established by exhaustion.** That every nonzero element has the inverse `inv`
-returns, all sixty-five thousand five hundred and thirty-five. This doubles as an
-irreducibility check on the reduction polynomial, since a reducible one would
-leave some nonzero element a zero divisor with no inverse to return. Verified
-live by substituting a reducible polynomial and watching it fail.
+**Proved for every nonzero element.** That every nonzero element has the inverse
+`inv` returns, all sixty-five thousand five hundred and thirty-five. This doubles
+as a check on the reduction polynomial, since a reducible one would leave some
+nonzero element a zero divisor with no inverse to return. The proof asks for more
+than irreducibility: it needs two to have order exactly `size - 1`, so a
+polynomial under which two has a smaller order is refused too. Until 2026-10-01
+this was established by `native_decide`; it now follows, in the kernel, from that
+order (a closed computation at `65535` and at each of its four maximal divisors),
+so that the powers of two are the nonzero elements. Checked by substitution: with
+the reducible `0x10001`, `gen_order` fails to build; with the irreducible
+`0x1002B`, `0x1008D` or `0x103ED`, `gen_ne_21845`, `gen_ne_13107` or
+`gen_ne_3855` fails.
 
 The one thing still assumed is the reduction polynomial itself, which is ours
 rather than the specification's: the published document fixes the field and not
 which irreducible polynomial defines it, so it is wire-sensitive in the way the
 derivation labels are, and is recorded in tacenta-spec/CONSTANTS.md.
 
-The rule that governs the solver here is worth carrying to any future work
-with it: **it settles statements mentioning one product and none mentioning
-two.** Every call in that file has
-a single product with the other factor constant, and the general laws are
-assembled from those by linearity. `Model.Gf65536.linear_ext` -- a linear map is
-determined by its values on the sixteen basis elements -- is the piece that makes
-that assembly possible.
+The rule that governed the solver, while the laws were settled by `bv_decide`, is
+worth carrying to any future work with one: **it settles statements mentioning
+one product and none mentioning two.** The laws are now proved by the kernel
+without a solver, and the same structure does the work:
+`Model.Gf65536.linear_ext_w` -- a linear map is determined by its values on the
+sixteen basis elements -- reduces a law about two maps that are linear in one
+argument to sixteen closed cases, which the kernel evaluates.
 
 ## Not yet proven
 

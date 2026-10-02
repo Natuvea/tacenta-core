@@ -40,8 +40,9 @@ imported here so that the walk in `Model.AxiomAudit` sees all of them. It sits
 under `Properties/` because that library's glob builds every submodule, so
 `lake build` in `tacenta-model` (and `no-sorry.sh`'s third build) runs it. A
 new module under `Model/` or `Properties/` must be added to the imports above
-to be audited; the model's own `native_decide` field proofs pass under the
-compiler-trust allowance the audit documents.
+to be audited; the model's remaining `bv_decide` and `native_decide` uses (the composite
+header's round trips, the known-answer examples) pass under the compiler-trust allowance the
+audit documents. The GF(2^16) field proofs need none: they are kernel proofs.
 -/
 
 run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

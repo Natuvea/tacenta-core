@@ -250,12 +250,29 @@ def modelCodewordOf (chunk : tacenta_erasure.Chunk) :
 
 /-- The lifecycle model's wire view names exactly the source and bytes of an
 honest chunk from the existing Braid refinement.  Both directions use the same
-relation, so receive cannot reinterpret a codeword differently from send. -/
+relation, so receive cannot reinterpret a codeword differently from send.
+
+Superseded by `CodewordViewSendOf` below.  Kept unchanged so that its statement can still be
+examined; no consumer takes it. -/
 structure CodewordViewOf (view : Model.Lifecycle.CodewordView) : Prop where
   receive : ∀ state source chunk,
     Tacenta.SessionUnitBraidT3.CodewordOf source chunk →
     view.receive state (UInt16.ofNat chunk.index.val) (arrayOf chunk.data) =
       modelChunkOf source chunk
+  send : ∀ state source chunk,
+    Tacenta.SessionUnitBraidT3.CodewordOf source chunk →
+    view.send state (modelChunkOf source chunk) = modelCodewordOf chunk
+
+/-- The send direction of `CodewordViewOf`, which is all that the encrypt-side theorems use.
+
+`CodewordViewOf` is kept unchanged and no consumer takes it. It is restated because its `receive`
+clause asks the view to name one source for each wire chunk, which is a function of the chunk; two
+messages that agree on their first 32 bytes have the same codeword at index 0, so, given that
+`Encoder::new` returns on two such messages, no view meets that clause. That consequence is read
+from the encoder's behaviour here and is not a theorem of this tree. The receive direction is
+carried per run by `IncomingChunkRefines`, which asks for a source and not for the one a view names.
+That a view meets this structure is shown in `UnitLifecycleRepair.lean`. -/
+structure CodewordViewSendOf (view : Model.Lifecycle.CodewordView) : Prop where
   send : ∀ state source chunk,
     Tacenta.SessionUnitBraidT3.CodewordOf source chunk →
     view.send state (modelChunkOf source chunk) = modelCodewordOf chunk
@@ -333,7 +350,7 @@ theorem codeword_send_refines (view : Model.Lifecycle.CodewordView)
     (model : Model.Braid.Chunk)
     (hindex : real.index.val = model.index)
     (hcodeword : Tacenta.SessionUnitBraidT3.CodewordOf model.source real)
-    (hview : CodewordViewOf view) :
+    (hview : CodewordViewSendOf view) :
     WireCodewordRefines { index := real.index, data := real.data }
       (view.send state model) := by
   have hmodel : modelChunkOf model.source real = model := by
@@ -344,14 +361,14 @@ theorem codeword_send_refines (view : Model.Lifecycle.CodewordView)
 
 /-- The translated header constructor agrees with the lifecycle model's wire
 header.  The codeword bytes are fixed by the honest Braid chunk relation and
-the shared `CodewordViewOf`, rather than chosen independently here. -/
+the shared `CodewordViewSendOf`, rather than chosen independently here. -/
 theorem composite_of_refines (view : Model.Lifecycle.CodewordView)
     (braidBefore : Model.Braid.BraidState)
     (realHeader : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
     (realMessage : tacenta_braid.Msg) (modelMessage : Model.Braid.Msg)
     (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
     (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
-    (hview : CodewordViewOf view) :
+    (hview : CodewordViewSendOf view) :
     ∃ realComposite modelComposite,
       lifecycle.composite_of realHeader realMessage = ok realComposite ∧
       Model.Lifecycle.compositeOf view braidBefore modelHeader modelMessage =
@@ -4722,7 +4739,7 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
     (K : Model.Braid.Kem)
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -4903,7 +4920,7 @@ theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
     (K : Model.Braid.Kem)
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -4967,7 +4984,7 @@ theorem public_encrypt_success_no_initial_of_contracts {R : Type}
     (K : Model.Braid.Kem)
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5056,7 +5073,7 @@ theorem encrypt_success_initial_step_refines {R : Type}
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
     (codec : DhCodecOf dh)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5331,7 +5348,7 @@ theorem encrypt_success_initial_of_exact_candidate {R : Type}
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
     (codec : DhCodecOf dh)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5407,7 +5424,7 @@ theorem public_encrypt_success_initial_of_contracts {R : Type}
     (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
     (codec : DhCodecOf dh)
-    (codewordView : CodewordViewOf view)
+    (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5784,7 +5801,7 @@ theorem public_encrypt_of_triple_route
     {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
     {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
     (oracleOf : OracleOf rc crc dh kem trace oracle)
-    (codec : DhCodecOf dh) (codewordView : CodewordViewOf view)
+    (codec : DhCodecOf dh) (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5854,7 +5871,7 @@ theorem public_encrypt_end_to_end
     {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
     {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
     (oracleOf : OracleOf rc crc dh kem trace oracle)
-    (codec : DhCodecOf dh) (codewordView : CodewordViewOf view)
+    (codec : DhCodecOf dh) (codewordView : CodewordViewSendOf view)
     (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -5866,4 +5883,74 @@ theorem public_encrypt_end_to_end
   | braid evidence => exact public_encrypt_of_braid_route evidence
   | triple evidence =>
       exact public_encrypt_of_triple_route oracleOf codec codewordView hkdf hz80 hz32 hzKeys evidence
+
+/-! ## The run's candidate key
+
+The Triple and AEAD refusal evidence used to carry, as fields, that the public bytes of the candidate
+ratchet key equal `oracle.dhPublic` of every draw, which asks `dhPublic` to take one value over all
+draws, and the real X25519 public key is not constant (a property tested and not proved here).  For
+the run's own draw the equation is a consequence of the oracle's `random32`, `dhPublic` clauses and
+the key codec. -/
+
+/-- The 32 bytes `random_secret` returned are the model oracle's next draw. -/
+theorem candidate_bytes_of_draw {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (rng rng1 : R) (draw : Model.Lifecycle.Key)
+    (candidateBytes : Array Std.U8 32#usize)
+    (htrace : trace rng = oracle.draws)
+    (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hrandom : lifecycle.random_secret rc crc rng = ok (candidateBytes, rng1)) :
+    arrayOf candidateBytes = draw := by
+  cases hd : oracle.draws with
+  | nil => simp [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd] at hdraw
+  | cons head rest =>
+      simp only [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd, Option.some.injEq,
+        Prod.mk.injEq] at hdraw
+      obtain ⟨rfl, _⟩ := hdraw
+      obtain ⟨value, rng', hcall, hvalue, _⟩ :=
+        oracleOf.random32 rng head rest (by rw [htrace, hd])
+      rw [hrandom] at hcall
+      have hpair := Result.ok.inj hcall
+      have hv : candidateBytes = value := (Prod.mk.inj hpair).1
+      rw [hv]
+      exact hvalue
+
+/-- The public bytes of the run's candidate key are the oracle's public key of the run's draw. -/
+theorem candidate_public_eq_draw {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rc crc dh kem trace oracle) (codec : DhCodecOf dh)
+    (rng rng1 : R) (draw : Model.Lifecycle.Key)
+    (candidateBytes : Array Std.U8 32#usize)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (newPublicBytes : Array Std.U8 32#usize)
+    (htrace : trace rng = oracle.draws)
+    (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hrandom : lifecycle.random_secret rc crc rng = ok (candidateBytes, rng1))
+    (hcandidate : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate)
+    (hpublic : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate = ok candidatePublic)
+    (hpublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic =
+      ok newPublicBytes) :
+    oracle.dhPublic draw = arrayOf newPublicBytes := by
+  rw [← candidate_bytes_of_draw rc crc trace dh kem oracle oracleNext oracleOf rng rng1 draw
+    candidateBytes htrace hdraw hrandom]
+  obtain ⟨pk, hpk, hpkv⟩ := codec.privateFromBytes candidateBytes
+  rw [hcandidate] at hpk
+  have hpk' : candidatePrivate = pk := Result.ok.inj hpk
+  subst hpk'
+  obtain ⟨pub, hpub, hpubv⟩ := oracleOf.dhPublic candidatePrivate
+  rw [hpublic] at hpub
+  have hpub' : candidatePublic = pub := Result.ok.inj hpub
+  subst hpub'
+  obtain ⟨bytes, hbytes, hbytesv⟩ := codec.asBytes candidatePublic
+  rw [hpublicBytes] at hbytes
+  have hb' : newPublicBytes = bytes := Result.ok.inj hbytes
+  subst hb'
+  rw [hbytesv, hpubv, hpkv]
+
 end Tacenta.UnitLifecycleT3

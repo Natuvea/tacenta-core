@@ -31,7 +31,11 @@ this section says in one place what is not proved.
   the lemmas are affected by a hypothesis or evidence record that is shown false or empty under stated conditions,
   sixteen of them vacuous as stated;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. What is proved, each
+  return as a whole, on every branch, against the model. One part of what they
+  do is proved of the translated code alone, with no contract record, no headroom and no model: what a
+  refused call leaves behind, and which fields a successful one writes (the
+  section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
+  below). What is proved, each
   under the named boundary hypotheses, lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
@@ -120,8 +124,9 @@ this section says in one place what is not proved.
   `Translation/SessionBraidReceiveVacuity.lean` refuted its unbounded form, which is why it is
   now stated for decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1
   section). `ErasureAgrees` and `ErasureCloneAgrees`, the hypotheses of the session unit's Braid
-  refinements about the erasure coder, are in the same position: statements about translated
-  definitions, which no theorem shows can be met. The sparse ratchet's
+  refinements about the erasure coder, were in the same position: statements about translated
+  definitions. Both are theorems now, `ErasureCloneAgrees` outright and `ErasureAgrees` under two laws about
+  `Vec::truncate` and `usize::div_ceil` (the sections on the translated erasure coder and on the Braid agreements). The sparse ratchet's
   `receive_no_panic` and `receive_refines`, the classical ratchet's
   `receive_refines`, and everything composed from them on the three-leaf unit
   take the removal and retain hypotheses, which are of that kind. The witnesses
@@ -808,14 +813,30 @@ The calculation on which both sides must agree exactly, and it rests on
 Location: `tacenta-model/Model/Gf65536.lean` and
 `tacenta-model/Model/Polynomial.lean`.
 
+- `mul_assoc`: the last of the field laws, and the one that rested on about forty
+  `bv_decide` certificates until 2026-10-01. Every law of `Model/Gf65536.lean`
+  (the additive laws, commutativity, both distributive laws, associativity, the
+  identities) is now proved by the kernel. The operations are linear over GF(2),
+  so each law reduces to the sixteen single-bit values (`linear_ext_w`), which
+  the kernel evaluates, and the exclusive-or arithmetic is settled one bit at a time.
 - `mul_inv_cancel`: every nonzero element has an inverse and `inv` returns it,
-  for all sixty-five thousand five hundred and thirty-five. This doubles as an
-  irreducibility check on the reduction polynomial. Established by exhaustion
-  through `native_decide`, so it trusts the compiler; there is no kernel route,
-  because `decide` cannot reduce that many exponentiations and `bv_decide`
-  cannot model an exponentiation at all.
+  for all sixty-five thousand five hundred and thirty-five. This doubles as a
+  check on the reduction polynomial: it needs two to have order exactly `size - 1`,
+  so a reducible polynomial is refused and so is an irreducible one under which two
+  has a smaller order. Proved by the kernel: two has
+  multiplicative order exactly `65535` (five closed computations, at `65535` and at
+  each of its four maximal divisors), so its powers are all the nonzero elements,
+  and each is inverted by raising it to `65534`. Until 2026-10-01 this was
+  established by exhaustion through `native_decide`, which trusts the compiler.
 - `interp_eq`: the delta property in the form a decoder states it, which is what
-  interpolation needs to recover a lost codeword.
+  interpolation needs to recover a lost codeword. It rests on the kernel's three
+  axioms alone, as does `unisolvence`, which has no pin of its own and is held through the pin on
+  `M_recover`.
+
+The three pins above list `propext`, `Classical.choice` and `Quot.sound` and nothing else. They are on the
+`attest.py` floor of required pins (with the pin on `Tacenta.ErasureT3.mul_refines`), and `attest.py` no longer
+lists any of the three among the pins that may be compiler-trusted, so a compiler-trust axiom under one of them is
+refused.
 
 ## Not needed: a concatenation lemma for the Triple Ratchet's combination
 
@@ -1894,8 +1915,9 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   model's.
 - `mul_refines`: multiplication in the translated erasure crate's field computes
   what `Model.Gf65536` says, for every input rather than at the thirty-eight
-  points the conformance vectors sample. It rests on one `bv_decide` reflection
-  beyond the kernel's axioms.
+  points the conformance vectors sample. It rests on the kernel's three axioms
+  alone; until 2026-10-01 it rested on one `bv_decide` reflection, in
+  `clmulUpto_sixteen`, which is now two spellings of the same exclusive or.
 
   **The field only.** `interpolate`, the chunk helpers, and both entry points of
   the encoder and decoder have T1 and no refinement, so `Model.Polynomial`'s
@@ -2152,8 +2174,9 @@ What a reader has to grant:
   translation's opaque erasure declarations. In the session unit, `ErasureAgrees` and
   `ErasureCloneAgrees` are statements about the translated erasure code and no longer about opaque
   operations. The model of `Translation/ErasureWitness.lean` is a model of the standalone
-  declarations and does not cover them. No theorem shows that they can be met, and they are not
-  among the records of `SESSION-CONTRACT-VACUITY`.
+  declarations and does not cover them. They are theorems of the unit now (`ErasureCloneAgrees` outright,
+  `ErasureAgrees` under two laws; the sections on the translated erasure coder and on the Braid agreements), and
+  they are not among the records of `SESSION-CONTRACT-VACUITY`.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -2878,6 +2901,147 @@ translated functions: the audit text in `tacenta-proofs/scripts/check-session-sa
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
 package.
 
+## Proved (the translated erasure coder of the Session unit refines the model: `ErasureAgrees`)
+
+Location: `Translation/UnitErasureRsStatements.lean`, `Translation/UnitErasureRsGlue.lean`.
+
+The proofs are in `UnitErasureRsDefs.lean` (the specification functions), `UnitErasureRsKernel.lean`, `UnitErasureRsAlgebra.lean`, `UnitErasureRsModel.lean`, `UnitErasureRsEncoder.lean` and `UnitErasureRsDecoder.lean`; the statements module restates each of the nine and the glue assembles them.
+
+In the complete Session unit the erasure coder is translated Rust, so `ErasureAgrees`, the hypothesis of the four
+Braid refinement theorems, is a statement about definitions: `Encoder::new` of any message and `Decoder::new` of any
+size build values that refine the model's encoder and decoder (`Model.Braid.encode`, `Model.Braid.Decoder.new`), the
+decoder for every message the model decoder could still be collecting. Its encoder clause was a theorem already
+(`erasureAgrees_encoder`); the decoder clause needed that decoding the codewords of a message at distinct indices
+returns the message, which no theorem of the model stated before `M_recover`. The proof is cut into nine statements,
+proved independently and restated in `UnitErasureRsStatements.lean` so that the kernel checks that each proved
+theorem has exactly the statement the glue was written against.
+
+- `K_weights`, `K_coefficients`, `K_evaluate`: the translated barycentric kernels `weights`, `coefficients` and
+  `evaluate` compute their pure specifications over `Model.Gf65536.Elem`, for every input slice. The field part
+  carries the argument of `ErasureT3.lean` over to the unit's constants.
+- `K_algebra`: the Lagrange evaluation they compute is `Model.Polynomial.interp` for distinct nodes.
+- `E_new`, `E_next`: `Encoder::new` builds the padded chunks of `Model.Erasure.chunks`, and `next_chunk` emits
+  `Model.Erasure.codeword` at the index `next`.
+- `D_add`, `D_message`: `Decoder::add_chunk` refines `Model.Erasure.Decoder.add`, and `Decoder::message` refines
+  `Model.Erasure.Decoder.message`.
+- `M_recover`: `Model.Erasure.Decoder.message` of the codewords of a message at distinct indices is the message.
+- `erasureAgrees_decoder`, `erasureAgrees`: the decoder clause, and `ErasureAgrees`, under the two laws
+  `DivCeilValue` and `TruncatePrefix`. The proof carries a decoder invariant (`DInv`) over every sequence of
+  chunks (`dinv_add`): a duplicate index, and a chunk offered after the decoder is complete, change nothing the
+  message depends on, and a decoder that holds fewer chunks than it needs returns no message in the translation
+  and in the model (`message_not_full`), which covers a decoder sized for `usize::MAX` bytes. The statements hold
+  at both platform widths, because the proofs use only that `Usize.max` is at least `2^32 - 1`.
+
+Each is pinned under `#guard_msgs` (axioms and statement), and `attest.py` requires every axiom pin; the statement
+pins are held by the build alone (see the section on the Braid agreements). The axiom pins list
+`propext`, `Classical.choice` and `Quot.sound`, and the two opaque constants the laws are about (`usize::div_ceil` in
+`E_new` and `erasureAgrees`, `Vec::truncate` in `D_message` and the glue); none depends on a compiler-trust axiom.
+The proof of the statements through the field used compiler-trust axioms (about fifty `bv_decide` and `native_decide`
+certificates in the model's field lemmas) until the field lemmas became kernel proofs (the section on the field
+above).
+
+What this does not show: that the real `usize::div_ceil` and `Vec::truncate` meet the two laws (they are the
+documented behaviour of the standard library functions, and both hold in one interpretation of the unit's opaque
+constants, `UnitSatisfiabilityBraidAgreements.lean`); and anything about `Vec::with_capacity`, which never fails in
+the translation where the real function panics for an absurd capacity, so the results are about the translation. The
+laws are the whole interface between this proof and the standard library.
+
+## Proved (the Braid refinement agreements of the Session unit: a model, the hypotheses that have witnesses, and what is discharged)
+
+Location: `Translation/UnitSatisfiabilityBraidAgreements.lean`, `Translation/UnitSatisfiabilityErasureAgrees.lean`, `Translation/UnitSatisfiabilityBraidStates.lean`, `Translation/UnitBraidEntryPoints.lean`.
+
+`step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines` of the complete
+Session unit (`SessionUnitBraidT3.lean`) take, besides the contract fields: six agreements about
+the unit's opaque KEM and KDF constants (`KemAgreesFor`, `KemLenAgrees`, `ValidateEkAgrees`, `KemCloneAgrees`,
+`BraidHkdfAgrees`, `BraidHmacAgrees`), thirteen totality or size shapes, six statements about the translated
+erasure coder, and the hypotheses about the state and the message (`StateRefines`, `EncodersLive`, `ct1_bounded`,
+`decoders_bounded`, the epoch headroom, `MsgRefines` and `HonestChunk`). The standalone witnesses
+(`KemWitness.lean`, `Satisfiability.lean`) are about the constants of the standalone Braid translation, which
+are different Lean constants, so before these modules none of the six agreements, none of the state-level
+hypotheses and neither erasure agreement had a witness for the unit. The sense of "has a model" is the
+substitution argument of the section above and no other: a derivation of `False` from statements about
+uninterpreted constants would become one from facts that hold in the model, which is an argument about
+derivations and not a theorem inside Lean. Nothing here is shown of the real ML-KEM wrapper, libcrux or the
+real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
+
+- `braid_agreement_shapes_are_predicates`: each of the six agreements, and the law `TruncatePrefix`, is at
+  `Interp.real` the shape over an interpretation that replaces it. Each bridge is `Iff.rfl`, so the kernel
+  checks that the shape unfolds to the very proposition the refinement theorems take. A shape that differs
+  from the predicate by a constant or a premise is rejected: `check-braid-agreement-negatives.sh` makes
+  such changes one at a time and requires the bridge to fail, and requires this theorem to name every
+  `_is` bridge of the module.
+- `braid_agreements_have_a_model`: one interpretation, `Interp.modelT3`, a conservative extension of
+  `Interp.model` that changes only the KEM family, the two KDFs and their sizes, satisfies the six agreements
+  (at `Model.Braid.toyKem`, because `K` is existential in `KemAgreesFor K`), the 33 axiom-level shapes of the
+  session records, the laws of `StdLaws` and `TruncatePrefix`. So the agreements are consistent with each
+  other and with every axiom-level contract field. The proofs hold on both platform widths: they use only
+  that `Usize.max` is at least `2^32 - 1`. `ValidateEkAgrees K` holds of the real call only for a `K` whose
+  `hashEk` folds in the coefficient check that `validate_ek` makes after the hash; such a `K` exists because
+  `K` is existential.
+- `erasureCloneAgrees`: `ErasureCloneAgrees` is a theorem of the translated unit, outright: a clone of an
+  encoder or a decoder equals it. No law about an opaque constant is used.
+- `erasureAgrees_iff_clauses`, `erasureAgrees_encoder`: `ErasureAgrees` is its encoder clause and its decoder
+  clause, by `Iff.rfl`, and the encoder clause is a theorem given that `usize::div_ceil` returns at divisor 32
+  (`DivCeil32`, which `DivCeilValue` implies): `Encoder::new` of any message refines the model encoder of the
+  same bytes, for every number of steps a `u16` index allows. The decoder clause is the section above.
+- `ingredients`, `twelve_states`, `six_receive_witnesses`: given `ErasureAgrees`, `KemAgreesFor K`,
+  `KemLenAgrees K`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
+  state constructors has a real state and a model state satisfying `StateRefines`, `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive` at once (`Good`, which `Good_iff` unfolds), and
+  each of the six state and message-type pairs in which `Model.Braid.receive` feeds a chunk to a decoder has
+  a message satisfying `MsgRefines` and `HonestChunk`, in the state's epoch, with data, and not through the
+  vacuous arm of `HonestChunk`. The witnesses are built from the agreements: the key pairs and encapsulation
+  states from the `generate` and `encapsulate1` clauses of `KemAgreesFor`, the encoders and decoders from the
+  two clauses of `ErasureAgrees` (discharged under the two laws by `twelve_states_of_laws`). So these hypotheses
+  are satisfiable together whenever the agreements are, and a model of the agreements is the one above.
+- `initiator_refines`, `responder_refines`: the states `Braid::initiator` and `Braid::responder` build refine
+  the model's initial states `Model.Braid.initAlice` and `Model.Braid.initBob` and satisfy `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
+  only of a state built to satisfy it. The responder's decoder is the one `ErasureAgrees` provides for the
+  header size.
+- `defined_hypotheses_given_erasure`, `Braid.receive_refines_given_erasure`, `Braid.send_refines_given_erasure`: the
+  receive takes six hypotheses about translated functions and the send takes four of them (`ErasureAgrees`,
+  `ErasureCloneAgrees`, `EncoderCloneTotal`, `DecoderCloneTotal`); `DecoderAddChunkTotal` and `DecoderMessageTotal`
+  occur only in the receive. All but `ErasureAgrees` are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
+  `EncoderCloneTotal` and `DecoderCloneTotal` outright, and the bounded `DecoderMessageTotal` from the one
+  law `TruncateTotal` (`Vec::truncate` returns). The two entry points are restated with those hypotheses
+  replaced: the send needs no law, the receive needs `TruncateTotal`, and `ErasureAgrees` stays a premise. No
+  statement of `SessionUnitBraidT3.lean` changed; each restatement is a corollary of the entry point it
+  restates, with fewer premises.
+- `defined_hypotheses_of_laws`, `Braid.receive_refines_of_laws`, `Braid.send_refines_of_laws`: with
+  `ErasureAgrees` from the section above, all six hypotheses of the receive and all four of the send are theorems
+  under the two laws `DivCeilValue` and `TruncatePrefix`, and the two entry points are restated with them replaced
+  by the laws.
+  What remains of their hypotheses is what a model of the unit's opaque constants can satisfy (the six agreements and
+  the totality shapes), the two laws, and the hypotheses about state and message.
+- `twelve_states_of_laws`, `six_receive_witnesses_of_laws`: the state witnesses with `ErasureAgrees` supplied by the
+  laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the
+  two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
+  without a witness for the unit, in the sense of the substitution argument. The state and message witnesses are
+  derived from the agreements and the two laws, so they exist in the model because the agreements hold there;
+  the step from the model to the real constants is the substitution argument and not a theorem inside Lean.
+
+Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these axiom pins
+(`REQUIRED_PINS`), so deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry
+points list the opaque constants their statements mention; none depends on a compiler-trust axiom. The statements
+of every claimed theorem here are pinned by `#guard_msgs in #check`, and so are `Good_iff` and `RecvWitness_iff`,
+which unfold the two definitions the state theorems are stated through, and the three definitions that fix which
+constructor and which message pair each witness is for (`stateTag`, `modelTag`, `FeedsDecoder`, by
+`#guard_msgs in #print`). Those statement pins are held by the build alone: `attest.py` reads the axiom pins, so
+deleting a statement pin, or weakening a statement together with its pin, is refused by no gate. A statement
+weakened without its pin is refused by the build, and `check-braid-agreement-negatives.sh` shows it in five of the
+modules (the four of this section and the glue).
+
+What these results do not show: that the real KEM and KDF meet the six agreements; that a send or a receive
+keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch headroom (the witnesses are single steps
+and a run is not shown to stay inside the hypotheses); that `MsgRefines` and `HonestChunk` hold of a message
+a peer sends (`MsgRefines` holds of a real chunk of any content when the decoder needs at least one chunk, so
+`HonestChunk` is the only hypothesis that excludes a spliced stream); that a decoder restored by
+`Decoder::from_bytes` refines a model decoder (one that holds chunks of no common message refines none, so the
+refinement theorems apply to states reachable from a fresh Braid and to restored states equal to such a state);
+and that the witnesses reach a state with the relation hypotheses over values of a real ML-KEM key pair, because
+the key pairs are the ones the agreements provide.
+
 ## Proved (evidence about three fields that quantify over every Zeroize record)
 
 Location: `Translation/UnitSatisfiabilityZeroizeScope.lean`.
@@ -3115,6 +3279,159 @@ Among them are the figures `2^32 - 151` and `2^64 - 151` of `plaintext_bound_at_
 Not shown: that a store passes `PrekeyStore::invariant` or that the invariant bounds `last_resort_seen`; that a session with
 a pending initial message or an established ephemeral key passes `Session::invariant`; that any session here is one
 `establish_initiator` or `establish_responder` returns; that a send or a receive keeps the invariant.
+
+## Proved (what a refused lifecycle call leaves behind, on the translated code)
+
+Location: `Translation/UnitLifecycleAtomicity.lean`.
+
+Seven results about the Session unit's translation of `Session::decrypt_ratchet`, `Session::decrypt`,
+`Session::encrypt` and `establish_responder`. They take **no hypothesis about any opaque operation**: not a contract record,
+not a headroom record, not `OracleOf`, not the model. Each quantifies over every interpretation of the unit's opaque
+constants (the primitives, the random source, the key types, the standard-library calls), so none can be made empty by a
+hypothesis that nothing satisfies. Each is of one form: if the call returns normally as `ok (result, state', rng')`, and the
+result is a refusal (or a success), then `state'` is the state the call was given (or differs from it in the named
+fields). A call that fails or does not terminate has no such result; the lifecycle T1 theorems say, under their records, that
+the calls return.
+
+- `decrypt_ratchet_err_leaves_state`, `decrypt_err_leaves_state`: a refused call returns the session it was given, every
+  field. For `decrypt` that covers the initial-message dispatch, the repeat recognition and the inner receive; the one write
+  after the inner receive clears `pending_initial` and is on the success path.
+- `decrypt_ratchet_ok_writes`, `decrypt_ok_writes`: a successful call returns a session that differs from the given one in at
+  most the Triple Ratchet, the agreement and the ratchet private key, and for `decrypt` also the pending initial message,
+  which is cleared. The associated data, both identities and the established ephemeral are the ones given.
+- `encrypt_err_leaves_state`: a refused call returns the session it was given, or the error is `AgreementFailed` and the
+  only change is the agreement field, to a state that `Braid::failed` reports true of. That is the recorded exception, an
+  agreement send that reaches the terminal state and is committed so that every later call refuses (`triple-ratchet.md`).
+- `encrypt_ok_writes`: a successful call writes the Triple Ratchet and the agreement and nothing else. It never clears
+  `pending_initial`: an initiator keeps wrapping its messages until a decrypt succeeds.
+- `establish_responder_err_leaves_store`: a refused call returns the prekey store it was given, every field. The one-time
+  removals and the replay-record append come after the inner authenticated receive.
+
+What these do not say.
+
+- They relate nothing to `Model.Lifecycle`. The model has the same properties of itself (`decrypt_refusal_keeps_session`,
+  `establishResponder_refusal_keeps_store`, `encrypt_triple_refusal_keeps_state`); that the translated code refines the model,
+  on every branch, is the open T3 work (`GAP-REGISTER.md`, row `E2E-04`). They say which error a refusal carries only by
+  its being a refusal.
+- They say nothing about the random source: a refused call may have drawn from it, and `rng'` is unconstrained.
+- They say nothing about heap residue. The translation ignores `Drop` and `zeroize`, so what a discarded candidate state
+  leaves in memory is outside them.
+- They do not say what a successful `establish_responder` does to the prekey store beyond what the model and the tests say:
+  which entries are removed and in which order is not proved of the code. The model now removes a consumed one-time prekey
+  by moving the last entry into its slot, as the code and `session-persistence.md` do (`Model.swapRemove`;
+  `GAP-REGISTER.md`, row `E2E-03`), so it can be the other side of such a theorem. The differential harness compares the real
+  store bytes with `consumeOneTimeOk` for one entry that is not last, and an example in `Model/Lifecycle.lean` holds
+  `consumeResponderPrekeys` for a three-entry store. No theorem states the store effect of the translated function.
+- They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
+  count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
+- They do not show that a refusal is reached, and none shows that a success is. The terminal refusals are shown for every
+  session whose agreement reports failed: `encrypt_refuses_failed_agreement`, `decrypt_ratchet_refuses_failed_agreement` and
+  `decrypt_empty_message_refuses_failed_agreement` (`decrypt` on an empty message goes to `decrypt_ratchet`), and
+  `braid_failed_of_failed_state` shows that `Braid::failed` reports true of the closed value `State::Failed`. These are stated
+  of every such session and do not exhibit one: `lifecycle.Session` has fields of the opaque key types, no inhabitant of which is
+  derivable in Lean, so that a session value exists is not shown. No premise of the two `_ok_writes` theorems or of the
+  `establish_responder` theorem is shown to hold of any run. Whether the other arms are reached by honest sessions is shown by the
+  Rust tests that refuse a message and compare the exported session (`failed_decrypt_changes_nothing.rs`,
+  `a_failed_triple_send_does_not_commit_the_agreement`, `a_failed_initial_message_does_not_burn_prekeys`; `GAP-REGISTER.md`,
+  row `E2E-07`), not by a theorem. These four lemmas carry no axiom pin and are not on `REQUIRED_PINS`.
+
+None of the seven depends on a compiler-trust axiom. Each carries an axiom pin under `#guard_msgs`, and the statement of each is
+pinned under `#guard_msgs in #check` as well, so a weaker statement that keeps its axiom list fails the module while that pin
+stands. `attest.py` lists the seven in `REQUIRED_PINS`, which requires the axiom pin and not the statement pin; no gate requires
+a statement pin to exist, so a weaker statement whose statement pin is removed in the same commit is accepted once the manifests
+are regenerated. `check-attest-negatives.sh` deletes each axiom pin in turn. The axiom lists are long because the statements
+unfold the generated bodies; they are the unit's opaque constants that those bodies mention, not hypotheses.
+
+`tacenta-proofs/scripts/check-atomicity-negatives.py`, run from `no-sorry.sh`, holds the proofs against a changed body. They
+are one walk over each generated body, so a walk that could not tell a write before a refusal from none would prove the same
+statements of any body. The script extracts each of the four bodies from the generated file, requires the unmodified copy to be
+accepted by the module's proof, plants one change in a copy (the agreement committed before the AEAD check, the ratchet key
+committed on a Triple refusal, `pending_initial` cleared on a refusal or on a successful encrypt, the established ephemeral
+dropped on a refused repeat, the store changed on a refusal after the inner receive, among twelve) and requires the proof to
+fail with an unsolved goal that shows the planted field. Two of the twelve are in the recorded `encrypt` exception arm (a write
+to `pending_initial`, and a different error); the proof refuses those as an application type mismatch that shows the planted value. Each plant is at a place where the field can differ: two of the ten sit in the second of two
+textual matches, because the first is in the arm of a match on that field where the field is already empty. The controls do not
+test a refusal that rewinds the random source, a success of `decrypt_ratchet` or `decrypt` that writes the ratchet private key
+(those statements allow it), a success of `encrypt` that writes it (no distinct key is in scope to plant), or the exception arm
+taken without the committed state's `Braid::failed` being true. These are proof-dependency controls on copies of the generated Lean, not mutations of the Rust: a
+changed Rust source needs the pinned Linux toolchain to regenerate (`REPRODUCING.md`).
+
+## Proved (restated dispatch records: a view for the send direction, and when the scoped chunk fields can be met)
+
+Location: `Translation/UnitLifecycleRepair.lean`, and `Translation/UnitLifecycleT3.lean` for the definition
+`CodewordViewSendOf` and the lemma `candidate_public_eq_draw`.
+
+Three records of the lifecycle T3 and dispatch layer ask more than a run can supply, on the readings below, so the theorems that
+take them are not claims. None of the readings is a theorem of this tree: each is read from the definition, and the one that
+needs a fact about the primitives names it.
+
+- The `receive` clause of `CodewordViewOf` asks a view to name one source for each wire chunk. Two messages that agree on their
+  first 32 bytes have the same codeword at index 0, so, given that `Encoder::new` returns on both, no view meets the clause.
+- The two chunk fields of `InitialRatchetBraidEvidenceContracts` ask, of every composite, that its chunk be a codeword of the
+  source the decoder holds, including the chunk of a composite no peer sends.
+- Two fields of `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` are quantified over every draw.
+  Read with the oracle's `random32` and `dhPublic` clauses they ask `dhPublic` to take one value over all draws, and the real
+  X25519 public key is not constant, a property no theorem here states.
+
+Each is restated under a new name (`CodewordViewSendOf`, `InitialRatchetBraidEvidenceContractsScoped`,
+`InitialRatchetTripleConcreteEvidenceScoped`, `InitialRatchetAeadConcreteEvidenceScoped`), the dispatch theorems that took the
+old records take the new ones, and the old definitions stay, with their statements unchanged. Two results about the restated records are claimed.
+
+- `codewordViewSendOf_satisfiable`: some `Model.Lifecycle.CodewordView` satisfies `CodewordViewSendOf`. For every Braid
+  state, source and chunk that is a codeword of that source, the view's send of the model chunk (the source and the index) is
+  that chunk's wire codeword. The witness is chosen by classical choice, and the proof uses that the translated encoder is a
+  function, so that a codeword of one source at one index is unique. It takes no hypothesis about any opaque operation. It
+  holds for any deterministic encoder, so it shows that the clause is consistent and states nothing about a property of the
+  shipped one.
+- `scoped_chunk_fields_iff_consistent`: for a Braid state, a wire composite and a model composite related by `CompositeRefines`,
+  some view meets `IncomingChunkRefines` and `HonestChunk` (the two chunk fields of the scoped record, as statements about the
+  state and the two composites) if and only if the run is consistent: the chunk it receives is a codeword of one source, and that
+  source fits the decoder the chunk is fed to. It is a normalisation lemma, whose right side is the left side specialised to a
+  view that names the source. It does not mention the record, the message or `decodeDetailed`, it says nothing about the code, and
+  a well-formed chunk from a dishonest sender is consistent as well. It is not a statement that any real session is.
+
+What these do not show.
+
+- That the theorems taking the restated records are claims. The ten encrypt-side theorems that took `CodewordViewOf` take
+  `CodewordViewSendOf` now, but all but two of them also take `OracleOf`, whose KEM success clause is not shown to hold of the
+  shipped `encapsulate`, so what they say rests on a record that is not shown to hold until that clause is restated or shown. The
+  dispatch theorems that take the Triple, AEAD and Braid evidence records no longer take the old records, but they also take
+  `OracleOf`, and all but `initial_ratchet_refines_of_t1_with_concrete_evidence` also take the same-ephemeral evidence records,
+  which are not shown satisfiable.
+- That the consumer structure is satisfiable. `InitialRatchetConcreteBranchEvidence`, which five dispatch theorems reach through
+  `InitialRatchetEndToEndEvidence` and `SessionDecryptEvidence` (`initial_ratchet_refines_of_t1_with_concrete_evidence`,
+  `decrypt_initial_end_to_end_with_concrete_evidence`, `decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider`,
+  `public_session_decrypt_end_to_end` and its `_with_atomicity` form), asks the scoped Braid record of every inner message that
+  reaches a refusal, an inconsistent message included. An inconsistent message can reach a refusal: `decrypt_ratchet` checks
+  nothing about the agreement chunk before the AEAD tag, and no field of `InitialRatchetRefusalBranchInput` mentions the chunk.
+  For a model Braid state whose decoder holds a chunk, a message whose chunk bytes differ from the held source's codeword at
+  their index cannot meet both `IncomingChunkRefines` and `HonestChunk`, so on that reading the structure is unsatisfiable at
+  such states and the five theorems are not shown non-vacuous there. No Lean statement says this, because no `Session` value
+  can be built in the tree. The unpinned lemma `scoped_record_gives_consistent` ties the record to the consistent-run condition:
+  from the record, a message that decodes to a composite related to the wire composite gives a consistent run, so the structure
+  is satisfiable only if every refused inner message that decodes in that way is a consistent run. Guarding the fields by a
+  consistency premise on the run is the repair, and it changes the signatures of the dispatch theorems that reach the structure.
+- The agreement hypotheses of the Braid in the session unit, which are not decided here.
+
+A view that meets the send clause and the scoped chunk fields of one consistent run together exists
+(`send_and_scoped_chunk_fields_joint`, unpinned), because the two constrain different fields of a `CodewordView`. Whether one
+view meets the scoped fields for every inner message is the consumer-structure item above.
+
+The seven results of the previous section and the T1 results do not depend on any of this. `candidate_public_eq_draw` is the
+lemma that replaces the two dropped draw-quantified fields: the public bytes of the run's candidate ratchet key are
+`oracle.dhPublic` of the run's draw, from the oracle's `random32` and `dhPublic` clauses and the key codec. It is not pinned or
+claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown to hold of the shipped primitives.
+
+Each of the two claimed results carries an axiom pin and its statement pinned under `#guard_msgs in #check`, so a weaker
+statement that keeps its axiom list fails the module while that pin stands. `attest.py` lists them in `REQUIRED_PINS`, which
+requires the axiom pin and not the statement pin; no gate requires a statement pin to exist, so a weaker statement whose statement
+pin is removed in the same commit is accepted once the manifests are regenerated. `check-attest-negatives.sh` deletes each axiom
+pin in turn. `send_and_scoped_chunk_fields_joint` and `scoped_record_gives_consistent` carry no axiom pin and are not on
+`REQUIRED_PINS`.
+`tacenta-proofs/scripts/check-repair-negatives.py`, run from `no-sorry.sh`, holds them against a changed statement: it requires
+the unmodified module and the unmodified lemma to be accepted, then makes one change to a copy (a witness that does not send the
+codeword, a claim of the old two-sided statement, a consistent-run definition without the codeword or without the fit, a weakened
+link between the draw and the candidate key) and requires Lean to refuse it.
 
 ## Proved (bounded P6 session lifecycle observations)
 
