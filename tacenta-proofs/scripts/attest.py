@@ -1593,6 +1593,68 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "vec_zeroize_conflicts",
         "vec_zeroize_satisfiable",
     )]
+    # Statement pins of the Braid agreement witnesses, the erasure field and the lifecycle frame and repair results.
+    + ["Tacenta.UnitBraidEntryPoints.Braid." + n for n in (
+        "receive_refines_given_erasure",
+        "receive_refines_of_laws",
+        "send_refines_given_erasure",
+        "send_refines_of_laws",
+    )]
+    + ["Tacenta.UnitBraidEntryPoints." + n for n in (
+        "defined_hypotheses_given_erasure",
+        "defined_hypotheses_of_laws",
+        "six_receive_witnesses_of_laws",
+        "twelve_states_of_laws",
+    )]
+    + ["Tacenta.UnitErasureRs.Glue." + n for n in (
+        "erasureAgrees",
+        "erasureAgrees_decoder",
+    )]
+    + ["Tacenta.UnitErasureRs." + n for n in (
+        "D_add",
+        "D_message",
+        "E_new",
+        "E_next",
+        "K_algebra",
+        "K_coefficients",
+        "K_evaluate",
+        "K_weights",
+        "M_recover",
+    )]
+    + ["Tacenta.UnitLifecycleAtomicity." + n for n in (
+        "decrypt_err_leaves_state",
+        "decrypt_ok_writes",
+        "decrypt_ratchet_err_leaves_state",
+        "decrypt_ratchet_ok_writes",
+        "encrypt_err_leaves_state",
+        "encrypt_ok_writes",
+        "establish_responder_err_leaves_store",
+    )]
+    + ["Tacenta.UnitLifecycleRepair." + n for n in (
+        "codewordViewSendOf_satisfiable",
+        "scoped_chunk_fields_iff_consistent",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
+        "braid_agreement_shapes_are_predicates",
+        "braid_agreements_have_a_model",
+    )]
+    + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
+        "FeedsDecoder",
+        "Good_iff",
+        "RecvWitness_iff",
+        "ingredients",
+        "initiator_refines",
+        "modelTag",
+        "responder_refines",
+        "six_receive_witnesses",
+        "stateTag",
+        "twelve_states",
+    )]
+    + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
+        "erasureAgrees_encoder",
+        "erasureAgrees_iff_clauses",
+        "erasureCloneAgrees",
+    )]
 )
 
 
