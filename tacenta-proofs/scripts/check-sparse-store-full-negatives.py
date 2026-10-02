@@ -88,10 +88,14 @@ def main() -> None:
     logs.mkdir(parents=True, exist_ok=True)
     source = SOURCE.read_text()
 
-    for anchor in (STATEMENT, BRANCH, BRANCH_HEAD):
-        first = source.find(anchor)
-        if first < 0 or source.find(anchor, first + 1) >= 0:
-            raise SystemExit("Target changed: a store-full anchor is missing or duplicated")
+    # A harmless rewrite of the branch (a renamed hypothesis, a reflowed `simp`) moves an anchor,
+    # and the control then fails closed, naming the anchor to update with the proof edit.
+    stale = [name for name, anchor in (("STATEMENT", STATEMENT), ("BRANCH", BRANCH),
+                                       ("BRANCH_HEAD", BRANCH_HEAD))
+             if source.count(anchor) != 1]
+    if stale:
+        raise SystemExit("Target changed: not exactly once in SpqrT3.lean: " + ", ".join(stale)
+                         + "; update the anchor with the proof edit")
 
     branch_line = source[:source.find(BRANCH_HEAD)].count("\n") + 1
     expected = re.compile(rf":{branch_line}:\d+: error: unsolved goals")

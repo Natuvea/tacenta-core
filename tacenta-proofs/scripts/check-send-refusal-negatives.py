@@ -2,7 +2,7 @@
 """Require Triple send to preserve both leafs' exact refusal reasons.
 
 This is a proof-dependency control, not a protocol/runtime mutation test.
-Dependencies must already be built (`lake build Translation.UnitLifecycleInitialDispatch`).
+Dependencies must already be built (`lake build Translation.UnitTripleT3`).
 No source, olean, or git worktree is changed by this script.
 """
 

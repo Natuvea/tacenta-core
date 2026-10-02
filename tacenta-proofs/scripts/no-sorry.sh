@@ -133,8 +133,9 @@ python3 scripts/check-repair-negatives.py || fail=1
 report_time "restated dispatch record controls" "$t"
 # The composed Triple send theorem must consume the leaf theorem's complete
 # classical refusal result, including the finite-width counter edge.  A
-# disposable mutation restores the old NoSendingChain-only contract and must
-# fail at the exact use which handles the generated error.
+# disposable mutation restores the old NoSendingChain-only contract and a
+# second collapses the sparse map to `noChain`; each must fail at the exact
+# use which handles the generated error.
 t=$SECONDS
 python3 scripts/check-send-refusal-negatives.py || fail=1
 report_time "send refusal proof-dependency control" "$t"
