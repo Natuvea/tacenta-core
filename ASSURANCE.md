@@ -30,9 +30,12 @@ checks and reviews are evidence of what they ran, not independent review.
 
 The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
-target. Gate 2 is not met: five rows are open at BLOCKING in `GAP-REGISTER.md`
-(HL-IMP-01, HL-R1-SPARSE-TRANSLATION, SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY and E2E-01, the last while the
-tacenta.com home page says "proven core"), and INV-01 is open at AMBIGUOUS. Gates 3 and 4 have not been met either; see the readiness section.
+target. Gate 2 is not met: four rows are open at BLOCKING in `GAP-REGISTER.md`
+(HL-R1-SPARSE-TRANSLATION, SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY and E2E-01, the last while the
+tacenta.com home page says "proven core"), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
+`ASSURANCE-OBLIGATIONS.md`. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
+session replay with its listed limits satisfies the row (HL-IMP-01-READER tracks the remaining step), and INV-01 is classified
+NONBLOCKING. Gates 3 and 4 have not been met either; see the readiness section.
 This record does not close a practice or replace the review and evidence
 obligations recorded below.
 
@@ -116,7 +119,7 @@ auditing a ledger that is still moving wastes the engagement.
 
 **Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), and the ML-KEM Braid row reads L3 against an L4 target.
-- Gate 2 is not met. `GAP-REGISTER.md` has five rows open at BLOCKING and one at AMBIGUOUS, and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS.
+- Gate 2 is not met. `GAP-REGISTER.md` has four rows open at BLOCKING, and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence.
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 
