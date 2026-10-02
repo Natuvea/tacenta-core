@@ -142,13 +142,13 @@ check) from `tooling/gate-inventory.json`, `tooling/required-steps.json` and `to
 the file is stale, when a control marked local is run by a CI step, or when a step of the required workflow that runs a command is
 claimed by no row (a step without an id included, and a step that runs a listed script beside an unlisted one is not claimed). A control
 "runs in CI" there when a CI step runs it, directly or through a script that one runs. It says what exists. Whether a control fails when
-it should is the Mutations column: `tooling/mutate-gates.py` applies each of 205 single edits in `tooling/gate-mutations.json` to a
+it should is the Mutations column: `tooling/mutate-gates.py` applies each of 204 single edits in `tooling/gate-mutations.json` to a
 disposable worktree and requires the named control to fail with the diagnostic the edit should trip, then says what the failing case saw:
-the gate accept a wrong input (141 edits), another wrong verdict, an honest input refused or a count or a call wrong (49), or only a
+the gate accept a wrong input (136 edits), another wrong verdict, an honest input refused or a count or a call wrong (53), or only a
 changed message. A changed message is listed with its reason or fails the run; 11 edits are listed as equivalent (their verdict cannot change)
 and 4 as uncovered (a known gap). ([GATE-MUTATION-RECORD.md](tacenta-proofs/GATE-MUTATION-RECORD.md) has the run.) `--guards FILE... --verdict` removes each
 failure guard of a gate in turn and reports the guards whose removal no control notices, and those whose removal changes only a diagnostic. In the
-tree as committed the inventory has 69 rows: 33 with a control in CI, 24 with a control that runs only locally and 12 with none.
+tree as committed the inventory has 71 rows: 56 with a control in CI, 3 with a control that runs only locally and 12 with none.
 
 What the pass added, by where it runs.
 

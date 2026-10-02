@@ -331,8 +331,8 @@ CI runs it. `tooling/tests/run-mutate-gates-cases.sh` holds the harness to eleve
 
 Run on the tree this section was added to (the harness reads the commit it is run in, so the controls and the gates were the committed
 ones; only the documents changed afterwards), on macOS (Apple silicon), bash 3.2, Python 3.9 with PyYAML, Lean v4.31.0, on a machine
-shared with other builds. All 205 edits turn their control red. For 141 a case saw the gate accept an input it must
-refuse; for 49 a case saw another wrong verdict; 15 change only a diagnostic or survive
+shared with other builds. All 204 edits turn their control red. For 136 a case saw the gate accept an input it must
+refuse; for 53 a case saw another wrong verdict; 15 change only a diagnostic or survive
 and are listed below as equivalent or uncovered, with the reason each cannot be seen. 0 turned the control red for another reason than the one named.
 
 Rows of the 2026-09-30 table that survived then and have a case now: `S2`, `S4`, `S5` (the sign-off check), `CT1` to
