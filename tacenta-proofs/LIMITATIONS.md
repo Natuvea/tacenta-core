@@ -2456,28 +2456,57 @@ under the hypotheses in its statement. This section lists what they assume.
 **Assumed, about opaque operations.** `DecryptOracleOf` is the four clauses of `OracleOf` the transaction uses: the DH
 public key and the DH agreement of `tacenta_boundary::dh`, the AEAD open of `tacenta_boundary::aead`, and the 32-byte draw
 of `random_secret` from the caller's random source. `DhCodecOf` says the byte views of the two opaque key types agree with
-`PrivateKey::from_bytes`, `PublicKeyBytes::from_bytes` and `PublicKeyBytes::as_bytes`. `DecryptRatchetAgreements` assumes
+`PrivateKey::from_bytes`, `PublicKeyBytes::from_bytes` and `PublicKeyBytes::as_bytes`; it makes `PrivateKey::from_bytes`
+injective on bytes, which holds of the locked `x25519-dalek 2.0.1` because `StaticSecret::from` stores the bytes unchanged
+and clamps at use, and would stop holding of a release that clamps at construction. `DecryptRatchetAgreements` assumes
 round trips of the opaque `zeroize::Zeroizing` wrapper at 32, 64, 80 and 96 bytes, the HMAC and HKDF agreements with
-`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), and the KEM agreements of the Braid section above. None
-is shown of the real X25519, AEAD, KDF, ML-KEM or `zeroize` code. What is shown is that they are consistent: one
-interpretation of the unit's opaque constants, `Interp.modelDecrypt` (`Translation/UnitLifecycleDecryptRatchetScreen.lean`),
-satisfies all of them together with the axiom-level fields of the session records and the laws above, with an agreement
-that refuses the all-zero key and an AEAD that refuses the empty ciphertext. That is the substitution argument above, about
-derivations and not inside Lean. `DhCodecOf` and the DH and AEAD clauses had no model before this result.
+`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), and the KEM agreements of the Braid section above. Those
+include `ValidateEkAgrees K`, which holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
+coefficient check, so the model step this theorem relates to is the model run with that `K`. None is shown of the real
+X25519, AEAD, KDF, ML-KEM or `zeroize` code. What is shown is that they are consistent: one interpretation of the unit's
+opaque constants, `Interp.modelDecrypt` (`Translation/UnitLifecycleDecryptRatchetScreen.lean`), satisfies all of them
+together with the axiom-level fields of the session records and the laws above, with an agreement that refuses the
+all-zero key and an AEAD that refuses the empty ciphertext. That is the substitution argument above, about derivations
+and not inside Lean; `decrypt_ratchet_refines_from_shapes` composes the shapes with the run inside Lean, so the
+substitution step itself is the only part outside it. `DhCodecOf` and the DH and AEAD clauses had no model before this
+result.
+
+**Assumed, about the session contract records.** The theorem takes `DecryptRatchetContracts` and the class
+`DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields
+are stronger than the crate supports: `SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the
+`Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize` return for every
+`Zeroize` record, including one whose `zeroize` fails, and the real functions do not (the paragraph "Three fields are
+stronger than the crate supports"). The unit calls them only at instances that return. The proof of this theorem uses all
+three, so it cannot be applied to the shipped functions until they are restated at those instances. The records also hold
+`Random32Total` and `MessageKeyMaterialRoundTrip`, a round trip of the `zeroize::Zeroizing` wrapper at a tuple of three
+arrays.
 
 **Assumed, about translated functions.** `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`
 are statements about the session unit's sparse ratchet that it takes as assumptions (`GAP-REGISTER.md`, row
 `SESSION-SPARSE-AGREEMENTS`); the screen does not decide them. `ErasureAgrees` follows from the two laws above.
 
+**The random source.** The random source holds at least one draw; the model's ceiling refusal for an exhausted source has
+no Rust counterpart. The source is read through a function `trace` that gives the draws left in its value, so the theorem
+applies to a source whose value carries them, as the byte-stream source of the screen does. A source with no state of its
+own, such as `OsRng` or the handle `ThreadRng` holds, returns the same value after a draw, and `DecryptOracleOf.random32`
+and the draw field of `DecryptRatchetRun` cannot both hold for it. So the shipped call with such a source is outside the
+formal statement, and is related to this theorem only by an argument outside Lean that takes the bytes the source returns
+during the call as its draws. The same holds for every `OracleOf` theorem of the lifecycle layer.
+
 **Per run.** The run's agreement chunk is a codeword of one source that fits the decoder it is fed to (`IncomingChunkRefines`,
 `HonestChunk`), so a run whose chunk is spliced or inconsistent is outside the theorem whether it is refused or accepted.
-The random source holds one draw; the model's ceiling refusal for an exhausted source has no Rust counterpart. Each
-skipped-key store is at most `2^32 - 1 - 2000` long, and the model state's counters and epochs meet `RetryReceiveBounds`.
-Two runs meet all of these, one whose model step refuses and one whose model step succeeds, at both platform widths.
+Each skipped-key store is at most `2^32 - 1 - 2000` long. The model state meets `RetryReceiveBounds`: its event counter,
+epochs and chain counters leave room, its chain table has room for two more entries, and at most one skipped key in each
+store matches the header (`Ratchet::invariant` and `State::invariant` supply the last; the event bound is one stricter than
+the invariant's). Three runs meet all of these at both platform widths: one whose model step refuses at the first agreement,
+one whose model step succeeds without an eviction round, and one whose stores are non-empty and whose model step enters the
+eviction retry loop and takes its retry branch. Each shows the model side of the run, not which branch the shipped code
+takes.
 
 **The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
-nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). A
-refusal refinement of one Triple receive at related states would close it.
+nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). The
+predicate constrains only the generated output, so it can hold where the model's step succeeds. A refusal refinement of
+one Triple receive at related states would close it.
 
 **How the proof reaches the model loop.** `Model/Lifecycle.lean` keeps the fuel-indexed retry loop private. One lemma,
 `receiveWithEvictionLoopResult_stop`, names it through Batteries' `open private` to prove that a retry refused for a reason
