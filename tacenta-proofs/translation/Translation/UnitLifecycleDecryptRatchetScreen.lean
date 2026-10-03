@@ -47,13 +47,18 @@ a skipped key, so neither reaches the eviction retry loop.
 
 `hypotheses_meet_eviction_round`: the per-run hypotheses hold at a third run whose classical store
 holds 1001 keys and whose sparse store holds one; the model's first Triple receive there refuses with
-the classical full store, and its retry loop evicts one key and takes its retry branch
-(`evict_first_attempt_full`).  A run record that asked both stores to be empty would be refused here.
+the classical full store, the first batch is one key and the first eviction removes one
+(`evict_first_attempt_full`).  With part B's oracle the model step passes the agreements and the draw
+before the loop (`evict_reaches_receive`), and the loop then evicts one key and retries on the evicted
+state (`evict_loop_first_round`).  No theorem here states the outcome of that retry, and no run here
+reaches an empty eviction, a second round or a switch between the two stores.  A run record that asked
+both stores to be empty would be refused here.
 
 ## E. The boundary model and the run, composed
 
-`decrypt_ratchet_refines_from_shapes`: the boundary shapes of part B, read at the real constants, and
-the two sparse agreements give every hypothesis of `decrypt_ratchet_refines` at part A's run.
+`decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`: the
+boundary shapes of part B, read at the real constants, and the two sparse agreements give every
+hypothesis of `decrypt_ratchet_refines` at part A's run and at part D's.
 
 ## What this does not show
 
@@ -61,7 +66,10 @@ That a run carrying a chunk meets the record (the witnesses have no chunk, and `
 its vacuous arm there; `UnitSatisfiabilityBraidStates` has witnesses with data for the Braid relations
 alone).  Which branch the shipped code takes at any of the runs: the oracle clauses hold of part B's
 oracle, not at the real constants, so parts C and D show the model side.  The two sparse agreements.
-Anything about the real primitives.
+Anything about the real primitives.  That a session the shipped code accepts reaches these branches:
+the witness states are built for the theorem's hypotheses and not for `Ratchet::invariant`, which
+refuses part D's classical store (it repeats one key) and the receiving chain without a sending chain
+of the second and third runs.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -820,8 +828,10 @@ Neither run of parts A and C holds a skipped key, so neither reaches the retry l
 its classical store holds 1001 keys (under another ratchet key) and its sparse store one, and its
 message is message number 1000 on the classical chain.  The model's first Triple receive refuses
 with the classical full store (1001 kept keys and 1000 new ones pass the cap of 2000), the first
-batch is one key, and the first eviction removes one key, so the loop's retry branch runs.  The run
-meets every per-run hypothesis, at both platform widths (no proof here chooses a width). -/
+batch is one key, and the first eviction removes one key, so, by the definition of the model loop,
+its retry branch runs (`evict_loop_first_round`).  The run meets every per-run hypothesis, at both
+platform widths (no proof here chooses a width).  Its states meet the theorem's hypotheses, not
+`Ratchet::invariant`. -/
 
 /-- The stored classical key the run's store repeats: under the all-zero ratchet key, so the
 message's skip keeps it. -/
@@ -829,12 +839,13 @@ def evictEntry : tacenta_ratchet.SkippedKey :=
   { dh := zeros32, n := 0#u32, stored_at := 0#u32, key := zeros32 }
 
 /-- The side condition of the classical store, as a constant. -/
-theorem evictStoreLe : (List.replicate 1001 evictEntry).length ≤ 4294967295 := by simp [-List.reduceReplicate, -List.reduceReplicate]
+theorem evictStoreLe : (List.replicate 1001 evictEntry).length ≤ 4294967295 := by
+  simp [-List.reduceReplicate]
 
 /-- The stored sparse key: epoch 0, message number 7. -/
 def evictSparseEntry : tacenta_spqr.Skipped := { epoch := 0#u64, n := 7#u64, key := zeros32 }
 
-theorem evictSparseLe : [evictSparseEntry].length ≤ 4294967295 := by simp [-List.reduceReplicate, -List.reduceReplicate]
+theorem evictSparseLe : [evictSparseEntry].length ≤ 4294967295 := by simp
 
 /-- `succTriple` with 1001 classical skipped keys and one sparse one. -/
 def evictTriple : tacenta_triple.State :=
@@ -956,7 +967,8 @@ theorem evict_run_satisfiable (K : Model.Braid.Kem) (dh : DhView)
 /-- **The model's first Triple receive at the run refuses with the classical full store**, for
 every pair of agreement outputs, new public key and sparse output: the 1001 kept keys and the 1000
 the message would add pass the cap of 2000.  The first batch is one key, and the first eviction
-removes one key, so the model's retry loop takes its retry branch. -/
+removes one key, so, by the definition of the model loop, its retry branch runs
+(`evict_loop_first_round`). -/
 theorem evict_first_attempt_full (dh : DhView) (sk : tacenta_boundary.dh.PrivateKey)
     (pk : tacenta_boundary.dh.PublicKeyBytes) (dhOutRecv dhOutSend newDhsPub : Model.Lifecycle.Key)
     (output : Option Model.SparseRatchet.Output) :
@@ -987,6 +999,107 @@ theorem evict_first_attempt_full (dh : DhView) (sk : tacenta_boundary.dh.Private
     simp [evictComposite, Model.State.maxSkippedStore]
   · simp only [Model.Triple.evictOldestClassical]
     exact Model.Ratchet.evictOldest_one_nonempty _ (by rw [hstore]; simp [-List.reduceReplicate])
+
+/-- **The model step at the run reaches the Triple receive with eviction**, with part B's oracle:
+the terminal guard passes, the message decodes, the first agreement, the draw and the second
+agreement all return. -/
+theorem evict_reaches_receive (dh : DhView) (sk : tacenta_boundary.dh.PrivateKey)
+    (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    let oracle := oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)
+    Model.Lifecycle.agreementFailed (modelOf dh (evictReal sk pk)) = false ∧
+    Model.CompositeHeader.decodeDetailed (sliceOf evictMessage) = .ok (evictComposite, [7]) ∧
+    (∃ d, oracle.dhAgree (modelOf dh (evictReal sk pk)).ratchetPrivate evictComposite.dh = some d) ∧
+    (∃ c o, Model.Lifecycle.random32 oracle = some (c, o) ∧
+      ∃ d, oracle.dhAgree c evictComposite.dh = some d) := by
+  intro oracle
+  have hne : ¬ evictComposite.dh = arrayOf zeros32 := by
+    simp [evictComposite, arrayOf, zeros32, Array.repeat, Tacenta.SessionUnitBraidT3.u8]
+  refine ⟨rfl, evict_decode_model, ?_, ?_⟩
+  · simp [oracle, oracleDecrypt, hne]
+  · simp [oracle, Model.Lifecycle.random32, Model.Lifecycle.takeDraw, sample_trace, oracleDecrypt, hne]
+
+open private receiveWithEvictionLoop from Model.Lifecycle in
+/-- The model's `receiveWithEviction`, one round unfolded, at any state whose first receive refuses
+with the classical full store, whose first batch is one key and whose first eviction removes a key:
+the next step is the receive on the evicted state. -/
+theorem receiveWithEviction_first_round (T : Model.Triple.State)
+    (comp : Model.CompositeHeader.Composite) (H : Model.Triple.Header) (d1 d2 c : Model.Lifecycle.Key)
+    (o : Option Model.SparseRatchet.Output) (fuel : Nat)
+    (h1 : Model.Triple.receiveDetailed T H d1 d2 c o = .error (.classical .skippedStoreFull))
+    (h3 : Model.Lifecycle.receiveShortfall .classical T comp = 1)
+    (h4 : (Model.Triple.evictOldestClassical T 1).2 ≠ 0)
+    (hfuel : Model.Triple.classicalSkippedLength T + Model.Triple.postQuantumSkippedLength T + 1 =
+      fuel + 1) :
+    Model.Lifecycle.receiveWithEviction T comp H d1 d2 c o =
+      match Model.Triple.receiveDetailed (Model.Triple.evictOldestClassical T 1).1 H d1 d2 c o with
+      | Except.ok result => Except.ok result
+      | Except.error reason =>
+          match Model.Lifecycle.fullStore reason with
+          | none => Except.error reason
+          | some next =>
+              if next = .classical then
+                receiveWithEvictionLoop (Model.Triple.evictOldestClassical T 1).1 comp H
+                  d1 d2 c o reason next (1 * 2) fuel
+              else
+                receiveWithEvictionLoop (Model.Triple.evictOldestClassical T 1).1 comp H
+                  d1 d2 c o reason next
+                  (Model.Lifecycle.receiveShortfall next
+                    (Model.Triple.evictOldestClassical T 1).1 comp) fuel := by
+  unfold Model.Lifecycle.receiveWithEviction
+  rw [h1]
+  simp only [Model.Lifecycle.fullStore, h3, hfuel]
+  rw [receiveWithEvictionLoop]
+  simp only [h4, if_false]
+  rfl
+
+open private receiveWithEvictionLoop from Model.Lifecycle in
+/-- **At the run, the model's retry loop takes one round**: it is entered at fuel 1003 with batch
+one, the first round evicts one key, and the next step is the retry receive on the evicted state.
+What that retry returns is not stated here. -/
+theorem evict_loop_first_round (dh : DhView) (sk : tacenta_boundary.dh.PrivateKey)
+    (pk : tacenta_boundary.dh.PublicKeyBytes) (d1 d2 c : Model.Lifecycle.Key)
+    (o : Option Model.SparseRatchet.Output) :
+    (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).2 = 1 ∧
+    Model.Lifecycle.receiveWithEviction (modelOf dh (evictReal sk pk)).triple evictComposite
+        (Model.Lifecycle.tripleHeaderOf evictComposite) d1 d2 c o =
+      match Model.Triple.receiveDetailed
+          (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).1
+          (Model.Lifecycle.tripleHeaderOf evictComposite) d1 d2 c o with
+      | Except.ok result => Except.ok result
+      | Except.error reason =>
+          match Model.Lifecycle.fullStore reason with
+          | none => Except.error reason
+          | some next =>
+              if next = .classical then
+                receiveWithEvictionLoop
+                  (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).1
+                  evictComposite (Model.Lifecycle.tripleHeaderOf evictComposite)
+                  d1 d2 c o reason next (1 * 2) 1002
+              else
+                receiveWithEvictionLoop
+                  (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).1
+                  evictComposite (Model.Lifecycle.tripleHeaderOf evictComposite)
+                  d1 d2 c o reason next
+                  (Model.Lifecycle.receiveShortfall next
+                    (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).1
+                    evictComposite) 1002 := by
+  obtain ⟨h1, -, h3, h4⟩ := evict_first_attempt_full dh sk pk d1 d2 c o
+  have hc : Model.Triple.classicalSkippedLength (modelOf dh (evictReal sk pk)).triple = 1001 := by
+    simp [Model.Triple.classicalSkippedLength, modelOf, evictReal, evictTriple,
+      Tacenta.SessionUnitTripleT3.ratchetAbs, Tacenta.UnitHeadroomSatisfiable.vecOf,
+      -List.reduceReplicate]
+  have hp : Model.Triple.postQuantumSkippedLength (modelOf dh (evictReal sk pk)).triple = 1 := by
+    simp [Model.Triple.postQuantumSkippedLength, modelOf, evictReal, evictTriple,
+      Tacenta.SessionUnitTripleT3.spqrAbs, Tacenta.UnitHeadroomSatisfiable.vecOf,
+      -List.reduceReplicate]
+  have h4' : (Model.Triple.evictOldestClassical (modelOf dh (evictReal sk pk)).triple 1).2 ≠ 0 := by
+    rw [h4]; decide
+  have hf : Model.Triple.classicalSkippedLength (modelOf dh (evictReal sk pk)).triple +
+      Model.Triple.postQuantumSkippedLength (modelOf dh (evictReal sk pk)).triple + 1 =
+        1002 + 1 := by
+    rw [hc, hp]
+  exact ⟨h4, receiveWithEviction_first_round ((modelOf dh (evictReal sk pk)).triple) evictComposite
+    (Model.Lifecycle.tripleHeaderOf evictComposite) d1 d2 c o 1002 h1 h3 h4' hf⟩
 
 /-- **The per-run hypotheses hold at a run that reaches the eviction retry loop**, with part B's
 oracle, at both platform widths.  This shows the model side of the run, as parts A and C do. -/
@@ -1091,6 +1204,57 @@ theorem decrypt_ratchet_refines_from_shapes
     ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
       hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
   exact decrypt_ratchet_refines_at_sample dh view oracle hdraws oracleOf codec contracts agreements
+    sk pk
+
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+/-- The same composition at part D's run, the one that reaches the eviction retry loop. -/
+theorem decrypt_ratchet_refines_from_shapes_at_eviction
+    (dh : DhView) (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (hdraws : oracle.draws = Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)
+    (hA : AllT1Shapes Interp.real) (hL : StdLaws Interp.real)
+    (hTP : TruncatePrefixShape Interp.real)
+    (hD : ZeroizingModelShape Interp.real DerivedZ)
+    (hT : T3Agreements Interp.real oracle.braidKem) (hZ : ZeroizeRoundTripShapes Interp.real)
+    (hC : DhCodecOfShape Interp.real ⟨dh.privateKey, dh.publicKey⟩)
+    (hO : DecryptOracleShape Interp.real ⟨dh.privateKey, dh.publicKey⟩
+      Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+      Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle)
+    (vr : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (rm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc (evictReal sk pk) evictMessage sampleRng =
+          ok output ∧
+      (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+          (Model.Lifecycle.decryptRatchet view oracle (modelOf dh (evictReal sk pk))
+            (sliceOf evictMessage)) ∨
+        TripleRefusalOpen output) := by
+  have hb := decrypt_shapes_are_predicates
+  have oracleOf := (hb.2.1 Tacenta.UnitLifecycleIntegrationScreen.byteRng
+    Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+    Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle).2 hO
+  have codec := (hb.1 dh).2 hC
+  have hz := hb.2.2.2 hZ
+  have r32 : Tacenta.UnitLifecycleT1.Random32Total Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    fun _ _ _ => ⟨_, rfl⟩
+  have ax : DecryptAxiom Interp.real Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    ⟨hA.dhCodec, hA.dhAgree, hA.aeadOpen, r32,
+      ⟨hA.ct1Len, hA.ct2Len, hA.headerLen, hA.ekVectorLen, hA.keyPairEkVector,
+        hA.keyPairDecapsulate, hA.hkdf, hA.hmac, hA.validateEk, hA.encapsulate2, hA.keyPairClone,
+        hA.encapsStateClone, hA.optionClone, hA.zeroizingArray, hA.arrayZeroize, hA.rangeFullIndex⟩,
+      ⟨hA.hmac, hA.hkdf, hA.zeroizingTotal, hA.spqrZeroize, hA.vecRetainAxiom, hA.optionClone,
+        trivial⟩,
+      hA.messageKeyMaterial⟩
+  have contracts := Tacenta.UnitSatisfiabilityRecords.decrypt_contracts_of_axiom_base
+    Tacenta.UnitLifecycleIntegrationScreen.byteRng ax hL
+  have er : Tacenta.SessionUnitBraidT3.ErasureAgrees :=
+    Tacenta.UnitErasureRs.Glue.erasureAgrees hA.divCeilValue hTP
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := hD.toDerived
+  have agreements : DecryptRatchetAgreements oracle.braidKem :=
+    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
+      hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
+  exact decrypt_ratchet_refines_at_eviction dh view oracle hdraws oracleOf codec contracts agreements
     sk pk
 
 end Tacenta.UnitLifecycleDecryptRatchetScreen
@@ -2288,3 +2452,261 @@ Model.CompositeHeader.encode Tacenta.UnitLifecycleDecryptRatchetScreen.evictComp
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetScreen.evictBytes
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.evict_reaches_receive' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kem.EncapsState,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetScreen.evict_reaches_receive
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetScreen.evict_reaches_receive : ∀ (dh : DhView) (sk : tacenta_boundary.dh.PrivateKey)
+  (pk : tacenta_boundary.dh.PublicKeyBytes),
+  have oracle :=
+    Tacenta.UnitLifecycleDecryptRatchetScreen.oracleDecrypt
+      (Tacenta.UnitLifecycleIntegrationScreen.byteTrace Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng);
+  Model.Lifecycle.agreementFailed
+        (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+          (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)) =
+      false ∧
+    Model.CompositeHeader.decodeDetailed (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage) =
+        Except.ok (Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite, [7]) ∧
+      (∃ d,
+          oracle.dhAgree
+              (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                  (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).ratchetPrivate
+              Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite.dh =
+            some d) ∧
+        ∃ c o,
+          Model.Lifecycle.random32 oracle = some (c, o) ∧
+            ∃ d, oracle.dhAgree c Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite.dh = some d
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetScreen.evict_reaches_receive
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.receiveWithEviction_first_round' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetScreen.receiveWithEviction_first_round
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetScreen.receiveWithEviction_first_round : ∀ (T : Model.Triple.State)
+  (comp : Model.CompositeHeader.Composite) (H : Model.Triple.Header) (d1 d2 c : Model.Lifecycle.Key)
+  (o : Option Model.SparseRatchet.Output) (fuel : ℕ),
+  Model.Triple.receiveDetailed T H d1 d2 c o =
+      Except.error (Model.Triple.ReceiveRefusal.classical Model.Ratchet.ReceiveRefusal.skippedStoreFull) →
+    Model.Lifecycle.receiveShortfall Model.Lifecycle.FullStore.classical T comp = 1 →
+      (Model.Triple.evictOldestClassical T 1).2 ≠ 0 →
+        Model.Triple.classicalSkippedLength T + Model.Triple.postQuantumSkippedLength T + 1 = fuel + 1 →
+          Model.Lifecycle.receiveWithEviction T comp H d1 d2 c o =
+            match Model.Triple.receiveDetailed (Model.Triple.evictOldestClassical T 1).1 H d1 d2 c o with
+            | Except.ok result => Except.ok result
+            | Except.error reason =>
+              match Model.Lifecycle.fullStore reason with
+              | none => Except.error reason
+              | some next =>
+                if next = Model.Lifecycle.FullStore.classical then
+                  Model.Lifecycle.receiveWithEvictionLoop✝ (Model.Triple.evictOldestClassical T 1).1 comp H d1 d2 c o
+                    reason next (1 * 2) fuel
+                else
+                  Model.Lifecycle.receiveWithEvictionLoop✝ (Model.Triple.evictOldestClassical T 1).1 comp H d1 d2 c o
+                    reason next (Model.Lifecycle.receiveShortfall next (Model.Triple.evictOldestClassical T 1).1 comp)
+                    fuel
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetScreen.receiveWithEviction_first_round
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.evict_loop_first_round' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kem.EncapsState,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetScreen.evict_loop_first_round
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetScreen.evict_loop_first_round : ∀ (dh : DhView) (sk : tacenta_boundary.dh.PrivateKey)
+  (pk : tacenta_boundary.dh.PublicKeyBytes) (d1 d2 c : Model.Lifecycle.Key) (o : Option Model.SparseRatchet.Output),
+  (Model.Triple.evictOldestClassical
+          (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+              (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+          1).2 =
+      1 ∧
+    Model.Lifecycle.receiveWithEviction
+        (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+            (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+        Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite
+        (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite) d1 d2 c o =
+      match
+        Model.Triple.receiveDetailed
+          (Model.Triple.evictOldestClassical
+              (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                  (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+              1).1
+          (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite) d1 d2 c o with
+      | Except.ok result => Except.ok result
+      | Except.error reason =>
+        match Model.Lifecycle.fullStore reason with
+        | none => Except.error reason
+        | some next =>
+          if next = Model.Lifecycle.FullStore.classical then
+            Model.Lifecycle.receiveWithEvictionLoop✝
+              (Model.Triple.evictOldestClassical
+                  (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                      (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+                  1).1
+              Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite
+              (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite) d1 d2 c o reason
+              next (1 * 2) 1002
+          else
+            Model.Lifecycle.receiveWithEvictionLoop✝
+              (Model.Triple.evictOldestClassical
+                  (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                      (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+                  1).1
+              Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite
+              (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite) d1 d2 c o reason
+              next
+              (Model.Lifecycle.receiveShortfall next
+                (Model.Triple.evictOldestClassical
+                    (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                        (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)).triple
+                    1).1
+                Tacenta.UnitLifecycleDecryptRatchetScreen.evictComposite)
+              1002
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetScreen.evict_loop_first_round
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.aead.encrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_boundary.dh.is_prime_order_public,
+ tacenta_boundary.kem.KeyPair,
+ tacenta_boundary.kem.decapsulate,
+ tacenta_boundary.kem.encapsulate,
+ tacenta_boundary.xeddsa.verify,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction : ∀ (dh : DhView)
+  (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle),
+  oracle.draws = Tacenta.UnitLifecycleIntegrationScreen.byteTrace Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng →
+    Tacenta.UnitSatisfiabilityBraidAgreements.AllT1Shapes Tacenta.UnitSatisfiabilityJoint.Interp.real →
+      Tacenta.UnitSatisfiabilityJoint.StdLaws Tacenta.UnitSatisfiabilityJoint.Interp.real →
+        Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefixShape Tacenta.UnitSatisfiabilityJoint.Interp.real →
+          ∀
+            (hD :
+              Tacenta.UnitSatisfiabilityJoint.ZeroizingModelShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+                Tacenta.UnitSatisfiabilityJoint.DerivedZ),
+            Tacenta.UnitSatisfiabilityBraidAgreements.T3Agreements Tacenta.UnitSatisfiabilityJoint.Interp.real
+                oracle.braidKem →
+              Tacenta.UnitLifecycleDecryptRatchetScreen.ZeroizeRoundTripShapes
+                  Tacenta.UnitSatisfiabilityJoint.Interp.real →
+                Tacenta.UnitLifecycleDecryptRatchetScreen.DhCodecOfShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+                    { privateKey := dh.privateKey, publicKey := dh.publicKey } →
+                  Tacenta.UnitLifecycleDecryptRatchetScreen.DecryptOracleShape
+                      Tacenta.UnitSatisfiabilityJoint.Interp.real
+                      { privateKey := dh.privateKey, publicKey := dh.publicKey }
+                      Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                      Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle →
+                    Tacenta.SessionUnitSpqrT3.VecRetainAgrees →
+                      Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees →
+                        ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
+                          ∃ output,
+                            lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                  (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)
+                                  Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage
+                                  Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
+                                ok output ∧
+                              (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+                                  (Model.Lifecycle.decryptRatchet view oracle
+                                    (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                                      (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk))
+                                    (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage)) ∨
+                                TripleRefusalOpen output)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction
+
+/--
+info: def Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage : Slice U8 :=
+Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes Tacenta.UnitLifecycleDecryptRatchetScreen.evictBytes
+  Tacenta.UnitLifecycleDecryptRatchetScreen.evictBytes_le
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage
