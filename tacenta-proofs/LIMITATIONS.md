@@ -2149,8 +2149,9 @@ contradictory, or the old KEM field. The dispatch theorems take per-run evidence
 whose agreement chunk is consistent and not for a run whose chunk is not, refused or accepted; of its scoped Braid
 record only the two chunk fields are decided. The oracle's restated KEM and signing clauses follow from laws read
 from the source and have a model with a refused key. The restated KEM success clause binds the code only where the
-model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses are not
-shown to hold, and the per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
+model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses, and
+the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below). The
+per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
 model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
 lemmas cover a refused message only if the agreement chunk it carries is a codeword of one source that fits the
@@ -2365,6 +2366,56 @@ files (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`, `SessionUnitTripleT1`, `Session
 dispatch and record files needed an edit. One failure was not mechanical: with the chain table alone,
 `skip_message_keys_no_panic` stopped building, because its proof applies the conjunct to the skipped-key store as well.
 The trial is not part of this change, and the numbers are from that one build.
+
+### The clauses of `OracleOf`: inhabited under eleven laws, and what that means
+
+`OracleOf` (`UnitLifecycleT3.lean`) is the record the dispatch theorems take to tie the model's lifecycle oracle to the
+translated primitives. `UnitOracleJoint.lean` shows it inhabited as a whole (`oracleOf_of_laws`) and adds a stronger
+record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `kemValid` and not by its prediction
+(`oracleOfGuarded_of_laws`). Both are theorems at the real constants under eleven laws, `OracleLaws`
+(`oracleLaws_real_iff`):
+
+| Law | Statement | Status |
+|---|---|---|
+| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns (the AEAD seal with its length bound) | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above) |
+| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved |
+| `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; true of the real types, which wrap 32 bytes, by reading |
+| `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; true of the real type, a serialised key pair, by reading |
+
+The two view laws are conditions on the views a caller passes, not on the primitives. Every clause of `OracleOf` says
+that a primitive returns and that the view of its result depends only on the views of its arguments; without an
+injective view a primitive could give two keys with the same bytes different answers, and no oracle could match it. Lean
+cannot show that an injective view of an opaque type exists at the real constants; the joint model has one.
+
+**What is shown about the laws.** `oracleLaws_hold_jointly` and `oracleOf_joint_model` exhibit one interpretation of the
+opaque constants (`InterpO.model`, `UnitOracleModel.lean`) that meets the eleven laws, the axiom base of the four
+records (`AxiomBase`), the DH codec and `GenerateFillsOnce64` together, and in which the twelve clauses and the guarded
+clause hold for an oracle that refuses an input of each primitive that can refuse and whose KEM encapsulates at an
+accepted key. The interpretation extends the joint one of the previous subsection by `xeddsa::sign`, which no record
+reached before, and changes the DH and KEM key types from `Unit` to 32-byte arrays so that the DH codec can hold. Its
+primitives are toys: agreement is an exclusive or, sealing puts a zero byte in front, the KEM secret is its random
+input, and a signature is the secret followed by zeros. They refuse and round trip as the real ones do, and are not
+secure.
+
+**The sense.** The same as for the records: `oracleOf_of_laws` holds under the laws for every assignment of the opaque
+constants, and the laws hold under one, so a derivation of `False` from them at the real constants would become a
+derivation of `False` from facts true in the model once the constants are replaced. That step is an argument about
+derivations and not a theorem inside Lean. It does not say that the real primitives meet the laws or that the oracle
+computes X25519, the identity-key rule, the AEAD, ML-KEM or XEdDSA.
+
+**What is not covered.**
+
+- Only the byte-stream source (`byteRng`, `byteTrace`, from the integration screen). `OracleOf` reads the RNG through a
+  trace of 32-byte draws, and nothing here concerns another source, the operating system's generator included.
+- No consumer takes `OracleOfGuarded`. The dispatch theorems take `OracleOf`, whose KEM success clause binds the code only
+  where the model predicts a success. The recommended migration is to move `OracleOfGuarded` next to `OracleOf` and have
+  the consumers take it, using `.toOracleOf` where they need the old record; `kemClauses_of_guarded` shows the old clause
+  follows. Not done here.
+- The other records the dispatch theorems take (the per-run evidence, the counted Braid agreement) are not decided here,
+  so these results alone do not make any dispatch theorem non-vacuous (`GAP-REGISTER.md`, row
+  `DISPATCH-EVIDENCE-VACUITY`).
+- `OracleOf` still leaves the oracle's `dhAgree` free off 32-byte arguments (`E2E-04-SAME-EPHEMERAL-MODEL`); deciding its
+  clauses does not change that.
 
 ### The Braid's preservation theorems: one new law on each translation, and what they do not cover
 

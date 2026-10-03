@@ -416,6 +416,59 @@ AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_ful
 UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view sameEphemeralAgreement_unconstrained concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
 LIST
 
+# The joint decision of the clauses of `OracleOf` (UnitOracle*.lean): every axiom pin deleted in turn,
+# and every definition pin and the statement pin of each result of the joint module.
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "required-pin-deleted-$file-$n" "\`$ns.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+  done
+done <<'LIST'
+UnitOracleShape Tacenta.UnitOracleShape isValidIdentityKey_is oracleOf_iff_shape oracleOfShape_iff_clauses dhCodecOf_iff_shape generateFillsOnce64_iff_shape liftView_spec dhPublicClause_of_laws dhAgreeClause_of_laws identityValidClause_of_laws aeadSealClause_of_laws aeadOpenClause_of_laws kemDecapsulateClause_of_laws sigVerifyClause_of_laws
+UnitOracleModel Tacenta.UnitOracleModel modelO_axiomBase modelO_laws
+UnitOracleDh Tacenta.UnitOracleDh dh_clauses_in_model
+UnitOracleAead Tacenta.UnitOracleAead aead_clauses_in_model
+UnitOracleKemSig Tacenta.UnitOracleKemSig oracleOfGuarded_iff_shape kemGuardedClause_of_law kemClauses_of_guarded never_encapsulating_meets_kemClauses never_encapsulating_fails_guarded guarded_separates_never_encapsulating kem_sig_clauses_in_model
+UnitOracleJoint Tacenta.UnitOracleJoint oracleLaws_real_iff oracleOfShape_of_oracleLaws oracleOfGuarded_of_laws oracleOf_of_laws oracleLaws_hold_jointly oracleOf_joint_model oracleOf_inhabited_jointly
+LIST
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "statement-pin-deleted-$ns.$n" "\`$ns.$n\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+  done
+done <<'LIST'
+UnitOracleShape Tacenta.UnitOracleShape DhViewInjective KemViewInjective GenerateFillsOnce64Shape oracleOfLaws DhPublicClause DhAgreeClause IdentityValidClause AeadSealClause AeadOpenClause KemDecapsulateClause SigVerifyClause
+UnitOracleModel Tacenta.UnitOracleModel InterpO.model oracleM
+UnitOracleKemSig Tacenta.UnitOracleKemSig KemGuardedClause OracleOfGuarded
+UnitOracleJoint Tacenta.UnitOracleJoint OracleLaws oracleLaws_real_iff oracleOfShape_of_oracleLaws oracleOfGuarded_of_laws oracleOf_of_laws oracleLaws_hold_jointly oracleOf_joint_model oracleOf_inhabited_jointly
+LIST
+
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
 # are in the proofs package, not the translation package, so they have their own block.
 for n in mem_skipSurvivors_iff skipSurvivors_length_le skipMessageKeys_refused_iff \

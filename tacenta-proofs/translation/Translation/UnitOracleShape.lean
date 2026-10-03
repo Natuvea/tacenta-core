@@ -719,15 +719,6 @@ info: @Tacenta.UnitOracleShape.liftView_spec : âˆ€ {A V B X : Type} {view : A â†
 #check @Tacenta.UnitOracleShape.liftView_spec
 
 /--
-info: 'Tacenta.UnitOracleShape.isValidIdentityKeyOf_total' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleShape.isValidIdentityKeyOf_total
-
-/--
 info: 'Tacenta.UnitOracleShape.dhPublicClause_of_laws' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,

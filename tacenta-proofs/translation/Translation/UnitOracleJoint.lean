@@ -23,7 +23,7 @@ decide the seven clauses #234 left open, one cluster at a time. This module puts
   #220's whole axiom base (`AxiomBase`), the DH codec and #234's key-generation law.
 * `oracleOf_joint_model`: at that interpretation, `OracleOf`'s twelve clauses, the guarded KEM
   clause, the axiom base and every law hold together, for an oracle that refuses an input of each
-  of its five refusing primitives and whose KEM encapsulates at an accepted key.
+  primitive that can refuse and whose KEM encapsulates at an accepted key.
 
 ## The sense
 
@@ -173,8 +173,10 @@ theorem oracleLaws_hold_jointly :
 /-- **`OracleOf` as a whole, with the guarded KEM clause, at the joint interpretation.** Every
 law and #220's axiom base hold there; the oracle meets the twelve clauses and the guarded clause at
 the byte-stream source; it refuses an input of each primitive that can refuse (agreement, the
-identity test, opening, decapsulation, verification, and KEM validity) and accepts one, and its
-KEM encapsulates at an accepted key. The width of `usize` is either of the two. -/
+identity test, opening, decapsulation, verification, and KEM validity); agreement, the identity
+test and KEM validity also accept one, and its KEM encapsulates at an accepted key. That opening,
+decapsulation and verification accept is in `aead_clauses_in_model` and
+`kem_sig_clauses_in_model`. The width of `usize` is either of the two. -/
 theorem oracleOf_joint_model :
     (Usize.max = U32.max ∨ Usize.max = U64.max) ∧
       OracleLaws InterpO.model dhM kemM ∧ AxiomBase M byteRng ∧ DhCodecOfShape M dhM ∧
@@ -485,15 +487,6 @@ info: Tacenta.UnitOracleJoint.oracleOf_of_laws : ∀ (dh : DhView) (kem : KemVie
 -/
 #guard_msgs in
 #check @Tacenta.UnitOracleJoint.oracleOf_of_laws
-
-/--
-info: 'Tacenta.UnitOracleJoint.modelO_oracleLaws' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleJoint.modelO_oracleLaws
 
 /--
 info: 'Tacenta.UnitOracleJoint.oracleLaws_hold_jointly' depends on axioms: [propext,

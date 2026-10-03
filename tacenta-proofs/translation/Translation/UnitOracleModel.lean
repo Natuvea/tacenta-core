@@ -317,57 +317,6 @@ info: Tacenta.UnitOracleModel.modelO_laws : Tacenta.UnitSatisfiabilityRecords.Ax
 #check @Tacenta.UnitOracleModel.modelO_laws
 
 /--
-info: 'Tacenta.UnitOracleModel.modelO_Faithful' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleModel.modelO_Faithful
-
-/--
-info: Tacenta.UnitOracleModel.modelO_Faithful : Tacenta.UnitSatisfiabilityJoint.FaithfulShape Tacenta.UnitOracleModel.M
--/
-#guard_msgs in
-#check @Tacenta.UnitOracleModel.modelO_Faithful
-
-/--
-info: 'Tacenta.UnitOracleModel.modelO_dhCodecOf' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleModel.modelO_dhCodecOf
-
-/--
-info: 'Tacenta.UnitOracleModel.modelO_signLaw' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleModel.modelO_signLaw
-
-/--
-info: 'Tacenta.UnitOracleModel.modelO_kemLaw' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleModel.modelO_kemLaw
-
-/--
-info: 'Tacenta.UnitOracleModel.modelO_generateLaw' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- rand_core_1.error.Error]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitOracleModel.modelO_generateLaw
-
-/--
 info: def Tacenta.UnitOracleModel.InterpO.model : Tacenta.UnitOracleShape.InterpO :=
 let __src := Tacenta.UnitSatisfiabilityJoint.Interp.model;
 { PrivateKey := Std.Array U8 32#usize, PublicKeyBytes := Std.Array U8 32#usize, KemKeyPair := Std.Array U8 32#usize,

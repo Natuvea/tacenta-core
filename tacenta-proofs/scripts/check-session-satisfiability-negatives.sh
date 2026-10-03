@@ -31,6 +31,9 @@
 #                 the real predicate is rejected; a field dropped from a record's parts. The
 #                 aggregate `all_shapes_are_predicates` must name every `_is` bridge.
 #   records       a field dropped from a structure the record proofs build.
+#   oracle        the clauses of `OracleOf` decided jointly (UnitOracle*.lean): each witness removed
+#                 in turn, each toy primitive of the joint model made degenerate, and a bridge or a
+#                 record changed by one field, each refused.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on five mutations of the module and on the two
@@ -527,6 +530,137 @@ a = once(audit, "#audit_axiom_part Tacenta.UnitSatisfiabilityJoint.BraidSendAxio
 if a:
     refused("audit-an-axiom-part-with-a-translated-function", joint + "\n" + a,
             "or translated functions")
+
+# ------------------------------------------------------------------- oracle
+# The clauses of `OracleOf` decided jointly (`UnitOracleShape.lean` to `UnitOracleJoint.lean`). Each
+# witness removed in turn must be refused where it is used; each toy primitive of the joint model
+# made degenerate, one at a time, must be refused by the theorem that says it is not; a bridge or a
+# record changed by one field must be refused. A model mutation is checked on one file made of the
+# model module and the cluster module that uses it, with their pin sections removed, so that what
+# refuses is the theorem and not a pin.
+def module(name):
+    return open(os.path.join(base, name + ".lean")).read()
+
+
+def body_of(text):
+    """The module text without its import lines and without its pin section."""
+    if "\n/-! ## Pins" in text:
+        text = text[: text.index("\n/-! ## Pins")]
+    return "\n".join(l for l in text.splitlines() if not l.startswith("import ")) + "\n"
+
+
+def nopins(text):
+    if "\n/-! ## Pins" in text:
+        text = text[: text.index("\n/-! ## Pins")]
+    return text + "\n"
+
+
+o_shape, o_model, o_dh = module("UnitOracleShape"), module("UnitOracleModel"), module("UnitOracleDh")
+o_aead, o_ks, o_joint = module("UnitOracleAead"), module("UnitOracleKemSig"), module("UnitOracleJoint")
+for nm, t in [("shape", o_shape), ("model", o_model), ("dh", o_dh), ("aead", o_aead),
+              ("kemsig", o_ks), ("joint", o_joint)]:
+    passes(f"oracle-{nm}-unmodified", t)
+
+# witnesses: every model witness is named by `modelO_axiomBase` or `modelO_laws`, and each cluster
+# lemma by the cluster theorem; each removed in turn is refused as an unknown identifier.
+m_base = re.search(r"theorem modelO_axiomBase : AxiomBase M byteRng where(.*?)\n\n", o_model, re.S)
+m_laws = re.search(r"theorem modelO_laws :.*?:=\s*⟨(.*?)⟩", o_model, re.S)
+m_std = re.search(r"theorem modelO_StdLaws : StdLaws M :=(.*?)\n\n", o_model, re.S)
+named = set(re.findall(r"\b(?:modelO_\w+|byteRng_total)\b", " ".join(
+    m.group(1) for m in (m_base, m_laws, m_std) if m)))
+declared = set(re.findall(r"^(?:theorem|def) ((?:modelO_\w+|byteRng_total))\b", o_model, re.M))
+for d in sorted(declared - named - {"modelO_axiomBase", "modelO_laws"}):
+    wrong.append(f"model witness {d} is declared but modelO_axiomBase, modelO_laws and modelO_StdLaws do not name it")
+if len(named) < 18:
+    wrong.append(f"the model aggregates name {len(named)} witnesses, expected at least 18: {sorted(named)}")
+for w in sorted(named):
+    kw = "def" if re.search(rf"^def {w}\b", o_model, re.M) else "theorem"
+    t = once(o_model, f"{kw} {w} ", f"{kw} {w}_removed ", f"remove {w}")
+    if t is not None:
+        refused(f"oracle-remove-model-witness-{w}", t, f"Unknown identifier `{w}`")
+for text, names in [
+    (o_dh, ["model_dhPublicClause", "model_dhAgreeClause", "model_identityValidClause",
+            "oracleM_dhPublic", "oracleM_dhAgree", "oracleM_identityValid", "xor32_comm",
+            "xor32_self"]),
+    (o_aead, ["model_aeadSealClause", "model_aeadOpenClause", "oracleM_aeadSeal",
+              "oracleM_aeadOpen", "openModel_zero_cons", "openModel_nil"]),
+    (o_ks, ["model_kemDecapsulateClause", "model_sigVerifyClause", "model_kemGuardedClause",
+            "kemGuardedClause_of_law", "never_encapsulating_meets_kemClauses",
+            "never_encapsulating_fails_guarded", "oracleM_kemDecaps", "oracleM_sigVerify",
+            "oracleM_sigSign", "kemModelValid_key1568", "byteTrace_oneDrawState", "map_u8_ofByte"]),
+    (o_joint, ["modelO_oracleLaws", "oracleOfShape_of_oracleLaws", "oracleOfGuarded_of_laws",
+               "oracleOf_joint_model"]),
+    (o_shape, ["liftView_spec", "isValidIdentityKeyOf_total", "arrayOf_injective",
+               "sliceOf_injective"]),
+]:
+    for w in names:
+        t = once(text, f"theorem {w} ", f"theorem {w}_removed ", f"remove {w}")
+        if t is not None:
+            refused(f"oracle-remove-witness-{w}", t, f"Unknown identifier `{w}`")
+
+# the toy primitives made degenerate, one at a time
+ks_body = body_of(o_ks)
+dh_body = body_of(o_dh)
+aead_body = body_of(o_aead)
+for name, old, new, rest, reason in [
+    ("oracle-model-verify-accepts-every-signature",
+     "  ok (if s.val.take 32 = pk.val then .Ok () else .Err ())", "  ok (.Ok ())",
+     dh_body + ks_body, "Could not split"),
+    ("oracle-model-sign-forgets-the-secret",
+     "  ⟨sk.val ++ List.replicate 32 0#u8, by simp [sk.property]⟩",
+     "  ⟨List.replicate 64 0#u8, by simp⟩", dh_body + ks_body, "unsolved goals"),
+    ("oracle-model-decapsulation-accepts-every-length",
+     "  ok (if h : c.val.length = 32 then .Ok ⟨c.val, by simpa using h⟩ else .Err ())",
+     "  ok (.Ok (Array.repeat 32#usize 0#u8))", dh_body + ks_body, "unsolved goals"),
+    ("oracle-model-open-accepts-everything",
+     "    if x = 0#u8 then .Ok ⟨rest, by have := c.property; rw [h] at this; simp at this; omega⟩\n    else .Err ()\n  | [] => .Err ()",
+     "    .Ok ⟨rest, by have := c.property; rw [h] at this; simp at this; omega⟩\n  | [] => .Ok (alloc.vec.Vec.new U8)",
+     aead_body, "Tactic `rfl` failed"),
+    ("oracle-model-seal-drops-the-tag",
+     "  if h : p.val.length + 1 ≤ Usize.max then ⟨0#u8 :: p.val, by simp; omega⟩\n  else ⟨p.val, p.property⟩",
+     "  ⟨p.val, p.property⟩", aead_body, "Could not split"),
+    ("oracle-model-agreement-never-refuses",
+     "  if (xor32 k p).val = zero32.val then none else some (xor32 k p)", "  some (xor32 k p)",
+     dh_body, "unsolved goals"),
+    ("oracle-model-prime-order-accepts-every-key",
+     "dhIsPrimeOrderPublic := fun p => ok (decide (p.val ≠ zero32.val))",
+     "dhIsPrimeOrderPublic := fun _ => ok true", dh_body, "unsolved goals"),
+    ("oracle-model-encapsulation-never-draws",
+     "        ok (core.result.Result.Ok (kemModelE (sliceOf publicKey) (sliceOf m)), rng'))\n  else ok (.Err (), rng)",
+     "        ok (core.result.Result.Ok (kemModelE (sliceOf publicKey) (sliceOf m)), rng))\n  else ok (.Err (), rng)",
+     "", "Type mismatch"),
+    ("oracle-model-generate-draws-nothing",
+     "    ikpGenerate := fun rc _ rng => do\n      let (rng', _) ← rc.fill_bytes rng zeros64\n      ok (.Ok (), rng')",
+     "    ikpGenerate := fun _ _ rng => ok (.Ok (), rng)", "", "'show' tactic failed"),
+    ("oracle-model-private-view-forgets-the-key",
+     "def dhM : DhViewOf M := ⟨arrayOf, arrayOf⟩", "def dhM : DhViewOf M := ⟨fun _ => [], arrayOf⟩",
+     "", "Application type mismatch"),
+]:
+    t = once(nopins(o_model), old, new, name)
+    if t is not None:
+        refused(name, t + rest, reason)
+
+# the bridges and the records, one field changed
+for name, text, old, new, reason in [
+    ("oracle-bridge-shape-field-views-the-secret-twice", o_shape,
+     "      result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)\n  identityValid : ∀ publicKey,\n    ∃ result,\n      isValidIdentityKeyOf",
+     "      result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.privateKey secret)\n  identityValid : ∀ publicKey,\n    ∃ result,\n      isValidIdentityKeyOf",
+     "Application type mismatch"),
+    ("oracle-bridge-identity-body-differs", o_shape,
+     "  let b ← isCanonicalKeyOf I pk\n  if b then I.dhIsPrimeOrderPublic pk else ok false",
+     "  let b ← isCanonicalKeyOf I pk\n  if b then I.dhIsPrimeOrderPublic pk else ok true",
+     "Not a definitional equality"),
+    ("oracle-laws-drop-a-view-law", o_joint,
+     "  dhView : DhViewInjective dh\n  kemView : KemViewInjective kem",
+     "  dhView : DhViewInjective dh", "Invalid field `kemView`"),
+    ("oracle-guarded-record-drops-its-guard", o_ks,
+     "  kemEncapsulateGuarded : ∀ publicKey rng draw rest,\n    oracle.kemValid (sliceOf publicKey) = true →\n    trace rng = draw :: rest →",
+     "  kemEncapsulateGuarded : ∀ publicKey rng draw rest,\n    trace rng = draw :: rest →",
+     "Application type mismatch"),
+]:
+    t = once(text, old, new, name)
+    if t is not None:
+        refused(name, t, reason)
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))
