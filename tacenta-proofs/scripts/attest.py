@@ -1290,6 +1290,42 @@ REQUIRED_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
+    # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
+    # `UnitLifecycleDecryptRatchetScreen.lean`.
+    + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
+        "receive_with_eviction_loop_refines",
+        "receive_with_eviction_refines",
+        "receiveWithEvictionLoopResult_stop",
+        "shortfall_covers",
+        "evict_for_retry_covers",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptOracleOf.of_oracleOf",
+        "cMax_usize",
+        "decrypt_ratchet_refines",
+        "decrypt_ratchet_refines_statement",
+        "RetryRunBounds.toRetryReceiveBounds",
+        "DecryptPrefix.triple_refusal",
+        "DecryptPrefix.aead_refusal",
+        "DecryptPrefix.success",
+        "tripleRefusalOpen_exactly",
+        "tripleRefusalOpen_false_unless_triple",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetScreen." + n for n in (
+        "sample_run_satisfiable",
+        "decrypt_boundary_has_a_model",
+        "decrypt_shapes_are_predicates",
+        "run_draw_not_trivial",
+        "retryRunBounds_not_trivial",
+        "tripleRefusalOpen_false_of_ok",
+        "tripleRefusalOpen_false_of_store_full",
+        "decrypt_ratchet_refines_at_sample",
+        "sample_model_refuses",
+        "succ_model_accepts",
+        "succ_run_satisfiable",
+        "hypotheses_meet_refusal_and_success",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1308,6 +1344,13 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitTripleT3.receive_store_full_refines_discharged",
         "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contracts",
         "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds",
+        # Package F: the retry loop and decrypt_ratchet compose the Session unit's discharged Triple
+        # receive refinement and rest on its compiler-evaluated constants, no others.
+        "Tacenta.UnitLifecycleRetryLoopT3.receive_with_eviction_loop_refines",
+        "Tacenta.UnitLifecycleRetryLoopT3.receive_with_eviction_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_statement",
+        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample",
     }
 )
 
@@ -1805,6 +1848,65 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.SpqrT3." + n for n in (
         "skip_message_keys_refines",
     )]
+    # Package F: the statements of the retry-loop and decrypt_ratchet results, and the bodies of the
+    # definitions they are written in (`#print`).
+    + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
+        "receive_with_eviction_loop_refines",
+        "receive_with_eviction_refines",
+        "receiveWithEvictionLoopResult_stop",
+        "shortfall_covers",
+        "evict_for_retry_covers",
+        "LoopRel",
+        "OutcomeRefines",
+        "OpenRefusal",
+        "BatchCovers",
+        "halfLength",
+        "evictHalf",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptOracleOf.of_oracleOf",
+        "decrypt_ratchet_refines",
+        "decrypt_ratchet_refines_statement",
+        "RetryRunBounds.toRetryReceiveBounds",
+        "DecryptPrefix.triple_refusal",
+        "DecryptPrefix.aead_refusal",
+        "DecryptPrefix.success",
+        "tripleRefusalOpen_exactly",
+        "tripleRefusalOpen_false_unless_triple",
+        "DecryptOracleOf",
+        "RetryRunBounds",
+        "DecryptRatchetAgreements",
+        "DecryptRatchetRun",
+        "TripleRefusalOpen",
+        "DecryptRatchetRefinesStatement",
+        "DecryptPrefix",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetScreen." + n for n in (
+        "sample_run_satisfiable",
+        "decrypt_boundary_has_a_model",
+        "decrypt_shapes_are_predicates",
+        "run_draw_not_trivial",
+        "retryRunBounds_not_trivial",
+        "tripleRefusalOpen_false_of_ok",
+        "tripleRefusalOpen_false_of_store_full",
+        "decrypt_ratchet_refines_at_sample",
+        "sample_model_refuses",
+        "succ_model_accepts",
+        "succ_run_satisfiable",
+        "hypotheses_meet_refusal_and_success",
+        "sampleComposite",
+        "sampleReal",
+        "modelOf",
+        "sampleRng",
+        "DhCodecOfShape",
+        "DecryptOracleShape",
+        "ZeroizeRoundTripShapes",
+        "succTriple",
+        "succReal",
+        "succComposite",
+        "succBytes",
+        "oracleDecrypt",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -1816,6 +1918,37 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
+        "LoopRel",
+        "OutcomeRefines",
+        "OpenRefusal",
+        "BatchCovers",
+        "halfLength",
+        "evictHalf",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptOracleOf",
+        "RetryRunBounds",
+        "DecryptRatchetAgreements",
+        "DecryptRatchetRun",
+        "TripleRefusalOpen",
+        "DecryptRatchetRefinesStatement",
+        "DecryptPrefix",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetScreen." + n for n in (
+        "sampleComposite",
+        "sampleReal",
+        "modelOf",
+        "sampleRng",
+        "DhCodecOfShape",
+        "DecryptOracleShape",
+        "ZeroizeRoundTripShapes",
+        "succTriple",
+        "succReal",
+        "succComposite",
+        "succBytes",
+        "oracleDecrypt",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
