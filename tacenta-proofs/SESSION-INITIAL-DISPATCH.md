@@ -4,39 +4,29 @@
 wrapper around the ratchet receive. This does **not** close the full Session
 T3 or end-to-end encryption/decryption plan.
 
-Note, 2026-09-30: every theorem on this page that takes `DecryptRatchetContracts` or
-`BraidReceiveContracts`, directly or through `InitialRatchetBraidEvidenceContracts`
-(since 2026-10-01 the dispatch theorems take `InitialRatchetBraidEvidenceContractsScoped`)
-(`decrypt_ratchet_refines_of_t1`, `braid_receive_evidence` and the
-`initial_ratchet_refines_of_t1` family), was vacuous as stated, because
-`BraidReceiveContracts` contained a false field (`GAP-REGISTER.md`, row
-`SESSION-CONTRACT-VACUITY`).
+Status, 2026-10-02. Every theorem on this page that takes `DecryptRatchetContracts` or
+`BraidReceiveContracts` was vacuous as stated until the false field of `BraidReceiveContracts` was
+restated for decoders that need at most `MAX_CODEWORDS` chunks (`GAP-REGISTER.md`, row
+`SESSION-CONTRACT-VACUITY`). The obligations listed below as discharged are discharged under records
+that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an
+axiom base that has a model, under five laws"), with the headroom records satisfiable only in the sense
+and under the assumptions of `LIMITATIONS.md` ("The headroom records").
 
-Update, 2026-10-01: the field is now stated for decoders that need at most `MAX_CODEWORDS` chunks, and the
-headroom record carries that bound (`DecryptRatchetHeadroom.braidDecoders`). These theorems
-compile against the repaired record. The obligations listed below as discharged are discharged
-under records that are inhabited only in the sense of `LIMITATIONS.md` ("The four contract records follow from an axiom base that has a model, under five laws"), with the headroom records satisfiable only in the sense and under the assumptions of `LIMITATIONS.md` ("The headroom records").
+No theorem on this page takes `InitialSameEphemeralEvidence`, `InitialMismatchedEphemeralEvidence`,
+`InitialRatchetBraidEvidenceContracts`, the earlier Triple and AEAD concrete evidence, `CodewordViewOf`
+or the earlier concrete branch and end-to-end records. The dispatch theorems take the per-branch
+`InitialDispatchBranchEvidence`, whose repeated-initial premises about the model are a choice of oracle
+(`sameEphemeralAgreement_unconstrained`), and the per-run records `InitialRatchetEndToEndEvidenceRun` and
+`InitialAgreementRatchetEndToEndEvidenceRun`, which are not shown satisfiable as a whole and do not
+cover a run whose agreement chunk is inconsistent, refused or accepted. An intermediate form on the
+integrated branch asked every RNG state for a draw and is empty (`concreteBranchEvidence_empty`,
+`Translation/UnitLifecycleIntegrationScreen.lean`). The form these theorems took before the integration
+had a `ceiling` field and is not decided here. The notes dated 2026-09-30 to 2026-10-01 that this status
+replaces described the tree before the integration; `GAP-REGISTER.md`, rows `SESSION-CONTRACT-VACUITY`
+and `DISPATCH-EVIDENCE-VACUITY`, keep that history.
 
-Update, 2026-10-01, evidence records: that statement does not cover the hypotheses and records named
-here, which `Translation/DispatchEvidenceVacuity.lean` shows are false or empty under stated conditions
-(`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, gives the conditions). `InitialSameEphemeralEvidence`
-is false for every argument, so `decrypt_initial_refines_from_ratchet`, `initial_dispatch_route_from_ratchet`,
-`initial_dispatch_atomicity_from_ratchet`, `decrypt_initial_terminal_refines`,
-`decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider` and
-`decrypt_initial_end_to_end_with_concrete_evidence` are vacuous as stated, and so are the three
-constructors `initialAccepted`, `initialTerminal` and `initialMalformed` of `SessionDecryptEvidence`.
-`InitialRatchetBraidEvidenceContracts` has no term when the model Braid is in one of six state and
-message-type pairs and its decoder holds a chunk, and `InitialRatchetTripleConcreteEvidence` and
-`InitialRatchetAeadConcreteEvidence` force the oracle's `dhPublic` to be constant, which contradicts the
-real X25519 public-key function under a statement that is tested and not proved. The evidence record of
-`initial_ratchet_refines_of_t1_with_concrete_evidence` asks for the first of these for every refusal input,
-so that theorem has no term whenever such an input exists and the model Braid is in one of the six states.
-Of the theorems listed below as discharging obligations, `decrypt_initial_terminal_refines` is one of those
-named in this note. The ten theorems of `UnitLifecycleT3.lean` that take `CodewordViewOf`, among them
-`public_encrypt_end_to_end`, are vacuous as stated under a condition on `Encoder::new`, which the register
-row states. The list of assumptions below omits two that `initial_dispatch_route_from_ratchet` takes, `hsame`
-and `hmismatch`, which are `InitialSameEphemeralEvidence` and `InitialMismatchedEphemeralEvidence`; the first
-is false and the second is false of the real function by reading.
+The checkpoints below are a work log. The build and gate results they report were run on the commits
+they name and are not retained in this repository.
 
 ## What the theorem establishes
 
@@ -295,3 +285,205 @@ Focused Lean compilation and `attest.py --check` pass. The signed commits
 `49f1c07` and `01404d4` are pushed. The next semantic step is to package these
 facts and compose them with `decrypt_ratchet_aead_refusal_from_braid`, then
 feed the resulting route into the indexed refusal provider.
+
+## Checkpoint — 2026-09-28 (derived decrypt-success Braid relations)
+
+The exact generated `decrypt_ratchet` success prefix and the executable model
+success facts now replay the shared Braid contracts to derive both the concrete
+message refinement and the post-receive state refinement. The public success
+boundary is `InitialRatchetContractSuccessProvider`; it no longer accepts an
+independent `hmessageRel` or `hbraidReceive` claim. Its adapter constructs those
+relations through
+`initial_ratchet_success_braid_evidence_of_prefix_contracts` before entering
+the common direct/full-store success splice.
+
+Two new controls replace each derived relation with an unrelated session
+relation. Lean rejects both substitutions at the splice boundary. The focused
+1,733-job build passes, and the complete `no-sorry.sh` run passes: 2,318
+translation/T1/T3 jobs, 37 model-proof jobs, 65 model/property jobs, all 24
+proof-dependency mutations, all 13 planted audit failures, audit reach over 115
+first-party modules, and kernel replay of 68/11/35 modules.
+
+This is a provider reduction, not final Session acceptance. The positive
+`ResultRefines` relation is still explicit, and the exact Triple direct/retry
+branch evidence, candidate-private-key relation, plaintext relation, oracle
+trace, and sparse finite-store premises still enter at the success boundary.
+The next batch should derive the positive result relation from the concrete
+result-sensitive DH, Triple, and AEAD evidence, then continue reducing those
+remaining exact-success obligations.
+
+## Checkpoint — 2026-09-28 (matching decrypt result families derived)
+
+The public inner-ratchet evidence package no longer accepts an arbitrary
+`InitialRatchetGeneratedResultRelation`. Matching result families are now
+proved at their concrete boundaries: refusal/refusal alignment is reconstructed
+from the executable model refusal classifier and the five generated refusal
+leaves, while success/success alignment is reconstructed from the exact model
+success facts and the concrete success splice. The obsolete full-relation
+record and success inversion helper were removed.
+
+The remaining result-family evidence is the deliberately narrower
+`InitialRatchetGeneratedCrossFamilyEvidence`. It has exactly two obligations:
+an actual Rust refusal cannot accompany model success, and an actual Rust
+success cannot accompany model refusal. It cannot choose a refusal code,
+plaintext, successor state, or oracle. Two proof-dependency controls swap those
+arms and require Lean to reject the mismatched concrete result type.
+
+This is still a checkpoint rather than final Session acceptance. The two
+cross-family contradictions must be derived from result-sensitive leaf
+contracts. The exact Triple direct/full-store branch evidence,
+candidate-private-key relation, plaintext relation, oracle trace, and sparse
+finite-store premises also remain at the success boundary.
+
+The exact-tree `no-sorry.sh` audit passes: 2,318 translation/T1/T3 jobs, 37
+model-proof jobs, 65 model/property jobs, all 24 proof-dependency mutations,
+all 13 planted audit failures, audit reach over 115 first-party modules, and
+kernel replay of 68/11/35 modules. This includes the two cross-family arm-swap
+controls against the final source used by the audit.
+
+After refreshing the two ordinary proof manifests, `tooling/ci.sh` also passes
+on this exact tree through workflow controls, the independent reader, vectors,
+the Rust workspace, dependency audit, constant-time host check, and all six
+fuzz-smoke targets. The translation attestation was not refreshed because no
+generated Aeneas file changed.
+
+## Checkpoint — 2026-09-28 (DH and ceiling cross-family leaves)
+
+Reusable DH evidence is now indexed by the actual decoded message rather than
+by a caller-supplied refusal input, while the non-cryptographic Braid contracts
+remain session-wide. Exact first-DH and second-DH lemmas replay those contracts
+at the generated Rust call and show that a Rust success cannot accompany either
+model DH refusal. The second-DH proof also fixes the ordered random draw used
+by that leaf.
+
+The ordered-draw evidence is now independent of a pre-classified Rust refusal.
+For the exact ratchet message and RNG state it states that a successful first
+agreement has one available 32-byte draw. That operation-local trace head rules
+out the model ceiling while remaining compatible with the translated total-RNG
+contract; it does not impose an impossible global descent on every RNG state.
+
+All three leaves elaborate against the exact generated source. The negative
+suite now contains 30 proof-dependency mutations. It includes removal or
+replacement of the first-DH, second-DH-draw, and ceiling trace-head facts, plus
+the three exact positive-receive dependencies described below; all 30 are
+rejected. These leaves have not yet replaced the public cross-family record.
+Triple and AEAD refusal contradictions, followed by the opposite
+Rust-refusal/model-success direction, remain before the public result split is
+closed.
+
+## Checkpoint — 2026-09-28 (exact positive receive prefix)
+
+The success-side model evidence is now staged at the boundary the generated
+code actually reaches. `InitialRatchetModelPositivePrefix` stops after model
+decode, both DH agreements, and the ordered random draw. It contains neither a
+Triple result nor an AEAD outcome. Only after the exact generated
+`decrypt_ratchet = Ok` result has supplied its `InitialRatchetSuccessPrefix`
+may `InitialRatchetExactSuccessReceiveProvider` return a model Triple
+candidate and message key indexed by that same prefix.
+
+The direct Triple arm is constructed from the discharged classical and sparse
+leaf contracts. The model receive result and aligned direct branch are
+therefore consequences of the raw generated `receive_attempt`, rather than a
+caller-selected candidate. Three dependency controls reject a preassembled
+existential provider, replacement of the exact generated message key, and use
+of the outer `receive_with_eviction` result where the raw direct attempt is
+required.
+
+The focused 1,733-job build passes. This checkpoint does not yet supply the
+full-store retry arm. The missing sound leaf is failure-side Triple alignment:
+the current Triple T3 theorem relates successful receives but cannot yet turn
+a concrete full-store refusal into the exact model `receiveDetailed` refusal
+that starts the bounded retry. That leaf and the coupled retry-loop refinement
+must be proved before this provider can replace the public success callback.
+
+## Checkpoint — 2026-09-28 (retry-batch agreement)
+
+The generated retry loop doubles its `usize` batch with saturating addition,
+while the executable model doubles an unbounded natural. The bridge now uses
+`RetryBatchAgrees concrete model`: the concrete value is the model value capped
+at `Usize.max`. Its step theorem is derived from the exact generated
+`saturating_add` equation and therefore does not assume ordinary
+machine-integer doubling.
+
+The cap cannot yet be removed merely because skipped stores are bounded. A
+same-half retry may double several times before the surrounding proof has
+shown that a count covering the store forces that branch to terminate. New
+classical and sparse `evictOldest` congruence lemmas establish the smaller fact
+needed by the coupled induction: once either count covers the current store
+length, larger counts produce the same state and returned eviction count. The
+model keeps its exact natural batch and exact result indices while the
+concrete batch may soundly saturate.
+
+## Checkpoint — 2026-09-29 (retry shortfall and receive bounds)
+
+The initial retry count is now derived from the generated
+`lifecycle.receive_shortfall` call instead of accepted as an equality. The
+classical bridge uses the concrete/model Composite and Triple refinement
+relations and an explicit machine-width bound. The sparse bridge additionally
+replays `findChains`, aligns the selected receive counter, and accounts for
+both the `u64` and `usize` saturating operations. Both produce
+`RetryBatchAgrees`, so they compose with the existing capped-batch eviction
+lemmas.
+
+`RetryReceiveBounds` packages the eleven model premises used by the generated
+Triple receive refinement. Classical and sparse eviction preserve this
+package: eviction changes only the selected skipped-key store, whose new list
+is proved to be a sublist of the old one. A success adapter consumes the
+package at `concrete_receive_attempt_success_from_contracts`; the failure-side
+adapter can consume the same fields when the full-store leaf is brought onto
+this branch. The package intentionally does not imply either shortfall width
+premise; switch-half composition must carry its own reachability and width
+evidence.
+
+Three proof-dependency controls swap the classical model half, substitute the
+sparse store length into the classical width premise, and shift the selected
+sparse receive counter. Lean must reject all three mutations.
+
+This checkpoint supplies shortfall and bounds infrastructure. It does not
+prove the coupled arbitrary retry loop. That induction must still thread the
+concrete/model eviction result, capped batch relation, preserved bounds, and
+exact success or repeated-full-store result through every generated loop
+iteration.
+
+## Checkpoint — 2026-09-29 (classical retry eviction)
+
+The translated classical `evict_oldest` call is now related to the executable
+model without a caller-supplied successor state or returned count. The body
+proof derives the generated scan's first-minimum choice and removal step; the
+outer theorem returns the exact state and count computed by
+`Model.Ratchet.evictOldest`.
+
+The lifecycle adapter combines that result with `RetryBatchAgrees`. It
+preserves `ReceiveHeadroom`, proves that the model's total skipped-key count
+does not increase, and proves a strict decrease when the generated call
+returns a nonzero eviction count. It retains the explicit selector premise
+`s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize`: the existing headroom
+record is stated against the host `Usize.max`, which does not imply this
+conservative translated-width bound on every host.
+
+Three proof-dependency controls replace the first-minimum tie break, weaken
+the selector-width premise to the host maximum, and bypass the capped batch
+relation. Lean must reject all three. This checkpoint does not provide the
+corresponding concrete sparse eviction theorem and does not prove the coupled
+retry loop.
+
+## Checkpoint — 2026-09-29 (retry induction prerequisites)
+
+`fullStoreOfReal` is now proved injective. Separate adapters transport the
+actual generated `PartialEq::ne` result into model equality or inequality, so
+a later switch-half case cannot select a model half independently. Those
+adapters reuse `UnitLifecycleT1.full_store_ne_no_panic`. On this tree that
+theorem is kernel-checked, so the axiom pin of `fullStoreOfReal_ne_of_generated_ne`
+names the three standard axioms only (`Translation/AxiomAuditSessionUnit.lean`).
+
+The failure-side Triple bridge now has
+`concrete_receive_attempt_store_full_from_retry_bounds`, the exact analogue of
+the success adapter. It consumes the preserved eleven-field
+`RetryReceiveBounds` package and returns the model detailed refusal, public
+refusal mapping, and eviction half fixed by the concrete attempt.
+
+Two proof-dependency controls invert the generated full-store comparison and
+feed sparse store room to the classical full-store premise. Lean must reject
+both. These lemmas do not establish the arbitrary retry loop. In particular,
+switch-half shortfall reachability and its machine-width premise remain
+explicit and are not derived from `RetryReceiveBounds`.

@@ -131,6 +131,20 @@ report_time "lifecycle frame-proof controls" "$t"
 t=$SECONDS
 python3 scripts/check-repair-negatives.py || fail=1
 report_time "restated dispatch record controls" "$t"
+# The composed Triple send theorem must consume the leaf theorem's complete
+# classical refusal result, including the finite-width counter edge.  A
+# disposable mutation restores the old NoSendingChain-only contract and a
+# second collapses the sparse map to `noChain`; each must fail at the exact
+# use which handles the generated error.
+t=$SECONDS
+python3 scripts/check-send-refusal-negatives.py || fail=1
+report_time "send refusal proof-dependency control" "$t"
+# The sparse skip's store-full conjunct is proved in one branch that reads the store a skip
+# leaves through `hC`: a copy naming another refusal, and a copy whose branch drops `hC`,
+# must each be refused at that branch.
+t=$SECONDS
+python3 scripts/check-sparse-store-full-negatives.py || fail=1
+report_time "sparse store-full proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

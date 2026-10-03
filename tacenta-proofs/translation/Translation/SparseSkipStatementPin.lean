@@ -17,6 +17,11 @@ state `State::from_bytes` returns they follow from the decoded-state invariant
 `CLAIMS.md` records. The conclusion's refusal case, `r.2 = s`, says that a
 refused skip leaves the state as it was.
 
+The statement is now two-part: the single-part statement this file first pinned is its first
+conjunct, unchanged, and the second conjunct, added by the session contract integration, says that
+a `SkippedStoreFull` refusal is the detailed model refusal `skippedStoreFull`
+(`Model.SparseRatchet.skipMessageKeysDetailed`).
+
 The three-leaf and Session units carry copies generated from this theorem by
 `scripts/port-unit-proofs.sh` and `scripts/port-session-unit-proofs.sh`, whose
 `--check` modes refuse any other text, so this one pin covers all three. It is
@@ -32,9 +37,12 @@ info: Tacenta.SpqrT3.skip_message_keys_refines (hkr : Tacenta.SpqrT3.SpqrHkdfAgr
   (hrel : Tacenta.SpqrT3.StateRefines s m) (e upto : Aeneas.Std.U64) (hroom : (↑s.chains).length < Aeneas.Std.Usize.max)
   (hskiproom : (↑s.skipped).length + ↑tacenta_spqr.MAX_SKIP ≤ Aeneas.Std.Usize.max) :
   Aeneas.Std.WP.spec (s.skip_message_keys e upto) fun r =>
-    match Model.SparseRatchet.skipMessageKeys m ↑e ↑upto with
-    | none => ∃ err, r.1 = Aeneas.Std.core.result.Result.Err err ∧ r.2 = s
-    | some m' => r.1 = Aeneas.Std.core.result.Result.Ok () ∧ Tacenta.SpqrT3.StateRefines r.2 m'
+    (match Model.SparseRatchet.skipMessageKeys m ↑e ↑upto with
+      | none => ∃ err, r.1 = Aeneas.Std.core.result.Result.Err err ∧ r.2 = s
+      | some m' => r.1 = Aeneas.Std.core.result.Result.Ok () ∧ Tacenta.SpqrT3.StateRefines r.2 m') ∧
+      (r.1 = Aeneas.Std.core.result.Result.Err tacenta_spqr.SpqrError.SkippedStoreFull →
+        Model.SparseRatchet.skipMessageKeysDetailed m ↑e ↑upto =
+          Except.error Model.SparseRatchet.ReceiveRefusal.skippedStoreFull)
 -/
 #guard_msgs in
 #check Tacenta.SpqrT3.skip_message_keys_refines

@@ -55,6 +55,10 @@ each call consumes the head and returns the remaining trace. `OracleOf`
 relates each concrete boundary call to the matching model call and relates
 the concrete RNG interaction to that ordered trace.
 
+Note, 2026-10-02: a call that fills 64 bytes, XEdDSA signing and Braid key
+generation, consumes two entries of the trace, not one. The model's `sign` and
+`sendAgreement` say so.
+
 XEdDSA signing is included even though prekey publication is outside the five
 proof roots. `Identity::sign`, `sign_message` and the store publication and
 rotation methods move with the lifecycle leaf, so the translation and its
