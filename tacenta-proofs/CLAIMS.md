@@ -37,9 +37,16 @@ this section says in one place what is not proved.
   message is refused or accepted. When the receiving decoder already holds a chunk, a message an attacker sends with an
   altered chunk falls outside them: `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
   message can reach a refusal that no theorem here describes. Most of the encrypt and decrypt lemmas also take the oracle
-  record `OracleOf`. Only its KEM, signing and `random32` clauses are shown to hold of the shipped functions, and only under
-  laws read from the source (the KEM success clause is met as well by an oracle that never encapsulates); its DH, AEAD, KEM
-  decapsulation, signature verification and identity-validity clauses are not. One part of what they
+  record `OracleOf`. Its KEM, signing and `random32` clauses are shown to hold of the shipped functions, under laws read
+  from the source. Its other clauses (DH, AEAD, KEM decapsulation, signature verification, identity validity) and the
+  record as a whole are shown satisfiable at the real constants under seven totality assumptions of the contract records
+  and two assumptions that the byte views of the DH and KEM key types are injective, none of them checked against the
+  shipped functions, and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)").
+  The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
+  inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
+  that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
+  success clause is met as well by an oracle that never encapsulates; a guarded record that is not met by it is new, and
+  no theorem takes it. One part of what they
   do is proved of the translated code alone, with no contract record, no headroom and no model: what a
   refused call leaves behind, and which fields a successful one writes (the
   section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
@@ -3540,7 +3547,8 @@ records to the dispatch layer. These results decide some of them. They are about
 - `changed_rng_clauses_of_laws`: the same derivation at the shipped constants. Under `SignFillsOnce64` and `KemShape`, the laws
   stated of `xeddsa::sign` and `kem::encapsulate`, there is an oracle for which the changed clauses and `random32` hold at the
   byte-stream source. The two laws are assumptions read from `tacenta-core/boundary/src/xeddsa.rs` and
-  `tacenta-core/boundary/src/kem.rs`; no theorem proves them of the opaque constants.
+  `tacenta-core/boundary/src/kem.rs`; no theorem proves them of the opaque constants, and
+  `tacenta-core/tests/rng_fill_counts.rs` tests them on the shipped source.
 - `braid_send_keysUnsampled_generate`, `braidSendTrace_conflicts_with_sigSign`: a translated Braid send from `KeysUnsampled`
   returns the RNG state that key generation returned. A refutation of the form the session contract branch introduced (the
   dispatch layer had no such record before it): `BraidSendTraceAgreement` lets such a send
@@ -3599,7 +3607,7 @@ to the body of one of those definitions changes no record pin. A proof that uses
 `EncodersLive` fails `BraidT3.lean`), and the other definitions the records name are held by the proofs that use them, not by a
 pin; `verified`, which only the `sigVerify` clause of `OracleOf` mentions and no proof uses, has its own `#print` pin, without
 which a change to it passed the build and every gate. These are text pins: they hold what the records say, not that they can be
-met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the eleven
+met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the 52
 definition pins (`REQUIRED_PRINT_FORM`), because `#check @name` holds the type of a definition and not its body; `takeDraws`
 is held by its equation pin and may take either form. `check-attest-negatives.sh` deletes each axiom pin, and each of the model
 and record definition pins, in turn, and plants the `#check` form for two of them. In the model package, examples in
@@ -3613,10 +3621,16 @@ Location: `Translation/UnitOracleShape.lean`, `Translation/UnitOracleModel.lean`
 `Translation/UnitOracleAead.lean`, `Translation/UnitOracleKemSig.lean`, `Translation/UnitOracleJoint.lean`.
 
 The screen above decides five clauses of `OracleOf` under laws and leaves seven undecided (`dhPublic`, `dhAgree`,
-`identityValid`, `aeadSeal`, `aeadOpen`, `kemDecapsulate`, `sigVerify`). These results decide the seven, each satisfiable,
-and `OracleOf` as a whole. No clause is refuted and none needs a restatement. One new record, `OracleOfGuarded`, adds a KEM
-success clause guarded by `kemValid`; `OracleOf` and every pinned statement of the tree are unchanged. They are about a
-hypothesis of the dispatch theorems, not about the product.
+`identityValid`, `aeadSeal`, `aeadOpen`, `kemDecapsulate`, `sigVerify`). These results decide the seven, and `OracleOf` as a
+whole. None of the seven is refuted, and each is satisfiable as stated. The KEM success clause, which the screen showed too
+weak, has a guarded companion here, `OracleOfGuarded`, and `OracleOf` still leaves `dhAgree` free off 32-byte arguments
+(`E2E-04-SAME-EPHEMERAL-MODEL`). `OracleOf` and every pinned statement of the tree are unchanged. The oracle that inhabits
+the record is the code read through the byte views (`oracleOfLaws`): each primitive's verdict is the code's answer on
+arguments with those bytes. So `OracleOf` asks of the code only that each primitive returns, that its result depends only on
+the bytes of its arguments, and that it reads the random source in the stated order. It ties the dispatch theorems to the
+code's own primitives and to no specification of X25519, the AEAD, ML-KEM or XEdDSA. These results are about a hypothesis
+of the dispatch theorems, not about the product. Its writer and tool-assisted readers working for the maintainer have read it; no reviewer
+independent of the maintainer has.
 
 - `isValidIdentityKey_is`, `oracleOf_iff_shape`, `oracleOfShape_iff_clauses`, `dhCodecOf_iff_shape`,
   `generateFillsOnce64_iff_shape`: `OracleOfShape` is `OracleOf` with each opaque constant replaced by a field of an
@@ -3626,9 +3640,9 @@ hypothesis of the dispatch theorems, not about the product.
   at the real constants by repacking each of the twelve fields, which the kernel accepts only if the two field types
   unfold to the same proposition. The third cuts the shape into one named clause per field (the three KEM fields are the
   screen's `KemClauses`). The last two bind `DhCodecOf` and the key-generation law the same way.
-- `liftView_spec`: a function that returns on every input of a type whose byte view is injective determines a function on
-  bytes that agrees with it at every view. `oracleOfLaws` builds an oracle this way from an interpretation, with the KEM
-  and signing functions that the screen's two laws name.
+- `liftView_spec`: a function that returns on every input of a type whose view is injective determines a function on views
+  that agrees with it at every view. `oracleOfLaws` builds an oracle this way from an interpretation, with the KEM and
+  signing functions that the screen's two laws name.
 - `dhPublicClause_of_laws`, `dhAgreeClause_of_laws`, `identityValidClause_of_laws`, `aeadSealClause_of_laws`,
   `aeadOpenClause_of_laws`, `kemDecapsulateClause_of_laws`, `sigVerifyClause_of_laws`: for every interpretation, each of
   the seven clauses holds for that oracle, given that its primitive returns (the totality field of the contract records
@@ -3640,28 +3654,37 @@ hypothesis of the dispatch theorems, not about the product.
   primitives that refuse some inputs, satisfies the axiom base of the four contract records (`AxiomBase`, with the
   byte-stream source), the DH codec, both view laws and the screen's three random-source laws, together.
 - `dh_clauses_in_model`, `aead_clauses_in_model`: there the DH and AEAD clauses hold for `oracleM`, the oracle
-  `oracleOfLaws` gives, and it is not degenerate. Its public key is the model's. Agreement gives the two sides of an
-  exchange the same answer, refuses a key paired with itself and accepts another pair. The identity test refuses the zero
-  key and accepts another. It opens what it seals, for a plaintext shorter than `usize::MAX`, and refuses the empty
-  ciphertext.
+  `oracleOfLaws` gives, and it is not degenerate in this sense: it refuses and accepts inputs of each primitive that can
+  refuse. Its public key is the model's. Agreement gives the two sides of an exchange the same answer, refuses a key
+  paired with itself and accepts another pair. The identity test refuses the zero key and accepts another. It opens what
+  it seals, for a plaintext shorter than `usize::MAX`, and refuses the empty ciphertext. Its AEAD ignores the keys, the
+  nonce and the associated data, and the inputs it refuses are not the ones the real primitives refuse: the real agreement
+  refuses a low-order peer key and agrees a key with its own public key, and the model's witnesses `zero32` and `one32` are
+  low-order points that the real agreement and identity test both refuse.
 - `oracleOfGuarded_iff_shape`, `kemGuardedClause_of_law`, `kemClauses_of_guarded`: `OracleOfGuarded` is `OracleOf` with one
   more field, `KemGuardedClause` at the shipped `encapsulate`: whenever the oracle accepts the key and the trace has a
-  draw, the code encapsulates, consumes that draw and returns what `kemEncaps` names. It follows from the screen's
-  `KemShapeOf` at the byte-stream source. With `OracleOf`'s two refusal clauses it gives `OracleOf`'s conditional success
-  clause, so the new record is stronger than the old.
+  draw, the code encapsulates, consumes that draw and returns what `kemEncaps` names. The guarded clause follows from the
+  screen's `KemShapeOf` at the byte-stream source, for the oracle whose `kemValid` and `kemEncaps` the law determines
+  (`kemGuardedClause_of_law`); the record as a whole needs all eleven laws (`oracleOfGuarded_of_laws`). With `OracleOf`'s
+  two refusal clauses the guarded clause gives `OracleOf`'s conditional success clause, so the new record is stronger than
+  the old.
 - `never_encapsulating_meets_kemClauses`, `never_encapsulating_fails_guarded`, `guarded_separates_never_encapsulating`: an
   oracle whose `kemEncaps` never returns `some` meets `OracleOf`'s three KEM clauses at any encapsulation that meets the
-  screen's law, and fails the guarded clause once it accepts one key at a state with a draw; at the model's encapsulation
-  one oracle does both.
+  screen's law, when its validity verdict is the law's, and fails the guarded clause once it accepts one key at a state
+  with a draw; at the model's encapsulation one oracle does both.
 - `kem_sig_clauses_in_model`: at the joint interpretation the decapsulation and verification clauses and the guarded
   clause hold for `oracleM`. Its KEM accepts a 1568-byte key and refuses the empty one, and `kemEncaps` returns `some` at
   the accepted key for every draw, so by the guarded clause the code encapsulates there at every state with a draw. It
   decapsulates what it encapsulates from a 32-byte draw and refuses the empty ciphertext. Verification accepts the
   oracle's signature from two 32-byte draws under the oracle's public key of the signing secret, and refuses an all-zero
-  signature under another key.
-- `oracleLaws_real_iff`, `oracleOfShape_of_oracleLaws`: `OracleLaws` collects eleven laws. At the real constants they
-  are the seven totality fields above, the screen's `SignFillsOnce64` and `KemShape`, and the two view laws. Over every
-  interpretation they give one oracle for which the twelve clauses and the guarded clause hold at the byte-stream source.
+  signature under another key. Its encapsulation reads only the length of the key, its 32-byte ciphertext is the draw
+  (an ML-KEM-1024 ciphertext is 1568 bytes), its decapsulation ignores the key pair, and its signature and verification
+  ignore the message.
+- `oracleLaws_real_iff`, `oracleOfShape_of_oracleLaws`: `OracleLaws` collects eleven laws under which `OracleOf` holds,
+  sufficient and not shown necessary (some, such as the totality of `PrivateKey::to_bytes` inside `DhCodecTotal`, are
+  stronger than any clause requires). At the real constants they are the seven totality fields above, the screen's
+  `SignFillsOnce64` and `KemShape`, and the two view laws. Over every interpretation they give one oracle for which the
+  twelve clauses and the guarded clause hold at the byte-stream source.
 - `oracleOfGuarded_of_laws`, `oracleOf_of_laws`: at the real constants, under those laws, for any DH and KEM views whose
   maps are injective, `OracleOfGuarded`, and so `OracleOf` as it is stated, is inhabited at the byte-stream source.
 - `oracleLaws_hold_jointly`, `oracleOf_joint_model`, `oracleOf_inhabited_jointly`: one interpretation meets the eleven
@@ -3669,25 +3692,41 @@ hypothesis of the dispatch theorems, not about the product.
   twelve clauses and the guarded clause hold for one oracle that refuses an input of each primitive that can refuse and
   whose KEM encapsulates at an accepted key. The last is the existential form.
 
-What these do not show. That the real primitives meet any law: seven are totality fields the records already assume,
-`SignFillsOnce64` and `KemShape` are read from the source and not proved, and the two view laws are about the views a
-caller chooses. Those hold of the real types, which wrap 32 bytes or a serialised key pair, by reading; no proof here
-shows it, and Lean cannot show that an injective view of an opaque type exists. That the oracle computes X25519, the
-identity-key rule, the AEAD, ML-KEM or XEdDSA: the clauses relate the code to the oracle, and the model's primitives are
-toys. The inhabitation is in the sense of the substitution argument (`LIMITATIONS.md`, "The four contract records follow
-from an axiom base that has a model"): `oracleOf_of_laws` holds for every assignment of the opaque constants and the
-laws hold in one; that a derivation of `False` from them at the real constants would become one in the model is an
-argument about derivations, not a theorem inside Lean. Only the byte-stream source is covered: `OracleOf` reads the RNG
-through a trace, and no result here concerns another source. No consumer takes `OracleOfGuarded`; the dispatch theorems
-take `OracleOf`, and their other records (the per-run evidence, the counted Braid agreement) are not decided here, so no
-dispatch theorem is shown non-vacuous by these results alone. None depends on a compiler-trust axiom: the generic and
-model results list the three standard axioms and `rand_core_1.error.Error`, and the bridges and the results at the real
-constants also list the opaque constants they mention. No proof chooses a width of `usize` (`oracleOf_joint_model`
-records `Usize.bounds_eq`), so each holds at both widths. Each has an axiom pin and a statement pin; the eleven clause and
-law definitions, `oracleOfLaws`, `KemGuardedClause`, `OracleOfGuarded`, `OracleLaws`, `InterpO.model` and `oracleM` have
-`#print` pins. `attest.py` requires them all (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`).
-`check-session-satisfiability-negatives.sh` removes each witness in turn, makes each toy primitive of the model
-degenerate one at a time, and changes one field of a bridge or a record, and requires each to be refused.
+What these do not show. Over injective views, the twelve clauses of `OracleOf` say that each primitive returns and that the
+view of its result depends only on the views of its arguments, together with the draw laws for the random source. The
+oracle that `oracleOf_of_laws` supplies is read off the shipped primitives through those views (`oracleOfLaws`,
+`liftView`), so the clauses hold of it by construction; the inhabitation shows that the record is consistent with the
+totality assumptions and the two view laws, and shows nothing about what the oracle computes. That the real primitives meet
+any law: seven are totality fields the records already assume, and they hold of the real functions only on the inputs a
+Rust program can supply and memory allows (`LIMITATIONS.md`); `SignFillsOnce64` and `KemShape` are read from the source and
+tested by `tacenta-core/tests/rng_fill_counts.rs`, which counts the random source's calls, and not proved; and the two view
+laws are about the views a caller chooses. By reading, each real type has an injective view (its wrapped bytes), which also
+meets `DhCodecOf`; a result applies to a caller's view only if that view is injective, and Lean cannot show that an
+injective view of an opaque type exists. The inhabitation is in the sense of the substitution argument (`LIMITATIONS.md`,
+"The four contract records follow from an axiom base that has a model, under five laws"): `oracleOf_of_laws` holds for
+every assignment of the opaque constants and the laws hold in one; that a derivation of `False` from them at the real
+constants would become one in the model is an argument about derivations, not a theorem inside Lean. Only the byte-stream
+source is covered: `OracleOf` reads the RNG through a trace, and no result here concerns another source. No consumer takes
+`OracleOfGuarded`; the dispatch theorems take `OracleOf`, and their other records (the per-run evidence, the counted Braid
+agreement) are not decided here, so no dispatch theorem is shown non-vacuous by these results alone. None depends on a
+compiler-trust axiom: the generic and model results list the three standard axioms and `rand_core_1.error.Error`, and the
+bridges and the results at the real constants also list the opaque constants they mention. No proof chooses a width of
+`usize` (`oracleOf_joint_model` records `Usize.bounds_eq`), so each holds at both widths. Each has an axiom pin and a
+statement pin. The ten clause and law definitions, `oracleOfLaws`, `KemGuardedClause`, `OracleOfGuarded`, `OracleLaws`,
+`InterpO.model` and `oracleM` have `#print` pins (sixteen in all), and so do the seven totality predicates of the records,
+their seven shapes over an interpretation and the two abbreviations they print through, `NoPanic` and `Np` (sixteen more,
+in `UnitOracleJoint.lean`), so a change to a law's text, such as the 48 bytes of `AeadSealBounded`, fails the build at a
+pin. `attest.py` requires them all (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`); only
+`REQUIRED_STATEMENT_PINS` is recorded in the verification manifest, and the other two lists can be shortened by editing
+`attest.py` alone. `attest.py` does not read what a pin says, so a statement weakened together with its pin's expected
+message is accepted by it; only the build, which compares the text, and the diff show it. A pin holds the printed
+statement, in which a definition appears by name, so a change to the body of `OracleOfShape`, `InterpO`,
+`isValidIdentityKeyOf`, `liftView` or one of the model's toy primitives changes no pin; the bridges and the model theorems
+are what hold those. `check-session-satisfiability-negatives.sh` removes each witness in turn, changes nine primitives and
+the private-key view of the model one at a time (agreement, the prime-order test, seal, open, encapsulation,
+decapsulation, verification, signing and key generation), each refused by the result, the lemma or the law of the model
+that needs it, and changes one field of a bridge or a record; the model's `to_bytes` of a private key and equality of
+public keys are not held, and no clause of `OracleOf` uses them.
 
 ## Proved (bounded P6 session lifecycle observations)
 

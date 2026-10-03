@@ -2,7 +2,8 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Three modules carry that evidence:
+# Nine modules carry that evidence: the three below, and the six of the joint decision of OracleOf
+# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -32,8 +33,9 @@
 #                 aggregate `all_shapes_are_predicates` must name every `_is` bridge.
 #   records       a field dropped from a structure the record proofs build.
 #   oracle        the clauses of `OracleOf` decided jointly (UnitOracle*.lean): each witness removed
-#                 in turn, each toy primitive of the joint model made degenerate, and a bridge or a
-#                 record changed by one field, each refused.
+#                 in turn, nine primitives and the private-key view of the joint model changed one at
+#                 a time, each refused by the result, the lemma or the law of the model that needs
+#                 it, and a bridge or a record changed by one field, each refused.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on five mutations of the module and on the two
@@ -533,9 +535,9 @@ if a:
 
 # ------------------------------------------------------------------- oracle
 # The clauses of `OracleOf` decided jointly (`UnitOracleShape.lean` to `UnitOracleJoint.lean`). Each
-# witness removed in turn must be refused where it is used; each toy primitive of the joint model
-# made degenerate, one at a time, must be refused by the theorem that says it is not; a bridge or a
-# record changed by one field must be refused. A model mutation is checked on one file made of the
+# witness removed in turn must be refused where it is used; nine primitives and the private-key view of
+# the joint model, changed one at a time, must each be refused by the result, the lemma or the law of
+# the model that needs it; a bridge or a record changed by one field must be refused. A model mutation is checked on one file made of the
 # model module and the cluster module that uses it, with their pin sections removed, so that what
 # refuses is the theorem and not a pin.
 def module(name):
@@ -587,12 +589,19 @@ for text, names in [
     (o_ks, ["model_kemDecapsulateClause", "model_sigVerifyClause", "model_kemGuardedClause",
             "kemGuardedClause_of_law", "never_encapsulating_meets_kemClauses",
             "never_encapsulating_fails_guarded", "oracleM_kemDecaps", "oracleM_sigVerify",
-            "oracleM_sigSign", "kemModelValid_key1568", "byteTrace_oneDrawState", "map_u8_ofByte"]),
+            "oracleM_sigSign", "kemModelValid_key1568", "byteTrace_oneDrawState", "map_u8_ofByte",
+            "oracleM_kemEncaps", "oracleM_kemValid", "u8_ofByte"]),
     (o_joint, ["modelO_oracleLaws", "oracleOfShape_of_oracleLaws", "oracleOfGuarded_of_laws",
                "oracleOf_joint_model"]),
     (o_shape, ["liftView_spec", "isValidIdentityKeyOf_total", "arrayOf_injective",
                "sliceOf_injective"]),
 ]:
+    # the list is complete: every theorem of the module is on it or carries an axiom pin
+    code = re.sub(r"/-.*?-/", "", text, flags=re.S)
+    unlisted = sorted(t for t in re.findall(r"^theorem (\w+)", code, re.M)
+                      if t not in names and not re.search(rf"#print axioms \S+\.{t}\n", text))
+    for t in unlisted:
+        wrong.append(f"theorem {t} has neither an axiom pin nor a removal case in the oracle group")
     for w in names:
         t = once(text, f"theorem {w} ", f"theorem {w}_removed ", f"remove {w}")
         if t is not None:
