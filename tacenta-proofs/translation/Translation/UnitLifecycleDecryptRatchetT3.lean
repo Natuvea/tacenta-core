@@ -205,6 +205,31 @@ theorem tripleRefusalOpen_false_unless_triple {R : Type}
   rintro ⟨reason, hr, -⟩
   exact h reason hr
 
+/-- What closes the open disjunct: every refusal the loop theorem reduces to one Triple receive
+(`UnitLifecycleRetryLoopT3.OpenRefusal`) is a refined outcome, at a header related to the model's.
+This module does not prove it; `UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes` does,
+under the agreements of the Triple receive, from the refusal refinement of one Triple receive. -/
+def OpenRefusalCloses : Prop :=
+  ∀ (header : tacenta_triple.Header) (mh : Model.State.Header)
+    (output : Option tacenta_spqr.Output) (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (out : core.result.Result (tacenta_triple.State × Array Std.U8 32#usize)
+      tacenta_triple.TripleError)
+    (res : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Model.Lifecycle.Key)),
+    Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh →
+    Tacenta.UnitLifecycleRetryLoopT3.OpenRefusal header mh output dhOutRecv dhOutSend newDhsPub
+      out res →
+    Tacenta.UnitLifecycleRetryLoopT3.OutcomeRefines out res
+
+/-- A disjunction whose second case a proposition `C` would close: either the first case, or `C`
+fails and the second case holds. -/
+theorem or_unless_closed {A P : Prop} (C : Prop) (hclose : C → P → A) (h : A ∨ P) :
+    A ∨ (¬ C ∧ P) := by
+  rcases h with h | h
+  · exact Or.inl h
+  · by_cases hc : C
+    · exact Or.inl (hclose hc h)
+    · exact Or.inr ⟨hc, h⟩
+
 /-- The statement of `decrypt_ratchet_refines`, as a proposition.  Kept beside the theorem so that
 the screen module can name it. -/
 def DecryptRatchetRefinesStatement : Prop :=
@@ -454,16 +479,13 @@ theorem RetryRunBounds.toRetryReceiveBounds {state : Model.Triple.State}
 /-! ## The refinement -/
 
 set_option maxHeartbeats 4000000 in
-/-- **`decrypt_ratchet` refines `Model.Lifecycle.decryptRatchet`, with the eviction retry loop.**
-For every input that meets the hypotheses of `DecryptRatchetRefinesStatement`, the generated
-function returns, and either its result, the session it leaves and the remaining trace refine the
-model's step, or the run is a Triple refusal whose reason is not a full skipped-key store
-(`TripleRefusalOpen`), the one path this module leaves open.  Covered: the terminal guard, a decode
-refusal, either DH refusal, a Triple refusal whose reason is a full store (after an empty
-eviction), an AEAD refusal and a success, with or without eviction rounds.  A refusal returns the
-given session; a success commits the Triple and Braid candidates and, when the sending key
-changed, the drawn private key. -/
-theorem decrypt_ratchet_refines {R : Type}
+/-- **The refinement, with the open case conditioned on `OpenRefusalCloses`.**  For every input
+that meets the hypotheses of `DecryptRatchetRefinesStatement`, the generated function returns, and
+either its result, the session it leaves and the remaining trace refine the model's step, or
+`OpenRefusalCloses` fails and the run is a Triple refusal whose reason is not a full skipped-key
+store.  `decrypt_ratchet_refines` drops the condition; the complete form in
+`UnitLifecycleDecryptRatchetCompleteT3` discharges it. -/
+theorem decrypt_ratchet_refines_or_open {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView)
     (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
@@ -482,7 +504,7 @@ theorem decrypt_ratchet_refines {R : Type}
       lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
       (StepRefines trace dh oracle.braidKem output
           (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) ∨
-        TripleRefusalOpen output) := by
+        (¬ OpenRefusalCloses ∧ TripleRefusalOpen output)) := by
   -- The terminal guard.
   by_cases hterm : Model.Lifecycle.agreementFailed model = true
   · obtain ⟨h1, h2⟩ := decrypt_ratchet_terminal_guard_step_refines rngCore cryptoRng trace dh
@@ -644,7 +666,9 @@ theorem decrypt_ratchet_refines {R : Type}
     rw [hheaderEq, hmodelPublic, hsparseModel]
     rfl
   rw [← hmodelRWE] at htripleRel
-  rcases htripleRel with hrefines | hopen
+  rcases or_unless_closed OpenRefusalCloses
+      (fun hclose hopen => hclose _ _ _ _ _ _ _ _ hheaderRel.dr hopen) htripleRel with
+    hrefines | ⟨hnotClosed, hopen⟩
   · cases tripleOut with
     | Err e =>
         cases hm : Model.Lifecycle.receiveWithEviction model.triple mc
@@ -751,7 +775,41 @@ theorem decrypt_ratchet_refines {R : Type}
               hrel hreal hmodel hcandRel hnextRel hcpDraw rfl htr1)⟩
   · obtain ⟨e, -, -, hout, hfull, -⟩ := hopen
     subst hout
-    exact ⟨_, P.triple_refusal e htripleCall, Or.inr ⟨e, rfl, hfull⟩⟩
+    exact ⟨_, P.triple_refusal e htripleCall, Or.inr ⟨hnotClosed, e, rfl, hfull⟩⟩
+
+/-- **`decrypt_ratchet` refines `Model.Lifecycle.decryptRatchet`, with the eviction retry loop.**
+For every input that meets the hypotheses of `DecryptRatchetRefinesStatement`, the generated
+function returns, and either its result, the session it leaves and the remaining trace refine the
+model's step, or the run is a Triple refusal whose reason is not a full skipped-key store
+(`TripleRefusalOpen`), the one path this module leaves open.  Covered: the terminal guard, a decode
+refusal, either DH refusal, a Triple refusal whose reason is a full store (after an empty
+eviction), an AEAD refusal and a success, with or without eviction rounds.  A refusal returns the
+given session; a success commits the Triple and Braid candidates and, when the sending key
+changed, the drawn private key.  The proof is `decrypt_ratchet_refines_or_open`'s, with the
+condition on the open case dropped. -/
+theorem decrypt_ratchet_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : DecryptOracleOf rngCore cryptoRng dh trace oracle)
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements oracle.braidKem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh oracle.braidKem real model)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (htrace : trace rng = oracle.draws)
+    (run : DecryptRatchetRun view oracle trace real model message rng) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
+      (StepRefines trace dh oracle.braidKem output
+          (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) ∨
+        TripleRefusalOpen output) := by
+  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_or_open rngCore cryptoRng trace dh view
+    oracle oracleOf codec contracts agreements real model message rng hrel headroom htrace run
+  exact ⟨output, hcall, hstep.imp_right And.right⟩
 
 /-- The theorem has exactly the statement recorded in `DecryptRatchetRefinesStatement`. -/
 theorem decrypt_ratchet_refines_statement : DecryptRatchetRefinesStatement := by
@@ -1717,3 +1775,128 @@ info: @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_trip
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_triple
+
+/-! The split form of the refinement and its closing condition (package F, refusal closure). -/
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.or_unless_closed' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.or_unless_closed
+
+/--
+info: @Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open : ∀ {R : Type}
+  (rngCore : tacenta_session_unit.rand_core_1.RngCore R) (cryptoRng : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rngCore cryptoRng dh trace oracle →
+    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+      Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore →
+        ∀ [Tacenta.SessionUnitT1.DerivedKeysModel],
+          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracle.braidKem →
+            ∀ (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session)
+              (message : Aeneas.Std.Slice Aeneas.Std.U8) (rng : R),
+              Tacenta.UnitLifecycleT3.SessionRefines dh oracle.braidKem real model →
+                Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real →
+                  trace rng = oracle.draws →
+                    Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetRun view oracle trace real model message rng →
+                      ∃ output,
+                        tacenta_session_unit.lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+                            Aeneas.Std.Result.ok output ∧
+                          (Tacenta.UnitLifecycleT3.StepRefines trace dh oracle.braidKem output
+                              (Model.Lifecycle.decryptRatchet view oracle model
+                                (Tacenta.UnitLifecycleT3.sliceOf message)) ∨
+                            ¬Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses ∧
+                              Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen output)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open
+
+/--
+info: @Tacenta.UnitLifecycleDecryptRatchetT3.or_unless_closed : ∀ {A P : Prop} (C : Prop), (C → P → A) → A ∨ P → A ∨ ¬C ∧ P
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.or_unless_closed
+
+/--
+info: def Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses : Prop :=
+∀ (header : tacenta_session_unit.tacenta_triple.Header) (mh : Model.State.Header)
+  (output : Option tacenta_session_unit.tacenta_spqr.Output)
+  (dhOutRecv dhOutSend newDhsPub : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  (out :
+    Aeneas.Std.core.result.Result (tacenta_session_unit.tacenta_triple.State × Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+      tacenta_session_unit.tacenta_triple.TripleError)
+  (res : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Model.Lifecycle.Key)),
+  Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh →
+    Tacenta.UnitLifecycleRetryLoopT3.OpenRefusal header mh output dhOutRecv dhOutSend newDhsPub out res →
+      Tacenta.UnitLifecycleRetryLoopT3.OutcomeRefines out res
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses
+
