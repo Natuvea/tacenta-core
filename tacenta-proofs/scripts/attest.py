@@ -1311,6 +1311,7 @@ REQUIRED_PINS = frozenset(
         "DecryptPrefix.success",
         "tripleRefusalOpen_exactly",
         "tripleRefusalOpen_false_unless_triple",
+        "decrypt_ratchet_refines_unless_open",
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetScreen." + n for n in (
         "sample_run_satisfiable",
@@ -1325,6 +1326,13 @@ REQUIRED_PINS = frozenset(
         "succ_model_accepts",
         "succ_run_satisfiable",
         "hypotheses_meet_refusal_and_success",
+        "evict_decode_model",
+        "evict_headroom",
+        "evict_run_satisfiable",
+        "evict_first_attempt_full",
+        "hypotheses_meet_eviction_round",
+        "decrypt_ratchet_refines_at_eviction",
+        "decrypt_ratchet_refines_from_shapes",
     )]
     # Package F, the refusal closure: `UnitLifecycleTripleRefusalT3.lean`,
     # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`,
@@ -1386,6 +1394,9 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines",
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_statement",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open",
+        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
+        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
         # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
         # compiler-evaluated constants, and the results that compose them on those of the discharged
         # Triple receive refinement, no others.
@@ -1930,6 +1941,18 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "TripleRefusalOpen",
         "DecryptRatchetRefinesStatement",
         "DecryptPrefix",
+        "decrypt_ratchet_refines_unless_open",
+        "cMax_usize",
+    )]
+    # The earlier definitions the package's statements are written in that had no pin.
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "StepRefines",
+        "ResultRefines",
+        "SessionRefines",
+    )]
+    + ["Tacenta.SessionUnitSpqrT3." + n for n in (
+        "VecRetainAgrees",
+        "RemoveSkippedAtAgrees",
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetScreen." + n for n in (
         "sample_run_satisfiable",
@@ -1956,6 +1979,19 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "succComposite",
         "succBytes",
         "oracleDecrypt",
+        "evict_decode_model",
+        "evict_headroom",
+        "evict_run_satisfiable",
+        "evict_first_attempt_full",
+        "hypotheses_meet_eviction_round",
+        "decrypt_ratchet_refines_at_eviction",
+        "decrypt_ratchet_refines_from_shapes",
+        "evictEntry",
+        "evictSparseEntry",
+        "evictTriple",
+        "evictReal",
+        "evictComposite",
+        "evictBytes",
     )]
     # Package F, the refusal closure: the statements, and the bodies of the definitions they are
     # written in (`#print`).
@@ -2041,6 +2077,21 @@ REQUIRED_PRINT_FORM = frozenset(
         "succComposite",
         "succBytes",
         "oracleDecrypt",
+        "evictEntry",
+        "evictSparseEntry",
+        "evictTriple",
+        "evictReal",
+        "evictComposite",
+        "evictBytes",
+    )]
+    + ["Tacenta.UnitLifecycleT3." + n for n in (
+        "StepRefines",
+        "ResultRefines",
+        "SessionRefines",
+    )]
+    + ["Tacenta.SessionUnitSpqrT3." + n for n in (
+        "VecRetainAgrees",
+        "RemoveSkippedAtAgrees",
     )]
     + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
         "TripleReceiveRefusalRefines",

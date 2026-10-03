@@ -28,10 +28,13 @@ This module states the refinement and its hypotheses (section "Statement"), and 
 * **About the run (per run).**  `SessionRefines`, `DecryptRatchetHeadroom`, the trace equation, and
   `DecryptRatchetRun`, whose fields are asked of the composite the run's message decodes to (the
   model's decoder is a function, so each field speaks about one value): the Braid chunk relation
-  and `HonestChunk`, the Braid epoch headroom, one draw left in the trace, and the receive bounds
-  `RetryRunBounds` of the model Triple state.
+  and `HonestChunk`, the Braid epoch headroom, at least one draw left in the trace, and the receive
+  bounds `RetryRunBounds` of the model Triple state.
 
-`UnitLifecycleDecryptRatchetScreen.lean` shows these hypotheses satisfiable.
+`UnitLifecycleDecryptRatchetScreen.lean` shows the hypotheses this module introduces consistent with
+each other and meets the per-run ones at runs that reach a refusal, a success and an eviction round
+(the model side of each).  It does not show them true of the shipped code, and it does not decide
+`SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`.
 
 ## The conclusion
 
@@ -43,8 +46,12 @@ refusal other than a full store to the model's detailed refusal, so neither a di
 that kind nor one returned by a retry inside the loop is related to the model here.  The loop
 theorem (`UnitLifecycleRetryLoopT3.receive_with_eviction_refines`) reduces both to that one
 statement about a single Triple receive.  `tripleRefusalOpen_exactly` shows the disjunct holds of an
-output exactly when it is a Triple refusal whose reason is neither full-store refusal, so it cannot
-absorb a success or any other refusal (`tripleRefusalOpen_false_unless_triple`).
+output exactly when it is a Triple refusal whose reason is neither full-store refusal, so it is false
+of every generated success and of every other generated refusal
+(`tripleRefusalOpen_false_unless_triple`).  It constrains only the generated output, so it can hold
+on an input on which the model's step succeeds, and it says nothing about the session returned: the
+theorem does not show that a message the model accepts is accepted.
+`decrypt_ratchet_refines_unless_open` states the refinement for every output outside it.
 
 The proof is `decrypt_ratchet_refines_or_open`, whose open case also carries the failure of
 `OpenRefusalCloses`.  `UnitLifecycleTripleRefusalT3` proves the one statement about a single Triple
@@ -822,6 +829,35 @@ theorem decrypt_ratchet_refines_statement : DecryptRatchetRefinesStatement := by
     model message rng hrel headroom htrace run
   exact decrypt_ratchet_refines rngCore cryptoRng trace dh view oracle oracleOf codec contracts
     agreements real model message rng hrel headroom htrace run
+
+/-- **Outside the open disjunct, the refinement.**  Under the hypotheses of `decrypt_ratchet_refines`,
+the generated `decrypt_ratchet` returns, and for every output it returns that is not a Triple refusal
+other than a full store (`¬ TripleRefusalOpen output`), its result, the session it leaves and the
+remaining trace refine the model's step.  A conclusion widened at the theorem level, leaving
+`TripleRefusalOpen` as it is, breaks this proof. -/
+theorem decrypt_ratchet_refines_unless_open {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : DecryptOracleOf rngCore cryptoRng dh trace oracle)
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements oracle.braidKem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh oracle.braidKem real model)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (htrace : trace rng = oracle.draws)
+    (run : DecryptRatchetRun view oracle trace real model message rng) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
+      (¬ TripleRefusalOpen output →
+        StepRefines trace dh oracle.braidKem output
+          (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) := by
+  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines rngCore cryptoRng trace dh view oracle
+    oracleOf codec contracts agreements real model message rng hrel headroom htrace run
+  exact ⟨output, hcall, fun hopen => hstep.resolve_right hopen⟩
 
 end Tacenta.UnitLifecycleDecryptRatchetT3
 
@@ -1905,3 +1941,217 @@ info: def Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses : Prop :=
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses
 
+/-! The refinement outside the open disjunct, the statement of `cMax_usize`, and the earlier
+definitions the statements here are written in that had no pin. -/
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open
+
+/--
+info: @Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open : ∀ {R : Type}
+  (rngCore : tacenta_session_unit.rand_core_1.RngCore R) (cryptoRng : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rngCore cryptoRng dh trace oracle →
+    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+      Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore →
+        ∀ [Tacenta.SessionUnitT1.DerivedKeysModel],
+          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracle.braidKem →
+            ∀ (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session)
+              (message : Aeneas.Std.Slice Aeneas.Std.U8) (rng : R),
+              Tacenta.UnitLifecycleT3.SessionRefines dh oracle.braidKem real model →
+                Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real →
+                  trace rng = oracle.draws →
+                    Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetRun view oracle trace real model message rng →
+                      ∃ output,
+                        tacenta_session_unit.lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+                            Aeneas.Std.Result.ok output ∧
+                          (¬Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen output →
+                            Tacenta.UnitLifecycleT3.StepRefines trace dh oracle.braidKem output
+                              (Model.Lifecycle.decryptRatchet view oracle model
+                                (Tacenta.UnitLifecycleT3.sliceOf message)))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetT3.cMax_usize : Aeneas.Std.UScalar.cMax Aeneas.Std.UScalarTy.Usize = 4294967295
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.cMax_usize
+
+/--
+info: structure Tacenta.UnitLifecycleT3.StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (K : Model.Braid.Kem)
+  (real :
+    Aeneas.Std.core.result.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) tacenta_session_unit.lifecycle.Error ×
+      tacenta_session_unit.lifecycle.Session × R)
+  (model : Model.Lifecycle.Step Tacenta.UnitLifecycleT3.Bytes) : Prop
+number of parameters: 6
+fields:
+  Tacenta.UnitLifecycleT3.StepRefines.result : Tacenta.UnitLifecycleT3.ResultRefines real.1 model.result
+  Tacenta.UnitLifecycleT3.StepRefines.session : Tacenta.UnitLifecycleT3.SessionRefines dh K real.2.1 model.session
+  Tacenta.UnitLifecycleT3.StepRefines.draws : trace real.2.2 = model.oracle.draws
+constructor:
+  Tacenta.UnitLifecycleT3.StepRefines.mk {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : Tacenta.UnitLifecycleT3.DhView} {K : Model.Braid.Kem}
+    {real :
+      Aeneas.Std.core.result.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) tacenta_session_unit.lifecycle.Error ×
+        tacenta_session_unit.lifecycle.Session × R}
+    {model : Model.Lifecycle.Step Tacenta.UnitLifecycleT3.Bytes}
+    (result : Tacenta.UnitLifecycleT3.ResultRefines real.1 model.result)
+    (session : Tacenta.UnitLifecycleT3.SessionRefines dh K real.2.1 model.session)
+    (draws : trace real.2.2 = model.oracle.draws) : Tacenta.UnitLifecycleT3.StepRefines trace dh K real model
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.StepRefines
+
+/--
+info: def Tacenta.UnitLifecycleT3.ResultRefines : Aeneas.Std.core.result.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+    tacenta_session_unit.lifecycle.Error →
+  Except Model.Lifecycle.Refusal Tacenta.UnitLifecycleT3.Bytes → Prop :=
+fun real model =>
+  match real, model with
+  | Aeneas.Std.core.result.Result.Ok bytes, Except.ok modelBytes => Tacenta.UnitLifecycleT3.vecOf bytes = modelBytes
+  | Aeneas.Std.core.result.Result.Err reason, Except.error modelReason =>
+    Tacenta.UnitLifecycleT3.refusalOf reason = modelReason
+  | x, x_1 => False
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.ResultRefines
+
+/--
+info: structure Tacenta.UnitLifecycleT3.SessionRefines (view : Tacenta.UnitLifecycleT3.DhView) (K : Model.Braid.Kem)
+  (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session) : Prop
+number of parameters: 4
+fields:
+  Tacenta.UnitLifecycleT3.SessionRefines.triple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs real.triple model.triple
+  Tacenta.UnitLifecycleT3.SessionRefines.braid : Tacenta.SessionUnitBraidT3.StateRefines K real.braid.state model.braid
+  Tacenta.UnitLifecycleT3.SessionRefines.ratchetPrivate : view.privateKey real.ratchet_private = model.ratchetPrivate
+  Tacenta.UnitLifecycleT3.SessionRefines.identityAd : Tacenta.UnitLifecycleT3.vecOf real.identity_ad = model.identityAd
+  Tacenta.UnitLifecycleT3.SessionRefines.ourIdentityPublic : view.publicKey real.our_identity_public =
+      model.ourIdentityPublic
+  Tacenta.UnitLifecycleT3.SessionRefines.peerIdentityPublic : view.publicKey real.peer_identity_public =
+      model.peerIdentityPublic
+  Tacenta.UnitLifecycleT3.SessionRefines.pendingInitial : Option.map (Tacenta.UnitLifecycleT3.pendingInitialOf view)
+        real.pending_initial =
+      model.pendingInitial
+  Tacenta.UnitLifecycleT3.SessionRefines.establishedEphemeral : Option.map Tacenta.UnitLifecycleT3.vecOf
+        real.established_ephemeral =
+      model.establishedEphemeral
+constructor:
+  Tacenta.UnitLifecycleT3.SessionRefines.mk {view : Tacenta.UnitLifecycleT3.DhView} {K : Model.Braid.Kem}
+    {real : tacenta_session_unit.lifecycle.Session} {model : Model.Lifecycle.Session}
+    (triple :
+      Tacenta.SessionUnitTripleT3.StateRefines Tacenta.SessionUnitTripleT3.ratchetAbs
+        Tacenta.SessionUnitTripleT3.spqrAbs real.triple model.triple)
+    (braid : Tacenta.SessionUnitBraidT3.StateRefines K real.braid.state model.braid)
+    (ratchetPrivate : view.privateKey real.ratchet_private = model.ratchetPrivate)
+    (identityAd : Tacenta.UnitLifecycleT3.vecOf real.identity_ad = model.identityAd)
+    (ourIdentityPublic : view.publicKey real.our_identity_public = model.ourIdentityPublic)
+    (peerIdentityPublic : view.publicKey real.peer_identity_public = model.peerIdentityPublic)
+    (pendingInitial :
+      Option.map (Tacenta.UnitLifecycleT3.pendingInitialOf view) real.pending_initial = model.pendingInitial)
+    (establishedEphemeral :
+      Option.map Tacenta.UnitLifecycleT3.vecOf real.established_ephemeral = model.establishedEphemeral) :
+    Tacenta.UnitLifecycleT3.SessionRefines view K real model
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT3.SessionRefines
+
+/--
+info: def Tacenta.SessionUnitSpqrT3.VecRetainAgrees : Prop :=
+(∀ {s : tacenta_session_unit.tacenta_spqr.State} {m : Model.SparseRatchet.State},
+    Tacenta.SessionUnitSpqrT3.StateRefines s m →
+      ∀ (e : Aeneas.Std.U64) (c : tacenta_session_unit.tacenta_spqr.Chains),
+        (↑s.chains).length < Aeneas.Std.Usize.max →
+          ∃ r,
+            s.set_chains e c = Aeneas.Std.Result.ok r ∧
+              Tacenta.SessionUnitSpqrT3.StateRefines r
+                (Model.SparseRatchet.setChains m (↑e) (Tacenta.SessionUnitSpqrT3.chainsOf c))) ∧
+  ∀ {s : tacenta_session_unit.tacenta_spqr.State} {m : Model.SparseRatchet.State},
+    Tacenta.SessionUnitSpqrT3.StateRefines s m →
+      ∀ (current : Aeneas.Std.U64),
+        (∀ p ∈ ↑s.chains, ↑p.1 + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+          (∀ sk ∈ ↑s.skipped, ↑sk.epoch + Model.SparseRatchet.epochsKept ≤ Aeneas.Std.U64.max) →
+            ∃ r,
+              s.clear_old_epochs current = Aeneas.Std.Result.ok r ∧
+                Tacenta.SessionUnitSpqrT3.StateRefines r (Model.SparseRatchet.clearOldEpochs m ↑current)
+-/
+#guard_msgs in
+#print Tacenta.SessionUnitSpqrT3.VecRetainAgrees
+
+/--
+info: def Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees : Prop :=
+∀ (v : Aeneas.Std.alloc.vec.Vec tacenta_session_unit.tacenta_spqr.Skipped) (i : Aeneas.Std.Usize)
+  (h : ↑i < (↑v).length),
+  ∃ r,
+    tacenta_session_unit.tacenta_spqr.State.remove_skipped_at v i = Aeneas.Std.Result.ok r ∧
+      r.1 = (↑v)[↑i].key ∧ ↑r.2 = (↑v).eraseIdx ↑i
+-/
+#guard_msgs in
+#print Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
