@@ -313,6 +313,14 @@ theorem advanceDetailed_epoch_iff (st : State) (out : Output) :
   · have hlt : st.epoch + 1 < u64Max := by omega
     by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hlt, hk]
 
+theorem maybeAdvanceDetailed_ok_iff (st : State) (out : Option Output) (result : State) :
+    maybeAdvanceDetailed st out = .ok result ↔
+      (match out with | none => some st | some value => advance st value) = some result := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simpa [maybeAdvanceDetailed] using advanceDetailed_ok_iff st value result
+
 theorem maybeAdvanceDetailed_ne_noChain (st : State) (out : Option Output) :
     maybeAdvanceDetailed st out ≠ .error .noChain := by
   cases out with
@@ -444,6 +452,21 @@ def trySkipped (st : State) (e n : Nat) : Option (State × Key) :=
 def evictOldest (st : State) (count : Nat) : State × Nat :=
   let evicted := min count st.skipped.length
   ({ st with skipped := st.skipped.drop evicted }, evicted)
+
+/-- Counts at or above the current sparse skipped-store length have the same
+    observable eviction result.  The lifecycle retry proof uses this to cap an
+    unbounded model batch at the concrete `usize` maximum. -/
+theorem evictOldest_eq_at_length_of_length_le (st : State) (count : Nat)
+    (h : st.skipped.length ≤ count) :
+    evictOldest st count = evictOldest st st.skipped.length := by
+  simp [evictOldest, Nat.min_eq_right h]
+
+theorem evictOldest_congr_of_length_le (st : State) (left right : Nat)
+    (hleft : st.skipped.length ≤ left)
+    (hright : st.skipped.length ≤ right) :
+    evictOldest st left = evictOldest st right := by
+  rw [evictOldest_eq_at_length_of_length_le st left hleft,
+    evictOldest_eq_at_length_of_length_le st right hright]
 
 /-- The stored keys that survive a skip from the chain's counter `start` to
     `upto` on epoch `e`: everything except the keys stored for `e` under a

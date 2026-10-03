@@ -210,6 +210,24 @@ PY
 expect_fail "missing-claimed-theorem" 'CLAIMS.md claims `P9MissingTheorem` but no such theorem is declared' --check
 
 make_case
+python3 - "$work/tacenta-proofs/translation/Translation/UnitLifecyclePublicT1.lean" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+pattern = re.compile(
+    r"/--\s*info: 'Tacenta\.UnitLifecycleT1\.encrypt_no_panic' depends on axioms: "
+    r"\[.*?\]\s*-/\s*\n#guard_msgs in\s*\n"
+    r"#print axioms\s+Tacenta\.UnitLifecycleT1\.encrypt_no_panic\n",
+    re.S,
+)
+text, count = pattern.subn("", text)
+if count != 1:
+    raise SystemExit(f"expected one Session T1 pin, removed {count}")
+path.write_text(text)
+PY
+expect_fail "claimed-session-t1-without-pin" 'claimed Session T1 theorem `Tacenta.UnitLifecycleT1.encrypt_no_panic` is not axiom-pinned' --check
+
+make_case
 rm "$work/tacenta-proofs/manifests/verification-manifest.json"
 expect_fail "missing-verification-manifest" "tacenta-proofs/manifests/verification-manifest.json is missing" --check
 
@@ -391,6 +409,11 @@ SessionUnitBraidFromBytesWitness Tacenta.SessionUnitBraidFromBytesWitness braid_
 RatchetDecodedWitness Tacenta.RatchetDecodedWitness ratchet_witness_events decoded_receive_refines_premises_satisfiable
 UnitLifecycleAtomicity Tacenta.UnitLifecycleAtomicity decrypt_ratchet_err_leaves_state decrypt_ratchet_ok_writes decrypt_err_leaves_state decrypt_ok_writes establish_responder_err_leaves_store encrypt_err_leaves_state encrypt_ok_writes
 UnitLifecycleRepair Tacenta.UnitLifecycleRepair codewordViewSendOf_satisfiable scoped_chunk_fields_iff_consistent
+UnitPins Tacenta.UnitT3 receive_store_full_refines
+UnitPins Tacenta.UnitSpqrT3 receive_store_full_refines
+UnitPins Tacenta.UnitTripleT3 receive_store_full_refines_discharged
+AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_full_from_contracts concrete_receive_attempt_store_full_from_retry_bounds fullStoreOfReal_ne_of_generated_ne
+UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view sameEphemeralAgreement_unconstrained concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
 LIST
 
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
@@ -623,6 +646,49 @@ make_case
 replace_in "$print_file" $'#guard_msgs in\n#print '"$print_name"$'\n' $'#print '"$print_name"$'\n'
 expect_fail "definition-pin-without-guard-msgs" "\`$print_name\` is on REQUIRED_STATEMENT_PINS and \`#print $print_name\` at $print_file:" --check
 expect_fail "definition-pin-without-guard-msgs-says-why" "is not under \`#guard_msgs in\`, so the build compares nothing" --check
+
+# The model's draw functions and the record bodies of the integration screen: each definition pin
+# (and the one equation pin) deleted in turn is refused as a missing statement pin.
+for name in Model.Lifecycle.braidSendDrawCount Model.Lifecycle.sendAgreement \
+  Model.Lifecycle.braidSendNeedsDraw Model.Lifecycle.takeDraws Model.Lifecycle.takeDraws.eq_def \
+  Model.Lifecycle.takeDraw Model.Lifecycle.braidRandomness Tacenta.UnitLifecycleT3.OracleOf \
+  Tacenta.UnitLifecycleT3.BraidSendTraceAgreementCounted \
+  Tacenta.UnitLifecycleT3.InitialRatchetTripleBranchContracts \
+  Tacenta.UnitLifecycleT3.InitialRatchetAeadBranchContracts \
+  Tacenta.UnitLifecycleT3.InitialRatchetBraidEvidenceContractsScoped \
+  Tacenta.UnitLifecycleT3.verified; do
+  make_case
+  python3 - "$work/tacenta-proofs/translation/Translation/UnitLifecycleIntegrationScreen.lean" "$name" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "statement-pin-deleted-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+done
+
+# A definition on REQUIRED_PRINT_FORM is held by `#print`: its pin rewritten as `#check @`, which
+# prints the type and not the body, is refused, for a model definition and for a record. A floor
+# name not on that list (`takeDraws`, whose body is held by its equation pin) may take either form.
+screen="tacenta-proofs/translation/Translation/UnitLifecycleIntegrationScreen.lean"
+for name in Model.Lifecycle.braidSendDrawCount Tacenta.UnitLifecycleT3.OracleOf; do
+  make_case
+  replace_in "$screen" $'#guard_msgs in\n#print '"$name"$'\n' $'#guard_msgs in\n#check @'"$name"$'\n'
+  expect_fail "definition-pin-check-form-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and its pin at $screen:" --check
+  expect_fail "definition-pin-check-form-$name-says-why" "is \`#check @$name\`, which prints the type and not the body" --check
+  expect_fail "definition-pin-check-form-$name-refused-by-refresh" "is \`#check @$name\`, which prints the type and not the body"
+done
+make_case
+replace_in "$screen" $'#guard_msgs in\n#print Model.Lifecycle.takeDraws\n' $'#guard_msgs in\n#check @Model.Lifecycle.takeDraws\n'
+expect_pass "statement-pin-check-form-off-the-print-list"
+expect_pass "statement-pin-check-form-off-the-print-list-then-checked" --check
 
 # The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
 # changed, so the source attestation is stale until it is regenerated; regenerating

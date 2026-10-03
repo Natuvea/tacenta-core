@@ -180,12 +180,12 @@ written yet, which is a gap in *this page* rather than in the model.
 ## Session lifecycle (in progress)
 
 Source pages: `tacenta-spec/protocol/session-establishment.md`,
-`triple-ratchet.md`, `message-format.md`, `key-deletion.md` and
-`error-handling.md`.
+`triple-ratchet.md`, `message-format.md`, `key-deletion.md`,
+`error-handling.md` and `mlkem-braid.md`.
 
 | Spec section | Model definition | File |
 |---|---|---|
-| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `sendAgreement` | `Model/Lifecycle.lean` |
+| Primitive calls delegated by the session algorithms; ordered caller randomness, including the Braid's draws (`mlkem-braid.md`, The KEM split and Sending) | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `braidSendDrawCount`, `takeDraws`, `sendAgreement` | `Model/Lifecycle.lean` |
 | Receiving the initial message; successful-agreement-class repeated-initial recognition and ignored wrapper fields | `sameEphemeralAgreement`, `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
@@ -211,6 +211,9 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.
 Each function records the complete argument list of the corresponding boundary
-call, and each random operation consumes the head of `draws`. Lifecycle
+call. A random operation consumes entries from the front of `draws`: one for a
+32-byte value (an ephemeral or ratchet key, the encapsulation message `m`, the
+first half of a Braid encapsulation) and two for a 64-byte value (the
+signature's `Z`, a Braid key-generation seed `d || z`). Lifecycle
 transition rows will be added here with the operations; until then this section
 does not claim that session orchestration is modelled.
