@@ -417,6 +417,10 @@ UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBr
 UnitLifecycleRetryLoopT3 Tacenta.UnitLifecycleRetryLoopT3 receive_with_eviction_loop_refines receive_with_eviction_refines receiveWithEvictionLoopResult_stop shortfall_covers evict_for_retry_covers
 UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 DecryptOracleOf.of_oracleOf cMax_usize decrypt_ratchet_refines decrypt_ratchet_refines_statement RetryRunBounds.toRetryReceiveBounds DecryptPrefix.triple_refusal DecryptPrefix.aead_refusal DecryptPrefix.success tripleRefusalOpen_exactly tripleRefusalOpen_false_unless_triple
 UnitLifecycleDecryptRatchetScreen Tacenta.UnitLifecycleDecryptRatchetScreen sample_run_satisfiable decrypt_boundary_has_a_model decrypt_shapes_are_predicates run_draw_not_trivial retryRunBounds_not_trivial tripleRefusalOpen_false_of_ok tripleRefusalOpen_false_of_store_full decrypt_ratchet_refines_at_sample sample_model_refuses succ_model_accepts succ_run_satisfiable hypotheses_meet_refusal_and_success
+UnitLifecycleTripleRefusalT3 Tacenta.UnitLifecycleTripleRefusalT3 derive_chain_loop_ok derive_chain_refines_far ratchet_skip_refusal_refines ratchet_receive_tail_refusal_refines ratchet_receive_refusal_refines spqr_skip_refusal_refines spqr_receive_continuation_refusal_refines spqr_receive_refusal_refines triple_receive_refusal_refines
+UnitLifecycleDecryptRatchetCompleteT3 Tacenta.UnitLifecycleDecryptRatchetCompleteT3 concrete_receive_attempt_refusal_from_retry_bounds openRefusal_closes receive_with_eviction_refines_complete decrypt_ratchet_refines_complete decrypt_ratchet_refines_complete_statement
+UnitLifecycleDecryptRatchetCompleteScreen Tacenta.UnitLifecycleDecryptRatchetCompleteScreen ref_model_triple_refuses ref_premises ref_triple_refuses ref_headroom ref_run_satisfiable ref_model_refuses hypotheses_meet_open_path decrypt_ratchet_refines_complete_at_refusal
+UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 decrypt_ratchet_refines_or_open or_unless_closed
 LIST
 
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
@@ -708,6 +712,43 @@ LIST
 make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleDecryptRatchetT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\n'
 expect_fail "definition-pin-check-form-TripleRefusalOpen" "is \`#check @Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\`, which prints the type and not the body" --check
+
+# Package F, the refusal closure (`UnitLifecycleTripleRefusalT3.lean`,
+# `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`, and the
+# split form in `UnitLifecycleDecryptRatchetT3.lean`): each statement pin and each definition pin,
+# deleted in turn, is refused as a missing statement pin.
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "statement-pin-deleted-$file-$n" "\`$ns.$n\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+  done
+done <<'LIST'
+UnitLifecycleTripleRefusalT3 Tacenta.UnitLifecycleTripleRefusalT3 derive_chain_loop_ok derive_chain_refines_far ratchet_skip_refusal_refines ratchet_receive_tail_refusal_refines ratchet_receive_refusal_refines spqr_skip_refusal_refines spqr_receive_continuation_refusal_refines spqr_receive_refusal_refines triple_receive_refusal_refines TripleReceiveRefusalRefines
+UnitLifecycleDecryptRatchetCompleteT3 Tacenta.UnitLifecycleDecryptRatchetCompleteT3 concrete_receive_attempt_refusal_from_retry_bounds openRefusal_closes receive_with_eviction_refines_complete decrypt_ratchet_refines_complete decrypt_ratchet_refines_complete_statement DecryptRatchetRefinesCompleteStatement
+UnitLifecycleDecryptRatchetCompleteScreen Tacenta.UnitLifecycleDecryptRatchetCompleteScreen ref_model_triple_refuses ref_premises ref_triple_refuses ref_headroom ref_run_satisfiable ref_model_refuses hypotheses_meet_open_path decrypt_ratchet_refines_complete_at_refusal refTriple refHeader refModelHeader refModel refReal
+UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 decrypt_ratchet_refines_or_open or_unless_closed OpenRefusalCloses
+LIST
+
+# The closure's statement definitions are on REQUIRED_PRINT_FORM: a pin rewritten as `#check @` is refused.
+make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleTripleRefusalT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\n'
+expect_fail "definition-pin-check-form-TripleReceiveRefusalRefines" "is \`#check @Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\`, which prints the type and not the body" --check
+make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleDecryptRatchetT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\n'
+expect_fail "definition-pin-check-form-OpenRefusalCloses" "is \`#check @Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\`, which prints the type and not the body" --check
 
 # A definition on REQUIRED_PRINT_FORM is held by `#print`: its pin rewritten as `#check @`, which
 # prints the type and not the body, is refused, for a model definition and for a record. A floor

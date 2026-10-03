@@ -2476,8 +2476,11 @@ skipped-key store is at most `2^32 - 1 - 2000` long, and the model state's count
 Two runs meet all of these, one whose model step refuses and one whose model step succeeds, at both platform widths.
 
 **The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
-nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). A
-refusal refinement of one Triple receive at related states would close it.
+nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output).
+`triple_receive_refusal_refines` (`Translation/UnitLifecycleTripleRefusalT3.lean`) is the refusal refinement of one Triple
+receive at related states, and `decrypt_ratchet_refines_complete` (`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`)
+closes the path with it, under the same hypotheses and the same compiler-trusted constants; nothing is assumed beyond what
+this section lists. The screen's run on that path (`hypotheses_meet_open_path`) shows the model side only, as above.
 
 **How the proof reaches the model loop.** `Model/Lifecycle.lean` keeps the fuel-indexed retry loop private. One lemma,
 `receiveWithEvictionLoopResult_stop`, names it through Batteries' `open private` to prove that a retry refused for a reason

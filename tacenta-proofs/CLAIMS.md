@@ -36,7 +36,9 @@ this section says in one place what is not proved.
   ratchet message, `decrypt_ratchet_refines` relates every branch to the model's step, the eviction retry loop included, except
   a Triple receive refusal whose reason is not a full store, which it leaves open; it is conditional on the hypotheses in its
   statement and is compiler-trusted (the section "Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction
-  retry loop, on the eight-leaf unit)"). The decrypt lemmas that take the per-run evidence records cover a
+  retry loop, on the eight-leaf unit)"). `decrypt_ratchet_refines_complete` closes that path under the same hypotheses
+  (the section "Proved (tier T3, every Triple receive refusal, and `decrypt_ratchet` on every path, on the eight-leaf
+  unit)"). The decrypt lemmas that take the per-run evidence records cover a
   message only if the agreement chunk it carries is a codeword of one source that fits the decoder it is fed to, whether the
   message is refused or accepted. When the receiving decoder already holds a chunk, a message an attacker sends with an
   altered chunk falls outside them: `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
@@ -3581,9 +3583,10 @@ They are not results about `Session::decrypt` or `Session::encrypt`.
 store (a classical `TooManySkipped`, `NoReceivingChain`, `OutOfOrder` or `ChainExhausted`, or any sparse refusal but
 `SkippedStoreFull`), from the first attempt or from a retry inside the loop, the theorem says nothing about the model's
 step: not its refusal reason, not that it refuses, and not the session or trace it returns. The missing piece is a
-refusal refinement of one Triple receive at related states, which no theorem of this tree has: the leaf refinements relate
-a success and the full-store refusal only. `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state` says separately that
-such a refusal returns the session it was given.
+refusal refinement of one Triple receive at related states, which the theorems this section composes do not give: the
+leaf refinements relate a success and the full-store refusal only. `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state` says separately that
+such a refusal returns the session it was given. The next section supplies that refinement and closes the path
+(`decrypt_ratchet_refines_complete`); `decrypt_ratchet_refines` keeps its statement.
 
 **What the hypotheses cover.** The per-run record asks the run's agreement chunk to be a codeword of one source that fits
 the decoder it is fed to (`IncomingChunkRefines`, `HonestChunk`), so a run that carries a spliced or inconsistent chunk is
@@ -3606,6 +3609,76 @@ here is kernel-only. Each carries an axiom pin and a statement pin, the definiti
 loop or the composition (four in the loop correspondence, two that make the open disjunct broader, two in the run record)
 and requires Lean to refuse each, and a ninth that makes the disjunct broader with the pins kept and requires the pin to
 refuse it.
+
+## Proved (tier T3, every Triple receive refusal, and `decrypt_ratchet` on every path, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleTripleRefusalT3.lean`, `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`,
+`Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean`, and the split form in
+`Translation/UnitLifecycleDecryptRatchetT3.lean`.
+
+These close the path the previous section leaves open. Each is conditional on the hypotheses in its statement, and none
+adds a hypothesis to the result it extends. They are not results about `Session::decrypt` or `Session::encrypt`.
+
+- `triple_receive_refusal_refines`: the statement `TripleReceiveRefusalRefines`. Under the hypotheses of
+  `SessionUnitTripleT3.receive_store_full_refines_discharged` (the leaf agreements, the Triple state relation, the classical
+  header relation and the eleven numeric and store premises), if the generated Triple receive refuses with a reason, the
+  reason's public mapping `tripleReceiveRefusalOfReal` is defined and `Model.Triple.receiveDetailed` returns that refusal.
+  So at those states the generated receive never refuses with the classical `NoSendingChain`, which has no receive
+  counterpart, and every refusal it returns is the model's, the two full-store refusals included.
+- `ratchet_receive_refusal_refines`, `ratchet_receive_tail_refusal_refines`, `ratchet_skip_refusal_refines`: the same for the
+  classical ratchet's receive, its shared suffix and its skip: `TooManySkipped` and `SkippedStoreFull` from either skip,
+  then `OutOfOrder`, `NoReceivingChain` and `ChainExhausted`, each the model's detailed refusal, in the model's order.
+- `derive_chain_refines_far`, `derive_chain_loop_ok`: the chain derivation refuses with `ChainExhausted` only when the
+  message numbers it would derive pass `u32::MAX`. The skip derives no number past its target, so that refusal does not
+  reach the skip; the success theorems did not need this, because their conclusion is about a success only.
+- `spqr_receive_refusal_refines`, `spqr_receive_continuation_refusal_refines`, `spqr_skip_refusal_refines`: the same for the
+  sparse ratchet: a refused advance is `EpochOutOfOrder` on both sides; then every skip refusal (`NoChain`, `ChainRetired`,
+  `TooManySkipped`, `SkippedStoreFull`), and `NoChain`, `ChainRetired` and `OutOfOrder` after the skip. The sparse
+  `ChainExhausted` of the advance and of the chain step is excluded by the epoch and counter premises, as in the success
+  theorem.
+- `concrete_receive_attempt_refusal_from_retry_bounds`: the Triple result at the bounds record the retry loop keeps.
+- `openRefusal_closes`: under the Triple receive's agreements, `OpenRefusalCloses` holds: a refusal the loop theorem
+  reduces to one Triple receive (`OpenRefusal`), at a header related to the model's, is a refined outcome.
+- `receive_with_eviction_refines_complete`: under the hypotheses of `receive_with_eviction_refines`, the generated
+  `receive_with_eviction` returns and its result is related to `Model.Lifecycle.receiveWithEviction` with no case left
+  open: a success with related state and key, or a refusal whose public mapping is the model's refusal.
+- `decrypt_ratchet_refines_or_open`, `or_unless_closed`: the proof of `decrypt_ratchet_refines`, with its open case
+  conditioned on the failure of `OpenRefusalCloses`. `decrypt_ratchet_refines` is that theorem with the condition
+  dropped; its statement is unchanged.
+- `decrypt_ratchet_refines_complete`, `decrypt_ratchet_refines_complete_statement`: under exactly the hypotheses of
+  `decrypt_ratchet_refines` (`DecryptRatchetRefinesCompleteStatement`), the generated `decrypt_ratchet` returns and
+  `StepRefines` holds between its result, the session it leaves and the remaining trace and the model's step, on every
+  path: the terminal guard, a decode refusal, both DH refusals, every Triple receive refusal (from the first attempt or a
+  retry), an AEAD refusal and a success, with or without eviction rounds.
+- `ref_premises`, `ref_model_triple_refuses`, `ref_triple_refuses`: at a Triple state whose classical receiving chain is at
+  message number 1, and a header for message number 0 on that chain, every premise of the refusal theorem holds, the model
+  refuses with the classical `outOfOrder`, which is not a full store, and, under the boundary the theorem takes, the
+  generated receive refuses with a reason whose public mapping is that refusal. The success theorem rules out a generated
+  success there.
+- `ref_headroom`, `ref_run_satisfiable`, `ref_model_refuses`, `hypotheses_meet_open_path`,
+  `decrypt_ratchet_refines_complete_at_refusal`: a `decrypt_ratchet` run over that Triple state meets every per-run
+  hypothesis, and with the oracle of the previous section's model its model step is the Triple refusal `outOfOrder`, on the
+  path `decrypt_ratchet_refines` left open; the last is the complete theorem at that run. No proof here chooses a width of
+  `usize`, so each holds at both widths.
+
+**What is not shown.** Which branch the shipped code takes at the screen's run with the real primitives: the oracle
+clauses hold of the model interpretation, not at the real constants. The hypotheses are those of the previous section, with
+the same coverage limits (a spliced or inconsistent agreement chunk, one draw, the store margin) and the same two
+agreements of row `SESSION-SPARSE-AGREEMENTS` undecided.
+
+**Compiler trust.** `decrypt_ratchet_refines_complete`, `decrypt_ratchet_refines_complete_statement`,
+`decrypt_ratchet_refines_or_open` and `decrypt_ratchet_refines_complete_at_refusal` have exactly the axioms of
+`decrypt_ratchet_refines`, including its nine `native_decide` constants. `receive_with_eviction_refines_complete` and
+`ref_triple_refuses` list the same nine. `triple_receive_refusal_refines`, `concrete_receive_attempt_refusal_from_retry_bounds`
+and `openRefusal_closes` list seven of them (three of the sparse ratchet's four labels, its two `MAX_SKIP` constants, its
+store cap and one step of `receive_refines_continuation`), and the three sparse refusal theorems five or six. These twelve
+are on `COMPILER_TRUSTED_PINS`, which grows from 18 to 30 names; every other result here is kernel-only. Each carries an
+axiom pin and a statement pin, the definitions their statements are written in carry `#print` pins, and `attest.py`
+requires all of them. `check-decrypt-ratchet-negatives.py` plants a fault in a copy of the refusal refinement (a refusal
+named as another, the derivation refusal no longer located, the sparse epoch bound weakened, the Triple model reason
+fixed), of the closure (the bridge without the public mapping, the complete statement with the open disjunct put back,
+with the pins kept) and of the screen (the model's refusal there named as another), and requires Lean or the pin to
+refuse each.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 
