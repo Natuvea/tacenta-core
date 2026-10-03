@@ -38,13 +38,18 @@ This module states the refinement and its hypotheses (section "Statement"), and 
 For every input that meets them, the generated function returns, and either its result, the
 session it leaves and the trace refine the model's step (`StepRefines`), or the run is a Triple
 refusal whose reason is not a full skipped-key store (`TripleRefusalOpen`).  The second disjunct
-is the one path this module leaves open: no theorem of this tree relates a concrete Triple receive
+is the one path this module leaves open: nothing this module uses relates a concrete Triple receive
 refusal other than a full store to the model's detailed refusal, so neither a direct refusal of
-that kind nor one returned by a retry inside the loop is related to the model.  The loop theorem
-(`UnitLifecycleRetryLoopT3.receive_with_eviction_refines`) reduces both to that one statement about
-a single Triple receive.  `tripleRefusalOpen_exactly` shows the disjunct holds of an output exactly
-when it is a Triple refusal whose reason is neither full-store refusal, so it cannot absorb a
-success or any other refusal (`tripleRefusalOpen_false_unless_triple`).
+that kind nor one returned by a retry inside the loop is related to the model here.  The loop
+theorem (`UnitLifecycleRetryLoopT3.receive_with_eviction_refines`) reduces both to that one
+statement about a single Triple receive.  `tripleRefusalOpen_exactly` shows the disjunct holds of an
+output exactly when it is a Triple refusal whose reason is neither full-store refusal, so it cannot
+absorb a success or any other refusal (`tripleRefusalOpen_false_unless_triple`).
+
+The proof is `decrypt_ratchet_refines_or_open`, whose open case also carries the failure of
+`OpenRefusalCloses`.  `UnitLifecycleTripleRefusalT3` proves the one statement about a single Triple
+receive, and `UnitLifecycleDecryptRatchetCompleteT3` uses it to prove `OpenRefusalCloses` and the
+refinement without the disjunct (`decrypt_ratchet_refines_complete`).
 
 The theorem rests on the compiler-trusted constants the Session unit's sparse ratchet and Triple
 refinements rest on (the nine per-declaration `native_decide` axioms its pin lists), as the retry

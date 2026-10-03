@@ -17,8 +17,10 @@ related to the model loop's result at that fuel.  A success is the model's succe
 state and key, and a refusal on an empty eviction is the pending full-store refusal on both sides.
 A retry that refuses for a reason other than a full store is reduced to one Triple receive: the
 generated attempt refused at a working state related to the model's, and if that single refusal is
-the model's detailed refusal, the loop results agree (`OpenRefusal`).  No theorem of this tree
-relates such a refusal to the model, so that case is left open, named.
+the model's detailed refusal, the loop results agree (`OpenRefusal`).  Nothing this module uses
+relates such a refusal to the model, so that case is left open here, named;
+`UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes` closes it from the refusal refinement of
+one Triple receive.
 
 ## The batch
 
