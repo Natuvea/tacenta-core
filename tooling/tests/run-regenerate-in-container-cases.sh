@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Negative controls for tacenta-proofs/scripts/regenerate-in-container.sh.
 #
-# The script runs a container for an hour, so these cases run everything that decides its verdict with no real
+# A run of the script takes 20 to 40 minutes under emulation, so these cases run everything that decides its verdict with no real
 # container and no network:
 #
 #   --compare DIR   a tree is compared with the tracked files. The unchanged copy must be accepted first; then one
@@ -156,7 +156,7 @@ compare() { bash "$tree/$script" --compare "$regen"; }
 # tracked paths differ from HEAD.
 out="$(compare)" || { echo "regenerate-in-container negative: the unchanged tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
 grep -qF "PASS: all" <<<"$out" || { echo "regenerate-in-container negative: no PASS line for the unchanged tree" >&2; exit 1; }
-grep -qF "0 tracked path(s) differ from HEAD" <<<"$out" || { echo "regenerate-in-container negative: the PASS line does not count the paths that differ from HEAD" >&2; exit 1; }
+tail -n 1 <<<"$out" | grep -qF "PASS: all" && tail -n 1 <<<"$out" | grep -qF "0 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: the PASS line does not count the paths that differ from HEAD" >&2; exit 1; }
 accepted=$((accepted + 1))
 
 # 2. One changed byte in each generated file.
@@ -188,6 +188,13 @@ cp "$tree/$unit" "$regen/$unit"
 chmod +x "$regen/$spqr"
 expect_refused "changed-mode" "mode: $spqr" compare
 chmod -x "$regen/$spqr"
+[ -x "$tree/$script" ] || { echo "regenerate-in-container negative: the script under test is not executable, so the control cannot plant a lost executable bit" >&2; exit 1; }
+chmod -x "$regen/$script"
+expect_refused "lost-executable-bit" "mode: $script" compare
+chmod +x "$regen/$script"
+echo x >"$regen/tacenta-core/session-unit/stray.rs"
+expect_refused "stray-file-in-assembled-unit" "tacenta-core/session-unit/stray.rs" compare
+rm "$regen/tacenta-core/session-unit/stray.rs"
 rm "$regen/$spqr" && ln -s "$tree/$spqr" "$regen/$spqr"
 expect_refused "symlink-to-the-checkout" "symlink: $spqr" compare
 rm "$regen/$spqr" && ln -s "$work/nowhere" "$regen/$spqr"
@@ -212,8 +219,13 @@ reset_regen
 echo "# edited after HEAD" >>"$tree/README.md"
 echo "# edited after HEAD" >>"$regen/README.md"
 out="$(compare)" || { echo "regenerate-in-container negative: the edited tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
-grep -qF "1 tracked path(s) differ from HEAD" <<<"$out" || { echo "regenerate-in-container negative: an edited tree is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
+tail -n 1 <<<"$out" | grep -qF "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: an edited tree is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
 accepted=$((accepted + 1))
+git -C "$tree" add README.md
+out="$(compare)" || { echo "regenerate-in-container negative: the staged tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
+tail -n 1 <<<"$out" | grep -qF "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: a staged edit is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
+accepted=$((accepted + 1))
+git -C "$tree" reset -q HEAD -- README.md
 git -C "$tree" checkout -q -- README.md
 reset_regen
 
@@ -240,7 +252,8 @@ for pair in "archive digest|bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638
   "image digest|sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60" \
   "rustup-init digest|dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71" \
   "channel manifest digest|aaf1cb59b5996dd51831c9114b6e3a4a176e197851de91194b473117e142b935" \
-  "compiler version line|rustc 1.98.0-nightly (14210df0e 2026-05-31)"; do
+  "compiler version line|rustc 1.98.0-nightly (14210df0e 2026-05-31)" \
+  "channel|nightly-2026-06-01"; do
   what="${pair%%|*}"
   value="${pair#*|}"
   grep -qF -- "$value" "$doc" || { echo "regenerate-in-container negative: REPRODUCING.md does not state the $what, so the control cannot plant its absence" >&2; exit 1; }
