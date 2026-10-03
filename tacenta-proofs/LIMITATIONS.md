@@ -2382,9 +2382,10 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; true of the real types, which wrap 32 bytes, by reading |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; true of the real type, a serialised key pair, by reading |
 
-The two view laws are conditions on the views a caller passes, not on the primitives. Every clause of `OracleOf` says
-that a primitive returns and that the view of its result depends only on the views of its arguments; without an
-injective view a primitive could give two keys with the same bytes different answers, and no oracle could match it. Lean
+The two view laws are conditions on the views a caller passes, not on the primitives. Each of the seven clauses the
+integration screen left open says that a primitive returns and that the view of its result depends only on the views of
+its arguments (the other five also count random draws); without an injective view a primitive could give two keys with
+the same bytes different answers, and no oracle could match it. Lean
 cannot show that an injective view of an opaque type exists at the real constants; the joint model has one.
 
 **What is shown about the laws.** `oracleLaws_hold_jointly` and `oracleOf_joint_model` exhibit one interpretation of the
