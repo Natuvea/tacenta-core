@@ -40,6 +40,8 @@ import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleIntegrationScreen
+import Translation.UnitLifecycleDecryptRatchetT3
+import Translation.UnitLifecycleDecryptRatchetScreen
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
