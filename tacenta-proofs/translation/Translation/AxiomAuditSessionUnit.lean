@@ -40,6 +40,9 @@ import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleIntegrationScreen
+import Translation.UnitOracleShape
+import Translation.UnitOracleModel
+import Translation.UnitOracleDh
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
