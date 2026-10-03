@@ -299,8 +299,9 @@ arguments; in this interpretation those types are inhabited.
 Not decided here: `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`,
 statements about translated functions that the session unit takes as assumptions
 (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), and `ErasureAgrees`, which
-`UnitErasureRsGlue.erasureAgrees` derives from the value law of `usize::div_ceil`, a law that holds in
-this model (`StdLaws.divCeil`). -/
+`UnitErasureRs.Glue.erasureAgrees` derives from two laws, the value of `usize::div_ceil` and the prefix
+`Vec::truncate` keeps (`DivCeilValue`, `TruncatePrefix`), both of which hold in this model
+(`AllT1Shapes.divCeilValue`, `TruncatePrefixShape`). -/
 
 open Tacenta.UnitSatisfiabilityJoint
 open Tacenta.UnitSatisfiabilityBraidAgreements

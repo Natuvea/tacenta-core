@@ -2447,6 +2447,46 @@ sends: `MsgRefines` holds of a real chunk of any content when the decoder needs 
 so the refinement theorems apply to states reachable from a fresh Braid and to restored states equal to
 such a state.
 
+### The `decrypt_ratchet` refinement: what it assumes, and the one path it leaves open
+
+`decrypt_ratchet_refines` (`Translation/UnitLifecycleDecryptRatchetT3.lean`; `CLAIMS.md`, the section on `decrypt_ratchet`
+with the eviction retry loop) relates the private transaction behind `Session::decrypt` to `Model.Lifecycle.decryptRatchet`
+under the hypotheses in its statement. This section lists what they assume.
+
+**Assumed, about opaque operations.** `DecryptOracleOf` is the four clauses of `OracleOf` the transaction uses: the DH
+public key and the DH agreement of `tacenta_boundary::dh`, the AEAD open of `tacenta_boundary::aead`, and the 32-byte draw
+of `random_secret` from the caller's random source. `DhCodecOf` says the byte views of the two opaque key types agree with
+`PrivateKey::from_bytes`, `PublicKeyBytes::from_bytes` and `PublicKeyBytes::as_bytes`. `DecryptRatchetAgreements` assumes
+round trips of the opaque `zeroize::Zeroizing` wrapper at 32, 64, 80 and 96 bytes, the HMAC and HKDF agreements with
+`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), and the KEM agreements of the Braid section above. None
+is shown of the real X25519, AEAD, KDF, ML-KEM or `zeroize` code. What is shown is that they are consistent: one
+interpretation of the unit's opaque constants, `Interp.modelDecrypt` (`Translation/UnitLifecycleDecryptRatchetScreen.lean`),
+satisfies all of them together with the axiom-level fields of the session records and the laws above, with an agreement
+that refuses the all-zero key and an AEAD that refuses the empty ciphertext. That is the substitution argument above, about
+derivations and not inside Lean. `DhCodecOf` and the DH and AEAD clauses had no model before this result.
+
+**Assumed, about translated functions.** `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`
+are statements about the session unit's sparse ratchet that it takes as assumptions (`GAP-REGISTER.md`, row
+`SESSION-SPARSE-AGREEMENTS`); the screen does not decide them. `ErasureAgrees` follows from the two laws above.
+
+**Per run.** The run's agreement chunk is a codeword of one source that fits the decoder it is fed to (`IncomingChunkRefines`,
+`HonestChunk`), so a run whose chunk is spliced or inconsistent is outside the theorem whether it is refused or accepted.
+The random source holds one draw; the model's ceiling refusal for an exhausted source has no Rust counterpart. Each
+skipped-key store is at most `2^32 - 1 - 2000` long, and the model state's counters and epochs meet `RetryReceiveBounds`.
+Two runs meet all of these, one whose model step refuses and one whose model step succeeds, at both platform widths.
+
+**The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
+nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). A
+refusal refinement of one Triple receive at related states would close it.
+
+**How the proof reaches the model loop.** `Model/Lifecycle.lean` keeps the fuel-indexed retry loop private. One lemma,
+`receiveWithEvictionLoopResult_stop`, names it through Batteries' `open private` to prove that a retry refused for a reason
+`fullStore` does not classify ends the loop; no model definition changes, and a public lemma in `Model/Lifecycle.lean`
+would replace it under rule 7.
+
+**Compiler trust.** The theorem and the loop theorems rest on the nine compiler-evaluated constants of the Session unit's
+discharged Triple receive refinement, and on no others (`CLAIMS.md`).
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking

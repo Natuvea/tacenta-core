@@ -32,7 +32,11 @@ this section says in one place what is not proved.
   records the accepted-initial decrypt lemmas take are asked of the run alone, and the one they replace is shown
   empty; the dispatch records are not shown satisfiable as a whole;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. The decrypt lemmas that take the per-run evidence records cover a
+  return as a whole, on every branch, against the model. For the private `decrypt_ratchet` that `Session::decrypt` runs on a
+  ratchet message, `decrypt_ratchet_refines` relates every branch to the model's step, the eviction retry loop included, except
+  a Triple receive refusal whose reason is not a full store, which it leaves open; it is conditional on the hypotheses in its
+  statement and is compiler-trusted (the section "Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction
+  retry loop, on the eight-leaf unit)"). The decrypt lemmas that take the per-run evidence records cover a
   message only if the agreement chunk it carries is a codeword of one source that fits the decoder it is fed to, whether the
   message is refused or accepted. When the receiving decoder already holds a chunk, a message an attacker sends with an
   altered chunk falls outside them: `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
@@ -3493,7 +3497,9 @@ Location: `Translation/UnitLifecycleInitialDispatch.lean` and
 
 These are prerequisites for the bounded eviction retry. They do not prove that
 the retry loop terminates or refines its model, do not compose the success
-path, and do not prove public `Session::decrypt` end to end.
+path, and do not prove public `Session::decrypt` end to end. The section
+"Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction retry loop,
+on the eight-leaf unit)" below proves the first two from them.
 
 `concrete_receive_attempt_store_full_from_contracts` and
 `concrete_receive_attempt_store_full_from_retry_bounds` are compiler-trusted:
@@ -3502,6 +3508,104 @@ from the Session unit's sparse ratchet refinement (its labels, its `MAX_SKIP`
 constants and one step of `receive_refines_continuation`) and one from the
 Triple's `combine_info_agrees`. `fullStoreOfReal_ne_of_generated_ne` is
 kernel-only.
+
+## Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction retry loop, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleRetryLoopT3.lean`, `Translation/UnitLifecycleDecryptRatchetT3.lean`,
+`Translation/UnitLifecycleDecryptRatchetScreen.lean`.
+
+`Session::decrypt_ratchet` is the private transaction the shipped `Session::decrypt` runs on a ratchet message. These
+results relate its translation on the eight-leaf unit to `Model.Lifecycle.decryptRatchet`, including the eviction retry
+loop of `receive_with_eviction`. Each is conditional on the hypotheses in its statement; the screen below decides them.
+They are not results about `Session::decrypt` or `Session::encrypt`.
+
+- `receive_with_eviction_loop_refines`: for every fuel larger than the number of skipped keys the model Triple state holds
+  (classical plus sparse), from a generated loop state related to a model one by `LoopRel` (the Triple state relation, the
+  batch relation `BatchCovers`, the pending refusal's public mapping, `ReceiveHeadroom`, `RetryReceiveBounds`, and each
+  skipped-key store at most `2^32 - 1 - 2000` long), the generated retry loop returns, and the model loop's result at that
+  fuel (`Model.Lifecycle.ReceiveWithEvictionLoopResult`) is related to the generated outcome: a success with related state
+  and key, a refusal whose public mapping is the model's refusal (an empty eviction returns the pending full-store refusal
+  on both sides), or `OpenRefusal`. `OpenRefusal` is a refusal that `full_store` does not classify, returned by one Triple
+  receive at a working state related to a model state; the theorem says that if that one refusal is the model's detailed
+  refusal, the two loop results agree, and it does not say that it is. `BatchCovers` relates the saturating `usize` batch
+  to the model's natural number by equality or by both covering the store, so the theorem takes no bound on a header's
+  counters.
+- `receive_with_eviction_refines`: the first attempt and the loop composed: at related Triple states with the receive and
+  store bounds, the generated `receive_with_eviction` returns, and its result is related to
+  `Model.Lifecycle.receiveWithEviction` in the same three ways (the model's own fuel is one more than the keys it holds).
+- `receiveWithEvictionLoopResult_stop`: in the model, a retry refused for a reason `fullStore` does not classify ends the
+  loop with that refusal. `Model/Lifecycle.lean` keeps the loop private and exposes no such lemma, so this proof names the
+  private loop through Batteries' `open private`; no model definition changes.
+- `shortfall_covers`, `evict_for_retry_covers`: the generated first batch of each half covers the model's, and one
+  generated eviction at a covering batch refines the model's eviction, keeps the headroom and shrinks the store when it
+  removes a key.
+- `decrypt_ratchet_refines`, `decrypt_ratchet_refines_statement`: for every input meeting the hypotheses of
+  `DecryptRatchetRefinesStatement` (the four `OracleOf` clauses the transaction uses, `DecryptOracleOf`; `DhCodecOf`;
+  `DecryptRatchetContracts`; the agreements `DecryptRatchetAgreements` at the oracle's KEM model; `SessionRefines`;
+  `DecryptRatchetHeadroom`; the trace equation; and the per-run record `DecryptRatchetRun`), the generated
+  `decrypt_ratchet` returns, and either `StepRefines` holds between its result, the session it leaves and the remaining
+  trace and the model's step, or the output satisfies `TripleRefusalOpen`. `StepRefines` is proved on the terminal guard,
+  a decode refusal, both DH refusals, a Triple refusal whose reason is a full store, an AEAD refusal and a success, with
+  or without eviction rounds; a refusal returns the given session, and a success commits the Triple and Braid candidates
+  and, when the sending key changed, the drawn private key.
+- `tripleRefusalOpen_exactly`, `tripleRefusalOpen_false_unless_triple`: `TripleRefusalOpen` holds of an output exactly
+  when it is a Triple refusal whose reason is neither `Classical SkippedStoreFull` nor `PostQuantum SkippedStoreFull`;
+  it is false of every success and of every other refusal.
+- `DecryptPrefix.triple_refusal`, `DecryptPrefix.aead_refusal`, `DecryptPrefix.success`: the generated result once every
+  call before the Triple receive is fixed, for a Triple refusal, an AEAD refusal and a success.
+- `RetryRunBounds.toRetryReceiveBounds`, `DecryptOracleOf.of_oracleOf`, `cMax_usize`: the run's model-side receive bounds
+  give the generated-side ones, `OracleOf` gives `DecryptOracleOf`, and Aeneas' bound on a `usize` is `2^32 - 1`.
+- `sample_run_satisfiable`, `succ_run_satisfiable`: two runs meet every per-run hypothesis together, each with a message
+  that decodes on both sides, for every Braid KEM model, codeword view and oracle with that KEM model and the source's
+  draws: a session over fresh states, and one over a Triple state that already receives on both halves. The values of the
+  two opaque key types are arguments.
+- `sample_model_refuses`, `succ_model_accepts`, `hypotheses_meet_refusal_and_success`: with the oracle of the model below,
+  the model step refuses at the first agreement at the first run and succeeds at the second, so the hypotheses are met
+  at a run whose model step is a refusal and at one whose model step is a success. No proof here chooses a width of
+  `usize`, so each holds at both widths.
+- `decrypt_boundary_has_a_model`, `decrypt_shapes_are_predicates`: one interpretation of the unit's opaque constants
+  (`Interp.modelDecrypt`, `Interp.modelT3` with the two key types read as 32-byte arrays), one DH view and one oracle meet
+  together every axiom-level shape of the session contract records, `StdLaws`, `FaithfulShape`, `TruncatePrefix`, the two
+  model classes, the six Braid agreements at `toyKem`, the five `zeroize` round trips, `DhCodecOf` and the four clauses of
+  `DecryptOracleOf`, with an agreement and an AEAD that each refuse one input and accept another; each shape is the
+  theorem's predicate at the real constants. This is the substitution argument of `UnitSatisfiabilityJoint.lean`, an
+  argument about derivations and not a theorem inside Lean.
+- `run_draw_not_trivial`, `retryRunBounds_not_trivial`, `tripleRefusalOpen_false_of_ok`,
+  `tripleRefusalOpen_false_of_store_full`: the run record fails at an exhausted source, the receive bounds fail at a sparse
+  epoch of `u64::MAX` and at a classical store with less than 2000 below the bound, and the open disjunct is false of a
+  success and of the two full-store refusals.
+- `decrypt_ratchet_refines_at_sample`: the theorem at the first run, with every per-run hypothesis discharged by the
+  witnesses and only the boundary records left as arguments.
+
+**What the disjunct leaves open.** On a run whose generated output is a Triple refusal with a reason other than a full
+store (a classical `TooManySkipped`, `NoReceivingChain`, `OutOfOrder` or `ChainExhausted`, or any sparse refusal but
+`SkippedStoreFull`), from the first attempt or from a retry inside the loop, the theorem says nothing about the model's
+step: not its refusal reason, not that it refuses, and not the session or trace it returns. The missing piece is a
+refusal refinement of one Triple receive at related states, which no theorem of this tree has: the leaf refinements relate
+a success and the full-store refusal only. `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state` says separately that
+such a refusal returns the session it was given.
+
+**What the hypotheses cover.** The per-run record asks the run's agreement chunk to be a codeword of one source that fits
+the decoder it is fed to (`IncomingChunkRefines`, `HonestChunk`), so a run that carries a spliced or inconsistent chunk is
+not covered, refused or accepted; it asks the random source to hold one draw; and it bounds each skipped-key store by
+`2^32 - 1 - 2000` and the counters and epochs of the model state as `RetryReceiveBounds` does. The screen does not reach
+a run carrying a chunk. The agreements include `SessionUnitSpqrT3.VecRetainAgrees` and
+`SessionUnitSpqrT3.RemoveSkippedAtAgrees`, statements about translated functions the session unit assumes
+(`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), which the screen does not decide. `LIMITATIONS.md`, section "The
+`decrypt_ratchet` refinement", lists what is assumed about opaque operations.
+
+**Compiler trust.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
+`decrypt_ratchet_refines_statement` and `decrypt_ratchet_refines_at_sample` are compiler-trusted. Their axiom lists
+include nine per-declaration `native_decide` axioms, exactly those of `SessionUnitTripleT3.receive_refines_discharged`,
+the Triple receive refinement they compose: eight from the Session unit's sparse ratchet refinement (its four labels, its
+`MAX_SKIP` constants, its store cap and one step of `receive_refines_continuation`) and the Triple's
+`combine_info_agrees`. The two full-store correspondences of #203 list eight of the nine (all but `chain_start_agrees`,
+which the success path adds). The five are on `COMPILER_TRUSTED_PINS`, which grows from 13 to 18 names. Every other result
+here is kernel-only. Each carries an axiom pin and a statement pin, the definitions their statements are written in carry
+`#print` pins, and `attest.py` requires all of them. `check-decrypt-ratchet-negatives.py` plants a fault in a copy of the
+loop or the composition (four in the loop correspondence, two that make the open disjunct broader, two in the run record)
+and requires Lean to refuse each, and a ninth that makes the disjunct broader with the pins kept and requires the pin to
+refuse it.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 

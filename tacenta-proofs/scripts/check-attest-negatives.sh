@@ -414,6 +414,9 @@ UnitPins Tacenta.UnitSpqrT3 receive_store_full_refines
 UnitPins Tacenta.UnitTripleT3 receive_store_full_refines_discharged
 AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_full_from_contracts concrete_receive_attempt_store_full_from_retry_bounds fullStoreOfReal_ne_of_generated_ne
 UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view sameEphemeralAgreement_unconstrained concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
+UnitLifecycleRetryLoopT3 Tacenta.UnitLifecycleRetryLoopT3 receive_with_eviction_loop_refines receive_with_eviction_refines receiveWithEvictionLoopResult_stop shortfall_covers evict_for_retry_covers
+UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 DecryptOracleOf.of_oracleOf cMax_usize decrypt_ratchet_refines decrypt_ratchet_refines_statement RetryRunBounds.toRetryReceiveBounds DecryptPrefix.triple_refusal DecryptPrefix.aead_refusal DecryptPrefix.success tripleRefusalOpen_exactly tripleRefusalOpen_false_unless_triple
+UnitLifecycleDecryptRatchetScreen Tacenta.UnitLifecycleDecryptRatchetScreen sample_run_satisfiable decrypt_boundary_has_a_model decrypt_shapes_are_predicates run_draw_not_trivial retryRunBounds_not_trivial tripleRefusalOpen_false_of_ok tripleRefusalOpen_false_of_store_full decrypt_ratchet_refines_at_sample sample_model_refuses succ_model_accepts succ_run_satisfiable hypotheses_meet_refusal_and_success
 LIST
 
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
@@ -673,6 +676,38 @@ path.write_text(new)
 PY
   expect_fail "statement-pin-deleted-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
 done
+
+# Package F (`UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
+# `UnitLifecycleDecryptRatchetScreen.lean`): each statement pin and each definition pin, deleted in
+# turn, is refused as a missing statement pin. One line per module: file, namespace, then the names.
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "statement-pin-deleted-$file-$n" "\`$ns.$n\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+  done
+done <<'LIST'
+UnitLifecycleRetryLoopT3 Tacenta.UnitLifecycleRetryLoopT3 receive_with_eviction_loop_refines receive_with_eviction_refines receiveWithEvictionLoopResult_stop shortfall_covers evict_for_retry_covers LoopRel OutcomeRefines OpenRefusal BatchCovers halfLength evictHalf
+UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 DecryptOracleOf.of_oracleOf decrypt_ratchet_refines decrypt_ratchet_refines_statement RetryRunBounds.toRetryReceiveBounds DecryptPrefix.triple_refusal DecryptPrefix.aead_refusal DecryptPrefix.success tripleRefusalOpen_exactly tripleRefusalOpen_false_unless_triple DecryptOracleOf RetryRunBounds DecryptRatchetAgreements DecryptRatchetRun TripleRefusalOpen DecryptRatchetRefinesStatement DecryptPrefix
+UnitLifecycleDecryptRatchetScreen Tacenta.UnitLifecycleDecryptRatchetScreen sample_run_satisfiable decrypt_boundary_has_a_model decrypt_shapes_are_predicates run_draw_not_trivial retryRunBounds_not_trivial tripleRefusalOpen_false_of_ok tripleRefusalOpen_false_of_store_full decrypt_ratchet_refines_at_sample sample_model_refuses succ_model_accepts succ_run_satisfiable hypotheses_meet_refusal_and_success sampleComposite sampleReal modelOf sampleRng DhCodecOfShape DecryptOracleShape ZeroizeRoundTripShapes succTriple succReal succComposite succBytes oracleDecrypt
+LIST
+
+# Package F's open disjunct is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
+make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleDecryptRatchetT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\n'
+expect_fail "definition-pin-check-form-TripleRefusalOpen" "is \`#check @Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen\`, which prints the type and not the body" --check
 
 # A definition on REQUIRED_PRINT_FORM is held by `#print`: its pin rewritten as `#check @`, which
 # prints the type and not the body, is refused, for a model definition and for a record. A floor
