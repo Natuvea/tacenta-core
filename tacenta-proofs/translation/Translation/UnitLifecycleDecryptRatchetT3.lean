@@ -41,7 +41,14 @@ refusal whose reason is not a full skipped-key store (`TripleRefusalOpen`).  The
 is the one path this module leaves open: no theorem of this tree relates a concrete Triple receive
 refusal other than a full store to the model's detailed refusal, so neither a direct refusal of
 that kind nor one returned by a retry inside the loop is related to the model.  The loop theorem
-below reduces the retry case to that one statement about a single Triple receive.
+(`UnitLifecycleRetryLoopT3.receive_with_eviction_refines`) reduces both to that one statement about
+a single Triple receive.  `tripleRefusalOpen_exactly` shows the disjunct holds of an output exactly
+when it is a Triple refusal whose reason is neither full-store refusal, so it cannot absorb a
+success or any other refusal (`tripleRefusalOpen_false_unless_triple`).
+
+The theorem rests on the compiler-trusted constants the Session unit's sparse ratchet and Triple
+refinements rest on (the nine per-declaration `native_decide` axioms its pin lists), as the retry
+prerequisites of #203 do.
 -/
 
 namespace Tacenta.UnitLifecycleDecryptRatchetT3
@@ -170,6 +177,33 @@ def TripleRefusalOpen {R : Type}
     (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R) : Prop :=
   ∃ reason, output.1 = .Err (.Triple reason) ∧ lifecycle.full_store reason = ok none
+
+/-! ## The open disjunct holds only on a Triple refusal that is not a full store -/
+
+/-- `TripleRefusalOpen` holds of an output exactly when the output is a Triple refusal whose reason
+is neither full-store refusal. -/
+theorem tripleRefusalOpen_exactly {R : Type}
+    (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error × lifecycle.Session × R) :
+    TripleRefusalOpen output ↔
+      ∃ reason, output.1 = .Err (.Triple reason) ∧
+        reason ≠ .Classical .SkippedStoreFull ∧ reason ≠ .PostQuantum .SkippedStoreFull := by
+  constructor
+  · rintro ⟨reason, h, hfull⟩
+    refine ⟨reason, h, ?_, ?_⟩ <;> rintro rfl <;> simp [lifecycle.full_store] at hfull
+  · rintro ⟨reason, h, h1, h2⟩
+    refine ⟨reason, h, ?_⟩
+    cases reason with
+    | Classical r => cases r <;> simp_all [lifecycle.full_store]
+    | PostQuantum r => cases r <;> simp_all [lifecycle.full_store]
+
+/-- It is false of every output that is not a Triple refusal: every success and every other
+refusal (decode, handshake, AEAD, the terminal guard). -/
+theorem tripleRefusalOpen_false_unless_triple {R : Type}
+    (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error × lifecycle.Session × R)
+    (h : ∀ reason, output.1 ≠ .Err (.Triple reason)) :
+    ¬ TripleRefusalOpen output := by
+  rintro ⟨reason, hr, -⟩
+  exact h reason hr
 
 /-- The statement of `decrypt_ratchet_refines`, as a proposition.  Kept beside the theorem so that
 the screen module can name it. -/
@@ -1629,3 +1663,57 @@ constructor:
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetT3.DecryptPrefix
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_exactly' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_exactly
+
+/--
+info: @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_exactly : ∀ {R : Type}
+  (output :
+    Aeneas.Std.core.result.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) tacenta_session_unit.lifecycle.Error ×
+      tacenta_session_unit.lifecycle.Session × R),
+  Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen output ↔
+    ∃ reason,
+      output.1 = Aeneas.Std.core.result.Result.Err (tacenta_session_unit.lifecycle.Error.Triple reason) ∧
+        reason ≠
+            tacenta_session_unit.tacenta_triple.TripleError.Classical
+              tacenta_session_unit.tacenta_ratchet.RatchetError.SkippedStoreFull ∧
+          reason ≠
+            tacenta_session_unit.tacenta_triple.TripleError.PostQuantum
+              tacenta_session_unit.tacenta_spqr.SpqrError.SkippedStoreFull
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_exactly
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_triple' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_triple
+
+/--
+info: @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_triple : ∀ {R : Type}
+  (output :
+    Aeneas.Std.core.result.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) tacenta_session_unit.lifecycle.Error ×
+      tacenta_session_unit.lifecycle.Session × R),
+  (∀ (reason : tacenta_session_unit.tacenta_triple.TripleError),
+      output.1 ≠ Aeneas.Std.core.result.Result.Err (tacenta_session_unit.lifecycle.Error.Triple reason)) →
+    ¬Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen output
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetT3.tripleRefusalOpen_false_unless_triple
