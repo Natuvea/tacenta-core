@@ -40,6 +40,7 @@ import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleIntegrationScreen
+import Translation.UnitLifecycleRetryLoopT3
 import Translation.UnitLifecycleDecryptRatchetT3
 import Translation.UnitLifecycleDecryptRatchetScreen
 
