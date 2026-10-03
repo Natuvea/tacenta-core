@@ -3589,9 +3589,21 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
   `hypotheses_meet_eviction_round`: a third run, over a Triple state whose classical store holds 1001 keys and whose sparse
   store holds one, with message number 1000 on the classical chain, meets every per-run hypothesis with both stores
   non-empty. There the model's first Triple receive refuses with the classical full store (1001 kept keys and 1000 new
-  ones pass the cap of 2000), the first batch is one key and the first eviction removes one key, so the model's retry
-  loop takes its retry branch. This is the model side of the run, as above; it shows the eviction branches reached under
-  these hypotheses, and that a run record which asked both stores to be empty would be refused.
+  ones pass the cap of 2000), the first batch is one key and the first eviction removes one key. This is the model side
+  of the run, as above. It shows one eviction round reached under these hypotheses, the first, with its retry taken:
+  that the model step passes the agreements and the draw before the loop (`evict_reaches_receive`) and that the loop then
+  evicts one key and retries (`evict_loop_first_round`). It does not show the outcome of the retry, and no run here
+  reaches an empty eviction, a second round or a switch between the two stores. A run record which asked both stores to
+  be empty would be refused here. The witness states are built for these hypotheses and not for `Ratchet::invariant`:
+  the third run's classical store repeats one key, and the second and third runs hold a receiving chain without a
+  sending chain, both of which the invariant refuses. They show the hypotheses satisfiable, not that a session the
+  shipped code accepts reaches these branches.
+- `evict_reaches_receive`, `receiveWithEviction_first_round`, `evict_loop_first_round`: with the oracle below, the model
+  step at the third run passes the terminal guard, the decode, both agreements and the draw; at any state whose first
+  receive refuses with the classical full store, whose first batch is one key and whose first eviction removes a key,
+  `receiveWithEviction` is that one round followed by the receive on the evicted state; and the third run's state is
+  such a state, with fuel 1003. These name the private model loop through `open private`, as
+  `receiveWithEvictionLoopResult_stop` does.
 - `decrypt_boundary_has_a_model`, `decrypt_shapes_are_predicates`: one interpretation of the unit's opaque constants
   (`Interp.modelDecrypt`, `Interp.modelT3` with the two key types read as 32-byte arrays), one DH view and one oracle meet
   together every axiom-level shape of the session contract records, `StdLaws`, `FaithfulShape`, `TruncatePrefix`, the two
@@ -3599,9 +3611,9 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
   `DecryptOracleOf`, with an agreement and an AEAD that each refuse one input and accept another; each shape is the
   theorem's predicate at the real constants. This is the substitution argument of `UnitSatisfiabilityJoint.lean`, an
   argument about derivations and not a theorem inside Lean.
-- `decrypt_ratchet_refines_from_shapes`: the composition inside Lean: from those shapes read at the real constants and the
-  two sparse agreements, every hypothesis of `decrypt_ratchet_refines` holds at the first run, and so does its
-  conclusion. So the substitution step is the only part of the joint claim outside Lean, and the two sparse agreements
+- `decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`: the composition inside Lean:
+  from those shapes read at the real constants and the two sparse agreements, every hypothesis of
+  `decrypt_ratchet_refines` holds at the first run and at the third, and so does its conclusion. So the substitution step is the only part of the joint claim outside Lean, and the two sparse agreements
   are the only hypotheses no model here decides.
 - `run_draw_not_trivial`, `retryRunBounds_not_trivial`, `tripleRefusalOpen_false_of_ok`,
   `tripleRefusalOpen_false_of_store_full`: the run record fails at an exhausted source, the receive bounds fail at a sparse
@@ -3637,30 +3649,33 @@ not decide. `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement", lists 
 
 **Compiler trust and pins.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
 `decrypt_ratchet_refines_statement`, `decrypt_ratchet_refines_unless_open`, `decrypt_ratchet_refines_at_sample`,
-`decrypt_ratchet_refines_at_eviction` and `decrypt_ratchet_refines_from_shapes` are compiler-trusted. Their axiom lists
-include nine per-declaration `native_decide` axioms, the nine that `UnitTripleT3.receive_refines_discharged` lists for the
-three-leaf unit, under the Session unit's names (`SessionUnitTripleT3.receive_refines_discharged` has no axiom pin of its
-own): eight from the Session unit's sparse ratchet refinement (its four labels, its `MAX_SKIP` constants, its store cap and
-one step of `receive_refines_continuation`) and the Triple's `combine_info_agrees`. The two full-store correspondences of
-#203 list eight of the nine (all but `chain_start_agrees`, which the success path adds); that ninth fact, a closed fact
-about the sparse ratchet's chain-start label, is new to the pinned results of the Session unit. The eight are on
-`COMPILER_TRUSTED_PINS`, which grows from 13 to 21 names. The other 27 results here rest on no compiler-evaluated
-constant: six (`receiveWithEvictionLoopResult_stop`, `shortfall_covers`, `cMax_usize`,
-`RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial` and `evict_decode_model`) are kernel-only, and the
-other 21 each rest on between 1 and 49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result
-carries an axiom pin and a statement pin. The definitions this package adds carry `#print` pins, as do five earlier ones
-its statements are written in (`StepRefines`, `ResultRefines`, `SessionRefines`, `VecRetainAgrees` and
-`RemoveSkippedAtAgrees`). The other earlier definitions they use carry none, among them `refusalOf`,
-`tripleReceiveRefusalOfReal`, `IncomingChunkRefines`, `HonestChunk`, `DecryptRatchetHeadroom`, `ReceiveHeadroom`,
-`RetryReceiveBounds`, `DhCodecOf`, `DecryptRatchetContracts` and the model's `decryptRatchet`, `receiveWithEviction` and
-`receiveDetailed`; a pin shows their names and not their meaning. `attest.py` requires the axiom pins and statement pins of
-these results; a name leaves the axiom-pin list or the `#print` list by an edit of `attest.py` alone, and only the
-statement-pin list is also recorded in the manifest. `check-decrypt-ratchet-negatives.py` plants a fault in a copy of the
-loop, of the composition, or of the composition and the screen together, and requires Lean to refuse each at a named
-declaration: four in the loop correspondence, two that make the open disjunct broader (each refused in
-`tripleRefusalOpen_exactly`), two in the run record, one that widens the conclusion (refused in
-`decrypt_ratchet_refines_unless_open`) and one that asks the run record for empty stores (refused in
-`evict_run_satisfiable`); an eleventh makes the disjunct broader with the pins kept and requires the pin of
+`decrypt_ratchet_refines_at_eviction`, `decrypt_ratchet_refines_from_shapes` and
+`decrypt_ratchet_refines_from_shapes_at_eviction` are compiler-trusted. Their axiom lists include nine per-declaration
+`native_decide` axioms, the nine that `UnitTripleT3.receive_refines_discharged` lists for the three-leaf unit, under the
+Session unit's names (`SessionUnitTripleT3.receive_refines_discharged` has no axiom pin of its own): eight from the Session
+unit's sparse ratchet refinement (its four labels, its `MAX_SKIP` constants, its store cap and one step of
+`receive_refines_continuation`) and the Triple's `combine_info_agrees`. The two full-store correspondences of #203 list
+eight of the nine (all but `chain_start_agrees`, which the success path adds); that ninth fact, a closed fact about the
+sparse ratchet's chain-start label, is new to the pinned results of the Session unit. These nine results are on
+`COMPILER_TRUSTED_PINS`, which grows from 13 to 22 names: each composes the Session unit's discharged Triple receive
+refinement, directly or through the loop theorems, and so inherits its nine constants; no other constant is added. The
+other 30 results here rest on no compiler-evaluated constant: seven (`receiveWithEvictionLoopResult_stop`,
+`shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
+`evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 23 each rest on between 1 and
+49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
+pin. The definitions this package adds carry `#print` pins, except six that pinned texts name (`wrap32`, `zeros32`,
+`ones32`, `DhViewShape`, `sampleMessage` and `succMessage`), and five earlier ones its statements are written in carry them
+too (`StepRefines`, `ResultRefines`, `SessionRefines`, `VecRetainAgrees` and `RemoveSkippedAtAgrees`). The other earlier
+definitions they use carry none, among them `refusalOf`, `tripleReceiveRefusalOfReal`, `IncomingChunkRefines`,
+`HonestChunk`, `DecryptRatchetHeadroom`, `ReceiveHeadroom`, `RetryReceiveBounds`, `DhCodecOf`, `DecryptRatchetContracts` and
+the model's `decryptRatchet`, `receiveWithEviction` and `receiveDetailed`; a pin shows their names and not their meaning.
+`attest.py` requires the axiom pins and statement pins of these results; a name leaves the axiom-pin list or the `#print`
+list by an edit of `attest.py` alone, and only the statement-pin list is also recorded in the manifest.
+`check-decrypt-ratchet-negatives.py` plants a fault in a copy of the loop, of the composition, or of the composition and
+the screen together, and requires Lean to refuse each at a named declaration: four in the loop correspondence, two that
+make the open disjunct broader (each refused in `tripleRefusalOpen_exactly`), two in the run record, one that widens the
+conclusion (refused in `decrypt_ratchet_refines_unless_open`) and one that asks the run record for empty stores (refused
+in `evict_run_satisfiable`); an eleventh makes the disjunct broader with the pins kept and requires the pin of
 `TripleRefusalOpen` itself to refuse it.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)

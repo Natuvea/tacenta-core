@@ -1333,6 +1333,10 @@ REQUIRED_PINS = frozenset(
         "hypotheses_meet_eviction_round",
         "decrypt_ratchet_refines_at_eviction",
         "decrypt_ratchet_refines_from_shapes",
+        "evict_reaches_receive",
+        "receiveWithEviction_first_round",
+        "evict_loop_first_round",
+        "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -1362,6 +1366,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
+        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
     }
 )
 
@@ -1942,6 +1947,11 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "evictReal",
         "evictComposite",
         "evictBytes",
+        "evictMessage",
+        "evict_reaches_receive",
+        "receiveWithEviction_first_round",
+        "evict_loop_first_round",
+        "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
 )
 
@@ -1991,6 +2001,7 @@ REQUIRED_PRINT_FORM = frozenset(
         "evictReal",
         "evictComposite",
         "evictBytes",
+        "evictMessage",
     )]
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "StepRefines",

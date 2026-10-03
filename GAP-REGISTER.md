@@ -19,8 +19,8 @@ are not retained in this repository. The rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-
 branch and describe that tree, not `dea57eaf`. The reads of those rows were made by the author, and no
 reviewer independent of the maintainer has read them. The rows `E2E-01` and `DISPATCH-EVIDENCE-VACUITY` gained, on
 2026-10-03, a statement of what package F (the `decrypt_ratchet` refinement) changes, made by its author with the same
-tool assistance as the reads above, and read by no one else; the statements were revised the same day after four readers'
-findings, also by the author.
+tool assistance as the reads above. Four readers with the same tool assistance read them the same day, none independent of
+the maintainer, and the author revised them after their findings.
 
 This file does not close a gap; it moves a row to Historical only when the
 finding no longer describes the tree. Each row below remains the current
