@@ -624,13 +624,16 @@ drop, which the translation ignores); the vectors
 and three one-step sequences in the differential harness. They pin the behaviour
 of the source; they do not prove it, and none of them runs the translation. The
 translation the T3 proof is about was regenerated with a macOS arm64 build of
-the pinned release, and a Linux x86_64 regeneration, in an emulated container
-on 2026-10-03, reproduced the four changed generated files (`TacentaSpqr.lean`,
+the pinned release, and a Linux x86_64 regeneration, in an emulated container on 2026-10-03,
+reproduced the four changed generated files (`TacentaSpqr.lean`,
 `TacentaTripleUnit.lean`, `TacentaSessionUnit.lean` and, for docstring line
-numbers only, `TacentaLifecycle.lean`) and every other tracked file as
-committed. That is one run by the maintainer's tool-assisted session, not a
-hosted job and not independent (`REPRODUCING.md`, "Regenerating the translation
-on Linux x86_64, by hand"; `GAP-REGISTER.md`, `HL-R1-SPARSE-TRANSLATION`).
+numbers only, `TacentaLifecycle.lean`) as committed, with the seven other
+generated files and the three assembled unit crates. The rest of the tracked
+files pass through the run and equal the committed ones, which shows that the
+run changed nothing else. That is one run by the maintainer's tool-assisted
+session, not a hosted job and not independent (`REPRODUCING.md`, "Regenerating
+the translation on Linux x86_64, by hand"; `GAP-REGISTER.md`,
+`HL-R1-SPARSE-TRANSLATION`).
 
 Not proved, and not checked by `State::invariant`: that no operation leaves a
 stored key at or past its epoch's receiving counter, and so that the counts

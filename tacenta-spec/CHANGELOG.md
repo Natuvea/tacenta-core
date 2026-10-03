@@ -321,7 +321,9 @@ is SemVer against the specified protocol (not the implementation).
   ratchet as taking it too. An earlier entry here recorded that the sparse
   implementation and model counted the store before the deletion and that the
   change was an open follow-up (`HL-R1-SPARSE-TRANSLATION` in
-  `GAP-REGISTER.md`, which stays open for the translation evidence). That
+  `GAP-REGISTER.md`; its translation evidence was recorded on 2026-10-03 on one
+  Linux x86_64 regeneration that was not independent, and the reader finding G12-05
+  stays open as `HL-R1-SPARSE-READER`). That
   entry, which stands in the tags `tacenta-assurance-v0.3.0` to
   `tacenta-assurance-v0.4.5`, is superseded by this one, and the page states
   the rule as normative. The independent reader, which is project-controlled
