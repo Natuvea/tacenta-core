@@ -9,7 +9,8 @@ decide the seven clauses #234 left open, one cluster at a time. This module puts
 
 ## What is shown
 
-* `OracleLaws I dh kem`: the laws `OracleOf` needs over an interpretation. Seven are totality
+* `OracleLaws I dh kem`: laws under which `OracleOf` holds over an interpretation, sufficient and
+  not shown necessary. Seven are totality
   fields of the four contract records (`DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`,
   `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal`), two are #234's
   laws (`SignFillsOnce64`, `KemShape`), and two are new: the DH and KEM views are injective.
@@ -30,16 +31,31 @@ decide the seven clauses #234 left open, one cluster at a time. This module puts
 `oracleOf_of_laws` is a theorem at the real constants and holds under its laws for every
 assignment of the opaque constants. `oracleLaws_hold_jointly` exhibits an assignment under which
 the laws and #220's base hold. So a derivation of `False` from these laws, or from `OracleOf` with
-the oracle and views the first theorem supplies, at the real constants, would become, after the
+the views it is given and the oracle it supplies, at the real constants, would become, after the
 constants are replaced by the model's terms, a derivation of `False` from facts true in the model.
 That last step is an argument about derivations, as in `UnitSatisfiabilityJoint.lean`, and not a
-theorem inside Lean; the unit's 143 compiler-trust facts mention no interpreted constant, and
-`xeddsa::sign`, which `InterpO` adds, is one of the uninterpreted constants of the unit.
+theorem inside Lean. No compiler-trust fact in the import closure mentions an interpreted
+constant, directly or through a definition. That covers the unit's 143 and the 11 in
+`SessionUnitSpqrT3.lean` and `SessionUnitTripleT3.lean`. `xeddsa::sign`, which `InterpO` adds, is
+one of the uninterpreted constants of the unit. The classification audit covers `Interp.real` and
+the four records. It is not run for `InterpO.real` and `OracleOf`.
+
+The oracle that inhabits the record is the code read through the byte views (`oracleOfLaws`): each
+primitive's verdict is the code's answer on arguments with those bytes. So `OracleOf` asks of the
+code only that each primitive returns, that its result depends only on the bytes of its arguments,
+and that it reads the random source in the stated order. It ties the dispatch theorems to the
+code's own primitives and to no specification of X25519, the AEAD, ML-KEM or XEdDSA.
 
 It is not a statement about the Rust. The seven totality laws are assumptions of the records. The
-two view laws are about the views the caller chooses, and hold of the real types (byte wrappers
-and a serialised key pair) by reading, not by any proof here. `SignFillsOnce64` and `KemShape` are
-read from the source (#234). The model's primitives are toys.
+two view laws are about the views the caller chooses: by reading, each real type has an injective
+view (its wrapped bytes), which also meets `DhCodecOf`, and a result applies to a caller's view
+only if that view is injective. `SignFillsOnce64` and `KemShape` are read from the source (#234)
+and tested by `tacenta-core/tests/rng_fill_counts.rs`, not proved. The model's primitives are
+toys.
+
+**Pins of the laws.** Besides the pins of the results, the pin section below prints the bodies of
+the seven totality predicates, their seven shapes over an interpretation, and `NoPanic` and `Np`,
+which they print through, so a change to the text of a law fails the build here.
 
 **Platform width.** `Usize.max` is `u32::MAX` or `u64::MAX` (`Usize.bounds_eq`, a conjunct of
 `oracleOf_joint_model`). No proof here chooses one, and no result depends on a compiler-trust axiom
@@ -62,7 +78,8 @@ open Tacenta.UnitSatisfiabilityRecords (AxiomBase)
 open Tacenta.UnitLifecycleIntegrationScreen (byteRng byteCrc byteTrace SignFillsOnce64Of
   KemShapeOf kemClauses_of_law sigSignClause_of_law byte_random32Clause kemModelValid)
 
-/-- The laws `OracleOf` needs, over an interpretation and two views. -/
+/-- Laws under which `OracleOf` holds, over an interpretation and two views. Some are stronger than
+any clause requires. -/
 structure OracleLaws (I : InterpO) (dh : DhViewOf I.toInterp) (kem : KemViewOf I.toInterp) :
     Prop where
   dhCodec : DhCodecShape I.toInterp
@@ -604,3 +621,141 @@ constructor:
 -/
 #guard_msgs in
 #print Tacenta.UnitOracleJoint.OracleLaws
+
+/--
+info: def Tacenta.UnitLifecycleT1.DhCodecTotal : Prop :=
+(∀ (a : Std.Array U8 32#usize), Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.dh.PrivateKey.from_bytes a)) ∧
+  (∀ (k : tacenta_boundary.dh.PrivateKey), Tacenta.UnitLifecycleT1.NoPanic k.public_key) ∧
+    (∀ (k : tacenta_boundary.dh.PrivateKey), Tacenta.UnitLifecycleT1.NoPanic k.to_bytes) ∧
+      (∀ (a : Std.Array U8 32#usize),
+          Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.dh.PublicKeyBytes.from_bytes a)) ∧
+        (∀ (k : tacenta_boundary.dh.PublicKeyBytes), Tacenta.UnitLifecycleT1.NoPanic k.as_bytes) ∧
+          ∀ (a b : tacenta_boundary.dh.PublicKeyBytes),
+            Tacenta.UnitLifecycleT1.NoPanic
+              (tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq a b)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.DhCodecTotal
+
+/--
+info: def Tacenta.UnitLifecycleT1.DhAgreeTotal : Prop :=
+∀ (k : tacenta_boundary.dh.PrivateKey) (p : tacenta_boundary.dh.PublicKeyBytes),
+  Tacenta.UnitLifecycleT1.NoPanic (k.agree p)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.DhAgreeTotal
+
+/--
+info: def Tacenta.UnitLifecycleT1.DhIdentityTotal : Prop :=
+∀ (k : tacenta_boundary.dh.PublicKeyBytes),
+  Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.dh.is_prime_order_public k)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.DhIdentityTotal
+
+/--
+info: def Tacenta.UnitLifecycleT1.AeadSealBounded : Prop :=
+∀ (ek mk : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (plaintext ad : Slice U8),
+  ∃ r, tacenta_boundary.aead.encrypt ek mk iv plaintext ad = ok r ∧ (↑r).length ≤ (↑plaintext).length + 48
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.AeadSealBounded
+
+/--
+info: def Tacenta.UnitLifecycleT1.AeadOpenTotal : Prop :=
+∀ (ek mk : Std.Array U8 32#usize) (nonce : Std.Array U8 16#usize) (ciphertext ad : Slice U8),
+  Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.aead.decrypt ek mk nonce ciphertext ad)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.AeadOpenTotal
+
+/--
+info: def Tacenta.UnitLifecycleT1.KemDecapsulateTotal : Prop :=
+∀ (keyPair : tacenta_boundary.kem.KeyPair) (ciphertext : Slice U8),
+  Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.kem.decapsulate keyPair ciphertext)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.KemDecapsulateTotal
+
+/--
+info: def Tacenta.UnitLifecycleT1.XeddsaVerifyTotal : Prop :=
+∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes) (message : Slice U8) (signature : Std.Array U8 64#usize),
+  Tacenta.UnitLifecycleT1.NoPanic (tacenta_boundary.xeddsa.verify publicKey message signature)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.XeddsaVerifyTotal
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.DhCodecShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  (∀ (a : Std.Array U8 32#usize), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPrivFromBytes a)) ∧
+    (∀ (k : I.PrivateKey), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPrivPublicKey k)) ∧
+      (∀ (k : I.PrivateKey), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPrivToBytes k)) ∧
+        (∀ (a : Std.Array U8 32#usize), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPubFromBytes a)) ∧
+          (∀ (k : I.PublicKeyBytes), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPubAsBytes k)) ∧
+            ∀ (a b : I.PublicKeyBytes), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPubEq a b)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.DhCodecShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.DhAgreeShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I => ∀ (k : I.PrivateKey) (p : I.PublicKeyBytes), Tacenta.UnitSatisfiabilityJoint.Np (I.dhPrivAgree k p)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.DhAgreeShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.DhIdentityShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I => ∀ (k : I.PublicKeyBytes), Tacenta.UnitSatisfiabilityJoint.Np (I.dhIsPrimeOrderPublic k)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.DhIdentityShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (ek mk : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (plaintext ad : Slice U8),
+    ∃ r, I.aeadEncrypt ek mk iv plaintext ad = ok r ∧ (↑r).length ≤ (↑plaintext).length + 48
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.AeadOpenShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (ek mk : Std.Array U8 32#usize) (n : Std.Array U8 16#usize) (c ad : Slice U8),
+    Tacenta.UnitSatisfiabilityJoint.Np (I.aeadDecrypt ek mk n c ad)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.AeadOpenShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.KemDecapsulateShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I => ∀ (k : I.KemKeyPair) (c : Slice U8), Tacenta.UnitSatisfiabilityJoint.Np (I.kemDecapsulate k c)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.KemDecapsulateShape
+
+/--
+info: def Tacenta.UnitSatisfiabilityJoint.XeddsaVerifyShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (p : I.PublicKeyBytes) (m : Slice U8) (s : Std.Array U8 64#usize),
+    Tacenta.UnitSatisfiabilityJoint.Np (I.xeddsaVerify p m s)
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.XeddsaVerifyShape
+
+/--
+info: @[reducible] def Tacenta.UnitLifecycleT1.NoPanic : {α : Type} → Result α → Prop :=
+fun {α} e => ∃ r, e = ok r
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleT1.NoPanic
+
+/--
+info: @[reducible] def Tacenta.UnitSatisfiabilityJoint.Np : {α : Type} → Result α → Prop :=
+fun {α} e => ∃ r, e = ok r
+-/
+#guard_msgs in
+#print Tacenta.UnitSatisfiabilityJoint.Np

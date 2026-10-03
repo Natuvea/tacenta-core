@@ -416,8 +416,8 @@ AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_ful
 UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view sameEphemeralAgreement_unconstrained concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
 LIST
 
-# The joint decision of the clauses of `OracleOf` (UnitOracle*.lean): every axiom pin deleted in turn,
-# and every definition pin and the statement pin of each result of the joint module.
+# The joint decision of the clauses of `OracleOf` (UnitOracle*.lean): every axiom pin, every statement
+# pin and every definition pin deleted in turn.
 while IFS=' ' read -r file ns names; do
   for n in $names; do
     make_case
@@ -464,10 +464,29 @@ PY
   done
 done <<'LIST'
 UnitOracleShape Tacenta.UnitOracleShape DhViewInjective KemViewInjective GenerateFillsOnce64Shape oracleOfLaws DhPublicClause DhAgreeClause IdentityValidClause AeadSealClause AeadOpenClause KemDecapsulateClause SigVerifyClause
-UnitOracleModel Tacenta.UnitOracleModel InterpO.model oracleM
-UnitOracleKemSig Tacenta.UnitOracleKemSig KemGuardedClause OracleOfGuarded
+UnitOracleShape Tacenta.UnitOracleShape isValidIdentityKey_is oracleOf_iff_shape oracleOfShape_iff_clauses dhCodecOf_iff_shape generateFillsOnce64_iff_shape liftView_spec dhPublicClause_of_laws dhAgreeClause_of_laws identityValidClause_of_laws aeadSealClause_of_laws aeadOpenClause_of_laws kemDecapsulateClause_of_laws sigVerifyClause_of_laws
+UnitOracleModel Tacenta.UnitOracleModel InterpO.model oracleM modelO_axiomBase modelO_laws
+UnitOracleDh Tacenta.UnitOracleDh dh_clauses_in_model
+UnitOracleAead Tacenta.UnitOracleAead aead_clauses_in_model
+UnitOracleKemSig Tacenta.UnitOracleKemSig KemGuardedClause OracleOfGuarded oracleOfGuarded_iff_shape kemGuardedClause_of_law kemClauses_of_guarded never_encapsulating_meets_kemClauses never_encapsulating_fails_guarded guarded_separates_never_encapsulating kem_sig_clauses_in_model
 UnitOracleJoint Tacenta.UnitOracleJoint OracleLaws oracleLaws_real_iff oracleOfShape_of_oracleLaws oracleOfGuarded_of_laws oracleOf_of_laws oracleLaws_hold_jointly oracleOf_joint_model oracleOf_inhabited_jointly
+UnitOracleJoint Tacenta.UnitLifecycleT1 DhCodecTotal DhAgreeTotal DhIdentityTotal AeadSealBounded AeadOpenTotal KemDecapsulateTotal XeddsaVerifyTotal NoPanic
+UnitOracleJoint Tacenta.UnitSatisfiabilityJoint DhCodecShape DhAgreeShape DhIdentityShape AeadSealBoundedShape AeadOpenShape KemDecapsulateShape XeddsaVerifyShape Np
 LIST
+# A definition the joint decision's laws rest on, held to the `#print` form: its pin rewritten as
+# `#check @`, which prints the type and not the body, is refused, for two of the totality predicates
+# and their shapes and for two of the integration screen's laws.
+for spec in UnitOracleJoint:Tacenta.UnitLifecycleT1.AeadSealBounded \
+  UnitOracleJoint:Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape \
+  UnitLifecycleIntegrationScreen:Tacenta.UnitLifecycleIntegrationScreen.SignFillsOnce64Of \
+  UnitLifecycleIntegrationScreen:Tacenta.UnitLifecycleIntegrationScreen.KemShape; do
+  file="tacenta-proofs/translation/Translation/${spec%%:*}.lean"
+  name="${spec#*:}"
+  make_case
+  replace_in "$file" $'#guard_msgs in\n#print '"$name"$'\n' $'#guard_msgs in\n#check @'"$name"$'\n'
+  expect_fail "definition-pin-check-form-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and its pin at $file:" --check
+  expect_fail "definition-pin-check-form-$name-says-why" "is \`#check @$name\`, which prints the type and not the body" --check
+done
 
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
 # are in the proofs package, not the translation package, so they have their own block.

@@ -1874,6 +1874,16 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "oracleOf_inhabited_jointly",
         "OracleLaws",
     )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
@@ -1947,6 +1957,23 @@ REQUIRED_PRINT_FORM = frozenset(
     )]
     + ["Tacenta.UnitOracleJoint." + n for n in (
         "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
+    # The integration screen's clauses and laws that `OracleLaws` and `OracleOf` name; they were on the
+    # statement-pin floor already and are held to the `#print` form here.
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
+        "GenerateFillsOnce64Of", "GenerateFillsOnce64",
+        "Random32Clause", "SigSignClause", "KemClauses",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

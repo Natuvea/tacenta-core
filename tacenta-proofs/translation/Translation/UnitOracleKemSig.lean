@@ -26,7 +26,8 @@ that `OracleOf`'s KEM success clause binds the code only where the model's `kemE
     conditional success clause, so the new record is a strengthening of the old.
   - `never_encapsulating_meets_kemClauses`, `never_encapsulating_fails_guarded`,
     `guarded_separates_never_encapsulating`: an oracle whose `kemEncaps` never returns `some` meets
-    the three KEM clauses of `OracleOf` at any encapsulation that meets the law, and fails the
+    the three KEM clauses of `OracleOf` at any encapsulation that meets the law, when its validity
+    verdict is the law's, and fails the
     guarded clause as soon as it accepts one key at a state with a draw; at the model's
     encapsulation there is such an oracle.
   - `kem_sig_clauses_in_model`: the joint model's oracle meets the guarded clause, accepts a
