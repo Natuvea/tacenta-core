@@ -45,6 +45,7 @@ import Translation.UnitOracleModel
 import Translation.UnitOracleDh
 import Translation.UnitOracleAead
 import Translation.UnitOracleKemSig
+import Translation.UnitOracleJoint
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
