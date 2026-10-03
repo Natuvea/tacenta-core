@@ -544,6 +544,37 @@ theorem decrypt_boundary_has_a_model :
     intro h
     simp at h
 
+/-! ## The theorem at the sample run
+
+`decrypt_ratchet_refines` applied at part A's run: every per-run hypothesis is discharged by the
+witnesses above, and only the boundary records remain, as arguments.  A hypothesis added to the
+theorem that the witnesses do not give stops this module building. -/
+
+theorem decrypt_ratchet_refines_at_sample (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle)
+    (hdraws : oracle.draws = Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)
+    (oracleOf : DecryptOracleOf Tacenta.UnitLifecycleIntegrationScreen.byteRng
+      Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+      Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle)
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts
+      Tacenta.UnitLifecycleIntegrationScreen.byteRng)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements oracle.braidKem)
+    (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc (sampleReal sk pk) sampleMessage sampleRng =
+          ok output ∧
+      (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+          (Model.Lifecycle.decryptRatchet view oracle (modelOf dh (sampleReal sk pk))
+            (sliceOf sampleMessage)) ∨
+        TripleRefusalOpen output) := by
+  obtain ⟨-, -, hrel, hroom, hrun⟩ := sample_run_satisfiable oracle.braidKem dh sk pk
+  obtain ⟨htrace, run⟩ := hrun view oracle rfl hdraws
+  exact decrypt_ratchet_refines _ _ _ dh view oracle oracleOf codec contracts agreements
+    (sampleReal sk pk) (modelOf dh (sampleReal sk pk)) sampleMessage sampleRng hrel hroom htrace run
+
 end Tacenta.UnitLifecycleDecryptRatchetScreen
 
 /-! ## Pins -/
@@ -975,3 +1006,97 @@ constructor:
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetScreen.ZeroizeRoundTripShapes
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample : ∀ (dh : DhView)
+  (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle),
+  oracle.draws = Tacenta.UnitLifecycleIntegrationScreen.byteTrace Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng →
+    DecryptOracleOf Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+        Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle →
+      DhCodecOf dh →
+        Tacenta.UnitLifecycleT1.DecryptRatchetContracts Tacenta.UnitLifecycleIntegrationScreen.byteRng →
+          ∀ [Tacenta.SessionUnitT1.DerivedKeysModel],
+            DecryptRatchetAgreements oracle.braidKem →
+              ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
+                ∃ output,
+                  lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                        (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk)
+                        Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage
+                        Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
+                      ok output ∧
+                    (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+                        (Model.Lifecycle.decryptRatchet view oracle
+                          (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                            (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk))
+                          (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage)) ∨
+                      TripleRefusalOpen output)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample
