@@ -314,7 +314,9 @@ theorem shortfall_post_quantum_covers
           have hlen : state.post_quantum.skipped.len.val =
               state.post_quantum.skipped.val.length := by
             simp [alloc.vec.Vec.len]
-          have hm := Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees
+          have hm : tacenta_spqr.MAX_SKIPPED_STORE.val = Model.SparseRatchet.maxSkippedStore := by
+            simp [tacenta_spqr.MAX_SKIPPED_STORE, Model.SparseRatchet.maxSkippedStore,
+              Model.State.maxSkippedStore]
           simp only [lifecycle.receive_shortfall,
             tacenta_triple.State.post_quantum_receive_count,
             tacenta_spqr.State.receive_count, hfindCall, hreceive, bind_tc_ok,
@@ -1032,10 +1034,7 @@ info: 'Tacenta.UnitLifecycleRetryLoopT3.receiveWithEvictionLoopResult_stop' depe
 #print axioms Tacenta.UnitLifecycleRetryLoopT3.receiveWithEvictionLoopResult_stop
 
 /--
-info: 'Tacenta.UnitLifecycleRetryLoopT3.shortfall_covers' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1]
+info: 'Tacenta.UnitLifecycleRetryLoopT3.shortfall_covers' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleRetryLoopT3.shortfall_covers
