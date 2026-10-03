@@ -11,7 +11,7 @@ for readiness gate 4 in [`ASSURANCE.md`](../ASSURANCE.md), and it is an inventor
 - A control that exists has not been shown to fail unless the **Mutations** column lists single edits
   to the gate that `tooling/mutate-gates.py` applies and requires the control to catch.
 
-73 rows: 58 with a control in CI, 3 with a control that runs only locally, 12 with none. 40 rows carry at least one re-runnable mutation (208 edits).
+74 rows: 58 with a control in CI, 4 with a control that runs only locally, 12 with none. 40 rows carry at least one re-runnable mutation (208 edits).
 
 | # | Gate | Kind | Runs in CI | Controls | State | Mutations | What would hold it, if nothing does |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -88,3 +88,4 @@ for readiness gate 4 in [`ASSURANCE.md`](../ASSURANCE.md), and it is an inventor
 | 71 | `tooling/tests/run-gate-controls.sh`: runs the source-gate, proof-script, installer and generation controls and the inventory check in one CI step | script (control aggregator) | checks_41 | none | none | none | none: it only calls controls that are rows above; a runner that was dropped from it would leave that control local only, which the Runs-in-CI column of the control's own row shows |
 | 72 | `tooling/gate-inventory.py`: the inventory is current, every CI step has a row, and a control that is marked local is not run by CI | script | checks_41 (through run-gate-controls.sh) | `tooling/tests/run-gate-inventory-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | none | |
 | 73 | `tooling/mutate-gates.py`: a red baseline stops the run; an edit is accepted, seen as behaviour, seen as a message only, or survived, and the last two fail unless listed | script (local tool) | checks_41 (through run-mutate-gates-cases.sh) | `tooling/tests/run-mutate-gates-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | none | |
+| 74 | `tacenta-proofs/scripts/regenerate-in-container.sh`: run-aeneas.sh with the release's linux-x86_64 archive, in a container pinned by digest, regenerates exactly the tracked tree (--check, run by hand: hosted CI has no step that regenerates); the comparison refuses a changed byte in any of the eleven generated files, a missing or extra file, a changed lockfile or assembled unit, and the script refuses an archive, a digest in REPRODUCING.md or a release in run-aeneas.sh that is not the pinned one before it starts docker. Held by no case: that the container run itself reproduces the files, which only a run shows | script (not in CI) | no CI step | `tooling/tests/run-regenerate-in-container-cases.sh` (local) | control local only | none | |
