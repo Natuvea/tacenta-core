@@ -635,10 +635,15 @@ drop, which the translation ignores); the vectors
 and three one-step sequences in the differential harness. They pin the behaviour
 of the source; they do not prove it, and none of them runs the translation. The
 translation the T3 proof is about was regenerated with a macOS arm64 build of
-the pinned release, and no Linux x86_64 regeneration of the four changed
-generated files (`TacentaSpqr.lean`, `TacentaTripleUnit.lean`,
-`TacentaSessionUnit.lean` and, for docstring line numbers only,
-`TacentaLifecycle.lean`) has been made (`GAP-REGISTER.md`,
+the pinned release, and a Linux x86_64 regeneration, in an emulated container on 2026-10-03,
+reproduced the four changed generated files (`TacentaSpqr.lean`,
+`TacentaTripleUnit.lean`, `TacentaSessionUnit.lean` and, for docstring line
+numbers only, `TacentaLifecycle.lean`) as committed, with the seven other
+generated files and the three assembled unit crates. The rest of the tracked
+files pass through the run and equal the committed ones, which shows that the
+run changed nothing else. That is one run by the maintainer's tool-assisted
+session, not a hosted job and not independent (`REPRODUCING.md`, "Regenerating
+the translation on Linux x86_64, by hand"; `GAP-REGISTER.md`,
 `HL-R1-SPARSE-TRANSLATION`).
 
 Not proved, and not checked by `State::invariant`: that no operation leaves a
@@ -4305,7 +4310,7 @@ broken rule is worth nothing.
 with `leanchecker`, which is the check against a declaration added with
 kernel checking turned off.
 
-The translation itself is regenerated only by the private verification
+The translation itself is regenerated in CI only by the private verification
 workflow, using the pinned Aeneas release
 `nightly-2026.07.22-b1214ca` (commit `b1214ca0a024e8121f41fe2b2ed15e26af02373b`),
 whose linux-x86_64 archive `aeneas-linux-x86_64.tar.gz` has SHA-256
@@ -4317,7 +4322,9 @@ check they hold the same binaries, not merely the same tag. The release page
 lists archives for Linux and macOS on two architectures each. The digest above
 is the Linux x86_64 one, which the verification workflow checks; the macOS arm64
 archive used for the regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in
-`GAP-REGISTER.md` is not covered by that check.
+`GAP-REGISTER.md` is not covered by that check. `scripts/regenerate-in-container.sh`
+checks the Linux x86_64 digest too, and runs the regeneration by hand in a
+container; `REPRODUCING.md` records one run of it.
 
 What the public tree can check about the translation is recorded in
 `manifests/translation-attestation.json`, written only by
@@ -4341,7 +4348,8 @@ refuses to do for a file the script does not produce. It does not establish
 that the toolchain was run on those bytes, or run honestly;
 only regenerating with the pinned release and diffing does, which the
 private workflow does on every push and which any linux-x86_64 reader can
-do by hand (`REPRODUCING.md`). `attest.py --check` also checks the ledger
+do by hand (`REPRODUCING.md`; `scripts/regenerate-in-container.sh` does it in a
+container). `attest.py --check` also checks the ledger
 itself by name: every theorem a claim bullet names must exist, fully
 qualified, in the file its section's `Location:` line names, every
 `Location:` path must exist, and every pinned theorem must be claimed.
