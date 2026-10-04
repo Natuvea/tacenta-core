@@ -1290,6 +1290,51 @@ REQUIRED_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly, and the guarded KEM record
+    # (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+    )]
     # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
     # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
     # `UnitLifecycleDecryptRatchetScreen.lean`.
@@ -1827,6 +1872,77 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly: the statement of each result and the body of each
+    # new clause, law, record and model definition (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
@@ -1964,6 +2080,48 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    # The new clauses, laws, records and model of the joint `OracleOf` decision.
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
+    # The integration screen's clauses and laws that `OracleLaws` and `OracleOf` name; they were on the
+    # statement-pin floor already and are held to the `#print` form here.
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
+        "GenerateFillsOnce64Of", "GenerateFillsOnce64",
+        "Random32Clause", "SigSignClause", "KemClauses",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",

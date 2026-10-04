@@ -1089,6 +1089,78 @@ UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 DecryptOracl
 UnitLifecycleDecryptRatchetScreen Tacenta.UnitLifecycleDecryptRatchetScreen sample_run_satisfiable decrypt_boundary_has_a_model decrypt_shapes_are_predicates run_draw_not_trivial retryRunBounds_not_trivial tripleRefusalOpen_false_of_ok tripleRefusalOpen_false_of_store_full decrypt_ratchet_refines_at_sample sample_model_refuses succ_model_accepts succ_run_satisfiable hypotheses_meet_refusal_and_success evict_decode_model evict_headroom evict_run_satisfiable evict_first_attempt_full hypotheses_meet_eviction_round decrypt_ratchet_refines_at_eviction decrypt_ratchet_refines_from_shapes evict_reaches_receive receiveWithEviction_first_round evict_loop_first_round decrypt_ratchet_refines_from_shapes_at_eviction
 LIST
 
+# The joint decision of the clauses of `OracleOf` (UnitOracle*.lean): every axiom pin, every statement
+# pin and every definition pin deleted in turn.
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "required-pin-deleted-$file-$n" "\`$ns.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+  done
+done <<'LIST'
+UnitOracleShape Tacenta.UnitOracleShape isValidIdentityKey_is oracleOf_iff_shape oracleOfShape_iff_clauses dhCodecOf_iff_shape generateFillsOnce64_iff_shape liftView_spec dhPublicClause_of_laws dhAgreeClause_of_laws identityValidClause_of_laws aeadSealClause_of_laws aeadOpenClause_of_laws kemDecapsulateClause_of_laws sigVerifyClause_of_laws
+UnitOracleModel Tacenta.UnitOracleModel modelO_axiomBase modelO_laws
+UnitOracleDh Tacenta.UnitOracleDh dh_clauses_in_model
+UnitOracleAead Tacenta.UnitOracleAead aead_clauses_in_model
+UnitOracleKemSig Tacenta.UnitOracleKemSig oracleOfGuarded_iff_shape kemGuardedClause_of_law kemClauses_of_guarded never_encapsulating_meets_kemClauses never_encapsulating_fails_guarded guarded_separates_never_encapsulating kem_sig_clauses_in_model
+UnitOracleJoint Tacenta.UnitOracleJoint oracleLaws_real_iff oracleOfShape_of_oracleLaws oracleOfGuarded_of_laws oracleOf_of_laws oracleLaws_hold_jointly oracleOf_joint_model oracleOf_inhabited_jointly
+LIST
+while IFS=' ' read -r file ns names; do
+  for n in $names; do
+    make_case
+    python3 - "$work/tacenta-proofs/translation/Translation/$file.lean" "$ns.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: (?:(?!-/).)*?-/\s*\n#guard_msgs in\s*\n#(?:print |check @)" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+    expect_fail "statement-pin-deleted-$ns.$n" "\`$ns.$n\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+  done
+done <<'LIST'
+UnitOracleShape Tacenta.UnitOracleShape DhViewInjective KemViewInjective GenerateFillsOnce64Shape oracleOfLaws DhPublicClause DhAgreeClause IdentityValidClause AeadSealClause AeadOpenClause KemDecapsulateClause SigVerifyClause
+UnitOracleShape Tacenta.UnitOracleShape isValidIdentityKey_is oracleOf_iff_shape oracleOfShape_iff_clauses dhCodecOf_iff_shape generateFillsOnce64_iff_shape liftView_spec dhPublicClause_of_laws dhAgreeClause_of_laws identityValidClause_of_laws aeadSealClause_of_laws aeadOpenClause_of_laws kemDecapsulateClause_of_laws sigVerifyClause_of_laws
+UnitOracleModel Tacenta.UnitOracleModel InterpO.model oracleM modelO_axiomBase modelO_laws
+UnitOracleDh Tacenta.UnitOracleDh dh_clauses_in_model
+UnitOracleAead Tacenta.UnitOracleAead aead_clauses_in_model
+UnitOracleKemSig Tacenta.UnitOracleKemSig KemGuardedClause OracleOfGuarded oracleOfGuarded_iff_shape kemGuardedClause_of_law kemClauses_of_guarded never_encapsulating_meets_kemClauses never_encapsulating_fails_guarded guarded_separates_never_encapsulating kem_sig_clauses_in_model
+UnitOracleJoint Tacenta.UnitOracleJoint OracleLaws oracleLaws_real_iff oracleOfShape_of_oracleLaws oracleOfGuarded_of_laws oracleOf_of_laws oracleLaws_hold_jointly oracleOf_joint_model oracleOf_inhabited_jointly
+UnitOracleJoint Tacenta.UnitLifecycleT1 DhCodecTotal DhAgreeTotal DhIdentityTotal AeadSealBounded AeadOpenTotal KemDecapsulateTotal XeddsaVerifyTotal NoPanic
+UnitOracleJoint Tacenta.UnitSatisfiabilityJoint DhCodecShape DhAgreeShape DhIdentityShape AeadSealBoundedShape AeadOpenShape KemDecapsulateShape XeddsaVerifyShape Np
+LIST
+# A definition the joint decision's laws rest on, held to the `#print` form: its pin rewritten as
+# `#check @`, which prints the type and not the body, is refused, for two of the totality predicates
+# and their shapes and for two of the integration screen's laws.
+for spec in UnitOracleJoint:Tacenta.UnitLifecycleT1.AeadSealBounded \
+  UnitOracleJoint:Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape \
+  UnitLifecycleIntegrationScreen:Tacenta.UnitLifecycleIntegrationScreen.SignFillsOnce64Of \
+  UnitLifecycleIntegrationScreen:Tacenta.UnitLifecycleIntegrationScreen.KemShape; do
+  file="tacenta-proofs/translation/Translation/${spec%%:*}.lean"
+  name="${spec#*:}"
+  make_case
+  replace_in "$file" $'#guard_msgs in\n#print '"$name"$'\n' $'#guard_msgs in\n#check @'"$name"$'\n'
+  expect_fail "definition-pin-check-form-$name" "\`$name\` is on REQUIRED_STATEMENT_PINS and its pin at $file:" --check
+  expect_fail "definition-pin-check-form-$name-says-why" "is \`#check @$name\`, which prints the type and not the body" --check
+done
+
 # The sparse total bound's pins (Proofs/SparseReplacementBound.lean), each deleted in turn. They
 # are in the proofs package, not the translation package, so they have their own block.
 for n in mem_skipSurvivors_iff skipSurvivors_length_le skipMessageKeys_refused_iff \
