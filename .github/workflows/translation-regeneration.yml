@@ -36,7 +36,7 @@ jobs:
           curl --fail --location --silent --show-error --retry 3 --output "$archive" "$url"
           echo "$AENEAS_SHA256  $archive" | sha256sum --check --strict
           mkdir -p "$tools"
-          tar -xzf "$archive" -C "$tools" --strip-components=1
+          tar -xzf "$archive" -C "$tools"
           test -x "$tools/charon"
           test -x "$tools/aeneas"
           printf '%s\n' "$tools" > "$RUNNER_TEMP/aeneas-tools"
