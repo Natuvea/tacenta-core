@@ -7,7 +7,8 @@ composes it into `decrypt_ratchet_refines`, whose conclusion has one open disjun
 `Translation/UnitLifecycleTripleRefusalT3.lean` relates every refusal of one Triple receive to the model's
 (`triple_receive_refusal_refines`), and `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean` closes the
 disjunct with it (`decrypt_ratchet_refines_complete`); `Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean`
-shows the closed path reached. A proof that Lean accepts after the fact it rests on is removed would hold nothing, and an open disjunct
+shows one state and one run on the model side of the closed path, and the generated output there under the boundary
+records. A proof that Lean accepts after the fact it rests on is removed would hold nothing, and an open disjunct
 that grew would quietly absorb runs the theorem claims to cover, so this script makes one change to a
 copy of a module and requires Lean to refuse it, at a named place:
 
