@@ -8,8 +8,9 @@ the underlying field" -- so a chunk is a polynomial evaluated at a point, and
 decoding is recovering the polynomial from enough points.
 
 Everything here rests on `Model.Gf65536` being a field, which it is: additive
-laws, commutativity, distributivity and associativity proved, inverses checked
-exhaustively. Every argument below depends on that.
+laws, commutativity, distributivity and associativity proved, and an inverse for
+every nonzero element proved (all by the kernel). Every argument below depends on
+that.
 -/
 import Model.Gf65536
 
@@ -42,8 +43,9 @@ theorem eval_zeros (n : Nat) (x : Elem) : eval (List.replicate n zero) x = zero 
   | zero => rfl
   | succ n ih =>
     simp only [List.replicate, eval_cons, ih]
-    simp only [zero, mul, reduce, redAt, clmul, add]
-    bv_decide
+    have hz : mul zero x = zero := zero_mul x
+    rw [hz]
+    exact BitVec.xor_self
 
 /-! ## Evaluation is linear
 
@@ -68,22 +70,20 @@ theorem eval_addP (p q : Poly) (x : Elem) :
   induction p generalizing q with
   | nil =>
     cases q with
-    | nil => simp only [addP, eval_nil]; simp only [zero, add]; bv_decide
+    | nil => simp only [addP, eval_nil]; exact BitVec.xor_self.symm
     | cons b q =>
       simp only [addP, eval_nil, eval_cons]
-      simp only [zero, add]
-      bv_decide
+      exact BitVec.zero_xor.symm
   | cons a p ih =>
     cases q with
     | nil =>
       simp only [addP, eval_nil, eval_cons]
-      simp only [zero, add]
-      bv_decide
+      exact BitVec.xor_zero.symm
     | cons b q =>
       simp only [addP, eval_cons, ih]
       -- (a + b) + (P + Q)·x  =  (a + P·x) + (b + Q·x)
       simp only [add, mul_distrib_right]
-      bv_decide
+      ac_rfl
 
 /-! ## Scaling
 
@@ -130,7 +130,7 @@ theorem eval_mulP (p q : Poly) (x : Elem) :
   | cons a p ih =>
     simp only [mulP, eval_addP, eval_scaleP, eval_cons, ih, add, zero]
     rw [mul_distrib_right]
-    have hz : ∀ y : Elem, (0#16 : Elem) ^^^ y = y := by intro y; bv_decide
+    have hz : ∀ y : Elem, (0#16 : Elem) ^^^ y = y := fun _ => BitVec.zero_xor
     rw [hz]
     -- (P·Q)·x = (P·x)·Q, by associativity and commutativity.
     have hswap : mul (mul (eval p x) (eval q x)) x = mul (mul (eval p x) x) (eval q x) := by
@@ -168,11 +168,14 @@ theorem synDiv_rem (a : Elem) (p : Poly) : (synDiv a p).2 = eval p a := by
     rw [mul_comm]
 
 /-- The xor rearrangement the division identity ends in, stated over abstract
-values so a solver sees a handful of atoms rather than a nest of products. That
-distinction is the governing rule for this field: a solver settles statements
-mentioning one product and none mentioning two. -/
+values so the proof sees a handful of atoms rather than a nest of products. It is
+proved bit by bit: each bit of an exclusive or is the exclusive or of the bits, so
+the identity is one about four booleans, checked in all sixteen cases. -/
 private theorem xor_shuffle (c u v w : Elem) :
-    c ^^^ (u ^^^ v) = ((w ^^^ v) ^^^ u) ^^^ (c ^^^ w) := by bv_decide
+    c ^^^ (u ^^^ v) = ((w ^^^ v) ^^^ u) ^^^ (c ^^^ w) := by
+  ext i hi
+  simp only [BitVec.getElem_xor]
+  cases c[i] <;> cases u[i] <;> cases v[i] <;> cases w[i] <;> rfl
 
 /-- **The division identity.** `p = (X + a)·q + r`, stated at a value because
 that is the form every use of it takes. -/
@@ -181,7 +184,7 @@ theorem eval_synDiv (a : Elem) (p : Poly) (x : Elem) :
   induction p with
   | nil =>
     simp only [synDiv, eval_nil, zero, mul_zero, add]
-    bv_decide
+    exact BitVec.xor_self.symm
   | cons c p ih =>
     simp only [synDiv, eval_cons]
     rw [ih]
@@ -193,8 +196,9 @@ theorem eval_synDiv (a : Elem) (p : Poly) (x : Elem) :
     simp only [← mul_assoc]
     rw [mul_comm (synDiv a p).2 x]
     clear ih
-    -- `mul` stays folded, so the solver sees four atoms rather than a field.
-    bv_decide
+    -- `mul` stays folded, so what is left is `xor_shuffle`, with the sum of the
+    -- two products that carry the quotient as a single atom.
+    exact xor_shuffle _ _ _ _
 
 /-- **The factor theorem.** A root factors out.
 
@@ -243,8 +247,9 @@ theorem eval_of_deg_zero {p : Poly} (h : deg p = 0) (x : Elem) : eval p x = zero
     · rename_i hc
       simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hc
       rw [eval_cons, ih hc.1, hc.2]
-      simp only [zero, mul, add, reduce, redAt, clmul]
-      bv_decide
+      have hz : mul zero x = zero := zero_mul x
+      rw [hz]
+      exact BitVec.xor_self
     · omega
 
 /-- Dividing a polynomial that is already the zero function leaves one. -/
@@ -385,7 +390,7 @@ theorem eval_mulLin (c : Elem) (p : Poly) (x : Elem) :
   simp only [mulLin, eval_addP, eval_scaleP, eval_cons]
   simp only [add, zero]
   rw [mul_distrib_right]
-  have hz : ∀ y : Elem, (0#16 : Elem) ^^^ y = y := by intro y; bv_decide
+  have hz : ∀ y : Elem, (0#16 : Elem) ^^^ y = y := fun _ => BitVec.zero_xor
   rw [hz, mul_comm x (eval p x)]
 
 /-! ## Counting roots
@@ -583,8 +588,8 @@ theorem combine_eq_zero (xs : List Elem) (pts : List (Elem × Elem)) (xi : Elem)
   | cons p pts ih =>
     rw [combine_cons, ih (fun q hq => h q (List.mem_cons_of_mem _ hq)),
         weight_of_mem_ne xs p.1 xi hxi (fun e => h p (List.mem_cons_self ..) e.symm)]
-    simp only [zero, mul_zero, add]
-    bv_decide
+    simp only [zero, mul_zero]
+    exact BitVec.xor_self
 
 /-- **The delta property: interpolation reproduces the data it was given.**
 
@@ -613,15 +618,15 @@ theorem combine_at (xs : List Elem) (xi yi : Elem) (hxi : xi ∈ xs) :
         rw [e] at hq'
         exact hp hq'
       rw [hzero, weight_self]
-      simp only [one, zero, mul_one, add]
-      bv_decide
+      simp only [one, mul_one]
+      exact BitVec.zero_xor
     · -- Some later point is the one asked about: this term vanishes.
       have hne : xi ≠ p.1 := by
         intro e
         exact hp (by rw [← e]; exact List.mem_map_of_mem h)
       rw [ih h hnd', weight_of_mem_ne xs p.1 xi hxi hne]
-      simp only [zero, mul_zero, add]
-      bv_decide
+      simp only [zero, mul_zero]
+      exact BitVec.xor_zero
 
 /-- The delta property in the form a decoder states it. -/
 theorem interp_eq (pts : List (Elem × Elem)) (xi yi : Elem)
@@ -660,8 +665,7 @@ theorem eval_basisP (xs : List Elem) (xj x : Elem) :
     simp only [zero, one]
     have : mul 0#16 x = 0#16 := zero_mul x
     rw [this]
-    simp only [add]
-    bv_decide
+    exact BitVec.xor_zero
   | cons xk xs ih =>
     rw [basisP_cons, weight_cons]
     by_cases h : xk = xj

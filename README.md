@@ -189,7 +189,7 @@ translated Rust: `tacenta-wire` (the decoders), `tacenta-ratchet`,
 for the field arithmetic only). A ninth, `tacenta-lifecycle`, has conditional
 panic-freedom theorems on the eight-leaf session unit, three of which took a record with a false
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`; the records are shown inhabited only in the sense
-and under the laws recorded in `tacenta-proofs/LIMITATIONS.md`, and not for their headroom records), and no
+and under the laws recorded in `tacenta-proofs/LIMITATIONS.md`; their headroom records are shown satisfiable in the same sense, with further assumptions recorded there), and no
 refinement theorem.
 The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`).
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the

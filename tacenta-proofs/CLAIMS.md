@@ -19,19 +19,46 @@ this section says in one place what is not proved.
   them) and explicit headroom (three of the five, for `decrypt`, `decrypt_ratchet`
   and `establish_responder`, took a record that contained a false hypothesis,
   which has been restated for bounded decoders; the four records follow from an axiom base that one
-  interpretation satisfies, under five laws about standard-library and `zeroize` operations and with no witness for the
-  headroom records: `Translation/UnitSatisfiabilityRecords.lean`, `LIMITATIONS.md`,
+  interpretation satisfies, under five laws about standard-library and `zeroize` operations, and the headroom records are
+  satisfiable in the same sense with the inhabitedness of the opaque types (one of them, the key pair, an assumption) and two further assumptions in the base:
+  `Translation/UnitSatisfiabilityRecords.lean`, `Translation/UnitHeadroomSatisfiable.lean`, `Translation/UnitHeadroomInvariant.lean`, `LIMITATIONS.md`,
   `GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
-  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here; only the Triple receive
+  (`Translation/UnitLifecycleT3.lean`; apart from the exact full-store adapter and retry
+  prerequisites listed below, not accepted as claims here; only the Triple receive
   evidence in `UnitLifecycleInitialDispatch.lean` is derived from a leaf refinement
   that takes no contract record; the Braid receive evidence there takes
-  `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; seventeen of
-  the lemmas are affected by a hypothesis or evidence record that is shown false or empty under stated conditions,
-  sixteen of them vacuous as stated;
+  `BraidReceiveContracts`, whose inhabitation is shown only in the sense of `LIMITATIONS.md`; the evidence
+  records the accepted-initial decrypt lemmas take are asked of the run alone, and the one they replace is shown
+  empty; the dispatch records are not shown satisfiable as a whole;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. What is proved
-  outright lies underneath them, in the ratchet, the sparse post-quantum
+  return as a whole, on every branch, against the model. For the private `decrypt_ratchet` that `Session::decrypt` runs on a
+  ratchet message (and that `establish_responder` also calls), `decrypt_ratchet_refines_complete` relates the generated
+  function's output to the model's step on every path of that function for a run that meets its hypotheses, and it cannot
+  be applied to the shipped functions as stated, because three fields of the contract record it takes are stronger than
+  the crate supports and hold only once they are restated at the instances the unit uses. The paths are the terminal
+  guard, a decode refusal, both Diffie-Hellman refusals, every Triple receive refusal the run's bounds admit (they exclude
+  the sparse ratchet's `ChainExhausted`, which needs an epoch or a chain counter at `u64::MAX`), among them the refusal of
+  a message whose key was already used (`OutOfOrder`), the skip-limit refusal (`TooManySkipped`) and a full store, after
+  the eviction retry loop, an authentication refusal and a success. It holds only for a message whose agreement chunk is a
+  codeword of one source that fits the receiving decoder; it takes two agreements about the sparse ratchet that no proof
+  here derives (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
+  state, which a source with no state of its own, such as `OsRng`, is not; and it is compiler-trusted (the section "Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet`
+  on every path, on the eight-leaf unit)"). Its first form, `decrypt_ratchet_refines`, left every Triple receive refusal other than a full
+  store open, saying for it neither that the model refuses nor why (the section "Proved (tier T3, session lifecycle
+  `decrypt_ratchet` with the eviction retry loop, on the eight-leaf unit)"). The decrypt lemmas that take the per-run evidence records cover a
+  message only if the agreement chunk it carries is a codeword of one source that fits the decoder it is fed to, whether the
+  message is refused or accepted. When the receiving decoder already holds a chunk, a message an attacker sends with an
+  altered chunk falls outside them: `decrypt_ratchet` does not look at the chunk before the authentication tag, so such a
+  message can reach a refusal that no theorem here describes. Most of the encrypt and decrypt lemmas also take the oracle
+  record `OracleOf`. Only its KEM, signing and `random32` clauses are shown to hold of the shipped functions, and only under
+  laws read from the source (the KEM success clause is met as well by an oracle that never encapsulates); its DH, AEAD, KEM
+  decapsulation, signature verification and identity-validity clauses are not. One part of what they
+  do is proved of the translated code alone, with no contract record, no headroom and no model: what a
+  refused call leaves behind, and which fields a successful one writes (the
+  section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
+  below). What is proved, each
+  under the named boundary hypotheses, lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
   assumptions.** They are declared rather than hidden, and each is named where
@@ -52,10 +79,14 @@ this section says in one place what is not proved.
   proves at both platform widths) and `hone`; the sparse ratchet's `hroom`, `hskiproom` and `hone`; the
   Braid's `ct1_bounded`. See "Proved: what a decoded state satisfies" for the
   exact statements. What is **not** closed: `T3.receive_refines`'s `hroom`,
-  `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter`,
+  `SpqrT3.receive_refines`'s `hepoch`, `hnewb` and `hcounter`,
   and `BraidT3.step_receive_refines`'s `epoch + 1 < u64::MAX` are not
   consequences of those crates' invariants and are still the caller's (the
-  bullet below says why the three counter bounds cannot be); `tacenta-triple`,
+  bullet below says why the three counter bounds cannot be). `SpqrT3.receive_refines`'s
+  `hcb` and `hsb` follow from the sparse invariant together with `hepoch`
+  (`Translation/DecodedStateDischarge.lean`, section "Proved (which numeric premises
+  of the refinement theorems a decoded state already gives)"), so the open premises
+  of that theorem are those three and not five; `tacenta-triple`,
   `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it. That layer now has a Phase 0
@@ -90,16 +121,19 @@ this section says in one place what is not proved.
 - **The primitives are opaque.** X25519, ML-KEM, SHA-256, HMAC and the AEAD are
   assumed at the boundary. No proof here says anything about them.
 - **Every boundary hypothesis about an opaque operation is guarded by that
-  operation's own precondition, and the build checks that each `Vec`-family
-  one is satisfiable.** `VecAppendTotal`/`VecAppendAgrees` carry a length
-  guard (Aeneas's `Vec` has no room for two full vectors); the classical
-  ratchet's `VecRemoveTotal`/`VecRemoveAgrees` and the sparse ratchet's
-  `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry the index guard
+  operation's own precondition, and the build checks that those that remain
+  are satisfiable.** The classical ratchet's `T1.RemoveSkippedAtTotal` and the sparse
+  ratchet's `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry the index guard
   `i.val < v.val.length →`, discharged in each proof from the loop guard the
   source checks first (the guard also removed the
   `[Inhabited]` bound the unguarded statements needed: stated for every
   index and every element type, including the empty one, they would imply
-  `False`); every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
+  `False`). **Those hypotheses are about the translated removal helpers, not about an opaque
+  `Vec::remove`:** the leaf translations declare no `Vec::remove` and no `Vec::retain`, the helpers
+  are a swap loop, a wipe and `Vec::pop`, and the retain scans are explicit loops, so no
+  hypothesis about `Vec::remove` or `Vec::retain` remains. What the build checks about the removal and retain hypotheses is in the next
+  paragraphs and in "Proved (hypotheses about translated functions in the leaf crates and the
+  three-leaf unit, from named laws, and the decoder acceptance witnesses)". Every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
   bound the crate's `expect` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
   and the KEM's two randomness-drawing totals and clauses carry
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis
@@ -112,16 +146,19 @@ this section says in one place what is not proved.
   `Translation/SessionBraidReceiveVacuity.lean` refuted its unbounded form, which is why it is
   now stated for decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1
   section). `ErasureAgrees` and `ErasureCloneAgrees`, the hypotheses of the session unit's Braid
-  refinements about the erasure coder, are in the same position: statements about translated
-  definitions, which no theorem shows can be met. The sparse ratchet's
+  refinements about the erasure coder, were in the same position: statements about translated
+  definitions. Both are theorems now, `ErasureCloneAgrees` outright and `ErasureAgrees` under two laws about
+  `Vec::truncate` and `usize::div_ceil` (the sections on the translated erasure coder and on the Braid agreements). The sparse ratchet's
   `receive_no_panic` and `receive_refines`, the classical ratchet's
   `receive_refines`, and everything composed from them on the three-leaf unit
-  take these hypotheses, so
-  `Translation/Satisfiability.lean` exhibits a model of each `Vec`-family
-  one and a refutation of each unguarded shape, and the build fails if any
-  of them becomes refutable; for `Vec::remove` the model is the real
-  operation's own behaviour, the element in range and a panic otherwise. The
-  same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
+  take the removal and retain hypotheses, which are of that kind. The witnesses
+  `Translation/Satisfiability.lean` keeps for them are retired shapes of a
+  `Vec::remove` and a `Vec::retain` that the translations no longer call, or bridges to a shape
+  applied to the defined function (void: they say nothing about the body), so they establish
+  nothing about the hypotheses as they now stand. That each of them holds follows, under named laws
+  about the opaque constants the bodies reach, from the results in the section named above
+  (`SatisfiabilityRatchetLaws.lean`, `SatisfiabilitySpqrLaws.lean`, `UnitSatisfiabilityTripleLaws.lean`).
+  The same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
   the Braid and the classical ratchet take (`ZeroizingRoundTrips96`/`64`,
   `ZeroizingArrayRoundTrip`, `T3.lean`'s `ZeroizingRoundTrips` and
   `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), jointly where one theorem
@@ -138,8 +175,9 @@ this section says in one place what is not proved.
   (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`) and for the
   inner refinements' boundary as restated about the unit, jointly where two
   hypotheses there constrain one constant: the `zeroize` wrapper family with
-  `DerivedKeysModel`, `Vec::remove`, `append` and `retain`, `Option`'s clone and
-  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements. A satisfiable hypothesis is still only
+  `DerivedKeysModel`, `Option`'s clone and
+  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements; its pair of removal
+  hypotheses is a void bridge, as above. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -480,6 +518,141 @@ Each is pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on `propext`
 and `Quot.sound`, except `ageStore_drops_the_expired`, `ageStore_only_removes`
 and `clearOldEpochs_store_le`, on `propext` alone.
 
+## Proved (tier T2, in the model: the sparse ratchet's total bound counts the store a skip leaves)
+
+Location: `Proofs/SparseReplacementBound.lean`, about `Model.SparseRatchet`.
+
+`sparse-pq-ratchet.md`, The store also has a total bound, orders a skip that
+steps a chain from its counter `c` to `upto`: refuse above `maxSkip`; delete the
+keys stored for the epoch under a number `n` with `c < n ≤ upto`; refuse when
+what remains plus `upto - c` passes `maxSkippedStore`; otherwise store the
+derived keys after what remains. `Model.SparseRatchet.skipMessageKeys` states
+that order, with `skipSurvivors` for what remains. The first two theorems below
+are about `skipSurvivors` and take no premises. The others are about that model
+definition. Their premises are that the epoch has a chain (`hc`), that its
+receiving chain is present (`hr`), that the request steps the chain forward
+(`hlo`) and, for the refusal characterisation, that it is within `maxSkip`
+(`hhi`). `witness_premises_hold` below states that all four hold for one store.
+They say nothing about the Rust, and nothing about a send, a receive or an
+advance, or about a sequence of operations.
+
+- `Proofs.SparseReplacementBound.mem_skipSurvivors_iff`: a stored key survives a
+  skip from `start` to `upto` on epoch `e` exactly when it was stored and is
+  not stored for `e` under a number `n` with `start < n ≤ upto`. The lower end
+  is strict and the upper end is included, so a key at the chain's own number
+  survives and a key at `upto` does not.
+- `Proofs.SparseReplacementBound.skipSurvivors_length_le`: the survivors are no
+  more than the store was.
+- `Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`: on a chain that
+  steps forward within `maxSkip`, a skip is refused exactly when the survivors
+  plus `upto - c` pass `maxSkippedStore`. Counted before the deletion the same
+  skip is a different question: that is what the witness below separates.
+- `Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`: a
+  skip that steps the chain and succeeds leaves the survivors followed by the
+  keys it derived, in that order, so the store it leaves holds the survivors
+  plus `upto - c` keys, and at most `maxSkippedStore`.
+- `Proofs.SparseReplacementBound.skipMessageKeys_keeps_outside_range`,
+  `Proofs.SparseReplacementBound.skipMessageKeys_keeps_the_key_at_the_counter`,
+  `Proofs.SparseReplacementBound.skipMessageKeys_replaces_the_range`: a stored
+  key outside the range, a key of another epoch and a key at or below the
+  chain's counter included, is still stored after a skip that steps the chain
+  and succeeds; the second says so of the key at the counter itself; and the
+  third that no earlier key remains in the range, since every key the skip
+  leaves there is one it derived.
+- `Proofs.SparseReplacementBound.replacement_accepts_where_the_count_before_the_deletion_refuses`:
+  for any root key, chain key, stored key and direction, a store of
+  `maxSkippedStore - 1` keys, two of them under numbers a skip from `0` to `2`
+  re-derives, is accepted by `skipMessageKeys`, while the count made before the
+  deletion, `1999 + 2`, passes the bound. It is a witness, and it is why the
+  premises above are not vacuous: no key is evaluated, so it holds for every
+  value the keys can take.
+- `Proofs.SparseReplacementBound.witness_premises_hold`: for the same store, the
+  four premises of `skipMessageKeys_refused_iff` hold together: the epoch has a
+  chain, its receiving chain is present, `ch.n < 2` and `2 <= ch.n + maxSkip`.
+  So the characterisation is about a set of states that is not empty, and so
+  are the shared premises `hc`, `hr` and `hlo` of the other theorems. Their
+  further premises (a key stored at the counter, a key left in the range) are
+  not witnessed in this file.
+- `Proofs.SparseReplacementBound.witness_refused_one_key_further`: the same store
+  with a skip from `0` to `4`, which stores four keys, is refused: `1997 + 4`
+  passes the bound. With the witness above, both sides of
+  `skipMessageKeys_refused_iff` are shown inhabited. The edge itself, a skip to
+  `3` that leaves exactly 2,000 keys, is covered by
+  `skipMessageKeys_refused_iff` and tested by the vector and the unit test; no
+  witness here sits on it.
+
+Each is pinned under `#guard_msgs` in `Proofs/SparseReplacementBound.lean`, on
+`propext` and `Quot.sound`, except `skipSurvivors_length_le`, on `propext`
+alone, and the three witness theorems, on `propext`, `Classical.choice` and
+`Quot.sound`. `attest.py` requires all ten pins (`REQUIRED_PINS`), so deleting
+one fails the attestation. The statements of all ten are also pinned with
+`#guard_msgs in #check` in the same file, so a change to a premise or a
+conclusion fails the build where the proof would still go through. That is held
+by the build: no gate yet requires a statement pin to exist, so deleting one and
+refreshing the manifests passes `attest.py` and the other gates.
+
+**What reaches the translated code.** `Tacenta.SpqrT3.skip_message_keys_refines`
+(tier T3, "the sparse post-quantum ratchet's translated code refines the model")
+has the hypotheses it had. Its statement is now two-part: the single-part
+statement pinned with the total bound is its first conjunct, unchanged, and the
+second, added by the session contract integration, says that a
+`SkippedStoreFull` result is the detailed model refusal `skippedStoreFull`. The
+model it names changed, so its refusal case is now the count above: when
+`skipMessageKeys` refuses, the translated code returns an error and `r.2 = s`,
+the state as it was, and when it succeeds the state refines the one the model
+returns. The first conjunct's refusal case names no error, and the second speaks
+only of a `SkippedStoreFull` result, so whether a full store is refused as
+`TooManySkipped` or `SkippedStoreFull` is not in the statement. The order of the
+two checks is pinned in one direction only: the second conjunct rules out a
+`SkippedStoreFull` result for a request beyond `MAX_SKIP`. A full store refused
+as `TooManySkipped` still passes the theorem after a one-token change to its proof. The session evicts only on `SkippedStoreFull`,
+and the session proofs take the refusal kind as a hypothesis (`hreason`). The
+refusal kind, and the order in the other direction, are tested only, by `tacenta-spqr`'s unit tests and
+the differential harness. Its statement is pinned in
+`Translation/SparseSkipStatementPin.lean`. No other proof reads the refusal
+clause `r.2 = s` of this statement: `receive_refines_continuation` discards it, and
+`receive_refines_continuation` and `receive_refines` state their refusals as an
+error alone. The clause is held only by that pin's text,
+which the build holds and no gate yet requires. Removing the clause from the
+theorem and from the pin together passes the build and every gate, and so does
+deleting the file and its import, once the manifests are refreshed. The unit
+copies are generated from it (`port-unit-proofs.sh`,
+`port-session-unit-proofs.sh`). Its hypotheses `hroom` and `hskiproom` are proved for a state
+`State::from_bytes` returns ("Proved: what a decoded state satisfies"). Nothing in this change adds a
+hypothesis, an axiom or an entry to the trusted base.
+
+**Tested only.** That the Rust source, as distinct from its translation, refuses
+and accepts where the model does at the edges: `tacenta-spqr`'s tests
+`replacement_keys_make_room_at_the_exact_store_edge` (which also holds the
+survivors' order),
+`a_sparse_store_refusal_is_atomic_when_replacement_would_still_overflow`,
+`a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound`,
+`the_purge_range_is_above_the_chain_number_and_up_to_the_target_only` and
+`a_skip_to_the_chain_number_stores_nothing_and_checks_nothing`; that the working
+copy of a refused skip is erased, by
+`a_skip_refused_for_the_total_bound_frees_no_secret` in
+`tacenta-core/tests/spqr_erasure_public.rs` (it relies on `Skipped` erasing on
+drop, which the translation ignores); the vectors
+`replacement-bound-counts-resulting-store` and
+`replacement-range-excludes-the-chain-counter` in `sparse-ratchet-state.json`;
+and three one-step sequences in the differential harness. They pin the behaviour
+of the source; they do not prove it, and none of them runs the translation. The
+translation the T3 proof is about was regenerated with a macOS arm64 build of
+the pinned release, and no Linux x86_64 regeneration of the four changed
+generated files (`TacentaSpqr.lean`, `TacentaTripleUnit.lean`,
+`TacentaSessionUnit.lean` and, for docstring line numbers only,
+`TacentaLifecycle.lean`) has been made (`GAP-REGISTER.md`,
+`HL-R1-SPARSE-TRANSLATION`).
+
+Not proved, and not checked by `State::invariant`: that no operation leaves a
+stored key at or past its epoch's receiving counter, and so that the counts
+before and after the deletion agree on every state the operations produce. It is
+read off the operations.
+`no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40 seeds of
+300 randomised steps (sends, epoch openings, in-order and late receives,
+duplicates, arbitrary numbers, stale epochs and eviction) and asserts it after
+every step. That is a sample, not a proof.
+
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
 Location: `Translation/T3.lean`, against `Model.Ratchet` and `Model.State` in
@@ -495,9 +668,9 @@ operation carries it to the model's operation.
 
 - `send_refines`: a successful `send` returns a header and a message key that
   `Model.Ratchet.send` also returns, with the new state still related, and
-  the `NoSendingChain` refusal is exactly the model's `none`. The `u32`
-  counter's exhaustion (`ChainExhausted`) is refused by the model too, at
-  `ns = u32::MAX`, but the statement does not relate the two refusals. **Modulo `HmacAgrees`**; pinned
+  every refusal is `NoSendingChain` or the `u32` counter's exhaustion
+  (`ChainExhausted`, at `ns = u32::MAX`), with `Model.Ratchet.sendDetailed`
+  refusing for the same reason. **Modulo `HmacAgrees`**; pinned
   base `propext`, `Classical.choice`, `Quot.sound` and the opaque
   `tacenta_kdf.hmac_sha256`.
 - `receive_refines`: a successful `receive`, given the two agreement outputs
@@ -508,7 +681,7 @@ operation carries it to the model's operation.
   successful Rust `receive` is never such a message (the Rust returns
   `OutOfOrder` there). Under `HmacAgrees`,
   `HkdfAgrees` (stated under RFC 5869's `N.val ≤ 8160`, discharged at the
-  64- and 80-byte literals), `ZeroizingRoundTrips`, `VecRemoveTotal`
+  64- and 80-byte literals), `ZeroizingRoundTrips`, `RemoveSkippedAtTotal`
   (stated under `i.val < v.val.length`, discharged from each scan's own loop
   guard) and `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
@@ -518,7 +691,7 @@ operation carries it to the model's operation.
   the model's clock did not stop; it now stops there too); it says nothing about the failure branches. Pinned base: the kernel's three axioms and
   eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
   the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
-  `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
+  `Zeroize` instances, and `Vec::pop`), and no `native_decide`.
 - `message_keys_refines`: the expansion of a message key into the AEAD key,
   the MAC key and the IV computes what `Model.State.messageKeys` says -- the
   zero salt, the `mkInfo` label and the 32/32/16 split -- for every key. This
@@ -537,10 +710,10 @@ operation carries it to the model's operation.
   byte for byte, by `rfl` rather than `native_decide`.
 - `skip_message_keys_refines`: the skip step -- the purge scan, the forward
   derivation and the store insertion -- refines `Model.State.skipMessageKeys`
-  on success, under `HmacAgrees`, `VecRemoveTotal` and `DerivedKeysModel`.
+  on success, under `HmacAgrees`, `RemoveSkippedAtTotal` and `DerivedKeysModel`.
 - `try_skipped_refines`: the skipped-key lookup returns the key the model's
   lookup returns and leaves the store the model leaves, and on a miss the
-  model misses too, under `VecRemoveTotal` and `hone`.
+  model misses too, under `RemoveSkippedAtTotal` and `hone`.
 - `dh_ratchet_refines`, `derive_chain_refines`, `age_store_refines`,
   `purge_chain_range_refines`, `init_sender_refines`, `init_receiver_refines`:
   the remaining operations the model defines, proved along the way since
@@ -667,14 +840,30 @@ The calculation on which both sides must agree exactly, and it rests on
 Location: `tacenta-model/Model/Gf65536.lean` and
 `tacenta-model/Model/Polynomial.lean`.
 
+- `mul_assoc`: the last of the field laws, and the one that rested on about forty
+  `bv_decide` certificates until 2026-10-01. Every law of `Model/Gf65536.lean`
+  (the additive laws, commutativity, both distributive laws, associativity, the
+  identities) is now proved by the kernel. The operations are linear over GF(2),
+  so each law reduces to the sixteen single-bit values (`linear_ext_w`), which
+  the kernel evaluates, and the exclusive-or arithmetic is settled one bit at a time.
 - `mul_inv_cancel`: every nonzero element has an inverse and `inv` returns it,
-  for all sixty-five thousand five hundred and thirty-five. This doubles as an
-  irreducibility check on the reduction polynomial. Established by exhaustion
-  through `native_decide`, so it trusts the compiler; there is no kernel route,
-  because `decide` cannot reduce that many exponentiations and `bv_decide`
-  cannot model an exponentiation at all.
+  for all sixty-five thousand five hundred and thirty-five. This doubles as a
+  check on the reduction polynomial: it needs two to have order exactly `size - 1`,
+  so a reducible polynomial is refused and so is an irreducible one under which two
+  has a smaller order. Proved by the kernel: two has
+  multiplicative order exactly `65535` (five closed computations, at `65535` and at
+  each of its four maximal divisors), so its powers are all the nonzero elements,
+  and each is inverted by raising it to `65534`. Until 2026-10-01 this was
+  established by exhaustion through `native_decide`, which trusts the compiler.
 - `interp_eq`: the delta property in the form a decoder states it, which is what
-  interpolation needs to recover a lost codeword.
+  interpolation needs to recover a lost codeword. It rests on the kernel's three
+  axioms alone, as does `unisolvence`, which has no pin of its own and is held through the pin on
+  `M_recover`.
+
+The three pins above list `propext`, `Classical.choice` and `Quot.sound` and nothing else. They are on the
+`attest.py` floor of required pins (with the pin on `Tacenta.ErasureT3.mul_refines`), and `attest.py` no longer
+lists any of the three among the pins that may be compiler-trusted, so a compiler-trust axiom under one of them is
+refused.
 
 ## Not needed: a concatenation lemma for the Triple Ratchet's combination
 
@@ -730,9 +919,9 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
 - `receive_no_panic`: the translated Double Ratchet receive cannot panic,
   under `HmacTotal`, `HkdfTotal` (stated for every output length within RFC
   5869's `N.val ≤ 8160`, which the crate's `expect` enforces; the two calls
-  ask for 64 and 80 bytes), `ZeroizingTotal`, `VecRemoveTotal` (stated for
-  an in-range index, `i.val < v.val.length →`, which is where `Vec::remove`
-  returns; each of the three scans discharges it from its own loop guard)
+  ask for 64 and 80 bytes), `ZeroizingTotal`, `RemoveSkippedAtTotal` (stated for
+  an in-range index, `i.val < v.val.length →`, where the removal helper's
+  result is specified; each of the three scans discharges it from its own loop guard)
   and `DerivedKeysModel`, plus the store-size precondition `hs`.
   Since CR-15 the forward derivation returns its keys in a `Zeroizing`
   wrapper and the store loop reads them back by index, so this and the
@@ -1283,7 +1472,7 @@ the check computes, and `Ratchet.canonical_eq` restates as an equation.
   `hclock_unparked`, as described above. **Neither is
   kernel-only.** Each composes with a `T1`/`T3` `receive` theorem, so each
   carries that theorem's eleven `tacenta_ratchet.*` opaque-operation axioms
-  (the two KDF calls, `Vec::remove`, and the `zeroize` wrapper's constructor,
+  (the two KDF calls, `Vec::pop`, and the `zeroize` wrapper's constructor,
   projections and `Zeroize` instances). Both are pinned under `#guard_msgs`
   with that list in the pin, so the base cannot widen unnoticed.
 - `Ratchet.from_bytes_accepts_witness`: `∃ s, State.from_bytes witnessBytes =
@@ -1300,14 +1489,19 @@ the check computes, and `Ratchet.canonical_eq` restates as an equation.
   satisfiable, and a decoder that rejected every buffer would not satisfy
   this. Same three axioms, pinned. This is the discipline
   `Translation/Satisfiability.lean` applies to the leaves' opaque-boundary hypotheses,
-  applied to a decoder's premise. There is no counterpart for the sparse
-  ratchet or the Braid: those `from_bytes` chains are longer, and the
-  Braid's runs through the opaque erasure and KEM decoders, which no byte
-  string can be shown to satisfy from inside the translation. Their
-  `from_bytes_establishes_inv` are therefore **not** known to be
+  applied to a decoder's premise. The sparse ratchet and the Braid have
+  counterparts for the leaf translation in their own modules (`SpqrFromBytesWitness.lean`, 140
+  bytes; `BraidFromBytesWitness.lean`, 74 bytes, the `KeysUnsampled` state), and the Braid has one for
+  the complete Session unit (`SessionUnitBraidFromBytesWitness.lean`); the session unit's sparse decoder
+  has none. They are listed in "Proved (hypotheses about
+  translated functions in the leaf crates and the three-leaf unit, from named laws, and
+  the decoder acceptance witnesses)". For the Braid states that hold an erasure or KEM
+  value (tags 1 to 10) there is no counterpart: their decode runs through the opaque
+  erasure and KEM decoders, which no byte string can be shown to satisfy from inside the
+  translation, so for those states `from_bytes_establishes_inv` is **not** known to be
   non-vacuous, and the Rust-side round-trip tests
   (`ratchet/tests/audit_import.rs` and its siblings) are the only evidence
-  that those decoders accept anything.
+  that the decoder accepts anything.
 
 ### `tacenta-spqr` -- the sparse ratchet, complete for T1 and for three of T3's premises
 
@@ -1361,14 +1555,17 @@ window is written with `saturating_add` exactly as the Rust writes it.
   statement in `ImportInv.lean` is compiler-trusted.
 
 **What this does not give.** `SpqrT3.receive_refines` also takes `hepoch`,
-`hcb`, `hsb`, `hnewb` and `hcounter`, and those are **not** consequences of
-the crate's `invariant`: a state with `epoch = u64::MAX - 1` and a chain at
-that epoch passes `invariant` and fails both `hepoch` and `hcb`. `hepoch` is
+`hcb`, `hsb`, `hnewb` and `hcounter`. `hcb` and `hsb` are **not** consequences
+of the crate's `invariant` alone: a state with `epoch = u64::MAX - 1` and a
+chain at that epoch passes `invariant` and fails both `hepoch` and `hcb`. They
+are consequences of the invariant together with `hepoch`
+(`spqr_receive_premises` in `Translation/DecodedStateDischarge.lean`), so what
+stays with the caller is `hepoch`, `hnewb` and `hcounter`. `hepoch` is
 on this list because the reserved ceiling moved it there -- it now asks for a
 step of headroom, `epoch + 1 < u64::MAX`, and the invariant reaches only
 `epoch < u64::MAX` (`Spqr.inv_gives_epoch_room`). There is deliberately no
-`decoded_receive_refines` for this crate; those five premises stay with the
-caller.
+`decoded_receive_refines` for this crate; `hepoch`, `hnewb` and `hcounter` stay
+with the caller.
 
 ### `tacenta-braid` -- the clause its theorems need (two in the complete Session unit)
 
@@ -1617,10 +1814,18 @@ the copy.
   the unit, refines the model's send.
 - `Tacenta.UnitT3.receive_refines`: likewise for receive, under the hypotheses
   `T3.receive_refines` takes.
+- `Tacenta.UnitT3.receive_store_full_refines`: under the same explicit
+  boundary and state hypotheses, a concrete `SkippedStoreFull` result fixes
+  the detailed model receive result to the corresponding
+  `skippedStoreFull` refusal.
 - `Tacenta.UnitT3.message_keys_refines`: likewise for the message-key expansion.
 - `Tacenta.UnitSpqrT3.send_refines` and `Tacenta.UnitSpqrT3.receive_refines`:
   the sparse ratchet's two refinements, compiled inside the unit, under the
   hypotheses `SpqrT3.send_refines` and `SpqrT3.receive_refines` take.
+- `Tacenta.UnitSpqrT3.receive_store_full_refines`: under the sparse receive
+  theorem's explicit bounds and boundary hypotheses, a concrete
+  `SkippedStoreFull` result fixes the detailed sparse-model receive result to
+  the corresponding `skippedStoreFull` refusal.
 
 Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
 twin prints, name for name, with `tacenta_triple_unit.` in front of every
@@ -1675,21 +1880,27 @@ says how little they cover.
   bundles discharged. It assumes the receive path's boundary as well, because each bundle
   covers its ratchet's whole calling surface.
 - `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
+- `Tacenta.UnitTripleT3.receive_store_full_refines_discharged`: for the two
+  retryable absolute-store refusals only, a concrete Triple receive refusal
+  fixes `Model.Triple.receiveDetailed` to the corresponding classical or
+  post-quantum `skippedStoreFull` refusal, under the same explicit leaf
+  boundaries and counter bounds.
 
-Each of these four is pinned in `UnitPins.lean`.
+Each of these five is pinned in `UnitPins.lean`.
 
-The two discharged theorems state what the bundle-taking theorems in the same
-file state, and those are claimed as well. They carry two scopings worth reading
-literally.
+The success-side send and receive discharged theorems state what the
+bundle-taking theorems in the same file state, and those are claimed as well.
+The narrow store-full theorem supplies only the named failure correspondence;
+it does not turn the success-side receive theorem into a catch-all failure
+refinement. They carry two scopings worth reading literally.
 
 - `Tacenta.UnitTripleT3.send_refines`: the composed `send` refines
-  `Model.Triple.send`, given the two bundles. It states the success case and a
-  failure case, and the failure case is not symmetric: it holds for every
-  post-quantum error and, on the classical side, only for `NoSendingChain`,
-  because `T3.lean`'s own `send_refines` proves the model-failure correspondence
-  for that error and no other -- `ChainExhausted`, the real `u32` send counter's
-  exhaustion, which the model now refuses too but which that theorem does not
-  relate to the model's `none`.
+  `Model.Triple.send`, given the two bundles. It states the success case and,
+  for every error, the refusal `sendRefusalOfReal` maps it to, with
+  `Model.Triple.sendDetailed` refusing for that reason: each inner ratchet's
+  exact refusal, the classical `ChainExhausted` included, because `T3.lean`'s
+  and `SpqrT3.lean`'s own `send_refines` now state the detailed refusal for
+  every error their send returns.
 - `Tacenta.UnitTripleT3.receive_refines`: likewise for `receive`, success case
   only, because `T3.lean`'s `receive_refines` carries no failure-branch fact to
   compose one from.
@@ -1720,14 +1931,19 @@ The same holds for `receive`.
 
 **What the two discharged theorems assume**, beyond the numeric preconditions
 the bundle-taking theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
-`UnitT3.ZeroizingRoundTrips`, `UnitT1.VecRemoveTotal`, an instance of
+`UnitT3.ZeroizingRoundTrips`, `UnitT1.RemoveSkippedAtTotal`, an instance of
 `UnitT1.DerivedKeysModel`, `UnitSpqrT3.ZeroizingRoundTrips96` and
-`ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees`, `VecAppendAgrees` and
-`RemoveSkippedAtAgrees`, `UnitSpqrT1.ZeroizeTotal` and
+`ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees` with `UnitSpqrT1.VecRetainTotal`,
+`UnitSpqrT3.RemoveSkippedAtAgrees`, `UnitSpqrT1.ZeroizeTotal` and
 `UnitSpqrT1.OptionCloneTotal`.
-`UnitSatisfiabilityTriple.lean` witnesses all eleven, jointly where two constrain
-the same constant, and applies both theorems to exactly those hypotheses, so a
-boundary hypothesis added ahead of the state relation stops it building.
+`UnitSatisfiabilityTriple.lean` witnesses those that are about opaque constants, jointly where two
+constrain the same constant, and applies both theorems to exactly those hypotheses, so a
+boundary hypothesis added ahead of the state relation stops it building. The four that are about
+translated functions (`UnitT1.RemoveSkippedAtTotal`, `UnitSpqrT3.RemoveSkippedAtAgrees`,
+`UnitSpqrT3.VecRetainAgrees` and `UnitSpqrT1.VecRetainTotal`) have a void bridge or no witness there; they are shown to follow from
+named laws in `UnitSatisfiabilityTripleLaws.lean` (the section "Proved (hypotheses about translated
+functions in the leaf crates and the three-leaf unit, from named laws, and the decoder acceptance
+witnesses)").
 
 ## Proved (tier T3, the translated code refines the model)
 
@@ -1740,8 +1956,9 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   model's.
 - `mul_refines`: multiplication in the translated erasure crate's field computes
   what `Model.Gf65536` says, for every input rather than at the thirty-eight
-  points the conformance vectors sample. It rests on one `bv_decide` reflection
-  beyond the kernel's axioms.
+  points the conformance vectors sample. It rests on the kernel's three axioms
+  alone; until 2026-10-01 it rested on one `bv_decide` reflection, in
+  `clmulUpto_sixteen`, which is now two spellings of the same exclusive or.
 
   **The field only.** `interpolate`, the chunk helpers, and both entry points of
   the encoder and decoder have T1 and no refinement, so `Model.Polynomial`'s
@@ -1998,8 +2215,9 @@ What a reader has to grant:
   translation's opaque erasure declarations. In the session unit, `ErasureAgrees` and
   `ErasureCloneAgrees` are statements about the translated erasure code and no longer about opaque
   operations. The model of `Translation/ErasureWitness.lean` is a model of the standalone
-  declarations and does not cover them. No theorem shows that they can be met, and they are not
-  among the records of `SESSION-CONTRACT-VACUITY`.
+  declarations and does not cover them. They are theorems of the unit now (`ErasureCloneAgrees` outright,
+  `ErasureAgrees` under two laws; the sections on the translated erasure coder and on the Braid agreements), and
+  they are not among the records of `SESSION-CONTRACT-VACUITY`.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -2025,8 +2243,9 @@ What a reader has to grant:
   is not covered by `TrustedBase`'s pins.
 
 - `finish_encaps_refines`, `mac_eq_agrees`, `Model.Braid.receive_output_next_epoch`:
-  proved outright rather than assumed, since `finish_encaps` and `mac_eq` are
-  fully translated Rust (no opaque call in the ones that matter for value,
+  `mac_eq_agrees` and `Model.Braid.receive_output_next_epoch` take no boundary hypothesis;
+  `finish_encaps_refines` takes `BraidHmacAgrees` and `ErasureAgrees`, since `finish_encaps` and `mac_eq`
+  are fully translated Rust (no opaque call in the ones that matter for value,
   only in the KEM/erasure primitives they call), and the epoch fact is a
   finite case split over the model alone.
 - **The KEM boundary, `KemAgreesFor`:** two relations between a specific
@@ -2219,9 +2438,11 @@ carry the claim by
 `#guard_msgs in #print` pins (`State.sized`, `Braid.sized`, `Braid.Run` with its constructors,
 `Braid.Constructed`, `Braid.Start`, `Braid.Decoded`, `Reach`, `Good`, `NewMsgLen`, `TruncateLen`,
 `TruncateLenShape`, `Laws`, in the standalone and unit files that define them). These are held by the
-build and by the axiom pin, and **no gate requires a statement pin or a definition pin to exist**: deleting
-one fails nothing, and weakening a result whose statement has no pin changes nothing a gate reads. The
-results whose statements are held only by the build and the axiom pin, with no statement pin, are
+build and by the axiom pin. `attest.py` requires each of these pins to exist (`REQUIRED_STATEMENT_PINS`),
+so deleting one, commenting one out, removing its `#guard_msgs` or giving it an option that compares
+nothing fails it. It does not read what a pin says, so a statement changed together with its pin's
+expected message is accepted, and weakening a result whose statement has no pin changes nothing a gate
+reads. The results whose statements are held only by the build and the axiom pin, with no statement pin, are
 `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and `Good.clone`.
 
 ## Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)
@@ -2238,15 +2459,27 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 - `kdf_init_refines`, `kdf_rk_refines`, `kdf_ck_refines`, `find_chains_refines`,
   `set_chains_refines`, `clear_old_epochs_refines`, `advance_refines`,
   `maybe_advance_refines`, `try_skipped_refines`, `skip_message_keys_refines`:
-  proved outright rather than assumed, since each is translated Rust -- some
-  bottoming out in the KDF boundary below, others in `Vec::retain`/`remove`
-  instead, none in a boundary this file does not already name.
+  each is about translated Rust and refines the model under the boundary this file names:
+  the KDF boundary below, `RemoveSkippedAtAgrees` and `VecRetainAgrees`.
+  **`set_chains_refines` and `clear_old_epochs_refines` are not proved outright.** Each is
+  `VecRetainAgrees` (its first and its second conjunct) applied to its arguments, so each is that
+  hypothesis and no more, and every theorem that calls them (`advance_refines`,
+  `maybe_advance_refines`, `send_refines`, `skip_message_keys_refines`, `receive_refines` and the
+  Triple's discharged theorems, and, on the session unit, `SessionUnitTripleT3`'s discharged theorems and
+  the `vecRetain` and `spqrRemove` fields of the contract records in `UnitLifecycleT3.lean`) rests on it. `VecRetainAgrees` and `RemoveSkippedAtAgrees` are
+  statements about translated functions (`State::set_chains`, `State::clear_old_epochs`,
+  `State::remove_skipped_at`); `SatisfiabilitySpqrLaws.vecRetainAgrees` and
+  `SatisfiabilitySpqrLaws.removeSkippedAtAgrees` prove them from named laws about opaque constants
+  (the section "Proved (hypotheses about translated functions in the leaf crates and the three-leaf
+  unit, from named laws, and the decoder acceptance witnesses)"), but the theorems of this file still
+  take them as hypotheses.
 - **No KEM boundary and no erasure-coding boundary.** Unlike the ML-KEM
   Braid, this crate never computes a shared secret or touches a chunk codec
   -- `Output` arrives as a value from whichever crate produced it. The only
   opaque call this file assumes anything about the *value* of is
-  `hkdf_sha256`; `Vec::retain`/`remove`/`append`, `Zeroize`, and
-  `Option::clone` are opaque too and each carries its own assumption below.
+  `hkdf_sha256`; `Vec::pop`, `Zeroize` and
+  `Option::clone` are opaque too and each carries its own assumption below; the retain and removal scans
+  are translated loops whose results `VecRetainAgrees` and `RemoveSkippedAtAgrees` assume.
 - **The KDF boundary, `SpqrHkdfAgrees`:** one assumption, stated one level
   below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the
   opaque `hkdf_sha256` call itself -- that when it returns, it returns what
@@ -2254,26 +2487,22 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   at the 64- and 96-byte literals. Subsumes both of `SpqrT1.lean`'s KDF
   assumptions, so this file states the boundary once rather than twice.
 - **`VecRetainAgrees` and `RemoveSkippedAtAgrees`:** each states what the
-  operation returns, not only that it returns, and each is strictly stronger
-  than its `SpqrT1.lean` namesake, so neither older hypothesis is separately
-  assumed here. `RemoveSkippedAtAgrees` is stated under the index guard
+  operation returns, not only that it returns. `RemoveSkippedAtAgrees` is strictly stronger than
+  `SpqrT1.RemoveSkippedAtTotal`, so that one is not separately assumed here; `VecRetainAgrees` does not cover
+  the capacity and wipe calls, so `SpqrT1.VecRetainTotal` is carried beside it (`hret_total`).
+  `RemoveSkippedAtAgrees` is stated under the index guard
   `i.val < v.val.length`, and says the custom wipe-before-pop helper returns
   the indexed key and the vector with that index erased.
-- **`VecAppendAgrees`:** genuinely new. `SpqrT1.lean` needed only
-  `VecAppendTotal`, since nothing there depended on what
-  `skip_message_keys`'s concatenation actually produced; this file does.
-  **Both are guarded** by `v.length + w.length ≤ Usize.max →`. Stated
-  unconditionally they would be refutable in Lean (Aeneas bounds every `Vec`
-  by `Usize.max`, so two full vectors have no concatenation), which would
-  make `skip_message_keys_refines`, `receive_refines_continuation` and
-  `receive_refines` -- and `SpqrT1.lean`'s `skip_message_keys_no_panic` and
-  `receive_no_panic` -- provable from `False`. The guard is discharged at
-  each call from `hskiproom` and the loop's own length bound, exposed for the
-  purpose.
+- **No `VecAppendAgrees`.** `LIMITATIONS.md` and earlier text of this ledger named a hypothesis
+  `VecAppendAgrees` about the skip step's concatenation. No theorem of this file takes it and no proof file
+  defines it. The translated `skip_message_keys` builds its result with `Vec::with_capacity`, two `Vec::push`
+  loops and `core::mem::replace`, and `SpqrT1.VecAppendTotal` is `True`, kept as a name for the downstream
+  files.
 - **Further preconditions on `send_refines`/`receive_refines`:** besides `hepoch`, `hroom`, `hskiproom`, `hone` and `hcounter`, both
   carry `hcb`, `hsb` and `hnewb`: every chain epoch, every skipped-entry epoch,
   and the incoming `Output.key_epoch` must satisfy `+ epochsKept ≤ U64.max`,
-  so the retirement arithmetic cannot overflow. These propagate into the
+  so the retirement arithmetic cannot overflow. (For a decoded state `hcb` and `hsb`
+  follow from the invariant and `hepoch`; `hnewb` does not.) These propagate into the
   Triple Ratchet's refinement on the unit, through its sparse bundle. `hepoch` and `hcounter` are the model's
   requirements, not the code's: `SpqrT1.lean`'s `send_no_panic`/
   `receive_no_panic` no longer carry either, every epoch and counter
@@ -2310,9 +2539,9 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   `Zeroizing`, and the translation sees the wrapper's `new` and `deref` as
   opaque). Each says wrapping then dereferencing returns the array that went
   in. `Translation/Satisfiability.lean` exhibits a model of each.
-- **Eight assumptions in this file, six new constants and two reused
-  outright**, none the same proposition as any other file's assumption of a
-  similar shape -- the same per-crate counting rule `SpqrT1.lean` and
+- **Eight assumptions in this file, five new constants and three reused
+  outright** (`SpqrT1.VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`), none the same proposition as any
+  other file's assumption of a similar shape -- the same per-crate counting rule `SpqrT1.lean` and
   `BraidT1.lean` describe. See `SpqrT3.lean`'s own closing section for the
   full account.
 
@@ -2393,17 +2622,17 @@ where allocation does not fail. That
 sense and under the five laws recorded in `LIMITATIONS.md`, in the sections "Proved (the records' fields about
 translated functions, from named laws)" and "Proved (one interpretation of the unit's opaque constants, and
 the four records from it)" below; `divCeilValue` is one of those laws, an assumption about an
-opaque standard-library function, and no theorem shows the headroom records satisfiable. That a send or a receive keeps
+opaque standard-library function. That a send or a receive keeps
 `State.sized`, which gives `decoders_bounded` and `ct1_bounded`, is shown for the Braid's own operations in the sections
 "Proved (the ML-KEM Braid keeps the two premises its receive theorems take)" and "Proved (the
 same preservation theorems on the session unit, with the decoded Braid)", and not for a session
 state, which the single-step lifecycle theorems do not reach. The three theorems that were vacuous
 no longer fail for a hypothesis in their records, in the sense and under the five laws of the sections named
-above. Whether the headroom they take can be met is not
-shown, and a theorem is vacuous if it cannot. The dispatch theorems compile
-against the repaired record and are not claims. Seventeen theorems of the two modules, ten of them encrypt-side
-lemmas of `UnitLifecycleT3.lean`, are affected for a different reason, which the section "Proved (a negative
-result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)" below gives. The standalone Braid theorems in `BraidT1.lean`
+above. The headroom they take is met by some input, in the sense and under the assumptions recorded in
+`LIMITATIONS.md` ("The headroom records"); no theorem shows that a session the crate produces meets it. The dispatch theorems compile
+against the repaired record and are not claims. The evidence hypotheses of the lifecycle dispatch layer are a
+separate matter, which the section "Proved (a negative result: five evidence hypotheses and records of the
+lifecycle dispatch layer are false or empty)" below gives. The standalone Braid theorems in `BraidT1.lean`
 and `BraidT3.lean` are not affected, because there the decoder is an opaque type and the field
 can be satisfied (`Translation/ErasureWitness.lean`, `erasure_hypotheses_satisfiable`, proves the
 standalone Braid's seven erasure totals jointly satisfiable). The decoders the Braid holds are
@@ -2422,9 +2651,9 @@ of `Decoder::new` is not a theorem.
   headroom records in their statements (`EncryptHeadroom`,
   `DecryptRatchetHeadroom`). `invariant_gives_preconditions` yields three of the
   four receive-headroom fields. The fourth, a bound on the associated data
-  length, is not derived by any theorem, although clause (c) of
-  `Session::invariant` fixes the associated data at the 66 bytes that
-  `identity_ad_length` proves.
+  length, follows from `Session::invariant` too: clause (c) fixes the associated data at the
+  66 bytes that `identity_ad_length` proves (`invariant_gives_ad_length`, `decryptHeadroom_of_invariant`, in the section
+  "Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)").
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`:
   (`establish_responder_no_panic` took a record with a false field until the repair, see above) the two establishment
   entry points return, the responder's with room in its
@@ -2633,7 +2862,8 @@ uninterpreted constant (the unit also holds 143 compiler-trust facts about forma
 which mentions an interpreted constant), so a derivation of `False` from a record at the real constants would,
 after the constants are replaced by the model's terms, become a derivation of `False` from facts that hold in
 the model. That last step is an argument about derivations and not a theorem inside Lean. It does not show that
-the real primitives, or the real standard-library and `zeroize` functions, satisfy any field or any law, and it does not cover the headroom records. The
+the real primitives, or the real standard-library and `zeroize` functions, satisfy any field or any law, and it does not cover the headroom records, which
+`UnitHeadroomSatisfiable.lean` and `UnitHeadroomInvariant.lean` take up (the section "Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)" below). The
 exact residual is in `LIMITATIONS.md`.
 
 - `all_shapes_are_predicates`: each of 37 predicates of the session proofs is, at `Interp.real`, the shape
@@ -2701,12 +2931,157 @@ Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of
 deleting one fails it. The pins of the results about `Interp.real` and the records list the 48 interpreted
 constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
 axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
-The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng`, `records_of_axiom_base` and
-`vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by `#guard_msgs in #check`; no other statement in these modules is held, so a weaker statement that
+The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng` and `records_of_axiom_base`
+(in `UnitSatisfiabilityRecords.lean`) and of `vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by
+`#guard_msgs in #check`, and `attest.py` requires each of those four pins to exist as an active `#guard_msgs in #check`
+whose options still compare the printed message (`REQUIRED_STATEMENT_PINS`). It does not read what a pin says, so a
+statement weakened together with its pin's expected message is accepted by that check, and only the build, which compares
+the text, and the diff of the pin show it. No other statement in these modules is held, so a weaker statement that
 keeps its axiom list is not refused. What the pins do not hold is the classification itself, which fields are axiom-level and which are about
 translated functions: the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
 package.
+
+## Proved (the translated erasure coder of the Session unit refines the model: `ErasureAgrees`)
+
+Location: `Translation/UnitErasureRsStatements.lean`, `Translation/UnitErasureRsGlue.lean`.
+
+The proofs are in `UnitErasureRsDefs.lean` (the specification functions), `UnitErasureRsKernel.lean`, `UnitErasureRsAlgebra.lean`, `UnitErasureRsModel.lean`, `UnitErasureRsEncoder.lean` and `UnitErasureRsDecoder.lean`; the statements module restates each of the nine and the glue assembles them.
+
+In the complete Session unit the erasure coder is translated Rust, so `ErasureAgrees`, the hypothesis of the four
+Braid refinement theorems, is a statement about definitions: `Encoder::new` of any message and `Decoder::new` of any
+size build values that refine the model's encoder and decoder (`Model.Braid.encode`, `Model.Braid.Decoder.new`), the
+decoder for every message the model decoder could still be collecting. Its encoder clause was a theorem already
+(`erasureAgrees_encoder`); the decoder clause needed that decoding the codewords of a message at distinct indices
+returns the message, which no theorem of the model stated before `M_recover`. The proof is cut into nine statements,
+proved independently and restated in `UnitErasureRsStatements.lean` so that the kernel checks that each proved
+theorem has exactly the statement the glue was written against.
+
+- `K_weights`, `K_coefficients`, `K_evaluate`: the translated barycentric kernels `weights`, `coefficients` and
+  `evaluate` compute their pure specifications over `Model.Gf65536.Elem`, for every input slice. The field part
+  carries the argument of `ErasureT3.lean` over to the unit's constants.
+- `K_algebra`: the Lagrange evaluation they compute is `Model.Polynomial.interp` for distinct nodes.
+- `E_new`, `E_next`: `Encoder::new` builds the padded chunks of `Model.Erasure.chunks`, and `next_chunk` emits
+  `Model.Erasure.codeword` at the index `next`.
+- `D_add`, `D_message`: `Decoder::add_chunk` refines `Model.Erasure.Decoder.add`, and `Decoder::message` refines
+  `Model.Erasure.Decoder.message`.
+- `M_recover`: `Model.Erasure.Decoder.message` of the codewords of a message at distinct indices is the message.
+- `erasureAgrees_decoder`, `erasureAgrees`: the decoder clause, and `ErasureAgrees`, under the two laws
+  `DivCeilValue` and `TruncatePrefix`. The proof carries a decoder invariant (`DInv`) over every sequence of
+  chunks (`dinv_add`): a duplicate index, and a chunk offered after the decoder is complete, change nothing the
+  message depends on, and a decoder that holds fewer chunks than it needs returns no message in the translation
+  and in the model (`message_not_full`), which covers a decoder sized for `usize::MAX` bytes. The statements hold
+  at both platform widths, because the proofs use only that `Usize.max` is at least `2^32 - 1`.
+
+Each is pinned under `#guard_msgs` (axioms and statement), and `attest.py` requires every axiom pin; the statement
+pins are held by the build alone (see the section on the Braid agreements). The axiom pins list
+`propext`, `Classical.choice` and `Quot.sound`, and the two opaque constants the laws are about (`usize::div_ceil` in
+`E_new` and `erasureAgrees`, `Vec::truncate` in `D_message` and the glue); none depends on a compiler-trust axiom.
+The proof of the statements through the field used compiler-trust axioms (about fifty `bv_decide` and `native_decide`
+certificates in the model's field lemmas) until the field lemmas became kernel proofs (the section on the field
+above).
+
+What this does not show: that the real `usize::div_ceil` and `Vec::truncate` meet the two laws (they are the
+documented behaviour of the standard library functions, and both hold in one interpretation of the unit's opaque
+constants, `UnitSatisfiabilityBraidAgreements.lean`); and anything about `Vec::with_capacity`, which never fails in
+the translation where the real function panics for an absurd capacity, so the results are about the translation. The
+laws are the whole interface between this proof and the standard library.
+
+## Proved (the Braid refinement agreements of the Session unit: a model, the hypotheses that have witnesses, and what is discharged)
+
+Location: `Translation/UnitSatisfiabilityBraidAgreements.lean`, `Translation/UnitSatisfiabilityErasureAgrees.lean`, `Translation/UnitSatisfiabilityBraidStates.lean`, `Translation/UnitBraidEntryPoints.lean`.
+
+`step_send_refines`, `Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines` of the complete
+Session unit (`SessionUnitBraidT3.lean`) take, besides the contract fields: six agreements about
+the unit's opaque KEM and KDF constants (`KemAgreesFor`, `KemLenAgrees`, `ValidateEkAgrees`, `KemCloneAgrees`,
+`BraidHkdfAgrees`, `BraidHmacAgrees`), thirteen totality or size shapes, six statements about the translated
+erasure coder, and the hypotheses about the state and the message (`StateRefines`, `EncodersLive`, `ct1_bounded`,
+`decoders_bounded`, the epoch headroom, `MsgRefines` and `HonestChunk`). The standalone witnesses
+(`KemWitness.lean`, `Satisfiability.lean`) are about the constants of the standalone Braid translation, which
+are different Lean constants, so before these modules none of the six agreements, none of the state-level
+hypotheses and neither erasure agreement had a witness for the unit. The sense of "has a model" is the
+substitution argument of the section above and no other: a derivation of `False` from statements about
+uninterpreted constants would become one from facts that hold in the model, which is an argument about
+derivations and not a theorem inside Lean. Nothing here is shown of the real ML-KEM wrapper, libcrux or the
+real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
+
+- `braid_agreement_shapes_are_predicates`: each of the six agreements, and the law `TruncatePrefix`, is at
+  `Interp.real` the shape over an interpretation that replaces it. Each bridge is `Iff.rfl`, so the kernel
+  checks that the shape unfolds to the very proposition the refinement theorems take. A shape that differs
+  from the predicate by a constant or a premise is rejected: `check-braid-agreement-negatives.sh` makes
+  such changes one at a time and requires the bridge to fail, and requires this theorem to name every
+  `_is` bridge of the module.
+- `braid_agreements_have_a_model`: one interpretation, `Interp.modelT3`, a conservative extension of
+  `Interp.model` that changes only the KEM family, the two KDFs and their sizes, satisfies the six agreements
+  (at `Model.Braid.toyKem`, because `K` is existential in `KemAgreesFor K`), the 33 axiom-level shapes of the
+  session records, the laws of `StdLaws` and `TruncatePrefix`. So the agreements are consistent with each
+  other and with every axiom-level contract field. The proofs hold on both platform widths: they use only
+  that `Usize.max` is at least `2^32 - 1`. `ValidateEkAgrees K` holds of the real call only for a `K` whose
+  `hashEk` folds in the coefficient check that `validate_ek` makes after the hash; such a `K` exists because
+  `K` is existential.
+- `erasureCloneAgrees`: `ErasureCloneAgrees` is a theorem of the translated unit, outright: a clone of an
+  encoder or a decoder equals it. No law about an opaque constant is used.
+- `erasureAgrees_iff_clauses`, `erasureAgrees_encoder`: `ErasureAgrees` is its encoder clause and its decoder
+  clause, by `Iff.rfl`, and the encoder clause is a theorem given that `usize::div_ceil` returns at divisor 32
+  (`DivCeil32`, which `DivCeilValue` implies): `Encoder::new` of any message refines the model encoder of the
+  same bytes, for every number of steps a `u16` index allows. The decoder clause is the section above.
+- `ingredients`, `twelve_states`, `six_receive_witnesses`: given `ErasureAgrees`, `KemAgreesFor K`,
+  `KemLenAgrees K`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
+  state constructors has a real state and a model state satisfying `StateRefines`, `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive` at once (`Good`, which `Good_iff` unfolds), and
+  each of the six state and message-type pairs in which `Model.Braid.receive` feeds a chunk to a decoder has
+  a message satisfying `MsgRefines` and `HonestChunk`, in the state's epoch, with data, and not through the
+  vacuous arm of `HonestChunk`. The witnesses are built from the agreements: the key pairs and encapsulation
+  states from the `generate` and `encapsulate1` clauses of `KemAgreesFor`, the encoders and decoders from the
+  two clauses of `ErasureAgrees` (discharged under the two laws by `twelve_states_of_laws`). So these hypotheses
+  are satisfiable together whenever the agreements are, and a model of the agreements is the one above.
+- `initiator_refines`, `responder_refines`: the states `Braid::initiator` and `Braid::responder` build refine
+  the model's initial states `Model.Braid.initAlice` and `Model.Braid.initBob` and satisfy `ct1_bounded`,
+  `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
+  only of a state built to satisfy it. The responder's decoder is the one `ErasureAgrees` provides for the
+  header size.
+- `defined_hypotheses_given_erasure`, `Braid.receive_refines_given_erasure`, `Braid.send_refines_given_erasure`: the
+  receive takes six hypotheses about translated functions and the send takes four of them (`ErasureAgrees`,
+  `ErasureCloneAgrees`, `EncoderCloneTotal`, `DecoderCloneTotal`); `DecoderAddChunkTotal` and `DecoderMessageTotal`
+  occur only in the receive. All but `ErasureAgrees` are theorems: `ErasureCloneAgrees`, `DecoderAddChunkTotal`,
+  `EncoderCloneTotal` and `DecoderCloneTotal` outright, and the bounded `DecoderMessageTotal` from the one
+  law `TruncateTotal` (`Vec::truncate` returns). The two entry points are restated with those hypotheses
+  replaced: the send needs no law, the receive needs `TruncateTotal`, and `ErasureAgrees` stays a premise. No
+  statement of `SessionUnitBraidT3.lean` changed; each restatement is a corollary of the entry point it
+  restates, with fewer premises.
+- `defined_hypotheses_of_laws`, `Braid.receive_refines_of_laws`, `Braid.send_refines_of_laws`: with
+  `ErasureAgrees` from the section above, all six hypotheses of the receive and all four of the send are theorems
+  under the two laws `DivCeilValue` and `TruncatePrefix`, and the two entry points are restated with them replaced
+  by the laws.
+  What remains of their hypotheses is what a model of the unit's opaque constants can satisfy (the six agreements and
+  the totality shapes), the two laws, and the hypotheses about state and message.
+- `twelve_states_of_laws`, `six_receive_witnesses_of_laws`: the state witnesses with `ErasureAgrees` supplied by the
+  laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the
+  two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
+  without a witness for the unit, in the sense of the substitution argument. The state and message witnesses are
+  derived from the agreements and the two laws, so they exist in the model because the agreements hold there;
+  the step from the model to the real constants is the substitution argument and not a theorem inside Lean.
+
+Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these axiom pins
+(`REQUIRED_PINS`), so deleting one fails it. The pins of `braid_agreement_shapes_are_predicates` and the entry
+points list the opaque constants their statements mention; none depends on a compiler-trust axiom. The statements
+of every claimed theorem here are pinned by `#guard_msgs in #check`, and so are `Good_iff` and `RecvWitness_iff`,
+which unfold the two definitions the state theorems are stated through, and the three definitions that fix which
+constructor and which message pair each witness is for (`stateTag`, `modelTag`, `FeedsDecoder`, by
+`#guard_msgs in #print`). Those statement pins are held by the build alone: `attest.py` reads the axiom pins, so
+deleting a statement pin, or weakening a statement together with its pin, is refused by no gate. A statement
+weakened without its pin is refused by the build, and `check-braid-agreement-negatives.sh` shows it in five of the
+modules (the four of this section and the glue).
+
+What these results do not show: that the real KEM and KDF meet the six agreements; that a send or a receive
+keeps `ct1_bounded`, `decoders_bounded`, `EncodersLive` or the epoch headroom (the witnesses are single steps
+and a run is not shown to stay inside the hypotheses); that `MsgRefines` and `HonestChunk` hold of a message
+a peer sends (`MsgRefines` holds of a real chunk of any content when the decoder needs at least one chunk, so
+`HonestChunk` is the only hypothesis that excludes a spliced stream); that a decoder restored by
+`Decoder::from_bytes` refines a model decoder (one that holds chunks of no common message refines none, so the
+refinement theorems apply to states reachable from a fresh Braid and to restored states equal to such a state);
+and that the witnesses reach a state with the relation hypotheses over values of a real ML-KEM key pair, because
+the key pairs are the ones the agreements provide.
 
 ## Proved (evidence about three fields that quantify over every Zeroize record)
 
@@ -2740,11 +3115,21 @@ Location: `Translation/DispatchEvidenceVacuity.lean`.
 
 `UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean` state refinement lemmas for the
 eight-leaf session unit's `encrypt` and `decrypt` as conditional on hypotheses and on evidence
-records. These results are about those hypotheses and records, not about the product. The former
-universal same-ephemeral audit is intentionally not carried forward: the dispatcher now consumes
-decoded-message evidence indexed by the actual branch, so that old predicate no longer exists.
-The retained results below document three families of vacuity that still constrain closure of
-`DISPATCH-EVIDENCE-VACUITY` in `GAP-REGISTER.md`.
+records. These results are about those hypotheses and records, not about the product. They show
+that five of them are false or empty under the conditions stated in the bullets below. When they were
+added, seventeen theorem statements of the two modules took one of them. Since the restatement of three
+records and the integration of the session contract branch, no theorem of the two modules takes any of
+the five, nor the old KEM field of the last bullet: each is kept unchanged, with a doc comment naming
+its replacement, so that these results still elaborate (`GAP-REGISTER.md`, row
+`DISPATCH-EVIDENCE-VACUITY`, says what replaced each and what is still open). The last bullet is a
+sixth point and not a refutation.
+
+- `same_ephemeral_agreement_empty`, `initialSameEphemeralEvidence_false`: the translated
+  `same_ephemeral_agreement` returns `false` on two empty byte strings, because `decode_ec`
+  refuses a string whose length is not 33, so `InitialSameEphemeralEvidence`, which asks for `true`
+  on every pair of equal byte strings, is false for every `dh`, `oracle`, `real` and `model`. The
+  proof uses no hypothesis and no law. No theorem takes it now: the dispatch theorems take the
+  per-branch `InitialDispatchBranchEvidence` instead.
 - `codewordViewOf_false`, `codewordViewOf_false_of_encoderNewTotal`: if `Encoder::new` returns on
   two messages of one length `n` of at least 33 bytes that agree on their first 32 bytes and differ
   at byte 32, no view satisfies `CodewordViewOf`, because both messages have the same codeword at
@@ -2782,17 +3167,732 @@ The retained results below document three families of vacuity that still constra
   `the_fixed_secrets_have_the_table_keys` in `tacenta-core/tests/identity_boundary.rs`. These three
   results are conditional on it, on the codec and on the clause, and none of the three is shown
   satisfiable inside Lean.
+- `oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`: the KEM success clause
+  `OracleOf` had before it was restated, kept as `KemEncapsulateUnguarded`, makes the model's KEM oracle
+  accept every public key at every draw that a trace has, and the translated `encapsulate` never
+  return `Err` while the trace has a draw. This is not a refutation, because `encapsulate` is an
+  opaque constant: the shipped function returns `Err` on a key of the wrong length (tested by
+  `malformed_inputs_are_rejected`) and on a key that fails `validate_public_key` (read from
+  `tacenta-core/boundary/src/kem.rs`; `GAP-REGISTER.md`, row `E2E-04`). The two statements took
+  `OracleOf` before the restatement and take the kept field now, which is the old field's text
+  unchanged; their statement pins and axiom pins changed with them, which makes them two of the three
+  pinned statements the integration of the session contract branch changed (the third is
+  `Tacenta.SpqrT3.skip_message_keys_refines`, above). `OracleOf` asks for success only where the
+  model's `kemEncaps` returns `some`.
+
 No step of these proofs case-splits on the width of `usize`, and the only facts they use about
 `Usize.max` are the bounds Aeneas proves for the platform constant. `System.Platform.numBits` is an
 opaque constant of the kernel whose value is 32 or 64, so a proof that does not choose between the
 two holds for both. Each of the fifteen retained results is pinned under `#guard_msgs` twice at the end of the
 file, once as an axiom list and once as its statement (`#check`), and `attest.py` requires every axiom
-pin (`REQUIRED_PINS`), so deleting one fails it. The statement pins are held by the build only: no
-check requires them to exist. The axiom lists name the opaque constants that the statements mention,
+pin (`REQUIRED_PINS`), so deleting one fails it. The build compares the text of each statement pin, and
+`attest.py` requires each of the nineteen to exist as an active `#guard_msgs in #check` whose options still compare the
+printed message (`REQUIRED_STATEMENT_PINS`), so deleting one, commenting one out, removing its `#guard_msgs`, nesting it
+under another `... in` or giving it an option such as `(drop info)` fails it; removing its expected message fails the
+build, not this check. `attest.py` does not read what a statement pin says, so a statement that is weakened together with
+its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the
+pin show it; a pin holds the printed statement, in which a definition appears by name, so changing a definition changes
+no pin unless the definition has its own `#print` pin. The axiom lists name the opaque constants that the statements mention,
 directly or through the definitions they unfold, and the proofs use none of them as assumptions;
 `keysSampled_receive_ct1_holds_chunk` mentions none and lists the three standard axioms only. None
 depends on a compiler-trust axiom. These results repair nothing, and they do not show that any other
 hypothesis of the two modules can be met.
+
+## Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)
+
+Location: `Translation/UnitHeadroomSatisfiable.lean`, `Translation/UnitHeadroomInvariant.lean`.
+
+`EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom` and `EstablishResponderHeadroom` are the
+conditions on the input of the five lifecycle T1 theorems that are not contracts about primitives, and
+`InvariantPreconditions` is what `invariant_gives_preconditions` concludes from `Session::invariant`; a theorem whose
+hypothesis no input meets is true and empty. These results show that each is met by some input, say exactly which
+numeric bounds they are, and show what `Session::invariant` gives.
+
+The sense. The lifecycle types are built from opaque types of the unit, and no closed value of any of them exists in the
+real environment: Lean cannot show that `tacenta_boundary::dh::PrivateKey` is inhabited, and an interpretation in which
+it is empty, which is by reading and not by a theorem here, satisfies the unit's axioms (and falsifies `DhCodecTotal`). So every witness takes values of those types as arguments. For `PrivateKey`
+and `PublicKeyBytes` the values come from `DhCodecTotal`, a field of all four contract records. For `PrekeyStore`, the
+wrapper around the one-time prekey vector comes from the class `DerivedKeysModel`, which `establish_responder_no_panic`
+takes as an instance argument. One more value is needed, a `kem::KeyPair`, and, by reading, no record gives it:
+`HeadroomInhabitants` states it as one more assumption over an interpretation of the opaque constants. The session that
+passes `Session::invariant` needs two further assumptions that no record states (`ValidKeyShape`, `OptionEqU64Shape`).
+Each assumption is a statement over the opaque constants, bound to the real ones by `Iff.rfl`. The joint model satisfies
+`HeadroomInhabitants` and `ValidKeyShape`. `OptionEqU64Shape` is about a constant the joint model does not interpret and no
+record reaches, and a Lean function of the same type satisfies it. That is the substitution argument of the section "Proved
+(one interpretation of the unit's opaque constants, and the four records from it)" again, with `PrivateKey`, `PublicKeyBytes`
+and the wrapper around the one-time prekey vector inhabited by the contract records, and these three statements in the base:
+an argument about derivations and not a theorem inside Lean, and not a statement that the real `PrivateKey` has a value
+or that the real primitives satisfy the assumptions. The exact residual is in `LIMITATIONS.md`.
+
+- `usize_max_ge`, `plaintext_bound_at_widths`: `Usize.max` is at least `2^32 - 1` (from `Usize.bounds_eq`, so at both
+  platform widths), and the plaintext bound of `EncryptHeadroom` admits exactly the lengths up to `2^32 - 151` on a 32-bit
+  target and `2^64 - 151` on a 64-bit target.
+- `freshTriple_headroom`, `freshBraid_bounds`: a Triple state built from concrete values (no skipped keys, one chain-table
+  entry) meets `ReceiveHeadroom`, whose bounds are `MAX_SKIPPED_STORE + MAX_SKIP = 3000` and a chain table of one entry; a
+  Braid in `KeysUnsampled`, which holds no decoder, ciphertext or KEM value, meets `ct1_bounded` and `decoders_bounded`.
+- `decryptHeadroom_sessionOf_iff`, `invariantPreconditions_sessionOf`, `encryptHeadroom_sessionOf_iff`: for a session over
+  those states, `DecryptRatchetHeadroom` is exactly the bound `associated_data.length + 106 <= Usize.max`, `InvariantPreconditions`
+  holds outright, and `EncryptHeadroom` is exactly that bound, the plaintext bound `102 + (plaintext.length + 48) <= Usize.max`
+  and, when an initial message is pending, `33 + 33 + ciphertext.length + (102 + (plaintext.length + 48)) + 18 <= Usize.max`.
+- `initiatorHeadroom_iff`, `responderHeadroom_iff`: `EstablishInitiatorHeadroom` is exactly `kem_prekey.length < Usize.max`
+  and `EstablishResponderHeadroom` exactly `last_resort_seen.length < Usize.max`: each is a single bound that fails only at
+  the largest length a Lean vector can have (a Rust allocation is smaller; see the controls below).
+- `decryptHeadroom_satisfiable`, `encryptHeadroom_satisfiable`, `encryptHeadroom_satisfiable_pending`,
+  `initiatorHeadroom_satisfiable`, `responderHeadroom_satisfiable`: witnesses. Given a private key and a public key, a
+  session over fresh states meets `DecryptRatchetHeadroom` and `InvariantPreconditions` for associated data of at most
+  `2^32 - 107` bytes and meets `EncryptHeadroom`, with no pending initial message for every plaintext its own bound admits
+  and with one (an empty ciphertext) for every plaintext of at most `Usize.max - 234` bytes; a bundle meets `EstablishInitiatorHeadroom` for a prekey of at most `2^32 - 2` bytes; a store, given a
+  key pair and a wrapper around the one-time prekey vector as well, meets `EstablishResponderHeadroom`. None of the sessions is claimed to pass
+  `Session::invariant` here.
+- `initiatorHeadroom_not_trivial`, `responderHeadroom_not_trivial`, `decryptHeadroom_not_trivial`,
+  `encryptHeadroom_not_trivial`: controls. Each record is false of some input (a vector of length `Usize.max`), so the
+  witnesses above do not show a record that holds of everything. The controls hold of the Lean types, whose vector lengths
+  run up to `Usize.max`. A Rust allocation is at most `isize::MAX` bytes, so no real vector has such a length, and every
+  bound on one length (all of `ReceiveHeadroom`, the associated-data bound, the plaintext bound, both establishment bounds)
+  holds of every real input. That is by reading and not a theorem, because the Aeneas `Vec` carries no `isize::MAX` bound. The
+  pending-message arm of `EncryptHeadroom` bounds a sum of two lengths, which that limit alone does not settle on a 32-bit
+  target. The fields that are facts about a state and not about a size are `ct1_bounded` and `decoders_bounded`, which
+  `Session::invariant` supplies.
+- `nonempty_privateKey_of_dhCodec`, `nonempty_publicKey_of_dhCodec`, `nonempty_derivedZeroizing`,
+  `encrypt_headroom_of_contracts`, `decrypt_headroom_of_contracts`, `initiator_headroom_of_contracts`,
+  `responder_headroom_of_contracts`: `DhCodecTotal` gives a value of each of the two key types, and `DerivedKeysModel` a
+  value of the wrapper around the one-time prekey vector, so, given `EncryptContracts`, `DecryptRatchetContracts` or
+  `EstablishInitiatorContracts`, the matching headroom is met (the encrypt one for every plaintext its bound admits). For
+  `EstablishResponderContracts` with the class, a key pair is an argument.
+- `headroomInhabitants_is`, `model_headroomInhabitants`, `axiom_base_model`, `headroom_of_axiom_base`,
+  `headroom_hypotheses_satisfiable`: `HeadroomInhabitants` at the real constants is the statement that `kem::KeyPair` has a
+  value (`Iff.rfl`); the joint model of `UnitSatisfiabilityJoint.lean` satisfies it (`Unit`) and satisfies the axiom base at a
+  concrete `RngCore`. Under the base and `HeadroomInhabitants`, each of the
+  four contract records holds and the matching headroom is met, at the real constants; and the base and the assumption are
+  satisfied together.
+- `validKeyShape_is`, `model_validKeyShape`, `optionEqU64Shape_is`, `optionEqImpl_shape`: the two assumptions the session
+  that passes the invariant needs. `ValidKeyShape` says a private key exists whose public key is canonical and of prime order
+  (the identity-key rule, which the identity-key vectors check and Lean does not); `OptionEqU64Shape` says `Option::eq` on
+  two `Some` values of `u64` compares them. Each is bound to the real constants by `Iff.rfl`. The joint model satisfies the
+  first. The second is about `Option::eq`, which the joint model does not interpret; `optionEqImpl`, a Lean function with the
+  type of `Option::eq` and the definition the standard library gives it, satisfies it.
+- `structural_sessionOf`, `freshTriple_invariant`, `freshBraid_invariant`, `sessionOf_invariant`: a session over fresh states,
+  with one key as both identity keys, the associated data the invariant computes, a canonical key as the ratchet public key,
+  and a Braid at epoch 1, passes `Session::structural_invariant` and `Session::invariant` at the real constants, given the two
+  assumptions. Both the Triple and the Braid invariant are evaluated through the translated functions; no clause is assumed.
+- `emptyChainTable_fails_invariant`, `epochZero_braid_fails_invariant`, `emptyChain_headroom`, `epochZero_bounds`,
+  `session_emptyChainTable_fails_invariant`, `session_epochZero_fails_invariant`: controls. A sparse-ratchet state with an
+  empty chain table fails the sparse ratchet's invariant, and a Braid at epoch 0 fails `Braid::invariant`. A Triple state with
+  an empty chain table meets `ReceiveHeadroom`, and a Braid at epoch 0 meets `ct1_bounded` and `decoders_bounded`. A session
+  that holds either one fails `Session::invariant`. So a session that only met the headroom fields would not have been shown to
+  pass `Session::invariant`.
+- `structural_gives_ad`, `invariant_gives_ad_length`, `decryptHeadroom_of_invariant`, `encryptHeadroom_iff_of_invariant`:
+  `Session::structural_invariant` compares the associated data with `identity_ad`, so a session that passes it, or
+  `Session::invariant`, holds exactly 66 bytes of associated data (given `DhCodecTotal`). With
+  `invariant_gives_preconditions` (given `Ct1LenTotal`), `DecryptRatchetHeadroom` holds of every session that passes
+  `Session::invariant`, with nothing left for the caller; and for such a session `EncryptHeadroom` is exactly the plaintext
+  bound and the `initial` field, which is `True` with no pending initial message and otherwise bounds the ciphertext that the
+  invariant ties to the opaque `kem::ciphertext_len`.
+- `invariant_session_meets_both`, `invariant_session_of_axiom_base`, `invariant_hypotheses_satisfiable`: at the real
+  constants, given `DhCodecTotal`, `ValidKeyShape` and `OptionEqU64Shape`, there is a session that passes `Session::invariant`,
+  has no pending initial message, meets `DecryptRatchetHeadroom` and meets `EncryptHeadroom` for every plaintext its bound
+  admits. The base gives `EncryptContracts` and `DecryptRatchetContracts` and `DhCodecTotal` with them. The joint model
+  satisfies the base, `HeadroomInhabitants` and `ValidKeyShape` together, and `optionEqImpl` satisfies `OptionEqU64Shape`.
+  The second conjunct of `invariant_hypotheses_satisfiable` is that existence alone. It does not mention the base, because no
+  record, and neither of the other two assumptions, reaches `Option::eq`, by reading: it is not among the 48 interpreted
+  constants.
+
+Each result has an axiom pin under `#guard_msgs`, and `attest.py` requires every one of the 51 (`REQUIRED_PINS`), so
+deleting one fails it. An axiom pin holds the list of axioms a result depends on and not its statement, and none depends on
+a compiler-trust axiom. The statements of `headroom_of_axiom_base`, `headroom_hypotheses_satisfiable`,
+`responder_headroom_of_contracts`, `encrypt_headroom_of_contracts`, `decrypt_headroom_of_contracts`,
+`initiator_headroom_of_contracts`, `initiatorHeadroom_iff`, `responderHeadroom_iff`, `encryptHeadroom_sessionOf_iff`,
+`invariant_session_meets_both`, `invariant_session_of_axiom_base`, `invariant_hypotheses_satisfiable`,
+`decryptHeadroom_of_invariant`, `encryptHeadroom_iff_of_invariant`, `sessionOf_invariant`, `emptyChain_headroom`,
+`epochZero_bounds`, `session_emptyChainTable_fails_invariant` and `session_epochZero_fails_invariant` are also pinned by
+`#guard_msgs in #check`, which the build holds and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`), so deleting
+one of those pins is refused; `attest.py` does not read what a pin says, so a statement changed together with its pin's
+expected message is accepted. The other 32 results are held only by the build, which accepts whatever statement is written if it proves it, and
+by their axiom pin, which lists axioms and not the statement, so a weaker statement of any of them that keeps its axiom list
+passes every gate: `usize_max_ge`, `plaintext_bound_at_widths`, `freshTriple_headroom`, `freshBraid_bounds`,
+`decryptHeadroom_sessionOf_iff`, `invariantPreconditions_sessionOf`, `decryptHeadroom_satisfiable`,
+`encryptHeadroom_satisfiable`, `encryptHeadroom_satisfiable_pending`, `initiatorHeadroom_satisfiable`,
+`responderHeadroom_satisfiable`, `initiatorHeadroom_not_trivial`, `responderHeadroom_not_trivial`,
+`decryptHeadroom_not_trivial`, `encryptHeadroom_not_trivial`, `nonempty_privateKey_of_dhCodec`,
+`nonempty_publicKey_of_dhCodec`, `nonempty_derivedZeroizing`, `headroomInhabitants_is`, `model_headroomInhabitants`,
+`axiom_base_model`, `validKeyShape_is`, `model_validKeyShape`, `optionEqU64Shape_is`, `optionEqImpl_shape`,
+`structural_sessionOf`, `freshTriple_invariant`, `freshBraid_invariant`, `emptyChainTable_fails_invariant`,
+`epochZero_braid_fails_invariant`, `structural_gives_ad` and `invariant_gives_ad_length`.
+Among them are the figures `2^32 - 151` and `2^64 - 151` of `plaintext_bound_at_widths`, `2^32 - 107` of
+`decryptHeadroom_satisfiable`, `Usize.max - 234` of `encryptHeadroom_satisfiable_pending`, `2^32 - 2` of
+`initiatorHeadroom_satisfiable` and the 66 bytes of `invariant_gives_ad_length`, and the four `*_not_trivial` controls. The text of the three assumptions `HeadroomInhabitants`,
+`ValidKeyShape` and `OptionEqU64Shape` is held only through their bridges `headroomInhabitants_is`, `validKeyShape_is` and
+`optionEqU64Shape_is`, which have axiom pins and no statement pin.
+Not shown: that a store passes `PrekeyStore::invariant` or that the invariant bounds `last_resort_seen`; that a session with
+a pending initial message or an established ephemeral key passes `Session::invariant`; that any session here is one
+`establish_initiator` or `establish_responder` returns; that a send or a receive keeps the invariant.
+
+## Proved (what a refused lifecycle call leaves behind, on the translated code)
+
+Location: `Translation/UnitLifecycleAtomicity.lean`.
+
+Seven results about the Session unit's translation of `Session::decrypt_ratchet`, `Session::decrypt`,
+`Session::encrypt` and `establish_responder`. They take **no hypothesis about any opaque operation**: not a contract record,
+not a headroom record, not `OracleOf`, not the model. Each quantifies over every interpretation of the unit's opaque
+constants (the primitives, the random source, the key types, the standard-library calls), so none can be made empty by a
+hypothesis that nothing satisfies. Each is of one form: if the call returns normally as `ok (result, state', rng')`, and the
+result is a refusal (or a success), then `state'` is the state the call was given (or differs from it in the named
+fields). A call that fails or does not terminate has no such result; the lifecycle T1 theorems say, under their records, that
+the calls return.
+
+- `decrypt_ratchet_err_leaves_state`, `decrypt_err_leaves_state`: a refused call returns the session it was given, every
+  field. For `decrypt` that covers the initial-message dispatch, the repeat recognition and the inner receive; the one write
+  after the inner receive clears `pending_initial` and is on the success path.
+- `decrypt_ratchet_ok_writes`, `decrypt_ok_writes`: a successful call returns a session that differs from the given one in at
+  most the Triple Ratchet, the agreement and the ratchet private key, and for `decrypt` also the pending initial message,
+  which is cleared. The associated data, both identities and the established ephemeral are the ones given.
+- `encrypt_err_leaves_state`: a refused call returns the session it was given, or the error is `AgreementFailed` and the
+  only change is the agreement field, to a state that `Braid::failed` reports true of. That is the recorded exception, an
+  agreement send that reaches the terminal state and is committed so that every later call refuses (`triple-ratchet.md`).
+- `encrypt_ok_writes`: a successful call writes the Triple Ratchet and the agreement and nothing else. It never clears
+  `pending_initial`: an initiator keeps wrapping its messages until a decrypt succeeds.
+- `establish_responder_err_leaves_store`: a refused call returns the prekey store it was given, every field. The one-time
+  removals and the replay-record append come after the inner authenticated receive.
+
+What these do not say.
+
+- They relate nothing to `Model.Lifecycle`. The model has the same properties of itself (`decrypt_refusal_keeps_session`,
+  `establishResponder_refusal_keeps_store`, `encrypt_triple_refusal_keeps_state`); that the translated code refines the model,
+  on every branch, is the open T3 work (`GAP-REGISTER.md`, row `E2E-04`). They say which error a refusal carries only by
+  its being a refusal.
+- They say nothing about the random source: a refused call may have drawn from it, and `rng'` is unconstrained.
+- They say nothing about heap residue. The translation ignores `Drop` and `zeroize`, so what a discarded candidate state
+  leaves in memory is outside them.
+- They do not say what a successful `establish_responder` does to the prekey store beyond what the model and the tests say:
+  which entries are removed and in which order is not proved of the code. The model now removes a consumed one-time prekey
+  by moving the last entry into its slot, as the code and `session-persistence.md` do (`Model.swapRemove`;
+  `GAP-REGISTER.md`, row `E2E-03`), so it can be the other side of such a theorem. The differential harness compares the real
+  store bytes with `consumeOneTimeOk` for one entry that is not last, and an example in `Model/Lifecycle.lean` holds
+  `consumeResponderPrekeys` for a three-entry store. No theorem states the store effect of the translated function.
+- They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
+  count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
+- They do not show that a refusal is reached, and none shows that a success is. The terminal refusals are shown for every
+  session whose agreement reports failed: `encrypt_refuses_failed_agreement`, `decrypt_ratchet_refuses_failed_agreement` and
+  `decrypt_empty_message_refuses_failed_agreement` (`decrypt` on an empty message goes to `decrypt_ratchet`), and
+  `braid_failed_of_failed_state` shows that `Braid::failed` reports true of the closed value `State::Failed`. These are stated
+  of every such session and do not exhibit one: `lifecycle.Session` has fields of the opaque key types, no inhabitant of which is
+  derivable in Lean, so that a session value exists is not shown. No premise of the two `_ok_writes` theorems or of the
+  `establish_responder` theorem is shown to hold of any run. Whether the other arms are reached by honest sessions is shown by the
+  Rust tests that refuse a message and compare the exported session (`failed_decrypt_changes_nothing.rs`,
+  `a_failed_triple_send_does_not_commit_the_agreement`, `a_failed_initial_message_does_not_burn_prekeys`; `GAP-REGISTER.md`,
+  row `E2E-07`), not by a theorem. These four lemmas carry no axiom pin and are not on `REQUIRED_PINS`.
+
+None of the seven depends on a compiler-trust axiom. Each carries an axiom pin under `#guard_msgs`, and the statement of each is
+pinned under `#guard_msgs in #check` as well, so a weaker statement that keeps its axiom list fails the module while that pin
+stands. `attest.py` lists the seven in `REQUIRED_PINS` and `REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it does
+not read what a statement pin says, so a statement weakened together with its pin's expected message is shown only by the build
+and the diff. `check-attest-negatives.sh` deletes each axiom pin in turn. The axiom lists are long because the statements
+unfold the generated bodies; they are the unit's opaque constants that those bodies mention, not hypotheses.
+
+`tacenta-proofs/scripts/check-atomicity-negatives.py`, run from `no-sorry.sh`, holds the proofs against a changed body. They
+are one walk over each generated body, so a walk that could not tell a write before a refusal from none would prove the same
+statements of any body. The script extracts each of the four bodies from the generated file, requires the unmodified copy to be
+accepted by the module's proof, plants one change in a copy (the agreement committed before the AEAD check, the ratchet key
+committed on a Triple refusal, `pending_initial` cleared on a refusal or on a successful encrypt, the established ephemeral
+dropped on a refused repeat, the store changed on a refusal after the inner receive, among twelve) and requires the proof to
+fail with an unsolved goal that shows the planted field. Two of the twelve are in the recorded `encrypt` exception arm (a write
+to `pending_initial`, and a different error); the proof refuses those as an application type mismatch that shows the planted value. Each plant is at a place where the field can differ: two of the ten sit in the second of two
+textual matches, because the first is in the arm of a match on that field where the field is already empty. The controls do not
+test a refusal that rewinds the random source, a success of `decrypt_ratchet` or `decrypt` that writes the ratchet private key
+(those statements allow it), a success of `encrypt` that writes it (no distinct key is in scope to plant), or the exception arm
+taken without the committed state's `Braid::failed` being true. These are proof-dependency controls on copies of the generated Lean, not mutations of the Rust: a
+changed Rust source needs the pinned Linux toolchain to regenerate (`REPRODUCING.md`).
+
+## Proved (restated dispatch records: a view for the send direction, and when the scoped chunk fields can be met)
+
+Location: `Translation/UnitLifecycleRepair.lean`, and `Translation/UnitLifecycleT3.lean` for the definition
+`CodewordViewSendOf` and the lemma `candidate_public_eq_draw`.
+
+Three records of the lifecycle T3 and dispatch layer ask more than a run can supply, on the readings below, so the theorems that
+take them are not claims. None of the readings is a theorem of this tree: each is read from the definition, and the one that
+needs a fact about the primitives names it.
+
+- The `receive` clause of `CodewordViewOf` asks a view to name one source for each wire chunk. Two messages that agree on their
+  first 32 bytes have the same codeword at index 0, so, given that `Encoder::new` returns on both, no view meets the clause.
+- The two chunk fields of `InitialRatchetBraidEvidenceContracts` ask, of every composite, that its chunk be a codeword of the
+  source the decoder holds, including the chunk of a composite no peer sends.
+- Two fields of `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` are quantified over every draw.
+  Read with the oracle's `random32` and `dhPublic` clauses they ask `dhPublic` to take one value over all draws, and the real
+  X25519 public key is not constant, a property no theorem here states.
+
+Each is restated under a new name (`CodewordViewSendOf`, `InitialRatchetBraidEvidenceContractsScoped`,
+`InitialRatchetTripleConcreteEvidenceScoped`, `InitialRatchetAeadConcreteEvidenceScoped`), the dispatch theorems that took the
+old records take the new ones, and the old definitions stay, with their statements unchanged. Two results about the restated records are claimed.
+
+- `codewordViewSendOf_satisfiable`: some `Model.Lifecycle.CodewordView` satisfies `CodewordViewSendOf`. For every Braid
+  state, source and chunk that is a codeword of that source, the view's send of the model chunk (the source and the index) is
+  that chunk's wire codeword. The witness is chosen by classical choice, and the proof uses that the translated encoder is a
+  function, so that a codeword of one source at one index is unique. It takes no hypothesis about any opaque operation. It
+  holds for any deterministic encoder, so it shows that the clause is consistent and states nothing about a property of the
+  shipped one.
+- `scoped_chunk_fields_iff_consistent`: for a Braid state, a wire composite and a model composite related by `CompositeRefines`,
+  some view meets `IncomingChunkRefines` and `HonestChunk` (the two chunk fields of the scoped record, as statements about the
+  state and the two composites) if and only if the run is consistent: the chunk it receives is a codeword of one source, and that
+  source fits the decoder the chunk is fed to. It is a normalisation lemma, whose right side is the left side specialised to a
+  view that names the source. It does not mention the record, the message or `decodeDetailed`, it says nothing about the code, and
+  a well-formed chunk from a dishonest sender is consistent as well. It is not a statement that any real session is.
+
+What these do not show.
+
+- That the theorems taking the restated records are claims. The encrypt-side theorems that took `CodewordViewOf` take
+  `CodewordViewSendOf` now, and most also take `OracleOf`. Its KEM and signing clauses are restated, and they follow from two
+  laws about the shipped functions at a byte-stream source (`changed_rng_clauses_of_laws`, in the section on the integration's
+  hypotheses below); its other clauses are not shown to hold. `public_session_encrypt_of_send_contracts` also takes
+  `BraidSendTraceAgreementCounted`, whose draw clause holds together with `OracleOf.sigSign` under two laws at a Braid send from
+  `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); the one-draw form the session contract branch introduced
+  contradicted it (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
+  the per-branch `InitialDispatchBranchEvidence`, whose model-side premises are a choice of oracle
+  (`sameEphemeralAgreement_unconstrained`).
+- That the consumer structure is satisfiable in general. The old `InitialRatchetConcreteBranchEvidence` is empty at any model
+  state at which one inner message passes the first agreement, given `OracleOf` (`concreteBranchEvidence_empty`), and it asked the
+  scoped Braid record of every inner message that reaches a refusal, an inconsistent one included. The seven dispatch theorems
+  that reached it (five through the end-to-end records, `public_session_decrypt_end_to_end` and its `_with_atomicity` form through
+  two constructors of `SessionDecryptEvidence`) take `InitialRatchetConcreteBranchEvidenceRun` now, whose fields are asked of the
+  run's own inner message and RNG state. The two chunk fields of its scoped Braid record are met exactly when the run is
+  consistent (`scoped_chunk_fields_iff_consistent`); the record's other fields (`BraidReceiveContracts`, the Braid agreement laws
+  and the epoch bound) are not decided here, so that the record can be supplied for any run is not shown. Its Braid field, and
+  the success provider of its result field, can be met for a consistent run and not for a run whose chunk is inconsistent,
+  whether the run is refused or accepted (`scoped_record_gives_consistent`), which those theorems therefore do not cover;
+  `decrypt_ratchet` checks nothing about the agreement chunk before the AEAD tag, so such a run can reach a refusal. That the
+  record's Triple and AEAD branch contracts can be supplied for a run is not shown.
+- The agreement hypotheses of the Braid in the session unit, which are not decided here.
+
+A view that meets the send clause and the scoped chunk fields of one consistent run together exists
+(`send_and_scoped_chunk_fields_joint`, unpinned), because the two constrain different fields of a `CodewordView`. Whether one
+view meets the scoped fields for every inner message is the consumer-structure item above.
+
+The seven results of the previous section and the T1 results do not depend on any of this. `candidate_public_eq_draw` is the
+lemma that replaces the two dropped draw-quantified fields: the public bytes of the run's candidate ratchet key are
+`oracle.dhPublic` of the run's draw, from the oracle's `random32` and `dhPublic` clauses and the key codec. It is not pinned or
+claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown to hold of the shipped primitives.
+
+Each of the two claimed results carries an axiom pin and its statement pinned under `#guard_msgs in #check`, so a weaker
+statement that keeps its axiom list fails the module while that pin stands. `attest.py` lists them in `REQUIRED_PINS` and
+`REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it does not read what a statement pin says, so a statement weakened
+together with its pin's expected message is shown only by the build and the diff. `check-attest-negatives.sh` deletes each axiom
+pin in turn. `send_and_scoped_chunk_fields_joint` and `scoped_record_gives_consistent` carry no axiom pin and are not on
+`REQUIRED_PINS`.
+`tacenta-proofs/scripts/check-repair-negatives.py`, run from `no-sorry.sh`, holds them against a changed statement: it requires
+the unmodified module and the unmodified lemma to be accepted, then makes one change to a copy (a witness that does not send the
+codeword, a claim of the old two-sided statement, a consistent-run definition without the codeword or without the fit, a weakened
+link between the draw and the candidate key) and requires Lean to refuse it.
+
+## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleInitialDispatch.lean` and
+`Translation/AxiomAuditSessionUnit.lean`.
+
+- `Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contracts`:
+  if the generated `receive_attempt` returns one of the two errors the
+  lifecycle classifies as a full-store refusal, then, under the explicit leaf
+  contracts, state relation and receive bounds, there is one corresponding
+  model refusal: `Model.Triple.receiveDetailed` returns it, the public refusal
+  mapping names it, and `Model.Lifecycle.fullStore` selects the same classical
+  or post-quantum half as the concrete classifier.
+- `Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds`:
+  the same exact failure-side result when the eleven leaf premises are supplied
+  by the preserved `RetryReceiveBounds` package. It does not derive the
+  separate switch-half shortfall reachability or machine-width premise.
+- `Tacenta.UnitLifecycleT3.fullStoreOfReal_ne_of_generated_ne`: an actual
+  successful translated `PartialEq::ne` comparison between concrete
+  full-store halves implies inequality of their model images. The map is
+  injective; this adapter reuses the generated enum comparison theorem, which
+  on this tree is kernel-checked, so the Session unit axiom pin names the three
+  standard axioms only.
+
+These are prerequisites for the bounded eviction retry. They do not prove that
+the retry loop terminates or refines its model, do not compose the success
+path, and do not prove public `Session::decrypt` end to end. The section
+"Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction retry loop,
+on the eight-leaf unit)" below proves the first two from them.
+
+`concrete_receive_attempt_store_full_from_contracts` and
+`concrete_receive_attempt_store_full_from_retry_bounds` are compiler-trusted:
+their axiom lists include eight per-declaration `native_decide` axioms, seven
+from the Session unit's sparse ratchet refinement (its labels, its `MAX_SKIP`
+constants and one step of `receive_refines_continuation`) and one from the
+Triple's `combine_info_agrees`. `fullStoreOfReal_ne_of_generated_ne` is
+kernel-only.
+
+## Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction retry loop, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleRetryLoopT3.lean`, `Translation/UnitLifecycleDecryptRatchetT3.lean`,
+`Translation/UnitLifecycleDecryptRatchetScreen.lean`.
+
+`Session::decrypt_ratchet` is the private transaction the shipped `Session::decrypt` runs on a ratchet message;
+`establish_responder` calls it too. These results relate its translation on the eight-leaf unit to
+`Model.Lifecycle.decryptRatchet`, including the eviction retry loop of `receive_with_eviction`. Each is conditional on
+the hypotheses in its statement. The screen below shows the hypotheses this section introduces consistent with each other
+and with the session contract records, and meets the per-run ones at three runs. It does not show them true of the
+shipped code. It does not decide the two sparse agreements, a run that carries an agreement chunk, or the three fields
+of the contract records that are stronger than the crate supports (`LIMITATIONS.md`, the sections on the four contract
+records and on this refinement). No gate reads these hypotheses: `check-hypothesis-witnesses.sh` leaves out the sections
+whose heading names a session lifecycle, so what shows them satisfiable is `Translation/UnitLifecycleDecryptRatchetScreen.lean`
+alone, in the senses stated below. They are not results about `Session::decrypt` or `Session::encrypt`.
+
+- `receive_with_eviction_loop_refines`: for every fuel larger than the number of skipped keys the model Triple state holds
+  (classical plus sparse), from a generated loop state related to a model one by `LoopRel` (the Triple state relation, the
+  batch relation `BatchCovers`, the pending refusal's public mapping, `ReceiveHeadroom`, `RetryReceiveBounds`, and each
+  skipped-key store at most `2^32 - 1 - 2000` long), and under the contract record `TripleReceiveContracts`, the HMAC,
+  HKDF and three `zeroize` round-trip agreements and the two sparse agreements `VecRetainAgrees` and
+  `RemoveSkippedAtAgrees`, the generated retry loop returns, and the model loop's result at that fuel
+  (`Model.Lifecycle.ReceiveWithEvictionLoopResult`) is related to the generated outcome: a success with related state and
+  key, a refusal whose public mapping is the model's refusal (an empty eviction returns the pending full-store refusal on
+  both sides), or `OpenRefusal`. `OpenRefusal` is a refusal that `full_store` does not classify, returned by one Triple
+  receive at a working state related to a model state; the theorem says that if that one refusal is the model's detailed
+  refusal, the two loop results agree, and it does not say that it is. So the loop is related to the model loop, not
+  shown equal to it. `receive_with_eviction_refines_complete` (the next section) closes that case for
+  `receive_with_eviction` as a whole, from the first attempt through every retry. `BatchCovers` relates the saturating `usize` batch to the model's natural number by equality or by
+  both covering the store, so the theorem takes no bound on a header's counters.
+- `receive_with_eviction_refines`: the first attempt and the loop composed: at related Triple states with the receive and
+  store bounds, the generated `receive_with_eviction` returns, and its result is related to
+  `Model.Lifecycle.receiveWithEviction` in the same three ways (the model's own fuel is one more than the keys it holds).
+- `receiveWithEvictionLoopResult_stop`: in the model, a retry refused for a reason `fullStore` does not classify ends the
+  loop with that refusal. `Model/Lifecycle.lean` keeps the loop private and exposes no such lemma, so this proof names the
+  private loop through Batteries' `open private`; no model definition changes.
+- `shortfall_covers`, `evict_for_retry_covers`: the generated first batch of each half covers the model's, and one
+  generated eviction at a covering batch refines the model's eviction, keeps the headroom and shrinks the store when it
+  removes a key.
+- `decrypt_ratchet_refines`, `decrypt_ratchet_refines_statement`: for every input meeting the hypotheses of
+  `DecryptRatchetRefinesStatement` (the four `OracleOf` clauses the transaction uses, `DecryptOracleOf`; `DhCodecOf`;
+  `DecryptRatchetContracts`; the instance `SessionUnitT1.DerivedKeysModel`; the agreements `DecryptRatchetAgreements` at
+  the oracle's KEM model; `SessionRefines`; `DecryptRatchetHeadroom`; the trace equation; and the per-run record
+  `DecryptRatchetRun`), the generated `decrypt_ratchet` returns, and either `StepRefines` holds between its result, the
+  session it leaves and the remaining trace and the model's step, or the output satisfies `TripleRefusalOpen`.
+  `StepRefines` is proved on the terminal guard, a decode refusal, both DH refusals, a Triple refusal whose reason is a
+  full store (after an empty eviction), an AEAD refusal and a success, with or without eviction rounds. On a refusal the
+  session it returns refines the model's unchanged session, and `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state`
+  shows it is the given session; a success commits the Triple and Braid candidates and, when the sending key changed, the
+  drawn private key.
+- `decrypt_ratchet_refines_unless_open`: under the same hypotheses, for every output that does not satisfy
+  `TripleRefusalOpen`, `StepRefines` holds. A conclusion widened at the theorem level, with `TripleRefusalOpen` as it is,
+  breaks this proof and not only a pin.
+- `tripleRefusalOpen_exactly`, `tripleRefusalOpen_false_unless_triple`: `TripleRefusalOpen` holds of an output exactly
+  when it is a Triple refusal whose reason is neither `Classical SkippedStoreFull` nor `PostQuantum SkippedStoreFull`;
+  it is false of every generated success and of every other generated refusal. It constrains only the generated output:
+  it can hold on an input on which the model's step succeeds, and it says nothing about the session returned.
+- `DecryptPrefix.triple_refusal`, `DecryptPrefix.aead_refusal`, `DecryptPrefix.success`: the generated result once every
+  call before the Triple receive is fixed, for a Triple refusal, an AEAD refusal and a success.
+- `RetryRunBounds.toRetryReceiveBounds`, `DecryptOracleOf.of_oracleOf`, `cMax_usize`: the run's model-side receive bounds
+  give the generated-side ones, `OracleOf` gives `DecryptOracleOf`, and Aeneas' bound on a `usize` is `2^32 - 1`.
+- `sample_run_satisfiable`, `succ_run_satisfiable`: two runs meet every per-run hypothesis together, each with a message
+  that decodes on both sides, for every Braid KEM model, codeword view and oracle with that KEM model and the source's
+  draws: a session over fresh states, and one over a Triple state that already receives on both halves. Neither holds a
+  skipped key or carries an agreement chunk. The values of the two opaque key types are arguments.
+- `sample_model_refuses`, `succ_model_accepts`, `hypotheses_meet_refusal_and_success`: with the oracle of the model below,
+  the model step refuses at the first agreement at the first run and succeeds at the second, so the per-run hypotheses are
+  met at a run whose model step is a refusal and at one whose model step is a success. The oracle clauses hold of that
+  oracle in the interpretation below and not at the real constants, so this shows the model side of each run and not
+  which branch the shipped code takes. No proof here chooses a width of `usize`, so each holds at both widths.
+- `evict_decode_model`, `evict_headroom`, `evict_run_satisfiable`, `evict_first_attempt_full`,
+  `hypotheses_meet_eviction_round`: a third run, over a Triple state whose classical store holds 1001 keys and whose sparse
+  store holds one, with message number 1000 on the classical chain, meets every per-run hypothesis with both stores
+  non-empty. There the model's first Triple receive refuses with the classical full store (1001 kept keys and 1000 new
+  ones pass the cap of 2000), the first batch is one key and the first eviction removes one key. This is the model side
+  of the run, as above. It shows one eviction round reached under these hypotheses, the first, with its retry taken:
+  that the model step passes the agreements and the draw before the loop (`evict_reaches_receive`) and that the loop then
+  evicts one key and retries (`evict_loop_first_round`). It does not show the outcome of the retry, and no run here
+  reaches an empty eviction, a second round or a switch between the two stores. A run record which asked both stores to
+  be empty would be refused here. The witness states are built for these hypotheses and not for `Ratchet::invariant`:
+  the third run's classical store repeats one key, and the second and third runs hold a receiving chain without a
+  sending chain, both of which the invariant refuses. They show the hypotheses satisfiable, not that a session the
+  shipped code accepts reaches these branches.
+- `evict_reaches_receive`, `receiveWithEviction_first_round`, `evict_loop_first_round`: with the oracle below, the model
+  step at the third run passes the terminal guard, the decode, both agreements and the draw; at any state whose first
+  receive refuses with the classical full store, whose first batch is one key and whose first eviction removes a key,
+  `receiveWithEviction` is that one round followed by the receive on the evicted state; and the third run's state is
+  such a state, with fuel 1003. These name the private model loop through `open private`, as
+  `receiveWithEvictionLoopResult_stop` does.
+- `decrypt_boundary_has_a_model`, `decrypt_shapes_are_predicates`: one interpretation of the unit's opaque constants
+  (`Interp.modelDecrypt`, `Interp.modelT3` with the two key types read as 32-byte arrays), one DH view and one oracle meet
+  together every axiom-level shape of the session contract records, `StdLaws`, `FaithfulShape`, `TruncatePrefix`, the two
+  model classes, the six Braid agreements at `toyKem`, the five `zeroize` round trips, `DhCodecOf` and the four clauses of
+  `DecryptOracleOf`, with an agreement and an AEAD that each refuse one input and accept another; each shape is the
+  theorem's predicate at the real constants. This is the substitution argument of `UnitSatisfiabilityJoint.lean`, an
+  argument about derivations and not a theorem inside Lean.
+- `decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`: the composition inside Lean:
+  from those shapes read at the real constants and the two sparse agreements, every hypothesis of
+  `decrypt_ratchet_refines` holds at the first run and at the third, and so does its conclusion. So the substitution step is the only part of the joint claim outside Lean, and the two sparse agreements
+  are the only hypotheses no model here decides.
+- `run_draw_not_trivial`, `retryRunBounds_not_trivial`, `tripleRefusalOpen_false_of_ok`,
+  `tripleRefusalOpen_false_of_store_full`: the run record fails at an exhausted source, the receive bounds fail at a sparse
+  epoch of `u64::MAX` and at a classical store with less than 2000 below the bound, and the open disjunct is false of a
+  success and of the two full-store refusals. The chunk fields have no such control: every witness carries no chunk and
+  meets them by their vacuous arm.
+- `decrypt_ratchet_refines_at_sample`, `decrypt_ratchet_refines_at_eviction`: the theorem at the first run and at the third,
+  with every per-run hypothesis discharged by the witnesses and only the boundary records left as arguments.
+
+**What the disjunct leaves open.** On a run whose generated output is a Triple refusal with a reason other than a full
+store (a classical `TooManySkipped`, `NoReceivingChain`, `OutOfOrder` or `ChainExhausted`, or any sparse refusal but
+`SkippedStoreFull`; the predicate also admits a classical `NoSendingChain`, which, read from the source, only
+`ratchet::send` returns, and which `tripleReceiveRefusalOfReal` maps to no model refusal), from the first attempt or from a
+retry inside the loop, the theorem says nothing about the model's step: not its refusal reason, not that it refuses, and
+not the session or trace it returns. Among these are the refusal of a message whose key was already used (`OutOfOrder`)
+and the skip-limit refusal (`TooManySkipped`). The missing piece is a refusal refinement of one Triple receive at related
+states, which the theorems this section composes do not give: the leaf refinements relate a success and the full-store
+refusal only. `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state` says separately that such a refusal returns the
+session it was given. The next section supplies that
+refinement and closes the path (`decrypt_ratchet_refines_complete`); `decrypt_ratchet_refines` keeps its statement.
+
+**What the hypotheses cover.** The per-run record asks the run's agreement chunk to be a codeword of one source that fits
+the decoder it is fed to (`IncomingChunkRefines`, `HonestChunk`), so a run that carries a spliced or inconsistent chunk is
+not covered, refused or accepted; it asks the random source to hold at least one draw, read through a function of the
+source's state (so a source with no state of its own, such as `OsRng`, is outside the statement); and it bounds each
+skipped-key store by `2^32 - 1 - 2000` and the model state as `RetryReceiveBounds` does. The screen does not reach a run
+carrying a chunk. The theorem takes `DecryptRatchetContracts`, three of whose fields (`SessionUnitSpqrT1.ZeroizeTotal`,
+`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal`) say that
+`Array::zeroize` and `Vec::zeroize` return for every `Zeroize` record, which the real functions do not; the proof uses
+all three, so it cannot be applied to the shipped functions until they are restated at the instances the unit uses. The
+agreements include `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`, statements about
+translated functions the session unit assumes (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), which the screen does
+not decide. `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement", lists what is assumed.
+
+**Compiler trust and pins.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
+`decrypt_ratchet_refines_statement`, `decrypt_ratchet_refines_unless_open`, `decrypt_ratchet_refines_at_sample`,
+`decrypt_ratchet_refines_at_eviction`, `decrypt_ratchet_refines_from_shapes` and
+`decrypt_ratchet_refines_from_shapes_at_eviction` are compiler-trusted. Their axiom lists include nine per-declaration
+`native_decide` axioms, the nine that `UnitTripleT3.receive_refines_discharged` lists for the three-leaf unit, under the
+Session unit's names (`SessionUnitTripleT3.receive_refines_discharged` has no axiom pin of its own): eight from the Session
+unit's sparse ratchet refinement (its four labels, its `MAX_SKIP` constants, its store cap and one step of
+`receive_refines_continuation`) and the Triple's `combine_info_agrees`. The two full-store correspondences of #203 list
+eight of the nine (all but `chain_start_agrees`, which the success path adds); that ninth fact, a closed fact about the
+sparse ratchet's chain-start label, is new to the pinned results of the Session unit. These nine results are on
+`COMPILER_TRUSTED_PINS`, which grows from 13 to 22 names: each composes the Session unit's discharged Triple receive
+refinement, directly or through the loop theorems, and so inherits its nine constants; no other constant is added. The
+other 30 results here rest on no compiler-evaluated constant: seven (`receiveWithEvictionLoopResult_stop`,
+`shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
+`evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 23 each rest on between 1 and
+49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
+pin. The definitions this package adds carry `#print` pins, except six that pinned texts name (`wrap32`, `zeros32`,
+`ones32`, `DhViewShape`, `sampleMessage` and `succMessage`), and five earlier ones its statements are written in carry them
+too (`StepRefines`, `ResultRefines`, `SessionRefines`, `VecRetainAgrees` and `RemoveSkippedAtAgrees`). The other earlier
+definitions they use carry none, among them `refusalOf`, `tripleReceiveRefusalOfReal`, `IncomingChunkRefines`,
+`HonestChunk`, `DecryptRatchetHeadroom`, `ReceiveHeadroom`, `RetryReceiveBounds`, `DhCodecOf`, `DecryptRatchetContracts` and
+the model's `decryptRatchet`, `receiveWithEviction` and `receiveDetailed`; a pin shows their names and not their meaning.
+`attest.py` requires the axiom pins and statement pins of these results; a name leaves the axiom-pin list or the `#print`
+list by an edit of `attest.py` alone, and only the statement-pin list is also recorded in the manifest.
+`check-decrypt-ratchet-negatives.py` plants a fault in a copy of the loop, of the composition, or of the composition and
+the screen together, and requires Lean to refuse each at a named declaration: four in the loop correspondence, two that
+make the open disjunct broader (each refused in `tripleRefusalOpen_exactly`), two in the run record, one that widens the
+conclusion (refused in `decrypt_ratchet_refines_unless_open`) and one that asks the run record for empty stores (refused
+in `evict_run_satisfiable`); an eleventh makes the disjunct broader with the pins kept and requires the pin of
+`TripleRefusalOpen` itself to refuse it.
+
+## Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet` on every path, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleTripleRefusalT3.lean`, `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`,
+`Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean`, and the split form in
+`Translation/UnitLifecycleDecryptRatchetT3.lean`.
+
+These close the path the previous section leaves open. Each is conditional on the hypotheses in its statement, and none
+adds a hypothesis to the result it extends. They are not results about `Session::decrypt` or `Session::encrypt`.
+
+- `triple_receive_refusal_refines`: the statement `TripleReceiveRefusalRefines`. Under the hypotheses of
+  `SessionUnitTripleT3.receive_store_full_refines_discharged` (the leaf agreements, the Triple state relation, the classical
+  header relation and the eleven numeric and store premises), if the generated Triple receive refuses with a reason, the
+  reason's public mapping `tripleReceiveRefusalOfReal` is defined and `Model.Triple.receiveDetailed` returns that refusal.
+  So at those states the generated receive never refuses with the classical `NoSendingChain`, which has no receive
+  counterpart, and every refusal it returns is the model's, the two full-store refusals included.
+- `ratchet_receive_refusal_refines`, `ratchet_receive_tail_refusal_refines`, `ratchet_skip_refusal_refines`: the same for the
+  classical ratchet's receive, its shared suffix and its skip: `TooManySkipped` and `SkippedStoreFull` from either skip,
+  then `OutOfOrder`, `NoReceivingChain` and `ChainExhausted`, each the model's detailed refusal, in the model's order.
+- `derive_chain_refines_far`, `derive_chain_loop_ok`: the chain derivation refuses with `ChainExhausted` only if
+  `start_n + count` exceeds `u32::MAX`, and the derivation loop returns its keys whenever `start_n + count` is at most
+  `u32::MAX + 1`. The skip derives no number past its target, so that refusal does not reach the skip; the success
+  theorems did not need this, because their conclusion is about a success only.
+- `spqr_receive_refusal_refines`, `spqr_receive_continuation_refusal_refines`, `spqr_skip_refusal_refines`: the same for the
+  sparse ratchet: a refused advance is `EpochOutOfOrder` on both sides; then every skip refusal (`NoChain`, `ChainRetired`,
+  `TooManySkipped`, `SkippedStoreFull`), and `NoChain`, `ChainRetired` and `OutOfOrder` after the skip. The sparse
+  `ChainExhausted` of the advance and of the chain step is excluded by the epoch and counter premises, as in the success
+  theorem.
+- `concrete_receive_attempt_refusal_from_retry_bounds`: the Triple result at the bounds record the retry loop keeps.
+- `openRefusal_closes`: under the Triple receive's agreements, `OpenRefusalCloses` holds: a refusal the loop theorem
+  reduces to one Triple receive (`OpenRefusal`), at a header related to the model's, is a refined outcome.
+- `receive_with_eviction_refines_complete`: under the hypotheses of `receive_with_eviction_refines`, the generated
+  `receive_with_eviction` returns and its result is related to `Model.Lifecycle.receiveWithEviction` with no case left
+  open: a success with related state and key, or a refusal whose public mapping is the model's refusal.
+- `decrypt_ratchet_refines_or_open`, `or_unless_closed`: the proof of `decrypt_ratchet_refines`, with its open case
+  conditioned on the failure of `OpenRefusalCloses`. `decrypt_ratchet_refines` is that theorem with the condition
+  dropped; its statement is unchanged.
+- `decrypt_ratchet_refines_complete`, `decrypt_ratchet_refines_complete_statement`: under exactly the hypotheses of
+  `decrypt_ratchet_refines` (`DecryptRatchetRefinesCompleteStatement`), the generated `decrypt_ratchet` returns and
+  `StepRefines` holds between its result, the session it leaves and the remaining trace and the model's step, on every
+  path: the terminal guard, a decode refusal, both DH refusals, every Triple receive refusal the run's bounds admit (from
+  the first attempt or a retry; the bounds exclude the sparse `ChainExhausted`), an AEAD refusal and a success, with or
+  without eviction rounds. Because three fields of the contract record it takes are stronger than the crate supports, it
+  cannot be applied to the shipped functions until those fields are restated.
+- `decrypt_ratchet_refines_complete_implies_refines`: the complete statement implies the first form's statement, so the two
+  take the same hypotheses by proof, not only by reading their pins side by side.
+- `ref_premises`, `ref_model_triple_refuses`, `ref_triple_refuses`: at a Triple state whose classical receiving chain is at
+  message number 1, and a header for message number 0 on that chain, every premise of the refusal theorem holds, the model
+  refuses with the classical `outOfOrder`, which is not a full store, and, under the boundary the theorem takes, the
+  generated receive refuses with a reason whose public mapping is that refusal. The success theorem rules out a generated
+  success there.
+- `ref_headroom`, `ref_run_satisfiable`, `ref_model_refuses`, `hypotheses_meet_open_path`,
+  `decrypt_ratchet_refines_complete_at_refusal`: a `decrypt_ratchet` run over that Triple state meets every per-run
+  hypothesis, and with the oracle of the previous section's model its model step is the Triple refusal `outOfOrder`,
+  returned by the first attempt; the last is the complete theorem at that run. No proof here chooses a width of `usize`,
+  so each holds at both widths. Its state, like those of the previous section, meets these hypotheses and not
+  `Ratchet::invariant`, which refuses a receiving chain without a sending chain.
+- `generated_reaches_open_path`: with that oracle and under the boundary records, the generated `decrypt_ratchet` at that
+  run returns the Triple refusal `Classical OutOfOrder`, so its output satisfies `TripleRefusalOpen`: the run is on the
+  path `decrypt_ratchet_refines` left open. This is the generated side of the run, conditional on those records, not a
+  statement about the real primitives.
+
+**What is not shown.** Which branch the shipped code takes at the screen's run with the real primitives: the oracle
+clauses hold of the model interpretation, not at the real constants. The hypotheses are those of the previous section,
+with the same limits: a spliced or inconsistent agreement chunk is not covered; the random source is read as a function of
+its state, so a source with no state of its own, such as `OsRng`, is outside the statement; three fields of the contract
+records are stronger than the crate supports; and the two agreements of row `SESSION-SPARSE-AGREEMENTS` are undecided
+(`LIMITATIONS.md`, the section on the `decrypt_ratchet` refinement). The screen's run refuses on the classical side at the
+first attempt; no run here reaches a sparse refusal or a refusal returned by a retry inside the eviction loop, and unlike
+the first and third runs of the previous section this run is not composed with the boundary model inside Lean.
+
+No gate reads these hypotheses. `check-hypothesis-witnesses.sh` reads, by its existing convention, only the leaf and
+three-leaf-unit sections, and leaves out every section whose heading names a session lifecycle. This section's heading
+carries those words so that the gate routes its theorems out: the gate files every `Unit` namespace, `UnitLifecycle`
+included, under the three-leaf unit, where these theorems are not declared, so with any other heading it would refuse to
+run. The theorems of this section are therefore not covered by that gate. A hypothesis-witness gate for the Session unit is
+planned to cover them; until it exists, what shows their hypotheses satisfiable is the two screen modules alone, in the
+senses stated here and in the previous section.
+
+**Compiler trust and pins.** `decrypt_ratchet_refines_complete`, `decrypt_ratchet_refines_complete_statement`,
+`decrypt_ratchet_refines_or_open`, `decrypt_ratchet_refines_complete_at_refusal` and `generated_reaches_open_path` have
+exactly the axioms of `decrypt_ratchet_refines`, including its nine `native_decide` constants.
+`receive_with_eviction_refines_complete` and `ref_triple_refuses` list the same nine. `triple_receive_refusal_refines`,
+`concrete_receive_attempt_refusal_from_retry_bounds` and `openRefusal_closes` list seven of them (three of the sparse
+ratchet's four labels, its two `MAX_SKIP` constants, its store cap and one step of `receive_refines_continuation`), and the
+three sparse refusal theorems five or six. These thirteen are compiler-trusted, each because it composes the Session
+unit's Triple receive refinement or the sparse ratchet's own refinement and inherits their constants; no other constant is
+added. The other thirteen results here rest on no compiler-evaluated constant: three (`ref_premises`,
+`ref_model_triple_refuses` and `or_unless_closed`) are kernel-only, and ten each rest on between 4 and 49 of the Session
+unit's opaque-operation axioms. The count of compiler-trusted pinned results is `attest.py`'s
+(`counts.compiler_trusted` in the verification manifest); with this section and the previous one it is 35, against 13
+before package F. The compiler-trust class of these results is expected to change: if the nine constants are settled by
+the kernel rather than by the compiler, as is planned separately, these results become kernel-checked against the
+opaque operations and the count falls accordingly.
+
+Each result carries an axiom pin and a statement pin. The definitions this section adds carry `#print` pins
+(`TripleReceiveRefusalRefines`, `DecryptRatchetRefinesCompleteStatement`, `OpenRefusalCloses` and the screen's states
+and headers). The definitions their statements use carry none beyond the previous section's pins; among those without one
+are the previous section's list and, new to the leaf refusal statements, `ratchetReceiveRefusalOfReal`,
+`sparseReceiveRefusalOfReal`, `StateR`, `HeaderR`, the sparse `StateRefines`, and the model's classical and sparse
+`receiveDetailed` and `skipMessageKeysDetailed`. A pin shows their names and not their meaning. `attest.py` requires the
+axiom pins and statement pins of these results; a name leaves the axiom-pin list or the `#print` list by an edit of
+`attest.py` alone. `check-decrypt-ratchet-negatives.py` plants a fault in a copy of the refusal refinement (a refusal
+named as another, the derivation refusal no longer located, the sparse epoch bound weakened, the Triple model reason
+fixed), of the closure (the bridge without the public mapping, and the complete statement with the open disjunct put back,
+with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
+named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
+
+## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
+
+Location: `Translation/UnitLifecycleIntegrationScreen.lean`.
+
+The integration of the session contract branch changed the oracle record `OracleOf` (a KEM success clause that holds only where
+the model's `kemEncaps` returns `some`, a pre-draw refusal clause `kemInvalidKey`, two draws for signing) and added evidence
+records to the dispatch layer. These results decide some of them. They are about hypotheses, not about the product.
+
+- `concreteBranchEvidence_empty`, `endToEndEvidence_empty`, `agreementEndToEndEvidence_empty`: refutations of the form the
+  session contract branch introduced. The form the dispatch layer had before the integration (a `ceiling` field in place of
+  `randomDraw`) differs and is not decided here.
+  The field `randomDraw` of `InitialRatchetConcreteBranchEvidence` asks that every RNG state, not only the run's, has a trace with
+  a head once one inner message decodes to a composite whose first agreement succeeds. With `OracleOf.random32`, which turns a
+  state whose trace has a head into a state whose trace is the tail, the trace of every state would be longer than every number,
+  so the record has no term, given `OracleOf`, one such message and one RNG state, and the two old end-to-end records that
+  contain it are empty under the same premises. The proof uses no law. No theorem takes these three records now: the dispatch
+  theorems and the two accepted constructors of `SessionDecryptEvidence` take `InitialRatchetConcreteBranchEvidenceRun` and the
+  two `...EndToEndEvidenceRun` records, whose fields are asked of the run's own inner message and RNG state (below).
+- `byte_random32`: at `byteRng`, a random source that reads a list of bytes from the front, with `byteTrace` reading it as 32-byte
+  draws, the translated `random_secret` meets the `random32` clause.
+- `random32Clause_of_oracleOf`, `sigSignClause_of_oracleOf`, `kemClauses_of_oracleOf`: `Random32Clause`, `SigSignClause` and
+  `KemClauses` are the fields of `OracleOf` with the shipped function replaced by an argument, so the results below speak about
+  those fields.
+- `sigSignClause_of_law`, `kemClauses_of_law`: for a signing function that fills one 64-byte buffer and touches the RNG nowhere
+  else, the two-draw `sigSign` clause holds at the byte-stream source, for the oracle whose signing function the law determines;
+  for an encapsulation function that refuses a key a predicate rejects before it reads the RNG and otherwise fills one 32-byte
+  buffer, the three KEM clauses hold, for the oracle whose `kemValid` is that predicate.
+- `changed_rng_clauses_have_a_model`: there are a signing function, a key-generation function and an encapsulation function that
+  meet the three laws (`SignFillsOnce64Of`, `GenerateFillsOnce64Of`, `KemShapeOf`), and an oracle whose KEM refuses the empty key,
+  such that `random32`, `sigSign` and the three KEM clauses hold together at the byte-stream source. So the changed clauses are
+  not met only by an oracle that never refuses, and a byte-stream source meets the two-draw signing clause. They are also met by
+  an oracle whose `kemEncaps` never returns `some`, because the success clause binds the code only where the model predicts a
+  success, so `OracleOf` does not tie the model's encapsulation to the code on a key the code accepts. The pinned statement does
+  not show a KEM that ever succeeds.
+- `changed_rng_clauses_of_laws`: the same derivation at the shipped constants. Under `SignFillsOnce64` and `KemShape`, the laws
+  stated of `xeddsa::sign` and `kem::encapsulate`, there is an oracle for which the changed clauses and `random32` hold at the
+  byte-stream source. The two laws are assumptions read from `tacenta-core/boundary/src/xeddsa.rs` and
+  `tacenta-core/boundary/src/kem.rs`; no theorem proves them of the opaque constants.
+- `braid_send_keysUnsampled_generate`, `braidSendTrace_conflicts_with_sigSign`: a translated Braid send from `KeysUnsampled`
+  returns the RNG state that key generation returned. A refutation of the form the session contract branch introduced (the
+  dispatch layer had no such record before it): `BraidSendTraceAgreement` lets such a send
+  consume one trace entry, and `OracleOf.sigSign` lets a signature consume two. Under `SignFillsOnce64` and `GenerateFillsOnce64`
+  (each function fills one 64-byte buffer; the second is read from `IncrementalKeyPair::generate`, `tacenta-core/kem/src/lib.rs`,
+  whose seed is 64 bytes), both are one 64-byte fill from the same state, so the old agreement contradicts `OracleOf.sigSign` at
+  any send from `KeysUnsampled` whose trace has two entries. No theorem takes that agreement now: the model's `sendAgreement`
+  takes two draws in that state, and `public_session_encrypt_of_send_contracts` takes `BraidSendTraceAgreementCounted`. The
+  model change corrects the model against `mlkem-braid.md`, which already said that key generation draws 64 bytes:
+  `sendAgreement` read one 32-byte draw at `KeysUnsampled` from #161 until this integration, and the tags
+  `tacenta-assurance-v0.4.2` to `tacenta-assurance-v0.4.5` contain that one-draw model. No claimed theorem took it.
+- `concreteBranchEvidenceRun_of_run_parts`, `runRandomDraw_byte`: the first is the record's constructor. It packages given parts
+  into the run's evidence record (one scoped Braid record for the inner message the run's initial message decodes to, the Triple
+  and AEAD branch contracts of the run's refusal inputs, and a draw at the run's RNG state), so the record holds exactly when its
+  four parts do, and each part names only the run's inner message and RNG state. Because this module builds the record from
+  those parts, a field added to the record that the parts do not give fails the build. The second restates that a byte-stream
+  state with a draw left has one, together with `byte_random32`: the draw part asks only that the run's state has a draw, which
+  `random32` does not contradict. Neither shows that any part can be supplied. The two chunk fields of the scoped Braid record
+  are met exactly when the run is consistent (`scoped_chunk_fields_iff_consistent`); the record's other fields
+  (`BraidReceiveContracts`, the Braid agreement laws and the epoch bound) are not decided here. Its Braid field, and the success
+  provider of its result field, can be met for a consistent run and not for a run whose chunk is inconsistent, whether the run is
+  refused or accepted, which the theorems that take it therefore do not cover. That the Triple and AEAD branch contracts of a run
+  can be supplied is not shown here.
+- `braid_send_keysUnsampled_byte_trace`, `braidSendTraceCounted_with_sigSign_byte`: at the byte-stream source, under
+  `GenerateFillsOnce64`, a translated Braid send from `KeysUnsampled` leaves the trace without its first two entries; with
+  `SignFillsOnce64` as well, the draw clause of `BraidSendTraceAgreementCounted` and the two-draw signing clause hold together at
+  such a send with two draws left. The result restates the draw clause and does not name `BraidSendTraceAgreementCounted`, and
+  no theorem constructs the record; its body carries a `#print` pin (below), so a stronger record, an empty one included, fails
+  the build at that pin. Its other clauses (the refinement of the model send by the generated result, and the `headerReceived`
+  draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
+- `retryReceiveBounds_initAlice`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
+  `generatedTripleSuccessConditions_initAlice`: `RetryReceiveBounds` and the two finite-store condition records hold at the
+  initiator's initial Triple state, `Model.Triple.initAlice` (the responder's, `Model.Triple.initBob`, is not decided), the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
+  the first fails at a sparse epoch of `u64::MAX`. That they hold at the states the retry loop reaches is not shown here.
+- `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: given the DH codec, `OracleOf` still holds when the
+  oracle's `dhAgree` is changed at second arguments that are not 32 bytes long, so for two strings that are not 32 bytes long
+  the model's `sameEphemeralAgreement` can be made either value by an oracle that meets `OracleOf`. The repeated-initial premises
+  `hmodelSame` and `hagreementMismatch` of `SessionDecryptEvidence` and `InitialDispatchBranchEvidence` compare the 33-byte encoded
+  ephemerals, so they are a choice of oracle and not a fact the code supplies (`GAP-REGISTER.md`, row
+  `E2E-04-SAME-EPHEMERAL-MODEL`).
+
+What these do not show: that `OracleOf` as a whole is satisfiable (its `dh`, `aead`, `kemDecapsulate`, `sigVerify` and
+`identityValid` clauses are not decided here); that the shipped functions meet the three laws; that any dispatch theorem is
+non-vacuous. No proof here chooses a width of `usize`; the one fact used, that `Usize.max` is at least `2^32 - 1`, is proved for
+both widths by `small_le_usize_max`. None depends on a compiler-trust axiom. Each result carries an axiom pin and a statement
+pin, and the definitions of the three clauses and the three laws, with the laws at the shipped constants (`SignFillsOnce64`,
+`GenerateFillsOnce64`, `KemShape`), carry `#print` pins, as do the model's `braidSendDrawCount`, `braidSendNeedsDraw`,
+`takeDraw`, `braidRandomness` and `sendAgreement` (and `takeDraws`, whose body is pinned through its equation
+`takeDraws.eq_def`, because `#print` shows a structurally recursive definition only in compiled form), so a change to the draw
+count, or to how the drawn bytes become the Braid's randomness, fails the translation build (the model package builds without
+the pin). The bodies of the five records the dispatch layer takes and no theorem here constructs (`OracleOf`,
+`BraidSendTraceAgreementCounted`, `InitialRatchetTripleBranchContracts`, `InitialRatchetAeadBranchContracts`,
+`InitialRatchetBraidEvidenceContractsScoped`) carry `#print` pins too, so a field added to, removed from or changed in one of
+them fails the build. The pins hold the text of each record, in which every definition it mentions appears by name, so a change
+to the body of one of those definitions changes no record pin. A proof that uses the definition still notices (strengthening
+`EncodersLive` fails `BraidT3.lean`), and the other definitions the records name are held by the proofs that use them, not by a
+pin; `verified`, which only the `sigVerify` clause of `OracleOf` mentions and no proof uses, has its own `#print` pin, without
+which a change to it passed the build and every gate. These are text pins: they hold what the records say, not that they can be
+met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the eleven
+definition pins (`REQUIRED_PRINT_FORM`), because `#check @name` holds the type of a definition and not its body; `takeDraws`
+is held by its equation pin and may take either form. `check-attest-negatives.sh` deletes each axiom pin, and each of the model
+and record definition pins, in turn, and plants the `#check` form for two of them. In the model package, examples in
+`Model/Lifecycle.lean` hold `braidSendDrawCount` to `mlkem-braid.md` at one state of each of the twelve kinds and check the draws
+an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one. They are
+anonymous, so no gate requires them; the pin on `braidSendDrawCount` is the part that is required.
 
 ## Proved (bounded P6 session lifecycle observations)
 
@@ -2824,6 +3924,421 @@ bounded evidence that selected Rust traces fit this boundary.
 - `terminal_failure_restore_then_refuse`: after the accepted transition into
   terminal agreement failure, restoration does not resurrect the session and
   later operations remain refused.
+
+## Proved (the numeric premises of the central theorems hold together at a concrete state)
+
+Location: `Translation/NumericWitnessLeaf.lean`, `Translation/NumericWitnessTriple.lean`, `Translation/NumericWitnessSession.lean`.
+
+A theorem whose premises no state meets is true and says nothing. For 44 theorems (13 in the standalone
+translations, 12 on the three-leaf unit, 19 on the eight-leaf session unit), the receive and send
+panic-freedom and refinement theorems of the classical ratchet, the sparse ratchet, the Triple Ratchet and the
+ML-KEM Braid and the decoded-state receive refinement, each module proves that one concrete state meets, at once, the theorem's
+numeric premises (bounds on lengths, counters and epochs written against `usize::MAX`, `u32::MAX` and
+`u64::MAX`), its numeric predicates about a state (`ct1_bounded`, `decoders_bounded`, `EncodersLive`) and its
+relations between a translated value and a model value (`StateRefines`, `StateR`, `HeaderR`; for the Braid theorems the
+relations are left out, as set out below). Every proof is
+about the constant `Usize.max`, of which Lean knows only that it is `2^32 - 1` or `2^64 - 1`, so each holds at
+both platform widths and none appeals to a width.
+
+The statement of each witness is checked against its theorem and not trusted. `scripts/check-precondition-witnesses.sh` reads the
+theorem's type from the built environment, rebuilds the conjunction of the premises its table puts inside the
+witness, requires the module's `Premises.T` to equal it and `sat_T` to prove exactly `Premises.T`, and requires
+every other premise of `T` to be classified as `boundary` or `unwitnessed`, so a premise added to a theorem
+later is refused until it is classified. It runs inside `no-sorry.sh` with 36 cases, 10 that must be accepted and 26 that apply one change and must be refused (a bound weakened
+in a statement, a witness deleted or replaced by `True`, a statement or a table row removed, a premise left
+unclassified, a numeric premise listed as outside, a premise added to a theorem, a `sat_` theorem or an `*_at_witness`
+theorem that the table does not account for). The check is a script and
+not a Lean theorem because `check-lean-constructs.sh` refuses elaboration-time code in this package; it
+trusts the script's reading of the environment, and classifies a hypothesis as numeric by a comparison on a
+natural number or an integer in its propositional skeleton or by the name of a numeric state predicate, so a
+numeric bound hidden behind a definition whose name is not on the script's list of numeric state predicates is
+classified by the table's author; `ChainCounterBounded`, a bound on a chain's counter, is such a name and is on the list.
+A numeric premise stated through a definition whose name is not on the list is not recognised, and if the table classifies it
+as `boundary` the check accepts it: a toy theorem with `(h2 : Roomy n)`, where `Roomy n := n + 1 < Usize.max`, passes. A scan of
+the 44 witness rows and the 18 discharge rows with definitions unfolded found no such premise in the tree; the only hypotheses
+it flagged were the contract bundles `RatchetAgreesFor` and `SpqrAgreesFor`, whose numeric content is in implication antecedents.
+The check also does not tie the state a `sat_` proof uses to the state `spqrS_inv` and `ratS_inv` are about, or to the sizes
+described below.
+
+All 66 theorems named below are pinned with `#guard_msgs in #print axioms`. 54 list only `propext`, `Classical.choice` and
+`Quot.sound`. The other 12 are the Braid theorems, whose statements mention opaque types: the six standalone ones also list
+`tacenta_braid.tacenta_erasure.Decoder` and `Encoder` and `tacenta_braid.tacenta_kem.EncapsState` and `IncrementalKeyPair`, and the
+six on the session unit also list `tacenta_session_unit.tacenta_kem.EncapsState` and `IncrementalKeyPair`. No pin lists a
+compiler-trust axiom. The pin list is `REQUIRED_PINS` in `scripts/attest.py`.
+
+**What this is not.** A witness says a premise is not vacuous. It does not say a reachable state meets it:
+among the values the decoder's invariant allows, `events + 1 < u32::MAX` fails only at `u32::MAX - 1` and
+`epoch + 1 < u64::MAX` only at `u64::MAX - 1` (`NumericBoundary.lean`), and each of those values is an ordinary state. The witnesses exclude two groups of
+premises, named per theorem in the script's table and in each module's docstring: the `boundary` premises, which
+are statements about opaque operations or translated functions (`HmacAgrees`, `VecRetainTotal`, `KemAgreesFor`, ...,
+recorded in `LIMITATIONS.md` and, in part, given a model in `Satisfiability.lean`), and the `unwitnessed` ones, which
+are the Braid's relations between a translated and a model Braid (`StateRefines`, `MsgRefines`, `HonestChunk`), which
+need a value of an opaque type (the KEM), and `hdec` of `decoded_receive_refines`, that a byte string decodes to the
+state. On the standalone leaves the Braid witnesses are at `KeysUnsampled`, where `ct1_bounded` holds by its `True` arm; the
+arms of `ct1_bounded` that bound a stored ciphertext hold values of opaque types and are **not shown**, and that stays open.
+On the session unit `decoders_bounded` is witnessed in its real arm, a decoder at the cap its invariant admits
+(`needed = 65536`); the arms that hold a KEM value stay open there too. The states are small, not extremal (one chain and one
+skipped key, one stored skipped key, a counter at 1 or 5). That is what the proofs use; no gate checks it, and no gate checks
+that the state a `sat_` proof uses is the one `spqrS_inv` and `ratS_inv` are about. The bounds up to their caps are in the next
+sections.
+
+- `sat_T1_receive_no_panic`, `sat_T3_receive_refines`, `sat_ImportInv_Ratchet_decoded_receive_refines`: the classical ratchet's
+  receive (the panic-freedom theorem, the refinement, and the decoded-state refinement), standalone translations.
+  The decoded-state theorem's `hdec` is outside the witness.
+- `sat_SpqrT1_receive_no_panic`, `sat_SpqrT1_send_no_panic`, `sat_SpqrT3_receive_refines`, `sat_SpqrT3_send_refines`:
+  the sparse ratchet's receive and send, standalone. The witness state has one chain and one skipped key, and the
+  refinements' `hepoch`, `hroom`, `hcb`, `hsb`, `hnewb`, `hskiproom`, `hone` and `hcounter` hold there together.
+- `sat_BraidT1_Braid_receive_no_panic`, `sat_BraidT1_Braid_step_receive_no_panic`, `sat_BraidT3_Braid_receive_refines`,
+  `sat_BraidT3_step_receive_refines`, `sat_BraidT3_Braid_send_refines`, `sat_BraidT3_step_send_refines`: the Braid's
+  `ct1_bounded`, `epoch + 1 < u64::MAX` and `EncodersLive`, standalone, at the states described above. The relations between
+  a translated and a model Braid are not witnessed.
+- `spqrS_inv`, `ratS_inv`: the two ratchet states the standalone witnesses use satisfy the decoder's invariant
+  (`ImportInv.Spqr.Inv`, `ImportInv.Ratchet.Inv`), the predicate every state `from_bytes` returns satisfies. One direction only.
+- `sat_UnitT1_receive_no_panic`, `sat_UnitT3_receive_refines`, `sat_UnitSpqrT1_receive_no_panic`, `sat_UnitSpqrT1_send_no_panic`,
+  `sat_UnitSpqrT3_receive_refines`, `sat_UnitSpqrT3_send_refines`, `sat_UnitTripleT1_State_receive_no_panic`,
+  `sat_UnitTripleT1_State_send_no_panic`, `sat_UnitTripleT3_receive_refines`, `sat_UnitTripleT3_receive_refines_discharged`,
+  `sat_UnitTripleT3_send_refines`, `sat_UnitTripleT3_send_refines_discharged`: the same for the three-leaf unit, including the
+  Triple's four size premises (`hone`, `hs`, `hroom`, `hskiproom` and their model-state forms) with the epoch and counter premises.
+  The unit has no decoder-invariant module, so nothing is shown about a decoder there.
+- `sat_SessionUnitT1_receive_no_panic`, `sat_SessionUnitT3_receive_refines`,
+  `sat_SessionUnitRatchetImportInv_Ratchet_decoded_receive_refines`, `sat_SessionUnitSpqrT1_receive_no_panic`,
+  `sat_SessionUnitSpqrT1_send_no_panic`, `sat_SessionUnitSpqrT3_receive_refines`, `sat_SessionUnitSpqrT3_send_refines`,
+  `sat_SessionUnitTripleT1_State_receive_no_panic`, `sat_SessionUnitTripleT1_State_send_no_panic`,
+  `sat_SessionUnitTripleT3_receive_refines`, `sat_SessionUnitTripleT3_receive_refines_discharged`,
+  `sat_SessionUnitTripleT3_send_refines`, `sat_SessionUnitTripleT3_send_refines_discharged`,
+  `sat_SessionUnitBraidT1_Braid_receive_no_panic`, `sat_SessionUnitBraidT1_Braid_step_receive_no_panic`,
+  `sat_SessionUnitBraidT3_Braid_receive_refines`, `sat_SessionUnitBraidT3_step_receive_refines`,
+  `sat_SessionUnitBraidT3_Braid_send_refines`, `sat_SessionUnitBraidT3_step_send_refines`: the same for the eight-leaf session
+  unit, with `decoders_bounded` for the Braid. The lifecycle theorems (`encrypt_no_panic` and the others) are not here: their
+  headroom records hold values of opaque boundary types.
+- `session_unit_spqrS_inv`, `session_unit_ratS_inv`: the session unit's two ratchet witness states satisfy the decoder invariant.
+- `spqr_receive_premises_at_witness`, `spqr_send_premises_at_witness`, `spqr_advance_premises_at_witness`,
+  `spqr_maybe_advance_premises_at_witness`, `spqr_clear_old_epochs_premises_at_witness`, `ratchet_receive_premises_at_witness`,
+  `braid_receive_premises_at_witness`, `braid_step_receive_premises_at_witness`,
+  `session_unit_spqr_receive_premises_at_witness`, `session_unit_spqr_send_premises_at_witness`,
+  `session_unit_spqr_advance_premises_at_witness`, `session_unit_spqr_maybe_advance_premises_at_witness`,
+  `session_unit_spqr_clear_old_epochs_premises_at_witness`, `session_unit_ratchet_receive_premises_at_witness`,
+  `session_unit_braid_receive_premises_at_witness`, `session_unit_braid_step_receive_premises_at_witness`,
+  `triple_receive_premises_at_witness`, `triple_send_premises_at_witness`: the first eight are in the standalone translations and
+  the other ten on the session unit; each is a discharge theorem of the next section applied at the
+  witness state, with its type read off the application (`type_of%`). A discharge theorem takes the decoder invariant and other
+  premises beyond its theorem's own, and one whose premises no state meets would be true and empty; these show the state relation, the
+  epoch step and the invariant met together at a state. They stop building if a premise they apply is changed so that the witness
+  state no longer meets it. A premise added after the last argument of a discharge theorem leaves one building, at a function type,
+  so the build does not hold that case; `scripts/check-precondition-witnesses.sh` refuses an `*_at_witness` theorem whose type is a
+  function type, and refuses one the script's list does not name. The lifecycle theorems of `SessionUnitDecodedStateDischarge.lean` (`decrypt_headroom_of_invariant` and the two that
+  apply it) have no such application: their premise `Session::invariant self = ok true` needs a value of the session type, whose
+  fields are opaque boundary types (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`), and `invariant_gives_preconditions` has the same premise.
+
+## Proved (which numeric premises of the refinement theorems a decoded state already gives)
+
+Location: `Translation/DecodedStateDischarge.lean`, `Translation/SessionUnitDecodedStateDischarge.lean`.
+
+`ImportInv.lean` proves that a state `State::from_bytes` returns satisfies the crate's `invariant`, and derives some of the
+numeric premises of the refinement theorems from it. These two modules finish that accounting, for the standalone
+translations and for the session unit. For each theorem `T` named below, a discharge theorem concludes exactly the
+conjunction of the premises of `T` that it names, written in `T`'s own variables, from the decoder invariant and the
+premises it takes as arguments. `scripts/check-precondition-witnesses.sh` reads `T`'s type from the built environment and
+requires that, requires the theorem to take each premise the script's table calls given and no other premise of `T`, and
+requires the table to classify every premise of `T`, so a premise added to `T` or changed in it is refused until the table
+and the theorem are changed to match. Every result is conditional on the invariant and the premises it takes; none says a
+decoded state refines the model. The gate looks only at the premise names the table lists, so a premise added under a new name to a
+discharge theorem is refused only where the theorem has an `*_at_witness` application (the previous section); the three lifecycle
+theorems and the two `epoch_family` theorems have no table row and no application.
+
+The 23 theorems named below are pinned with `#guard_msgs in #print axioms`. 16 list only `propext`, `Classical.choice` and
+`Quot.sound`. Seven list more: the four Braid discharge theorems add the opaque erasure and KEM types their statements mention
+(`Decoder`, `Encoder`, `EncapsState`, `IncrementalKeyPair`); `decrypt_headroom_of_invariant` adds 18 opaque constants of the session
+unit's KEM, DH and boundary layers; and `decrypt_ratchet_no_panic_of_invariant` and `decrypt_no_panic_of_invariant` add 50,
+among them `hkdf_sha256`, `hmac_sha256`, `zeroize` operations, `Vec` and `Option` operations and the AEAD boundary. No pin lists a
+compiler-trust axiom. The pin list is `REQUIRED_PINS` in `scripts/attest.py`.
+
+The result that was not in this ledger is for the sparse ratchet. `SpqrT3.receive_refines` takes `hroom`, `hskiproom` and `hone`,
+which `ImportInv.lean` derives from the invariant, and five premises that were recorded as open: `hepoch`, `hcb`, `hsb`,
+`hnewb` and `hcounter`. `hcb` and `hsb` (every chain epoch, and every skipped key's epoch, plus `EPOCHS_KEPT` is at most
+`u64::MAX`) follow from the invariant together with `hepoch` (`epoch + 1 < u64::MAX`), so the premises that stay with the
+caller are three: `hepoch`, `hnewb` (the epochs of the keys an operation adds) and `hcounter` (every chain's counter is below
+`u64::MAX`). The invariant alone still does not give `hcb`: the state at `epoch = u64::MAX - 1` with a chain at that epoch
+passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds for `send_refines`, `advance_refines`,
+`maybe_advance_refines` (`hroom`, `hcb`, `hsb` follow from the invariant and `hepoch`) and `clear_old_epochs_refines`
+(`hcb` and `hsb`, from the invariant and `epoch + 1 < u64::MAX`, a bound that theorem does not itself state). `hepoch` is not discharged: it excludes one honest value, and that value is an ordinary state.
+
+- `spqr_epoch_family`, `session_unit_spqr_epoch_family`: given the sparse ratchet's decoder invariant and `epoch + 1 < u64::MAX`,
+  every chain epoch and every skipped key's epoch plus `EPOCHS_KEPT` is at most `u64::MAX`.
+- `spqr_receive_premises`, `session_unit_spqr_receive_premises`: `hroom`, `hcb`, `hsb`, `hskiproom` and `hone` of
+  `SpqrT3.receive_refines` follow from the invariant, `hrel` and `hepoch`. Caller: `hepoch`, `hnewb`, `hcounter`.
+- `spqr_send_premises`, `session_unit_spqr_send_premises`, `spqr_advance_premises`, `session_unit_spqr_advance_premises`,
+  `spqr_maybe_advance_premises`, `session_unit_spqr_maybe_advance_premises`: `hroom`, `hcb` and `hsb` of `send_refines`,
+  `advance_refines` and `maybe_advance_refines` follow from the invariant and `hepoch`. Caller: `hrel`, `hepoch`, `hnewb`
+  and, for `send_refines`, `hcounter`.
+- `spqr_clear_old_epochs_premises`, `session_unit_spqr_clear_old_epochs_premises`: `hcb` and `hsb` of
+  `clear_old_epochs_refines` follow from the invariant and `epoch + 1 < u64::MAX`.
+- `ratchet_receive_premises`, `session_unit_ratchet_receive_premises`: `hone` and `hs` of the classical `receive_refines` follow from the
+  invariant and `hR`. `hroom` (`events + 1 < u32::MAX`) does not: the parked clock passes `invariant`.
+- `braid_receive_premises`, `braid_step_receive_premises`, `session_unit_braid_receive_premises`,
+  `session_unit_braid_step_receive_premises`: `ct1_bounded` (and on the session unit `decoders_bounded`) follows from the Braid's
+  `Inv`; the `epoch + 1 < u64::MAX` premise does not, and is not claimed. The Braid's `Inv` is the partial mirror
+  `ImportInv.lean` describes. The standalone `Braid.Inv` has that one field, so for the standalone translations
+  `braid_receive_premises` is the projection of its own hypothesis; the substantive step is `Braid.from_bytes_establishes_inv`,
+  which takes `Ct1LenTotal`.
+- `triple_receive_premises`, `triple_send_premises`: on the session unit, the Triple's composed refinements
+  (`receive_refines_discharged`, `send_refines_discharged`) take the premises of both inner ratchets stated about the model state. The
+  receive theorem's `hone`, `hs`, `hroom`, `hcb`, `hsb`, `hskiproom` and `hone2` follow from the two inner invariants, `hrel` and `hepoch`.
+  `hevents` is a premise of the target that stays with the caller; it is an argument of the discharge theorem so that the table matches,
+  and no conclusion uses it. The send theorem's `hroom`, `hcb` and `hsb` follow from the sparse invariant, `hrel` and `hepoch`. What stays with the caller
+  is `hevents`, `hepoch`, `hnewb` and `hcounter` (receive) and `hepoch`, `hnewb` and `hcounter` (send), and `hheader`, which relates
+  the header to its model header. Proved for the session unit's copy only: the three-leaf unit has no decoder-invariant module.
+- `decrypt_headroom_of_invariant`, `decrypt_ratchet_no_panic_of_invariant`, `decrypt_no_panic_of_invariant`: a session that passes
+  `Session::invariant` meets `DecryptRatchetHeadroom` once `Ct1LenTotal` and `identity_ad.length + 106 ≤ usize::MAX` hold, and the two lifecycle
+  panic-freedom theorems apply with it. `invariant_gives_preconditions` derived the record without the associated-data bound and no
+  theorem used it; this is the connection. The theorems are conditional on `DecryptRatchetContracts` exactly as the ones they apply are.
+
+## Proved (the numeric bounds against the caps they are compared with, at both platform widths)
+
+Location: `Translation/NumericBoundary.lean`, `Translation/NumericBoundaryLeaf.lean`, `Translation/NumericBoundaryTriple.lean`, `Translation/NumericBoundarySession.lean`, `Translation/NumericShapeWitness.lean`.
+
+Every numeric bound that depends on a platform width or on a ceiling is written against `usize::MAX`, `u32::MAX`, `u64::MAX` or a
+fixed cap of the code. Eleven of the 61 shapes below compare two lengths or counters with each other and mention none of these.
+Of these only `usize::MAX` depends on
+the platform, and Lean knows of it that it is `2^32 - 1` or `2^64 - 1`; each statement below is proved by a case
+split on that, so it holds at both widths, and a bound that held at 64 bits and not at 32 (the defect of 2026-09-10) would fail in
+the 32-bit case. These are statements about arithmetic and about the translations' constants. They are not statements that a
+real run reaches a size, or that the Rust source has the constant the translation evaluates.
+
+- `both_widths`: `Usize.max` is `2^32 - 1` or `2^64 - 1`.
+- `classical_store_cap_fits`, `classical_skip_cap_fits`, `spqr_chain_cap_fits`, `spqr_skip_cap_fits`, `ratchet_codec_cap_fits`,
+  `spqr_codec_cap_fits`, `erasure_cap_fits`: the room bounds the theorems take hold for every size the code's caps allow
+  (a store of up to 2000 keys, at most two chains, an erasure decoder of up to 65536 chunks), at both widths.
+- `erasure_room_exact_at_32`: at 32 bits `32 * needed < usize::MAX` is exactly `needed ≤ 2^27 - 1`, so the bound is not slack.
+- `clock_ceiling_excludes_only_parked`, `epoch_ceiling_excludes_only_top`: `events + 1 < u32::MAX` fails, among the values
+  the decoder's invariant allows, only at `u32::MAX - 1`, and `epoch + 1 < u64::MAX` only at `u64::MAX - 1`. These are the two
+  ceilings the invariant leaves open on the clock and the epoch, and each excludes exactly one value among those the decoder's
+  invariant allows. `hnewb` and `hcounter` have no such theorem.
+- `ratchet_constants`, `spqr_constants`, `erasure_constants`, `protobuf_constants`, `code_matches_model`, `max_events_is_parked`,
+  `clock_ceiling_summary`: in the standalone translations, the constants the bounds mention have the values the
+  arithmetic uses, and the ratchet's and the sparse ratchet's equal the model's copies (the erasure and protobuf constants are
+  evaluated and compared with nothing). The clock premise of `T3.receive_refines` is satisfiable, is failed by the
+  parked clock, and by no other value the decoder's invariant allows (`PreconditionShapes.lean`'s two theorems about it are the
+  summary's first two conjuncts).
+- `unit_ratchet_constants`, `unit_spqr_constants`, `unit_code_matches_model`, `session_unit_ratchet_constants`,
+  `session_unit_spqr_constants`, `session_unit_erasure_constants`, `session_unit_code_matches_model`: the same on the
+  three-leaf unit and the session unit, which cannot share an environment with the standalone translations.
+- `usize_max_cases`, `every_shape_is_satisfiable`: as enumerated once from the built environment, 61 shapes of numeric premise
+  occur (`S01` to `S61` in the module: a comparison between sums and products of lengths, scalars and model numbers, a constant
+  and an operator). The enumeration is not complete: hypotheses of the codec theorems such as `pos + 41 ≤ usize::MAX` and
+  `len + 48 ≤ usize::MAX` have no shape here, and the script that made it is not in this tree, so nothing checks that the list is
+  complete or stays complete. Each shape is satisfiable at both widths. For 54 of the 61 the first atom is at the largest value
+  the shape admits with the other atoms as chosen, and nothing larger meets the shape with the other atoms held. S10 uses `0` for
+  its first atom, S32, S33 and S41 prove only existence, and S45, S47 and S48 are over unbounded counters, so their witnesses are
+  not at a bound (S48's second atom is a length with no `≤ um` bound, so its witness is above `usize::MAX` at both widths). The
+  aggregate theorem names every shape theorem so that deleting one is an error. The shape theorems are about shapes and not about
+  theorems: nothing in the tree joins a shape to the premises that have it, so a premise added to a theorem with a shape outside
+  the 61 is not noticed there. The statement of each shape theorem and of the two theorems at the end is held by a
+  `#guard_msgs in #check` pin in the module, so a changed statement stops the build until its pin is changed too;
+  `attest.py` requires each of these pins to exist (`REQUIRED_STATEMENT_PINS`) and does not read what a pin says, so a
+  statement changed together with its pin's expected message is accepted. The join to the central
+  theorems is the witness section above.
+
+The 27 theorems of the five bound modules are pinned with `#guard_msgs in #print axioms`; each lists only `propext`,
+`Classical.choice` and `Quot.sound`, or fewer of them. No pin lists a compiler-trust axiom.
+
+## Proved (hypotheses about translated functions in the leaf crates and the three-leaf unit, from named laws, and the decoder acceptance witnesses)
+
+Location: `Translation/SatisfiabilitySpqrLaws.lean`, `Translation/SatisfiabilityRatchetLaws.lean`, `Translation/SatisfiabilityBraidZeroize.lean`, `Translation/UnitSatisfiabilityTripleLaws.lean`, `Translation/SpqrFromBytesWitness.lean`, `Translation/BraidFromBytesWitness.lean`, `Translation/SessionUnitBraidFromBytesWitness.lean`, `Translation/RatchetDecodedWitness.lean`.
+
+Most boundary hypotheses of the leaf and three-leaf-unit theorems are statements about opaque
+constants, and `Translation/Satisfiability.lean` and `Translation/UnitSatisfiabilityTriple.lean`
+witness them. Some are statements about functions the translation defines, with a body: the two
+removal helpers (`T1.RemoveSkippedAtTotal`, `SpqrT1.RemoveSkippedAtTotal` and the unit's copies), the
+three key derivations, `SpqrT1.VecRetainTotal` with its three loop contracts, and the agreements
+`SpqrT3.RemoveSkippedAtAgrees` and `SpqrT3.VecRetainAgrees` (and the unit's copies). A model of the
+opaque constants cannot change what such a statement says. The witnesses those files hold for the
+removal helpers are bridged by `Iff.rfl` to a shape applied to the defined function, which is
+satisfiable for any function and says nothing about the body; the others had none, except `SpqrT1.KdfRkTotal`
+and `KdfCkTotal`, which `Satisfiability.lean` derives from the witnessed HKDF agreement and the two round trips.
+`SpqrT3.set_chains_refines` and `clear_old_epochs_refines`, and their copies on the unit, are
+`VecRetainAgrees` applied to its arguments. Before these results they were an assumed agreement of
+two translated loops with the model and not a proof of it, and the sparse refinements of `advance`,
+`maybe_advance`, `skip_message_keys`, `send` and `receive` rest on it. The results below show each of
+these hypotheses follows, by stepping through the translated code, from named laws about the opaque
+constants its body reaches. They are results about hypotheses and not about the product: each is
+conditional on exactly the laws its statement names, no theorem statement is changed, and the
+theorems that take the hypotheses still take them.
+
+The laws are assumptions about standard-library and `zeroize` operations, tested against the real
+functions only by reading, and nothing here shows that the real functions satisfy them: `Vec::pop`
+of a non-empty vector returns the vector without its last element (`LawPop`), `Option::as_mut`
+returns (`LawAsMut`), `Vec::capacity` returns (`LawCapacity`), the `Vec` `Zeroize` implementation
+returns (`LawVecZeroize`, stated for every `Zeroize` record, which is stronger than the crate, as below), the blanket `Zeroize` implementation returns at `u32` (`LawBlanketU32`,
+classical removal helper), the array `Zeroize` implementation returns (the existing hypotheses
+`SpqrT1.ZeroizeTotal` and `UnitSpqrT1.ZeroizeTotal`, and `ArrZU8` at the byte instance for the
+classical leaf), the HKDF returns for output lengths up to 8160 bytes (`LawHkdf`), and the
+`Zeroizing` wrapper reads back what it wraps at 96 and 64 bytes (`LawZeroizing`). The sparse T3
+theorems already take the HKDF agreement and the two round trips, which give `LawHkdf` and `LawZeroizing`
+at the two widths, and
+`LawCapacity` and `LawVecZeroize` are conjuncts of `VecRetainTotal`, which they take too, so beyond
+the hypotheses those theorems take the sparse results add `LawPop` and `LawAsMut` (and
+`LawBlanketU32` for the classical removal helper), which no hypothesis states. The proofs are generic
+in the platform width.
+
+- `SatisfiabilitySpqrLaws.kdfRkTotal`, `SatisfiabilitySpqrLaws.kdfCkTotal`,
+  `SatisfiabilitySpqrLaws.spqrRemoveSkippedAtTotal`, `SatisfiabilitySpqrLaws.setChainsLoopTotal`,
+  `SatisfiabilitySpqrLaws.clearChainsLoop0Total`, `SatisfiabilitySpqrLaws.clearSkippedLoopTotal`,
+  `SatisfiabilitySpqrLaws.vecRetainTotal`, `SatisfiabilitySpqrLaws.defined_fields_hold`: the leaf
+  sparse ratchet's `SpqrT1.KdfRkTotal`, `KdfCkTotal`, `RemoveSkippedAtTotal`, the three loop
+  contracts inside `VecRetainTotal`, and `VecRetainTotal` itself follow from the laws; the last result
+  gives the four hypotheses together from the structure `Laws`.
+- `UnitSatisfiabilityTripleLaws.kdfRkTotal`, `UnitSatisfiabilityTripleLaws.kdfCkTotal`,
+  `UnitSatisfiabilityTripleLaws.kdfInitTotal`, `UnitSatisfiabilityTripleLaws.spqrRemoveSkippedAtTotal`,
+  `UnitSatisfiabilityTripleLaws.ratchetRemoveSkippedAtTotal`,
+  `UnitSatisfiabilityTripleLaws.setChainsLoopTotal`, `UnitSatisfiabilityTripleLaws.clearChainsLoop0Total`,
+  `UnitSatisfiabilityTripleLaws.clearSkippedLoopTotal`, `UnitSatisfiabilityTripleLaws.vecRetainTotal`,
+  `UnitSatisfiabilityTripleLaws.defined_fields_hold`: the same on the three-leaf unit, where the two
+  ratchets share the constants, with `UnitTripleT1.KdfInitTotal` and `UnitT1.RemoveSkippedAtTotal` added;
+  the last result gives the six hypotheses together from the nine laws of its `Laws`.
+- `SatisfiabilitySpqrLaws.removeSkippedAtAgrees`, `SatisfiabilitySpqrLaws.setChainsAgrees`,
+  `SatisfiabilitySpqrLaws.clearOldEpochsAgrees`, `SatisfiabilitySpqrLaws.vecRetainAgreesOfLaws`,
+  `SatisfiabilitySpqrLaws.vecRetainAgrees`: `SpqrT3.RemoveSkippedAtAgrees` and `SpqrT3.VecRetainAgrees`
+  hold, as statements about the translated `remove_skipped_at`, `set_chains` and `clear_old_epochs` for
+  all inputs the theorems' own premises allow (a chain table at the largest length they admit,
+  duplicate epochs, `current` at `u64::MAX` and empty containers included). The retain loops are proved to keep exactly the entries their guard names, in
+  order, and to leave the other fields alone. `vecRetainAgreesOfLaws` takes the five laws one by one
+  (`LawCapacity`, `LawVecZeroize`, the array wipe, `LawAsMut`, `LawPop`), so its pin lists no HKDF
+  and no `Zeroizing` constant; `vecRetainAgrees` takes the bundle `Laws`, whose other fields add those
+  two to its pin although the proof does not use them. The array wipe is applied at
+  the byte instance on 32-byte arrays only.
+- `UnitSatisfiabilityTripleLaws.removeSkippedAtAgrees`, `UnitSatisfiabilityTripleLaws.setChainsAgrees`,
+  `UnitSatisfiabilityTripleLaws.clearOldEpochsAgrees`, `UnitSatisfiabilityTripleLaws.vecRetainAgreesOfLaws`,
+  `UnitSatisfiabilityTripleLaws.vecRetainAgrees`: the same on the unit, for `UnitSpqrT3.RemoveSkippedAtAgrees`
+  and `UnitSpqrT3.VecRetainAgrees`, which the Triple's discharged theorems take.
+- `SatisfiabilitySpqrLaws.defined_hyps_from_axiom_hyps`,
+  `UnitSatisfiabilityTripleLaws.defined_hyps_from_axiom_hyps`: the defined-function T1 hypotheses follow
+  from the hypotheses the T3 theorems already take (`ZeroizeTotal`, `SpqrHkdfAgrees`, the two round
+  trips) and the four laws that are not among them (five on the unit), so the defined-function
+  hypotheses add no assumption about the HKDF or the wrapper.
+- `SatisfiabilitySpqrLaws.LawPop_is`, `SatisfiabilitySpqrLaws.LawAsMut_is`,
+  `SatisfiabilitySpqrLaws.LawCapacity_is`, `SatisfiabilitySpqrLaws.LawVecZeroize_is`,
+  `SatisfiabilitySpqrLaws.LawHkdf_is`, `SatisfiabilitySpqrLaws.hkdf_total_satisfiable`,
+  `SatisfiabilitySpqrLaws.laws_jointly_satisfiable`, `SatisfiabilitySpqrLaws.laws_of_shape`: five of the laws are the statement
+  about the real constant (`Iff.rfl` against its shape, so the build compares them), and the array wipe and the
+  wrapper reach `Laws` through `laws_of_shape`, which is an implication; `LawsShape` bundles the eight laws over arbitrary
+  functions of the constants' types, with the array wipe, the HKDF and the wrapper in their general form,
+  which implies the instances `Laws` uses; one assignment satisfies all of it at once; and if the real
+  constants satisfied `LawsShape` then `Laws` would hold. So, as statements about arbitrary functions of the
+  constants' types, the laws do not conflict with one another.
+- `UnitSatisfiabilityTripleLaws.LawPop_is`, `UnitSatisfiabilityTripleLaws.LawAsMut_is`,
+  `UnitSatisfiabilityTripleLaws.LawCapacity_is`, `UnitSatisfiabilityTripleLaws.LawVecZeroize_is`,
+  `UnitSatisfiabilityTripleLaws.LawBlanketU32_is`, `UnitSatisfiabilityTripleLaws.LawHkdf_is`,
+  `UnitSatisfiabilityTripleLaws.hkdf_total_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.laws_jointly_satisfiable`, `UnitSatisfiabilityTripleLaws.laws_of_shape`:
+  the same for the nine laws of the unit. That the laws hold together with the other hypotheses of a
+  particular theorem is argued from the constants the statements mention, which are different constants
+  (the pop, as-mut, capacity and wipe operations against the HKDF and the wrapper), and is not a Lean
+  theorem.
+- `SatisfiabilitySpqrLaws.pop_satisfiable`, `SatisfiabilitySpqrLaws.as_mut_satisfiable`,
+  `SatisfiabilitySpqrLaws.capacity_satisfiable`, `SatisfiabilitySpqrLaws.vec_zeroize_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.pop_satisfiable`, `UnitSatisfiabilityTripleLaws.as_mut_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.capacity_satisfiable`, `UnitSatisfiabilityTripleLaws.vec_zeroize_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.blanket_satisfiable`: each law's shape is satisfied by some function.
+  `check-hypothesis-witnesses.sh` reads them as the existence theorems of the bridges. `as_mut_satisfiable`
+  depends on no axiom, so its `#print axioms` output has no list to pin; it has a pin on its statement.
+- `SatisfiabilityRatchetLaws.ratchetRemoveSkippedAtTotal`, `SatisfiabilityRatchetLaws.LawPop_is`,
+  `SatisfiabilityRatchetLaws.LawBlanketU32_is`, `SatisfiabilityRatchetLaws.ArrZU8_is`,
+  `SatisfiabilityRatchetLaws.pop_satisfiable`, `SatisfiabilityRatchetLaws.blanket_satisfiable`,
+  `SatisfiabilityRatchetLaws.arrZU8_satisfiable`, `SatisfiabilityRatchetLaws.ratchet_laws_jointly_satisfiable`:
+  the leaf classical ratchet's `T1.RemoveSkippedAtTotal`, which `Satisfiability.lean` witnesses only
+  through a void bridge, follows from `LawPop`, `LawBlanketU32` and `ArrZU8` (the array wipe returns at
+  the byte instance, at every length). Each law is the shape applied to the real constant and is
+  satisfiable, and one assignment satisfies the three, which are on three different constants. The
+  classical crate's `pop` is a different constant from the sparse crate's, so the law is stated again
+  for it.
+- `SatisfiabilityRatchetLaws.RatchetCodec_ZeroizingVecTotal_is`,
+  `SatisfiabilityRatchetLaws.zeroizing_vec_satisfiable`, `SatisfiabilitySpqrLaws.SpqrCodec_ZeroizingVecTotal_is`,
+  `SatisfiabilitySpqrLaws.zeroizing_vec_satisfiable`: `RatchetCodecT1.ZeroizingVecTotal` and
+  `SpqrCodecT1.ZeroizingVecTotal`, which had no witness, are each the shape of `Zeroizing::new` at
+  `Vec<u8>` and are satisfiable.
+- `UnitSatisfiabilityTripleLaws.RoundTrips80_is`, `UnitSatisfiabilityTripleLaws.roundTrips80_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.TripleZeroizeTotal_is`, `UnitSatisfiabilityTripleLaws.arrZ32_satisfiable`,
+  `UnitSatisfiabilityTripleLaws.arrZ32_of_general`: `UnitT3.ZeroizingRoundTrips80` and
+  `UnitTripleT3.ZeroizeTotal`, which `UnitSatisfiabilityTriple.lean` leaves without a witness, are each
+  the shape of the real constant and satisfiable, and the scoped `UnitTripleT3.ZeroizeTotal` follows from
+  the general `UnitSpqrT1.ZeroizeTotal`.
+- `SatisfiabilitySpqrLaws.spqr_zeroizeTotal_conflicts`, `UnitSatisfiabilityTripleLaws.spqrZeroizeTotal_conflicts`,
+  `SatisfiabilityBraidZeroize.braid_arrayZeroizeTotal_conflicts`, `SatisfiabilitySpqrLaws.vec_zeroize_conflicts`,
+  `UnitSatisfiabilityTripleLaws.vec_zeroize_conflicts`: `SpqrT1.ZeroizeTotal`,
+  `UnitSpqrT1.ZeroizeTotal` and `BraidT1.ArrayZeroizeTotal` quantify over every `Zeroize` record
+  (`Zeroize U8` for the Braid), including one whose `zeroize` fails, and no `Array::zeroize` that
+  propagates the failure of a failing element satisfies them. The `Vec::zeroize` conjunct of
+  `SpqrT1.VecRetainTotal` and `UnitSpqrT1.VecRetainTotal`, which `LawVecZeroize` restates, is the same
+  kind of statement, and no `Vec::zeroize` that propagates the failure of a failing element satisfies it.
+  The real functions do propagate it (`PropagatesFailure` and `PropagatesFailureVec` are assumptions about
+  the real functions, tested only by reading), so the four hypotheses are stronger than the crate. They are
+  satisfiable (the identity wipe in `Satisfiability.lean` for the sparse and Braid wipes, and in
+  `UnitSatisfiabilityTriple.lean` for the unit's), and the proofs apply them only at the `Blanket U8`
+  instance, whose element wipe returns, and, for the `Vec` conjunct, at the instances for
+  `(u64, Chains)` and `Skipped`. They are **documented and unchanged here**: no theorem statement and no
+  hypothesis is altered by this section, and no result in it replaces any of them. The session unit's three
+  array fields and its `Vec` conjunct have the same result, with scoped replacements, in
+  `UnitSatisfiabilityZeroizeScope.lean`.
+- `SpqrFromBytesWitness.spqr_from_bytes_accepts_witness`,
+  `SpqrFromBytesWitness.spqr_from_bytes_establishes_inv_nonvacuous`: the translated
+  `tacenta_spqr::State::from_bytes` accepts a concrete 140-byte string (version 1, an all-zero root key, epoch 0, one
+  chains entry at epoch 0 with both chains absent, no skipped keys), and the state it returns satisfies
+  `Spqr.Inv`, so `Spqr.from_bytes_establishes_inv` is not vacuous. The pins list the three standard axioms
+  only; no hypothesis about an opaque constant is used on the decode path.
+- `BraidFromBytesWitness.braid_from_bytes_accepts_witness`,
+  `BraidFromBytesWitness.braid_from_bytes_establishes_inv_nonvacuous`,
+  `SessionUnitBraidFromBytesWitness.braid_from_bytes_accepts_witness`,
+  `SessionUnitBraidFromBytesWitness.braid_from_bytes_establishes_inv_nonvacuous`: the translated
+  `tacenta_braid::Braid::from_bytes`, in the standalone leaf and in the complete Session unit, accepts a
+  concrete 74-byte string (version 1, state tag 0 (`KeysUnsampled`), epoch 1, a zero authenticator), and
+  the state it returns satisfies `Braid.Inv` under the one hypothesis the existing theorem carries
+  (`Ct1LenTotal`, which acceptance itself does not use). `Braid.Inv` has one clause, a ciphertext-length
+  bound that is `True` outside tags 3, 4, 7, 8 and 9, so on this state it is trivial: the result shows
+  that the decoder accepts a string and that the premise of `from_bytes_establishes_inv` is satisfiable,
+  and it does not exercise the clause. That state holds no erasure or KEM value, so the
+  decode path calls no opaque constant; the pins list `tacenta_erasure.*` and `tacenta_kem.*` constants only
+  because those names occur in the definitions of the decoder's other arms and of `Braid.invariant`, which
+  the statement mentions. **For the states that hold an erasure or KEM value (tags 1 to 10) no byte string
+  is shown accepted**, because their decode runs through the opaque erasure and KEM decoders. Tag 11
+  (`Failed`) holds no such value and has no witness either; one would be a two-byte string.
+- `RatchetDecodedWitness.ratchet_witness_events`,
+  `RatchetDecodedWitness.decoded_receive_refines_premises_satisfiable`: the translated classical decoder
+  accepts `witnessBytes` and returns a state whose clock is zero, so the four premises of
+  `Ratchet.decoded_receive_refines` that are about the decoded state (`hdec`, `hR`, `hH`,
+  `hclock_unparked`) hold together on one state. The theorem's other premises, the HMAC and HKDF
+  agreements, the wrapper round trip, `T1.RemoveSkippedAtTotal` and `DerivedKeysModel`, are not part of
+  this result.
+
+- `T3.HmacAgrees.total` (in `Translation/T3.lean`), `T3.HkdfAgrees.total` (in `Translation/T3.lean`),
+  `BraidT3.BraidHmacAgrees.total` (in `Translation/BraidT3.lean`), `BraidT3.BraidHkdfAgrees.total`
+  (in `Translation/BraidT3.lean`), `UnitT3.HmacAgrees.total` (in `Translation/UnitT3.lean`),
+  `UnitT3.HkdfAgrees.total` (in `Translation/UnitT3.lean`), `UnitTripleT3.TripleHkdfAgrees.total`
+  (in `Translation/UnitTripleT3.lean`): the HMAC and HKDF totality hypotheses of the T1 theorems
+  (`HmacTotal`, `HkdfTotal`, `HmacSha256Total`, `HkdfSha256Total` and the unit's copies) follow from the
+  agreements the T3 theorems take, so they add no assumption beyond those agreements, which
+  `Satisfiability.lean` and `UnitSatisfiabilityTriple.lean` witness. These existing theorems are named
+  here because `check-hypothesis-witnesses.sh` accepts a hypothesis as derived only through a derivation
+  that the ledger names. That script checks that each closed hypothesis of the claimed T1 and T3 theorems of
+  the leaf crates and the three-leaf unit is connected to a bridge to a satisfiable shape, to a derivation
+  the ledger names, or to `True`, and that no such theorem takes a closed hypothesis that names no predicate
+  or quantifies over a variable only hypotheses mention. It does not show that a connected hypothesis is
+  satisfiable (an existence theorem is recognised by its shape, so a weakened one passes unless its
+  statement is pinned), that the hypotheses of one theorem hold together, or anything about a
+  hypothesis with a free variable that mentions real state. Its mutation controls are run by hand; no
+  workflow runs them.
+
+What is not shown. That the real standard-library and `zeroize` functions satisfy the laws. That the
+hypotheses that have a free variable (the state relations such as `StateR` and `StateRefines`, and the
+numeric bounds) hold together with these hypotheses on any state: this section covers the closed boundary
+hypotheses only. That the leaf Braid's erasure and KEM agreements hold of states that carry such
+values. That `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` follow from
+laws: this section covers the leaf crates and the three-leaf unit, `UnitSatisfiabilityRatchet.lean` covers
+the session unit's T1 fields only, and `check-hypothesis-witnesses.sh` does not read the Session unit; the
+session unit's refinement theorems, `SessionUnitTripleT3`'s discharged theorems and the lifecycle contract
+`TripleSendRefinementContracts` take those two. That any of the four over-strong zeroize hypotheses (the
+three array wipes and the `Vec::zeroize` conjunct) is replaced: the scoped replacements exist only for the
+session unit's fields.
 
 ## Evidence, not proof
 
@@ -2859,7 +4374,12 @@ opaque-boundary hypothesis (the `Vec` operations, the `zeroize` wrapper, the
 key-derivation agreements, `Option`'s clone and the rest they list) becomes
 refutable,
 `Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
-fail if the Braid's erasure or KEM hypotheses lose their model, and
+fail if the Braid's erasure or KEM hypotheses lose their model,
+`scripts/check-precondition-witnesses.sh`, which fails if a numeric-precondition
+witness or discharge theorem (`Translation/NumericWitness*.lean`,
+`Translation/*DecodedStateDischarge.lean`) no longer states its theorem's own
+premises, by reading each theorem's type from the built environment (36 cases hold
+that comparison to mutations), and
 `Translation/AxiomAudit.lean` and `AxiomAuditTripleUnit.lean`, which walk the
 elaborated environment and fail if any hand-written declaration is an
 axiom, opaque, unsafe or partial, carries `implemented_by`/`extern`, or is
@@ -2913,8 +4433,11 @@ whose linux-x86_64 archive `aeneas-linux-x86_64.tar.gz` has SHA-256
 workflow checks that digest before extracting, and fails if the committed
 `Translation/Tacenta*.lean` differ from what that build produces. The digest
 is stated here so that a reader reproducing the translation elsewhere can
-check they hold the same binaries, not merely the same tag. The release ships
-for linux-x86_64 only.
+check they hold the same binaries, not merely the same tag. The release page
+lists archives for Linux and macOS on two architectures each. The digest above
+is the Linux x86_64 one, which the verification workflow checks; the macOS arm64
+archive used for the regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in
+`GAP-REGISTER.md` is not covered by that check.
 
 What the public tree can check about the translation is recorded in
 `manifests/translation-attestation.json`, written only by

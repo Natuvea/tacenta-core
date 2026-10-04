@@ -35,7 +35,7 @@ about either inner ratchet's behaviour is written by hand; what they state about
 the inner states is the numeric preconditions the inner theorems need, carried
 through the abstraction. What they do assume is the boundary the inner
 refinements themselves take: the HMAC and HKDF agreements,
-the `zeroize` round trips, three `Vec` agreements, `VecRemoveTotal`,
+the `zeroize` round trips, the `Vec` agreements (`VecRetainAgrees`, `RemoveSkippedAtAgrees`), `RemoveSkippedAtTotal`,
 `DerivedKeysModel`, `OptionCloneTotal` and the general `ZeroizeTotal`.
 
 Three things are worth knowing about that trade.
@@ -265,6 +265,11 @@ def ratchetLabelsOf : tacenta_ratchet.LabelSet → Model.State.LabelSet
 def spqrOutputOf (o : tacenta_spqr.Output) : Model.SparseRatchet.Output :=
   ⟨o.key_epoch.val, keyOf o.key⟩
 
+/-- The exact Triple refusal induced by either leaf's public error. -/
+def sendRefusalOfReal : TripleError → Option Model.Triple.SendRefusal
+  | .Classical reason => (Tacenta.UnitT3.sendRefusalOfReal reason).map .classical
+  | .PostQuantum reason => (Tacenta.UnitSpqrT3.sendRefusalOfReal reason).map .postQuantum
+
 /-- Bundled agreement for the classical ratchet's calling surface, through an
 abstraction `α`. Covers exactly what this file's theorems need: `clone`, the two
 initialisers, the three small accessors `TripleT1.lean` already treated as this
@@ -309,8 +314,9 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
     (∀ hdr mk, r.1 = core.result.Result.Ok (hdr, mk) →
       ∃ m' mh, Model.Ratchet.send (α s) = some (m', mh, keyOf mk) ∧
         α r.2 = m' ∧ RatchetHeaderR hdr mh) ∧
-    (r.1 = core.result.Result.Err tacenta_ratchet.RatchetError.NoSendingChain →
-      Model.Ratchet.send (α s) = none)) ∧
+    (∀ e, r.1 = core.result.Result.Err e →
+      ∃ reason, Tacenta.UnitT3.sendRefusalOfReal e = some reason ∧
+        Model.Ratchet.sendDetailed (α s) = .error reason)) ∧
   -- mirrors: Tacenta.UnitT3.receive_refines in UnitT3.lean
   (∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header) (mh : Model.State.Header),
     RatchetHeaderR hdr mh →
@@ -370,7 +376,9 @@ def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop
         ∃ m', Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf)
             = some (m', n.val, keyOf mk) ∧ β r.2 = m') ∧
       (∀ err, r.1 = core.result.Result.Err err →
-        Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf) = none)) ∧
+        ∃ reason, Tacenta.UnitSpqrT3.sendRefusalOfReal err = some reason ∧
+          Model.SparseRatchet.sendDetailed (β s) e.val (out.map spqrOutputOf) =
+            .error reason)) ∧
   -- mirrors: Tacenta.UnitSpqrT3.receive_refines in UnitSpqrT3.lean
   (∀ (s : tacenta_spqr.State) (receiving_epoch : Std.U64) (out : Option tacenta_spqr.Output)
       (n : Std.U64),
@@ -411,22 +419,10 @@ structure TripleHeaderR (hdr : Header) (mh : Model.Triple.Header) : Prop where
 
 /-! ## `send` refines the model's
 
-The failure branch is not a blanket "either ratchet failing means the model
-fails", because that does not hold. The post-quantum side's failure
-clause is unconditional (`SpqrAgreesFor`, backed by `UnitSpqrT3.lean`'s own
-`hcounter`-guarded `send_refines`), but the classical ratchet's is not:
-`UnitT3.lean`'s own `send_refines` proves the model-failure correspondence only
-for `RatchetError.NoSendingChain`, not for `ChainExhausted` (the real `u32`
-send counter wrapping), because that theorem states no clause for it, though
-`Model.Ratchet.send` now refuses at `ns = u32::MAX` too. `RatchetAgreesFor`
-states exactly that -- `NoSendingChain` only -- rather than an unrestricted
-`∀ e`.
-The theorem's stated postcondition below is scoped to match: it only claims
-the failure-implies-`none` correspondence when the reported error is either
-a post-quantum one or specifically `Classical NoSendingChain`, and proves
-nothing at all about a `Classical ChainExhausted` failure -- the same
-finite-width boundary `UnitT3.lean` already excludes, one layer up rather than
-newly introduced here. -/
+Both leaf refinements preserve the exact detailed refusal.  The composed
+postcondition maps that refusal through the Triple constructor, so neither the
+model reason nor its correspondence with the generated error is supplied by a
+caller. -/
 
 theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
     {β : tacenta_spqr.State → Model.SparseRatchet.State}
@@ -448,9 +444,9 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
             = some (m', mh, key)
           ∧ StateRefines α β r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            ∃ e', e = TripleError.PostQuantum e') →
-          Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ := by
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.Triple.sendDetailed m sending_epoch.val (output.map spqrOutputOf) =
+              .error reason) ⦄ := by
   obtain ⟨hrClone, _, _, _, _, _, hrSend, _⟩ := hra
   obtain ⟨hsClone, _, _, _, hsSend, _⟩ := hsa
   obtain ⟨hrelC, hrelQ⟩ := hrel
@@ -495,62 +491,31 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
         exact key_post
       · intro e' hcon; injection hcon
     · step*
-      have hspqNone := hr1Post.2 e1 rfl
-      rw [hsqEq, hrelQ] at hspqNone
-      simp only [hspqNone]
+      obtain ⟨modelReason, hreason, hspqDetailed⟩ := hr1Post.2 e1 rfl
+      rw [hsqEq, hrelQ] at hspqDetailed
+      have hclassDetailed := (Model.Ratchet.sendDetailed_ok_iff
+        m.classical (m1, mh, keyOf mk_ec)).2 hsendEq
       obtain ⟨_, hkbz2⟩ := hz mk_ec
       simp only [hkbz2]
       refine ⟨?_, ?_⟩
       · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov; trivial
+      · intro e' he'
+        injection he' with heq
+        subst e'
+        exact ⟨.postQuantum modelReason,
+          by simp [sendRefusalOfReal, hreason],
+          by simp [Model.Triple.sendDetailed, hclassDetailed, hspqDetailed]⟩
   · step*
-    -- One arm per `RatchetError` variant, in declaration order: `TooManySkipped`,
-    -- `SkippedStoreFull`, `NoSendingChain` (the one the model also refuses),
-    -- `NoReceivingChain`, `OutOfOrder`, `ChainExhausted`. Every arm but the third
-    -- is outside the failure clause, so it closes the same way.
-    rcases e with _ | _ | _ | _ | _ | _
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · have hnone := hrPost.2 rfl
-      rw [hscEq] at hnone
-      rw [hrelC] at hnone
-      simp only [hnone]
-      refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov; trivial
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
+    obtain ⟨modelReason, hreason, hclassDetailed⟩ := hrPost.2 e rfl
+    rw [hscEq, hrelC] at hclassDetailed
+    refine ⟨?_, ?_⟩
+    · intro hdr mk hcon; injection hcon
+    · intro e' he'
+      injection he' with heq
+      subst e'
+      exact ⟨.classical modelReason,
+        by simp [sendRefusalOfReal, hreason],
+        by simp [Model.Triple.sendDetailed, hclassDetailed]⟩
 
 /-! ## `receive` refines the model's -/
 
@@ -733,7 +698,7 @@ theorem spqr_init_refines (h : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
 /-- `RatchetAgreesFor`, proved. Every clause is `UnitT3.lean`'s theorem for that
 call, a field read, or `UnitTripleT1.lean`'s clone lemma, and the hypotheses are
 the boundary those take: `HmacAgrees`, `HkdfAgrees`, `ZeroizingRoundTrips`,
-`VecRemoveTotal` and `DerivedKeysModel` for the classical calls, and
+`RemoveSkippedAtTotal` and `DerivedKeysModel` for the classical calls, and
 `OptionCloneTotal` for `clone`. -/
 theorem ratchet_agrees_for (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
@@ -864,7 +829,7 @@ ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance.
 
 One cost is not collapsed. Each bundle covers its ratchet's whole calling surface,
 so `send_refines_discharged` assumes the boundary of the receive path as well
-(`VecRemoveTotal`, `DerivedKeysModel`, `RemoveSkippedAtAgrees`), which
+(`RemoveSkippedAtTotal`, `DerivedKeysModel`, `RemoveSkippedAtAgrees`), which
 its own proof never reaches. -/
 
 theorem send_refines_discharged
@@ -893,9 +858,9 @@ theorem send_refines_discharged
             = some (m', mh, key)
           ∧ StateRefines ratchetAbs spqrAbs r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            ∃ e', e = TripleError.PostQuantum e') →
-          Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ :=
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.Triple.sendDetailed m sending_epoch.val (output.map spqrOutputOf) =
+              .error reason) ⦄ :=
   send_refines (ratchet_agrees_for hopt hmac hkdf hzr hvr)
     (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf
     (fun a => hzs _ a) hrel sending_epoch output hroom hcb hsb hnewb hepoch hcounter
@@ -936,5 +901,167 @@ theorem receive_refines_discharged
     (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf
     (fun a => hzs _ a) hrel header mh hheader dh_out_recv dh_out_send new_dhs_pub output
     hone hs hevents hepoch hroom hcb hsb hnewb hskiproom hone2 hcounter
+
+/-! The eviction retry is entered for exactly two concrete receive refusals.
+Keep their partial conversion beside the Triple composition so a caller can
+derive both the detailed model result and its refusal mapping from one concrete
+`State.receive` result, rather than supplying either as a hypothesis. -/
+
+def receiveStoreFullRefusalOfReal : TripleError → Option Model.Triple.ReceiveRefusal
+  | .Classical .SkippedStoreFull => some (.classical .skippedStoreFull)
+  | .PostQuantum .SkippedStoreFull => some (.postQuantum .skippedStoreFull)
+  | _ => none
+
+set_option maxHeartbeats 2000000 in
+/-- The narrow receive-side converse needed by the lifecycle retry provider.
+Only the two absolute-store refusals are classified; all other concrete errors
+fall outside `receiveStoreFullRefusalOfReal`. -/
+theorem receive_store_full_refines_discharged
+    (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
+    [Tacenta.UnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
+    {s : State} {m : Model.Triple.State} (hrel : StateRefines ratchetAbs spqrAbs s m)
+    (header : Header) (mh : Model.State.Header) (hheader : RatchetHeaderR header.dr mh)
+    (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (hone : (m.classical.skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max m.classical.skipped.length Model.State.maxSkippedStore + Model.State.maxSkip ≤ Usize.max)
+    (hevents : m.classical.events + 1 < Std.U32.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : m.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains, p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : m.postQuantum.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (m.postQuantum.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max) :
+    State.receive s header dh_out_recv dh_out_send new_dhs_pub output ⦃ fun result =>
+      ∀ realReason modelReason,
+        result = core.result.Result.Err realReason →
+        receiveStoreFullRefusalOfReal realReason = some modelReason →
+        Model.Triple.receiveDetailed m
+          { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (keyOf dh_out_recv) (keyOf dh_out_send) (keyOf new_dhs_pub)
+          (output.map spqrOutputOf) = .error modelReason ⦄ := by
+  have hz : ZeroizeTotal := fun a => hzs _ a
+  -- Transport a model-side counter bound to the concrete sparse chain table.
+  have counter : ∀ q ∈ s.post_quantum.chains.val, ∀ ch : tacenta_spqr.Chain,
+      (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n.val < Std.U64.max := by
+    intro q hq ch hch
+    have hrelQ := hrel.2
+    rw [← hrelQ] at hcounter
+    exact hcounter (Tacenta.UnitSpqrT3.chainsEntryOf q)
+      (by simpa [spqrAbs] using (List.mem_map.2 ⟨q, hq, rfl⟩))
+      (Tacenta.UnitSpqrT3.chainOf ch)
+      (by rcases hch with hch | hch <;>
+          simp [Tacenta.UnitSpqrT3.chainsEntryOf,
+            Tacenta.UnitSpqrT3.chainsOf, hch])
+  obtain ⟨hrelC, hrelQ⟩ := hrel
+  unfold State.receive State.Insts.CoreCloneClone.clone
+  have hsc := Tacenta.UnitTripleT1.ratchet_state_clone_id hopt s.classical
+  have hsq := Tacenta.UnitTripleT1.spqr_state_clone_id s.post_quantum
+  simp only [hsc, hsq]
+  step*
+  rw [← hrelQ] at hepoch hroom hcb hsb hone2 hskiproom
+  rw [← hrelC] at hone hs hevents
+  obtain ⟨r, hr, hrPost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitT3.receive_refines hmac hkdf hzr hvr s.classical
+      (ratchetAbs s.classical) (ratchetAbs_stateR s.classical)
+      header.dr mh ⟨hheader.dh, hheader.pn, hheader.n⟩
+      dh_out_recv dh_out_send new_dhs_pub
+      (by rw [← Tacenta.UnitT3.matchesHeader_eta]; exact hone)
+      (by simpa [ratchetAbs, Tacenta.UnitT3.max_skipped_store_agrees,
+            Tacenta.UnitT3.max_skip_agrees] using hs)
+      hevents)
+  have hrFull := Tacenta.UnitT3.receive_store_full_refines hmac hkdf hzr hvr
+    s.classical (ratchetAbs s.classical) (ratchetAbs_stateR s.classical)
+    header.dr mh ⟨hheader.dh, hheader.pn, hheader.n⟩
+    dh_out_recv dh_out_send new_dhs_pub
+    (by rw [← Tacenta.UnitT3.matchesHeader_eta]; exact hone)
+    (by simpa [ratchetAbs, Tacenta.UnitT3.max_skipped_store_agrees,
+          Tacenta.UnitT3.max_skip_agrees] using hs)
+    hevents
+  rw [hr] at hrFull
+  simp only [hr]
+  step*
+  obtain ⟨r1, sr⟩ := r
+  rcases r1 with v | e
+  · step*
+    obtain ⟨m1, hrecvEq, hstateEq⟩ := hrPost v rfl
+    rw [hrelC] at hrecvEq
+    obtain ⟨r1', hr1, hr1Post⟩ := Std.WP.spec_imp_exists
+      (Tacenta.UnitSpqrT3.receive_refines hkdf hz96 hz64 hret hret_total hrm hzs hopt
+        (spqrAbs_refines s.post_quantum)
+        header.epoch output header.pq_n
+        hepoch (by simpa [spqrAbs] using hroom)
+        (fun p hp => hcb _ (List.mem_map.2 ⟨p, hp, rfl⟩))
+        (fun sk hsk => hsb _ (List.mem_map.2 ⟨sk, hsk, rfl⟩))
+        hnewb
+        (by simpa [spqrAbs, Tacenta.UnitSpqrT3.max_skip_agrees] using hskiproom)
+        hone2 counter)
+    have hr1Full := Tacenta.UnitSpqrT3.receive_store_full_refines
+      hkdf hz96 hz64 hret hret_total hrm hzs hopt
+      (spqrAbs_refines s.post_quantum)
+      header.epoch output header.pq_n
+      hepoch (by simpa [spqrAbs] using hroom)
+      (fun p hp => hcb _ (List.mem_map.2 ⟨p, hp, rfl⟩))
+      (fun sk hsk => hsb _ (List.mem_map.2 ⟨sk, hsk, rfl⟩))
+      hnewb
+      (by simpa [spqrAbs, Tacenta.UnitSpqrT3.max_skip_agrees] using hskiproom)
+      hone2 counter
+    rw [hr1] at hr1Full
+    simp only [hr1]
+    step*
+    obtain ⟨r1'', s1⟩ := r1'
+    rcases r1'' with v1 | e1
+    · step*
+      step with combine_refines hkdf v v1
+      obtain ⟨_, hkbz⟩ := hz v
+      obtain ⟨_, hkbz1⟩ := hz v1
+      simp only [hkbz, hkbz1]
+      intro realReason modelReason hresult
+      cases hresult
+    · step*
+      obtain ⟨_, hkbz2⟩ := hz v
+      simp only [hkbz2]
+      intro realReason modelReason hresult hmap
+      injection hresult with hreason
+      subst realReason
+      cases e1 <;> simp [receiveStoreFullRefusalOfReal] at hmap
+      subst modelReason
+      have hpqDetailed := hr1Full rfl
+      rw [hrelQ] at hpqDetailed
+      have hclassDetailed := (Model.Ratchet.receiveDetailed_ok_iff
+        m.classical mh (keyOf dh_out_recv) (keyOf dh_out_send)
+          (keyOf new_dhs_pub) (m1, keyOf v)).2 hrecvEq
+      exact (Model.Triple.receiveDetailed_post_quantum_iff m
+        { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+        (keyOf dh_out_recv) (keyOf dh_out_send) (keyOf new_dhs_pub)
+        (output.map spqrOutputOf) .skippedStoreFull).2
+          ⟨m1, keyOf v, hclassDetailed, hpqDetailed⟩
+  · step*
+    intro realReason modelReason hresult hmap
+    injection hresult with hreason
+    subst realReason
+    cases e <;> simp [receiveStoreFullRefusalOfReal] at hmap
+    subst modelReason
+    have hclassDetailed := hrFull rfl
+    rw [hrelC] at hclassDetailed
+    exact (Model.Triple.receiveDetailed_classical_iff m
+      { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+      (keyOf dh_out_recv) (keyOf dh_out_send) (keyOf new_dhs_pub)
+      (output.map spqrOutputOf) .skippedStoreFull).2 hclassDetailed
+
 
 end Tacenta.UnitTripleT3

@@ -6,11 +6,20 @@ files are the ones its manifest lists with the digests it gives, the sources
 and documents this checkout expects are all there, the manifest and the
 receipts name the same candidate and agree with each other, and the receipts
 record success for the command steps the workflow runs (from
-`tooling/required-steps.json`). It does not show that the candidate commit
-exists, that the packed sources are the candidate's files, or that the receipts
-were produced by a run of the workflow: a pack is internally consistent, not
-authentic. Verify a pack with the tooling of the commit that built it, since
-the expected lists come from the checkout that runs the verifier.
+`tooling/required-steps.json`). On its own that shows a pack is internally
+consistent, not authentic: it does not show that the candidate commit exists,
+that the packed sources are the candidate's files, or that the receipts were
+produced by a run of the workflow. Verify a pack with the tooling of the commit
+that built it, since the expected lists come from the checkout that runs the
+verifier.
+
+`--verify PACK --candidate-repo REPO` adds the part git can answer from public
+inputs alone: the candidate commit is in REPO, its tree is the pack's tree,
+every file the pack carries under `source/` is byte-identical to that path at
+that commit, and the manifest names the generator that commit holds. It still
+does not show that the receipts came from a run of the workflow: they are the
+one input a checkout cannot supply (`tooling/reproduce-evidence.py` rebuilds
+the manifest and the pack from them, and says so).
 """
 from __future__ import annotations
 
@@ -18,6 +27,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -44,6 +54,10 @@ EXTRA = [
     "tacenta-test-vectors/traces/session-operation-trace.json",
     "tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md",
     "tooling/required-steps.json",
+    # The workflow the receipts come from and the receipt action it uses, so that a
+    # reader sees them beside `tooling/required-steps.json`, the expected form the
+    # receipts were checked against.
+    ".github/workflows/ci.yml", ".github/actions/assurance-receipt/action.yml",
 ]
 
 
@@ -114,12 +128,46 @@ def build(manifest_path: Path, receipts_path: Path, output: Path) -> None:
     print(f"evidence pack: wrote {len(entries)} files to {output}")
 
 
-def verify(root: Path) -> None:
+GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}")
+
+
+def git_output(repo: Path, *args: str) -> bytes | None:
+    """The standard output of a git command in `repo`, or None if it fails."""
+    completed = subprocess.run(["git", "-C", str(repo), *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def authenticate(root: Path, repo: Path) -> None:
+    """Check the pack against the git history of `repo`, which must already have passed `verify`."""
+    pack = load(root / "PACK-MANIFEST.json")
+    candidate = pack["candidate"]
+    if git_output(repo, "cat-file", "-e", candidate["commit"] + "^{commit}") is None:
+        fail(f"candidate commit {candidate['commit']} is not in the repository {repo}")
+    tree = git_output(repo, "rev-parse", candidate["commit"] + "^{tree}")
+    if tree is None or tree.decode().strip() != candidate["tree"]:
+        fail("pack candidate tree is not the tree of the candidate commit")
+    for entry in pack["files"]:
+        if not entry["path"].startswith("source/"):
+            continue
+        relative = entry["path"][len("source/"):]
+        committed = git_output(repo, "cat-file", "blob", f"{candidate['commit']}:{relative}")
+        if committed is None:
+            fail(f"packed source is not a file of the candidate commit: {relative}")
+        if committed != (root / entry["path"]).read_bytes():
+            fail(f"packed source differs from the candidate commit: {relative}")
+    generator = git_output(repo, "cat-file", "blob", candidate["commit"] + ":tooling/build-assurance-manifest.py")
+    manifest = load(root / "assurance-manifest.json")
+    if generator is None or hashlib.sha256(generator).hexdigest() != manifest["identity"].get("generator_sha256"):
+        fail("packed manifest names a generator that is not the candidate commit's")
+
+
+def verify(root: Path, repo: Path | None = None) -> None:
     pack = load(root / "PACK-MANIFEST.json")
     if pack.get("schema_version") != 1 or not isinstance(pack.get("files"), list):
         fail("invalid pack manifest")
     candidate = pack.get("candidate")
-    if not isinstance(candidate, dict) or not all(isinstance(candidate.get(field), str) and candidate[field] for field in ("commit", "tree")):
+    if not isinstance(candidate, dict) or not all(
+            isinstance(candidate.get(field), str) and GIT_OBJECT_ID.fullmatch(candidate[field]) for field in ("commit", "tree")):
         fail("pack manifest has invalid candidate")
     seen = set()
     for entry in pack["files"]:
@@ -201,8 +249,11 @@ def verify(root: Path) -> None:
         if not packed.is_file() or packed.stat().st_size != item["bytes"] \
                 or digest(packed) != item["sha256"]:
             fail(f"packed source evidence does not match its manifest entry: {relative}")
+    if repo is not None:
+        authenticate(root, repo)
     print(f"evidence pack: {root} verified ({len(pack['files'])} files; the expected paths are present, "
-          "the digests match and the receipts record success for every command step)")
+          "the digests match and the receipts record success for every command step"
+          + ("; every packed source is the candidate commit's file" if repo is not None else "") + ")")
 
 
 def main() -> int:
@@ -211,13 +262,16 @@ def main() -> int:
     parser.add_argument("--receipts", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--verify", type=Path)
+    parser.add_argument("--candidate-repo", type=Path)
     args = parser.parse_args()
     try:
         if args.verify:
             if args.manifest or args.receipts or args.output:
                 fail("--verify cannot be combined with build arguments")
-            verify(args.verify)
+            verify(args.verify, args.candidate_repo)
         else:
+            if args.candidate_repo:
+                fail("--candidate-repo is only for --verify")
             if not (args.manifest and args.receipts and args.output):
                 fail("--manifest, --receipts and --output are required")
             build(args.manifest, args.receipts, args.output)

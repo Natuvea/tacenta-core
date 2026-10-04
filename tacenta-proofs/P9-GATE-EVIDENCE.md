@@ -50,8 +50,8 @@ mistaken for a control.
 | --- | --- | --- | --- |
 | `tooling/check-traceability.py` | Requirement, status, assumption and evidence-index references stay coherent. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 24 focused refusals (its last line prints 22, a fixed string), including missing requirement metadata, status-table title/class drift, both assumption-inverse directions, unknown `LIM`/`ADV`/`AS`/`EX` references, and invariant-catalogue faults. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-workflows.sh` | Workflows parse, retain repository security rules, and the required workflow equals its expected form in `tooling/required-steps.json`. | The case files in `tooling/tests/check-workflows-cases` (the runner prints their number) and the runner's changes to the repository's own `ci.yml` are the current negative corpus. The gate reads the tree it checks, so a change that edits the workflow, the expected form and the checker together is judged by its own edit. | Capture its command, platform and successful diagnostic-free result at the candidate. |
-| `tooling/check-precondition-shapes.py` | First-party Lean does not gain a listed vacuous numeric precondition shape. | The 71 case directories in `tooling/tests/check-precondition-shapes-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
-| `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal, an unregistered-domain refusal and a forbidden-prefix refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
+| `tooling/check-precondition-shapes.py` | First-party Lean does not gain a listed vacuous numeric precondition shape. | The 72 case directories (the last, an unterminated string literal, added on 2026-10-01 after a guard-removal run found no case needed that guard) in `tooling/tests/check-precondition-shapes-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
+| `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal, an unregistered-domain refusal, a forbidden-prefix refusal and a duplicate-label refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-vectors.py` | Vector documents obey their schemas. | `tooling/tests/run-check-vectors-cases.sh` runs a valid baseline and seven refusals (an unexpected field, a duplicate ID, an unsupported schema keyword and four prekey-store migration rules) against the production checker, and for the hosted-inventory group files a valid baseline and four refusals. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | Independent operation reader | The specification-only reader can interpret the committed P6 operation surface it declares. | Jie Sun's v4 record covers 27 traces/41 steps across all nine families. Its five controls reject a wrong durable effect, missing required inputs, an accepted duplicate and malformed-bundle pending state. | Retain the v4 clean-room record, reader/corpus hashes, command, platform and full output at the candidate; any changed operation corpus needs a new isolated run. |
 | Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `check-audit-negatives.sh` exercises the audit's accepted compiler-trust orphan and 12 refusal cases. `check-attest-negatives.sh` accepts the unmodified tree, then refuses a missing claimed theorem, a missing verification manifest, a stale source attestation, an edited generated translation, and generated axioms that differ from the allowlist or from the audit's list, matching each diagnostic. | Capture their command, platform and successful diagnostic-free result at the candidate. |
@@ -64,21 +64,53 @@ candidate.  Its record must contain all of the following:
 
 - reviewer identity and independence from the ledger author;
 - candidate commit and pull request URL;
-- `CLAIMS.md`, `LIMITATIONS.md`, manifests, requirement evidence index,
-  `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`, `GAP-REGISTER.md`, and applicable
-  target decisions read;
-- one finding and disposition for each claim, including its stated assumptions,
-  theorem symbol/file, scope and limitation; and
+- `CLAIMS.md`, `LIMITATIONS.md`, `verification-manifest.json`,
+  `evidence-index.json`, `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`,
+  `GAP-REGISTER.md`, `P6-L2-TARGET-DECISION.md` and
+  `PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md` read;
+  `ERASURE-CODEC-TARGET-DECISION.md` is not required and is not in the pack;
+- one finding and disposition for each `##` section of `CLAIMS.md` and for the
+  introduction before the first section, covering the stated assumptions,
+  theorem symbol and file, scope and limitation of every claim in it; the receipt
+  has one entry per section, so a claim that differs from the rest of its section
+  is named in that entry's finding; and
 - the exact local and hosted check results the reviewer relied on.
 
 The recorded review is evidence of the review only.  It does not replace the
 mutation evidence required by gate 4.
 
-`tooling/check-ledger-review-receipt.py` validates the receipt's structure and
-binding to the evidence-pack manifest. It cannot establish reviewer
-independence or semantic adequacy, which remain human-review findings.
-`tooling/validate-reviewed-evidence.py` additionally verifies that the review
-receipt, evidence pack and assurance manifest bind the same clean candidate.
+The receipt has no field for the pull request URL or for the local and hosted
+check results the reviewer relied on, and the checker does not look for them; the
+final pull request records both.
+
+`tooling/check-ledger-review-receipt.py` validates the receipt (schema 2). A
+schema 1 receipt is refused by this checker and is checked by the checker of the
+commit it was written for. A schema 2 receipt of the same ledger needs
+`section_sha256` on every entry and an entry for the introduction. The checker
+checks the receipt's binding to the evidence-pack manifest, that each of the nine
+file names in `REQUIRED_ARTIFACTS` appears in the list of artifacts read, that
+every `##` section of the pack's copy of `CLAIMS.md`, and the introduction before
+the first one, has exactly one disposition, that every disposition carries finding
+text, and that each disposition carries the SHA-256 of the section text it was
+given on, so a later edit to a section no longer matches. With
+`--require-no-findings` it refuses a receipt that records a `finding`. It cannot
+establish reviewer independence, that the reviewer read what the receipt names, or
+semantic adequacy, which remain human-review findings.
+`tooling/ledger-review-sections.py` lists the sections, writes a receipt template
+with the references and digests filled in and every decision left as a
+placeholder, and with `--since` reports which sections differ from an earlier
+pack, receipt or `CLAIMS.md`. The maintainer decided on 2026-10-01 that the
+reviewer reads every changed or new section and may carry the disposition of a
+byte-identical section forward on a basis stated in `cross_cutting_notes`; the
+reviewer also checks the `LIMITATIONS.md` entries and the theorems that each
+carried section cites, because identical text can stand over changed proofs.
+Gate 3 says any later ledger change reopens the review, and the basis for each
+carried section is part of what the reviewer records. The introduction before
+the first section is a section that needs a disposition.
+`tooling/validate-reviewed-evidence.py`, run from the candidate's checkout,
+additionally verifies that the review receipt (with no finding), the evidence pack
+(against that checkout's git history) and the assurance manifest bind the same
+clean candidate.
 
 ## Claims and attestation control record
 
@@ -92,7 +124,11 @@ reason, rather than merely to a nonzero exit.
 
 `bash tacenta-proofs/scripts/check-attest-negatives.sh` makes a detached
 worktree, resets it between cases, and runs the production attestation script
-in it.  It first requires that the unmodified tree is accepted.  It then
+in it.  By default it runs its cases in shards, one per CPU and at most 16,
+each with its own worktree; the parent accepts the run only if every shard
+exited cleanly and the shards together ran each case once, and prints the same
+final line as the single run (`ATTEST_NEGATIVES_JOBS=1`).  It first requires
+that the unmodified tree is accepted, in every shard's worktree.  It then
 requires these fault classes, each with its own diagnostic: a ledger theorem
 not declared by Lean, a missing generated verification manifest, a stale
 source-commit attestation, a generated translation whose bytes or assembly
@@ -105,6 +141,53 @@ The runner matches the corresponding diagnostic, so a failure elsewhere cannot
 satisfy a case.  What none of this shows: that the allowlist was reviewed, that
 the type text is the type the elaborator gave the axiom, or that the toolchain
 was run.
+
+## Reproducing a candidate from public inputs
+
+A third party needs a clone of the public repository, the candidate's
+`assurance-receipts.json` and the pack or the hosted artifact. Nothing private is
+read.
+
+```sh
+python3 tooling/build-evidence-pack.py --verify PACK --candidate-repo CLONE
+python3 tooling/reproduce-evidence.py --pack PACK --hosted HOSTED --repo CLONE
+```
+
+The first checks the pack against its own digests and against git: the candidate
+commit is in the clone, the pack's tree is that commit's tree, every file under
+`source/` is byte-identical to that path at that commit, and the manifest names
+that commit's generator. The second checks the candidate out in a throwaway
+worktree, runs that commit's own manifest and pack builders on the receipts, and
+requires the rebuilt manifest and pack to equal the given ones byte for byte; that
+runs Python from the candidate commit, so use it only on a commit you would run the
+repository's other scripts from. `HOSTED` is the directory holding the two files the `assurance-receipts` job
+uploads; with `--hosted` alone only the manifest is rebuilt. What neither shows:
+that the receipts were produced by a hosted run of the workflow (that is checked
+against the run itself), that a reviewer was independent, or that a source file
+says something true.
+
+## Commands, in order
+
+From a clean checkout of the frozen candidate (`git status --short` empty), with
+the receipts and manifest the hosted `assurance-receipts` job produced for that
+exact commit in `HOSTED`:
+
+```sh
+python3 tooling/build-evidence-pack.py --manifest HOSTED/assurance-manifest.json \
+  --receipts HOSTED/assurance-receipts.json --output PACK
+python3 tooling/reproduce-evidence.py --pack PACK --hosted HOSTED
+python3 tooling/ledger-review-sections.py --pack PACK --template RECEIPT.json   # add --since EARLIER_PACK to scope a re-review
+# the reviewer fills RECEIPT.json in, then:
+python3 tooling/validate-reviewed-evidence.py --manifest HOSTED/assurance-manifest.json --pack PACK --receipt RECEIPT.json
+python3 tooling/publish-evidence-archive.py --pack PACK --dry-run
+python3 tooling/publish-evidence-archive.py --pack PACK --receipt PUBLICATION-RECEIPT.json
+```
+
+After publication, download the release assets into a new directory and run
+`python3 tooling/build-evidence-pack.py --verify DOWNLOAD --candidate-repo CLONE` and
+`python3 tooling/reproduce-evidence.py --pack DOWNLOAD --repo CLONE` there. Run
+them with the tooling of the commit that built the pack, since the expected
+lists come from the checkout that runs the verifier.
 
 ## Finalization checklist
 
@@ -125,9 +208,14 @@ Object-Lock metadata in the publication receipt, then download and run
 `python3 tooling/build-evidence-pack.py --verify` on the downloaded pack.
 `tooling/publish-evidence-archive.py --pack PACK --dry-run` derives and prints
 that prefix; without `--dry-run` it uploads only verified pack files and sends
-S3 `If-None-Match: *` so an existing object key is refused. Publication
-requires an unused `--receipt` path and records every object key, version ID
-and Compliance retain-until timestamp.
+S3 `If-None-Match: *` so an existing object key is refused. It refuses a pack
+that does not verify or whose sources are not the candidate commit's files
+(`--candidate-repo`, this checkout by default) before it uploads anything, and it
+uploads `PACK-MANIFEST.json` last. Publication requires an unused `--receipt` path
+and records every object key, version ID and Compliance retain-until timestamp.
+A run cut short leaves objects that cannot be deleted under Compliance retention
+and that a retry cannot complete, because the retry is refused at the first key
+that exists; the prefix then holds no `PACK-MANIFEST.json`.
 
 The initialization control uploaded
 `controls/initialization/object-lock-20260915T151835Z.txt`, version

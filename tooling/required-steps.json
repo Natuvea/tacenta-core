@@ -247,12 +247,16 @@
               "run": "cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py"
             },
             {
+              "id": "vectors_differential_cases",
+              "run": "bash ../../../tooling/tests/run-differential-required-input-cases.sh"
+            },
+            {
               "uses": "./.github/actions/assurance-receipt",
               "with": {
                 "id": "vectors",
                 "classification": "required",
                 "command": "conformance-and-independent-readers",
-                "required-outcomes": "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+                "required-outcomes": "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }},vectors_differential_cases=${{ steps.vectors_differential_cases.outcome }}"
               }
             }
           ]
@@ -326,7 +330,11 @@
             },
             {
               "id": "proofs_vectors",
-              "run": "bash tacenta-test-vectors/regenerate-vectors.sh\nvector_status=\"$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)\"\nif [ -n \"$vector_status\" ]; then\n  printf '%s\\n' \"$vector_status\" >&2\n  exit 1\nfi\n"
+              "run": "bash tooling/check-vectors-current.sh"
+            },
+            {
+              "id": "proofs_vectors_control",
+              "run": "bash tooling/tests/run-check-vectors-current-cases.sh"
             },
             {
               "uses": "./.github/actions/assurance-receipt",
@@ -334,7 +342,7 @@
                 "id": "proofs",
                 "classification": "required",
                 "command": "model-proofs-and-vector-currency",
-                "required-outcomes": "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }}"
+                "required-outcomes": "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }},proofs_vectors_control=${{ steps.proofs_vectors_control.outcome }}"
               }
             }
           ]
@@ -590,7 +598,7 @@
             },
             {
               "id": "checks_41",
-              "run": "python3 tooling/check-session-transaction-mutations.py"
+              "run": "bash tooling/tests/run-gate-controls.sh"
             },
             {
               "id": "checks_39",
@@ -699,12 +707,30 @@
               "run": "python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json"
             },
             {
+              "run": "python3 tooling/build-evidence-pack.py --manifest .assurance/assurance-manifest.json --receipts .assurance/assurance-receipts.json --output .assurance/evidence-pack"
+            },
+            {
+              "run": "python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack --candidate-repo ."
+            },
+            {
+              "run": "python3 tooling/reproduce-evidence.py --pack .assurance/evidence-pack --hosted .assurance"
+            },
+            {
               "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
               "with": {
                 "name": "assurance-receipts",
                 "path": ".assurance/assurance-receipts.json\n.assurance/assurance-manifest.json\n",
                 "if-no-files-found": "error",
-                "retention-days": 7
+                "retention-days": 90
+              }
+            },
+            {
+              "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "with": {
+                "name": "evidence-pack",
+                "path": ".assurance/evidence-pack",
+                "if-no-files-found": "error",
+                "retention-days": 90
               }
             }
           ]

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,8 @@ from pathlib import Path
 from assurance_validation import ALLOWED_STATUSES, REQUIRED_CHECKS, validate_receipts
 
 ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY = "Natuvea/tacenta-core"
+GENERATOR = "tooling/build-assurance-manifest.py"
 SOURCES = [
     "ASSURANCE.md", "ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md",
     "tacenta-proofs/CLAIMS.md", "tacenta-proofs/LIMITATIONS.md",
@@ -50,7 +53,11 @@ def git(*args: str) -> str:
 
 def working_tree_dirty() -> list[str]:
     """Return dirty paths outside the ephemeral receipt workspace."""
-    status = git("status", "--porcelain=v1", "--untracked-files=all", "--ignored=matching")
+    # Not through git(): that strips the output, and with it the leading space
+    # of a first line like " M path", which would cut the first character off
+    # the path this reports.
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=matching"], cwd=ROOT, text=True)
     dirty: list[str] = []
     for line in status.splitlines():
         # CI downloads and writes receipts below this ignored runtime directory.
@@ -99,17 +106,24 @@ def build(receipts_path: Path, allow_dirty: bool) -> dict:
     return {
         "schema_version": 1,
         "identity": {
-            "repository": "Natuvea/tacenta-core",
+            "repository": REPOSITORY,
             "source_commit": commit,
             "source_tree": tree,
             "clean_tree": not dirty,
-            "generator": "tooling/build-assurance-manifest.py",
+            "generator": GENERATOR,
             "generator_sha256": sha256(generator),
         },
         "sources": source_inputs,
         "checks": checks,
-        "review_requirements": [{"type": "independent-ledger-review", "status": "pending"}],
+        "review_requirements": [dict(item) for item in REVIEW_REQUIREMENTS],
     }
+
+
+MANIFEST_FIELDS = {"schema_version", "identity", "sources", "checks", "review_requirements"}
+IDENTITY_FIELDS = {"repository", "source_commit", "source_tree", "clean_tree", "generator", "generator_sha256"}
+SOURCE_FIELDS = {"path", "sha256", "bytes"}
+REVIEW_REQUIREMENTS = [{"type": "independent-ledger-review", "status": "pending"}]
+GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}")
 
 
 def validate(path: Path) -> None:
@@ -117,13 +131,27 @@ def validate(path: Path) -> None:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         fail(f"cannot read manifest: {exc}")
+    if not isinstance(data, dict):
+        fail("manifest must be an object")
     if data.get("schema_version") != 1:
         fail("manifest schema_version must be 1")
+    # The committed schema says additionalProperties is false; a field nobody
+    # reviewed is refused rather than carried along.
+    if set(data) != MANIFEST_FIELDS:
+        fail("manifest fields are not exactly: " + ", ".join(sorted(MANIFEST_FIELDS)))
     identity = data.get("identity")
     if not isinstance(identity, dict) or identity.get("clean_tree") is not True:
         fail("manifest does not assert a clean source tree")
+    if set(identity) != IDENTITY_FIELDS:
+        fail("manifest identity fields are not exactly: " + ", ".join(sorted(IDENTITY_FIELDS)))
+    if identity["repository"] != REPOSITORY:
+        fail("manifest names a repository other than " + REPOSITORY)
+    if not all(isinstance(identity[key], str) and GIT_OBJECT_ID.fullmatch(identity[key]) for key in ("source_commit", "source_tree")):
+        fail("manifest candidate commit/tree is not a full git object id")
     if identity.get("source_commit") != git("rev-parse", "HEAD") or identity.get("source_tree") != git("rev-parse", "HEAD^{tree}"):
         fail("manifest candidate commit/tree does not match selected source")
+    if identity["generator"] != GENERATOR or identity["generator_sha256"] != sha256(Path(__file__)):
+        fail("manifest was not produced by this checkout's generator")
     sources = data.get("sources")
     expected_sources = set(SOURCES)
     source_paths = [item.get("path") if isinstance(item, dict) else None for item in sources] if isinstance(sources, list) else []
@@ -133,7 +161,7 @@ def validate(path: Path) -> None:
         if not isinstance(source, dict) or not isinstance(source.get("path"), str):
             fail("manifest has invalid source entry")
         path = ROOT / source["path"]
-        if not isinstance(source.get("sha256"), str) or not isinstance(source.get("bytes"), int):
+        if not isinstance(source.get("sha256"), str) or not isinstance(source.get("bytes"), int) or set(source) != SOURCE_FIELDS:
             fail(f"manifest source entry is incomplete: {source.get('path')}")
         if not path.is_file() or path.stat().st_size != source["bytes"] or sha256(path) != source["sha256"]:
             fail(f"manifest source digest mismatch: {source.get('path')}")
@@ -144,9 +172,10 @@ def validate(path: Path) -> None:
         }, "checks": checks}, identity["source_commit"], identity["source_tree"])
     except ValueError as exc:
         fail("manifest checks are not a complete passing receipt set: " + str(exc))
-    reviews = data.get("review_requirements")
-    if not isinstance(reviews, list) or not reviews or reviews[0].get("status") != "pending":
-        fail("manifest must retain a pending independent review requirement")
+    # Exactly the one pending requirement: a second entry, or a different first
+    # one, could carry a review state nobody recorded.
+    if data.get("review_requirements") != REVIEW_REQUIREMENTS:
+        fail("manifest must retain exactly one pending independent review requirement")
 
 
 def main() -> int:

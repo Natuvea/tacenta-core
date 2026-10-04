@@ -26,4 +26,16 @@ if python3 "$here/check-lifecycle-translation-coverage.py" "$mutant" >"$work/out
   exit 1
 fi
 grep -q "missing generated public lifecycle operation: lifecycle.Identity.generate" "$work/out"
-echo "lifecycle-translation-coverage-negatives: missing-root mutation refused"
+# The gate needs its input: with no argument, or with a path that is not a file, it must refuse (exit 2) and
+# say how it is used, and not pass for a coverage check it did not make.
+for args in "" "$work/no-such-file.lean"; do
+  set +e
+  python3 "$here/check-lifecycle-translation-coverage.py" $args >"$work/usage-out" 2>&1
+  rc=$?
+  set -e
+  if [ "$rc" -ne 2 ] || ! grep -q "usage: check-lifecycle-translation-coverage.py" "$work/usage-out"; then
+    echo "::error::lifecycle coverage gate did not refuse a missing input (exit $rc)" >&2
+    exit 1
+  fi
+done
+echo "lifecycle-translation-coverage-negatives: missing-root mutation refused; a missing input refused"

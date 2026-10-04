@@ -3,10 +3,60 @@ import Translation.UnitLifecycleInitialDispatch
 /-!
 # Remaining dispatch evidence audits
 
-This module retains the non-obsolete audits for the dispatch contracts. The former
-`InitialSameEphemeralEvidence` audit is intentionally absent: the dispatch proof now
-requires decoded-message evidence and uses `InitialAgreementEquivalentEphemeralEvidence`
-instead. The remaining audits below are still useful until their contracts are replaced.
+`UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean` state the refinement lemmas for the
+eight-leaf session unit's `encrypt` and `decrypt` as conditional on hypotheses and on evidence
+records. A theorem whose hypothesis nothing satisfies is true and says nothing, and `#print axioms`
+does not show it. This module proves that five of those hypotheses and records are false or empty,
+each under the conditions stated below (results A to D), and says what one clause of the oracle
+record costs inside the model (result E). The results are about hypotheses. None is a statement
+about the product.
+
+* **A.** `InitialSameEphemeralEvidence` is false for every `dh`, `oracle`, `real` and `model`
+  (`initialSameEphemeralEvidence_false`). It asks the translated `same_ephemeral_agreement` to
+  return `true` on every pair of equal byte strings, and it returns `false` on the two empty ones.
+  The proof uses no hypothesis and no law.
+* **B.** `CodewordViewOf` is false for every view whenever `Encoder::new` returns on two messages
+  of one length `n` of at least 33 bytes that agree on their first 32 bytes and differ at byte 32
+  (`codewordViewOf_false`). So it is false given `EncoderNewTotal`, a field of the encrypt contract
+  records that `UnitSatisfiabilityErasure.encoderNew_iff` shows equivalent to the law `DivCeil32`,
+  that `usize::div_ceil` returns at divisor 32 (`codewordViewOf_false_of_encoderNewTotal`, at
+  `n = 33`). Its `receive` clause makes the source a function of the codeword, and the two messages
+  share their codeword at index 0.
+* **C.** `InitialRatchetBraidEvidenceContracts` has no term when the model Braid, with its epoch
+  below 2^64, is in one of the six state and message-type pairs for which `Model.Braid.receive`
+  feeds a chunk to an existing decoder, and that decoder holds a chunk
+  (`record_empty_of_nonempty_decoder` and its six instances). The model Braid reaches the first of
+  them in one receive step, from `keysSampled` on a ct1 chunk
+  (`keysSampled_receive_ct1_holds_chunk`). The record quantifies over every incoming chunk, and two
+  chunks that differ at index 0 cannot both be codewords of the one source the held chunk carries.
+* **D.** `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` force the
+  oracle's `dhPublic` to be constant (the two `forces_constant_dhPublic` results). With the DH codec
+  and the oracle's `dhPublic` clause that contradicts `PublicKeyNotConstant`, a statement about the
+  real X25519 public-key function that this repository tests and does not prove (the two
+  `false_of_publicKeyNotConstant` results).
+* **E.** The KEM success clause `OracleOf` had before it was restated, kept as
+  `KemEncapsulateUnguarded`, makes the model's KEM oracle accept every public key at every draw
+  that a trace has, and the translated `encapsulate` never return `Err` while the trace has a draw
+  (`oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`). This is not a refutation:
+  `encapsulate` is an opaque constant, and that the shipped function returns `Err` on a malformed
+  key is read from `tacenta-core/boundary/src/kem.rs` and tested for a wrong length
+  (`GAP-REGISTER.md`, row `E2E-04`). `OracleOf` no longer has that clause.
+
+The records of results A and C and the old KEM field of result E are no longer taken by any
+theorem; each is kept unchanged, with a doc comment naming its replacement, so that the results
+here still elaborate as stated.
+
+**Platform width.** No result case-splits on the width of `usize`, and none uses a fact about
+`Usize.max` other than the bounds Aeneas proves for the platform constant, which is `U32.max` or
+`U64.max` (`Usize.bounds_eq`). `System.Platform.numBits` is an opaque constant of the kernel whose
+value is 32 or 64, so a proof that does not choose between the two holds for both.
+
+**What these results do not show.** They do not show that the product is wrong; each says that an
+assumption of a Lean theorem is not met. They do not decide `InitialRatchetBraidEvidenceContracts`
+for states whose decoder is empty or that are outside the six. Result D rests on
+`PublicKeyNotConstant`, which no theorem here proves. They repair nothing: the theorems that take
+these hypotheses are listed in `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, which also says
+what closes the row.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -824,8 +874,120 @@ theorem aeadConcreteEvidence_false_of_publicKeyNotConstant
 end ConcreteEvidence
 
 
+/-! ## E. What the unguarded KEM success clause cost inside the model
+
+Before the KEM repair, `OracleOf.kemEncapsulateSuccess` asserted, for every public key and every RNG
+state that still has a draw, that the translated `encapsulate` returns `Ok` with the oracle's
+result. The shipped function returns `Err(KemError)` for a wrong length or a failed
+`validate_public_key` before it draws (`tacenta-core/boundary/src/kem.rs`). `OracleOf` now asks for
+success only where the model's `kemEncaps` returns `some`, and adds a pre-draw refusal clause
+(`kemInvalidKey`) and a converse (`kemEncapsulateError`), so the two theorems below are stated of
+`KemEncapsulateUnguarded`, the old field kept as a definition that no consumer takes. They show
+what the old field asserted inside the model: the model's oracle never refuses an encapsulation
+key at any draw, and the call never returns `Err` while the trace has a draw.
+`UnitLifecycleIntegrationScreen.lean` shows the restated clauses follow from three laws about the
+shipped function that a model with a refused key satisfies. The restated success clause binds the
+code only where the model's `kemEncaps` returns `some`, so an oracle that never encapsulates also
+meets it. -/
+
+/-- The `kemEncapsulateSuccess` field of `OracleOf` before the KEM clauses were restated, unchanged: success
+for every public key at every draw. No consumer takes it. -/
+def KemEncapsulateUnguarded {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle) : Prop :=
+  ∀ publicKey rng draw rest, trace rng = draw :: rest →
+    ∃ result rng',
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+        ok (.Ok result, rng') ∧
+      trace rng' = rest ∧
+      encapsulationOf (.Ok result) = oracle.kemEncaps (sliceOf publicKey) draw
+
+/-- The unguarded clause makes the model's oracle never refuse an encapsulation key at any draw. -/
+theorem oracleOf_kem_oracle_never_refuses
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key}
+    {oracle : Model.Lifecycle.Oracle}
+    (kemClause : KemEncapsulateUnguarded rc crc trace oracle)
+    (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
+    (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) :
+    ∃ r, oracle.kemEncaps (sliceOf publicKey) draw = some r := by
+  obtain ⟨result, rng', _, _, hres⟩ := kemClause publicKey rng draw rest h
+  exact ⟨_, hres.symm⟩
+
+/-- And under it the boundary call itself never returns `Err` while the RNG has a draw. -/
+theorem oracleOf_kem_call_never_errs
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key}
+    {oracle : Model.Lifecycle.Oracle}
+    (kemClause : KemEncapsulateUnguarded rc crc trace oracle)
+    (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
+    (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest)
+    (rng' : R) (error : tacenta_boundary.kem.KemError) :
+    tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (.Err error, rng') := by
+  intro hcall
+  obtain ⟨result, rng'', hok, _, _⟩ := kemClause publicKey rng draw rest h
+  rw [hcall] at hok
+  have := Result.ok.inj hok
+  have := (Prod.mk.inj this).1
+  cases this
+
+
+end KemOracle
 
 end Tacenta.DispatchEvidenceVacuity
+
+/-! ## Pins
+
+The axiom bases of the claimed results, and the statements of the refutations, held by the build.
+The axiom lists name constants that occur in the statements of the results (the translated
+operations the hypotheses are about), not assumptions the proofs make; the results that need no
+constant list the three standard axioms only. The statement pins fix what each result says: a
+weaker hypothesis list or a different conclusion fails the build here, and an axiom pin alone
+would not notice it. `attest.py` lists the axiom pins in `REQUIRED_PINS` and the statement pins in
+`REQUIRED_STATEMENT_PINS`, so deleting one fails it. -/
+
+/--
+info: 'Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
+
+/--
+info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
+  (p : tacenta_session_unit.tacenta_boundary.dh.PrivateKey) :
+  tacenta_session_unit.lifecycle.same_ephemeral_agreement p ⟨[], ⋯⟩ ⟨[], ⋯⟩ = ok false
+-/
+#guard_msgs in
+#check Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
+
+/--
+info: 'Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false
+
+/--
+info: Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false (dh : Tacenta.UnitLifecycleT3.DhView)
+  (oracle : Model.Lifecycle.Oracle) (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session) :
+  ¬Tacenta.UnitLifecycleT3.InitialSameEphemeralEvidence dh oracle real model
+-/
+#guard_msgs in
+#check Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false
+
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.codewordViewOf_false' depends on axioms: [propext,
  Classical.choice,
@@ -1559,3 +1721,46 @@ info: Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNot
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNotConstant
+
+/--
+info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate]
+-/
+#guard_msgs in
+#print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
+
+/--
+info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
+  (kemClause : Tacenta.DispatchEvidenceVacuity.KemEncapsulateUnguarded rc crc trace oracle) (publicKey : Slice U8)
+  (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) :
+  ∃ r, oracle.kemEncaps (Tacenta.UnitLifecycleT3.sliceOf publicKey) draw = some r
+-/
+#guard_msgs in
+#check Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
+
+/--
+info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate]
+-/
+#guard_msgs in
+#print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs
+
+/--
+info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
+  (kemClause : Tacenta.DispatchEvidenceVacuity.KemEncapsulateUnguarded rc crc trace oracle) (publicKey : Slice U8)
+  (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) (rng' : R)
+  (error : tacenta_session_unit.tacenta_boundary.kem.KemError) :
+  tacenta_session_unit.tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (core.result.Result.Err error, rng')
+-/
+#guard_msgs in
+#check Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs

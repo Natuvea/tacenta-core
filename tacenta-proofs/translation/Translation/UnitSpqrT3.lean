@@ -31,14 +31,18 @@ calls this file assumes anything *about the value of* are `hkdf_sha256` and
 the `zeroize` wrapper its expansion goes through, both inside the translated
 (non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so there is one KDF
 assumption below and one wrapper round trip per width rather than a family of
-them, and every `_refines` theorem for translated code is proved outright
-against those, not assumed.
+them. The `_refines` theorems for translated code are proved against those and against the
+retain and removal agreements named in the closing section, `VecRetainAgrees` and
+`RemoveSkippedAtAgrees`, which are assumed here as statements about translated functions
+(`CLAIMS.md` records where each is proved from laws about opaque constants, for the leaf crate and
+the three-leaf unit; the session unit's copies are not proved from them).
+`set_chains_refines` and `clear_old_epochs_refines` are `VecRetainAgrees` applied to its
+arguments, not proved outright.
 
 That is not the whole trusted base, and this file does not pretend it is:
-`Vec::retain`, `Vec::pop`, `Zeroize`, and `Option::clone`
+`Vec::pop`, `Zeroize` and `Option::clone`
 are each their own opaque call too, carried over as assumptions from
-`SpqrT1.lean` (three of them strengthened past bare totality, one genuinely
-new) rather than reproved here. See the closing section for the full count
+`SpqrT1.lean` (two of them strengthened past bare totality) rather than reproved here. See the closing section for the full count
 and why it is eight, not one. -/
 
 open Aeneas Aeneas.Std Result
@@ -474,7 +478,7 @@ shorter. Both are strictly stronger than `SpqrT1.lean`'s totality, so this
 file does not also carry that hypothesis.
 
 `RemoveSkippedAtAgrees` speaks only under the index bound `i < len`, which is the
-condition under which the real `Vec::remove` returns at all (out of range it
+condition under which the removal helper's result is specified (out of range it
 panics) and is the loop guard its one call site checks first; the proof
 discharges the premise from that branch. That guard is also what lets the
 removed element be named as `v.val[i.val]` with no `Inhabited` bound and no
@@ -482,9 +486,7 @@ removed element be named as `v.val[i.val]` with no `Inhabited` bound and no
 `Inhabited` instance's `default`, quantified over every instance, the
 hypothesis would be refutable (two instances on `Bool`, one empty vector,
 one axiom returning one value), and `try_skipped_refines` and
-`receive_refines` would be provable from `False`.
-`Translation/Satisfiability.lean` models this shape, and keeps the
-refutation of the unguarded one. -/
+`receive_refines` would be provable from `False`. -/
 
 /-
 The current translation contains explicit scan loops rather than an opaque
@@ -1297,6 +1299,13 @@ theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips
 
 /-! ## `send` refines the model's -/
 
+def sendRefusalOfReal : SpqrError → Option Model.SparseRatchet.SendRefusal
+  | .EpochOutOfOrder => some .epochOutOfOrder
+  | .NoChain => some .noChain
+  | .ChainRetired => some .chainRetired
+  | .ChainExhausted => some .chainExhausted
+  | _ => none
+
 theorem send_refines (hkr : SpqrHkdfAgrees)
     (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
     (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
@@ -1317,7 +1326,9 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
             = some (m', n.val, keyOf mk)
           ∧ StateRefines r.2 m')
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          Model.SparseRatchet.send m sending_epoch.val (out.map outputOf) = none) ⦄ := by
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.SparseRatchet.sendDetailed m sending_epoch.val (out.map outputOf) =
+              .error reason) ⦄ := by
   unfold State.send
   step with maybe_advance_refines hkr hz96 hret hret_total hz hrel out hepoch hroom hcb hsb hnewb
   have hbridge : (match out with | none => some m | some o => Model.SparseRatchet.advance m (outputOf o))
@@ -1336,7 +1347,21 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
     refine ⟨?_, ?_⟩
     · intro n mk hcon; rw [r1_post3] at hcon; injection hcon
     · intro e he
-      simp_all [Model.SparseRatchet.send]
+      have heq : e = SpqrError.EpochOutOfOrder := by simp_all
+      subst e
+      have hmepoch : m.epoch + 1 < Model.SparseRatchet.u64Max := by
+        rw [← hrel.epoch, Model.SparseRatchet.u64Max_eq]
+        simpa [Std.U64.max_eq] using hepoch
+      have hkeyepoch : (outputOf o).keyEpoch ≠ m.epoch + 1 := by
+        intro heq
+        simp [Model.SparseRatchet.advance, hoeq, heq, hmepoch] at hsc
+      have hdetail : Model.SparseRatchet.advanceDetailed m (outputOf o) =
+          .error .epochOutOfOrder :=
+        (Model.SparseRatchet.advanceDetailed_epoch_iff m (outputOf o)).2
+          ⟨hmepoch, hkeyepoch⟩
+      exact ⟨.epochOutOfOrder, rfl, by
+        simp [Model.SparseRatchet.sendDetailed, Model.SparseRatchet.maybeAdvanceDetailed,
+          hoeq, hdetail]⟩
   · -- The model's `maybe_advance` succeeds with `m'`: proceed to look up the chain.
     have hsc' : (match Option.map outputOf out with
         | none => some m | some o => Model.SparseRatchet.advance m o) = some m' := by
@@ -1354,14 +1379,16 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
       refine ⟨?_, ?_⟩
       · intro n mk hcon; injection hcon
       · intro e he
+        injection he with heq
+        subst e
         have hfindeq : Model.SparseRatchet.findChains m' sending_epoch.val = none := by
           simp [Model.SparseRatchet.findChains, ← hself1.chains, hfeq]
-        rcases hout : out with _ | o
-        · rw [hout] at hsc
-          simp only [Option.some.injEq] at hsc
-          simp [Model.SparseRatchet.send, hsc, hfindeq]
-        · rw [hout] at hsc
-          simp [Model.SparseRatchet.send, hsc, hfindeq]
+        have hadvance : Model.SparseRatchet.maybeAdvanceDetailed m (out.map outputOf) =
+            .ok m' :=
+          (Model.SparseRatchet.maybeAdvanceDetailed_ok_iff m (out.map outputOf) m').2 hsc'
+        exact ⟨.noChain, rfl,
+          (Model.SparseRatchet.sendDetailed_no_chain_iff
+            m sending_epoch.val (out.map outputOf)).2 ⟨m', hadvance, hfindeq⟩⟩
     · -- Chains for this epoch exist: clone them and check the sending side.
       rename_i cs hoeq
       have hfindeq : Model.SparseRatchet.findChains m' sending_epoch.val = some (chainsOf cs) := by
@@ -1377,13 +1404,16 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
         refine ⟨?_, ?_⟩
         · intro n mk hcon; injection hcon
         · intro e he
+          injection he with heq
+          subst e
           have hcssnone : (chainsOf cs).send = none := by simp [chainsOf, hcss]
-          rcases hout : out with _ | o
-          · rw [hout] at hsc
-            simp only [Option.some.injEq] at hsc
-            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
-          · rw [hout] at hsc
-            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
+          have hadvance : Model.SparseRatchet.maybeAdvanceDetailed m (out.map outputOf) =
+              .ok m' :=
+            (Model.SparseRatchet.maybeAdvanceDetailed_ok_iff m (out.map outputOf) m').2 hsc'
+          exact ⟨.chainRetired, rfl,
+            (Model.SparseRatchet.sendDetailed_chain_retired_iff
+              m sending_epoch.val (out.map outputOf)).2
+                ⟨m', chainsOf cs, hadvance, hfindeq, hcssnone⟩⟩
       · -- Ready to send: derive the next chain key and message key.
         have hcss : cs.send = some ch := by rw [← cs1_post]; exact hcss1
         step with Tacenta.UnitSpqrT1.chain_clone_spec ch
@@ -1853,10 +1883,32 @@ theorem max_skipped_store_agrees :
 model, for the arithmetic that never needs the model side at all. -/
 theorem max_skip_val : MAX_SKIP.val = 1000 := by native_decide
 
+/-- What the copy loop keeps, read in the model: the entries that survive the
+purge of the keys the skip is about to store, which is `skipSurvivors`. The
+total bound is checked against this copy, so its length is the model's count. -/
+theorem skip_survivors_of_copy
+    {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
+    (e upto n : Std.U64) (skipped1 : alloc.vec.Vec Skipped)
+    (h : skipped1.val = s.skipped.val.filter
+      (fun x => !(x.epoch == e && decide (n < x.n) && decide (x.n ≤ upto)))) :
+    skipped1.val.map skippedOf =
+      Model.SparseRatchet.skipSurvivors m e.val n.val upto.val := by
+  unfold Model.SparseRatchet.skipSurvivors
+  rw [h, ← hrel.skipped]
+  exact List.filter_map_comm s.skipped.val skippedOf
+    (fun x => !(x.epoch == e && decide (n < x.n) && decide (x.n ≤ upto)))
+    (fun x => !(x.1 == e.val && decide (n.val < x.2.1) && decide (x.2.1 ≤ upto.val)))
+    (fun x => by
+      simp only [skippedOf]
+      congr 1
+      congr 1
+      congr 1 <;> first | rfl | scalar_tac | simp [UScalar.eq_equiv])
+
 /-- `State.skip_message_keys` refines `Model.SparseRatchet.skipMessageKeys`: it
 steps the receiving chain forward to `upto`, storing every key passed, and
 fails exactly where the model does (no chain, chain retired, too many skipped,
-or the store full). -/
+or the store it would leave over the bound, counted after the keys it replaces
+are dropped). -/
 theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
     (hret : VecRetainAgrees)
     (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
@@ -1866,9 +1918,12 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
     (hroom : s.chains.val.length < Usize.max)
     (hskiproom : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     State.skip_message_keys s e upto ⦃ fun r =>
-      match Model.SparseRatchet.skipMessageKeys m e.val upto.val with
-      | none => ∃ err, r.1 = core.result.Result.Err err ∧ r.2 = s
-      | some m' => r.1 = core.result.Result.Ok () ∧ StateRefines r.2 m' ⦄ := by
+      (match Model.SparseRatchet.skipMessageKeys m e.val upto.val with
+       | none => ∃ err, r.1 = core.result.Result.Err err ∧ r.2 = s
+       | some m' => r.1 = core.result.Result.Ok () ∧ StateRefines r.2 m') ∧
+      (r.1 = core.result.Result.Err SpqrError.SkippedStoreFull →
+        Model.SparseRatchet.skipMessageKeysDetailed m e.val upto.val =
+          .error .skippedStoreFull) ⦄ := by
   unfold State.skip_message_keys
   step with findChains_refines hrel e
   simp only [Model.SparseRatchet.skipMessageKeys]
@@ -1877,6 +1932,9 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
     simp only [Option.map_none] at o_post
     rw [← o_post]
     step*
+    constructor
+    · exact ⟨SpqrError.NoChain, rfl⟩
+    · intro hbad; cases hbad
   · rw [ho] at o_post
     simp only [Option.map_some] at o_post
     rw [← o_post]
@@ -1886,13 +1944,16 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
     rcases hcsr : cs.receive with _ | ch
     · simp only [chainsOf, hcsr, Option.map_none]
       step*
+      constructor
+      · exact ⟨SpqrError.ChainRetired, rfl⟩
+      · intro hbad; cases hbad
     · simp only [chainsOf, hcsr, Option.map_some]
       have hkdf : Tacenta.UnitSpqrT1.KdfCkTotal := hkr.kdfCkTotal hz64
       step*
       · -- Already caught up: no derivation needed.
         have hle' : upto.val ≤ (chainOf ch).n := by simp only [chainOf]; scalar_tac
         simp only [hle']
-        exact hrel
+        exact ⟨hrel, by simp⟩
       · -- Too many skipped.
         have hnotA : ¬ upto.val ≤ (chainOf ch).n := by simp only [chainOf]; scalar_tac
         have hB : upto.val > (chainOf ch).n + Model.SparseRatchet.maxSkip := by
@@ -1900,142 +1961,102 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
           have := max_skip_agrees
           scalar_tac
         simp only [hnotA, hB]
-        exact ⟨SpqrError.TooManySkipped, rfl⟩
+        constructor
+        · exact ⟨SpqrError.TooManySkipped, rfl⟩
+        · intro hbad; cases hbad
       · -- The intermediate index arithmetic cannot overflow: the request is
         -- bounded by `MAX_SKIP`, a small constant far under `Usize.max`.
         have hi1 : i1.val = count.val := by
           have := max_skip_val
           rw [i1_post, UScalar.cast_val_eq]
           rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+        scalar_tac
+      · -- The copy plus the keys to store cannot overflow the index type: the
+        -- copy is a filter of the store, and the request is bounded by `MAX_SKIP`.
+        have hi1 : i1.val = count.val := by
+          have := max_skip_val
+          rw [i1_post, UScalar.cast_val_eq]
+          rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+        have hi4 : i4.val = count.val := by
+          have := max_skip_val
+          rw [i4_post, UScalar.cast_val_eq]
+          rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+        have hlen := congrArg List.length skipped1_post
         have hfil := List.length_filter_le
-          (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
+          (fun x : Skipped => !(x.epoch == e && decide (ch1.n < x.n) && decide (x.n ≤ upto)))
           s.skipped.val
-        have hretained : retained.val ≤ s.skipped.val.length := by
-          rw [a_post6]
-          exact hfil
-        have hcount : count.val ≤ MAX_SKIP.val := by
-          have := max_skip_val
-          scalar_tac
-        omega
-      · -- The skipped-key store would overflow.
+        have hlenval : skipped1.len.val = skipped1.val.length := by
+          simp [alloc.vec.Vec.len]
+        have hgap : count.val ≤ MAX_SKIP.val := by scalar_tac
+        scalar_tac
+      · -- The store that the skip would leave is over the bound: the copy's
+        -- length plus the keys to store is the model's count.
         have hnotA : ¬ upto.val ≤ (chainOf ch).n := by simp only [chainOf]; scalar_tac
         have hnotB : ¬ upto.val > (chainOf ch).n + Model.SparseRatchet.maxSkip := by
           simp only [chainOf]
           have := max_skip_agrees
           scalar_tac
-        have hskipeq : s.skipped.val.length = m.skipped.length := by
-          rw [← hrel.skipped]; simp
-        have hi1 : i1.val = count.val := by
+        have hi4 : i4.val = count.val := by
           have := max_skip_val
-          rw [i1_post, UScalar.cast_val_eq]
+          rw [i4_post, UScalar.cast_val_eq]
           rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
-        have hsurvivor_map :
-            (s.skipped.val.filter
-              (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))).map skippedOf =
-              m.skipped.filter
-                (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val)) := by
-          rw [← hrel.skipped]
-          exact List.filter_map_comm s.skipped.val skippedOf
-            (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-            (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
-            (fun x => by
-              simp only [skippedOf, ch1_post]
-              congr 1
-              congr 1
-              congr 1; first | rfl | scalar_tac | simp [UScalar.eq_equiv])
-        have hretained_model : retained.val =
-            (m.skipped.filter
-              (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))).length := by
-          have hlen := congrArg List.length hsurvivor_map
-          simp only [List.length_map] at hlen
-          rw [a_post6]
-          exact hlen
-        have hC : (m.skipped.filter
-              (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))).length
-            + (upto.val - (chainOf ch).n)
-            > Model.SparseRatchet.maxSkippedStore := by
-          rw [← hretained_model]
-          have hi2 : i2.val = retained.val + count.val := by
-            rw [i2_post, hi1]
-          simp only [chainOf, ch1_post] at count_post1 ⊢
-          have := max_skipped_store_agrees
-          have hfull : i2.val > MAX_SKIPPED_STORE.val := by scalar_tac
-          omega
+        have hsurv := skip_survivors_of_copy hrel e upto ch1.n skipped1 skipped1_post
+        have hsurvlen : skipped1.val.length =
+            (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length := by
+          have := congrArg List.length hsurv
+          simpa [chainOf, ch1_post] using this
+        have hlenval : skipped1.len.val = skipped1.val.length := by
+          simp [alloc.vec.Vec.len]
+        have hC : (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length
+            + (upto.val - (chainOf ch).n) > Model.SparseRatchet.maxSkippedStore := by
+          have hmax := max_skipped_store_agrees
+          have hn : (chainOf ch).n = ch1.n.val := by simp [chainOf, ch1_post]
+          rw [← hsurvlen, hn]
+          scalar_tac
         simp only [hnotA, hnotB, hC]
-        refine ⟨SpqrError.SkippedStoreFull, rfl, ?_⟩
-        simpa [a_post1, a_post2, a_post3, a_post4, a_post5]
-      · -- Room for the walk: derive the forward keys, retain everything else,
-        -- append what was just derived, and replace this epoch's chains.
+        constructor
+        · exact ⟨SpqrError.SkippedStoreFull, rfl⟩
+        · intro _
+          unfold Model.SparseRatchet.skipMessageKeysDetailed
+          simp [Model.SparseRatchet.skipMessageKeys, ← o_post, chainsOf,
+            hcsr, hnotA, hnotB, hC]
+      · -- Room for the walk: derive the forward keys, append them to the
+        -- survivors, and replace this epoch's chains.
         have hnotA : ¬ upto.val ≤ (chainOf ch).n := by simp only [chainOf]; scalar_tac
         have hnotB : ¬ upto.val > (chainOf ch).n + Model.SparseRatchet.maxSkip := by
           simp only [chainOf]
           have := max_skip_agrees
           scalar_tac
-        have hskipeq : s.skipped.val.length = m.skipped.length := by
-          rw [← hrel.skipped]; simp
         have hi1 : i1.val = count.val := by
           have := max_skip_val
           rw [i1_post, UScalar.cast_val_eq]
           rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
-        have hsurvivor_map :
-            (s.skipped.val.filter
-              (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))).map skippedOf =
-              m.skipped.filter
-                (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val)) := by
-          rw [← hrel.skipped]
-          exact List.filter_map_comm s.skipped.val skippedOf
-            (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-            (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
-            (fun x => by
-              simp only [skippedOf, ch1_post]
-              congr 1
-              congr 1
-              congr 1; first | rfl | scalar_tac | simp [UScalar.eq_equiv])
-        have hretained_model : retained.val =
-            (m.skipped.filter
-              (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))).length := by
-          have hlen := congrArg List.length hsurvivor_map
-          simp only [List.length_map] at hlen
-          rw [a_post6]
-          exact hlen
-        have hnotC : ¬ (m.skipped.filter
-              (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))).length
-            + (upto.val - (chainOf ch).n)
-            > Model.SparseRatchet.maxSkippedStore := by
-          rw [← hretained_model]
-          have hi2 : i2.val = retained.val + count.val := by
-            rw [i2_post, hi1]
-          simp only [chainOf, ch1_post] at count_post1 ⊢
-          have := max_skipped_store_agrees
-          have hfull : ¬ i2.val > MAX_SKIPPED_STORE.val := by scalar_tac
-          omega
-        step with skip_message_keys_loop1_from_empty_refines v1 e upto ch1.n i4
-        have hderive_hnum : ch1.n.val ≤ upto.val := by scalar_tac
-        have hderive_hroom : skipped1.val.length + (upto.val - ch1.n.val) ≤ Usize.max := by
-          have hlen : skipped1.val.length =
-              (List.filter
-                (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-                v1.val).length := by
-            simpa [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, List.drop] using
-              congrArg List.length skipped1_post
-          have hfil := List.length_filter_le
-            (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-            s.skipped.val
-          have hv1 : v1.val = s.skipped.val := by simpa [a_post4]
-          rw [hv1] at hlen
-          have hpurge : skipped1.val.length ≤ s.skipped.val.length := by
-            calc
-              skipped1.val.length =
-                  (List.filter
-                    (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-                    s.skipped.val).length := hlen
-              _ ≤ s.skipped.val.length := hfil
-          have := max_skip_agrees
-          have hlenval : skipped1.len.val = skipped1.val.length := by
-            simp [alloc.vec.Vec.len]
-          have hslen : s.skipped.len.val = s.skipped.val.length := by
-            simp [alloc.vec.Vec.len]
-          have hgap : upto.val - ch1.n.val ≤ MAX_SKIP.val := by
+        have hi4 : i4.val = count.val := by
+          have := max_skip_val
+          rw [i4_post, UScalar.cast_val_eq]
+          rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+        have hsurv := skip_survivors_of_copy hrel e upto ch1.n skipped1 skipped1_post
+        have hsurvlen : skipped1.val.length =
+            (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length := by
+          have := congrArg List.length hsurv
+          simpa [chainOf, ch1_post] using this
+        have hlenval : skipped1.len.val = skipped1.val.length := by
+          simp [alloc.vec.Vec.len]
+        have hnotC : ¬ (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length
+            + (upto.val - (chainOf ch).n) > Model.SparseRatchet.maxSkippedStore := by
+          have hmax := max_skipped_store_agrees
+          have hn : (chainOf ch).n = ch1.n.val := by simp [chainOf, ch1_post]
+          rw [← hsurvlen, hn]
+          scalar_tac
+        step with skip_message_keys_loop1_derive_refines hkr hz64 hz e upto skipped1 ch1.ck ch1.n
+          (by scalar_tac)
+          (by
+            have hlen := congrArg List.length skipped1_post
+            have hfil := List.length_filter_le
+              (fun x : Skipped => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
+              s.skipped.val
+            have hpurge : skipped1.val.length ≤ s.skipped.val.length := by
+              omega
             have := max_skip_agrees
             scalar_tac
           omega
@@ -2054,29 +2075,10 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         step with hcsend
         simp only [__post]
         have hskip1 : skipped1.val.map skippedOf =
-            m.skipped.filter
-            (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val)) := by
-          rw [skipped1_post, ← hrel.skipped]
-          have hv1 : v1.val = s.skipped.val := by simpa [a_post4]
-          rw [hv1]
-          have hcap : (alloc.vec.Vec.with_capacity Skipped i4).val = [] := by
-            rfl
-          rw [hcap, List.nil_append]
-          exact List.filter_map_comm s.skipped.val skippedOf
-            (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-            (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
-            (fun x => by
-              have heq : (x.epoch == e) = (x.epoch.val == e.val) := by
-                by_cases h : x.epoch.val = e.val
-                · have hb := u64_beq_of_val_eq h
-                  simp [h, hb]
-                · have hb := u64_beq_of_val_ne h
-                  simp [h, hb]
-              simp [skippedOf, ch1_post, chainOf, heq]
-              rfl)
+            Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val := by
+          simpa [chainOf, ch1_post] using hsurv
         set newSkipped : List (Nat × Nat × Model.State.Key) :=
-          m.skipped.filter
-              (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
+          Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val
             ++ (Model.SparseRatchet.skipMessageKeys.deriveInto (chainOf ch).ck (chainOf ch).n
                   (upto.val - (chainOf ch).n)).2.map (fun p => (e.val, p.1, p.2))
           with hnewSkipped
@@ -2089,7 +2091,9 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         step with set_chains_refines hret hret_total hrel1 e
           _ hroom
         simp only [hnotA, hnotB, hnotC]
-        simpa [chainOf, chainsOf, ch1_post, hnewSkipped, skipped2_post1] using self1_post
+        constructor
+        · simpa [chainOf, chainsOf, ch1_post, hnewSkipped, skipped2_post1] using self1_post
+        · simp
 
 attribute [step] Tacenta.UnitSpqrT1.skip_message_keys_loop1_no_panic
 attribute [step] Tacenta.UnitSpqrT1.skip_message_keys_loop1_grows
@@ -2151,7 +2155,7 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
               (Array Std.U8 32#usize) (core.convert.FromSame SpqrError) residual
           ok (r2, self3)
       | some k => ok (core.result.Result.Ok k, self2)) ⦃ fun r =>
-      match
+      (match
         (match Model.SparseRatchet.trySkipped m1 receiving_epoch.val n.val with
          | some res => some res
          | none =>
@@ -2173,9 +2177,12 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
                        (Model.SparseRatchet.kdfCk ch.ck n.val).2)
                    else none
                  else none) with
-      | none => ∃ err, r.1 = core.result.Result.Err err
-      | some (m', k) => ∃ key, r.1 = core.result.Result.Ok key ∧ keyOf key = k ∧
-          StateRefines r.2 m' ⦄ := by
+       | none => ∃ err, r.1 = core.result.Result.Err err
+       | some (m', k) => ∃ key, r.1 = core.result.Result.Ok key ∧ keyOf key = k ∧
+          StateRefines r.2 m') ∧
+      (r.1 = core.result.Result.Err SpqrError.SkippedStoreFull →
+        Model.SparseRatchet.receiveDetailed m1 receiving_epoch.val none n.val =
+          .error .skippedStoreFull) ⦄ := by
   step with try_skipped_refines hrm hrel1 receiving_epoch n hone
   rcases hts : Model.SparseRatchet.trySkipped m1 receiving_epoch.val n.val with _ | res
   · rw [hts] at o_post
@@ -2201,16 +2208,24 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
       (core.num.U64.saturating_sub n 1#u64)
       (by scalar_tac) (by scalar_tac)
     step
-    rw [hnsub] at r1_post
+    rw [hnsub] at r1_post1 r1_post2
     rcases hsmk : Model.SparseRatchet.skipMessageKeys m1 receiving_epoch.val (n.val - 1)
       with _ | st2
-    · rw [hsmk] at r1_post
-      obtain ⟨err, herr, _⟩ := r1_post
+    · rw [hsmk] at r1_post1
+      obtain ⟨err, herr, _⟩ := r1_post1
       rw [herr] at cf1_post
       simp only [cf1_post]
-      exact ⟨_, rfl⟩
-    · rw [hsmk] at r1_post
-      obtain ⟨hrOk, hself3⟩ := r1_post
+      constructor
+      · exact ⟨_, rfl⟩
+      · intro hfull
+        simp only [core.convert.FromSame.from] at hfull
+        cases hfull
+        have hdetailed := r1_post2 (by simpa [herr])
+        unfold Model.SparseRatchet.receiveDetailed
+        simp only [Model.SparseRatchet.maybeAdvanceReceiveDetailed,
+          Model.SparseRatchet.maybeAdvanceDetailed, hts, hdetailed]
+    · rw [hsmk] at r1_post1
+      obtain ⟨hrOk, hself3⟩ := r1_post1
       rw [hrOk] at cf1_post
       simp only [cf1_post]
       have hsmklen := skipMessageKeys_chains_len_le m1 receiving_epoch.val (n.val - 1) st2 hsmk
@@ -2220,6 +2235,9 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
         simp only [Option.map_none] at o1_post
         rw [← o1_post]
         step*
+        constructor
+        · exact ⟨SpqrError.NoChain, rfl⟩
+        · intro hbad; cases hbad
       · rw [ho1] at o1_post
         simp only [Option.map_some] at o1_post
         rw [← o1_post]
@@ -2229,6 +2247,9 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
         rcases hcsr : cs.receive with _ | ch
         · simp only [chainsOf, hcsr, Option.map_none]
           step*
+          constructor
+          · exact ⟨SpqrError.ChainRetired, rfl⟩
+          · intro hbad; cases hbad
         · simp only [chainsOf, hcsr, Option.map_some]
           have hcnt : ch.n.val < Std.U64.max := by
             have hcb1 : ChainCounterBounded st2.chains :=
@@ -2265,7 +2286,9 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
           · have hnv : (chainOf ch).n = ch.n.val := rfl
             have hne' : ¬ n.val = ch.n.val + 1 := by scalar_tac
             simp only [hcntModel, hnv, hne']
-            exact ⟨_, rfl⟩
+            constructor
+            · exact ⟨_, rfl⟩
+            · intro hbad; cases hbad
           · have hnv : (chainOf ch).n = ch.n.val := rfl
             have hne : n.val = ch.n.val + 1 := by scalar_tac
             simp only [hcntModel, hnv, hne]
@@ -2279,16 +2302,20 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
             have hroom3 : self3.chains.val.length < Usize.max := by scalar_tac
             step with set_chains_refines hret hret_total hself3 receiving_epoch
               ({ send := o3, receive := some { ck := next, n } } : Chains) hroom3
-            refine ⟨mk, rfl, ?_, ?_⟩
-            · exact congrArg Prod.snd next_post
-            · have hckeq : keyOf next
-                  = (Model.SparseRatchet.kdfCk (keyOf ch.ck) (ch.n.val + 1)).1 := by
-                rw [← next_post]
-              simpa [chainOf, chainsOf, hcsr, o3_post, hckeq, hne] using self4_post
+            constructor
+            · refine ⟨mk, rfl, ?_, ?_⟩
+              · exact congrArg Prod.snd next_post
+              · have hckeq : keyOf next
+                    = (Model.SparseRatchet.kdfCk (keyOf ch.ck) (ch.n.val + 1)).1 := by
+                  rw [← next_post]
+                simpa [chainOf, chainsOf, hcsr, o3_post, hckeq, hne] using self4_post
+            · intro hbad; cases hbad
   · rw [hts] at o_post
     obtain ⟨key, hokey, hkeyeq, hrefines⟩ := o_post
     rw [hokey]
-    exact ⟨key, rfl, hkeyeq, hrefines⟩
+    constructor
+    · exact ⟨key, rfl, hkeyeq, hrefines⟩
+    · intro hbad; cases hbad
 
 -- The receiving path's `checked_add` branch on the chain counter puts the
 -- elaboration past the default heartbeat allowance, so this theorem needs a
@@ -2335,8 +2362,11 @@ theorem receive_refines (hkr : SpqrHkdfAgrees)
     have hchainlen2 := congrArg List.length hrel.chains
     simp only [List.length_map] at hchainlen1 hchainlen2
     have hskiproom1 : self1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by scalar_tac
-    exact receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
-      (by scalar_tac) hskiproom1 hone (chainCounterBounded_of_real hrel hcounter)
+    refine Std.WP.spec_mono
+      (receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
+        (by scalar_tac) hskiproom1 hone (chainCounterBounded_of_real hrel hcounter)) ?_
+    intro result hresult
+    exact hresult.1
   · simp only [hout, Option.map_some] at r_post ⊢
     rcases hadv : (Model.SparseRatchet.advance m (outputOf o)) with _ | m1
     · rw [hadv] at r_post
@@ -2366,9 +2396,100 @@ theorem receive_refines (hkr : SpqrHkdfAgrees)
         exact le_trans (List.filter_filter_length_le m.skipped
           (fun x => decide ((outputOf o).keyEpoch < x.1 + Model.SparseRatchet.epochsKept))
           (fun x => x.1 == receiving_epoch.val && x.2.1 == n.val)) hone
-      exact receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
-        (by scalar_tac) hskiproom1 hone1
-        (advance_chain_counter_bounded m (outputOf o) m1 hadv (chainCounterBounded_of_real hrel hcounter))
+      refine Std.WP.spec_mono
+        (receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
+          (by scalar_tac) hskiproom1 hone1
+          (advance_chain_counter_bounded m (outputOf o) m1 hadv
+            (chainCounterBounded_of_real hrel hcounter))) ?_
+      intro result hresult
+      exact hresult.1
+
+set_option maxHeartbeats 1000000 in
+/-- A full skipped-key store is one refusal whose concrete origin can be
+classified without changing the established success-side refinement theorem.
+The detailed model retains that exact refusal on both the no-advance and
+successful-advance receive paths. -/
+theorem receive_store_full_refines (hkr : SpqrHkdfAgrees)
+    (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
+    (hrm : RemoveSkippedAtAgrees) (hz : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
+    {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
+    (receiving_epoch : Std.U64) (out : Option Output) (n : Std.U64)
+    (hepoch : s.epoch.val + 1 < Std.U64.max)
+    (hroom : s.chains.val.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : Output, out = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max)
+    (hone : (m.skipped.filter (fun x => x.1 == receiving_epoch.val && x.2.1 == n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ s.chains.val, ∀ ch : Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n.val < Std.U64.max) :
+    State.receive s receiving_epoch out n ⦃ fun r =>
+      r.1 = core.result.Result.Err SpqrError.SkippedStoreFull →
+        Model.SparseRatchet.receiveDetailed m receiving_epoch.val (out.map outputOf) n.val =
+          .error .skippedStoreFull ⦄ := by
+  unfold State.receive
+  step with maybe_advance_refines hkr hz96 hret hret_total hz hrel out hepoch (by scalar_tac) hcb hsb hnewb
+  step
+  rcases hout : out with _ | o
+  · simp only [hout, Option.map_none] at r_post ⊢
+    obtain ⟨hrOk, hrel1⟩ := r_post
+    rw [hrOk] at cf_post
+    simp only [cf_post]
+    have hskiplen1 := congrArg List.length hrel1.skipped
+    have hskiplen2 := congrArg List.length hrel.skipped
+    simp only [List.length_map] at hskiplen1 hskiplen2
+    have hchainlen1 := congrArg List.length hrel1.chains
+    have hchainlen2 := congrArg List.length hrel.chains
+    simp only [List.length_map] at hchainlen1 hchainlen2
+    have hskiproom1 : self1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by scalar_tac
+    refine Std.WP.spec_mono
+      (receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
+        (by scalar_tac) hskiproom1 hone (chainCounterBounded_of_real hrel hcounter)) ?_
+    intro result hresult
+    exact hresult.2
+  · simp only [hout, Option.map_some] at r_post ⊢
+    rcases hadv : Model.SparseRatchet.advance m (outputOf o) with _ | m1
+    · rw [hadv] at r_post
+      obtain ⟨o', hno, herr, hstate⟩ := r_post
+      rw [herr] at cf_post
+      simp only [cf_post]
+      intro hbad
+      cases hbad
+    · rw [hadv] at r_post
+      obtain ⟨hrOk, hrel1⟩ := r_post
+      rw [hrOk] at cf_post
+      simp only [cf_post]
+      have hlen := advance_skipped_len_le m (outputOf o) m1 hadv
+      have hclen := advance_chains_len_le m (outputOf o) m1 hadv
+      have hskiplen1 := congrArg List.length hrel1.skipped
+      have hskiplen2 := congrArg List.length hrel.skipped
+      simp only [List.length_map] at hskiplen1 hskiplen2
+      have hchainlen1 := congrArg List.length hrel1.chains
+      have hchainlen2 := congrArg List.length hrel.chains
+      simp only [List.length_map] at hchainlen1 hchainlen2
+      have hskiproom1 : self1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by scalar_tac
+      have hmskip := advance_skipped_eq m (outputOf o) m1 hadv
+      have hone1 : (m1.skipped.filter
+          (fun x => x.1 == receiving_epoch.val && x.2.1 == n.val)).length ≤ 1 := by
+        rw [hmskip]
+        exact le_trans (List.filter_filter_length_le m.skipped
+          (fun x => decide ((outputOf o).keyEpoch < x.1 + Model.SparseRatchet.epochsKept))
+          (fun x => x.1 == receiving_epoch.val && x.2.1 == n.val)) hone
+      refine Std.WP.spec_mono
+        (receive_refines_continuation hkr hz64 hret hret_total hrm hz hopt hrel1 receiving_epoch n
+          (by scalar_tac) hskiproom1 hone1
+          (advance_chain_counter_bounded m (outputOf o) m1 hadv
+            (chainCounterBounded_of_real hrel hcounter))) ?_
+      intro result hresult hfull
+      have htail := hresult.2 hfull
+      have hadvDetailed : Model.SparseRatchet.advanceDetailed m (outputOf o) = .ok m1 :=
+        (Model.SparseRatchet.advanceDetailed_ok_iff m (outputOf o) m1).2 hadv
+      simpa [Model.SparseRatchet.receiveDetailed,
+        Model.SparseRatchet.maybeAdvanceReceiveDetailed,
+        Model.SparseRatchet.maybeAdvanceDetailed, hadvDetailed] using htail
 
 /-! ## Where this stands
 
@@ -2389,14 +2510,14 @@ and its two projections, `advance_chains_len_le`/`advance_skipped_len_le`/
 and the generic `List.filter_filter_length_le`. None claims more than the
 specific bound its call site needed.
 
-**Eight assumptions back this file, six of them new constants and two reused
-outright from `SpqrT1.lean`.** `SpqrHkdfAgrees` states agreement one level
+**Eight assumptions back this file, five of them new constants and three reused
+outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`).** `SpqrHkdfAgrees` states agreement one level
 below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
 `hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
 through on its way to being split -- subsumes both, so this file states the
 KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`
-likewise state what `retain` and the custom wipe-before-pop helper return, and
+likewise state what the retain scans and the custom wipe-before-pop helper return, and
 are each strictly stronger than their `SpqrT1.lean` namesake; the retain
 totality is also carried explicitly for the capacity-preserving replacement.
 `Tacenta.UnitSpqrT1.ZeroizeTotal` and `Tacenta.UnitSpqrT1.OptionCloneTotal`
@@ -2407,7 +2528,7 @@ only required to complete.
 As with `SpqrT1.lean` and `BraidT3.lean`, count by constant, not by name:
 none of these eight is the same proposition as any other file's assumption of
 a similar shape, including `T1.lean`'s or `BraidT1.lean`'s own copies of
-`Vec::retain`/`Vec::pop`, `Zeroize`, a KDF call, or
+`Vec::pop`, `Zeroize`, a KDF call, or
 `T3.lean`'s `ZeroizingRoundTrips`/`ZeroizingRoundTrips80` at the ratchet's own
 wrapper constants.
 
@@ -2457,9 +2578,10 @@ no longer speak about.
 One consequence outside this file: `ImportInv.lean`'s `inv_gives_epoch_room`
 derives `epoch < u64::MAX` from the crate's `invariant`, which was `hepoch`
 before and is now strictly weaker than it. The invariant does not exclude
-`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hcb`,
-`hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
-discharge. -/
+`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hnewb`
+and `hcounter` as a premise the decoded-state chain does not discharge. (`hcb`
+and `hsb` follow from the invariant together with `hepoch`; in the standalone
+translation that is `DecodedStateDischarge.spqr_receive_premises`.) -/
 
 -- The trust base of the two refinements, held by the build: three `native_decide`
 -- label facts under `send_refines`, and those three, the three bound facts and

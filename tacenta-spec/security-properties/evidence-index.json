@@ -2326,6 +2326,16 @@
           "path": "tacenta-proofs/Proofs/SparseRatchetCorrectness.lean",
           "theorem": "skipMessageKeys_store_bounded",
           "coverage": "T2 sparse model proof that successful skips preserve the store bound for one operation."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/SparseReplacementBound.lean",
+          "theorem": "skipMessageKeys_leaves_survivors_then_batch",
+          "coverage": "T2 sparse model proof that a skip that steps the chain and succeeds leaves the survivors followed by the derived keys, and at most the store bound."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/SparseReplacementBound.lean",
+          "theorem": "skipMessageKeys_refused_iff",
+          "coverage": "T2 sparse model proof that a skip within the per-chain bound is refused exactly when the survivors plus the keys to store pass the store bound."
         }
       ],
       "claims": [
@@ -2345,6 +2355,14 @@
             "Proofs.MemorySafety.reachable_stays_bounded",
             "Proofs.MemorySafety.a_session_stays_bounded",
             "Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, in the model: the sparse ratchet's total bound counts the store a skip leaves)",
+          "references": [
+            "Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch",
+            "Proofs.SparseReplacementBound.skipMessageKeys_refused_iff"
           ]
         },
         {

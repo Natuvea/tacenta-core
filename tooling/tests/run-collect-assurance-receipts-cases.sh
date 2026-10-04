@@ -244,6 +244,8 @@ cases=$((cases + 2))
 
 # ---- the collector --------------------------------------------------------
 refuse foreign 'receipt rust was not produced for the selected candidate' rust "data['run']['commit'] = '0' * 40"
+refuse foreign-tree 'receipt rust was not produced for the selected candidate' rust "data['run']['tree'] = '0' * 40"
+refuse foreign-sign-off-tree 'receipt sign-off was not produced for the selected candidate' sign-off "data['run']['tree'] = '0' * 40" pull_request
 refuse wrong-classification 'required receipt audit must be an applicable required check' audit "data['classification'] = 'optional'"
 refuse wrong-event 'receipt vectors event does not match selected event push' vectors "data['environment']['event'] = 'pull_request'"
 
@@ -265,6 +267,13 @@ rm "$work/missing/proofs.json"
 expect_fail missing 'missing required check receipts: proofs' "$work/missing" push
 
 expect_fail no-directory 'input directory does not exist' "$work/no-such-directory" push
+
+cp -R "$work/pass-push" "$work/receipt-not-an-object"
+printf '[]' > "$work/receipt-not-an-object/rust.json"
+expect_fail receipt-not-an-object 'must be an object' "$work/receipt-not-an-object" push
+cp -R "$work/pass-push" "$work/receipt-not-json"
+printf 'not json' > "$work/receipt-not-json/rust.json"
+expect_fail receipt-not-json 'cannot read receipt' "$work/receipt-not-json" push
 
 refuse status-fail 'required receipt rust is' rust "data['status'] = 'fail'"
 refuse not-applicable 'required receipt rust must be an applicable required check' rust "data['applicable'] = False"

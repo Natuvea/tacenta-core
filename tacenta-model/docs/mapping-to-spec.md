@@ -180,17 +180,18 @@ written yet, which is a gap in *this page* rather than in the model.
 ## Session lifecycle (in progress)
 
 Source pages: `tacenta-spec/protocol/session-establishment.md`,
-`triple-ratchet.md`, `message-format.md`, `key-deletion.md` and
-`error-handling.md`.
+`triple-ratchet.md`, `message-format.md`, `key-deletion.md`,
+`error-handling.md` and `mlkem-braid.md`.
 
 | Spec section | Model definition | File |
 |---|---|---|
-| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `sendAgreement` | `Model/Lifecycle.lean` |
+| Primitive calls delegated by the session algorithms; ordered caller randomness, including the Braid's draws (`mlkem-braid.md`, The KEM split and Sending) | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `braidSendDrawCount`, `takeDraws`, `sendAgreement` | `Model/Lifecycle.lean` |
 | Receiving the initial message; successful-agreement-class repeated-initial recognition and ignored wrapper fields | `sameEphemeralAgreement`, `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
 | Ratchet send and receive refusal kinds retained through composition | `Ratchet.sendDetailed`, `SparseRatchet.sendDetailed`, `Triple.sendDetailed`, `Ratchet.receiveDetailed`, `SparseRatchet.receiveDetailed`, `Triple.receiveDetailed` and their refusal types | `Model/Ratchet.lean`, `Model/SparseRatchet.lean`, `Model/Triple.lean` |
 | Sparse-ratchet receive refusal kinds and counter ceiling | `SparseRatchet.receiveDetailed`, `SparseRatchet.ReceiveRefusal`, `SparseRatchet.receiveDetailed_toOption`, `SparseRatchet.receiveDetailed_ok_iff` | `Model/SparseRatchet.lean` |
+| Sparse skipped keys: the total bound counts the store a skip leaves (sparse-pq-ratchet.md, The store also has a total bound) | `SparseRatchet.skipSurvivors`, `SparseRatchet.skipMessageKeys`; theorems in `Proofs.SparseReplacementBound` | `Model/SparseRatchet.lean`, `tacenta-proofs/Proofs/SparseReplacementBound.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `Refusal`, the send/receive refusal mappings and their injectivity theorems | `Model/Lifecycle.lean` |
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
 | Triple/Braid composite header correspondence; erasure codeword view | `CodewordView`, `braidTypeOf`, `compositeTypeOf`, `braidMessageOf`, `tripleHeaderOf`, `compositeOf` | `Model/Lifecycle.lean` |
@@ -200,6 +201,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Session decrypt; working-copy eviction, AEAD commit boundary and pending-initial clearing | `receiveShortfall`, `receiveWithEviction`, `decryptRatchet`, `decrypt`, `decryptRatchet_refusal_keeps_session`, `decrypt_refusal_keeps_session`, `decrypt_success_clears_pending` | `Model/Lifecycle.lean`; leaf eviction transitions in `Model/Ratchet.lean`, `Model/SparseRatchet.lean` and `Model/Triple.lean` |
 | Initiator establishment; identity pinning, bundle validation, exact canonical/identity-key/signature/non-contributory refusals in that order, ordered primitive calls and pending Session construction | `Identity`, `EstablishStep`, `establishInitiator`, `establishInitiator_identity_mismatch`, `establishInitiator_presence_mismatch`, `establishInitiator_noncanonical`, `establishInitiator_invalid_identity`, `establishInitiator_bad_signed_prekey_signature`, `establishInitiator_ephemeral_signed_noncontributory` | `Model/Lifecycle.lean` |
 | Responder establishment; live and retired prekey lookup, SK-bound last-resort replay check, authenticated-decrypt commit boundary and success-only prekey consumption | `PrekeyStore`, `PreparedResponder`, `prepareResponder`, `lastResortReplayCheck`, `consumeResponderPrekeys`, `finishResponderReceive`, `establishResponder`, `prepareResponder_invalid_identity`, `finishResponderReceive_refusal_keeps_store`, `establishResponder_refusal_keeps_store` | `Model/Lifecycle.lean` |
+| Prekey store, consuming a one-time entry (the last entry of the list moves into the slot) | `swapRemove`, `swapRemove_of_no_match`, `swapRemove_length_of_match`, `consumeOneTimeOk` | `Model/SwapRemove.lean`, `Model/PrekeyOperations.lean` |
 | Executable lifecycle properties; exact current/retired/one-time/unknown responder-key lookups, legacy-block precedence, identity/role frame conditions, success-only pending clearing, exact repeat recognition, consumed-message replay refusal, terminal-failure stickiness, exact last-resort replay/budget ordering, session/store refusal no-ops, initiator identity/pending shape, and the responder's exact success-side store effect and decoded-initial identity/role shape | `signed_lookup_*`, `kem_lookup_*`, `curve_lookup_*`, `identityFrame`, `encrypt_frame`, `decryptRatchet_frame`, `decrypt_identity_frame`, `pending_cleared_iff_ok`, `repeated_initial_accepted_iff`, `replay_refused`, `agreement_failed_encrypt_sticky`, `agreement_failed_decrypt_sticky`, `replayed_last_resort_refused`, `full_last_resort_record_refused`, `one_time_path_has_no_replay_record`, `refusal_is_no_op`, `initiator_success_shape`, `responder_refusal_is_no_op`, `responder_success_store_effect`, `prepareResponder_success_shape`, `responder_success_shape` | `Properties/Lifecycle.lean` |
 | Two-party schedule mechanics and P6 projection; send, delivery, loss, replay insertion, reordering, byte forgery, forced terminal agreement state, and projection to `SessionTrace` phase/message labels | `LifecycleTrace.State`, `LifecycleTrace.Action`, `LifecycleTrace.step`, `LifecycleTrace.run`, `LifecycleTrace.phaseOf`, `LifecycleTrace.observe` | `Model/LifecycleTrace.lean` |
 | Schedule frame conditions; refused delivery preserves the recipient Session, network-only actions preserve both Sessions, and terminal agreement failure remains terminal through every later scheduled action and its P6 observation | `refused_receive_keeps_alice`, `refused_receive_keeps_bob`, `network_action_keeps_sessions`, `failed_step_stays_failed_alice`, `failed_step_stays_failed_bob`, `failed_run_stays_failed_alice`, `failed_run_stays_failed_bob`, `observed_failed_run_alice`, `observed_failed_run_bob` | `Properties/LifecycleTrace.lean` |
@@ -209,6 +211,9 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.
 Each function records the complete argument list of the corresponding boundary
-call, and each random operation consumes the head of `draws`. Lifecycle
+call. A random operation consumes entries from the front of `draws`: one for a
+32-byte value (an ephemeral or ratchet key, the encapsulation message `m`, the
+first half of a Braid encapsulation) and two for a 64-byte value (the
+signature's `Z`, a Braid key-generation seed `d || z`). Lifecycle
 transition rows will be added here with the operations; until then this section
 does not claim that session orchestration is modelled.

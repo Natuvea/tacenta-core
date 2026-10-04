@@ -321,6 +321,56 @@ def eraseFirstSkipped (target : SkippedEntry) :
   | entry :: rest =>
       if entry = target then rest else entry :: eraseFirstSkipped target rest
 
+private theorem olderSkipped_eq_left_or_right (left right : SkippedEntry) :
+    olderSkipped left right = left ∨ olderSkipped left right = right := by
+  unfold olderSkipped
+  split <;> simp_all
+
+private theorem foldl_olderSkipped_mem (first : SkippedEntry) :
+    ∀ rest : List SkippedEntry, rest.foldl olderSkipped first ∈ first :: rest := by
+  intro rest
+  induction rest generalizing first with
+  | nil => simp
+  | cons head tail ih =>
+      simp only [List.foldl_cons]
+      have hmem := ih (olderSkipped first head)
+      rcases olderSkipped_eq_left_or_right first head with hleft | hright
+      · rw [hleft] at hmem ⊢
+        simp only [List.mem_cons] at hmem ⊢
+        rcases hmem with heq | htail
+        · exact Or.inl heq
+        · exact Or.inr (Or.inr htail)
+      · rw [hright] at hmem ⊢
+        simp only [List.mem_cons] at hmem ⊢
+        rcases hmem with heq | htail
+        · exact Or.inr (Or.inl heq)
+        · exact Or.inr (Or.inr htail)
+
+theorem oldestSkipped?_some_mem (l : List SkippedEntry) (target : SkippedEntry)
+    (h : oldestSkipped? l = some target) : target ∈ l := by
+  cases l with
+  | nil => simp [oldestSkipped?] at h
+  | cons first rest =>
+      simp only [oldestSkipped?] at h
+      injection h with htarget
+      rw [← htarget]
+      exact foldl_olderSkipped_mem first rest
+
+theorem eraseFirstSkipped_length_of_mem (target : SkippedEntry) :
+    ∀ l : List SkippedEntry, target ∈ l →
+      (eraseFirstSkipped target l).length + 1 = l.length := by
+  intro l hmem
+  induction l with
+  | nil => simp at hmem
+  | cons head tail ih =>
+      by_cases hhead : head = target
+      · simp [eraseFirstSkipped, hhead]
+      · have htail : target ∈ tail := by
+          rcases List.mem_cons.mp hmem with heq | htail
+          · exact False.elim (hhead heq.symm)
+          · exact htail
+        simp [eraseFirstSkipped, hhead, ih htail]
+
 theorem eraseFirstSkipped_eq_eraseIdx_of_first
     (l : List (Key × Nat × Nat × Key)) (target : Key × Nat × Nat × Key)
     (i : Nat) (hi : i < l.length)
@@ -441,6 +491,27 @@ theorem evictOldest_count_le (st : State) (n : Nat) :
             (st := { st with skipped := eraseFirstSkipped target st.skipped })
           omega
 
+/-! Eviction preserves a simple accounting invariant: the final skipped-store
+    length plus the reported number removed is the initial length.  This is
+    what lets the lifecycle cap an unbounded model retry batch at the concrete
+    platform width without changing the eviction observation. -/
+theorem evictOldest_length_add_count (st : State) (n : Nat) :
+    (evictOldest st n).1.skipped.length + (evictOldest st n).2 =
+      st.skipped.length := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases hsel : oldestSkipped? st.skipped with
+      | none => simp [evictOldest, hsel]
+      | some target =>
+          have hmem := oldestSkipped?_some_mem st.skipped target hsel
+          have herase := eraseFirstSkipped_length_of_mem target st.skipped hmem
+          have hrest := ih
+            (st := { st with skipped := eraseFirstSkipped target st.skipped })
+          simp at hrest
+          simp only [evictOldest, hsel]
+          omega
+
 /-! The model's bounded eviction either uses all requested fuel or reaches an
 empty skipped store.  This is the model counterpart of the generated loop's
 progress shell and is the stopping condition used by the retry composition. -/
@@ -484,6 +555,48 @@ theorem evictOldest_empty_suffix (st m : Model.State.State) (n k : Nat)
   rw [evictOldest_append]
   rw [hfirst]
   simp [evictOldest_empty m k h]
+
+theorem evictOldest_at_length (st : State) :
+    (evictOldest st st.skipped.length).2 = st.skipped.length ∧
+      (evictOldest st st.skipped.length).1.skipped = [] := by
+  have haccount := evictOldest_length_add_count st st.skipped.length
+  rcases evictOldest_stops_at_empty st st.skipped.length with hcount | hempty
+  · constructor
+    · exact hcount
+    · apply List.eq_nil_of_length_eq_zero
+      omega
+  · constructor
+    · simpa [hempty] using haccount
+    · exact hempty
+
+/-- Once the requested count covers the current skipped store, any larger
+    count has exactly the same state and reported count. -/
+theorem evictOldest_eq_at_length_of_length_le (st : State) (n : Nat)
+    (h : st.skipped.length ≤ n) :
+    evictOldest st n = evictOldest st st.skipped.length := by
+  obtain ⟨evictedState, hcount, hempty⟩ :
+      ∃ evictedState,
+        evictOldest st st.skipped.length = (evictedState, st.skipped.length) ∧
+        evictedState.skipped = [] := by
+    refine ⟨(evictOldest st st.skipped.length).1, ?_,
+      (evictOldest_at_length st).2⟩
+    apply Prod.ext
+    · rfl
+    · exact (evictOldest_at_length st).1
+  rw [show n = st.skipped.length + (n - st.skipped.length) by omega]
+  calc
+    evictOldest st (st.skipped.length + (n - st.skipped.length)) =
+        (evictedState, st.skipped.length) :=
+      evictOldest_empty_suffix st evictedState st.skipped.length
+        (n - st.skipped.length) hcount hempty
+    _ = evictOldest st st.skipped.length := hcount.symm
+
+theorem evictOldest_congr_of_length_le (st : State) (left right : Nat)
+    (hleft : st.skipped.length ≤ left)
+    (hright : st.skipped.length ≤ right) :
+    evictOldest st left = evictOldest st right := by
+  rw [evictOldest_eq_at_length_of_length_le st left hleft,
+    evictOldest_eq_at_length_of_length_le st right hright]
 
 theorem evictOldest_one_nonempty (st : Model.State.State)
     (h : st.skipped ≠ []) :

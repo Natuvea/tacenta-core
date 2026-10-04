@@ -91,6 +91,13 @@ report_time "lifecycle public-root coverage" "$t"
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1
 report_time "Session contract satisfiability control" "$t"
+# The numeric-precondition witnesses (`NumericWitness*.lean`) and discharge theorems
+# (`*DecodedStateDischarge.lean`) are evidence about a theorem only if their statements are
+# that theorem's own premises. This reads each theorem's type from the built environment,
+# compares it with the module's statement, and mutation-tests the comparison.
+t=$SECONDS
+bash scripts/check-precondition-witnesses.sh || fail=1
+report_time "numeric-precondition witnesses and controls" "$t"
 # The unit-only edits of the three Session Braid ports are held by one property, the anchor count
 # in `unit_edit`. `--check` alone cannot see that guard removed (an unchanged source regenerates
 # the same file), so break one source anchor per port script (two for the proof script) and require the port
@@ -98,12 +105,55 @@ report_time "Session contract satisfiability control" "$t"
 t=$SECONDS
 bash scripts/check-port-negatives.sh || fail=1
 report_time "port-script unit-edit controls" "$t"
+# The evidence about the Braid refinement agreements of the Session unit (the model of the six KEM
+# and KDF agreements, the erasure halves, the state witnesses, the entry points) is held to
+# mutations: a shape, a model field, a witness or a pinned statement changed one at a time must
+# be refused, after the unmodified modules are accepted.
+t=$SECONDS
+bash scripts/check-braid-agreement-negatives.sh || fail=1
+report_time "Braid agreement witnesses control" "$t"
 # The initial dispatcher must retain its matching-key guards. These controls
 # elaborate disposable copies after the positive build above; timeout or a
 # compiler/dependency failure is never counted as a rejected mutation.
 t=$SECONDS
 python3 scripts/check-initial-dispatch-negatives.py || fail=1
 report_time "initial dispatcher proof-dependency controls" "$t"
+# The lifecycle frame proofs (`UnitLifecycleAtomicity.lean`) are one walk over each generated body.
+# Plant a write in a copy of each body and require the same walk to refuse it, after requiring it
+# to accept the unmodified copy; timeout, a compiler that does not start and a syntax error are
+# never counted as a refusal.
+t=$SECONDS
+python3 scripts/check-atomicity-negatives.py || fail=1
+report_time "lifecycle frame-proof controls" "$t"
+# The restated dispatch records' witnesses (`UnitLifecycleRepair.lean`): a witness for a wrong or
+# weaker statement would hold nothing, so make one change to a copy of each and require Lean to
+# refuse it, after requiring the unmodified copies to be accepted.
+t=$SECONDS
+python3 scripts/check-repair-negatives.py || fail=1
+report_time "restated dispatch record controls" "$t"
+# The composed Triple send theorem must consume the leaf theorem's complete
+# classical refusal result, including the finite-width counter edge.  A
+# disposable mutation restores the old NoSendingChain-only contract and a
+# second collapses the sparse map to `noChain`; each must fail at the exact
+# use which handles the generated error.
+t=$SECONDS
+python3 scripts/check-send-refusal-negatives.py || fail=1
+report_time "send refusal proof-dependency control" "$t"
+# The sparse skip's store-full conjunct is proved in one branch that reads the store a skip
+# leaves through `hC`: a copy naming another refusal, and a copy whose branch drops `hC`,
+# must each be refused at that branch.
+t=$SECONDS
+python3 scripts/check-sparse-store-full-negatives.py || fail=1
+report_time "sparse store-full proof-dependency control" "$t"
+# The decrypt_ratchet refinement, its retry-loop induction and its refusal closure
+# (`UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`, `UnitLifecycleDecryptRatchetScreen.lean`,
+# `UnitLifecycleTripleRefusalT3.lean`, `UnitLifecycleDecryptRatchetCompleteT3.lean`,
+# `UnitLifecycleDecryptRatchetCompleteScreen.lean`): a copy with the fact a proof rests on removed, a copy
+# whose open disjunct grows and a copy of the complete statement that regains it must each be refused at a
+# named declaration or pin, after the unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-decrypt-ratchet-negatives.py || fail=1
+report_time "decrypt_ratchet refinement proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -159,6 +209,34 @@ t=$SECONDS
 bash scripts/check-audit-reach.sh || fail=1
 report_time "audit reach" "$t"
 
+# A hypothesis nothing satisfies makes the theorem that takes it true and empty, and neither the
+# kernel nor the pins notice. This reads the hypotheses of every claimed T1 and T3 theorem of the
+# leaf crates and the three-leaf unit from the built environment and fails if one is connected to
+# nothing (no bridge to a satisfiable shape, no derivation the ledger names), names no predicate, or
+# is about a variable only hypotheses mention. It does not show that a connected hypothesis is
+# satisfiable or that the hypotheses of one theorem hold together; the header of the script says
+# what it cannot see.
+# Its mutation controls, `check-hypothesis-witnesses-negatives.sh`, rebuild a copy of the package for
+# each case and take about fifteen minutes on an idle machine, so they are not run here. No workflow
+# runs them yet; run them by hand with
+# `bash tacenta-proofs/scripts/check-hypothesis-witnesses-negatives.sh`.
+t=$SECONDS
+bash scripts/check-hypothesis-witnesses.sh || fail=1
+report_time "hypothesis witnesses" "$t"
+
+# `check-audit-reach.sh` is itself a gate that was shown to refuse once, by hand. This plants an orphan
+# module in each source directory and a wrong audit call in a disposable worktree, with the builds above
+# linked in, and requires it to refuse each for its stated reason.
+t=$SECONDS
+bash scripts/check-audit-reach-negatives.sh || fail=1
+report_time "audit reach negatives" "$t"
+
+# The `#guard_msgs` pins state the axioms and the statements the documents cite. This edits one pin of each
+# kind in a disposable worktree and requires Lean to refuse it, so a pin that cannot fail is noticed.
+t=$SECONDS
+bash scripts/check-pin-negatives.sh || fail=1
+report_time "pin negatives" "$t"
+
 # Both of the checks above ask what the audit found. This one asks whether the
 # audit finds anything: it plants declarations the rule says to refuse, and the
 # one shape the rule says to allow, in a throwaway first-party module and
@@ -209,5 +287,9 @@ modules() {
 replay translation "the translation and its T1/T3 proofs" 4 $(modules translation Translation)
 replay .           "the model-layer proofs" 1 $(modules . Proofs)
 replay ../tacenta-model "the model and its property theorems" 1 $(modules ../tacenta-model Model Properties)
+
+# The replay above reports what `leanchecker` finds. This shows that, on the pinned toolchain, it finds
+# a declaration added with the kernel check switched off: two one-line modules, one sound and one not.
+bash scripts/check-kernel-replay-negative.sh || fail=1
 
 exit "$fail"

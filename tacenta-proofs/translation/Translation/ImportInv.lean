@@ -57,9 +57,12 @@ byte string the translated `from_bytes` accepts, and
 the implication in (2) is known to have a witness rather than only an
 unsatisfiable premise. `Satisfiability.lean` applies that discipline to the leaves'
 opaque-boundary hypotheses; this is the same discipline applied to a decoder. The
-sparse ratchet and the Braid have no such witness: their `from_bytes` chains
-are longer, and the Braid's runs through the opaque erasure and KEM decoders,
-which no byte string can be shown to satisfy from inside this translation.
+sparse ratchet and the Braid have witnesses for the leaf translation in modules of their own
+(`SpqrFromBytesWitness.lean`, `BraidFromBytesWitness.lean`), and the Braid has one for the session unit
+(`SessionUnitBraidFromBytesWitness.lean`); the session unit's sparse decoder has none. The Braid's is for the
+`KeysUnsampled` state only: a state that holds an erasure or KEM value decodes through
+the opaque erasure and KEM decoders, which no byte string can be shown to satisfy from
+inside this translation.
 
 ## What this does not say
 
@@ -96,11 +99,14 @@ which no byte string can be shown to satisfy from inside this translation.
   ratchet's is the one explicit argument `decoded_receive_refines` below still
   takes. **Panic-freedom is unaffected:** every `decoded_*_no_panic` here is
   unconditional in the counters.
-* For the sparse ratchet, `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`,
-  `hnewb` and `hcounter` are **not** consequences of the crate's `invariant`,
-  and are not claimed here. A state with `epoch = u64::MAX - 1` and a chain at
-  that epoch passes `invariant` and fails both `hepoch` and `hcb`; saying
-  otherwise would be false. Its `hroom`, `hskiproom` and `hone` are proved.
+* For the sparse ratchet, `SpqrT3.receive_refines`'s `hepoch`, `hnewb` and
+  `hcounter` are **not** consequences of the crate's `invariant`, and are not
+  claimed here. Nor are `hcb` and `hsb` consequences of the invariant alone: a
+  state with `epoch = u64::MAX - 1` and a chain at that epoch passes `invariant`
+  and fails both `hepoch` and `hcb`; saying otherwise would be false. They do
+  follow from the invariant together with `hepoch`
+  (`DecodedStateDischarge.spqr_receive_premises`, in a module that imports this
+  one). Its `hroom`, `hskiproom` and `hone` are proved here.
 * For the Braid, only `ct1_bounded` is derived. The rest of the Rust
   `invariant` delegates to `tacenta-erasure`'s coder invariants, which reach
   this translation as opaque axioms and so cannot be unfolded here; and
@@ -1196,9 +1202,10 @@ error, so its correspondence may hold there, but `advance_refines`, on which
 its proof rests, names `EpochOutOfOrder` and fails at `epoch = u64::MAX - 1`;
 whether `hepoch` could be dropped from `receive_refines` has not been checked. `Inv` admits that state -- a chain at its own epoch,
 inside the window, every clause satisfied -- so the gap is in the predicate
-and not in how this lemma is stated. `hepoch` therefore joins `hcb`, `hsb`,
-`hnewb` and `hcounter` on the carried list; see `decoded_receive_no_panic`
-below.
+and not in how this lemma is stated. `hepoch` therefore joins `hnewb` and
+`hcounter` on the carried list (`hcb` and `hsb` follow from the invariant and
+`hepoch`: `DecodedStateDischarge.spqr_receive_premises`); see
+`decoded_receive_no_panic` below.
 
 What this lemma is for, then, is the statement itself: it is one of the facts
 about a decoded state this file records, and `SpqrT3.lean`'s closing note
@@ -1291,13 +1298,16 @@ refinement takes eight premises, and three of them are supplied above:
 `hroom` (`inv_gives_chain_room`), `hskiproom` (`inv_gives_skip_room`) and
 `hone` (`inv_gives_store_is_map`). The remaining five -- `hepoch`, `hcb`,
 `hsb`, `hnewb` and `hcounter` -- are not consequences of this crate's
-`invariant`: a state with `epoch = u64::MAX - 1` and a chain at that epoch
-passes `invariant` and fails both `hepoch` and `hcb`. `hepoch` is on that
-list because it now reads `epoch + 1 < u64::MAX`: `advance` reserves
-`u64::MAX` and refuses the step that would reach it, while
-`epoch = u64::MAX - 1` stays a fully usable epoch that the operations produce
-and the decoder accepts, so the step of headroom is the caller's to supply.
-The five are recorded as open in `CLAIMS.md`. -/
+`invariant` alone: a state with `epoch = u64::MAX - 1` and a chain at that epoch
+passes `invariant` and fails both `hepoch` and `hcb`. `hcb` and `hsb` do follow
+from the invariant together with `hepoch`
+(`DecodedStateDischarge.spqr_receive_premises`, which is not stated here
+because that module imports this file). `hepoch` is on the list because it now
+reads `epoch + 1 < u64::MAX`: `advance` reserves `u64::MAX` and refuses the step
+that would reach it, while `epoch = u64::MAX - 1` stays a fully usable epoch
+that the operations produce and the decoder accepts, so the step of headroom is
+the caller's to supply. So three of the five are open, `hepoch`, `hnewb` and
+`hcounter`, and `CLAIMS.md` records them as the caller's. -/
 theorem decoded_receive_no_panic (hret : Tacenta.SpqrT1.VecRetainTotal)
     (hrk : Tacenta.SpqrT1.KdfRkTotal) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hkdf : Tacenta.SpqrT1.KdfCkTotal) (hopt : Tacenta.SpqrT1.OptionCloneTotal)

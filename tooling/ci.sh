@@ -196,16 +196,7 @@ python3 tacenta-proofs/scripts/attest.py --check
 bash tacenta-proofs/scripts/check-attest-negatives.sh
 
 echo "== Vectors are current with the model =="
-tacenta-test-vectors/regenerate-vectors.sh
-vector_status="$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)"
-if [ -n "$vector_status" ]; then
-  echo "ERROR: committed vectors differ from the model. Run" >&2
-  echo "  tacenta-test-vectors/regenerate-vectors.sh" >&2
-  echo "and commit the result." >&2
-  git --no-pager diff --stat -- tacenta-test-vectors/vectors >&2
-  printf '%s\n' "$vector_status" >&2
-  exit 1
-fi
+bash tooling/check-vectors-current.sh
 
 # "Property tests", not "fuzz". `tests/fuzz.rs` drives the decoders with
 # proptest, which is property-based and not coverage-guided; the

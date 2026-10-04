@@ -14,6 +14,7 @@ intended to quantify over every oracle; real-crypto vectors instantiate one.
 import Model.PersistedState
 import Model.CompositeHeader
 import Model.SessionEstablishment
+import Model.SwapRemove
 
 namespace Model.Lifecycle
 
@@ -23,13 +24,16 @@ abbrev Iv := Bytes
 
 /-- Results supplied by the trusted primitive boundary.
 
-    `draws` is ordered. Operations that need randomness consume its head and
-    return the oracle containing its tail. KEM encapsulation consumes one
-    32-byte draw; XEdDSA signing consumes two consecutive 32-byte draws (the
-    64-byte `Z` buffer filled by the shipping signer). Using the wrong draw or
-    calling a primitive in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
-    the shipping boundary validates the public key before it asks the RNG for
-    bytes. -/
+    `draws` is ordered. Operations that need randomness consume entries from
+    its front and return the oracle holding the rest. KEM encapsulation
+    consumes one 32-byte draw; XEdDSA signing consumes two consecutive 32-byte
+    draws (the 64-byte `Z` buffer filled by the shipping signer). Using the
+    wrong draw or calling a primitive in the wrong order changes the model
+    result. A KEM refusal is allowed to preserve the oracle: the shipping
+    boundary validates the public key before it asks the RNG for bytes. The
+    Braid send reads two entries at `KeysUnsampled` (key generation, 64 bytes)
+    and one at `HeaderReceived` (the first half of encapsulation, 32 bytes);
+    see `braidSendDrawCount`. -/
 structure Oracle where
   draws : List Key
   braidKem : Model.Braid.Kem
@@ -48,6 +52,8 @@ structure Oracle where
   identityValid : Key → Bool
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
   aeadOpen : Key → Key → Iv → Bytes → Bytes → Option Bytes
+  /-- Whether the public key passes the boundary's pre-RNG validation. -/
+  kemValid : Bytes → Bool
   kemEncaps : Bytes → Key → Option (Bytes × Key)
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
@@ -57,8 +63,9 @@ structure Oracle where
     refinement. A wire codeword does not reveal the Braid model's ghost source,
     and a model chunk does not contain its wire bytes. The current Braid state
     is part of each complete argument list because it supplies the encoder or
-    decoder context. `CodewordViewOf` in the refinement layer will constrain
-    these choices by the existing `BraidT3.CodewordOf` relation. -/
+    decoder context. `CodewordViewSendOf` in the refinement layer constrains
+    the send choice by the existing `BraidT3.CodewordOf` relation; the
+    receive choice is constrained per run (`IncomingChunkRefines`). -/
 structure CodewordView where
   receive : Model.Braid.BraidState → UInt16 → Bytes → Model.Braid.Chunk
   send : Model.Braid.BraidState → Model.Braid.Chunk → Model.CompositeHeader.Codeword
@@ -100,6 +107,8 @@ def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
     matches the boundary's validation-before-`fill_bytes` order. -/
 def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     Option (Option (Bytes × Key) × Oracle) := do
+  if !oracle.kemValid publicKey then
+    return (none, oracle)
   let (draw, rest) ← takeDraw oracle
   match oracle.kemEncaps publicKey draw with
   | none => some (none, oracle)
@@ -114,7 +123,7 @@ def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
   let (draw2, rest) ← takeDraw afterFirst
   some (oracle.sigSign secret message draw1 draw2, rest)
 
-/-- The two Braid send states that make a fresh 32-byte random draw. Other
+/-- The two Braid send states that read fresh randomness. Other
     states accept a `rand` argument in the leaf model but do not inspect it, so
     the lifecycle must not consume a caller draw there. -/
 def braidSendNeedsDraw : Model.Braid.BraidState → Bool
@@ -122,20 +131,53 @@ def braidSendNeedsDraw : Model.Braid.BraidState → Bool
   | .headerReceived .. => true
   | _ => false
 
-/-- Interpret the Braid's 32-byte draw as the natural-number randomness used
+/-- How many ordered 32-byte draws a Braid send reads: key generation fills a
+    64-byte seed `d || z` (mlkem-braid.md, "Key generation draws 64 random
+    bytes"), which is two draws, and the first half of encapsulation fills 32
+    bytes `m`, which is one. The other states read none. -/
+def braidSendDrawCount : Model.Braid.BraidState → Nat
+  | .keysUnsampled .. => 2
+  | .headerReceived .. => 1
+  | _ => 0
+
+/-- Interpret the Braid's random bytes as the natural-number randomness used
     by its existing model. This is the same complete byte string, little-endian,
     rather than a fresh or reordered value. -/
 def braidRandomness (draw : Key) : Nat := Model.Messages.leValue draw
 
+/-- Take `n` ordered draws, or `none` if the oracle holds fewer. -/
+def takeDraws : Nat → Oracle → Option (List Key × Oracle)
+  | 0, oracle => some ([], oracle)
+  | n + 1, oracle => do
+      let (draw, afterFirst) ← takeDraw oracle
+      let (draws, rest) ← takeDraws n afterFirst
+      some (draw :: draws, rest)
+
+theorem takeDraws_append (oracle : Oracle) (draws rest : List Key)
+    (h : oracle.draws = draws ++ rest) :
+    takeDraws draws.length oracle = some (draws, { oracle with draws := rest }) := by
+  induction draws generalizing oracle with
+  | nil =>
+    cases oracle
+    simp_all [takeDraws]
+  | cons draw draws ih =>
+    have hfirst : takeDraw oracle = some (draw, { oracle with draws := draws ++ rest }) := by
+      simp [takeDraw, h]
+    simp only [List.length_cons, takeDraws, hfirst, Option.bind_eq_bind, Option.bind_some]
+    rw [ih { oracle with draws := draws ++ rest } rfl]
+    simp
+
 /-- Run the agreement send and consume exactly the randomness the shipping
-    state consumes. The KEM record is the existing Braid model boundary carried
-    by the oracle; it is not an additional shipping primitive. -/
+    state consumes: two draws for key generation, one for the first half of
+    encapsulation, none otherwise. The KEM record is the existing Braid model
+    boundary carried by the oracle; it is not an additional shipping
+    primitive. -/
 def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
     Option ((Option Model.Braid.Msg × Nat × Option Model.Braid.Output ×
       Model.Braid.BraidState) × Oracle) :=
   if braidSendNeedsDraw state then do
-    let (draw, rest) ← takeDraw oracle
-    some (Model.Braid.send oracle.braidKem (braidRandomness draw) state, rest)
+    let (draws, rest) ← takeDraws (braidSendDrawCount state) oracle
+    some (Model.Braid.send oracle.braidKem (braidRandomness draws.flatten) state, rest)
   else
     some (Model.Braid.send oracle.braidKem 0 state, oracle)
 
@@ -167,21 +209,25 @@ theorem sendAgreement_of_no_draw_exists
   rw [sendAgreement_no_draw oracle state h]
   rw [braid_send_random_irrelevant_of_no_draw oracle.braidKem state h rand]
 
-theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
-    (draw : Key) (rest : List Key) (hn : braidSendNeedsDraw state = true)
-    (hd : oracle.draws = draw :: rest) :
+theorem sendAgreement_draws (oracle : Oracle) (state : Model.Braid.BraidState)
+    (draws rest : List Key) (hn : braidSendNeedsDraw state = true)
+    (hcount : draws.length = braidSendDrawCount state)
+    (hd : oracle.draws = draws ++ rest) :
     sendAgreement oracle state =
-      some (Model.Braid.send oracle.braidKem (braidRandomness draw) state,
+      some (Model.Braid.send oracle.braidKem (braidRandomness draws.flatten) state,
         { oracle with draws := rest }) := by
-  simp [sendAgreement, hn, takeDraw, hd]
+  rw [sendAgreement, if_pos hn, ← hcount, takeDraws_append oracle draws rest hd]
+  rfl
 
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
+    oracle.kemValid publicKey = true →
     kemEncapsulate oracle publicKey =
       match oracle.kemEncaps publicKey draw with
       | none => some (none, oracle)
       | some result => some (some result, { oracle with draws := rest }) := by
-  simp [kemEncapsulate, takeDraw, h]
+  intro hvalid
+  simp [kemEncapsulate, takeDraw, h, hvalid]
 
 /-- A malformed KEM key is a no-draw refusal. This regression theorem is
     deliberately indexed by the model's refusal result and catches a model
@@ -189,9 +235,16 @@ theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
 theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
     (rest : List Key) (publicKey : Bytes)
     (h : oracle.draws = draw :: rest)
+    (hvalid : oracle.kemValid publicKey = true)
     (hkem : oracle.kemEncaps publicKey draw = none) :
     kemEncapsulate oracle publicKey = some (none, oracle) := by
-  simp [kemEncapsulate, takeDraw, h, hkem]
+  simp [kemEncapsulate, takeDraw, h, hvalid, hkem]
+
+theorem kemEncapsulate_refusal_with_empty_trace (oracle : Oracle)
+    (publicKey : Bytes) (hvalid : oracle.kemValid publicKey = false)
+    (h : oracle.draws = []) :
+    kemEncapsulate oracle publicKey = some (none, oracle) := by
+  simp [kemEncapsulate, hvalid, h]
 
 theorem sign_cons (oracle : Oracle) (draw1 draw2 : Key) (rest : List Key)
     (secret : Key) (message : Bytes)
@@ -761,14 +814,18 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
 
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
+  -- A consumed entry is removed by moving the last entry into its slot, as `take_one_time` and
+  -- `take_one_time_kem` do and `session-persistence.md`, Prekey store, says; for a store, whose
+  -- identifiers are distinct, an order-preserving removal differs from it unless the entry is last
+  -- or the one before it (`GAP-REGISTER.md`, row `E2E-03`).
   let withoutKem :=
     if lastResort then store.state
     else { store.state with
-      kemOneTime := store.state.kemOneTime.filter (fun entry => entry.1 != kemId) }
+      kemOneTime := Model.swapRemove (fun entry => entry.1 == kemId) store.state.kemOneTime }
   let withoutCurve :=
     if oneTimeId = Model.PersistedState.PrekeyStoreState.absentId then withoutKem
     else { withoutKem with
-      oneTime := withoutKem.oneTime.filter (fun entry => entry.1 != oneTimeId) }
+      oneTime := Model.swapRemove (fun entry => entry.1 == oneTimeId) withoutKem.oneTime }
   let recorded :=
     match fingerprint with
     | none => withoutCurve
@@ -862,6 +919,82 @@ def receiveWithEviction (state : Model.Triple.State)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
 
+/-- Public, result-shaped view of the bounded receive retry loop.  This is a
+    transparent relation to the private recursive definition: downstream
+    proofs can state and compose the observable result without naming that
+    private definition directly. -/
+def ReceiveWithEvictionLoopResult (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key)) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub
+    output pending half batch fuel = result
+
+/-- The transparent result relation is functional in its result argument.
+    This anonymous check deliberately depends on both witnesses: weakening
+    the relation to `True`, or dropping `result`, makes the proof fail. -/
+example (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (left right : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hLeft : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel left)
+    (hRight : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel right) :
+    left = right := by
+  unfold ReceiveWithEvictionLoopResult at hLeft hRight
+  exact hLeft.symm.trans hRight
+
+/-- A nonempty eviction followed by a successful detailed receive is a
+    successful public retry-loop result. -/
+theorem receiveWithEvictionLoopResult_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (evictedState resultState : Model.Triple.State)
+    (evicted : Nat) (messageKey : Key)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .ok (resultState, messageKey)) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) (.ok (resultState, messageKey)) := by
+  unfold ReceiveWithEvictionLoopResult
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
+/-- Reattach a public loop-result witness to the public lifecycle receive
+    wrapper at its exact initial shortfall and fuel. -/
+theorem receiveWithEviction_of_loop_result
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hLoop : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output reason half (receiveShortfall half state composite)
+      (Model.Triple.classicalSkippedLength state
+        + Model.Triple.postQuantumSkippedLength state + 1) result) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output =
+      result := by
+  unfold ReceiveWithEvictionLoopResult at hLoop
+  simp [receiveWithEviction, hDirect, hFull, hLoop]
+
 /-- A single successful retry is exposed for the translation composition.
 The theorem names the direct refusal, the selected full-store half, the
 working-copy eviction and the successful retry; it does not hide those facts
@@ -942,6 +1075,34 @@ theorem receiveWithEvictionLoop_continue_same_half
         newDhsPub output reason half (batch * 2) fuel := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull]
 
+/-- Lift a result for the decremented same-half retry into a result for the
+    current retry step.  Only the public result relation crosses this API. -/
+theorem receiveWithEvictionLoopResult_continue_same_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hNext : ReceiveWithEvictionLoopResult evictedState composite header
+      dhOutRecv dhOutSend newDhsPub output reason half (batch * 2) fuel result) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) result := by
+  unfold ReceiveWithEvictionLoopResult at hNext ⊢
+  exact (receiveWithEvictionLoop_continue_same_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half batch fuel
+    evictedState evicted hEvict hNonzero hRetry hFull).trans hNext
+
 /-! Public proposition wrapper for the private loop equation.  Translation
     proofs can carry this relation across the model boundary without naming
     the implementation-private recursive function. -/
@@ -1014,6 +1175,36 @@ theorem receiveWithEvictionLoop_continue_switch_half
   cases half <;> cases nextHalf <;>
     simp_all [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull, hDifferent]
 
+/-- Lift a result for a retry that switches full-store halves into a result
+    for the current retry step. -/
+theorem receiveWithEvictionLoopResult_continue_switch_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half)
+    (hNext : ReceiveWithEvictionLoopResult evictedState composite header
+      dhOutRecv dhOutSend newDhsPub output reason nextHalf
+      (receiveShortfall nextHalf evictedState composite) fuel result) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) result := by
+  unfold ReceiveWithEvictionLoopResult at hNext ⊢
+  exact (receiveWithEvictionLoop_continue_switch_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half nextHalf batch fuel
+    evictedState evicted hEvict hNonzero hRetry hFull hDifferent).trans hNext
+
 def receiveWithEvictionLoopSwitchHalf
     (state : Model.Triple.State)
     (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
@@ -1076,6 +1267,26 @@ theorem receiveWithEvictionLoop_zero_evict
     receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
       pending half batch (fuel + 1) = .error pending := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict]
+
+/-- A zero-entry eviction preserves and returns the pending refusal without
+    making another receive attempt. -/
+theorem receiveWithEvictionLoopResult_zero_evict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, 0)) :
+    ReceiveWithEvictionLoopResult state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch (fuel + 1) (.error pending) := by
+  unfold ReceiveWithEvictionLoopResult
+  exact receiveWithEvictionLoop_zero_evict state composite header dhOutRecv
+    dhOutSend newDhsPub output pending half batch fuel evictedState hEvict
 
 def receiveWithEvictionLoopZeroEvict
     (state : Model.Triple.State)
@@ -1766,6 +1977,9 @@ namespace Examples
 def toySecret : Key := List.replicate 32 0x42
 def toyAgreementDraw : Key := List.replicate 32 0x31
 
+/-- The two draws the toy initiator's first Braid send reads for key generation. -/
+def toyAgreementDraws : List Key := [toyAgreementDraw, List.replicate 32 0x34]
+
 def toyPrekeyStore : PrekeyStore :=
   { state :=
       { (default : StoredPrekeys) with
@@ -1791,6 +2005,19 @@ example :
       ∧ consumed.state.seen = [(8, fingerprint)] := by
   native_decide
 
+/-- A consumed entry that is neither the last nor the one before it: the last entry takes its slot.
+    An order-preserving removal would give `[9, 11]` and `[10, 12]`. -/
+example :
+    let store : PrekeyStore :=
+      { state :=
+          { (default : StoredPrekeys) with
+            oneTime := [(7, [0x71]), (9, [0x91]), (11, [0xb1])]
+            kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2]), (12, [0xc1], [0xc2])] } }
+    let consumed := consumeResponderPrekeys store 7 8 false none
+    consumed.state.oneTime.map Prod.fst = [11, 9]
+      ∧ consumed.state.kemOneTime.map Prod.fst = [12, 10] := by
+  native_decide
+
 /-- Replay matching ignores the record's budget tag. The tag controls counting
     and rotation only; the SK-bound fingerprint decides replay globally. -/
 example :
@@ -1803,7 +2030,7 @@ example :
   simp [lastResortReplayCheck]
 
 def toyCodewordSourceFor (secret : Key) : Bytes :=
-  match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraw)
+  match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraws.flatten)
       (Model.Braid.initAlice secret)).1 with
   | some message => message.data.map (fun chunk => chunk.source) |>.getD []
   | none => []
@@ -1829,6 +2056,7 @@ def toyOracle (draws : List Key) : Oracle where
       some (ciphertext.drop Model.Kdf.hashLen)
     else none
   kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
+  kemValid := fun _ => true
   kemDecaps := fun _ _ => some (List.replicate 32 0xee)
   sigVerify := fun _ _ _ => true
   sigSign := fun _ _ _ _ => List.replicate 64 0x55
@@ -1915,7 +2143,7 @@ def toyOneTimeEstablishedSecret : Key :=
     wire codecs and the AEAD boundary. Fixed toy primitives make it executable;
     the boundary-refinement work later replaces them with related Rust calls. -/
 example :
-    let sent := encrypt toyView (toyOracle [toyAgreementDraw])
+    let sent := encrypt toyView (toyOracle toyAgreementDraws)
       (toyAlice toySecret) [0xde, 0xad]
     (match sent.result with
       | .error _ => false
@@ -1937,7 +2165,7 @@ example :
       | .error _ => false
       | .ok alice =>
           let sent := encrypt (toyViewFor toyEstablishedSecret)
-            (toyOracle [toyAgreementDraw]) alice [0xde, 0xad]
+            (toyOracle toyAgreementDraws) alice [0xde, 0xad]
           match sent.result with
           | .error _ => false
           | .ok wire =>
@@ -1961,7 +2189,7 @@ example :
       | .error _ => false
       | .ok alice =>
           let sent := encrypt (toyViewFor toyOneTimeEstablishedSecret)
-            (toyOracle [toyAgreementDraw]) alice [0xca, 0xfe]
+            (toyOracle toyAgreementDraws) alice [0xca, 0xfe]
           match sent.result with
           | .error _ => false
           | .ok wire =>
@@ -2032,6 +2260,85 @@ example :
       | .error reason => reason == .unknownPrekeyId
       | .ok _ => false) = true := by
   decide +kernel
+
+/-! ### Randomness drawn by a Braid send
+
+`mlkem-braid.md` (The KEM split, Sending): key generation draws 64 bytes, which is two draws; the
+first half of encapsulation draws 32 bytes, which is one; no other send draws. The toy KEM reads
+only the low byte of its randomness, so these examples are what holds the draw count to the page. -/
+
+/-- The draw count at one state of each of the twelve kinds. -/
+example :
+    let a := Model.Braid.Auth.init 1 (List.replicate 32 42)
+    let dec := Model.Braid.Decoder.new 96
+    let enc := Model.Braid.encode []
+    braidSendDrawCount (.keysUnsampled 1 a) = 2 ∧
+    braidSendDrawCount (.keysSampled 1 a [] [] enc) = 0 ∧
+    braidSendDrawCount (.headerSent 1 a [] dec enc) = 0 ∧
+    braidSendDrawCount (.ct1Received 1 a [] [] enc) = 0 ∧
+    braidSendDrawCount (.ekSentCt1Received 1 a [] [] dec) = 0 ∧
+    braidSendDrawCount (.noHeaderReceived 1 a dec) = 0 ∧
+    braidSendDrawCount (.headerReceived 1 a [] [] dec) = 1 ∧
+    braidSendDrawCount (.ct1Sampled 1 a [] [] [] [] enc dec) = 0 ∧
+    braidSendDrawCount (.ekReceivedCt1Sampled 1 a [] [] [] [] enc) = 0 ∧
+    braidSendDrawCount (.ct1Acknowledged 1 a [] [] [] [] dec) = 0 ∧
+    braidSendDrawCount (.ct2Sampled 1 a enc) = 0 ∧
+    braidSendDrawCount .failed = 0 := by
+  decide
+
+/-- A state needs a draw exactly when its count is not zero. -/
+example (state : Model.Braid.BraidState) :
+    braidSendNeedsDraw state = true ↔ braidSendDrawCount state ≠ 0 := by
+  cases state <;> simp [braidSendNeedsDraw, braidSendDrawCount]
+
+/-- The initiator's first send reads two entries and leaves the rest. -/
+example :
+    (encrypt toyView (toyOracle (toyAgreementDraws ++ [List.replicate 32 0x77]))
+      (toyAlice toySecret) [0xde, 0xad]).oracle.draws = [List.replicate 32 0x77] := by
+  native_decide
+
+/-- With one entry left that send refuses and consumes nothing. -/
+example :
+    (match (encrypt toyView (toyOracle [toyAgreementDraw]) (toyAlice toySecret)
+        [0xde, 0xad]).result with
+      | .error .ceiling => true
+      | _ => false) = true ∧
+    (encrypt toyView (toyOracle [toyAgreementDraw]) (toyAlice toySecret)
+        [0xde, 0xad]).oracle.draws = [toyAgreementDraw] := by
+  native_decide
+
+/-- The responder's first send reads one entry; a state that does not draw reads none. -/
+example :
+    let a := Model.Braid.Auth.init 1 (List.replicate 32 42)
+    let spare := List.replicate 32 0x77
+    (match sendAgreement (toyOracle [toyAgreementDraw, spare])
+        (.headerReceived 1 a (List.replicate 32 1) (List.replicate 32 2)
+          (Model.Braid.Decoder.new 64)) with
+      | some (_, o) => o.draws == [spare]
+      | none => false) = true ∧
+    (match sendAgreement (toyOracle [toyAgreementDraw, spare])
+        (.ct2Sampled 1 a (Model.Braid.encode [])) with
+      | some (_, o) => o.draws == [toyAgreementDraw, spare]
+      | none => false) = true := by
+  native_decide
+
+/-- Establishment and the first send over one draw stream, in the order of the session end-to-end
+vector (`alice_ephemeral_secret` 32, `alice_kem_encapsulation_m` 32, `alice_ratchet_secret` 32,
+`alice_braid_keygen_d_z` 64): all five entries are used and none is left. -/
+example :
+    let stream : List Key := [List.replicate 32 0x12, List.replicate 32 0x13,
+      List.replicate 32 0x14, List.replicate 32 0x31, List.replicate 32 0x34]
+    let initiated := establishInitiator (toyOracle stream) toyAliceIdentity toyBundle
+      toyBobIdentity.publicKey
+    (match initiated.result with
+      | .error _ => false
+      | .ok alice =>
+          initiated.oracle.draws.length == 2 &&
+          (let sent := encrypt (toyViewFor toyEstablishedSecret) initiated.oracle alice
+              [0xde, 0xad]
+           (match sent.result with | .ok _ => true | .error _ => false) &&
+           sent.oracle.draws.isEmpty)) = true := by
+  native_decide
 
 end Examples
 

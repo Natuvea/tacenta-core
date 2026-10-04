@@ -14,7 +14,7 @@ running both.
 | Lean | `leanprover/lean4:v4.31.0` | `lean-toolchain` (and `translation/lean-toolchain`) |
 | Lean dependencies, model layer | exact revisions | `lake-manifest.json` |
 | Lean dependencies, translation (Aeneas library, Mathlib, Batteries, Aesop) | exact revisions | `translation/lake-manifest.json`, with the Aeneas library `rev` pinned by commit in `translation/lakefile.toml` |
-| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree), and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check` | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow carries the digest |
+| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree), and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check`. The macOS arm64 archive `aeneas-macos-aarch64.tar.gz` of the same release (SHA-256 `9c3c76c0be6abc28b7ec8d2847ae8bd9c0d8eae7c4233c4b16724f267d9a7873`, the digest the release page lists for it) was used for the local regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in `GAP-REGISTER.md`; the workflow does not check it | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow carries the digest |
 | Mathlib build artifacts | **not pinned**: `lake exe cache get` fetches prebuilt oleans for the manifest's Mathlib commit from Mathlib's cache over HTTPS, and Lean loads them without re-checking against source | trusted, see `LIMITATIONS.md` |
 | Rust, for Charon | whatever the Aeneas release's `rust-toolchain` names | resolved at run time, not pinned here |
 
@@ -208,6 +208,12 @@ no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
 no-sorry: the model and its property theorems replays clean (36 modules)
 ```
+
+The transcript was taken before three further controls were added to the script, so it does not show their
+lines: `check-audit-reach-negatives.sh` (an unwalked module and a wrong audit call, each refused), then
+`check-pin-negatives.sh` (Lean refuses a changed `#guard_msgs` pin) after the audit-reach line, and
+`check-kernel-replay-negative.sh` (`leanchecker` refuses a declaration added under
+`debug.skipKernelTC`) after the replays. Each prints one summary line beginning with its own name.
 
 ## Replaying through the kernel
 

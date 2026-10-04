@@ -235,12 +235,16 @@ jobs:
         run: python3 ../independent/reader/test_session_e2e_sweep.py
       - id: vectors_session_reader
         run: cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
+      # The differential harness fails, and does not skip, when the model's
+      # executable is missing and CI or the variable requires it.
+      - id: vectors_differential_cases
+        run: bash ../../../tooling/tests/run-differential-required-input-cases.sh
       - uses: ./.github/actions/assurance-receipt
         with:
           id: vectors
           classification: required
           command: conformance-and-independent-readers
-          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }},vectors_differential_cases=${{ steps.vectors_differential_cases.outcome }}"
 
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not
@@ -312,19 +316,16 @@ jobs:
         run: bash tacenta-proofs/scripts/verify.sh
       - id: proofs_vectors
         name: The committed vectors are current with the model
-        run: |
-          bash tacenta-test-vectors/regenerate-vectors.sh
-          vector_status="$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)"
-          if [ -n "$vector_status" ]; then
-            printf '%s\n' "$vector_status" >&2
-            exit 1
-          fi
+        run: bash tooling/check-vectors-current.sh
+      - id: proofs_vectors_control
+        name: A changed committed vector is refused
+        run: bash tooling/tests/run-check-vectors-current-cases.sh
       - uses: ./.github/actions/assurance-receipt
         with:
           id: proofs
           classification: required
           command: model-proofs-and-vector-currency
-          required-outcomes: "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }}"
+          required-outcomes: "proofs_elan=${{ steps.proofs_elan.outcome }},proofs_model=${{ steps.proofs_model.outcome }},proofs_verify=${{ steps.proofs_verify.outcome }},proofs_vectors=${{ steps.proofs_vectors.outcome }},proofs_vectors_control=${{ steps.proofs_vectors_control.outcome }}"
 
   # The committed Rust-to-Lean translation and the T1/T3 proofs over it, plus
   # the model and model-layer proofs, all built and scanned for incomplete
@@ -552,10 +553,12 @@ jobs:
         run: bash tooling/tests/run-build-evidence-pack-cases.sh
       - id: checks_38
         run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
-      # The focused transaction-boundary tests must reject mutations that move
-      # durable effects before authentication or before the send commit point.
+      # The controls for the checks above that had none (conflict markers, proof
+      # hygiene, the authentication boundary, `no-sorry.sh`, `verify.sh`, the
+      # translation coverage script, the eleven `--check` modes, the installers)
+      # and the generated inventory of gates and controls. Needs no toolchain.
       - id: checks_41
-        run: python3 tooling/check-session-transaction-mutations.py
+        run: bash tooling/tests/run-gate-controls.sh
       # Pull requests check every added commit in the conditional sign-off job.
       # A push to main must also check the commits introduced by that push:
       # otherwise a squash or merge commit can bypass the only DCO gate after
@@ -651,6 +654,14 @@ jobs:
       - run: python3 tooling/collect-assurance-receipts.py --event '${{ github.event_name }}' --input-dir .assurance/receipts --output .assurance/assurance-receipts.json
       - run: python3 tooling/build-assurance-manifest.py --receipts .assurance/assurance-receipts.json --output .assurance/assurance-manifest.json
       - run: python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json
+      # The evidence pack for this candidate, built from the manifest and the
+      # receipts, checked against its own digests and against this commit's
+      # files, and rebuilt in a fresh checkout of this commit by the commit's
+      # own builders. The rebuild must equal the pack and the two uploaded
+      # files byte for byte.
+      - run: python3 tooling/build-evidence-pack.py --manifest .assurance/assurance-manifest.json --receipts .assurance/assurance-receipts.json --output .assurance/evidence-pack
+      - run: python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack --candidate-repo .
+      - run: python3 tooling/reproduce-evidence.py --pack .assurance/evidence-pack --hosted .assurance
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assurance-receipts
@@ -658,4 +669,10 @@ jobs:
             .assurance/assurance-receipts.json
             .assurance/assurance-manifest.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack
+          if-no-files-found: error
+          retention-days: 90

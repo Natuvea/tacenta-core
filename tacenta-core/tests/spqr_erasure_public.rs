@@ -235,3 +235,66 @@ fn public_session_drop_wipes_spqr_keys_before_release() {
     );
     assert!(!tacenta_spqr::REVIEW_FOUND.load(Ordering::Acquire));
 }
+
+/// A stored sparse state of `held` keys, all under epoch 0 at numbers no skip
+/// from the chain at 0 reaches, in the persisted layout
+/// (session-persistence.md, Sparse ratchet state).
+fn stored_state(held: u64, key_of: impl Fn(u64) -> [u8; 32]) -> Vec<u8> {
+    let mut out = vec![0x01];
+    out.extend_from_slice(&[0x11; 32]); // rk
+    out.extend_from_slice(&0u64.to_be_bytes()); // epoch
+    out.push(0x01); // direction
+    out.extend_from_slice(&1u32.to_be_bytes()); // one chains entry
+    out.extend_from_slice(&0u64.to_be_bytes());
+    for ck in [[0x22u8; 32], [0x33u8; 32]] {
+        out.push(0x01);
+        out.extend_from_slice(&ck);
+        out.extend_from_slice(&0u64.to_be_bytes()); // chain counter 0
+    }
+    out.extend_from_slice(&(held as u32).to_be_bytes());
+    for i in 0..held {
+        out.extend_from_slice(&0u64.to_be_bytes());
+        out.extend_from_slice(&(100_000 + i).to_be_bytes());
+        out.extend_from_slice(&key_of(i));
+    }
+    out
+}
+
+/// A skip refused for the total bound has built a working copy of the stored
+/// keys by then (sparse-pq-ratchet.md, The store also has a total bound), and
+/// drops it without storing it. Nothing but `Skipped`'s erasure on drop wipes
+/// that copy, so this fails if the type stops erasing.
+#[test]
+fn a_skip_refused_for_the_total_bound_frees_no_secret() {
+    use tacenta_spqr::SpqrError;
+    let key_of = |i: u64| {
+        let mut k = [0u8; 32];
+        k[..8].copy_from_slice(&(0x5eed_0000_0000_0000u64 | i).to_le_bytes());
+        k[8..16].copy_from_slice(&i.wrapping_mul(0x9E37_79B9_7F4A_7C15).to_le_bytes());
+        k[16..24].copy_from_slice(&(!i).to_le_bytes());
+        k[24..].copy_from_slice(&i.rotate_left(17).to_le_bytes());
+        k
+    };
+    let mut state = State::from_bytes(&stored_state(2000, key_of)).unwrap();
+    assert_eq!(state.skipped_len(), 2000);
+    unsafe {
+        // Sixteen of the held keys are enough: an unerased copy holds all of them.
+        // KEYS is a static mut, which the file indexes on purpose.
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..16 {
+            KEYS[i] = key_of(i as u64 * 125);
+        }
+        KEY_COUNT.store(16, Ordering::Release);
+        HITS.store(0, Ordering::Release);
+    }
+    ARMED.store(true, Ordering::Release);
+    // Message 2 skips one key, and 2,000 + 1 passes the cap.
+    let result = state.receive(0, None, 2);
+    ARMED.store(false, Ordering::Release);
+    assert_eq!(result, Err(SpqrError::SkippedStoreFull));
+    assert_eq!(
+        HITS.load(Ordering::Acquire),
+        0,
+        "the working copy of a refused skip was released without erasure"
+    );
+}
