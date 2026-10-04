@@ -1,121 +1,17 @@
 import Translation.UnitLifecycleInitialDispatch
 
 /-!
-# Hypotheses of the lifecycle dispatch layer that are false or empty
+# Remaining dispatch evidence audits
 
-`UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean` state the refinement lemmas for the
-eight-leaf session unit's `encrypt` and `decrypt` as conditional on hypotheses and on evidence
-records. A theorem whose hypothesis nothing satisfies is true and says nothing, and `#print axioms`
-does not show it. This module proves that five of those hypotheses and records are false or empty,
-each under the conditions stated below (results A to D), and says what one clause of the oracle
-record costs inside the model (result E). The results are about hypotheses. None is a statement
-about the product.
-
-* **A.** `InitialSameEphemeralEvidence` is false for every `dh`, `oracle`, `real` and `model`
-  (`initialSameEphemeralEvidence_false`). It asks the translated `same_ephemeral_agreement` to
-  return `true` on every pair of equal byte strings, and it returns `false` on the two empty ones.
-  The proof uses no hypothesis and no law.
-* **B.** `CodewordViewOf` is false for every view whenever `Encoder::new` returns on two messages
-  of one length `n` of at least 33 bytes that agree on their first 32 bytes and differ at byte 32
-  (`codewordViewOf_false`). So it is false given `EncoderNewTotal`, a field of the encrypt contract
-  records that `UnitSatisfiabilityErasure.encoderNew_iff` shows equivalent to the law `DivCeil32`,
-  that `usize::div_ceil` returns at divisor 32 (`codewordViewOf_false_of_encoderNewTotal`, at
-  `n = 33`). Its `receive` clause makes the source a function of the codeword, and the two messages
-  share their codeword at index 0.
-* **C.** `InitialRatchetBraidEvidenceContracts` has no term when the model Braid, with its epoch
-  below 2^64, is in one of the six state and message-type pairs for which `Model.Braid.receive`
-  feeds a chunk to an existing decoder, and that decoder holds a chunk
-  (`record_empty_of_nonempty_decoder` and its six instances). The model Braid reaches the first of
-  them in one receive step, from `keysSampled` on a ct1 chunk
-  (`keysSampled_receive_ct1_holds_chunk`). The record quantifies over every incoming chunk, and two
-  chunks that differ at index 0 cannot both be codewords of the one source the held chunk carries.
-* **D.** `InitialRatchetTripleConcreteEvidence` and `InitialRatchetAeadConcreteEvidence` force the
-  oracle's `dhPublic` to be constant (the two `forces_constant_dhPublic` results). With the DH codec
-  and the oracle's `dhPublic` clause that contradicts `PublicKeyNotConstant`, a statement about the
-  real X25519 public-key function that this repository tests and does not prove (the two
-  `false_of_publicKeyNotConstant` results).
-* **E.** `OracleOf.kemEncapsulateSuccess` makes the model's KEM oracle accept every public key at
-  every draw that a trace has, and the translated `encapsulate` never return `Err` while the trace
-  has a draw (`oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`). This is not a
-  refutation: `encapsulate` is an opaque constant, and that the shipped function returns `Err` on a
-  malformed key is read from `tacenta-core/boundary/src/kem.rs` and tested for a wrong length
-  (`GAP-REGISTER.md`, row `E2E-04`).
-
-**Platform width.** No result case-splits on the width of `usize`, and none uses a fact about
-`Usize.max` other than the bounds Aeneas proves for the platform constant, which is `U32.max` or
-`U64.max` (`Usize.bounds_eq`). `System.Platform.numBits` is an opaque constant of the kernel whose
-value is 32 or 64, so a proof that does not choose between the two holds for both.
-
-**What these results do not show.** They do not show that the product is wrong; each says that an
-assumption of a Lean theorem is not met. They do not decide `InitialRatchetBraidEvidenceContracts`
-for states whose decoder is empty or that are outside the six. Result D rests on
-`PublicKeyNotConstant`, which no theorem here proves. They repair nothing: the theorems that take
-these hypotheses are listed in `GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, which also says
-what closes the row.
+This module retains the non-obsolete audits for the dispatch contracts. The former
+`InitialSameEphemeralEvidence` audit is intentionally absent: the dispatch proof now
+requires decoded-message evidence and uses `InitialAgreementEquivalentEphemeralEvidence`
+instead. The remaining audits below are still useful until their contracts are replaced.
 -/
 
 open Aeneas Aeneas.Std Result
 
 namespace Tacenta.DispatchEvidenceVacuity
-
-section SameEphemeral
-open tacenta_session_unit
-open Tacenta.UnitLifecycleT3
-
-/-! ## A. `InitialSameEphemeralEvidence` is false
-
-`tacenta_session.decode_ec` returns `none` unless its slice has length `ENCODE_EC_LEN`, which is
-33, so `lifecycle.same_ephemeral_agreement` returns `false` on two empty byte strings. The Rust
-function does the same (`tacenta-core/lifecycle/src/lifecycle.rs`, the `None => return false`
-arms). `InitialSameEphemeralEvidence` asks for `true` on every pair of equal byte strings. The
-model's `sameEphemeralAgreement` also returns `false` when either agreement is `none`, so the
-second conjunct of the definition fails on low-order keys too; that is not proved here. -/
-
-/-- The translated `decode_ec` refuses a byte string of the wrong length. -/
-theorem decode_ec_empty :
-    tacenta_session.decode_ec ⟨[], by simp⟩ = ok none := by
-  unfold tacenta_session.decode_ec
-  have : (Slice.len (⟨[], by simp⟩ : Slice Std.U8)) ≠ tacenta_session.ENCODE_EC_LEN := by
-    unfold tacenta_session.ENCODE_EC_LEN
-    intro h
-    have := congrArg UScalar.val h
-    simp [Slice.len] at this
-  simp [this]
-
-theorem lifecycle_decode_ec_empty :
-    decode_ec ⟨[], by simp⟩ = ok none := by
-  unfold decode_ec
-  rw [decode_ec_empty]
-  simp
-
-/-- On two empty byte strings the translated `same_ephemeral_agreement` returns `false`. -/
-theorem same_ephemeral_agreement_empty (p : tacenta_boundary.dh.PrivateKey) :
-    lifecycle.same_ephemeral_agreement p ⟨[], by simp⟩ ⟨[], by simp⟩ = ok false := by
-  unfold lifecycle.same_ephemeral_agreement
-  rw [lifecycle_decode_ec_empty]
-  simp
-
-/-- `InitialSameEphemeralEvidence` is false for every argument: it asks the translated
-`same_ephemeral_agreement` to return `true` on every pair of equal byte strings, and it
-returns `false` on the two empty ones. -/
-theorem initialSameEphemeralEvidence_false (dh : DhView) (oracle : Model.Lifecycle.Oracle)
-    (real : lifecycle.Session) (model : Model.Lifecycle.Session) :
-    ¬ InitialSameEphemeralEvidence dh oracle real model := by
-  intro h
-  let est : alloc.vec.Vec Std.U8 := ⟨[], by simp⟩
-  let dec : tacenta_wire.DecodedInitial :=
-    { identity := est, ephemeral := est, kem_ciphertext := est, signed_prekey_id := 0#u32,
-      one_time_prekey_id := 0#u32, kem_prekey_id := 0#u32, message := est }
-  have h1 := (h est dec rfl).1
-  have h2 : lifecycle.same_ephemeral_agreement real.ratchet_private est.deref dec.ephemeral.deref =
-      ok false := same_ephemeral_agreement_empty real.ratchet_private
-  rw [h2] at h1
-  have := Result.ok.inj h1
-  exact absurd this (by decide)
-
-
-
-end SameEphemeral
 
 section CodewordView
 open tacenta_session_unit
@@ -528,6 +424,8 @@ section BraidEvidenceRecord
 open tacenta_session_unit
 open Tacenta.SessionUnitBraidT3
 
+
+
 /-! ## C. `InitialRatchetBraidEvidenceContracts` has no term on six states
 
 The record has the fields `hchunk` and `hhonest`, and neither uses the record's `message`
@@ -764,6 +662,8 @@ theorem keysSampled_receive_ct1_holds_chunk (K : Model.Braid.Kem) (epoch : Nat)
 
 end BraidEvidenceRecord
 
+
+
 section ConcreteEvidence
 open tacenta_session_unit
 open Tacenta.UnitLifecycleT3
@@ -923,108 +823,9 @@ theorem aeadConcreteEvidence_false_of_publicKeyNotConstant
 
 end ConcreteEvidence
 
-section KemOracle
-open tacenta_session_unit
-open Tacenta.UnitLifecycleT3
 
-/-! ## E. What `OracleOf.kemEncapsulateSuccess` costs inside the model
-
-The clause asserts, for every public key and every RNG state that still has a draw, that the
-translated `encapsulate` returns `Ok` with the oracle's result. The shipped function returns
-`Err(KemError)` for a wrong length or a failed `validate_public_key` before it draws
-(`tacenta-core/boundary/src/kem.rs`). `GAP-REGISTER.md`, row `E2E-04`, records that. The two
-theorems show what the clause asserts inside the model: the model's oracle never refuses an
-encapsulation key at any draw, and the call never returns `Err` while the trace has a draw, so the
-premise of the clause `kemEncapsulateError` cannot hold while a draw remains. -/
-
-/-- `OracleOf.kemEncapsulateSuccess` is unguarded: for every public key and every RNG
-state that still has a draw, the translated boundary call returns `Ok`.  So the clause
-makes the model's oracle never refuse an encapsulation key at any draw. -/
-theorem oracleOf_kem_oracle_never_refuses
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
-    {oracle : Model.Lifecycle.Oracle}
-    (oracleOf : OracleOf rc crc dh kem trace oracle)
-    (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
-    (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest) :
-    ∃ r, oracle.kemEncaps (sliceOf publicKey) draw = some r := by
-  obtain ⟨result, rng', _, _, hres⟩ := oracleOf.kemEncapsulateSuccess publicKey rng draw rest h
-  exact ⟨_, hres.symm⟩
-
-/-- And the boundary call itself never returns `Err` while the RNG has a draw. -/
-theorem oracleOf_kem_call_never_errs
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
-    {oracle : Model.Lifecycle.Oracle}
-    (oracleOf : OracleOf rc crc dh kem trace oracle)
-    (publicKey : Slice Std.U8) (rng : R) (draw : Model.Lifecycle.Key)
-    (rest : List Model.Lifecycle.Key) (h : trace rng = draw :: rest)
-    (rng' : R) (error : tacenta_boundary.kem.KemError) :
-    tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (.Err error, rng') := by
-  intro hcall
-  obtain ⟨result, rng'', hok, _, _⟩ := oracleOf.kemEncapsulateSuccess publicKey rng draw rest h
-  rw [hcall] at hok
-  have := Result.ok.inj hok
-  have := (Prod.mk.inj this).1
-  cases this
-
-
-end KemOracle
 
 end Tacenta.DispatchEvidenceVacuity
-
-/-! ## Pins
-
-The axiom bases of the claimed results, and the statements of the refutations, held by the build.
-The axiom lists name constants that occur in the statements of the results (the translated
-operations the hypotheses are about), not assumptions the proofs make; the results that need no
-constant list the three standard axioms only. The statement pins fix what each result says: a
-weaker hypothesis list or a different conclusion fails the build here, and an axiom pin alone
-would not notice it. `attest.py` lists the axiom pins in `REQUIRED_PINS`, so deleting one fails
-it. -/
-
-/--
-info: 'Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
--/
-#guard_msgs in
-#print axioms Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
-
-/--
-info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
-  (p : tacenta_session_unit.tacenta_boundary.dh.PrivateKey) :
-  tacenta_session_unit.lifecycle.same_ephemeral_agreement p ⟨[], ⋯⟩ ⟨[], ⋯⟩ = ok false
--/
-#guard_msgs in
-#check Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
-
-/--
-info: 'Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_session_unit.tacenta_kem.EncapsState,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
--/
-#guard_msgs in
-#print axioms Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false
-
-/--
-info: Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false (dh : Tacenta.UnitLifecycleT3.DhView)
-  (oracle : Model.Lifecycle.Oracle) (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session) :
-  ¬Tacenta.UnitLifecycleT3.InitialSameEphemeralEvidence dh oracle real model
--/
-#guard_msgs in
-#check Tacenta.DispatchEvidenceVacuity.initialSameEphemeralEvidence_false
-
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.codewordViewOf_false' depends on axioms: [propext,
  Classical.choice,
@@ -1033,6 +834,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.codewordViewOf_false' depends on axioms: 
 -/
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.codewordViewOf_false
+
 
 /--
 info: Tacenta.DispatchEvidenceVacuity.codewordViewOf_false (view : Model.Lifecycle.CodewordView) (n : Usize) (hn : 33 ≤ ↑n)
@@ -1044,6 +846,7 @@ info: Tacenta.DispatchEvidenceVacuity.codewordViewOf_false (view : Model.Lifecyc
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.codewordViewOf_false
 
+
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal' depends on axioms: [propext,
  Classical.choice,
@@ -1053,6 +856,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal' 
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal
   (hnew : Tacenta.SessionUnitBraidT1.EncoderNewTotal) (view : Model.Lifecycle.CodewordView) :
@@ -1060,6 +864,7 @@ info: Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.codewordViewOf_false_of_encoderNewTotal
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder' depends on axioms: [propext,
@@ -1097,6 +902,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder' depends
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder {K : Model.Braid.Kem}
   {view : Model.Lifecycle.CodewordView} {real : tacenta_session_unit.lifecycle.Session}
@@ -1113,6 +919,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder {K : Mode
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_of_nonempty_decoder
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_headerSent' depends on axioms: [propext,
@@ -1150,6 +957,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_headerSent' depends on axiom
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_headerSent
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_headerSent {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
   {real : tacenta_session_unit.lifecycle.Session} {model : Model.Lifecycle.Session} {message : Slice U8} (e : ℕ)
@@ -1160,6 +968,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_headerSent {K : Model.Braid.K
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_headerSent
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received' depends on axioms: [propext,
@@ -1197,6 +1006,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received' depends o
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received {K : Model.Braid.Kem}
   {view : Model.Lifecycle.CodewordView} {real : tacenta_session_unit.lifecycle.Session}
@@ -1208,6 +1018,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received {K : Model.
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_ekSentCt1Received
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived' depends on axioms: [propext,
@@ -1245,6 +1056,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived' depends on
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived {K : Model.Braid.Kem}
   {view : Model.Lifecycle.CodewordView} {real : tacenta_session_unit.lifecycle.Session}
@@ -1255,6 +1067,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived {K : Model.B
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_noHeaderReceived
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek' depends on axioms: [propext,
@@ -1292,6 +1105,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek' depends on ax
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
   {real : tacenta_session_unit.lifecycle.Session} {model : Model.Lifecycle.Session} {message : Slice U8} (e : ℕ)
@@ -1303,6 +1117,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek {K : Model.Brai
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ek
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack' depends on axioms: [propext,
@@ -1340,6 +1155,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack' depends
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack {K : Model.Braid.Kem}
   {view : Model.Lifecycle.CodewordView} {real : tacenta_session_unit.lifecycle.Session}
@@ -1351,6 +1167,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack {K : Mode
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_ct1Sampled_ekCt1Ack
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged' depends on axioms: [propext,
@@ -1388,6 +1205,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged' depends on 
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
   {real : tacenta_session_unit.lifecycle.Session} {model : Model.Lifecycle.Session} {message : Slice U8} (e : ℕ)
@@ -1400,6 +1218,7 @@ info: Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged {K : Model.Br
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.record_empty_ct1Acknowledged
 
+
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk' depends on axioms: [propext,
  Classical.choice,
@@ -1407,6 +1226,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk' depe
 -/
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk
+
 
 /--
 info: Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk (K : Model.Braid.Kem) (epoch : ℕ)
@@ -1419,6 +1239,7 @@ info: Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk (K : M
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.keysSampled_receive_ct1_holds_chunk
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dhPublic' depends on axioms: [propext,
@@ -1473,6 +1294,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dh
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dhPublic
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dhPublic {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
@@ -1490,6 +1312,7 @@ info: Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dhP
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_forces_constant_dhPublic
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPublic' depends on axioms: [propext,
@@ -1544,6 +1367,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPu
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPublic
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPublic {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
@@ -1562,6 +1386,7 @@ info: Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPub
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_forces_constant_dhPublic
 
+
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotConstant' depends on axioms: [propext,
  Classical.choice,
@@ -1576,6 +1401,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotCo
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotConstant
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotConstant {dh : Tacenta.UnitLifecycleT3.DhView}
   {oracle : Model.Lifecycle.Oracle} (codec : Tacenta.UnitLifecycleT3.DhCodecOf dh)
@@ -1585,6 +1411,7 @@ info: Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotCon
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.constant_dhPublic_false_of_publicKeyNotConstant
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKeyNotConstant' depends on axioms: [propext,
@@ -1639,6 +1466,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKey
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKeyNotConstant
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKeyNotConstant {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
@@ -1657,6 +1485,7 @@ info: Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKeyN
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.tripleConcreteEvidence_false_of_publicKeyNotConstant
+
 
 /--
 info: 'Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNotConstant' depends on axioms: [propext,
@@ -1711,6 +1540,7 @@ info: 'Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNo
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNotConstant
 
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNotConstant {R : Type}
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
@@ -1729,70 +1559,3 @@ info: Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNot
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.aeadConcreteEvidence_false_of_publicKeyNotConstant
-
-/--
-info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_session_unit.rand_core_1.error.Error,
- tacenta_session_unit.tacenta_boundary.aead.decrypt,
- tacenta_session_unit.tacenta_boundary.aead.encrypt,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
- tacenta_session_unit.tacenta_boundary.kem.KeyPair,
- tacenta_session_unit.tacenta_boundary.kem.decapsulate,
- tacenta_session_unit.tacenta_boundary.kem.encapsulate,
- tacenta_session_unit.tacenta_boundary.xeddsa.sign,
- tacenta_session_unit.tacenta_boundary.xeddsa.verify,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
--/
-#guard_msgs in
-#print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
-
-/--
-info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses {R : Type}
-  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
-  {trace : R → List Model.Lifecycle.Key} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
-  {oracle : Model.Lifecycle.Oracle} (oracleOf : Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle)
-  (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
-  (h : trace rng = draw :: rest) : ∃ r, oracle.kemEncaps (Tacenta.UnitLifecycleT3.sliceOf publicKey) draw = some r
--/
-#guard_msgs in
-#check Tacenta.DispatchEvidenceVacuity.oracleOf_kem_oracle_never_refuses
-
-/--
-info: 'Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_session_unit.rand_core_1.error.Error,
- tacenta_session_unit.tacenta_boundary.aead.decrypt,
- tacenta_session_unit.tacenta_boundary.aead.encrypt,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
- tacenta_session_unit.tacenta_boundary.kem.KeyPair,
- tacenta_session_unit.tacenta_boundary.kem.decapsulate,
- tacenta_session_unit.tacenta_boundary.kem.encapsulate,
- tacenta_session_unit.tacenta_boundary.xeddsa.sign,
- tacenta_session_unit.tacenta_boundary.xeddsa.verify,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
--/
-#guard_msgs in
-#print axioms Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs
-
-/--
-info: Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs {R : Type}
-  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
-  {trace : R → List Model.Lifecycle.Key} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
-  {oracle : Model.Lifecycle.Oracle} (oracleOf : Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle)
-  (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
-  (h : trace rng = draw :: rest) (rng' : R) (error : tacenta_session_unit.tacenta_boundary.kem.KemError) :
-  tacenta_session_unit.tacenta_boundary.kem.encapsulate rc crc publicKey rng ≠ ok (core.result.Result.Err error, rng')
--/
-#guard_msgs in
-#check Tacenta.DispatchEvidenceVacuity.oracleOf_kem_call_never_errs

@@ -47,14 +47,22 @@ def main():
     source = SOURCE.read_text()
     results = {'source_sha256': hashlib.sha256(source.encode()).hexdigest(), 'mutations': {}}
     mutants = [
+        # The dispatcher is now an indexed evidence sum.  Mutating the
+        # constructor types is stronger than mutating a duplicated local
+        # branch: the route constructor still requires the actual guard.
         ('bypass-ephemeral',
-         'by_cases he : vecOf established = vecOf decoded.ephemeral',
-         'by_cases he : True', 'he'),
+         'inductive InitialDispatchBranchEvidence',
+         '(hmismatch : vecOf established ≠ vecOf decoded.ephemeral)',
+         '(hmismatch : vecOf established = vecOf decoded.ephemeral)', 'hmismatch'),
         ('bypass-identity',
-         'by_cases hi : vecOf decoded.identity =\n'
-         '            Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)',
-         'by_cases hi : True', 'hi'),
+         '| identityMismatch',
+         '(hmismatch : vecOf decoded.identity ≠\n'
+         '        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))',
+         '(hmismatch : vecOf decoded.identity =\n'
+         '        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))',
+         'hmismatch'),
         ('weaken-terminal-guard',
+         'theorem initial_ratchet_refines_terminal',
          '(hfailed : Model.Lifecycle.agreementFailed model = true) :',
          '(hfailed : Model.Lifecycle.agreementFailed model = false) :', 'hfailed'),
     ]
@@ -67,22 +75,13 @@ def main():
             raise SystemExit(f'BASELINE FAILED; no mutation evidence: {logs / "baseline.log"}')
         results['baseline_exit'] = status
         print('PASS: unmodified source elaborates', flush=True)
-        for name, before, after, premise in mutants:
-            # The guard premise occurs once: the mutation must target the
-            # concrete terminal-discharge theorem, not a duplicated signature.
-            # For the terminal guard, mutate its concrete-discharge theorem only.
+        for name, marker, before, after, premise in mutants:
             mutated = tmp / f'{name}.lean'
-            if name == 'weaken-terminal-guard':
-                marker = 'theorem initial_ratchet_refines_terminal'
-                start = source.find(marker)
-                target = source.find(before, start)
-                if start < 0 or target < 0:
-                    raise SystemExit(f'Target changed for {name}: named discharge premise is missing')
-                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
-            else:
-                if source.count(before) != 1:
-                    raise SystemExit(f'Target changed for {name}: expected 1 occurrence')
-                mutated.write_text(source.replace(before, after, 1))
+            start = source.find(marker)
+            target = source.find(before, start)
+            if start < 0 or target < 0:
+                raise SystemExit(f'Target changed for {name}: named evidence premise is missing')
+            mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             log = logs / f'{name}.log'
             status, output = run_lean(mutated, log, args.timeout)
             mismatch = re.search(

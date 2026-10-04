@@ -774,8 +774,6 @@ REQUIRED_PINS = frozenset(
     # every axiom pin of the module. A pin outside this list can be deleted with its claim and
     # the manifest regenerated without a refusal.
     + ["Tacenta.DispatchEvidenceVacuity." + n for n in (
-        "same_ephemeral_agreement_empty",
-        "initialSameEphemeralEvidence_false",
         "codewordViewOf_false",
         "codewordViewOf_false_of_encoderNewTotal",
         "record_empty_of_nonempty_decoder",
@@ -791,8 +789,6 @@ REQUIRED_PINS = frozenset(
         "constant_dhPublic_false_of_publicKeyNotConstant",
         "tripleConcreteEvidence_false_of_publicKeyNotConstant",
         "aeadConcreteEvidence_false_of_publicKeyNotConstant",
-        "oracleOf_kem_oracle_never_refuses",
-        "oracleOf_kem_call_never_errs",
     )]
     # The Braid's preservation results: every axiom pin of the six BraidPreserve modules that have
     # one. They are the preservation theorems for the standalone Braid translation and, as a

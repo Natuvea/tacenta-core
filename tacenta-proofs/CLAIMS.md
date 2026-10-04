@@ -2734,26 +2734,17 @@ crate: the fields are stronger than the code supports. This module changes no re
   in a copy; `LIMITATIONS.md`). That the scoped forms hold in the second interpretation is not shown, because
   they mention the translated `Chains::zeroize` and `Skipped::zeroize`, whose totality there is not proved.
 
-## Proved (a negative result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)
+## Proved (a negative result: three families of lifecycle-dispatch evidence are false or empty)
 
 Location: `Translation/DispatchEvidenceVacuity.lean`.
 
 `UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean` state refinement lemmas for the
 eight-leaf session unit's `encrypt` and `decrypt` as conditional on hypotheses and on evidence
-records. These results are about those hypotheses and records, not about the product. They show
-that five of them are false or empty under the conditions stated in the bullets below, which
-affects seventeen theorem statements of the two modules: sixteen are vacuous as stated, and the
-seventeenth has no term of its evidence record in the cases the third bullet gives
-(`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`, lists them and the conditions). The last bullet
-is a sixth point and not a refutation. None of the seventeen is listed in this ledger or carries an
-axiom pin, so no existing entry changes.
-
-- `same_ephemeral_agreement_empty`, `initialSameEphemeralEvidence_false`: the translated
-  `same_ephemeral_agreement` returns `false` on two empty byte strings, because `decode_ec`
-  refuses a string whose length is not 33, so `InitialSameEphemeralEvidence`, which asks for `true`
-  on every pair of equal byte strings, is false for every `dh`, `oracle`, `real` and `model`. The
-  proof uses no hypothesis and no law. Six theorems and three of the eleven constructors of
-  `SessionDecryptEvidence` (`initialAccepted`, `initialTerminal`, `initialMalformed`) take it.
+records. These results are about those hypotheses and records, not about the product. The former
+universal same-ephemeral audit is intentionally not carried forward: the dispatcher now consumes
+decoded-message evidence indexed by the actual branch, so that old predicate no longer exists.
+The retained results below document three families of vacuity that still constrain closure of
+`DISPATCH-EVIDENCE-VACUITY` in `GAP-REGISTER.md`.
 - `codewordViewOf_false`, `codewordViewOf_false_of_encoderNewTotal`: if `Encoder::new` returns on
   two messages of one length `n` of at least 33 bytes that agree on their first 32 bytes and differ
   at byte 32, no view satisfies `CodewordViewOf`, because both messages have the same codeword at
@@ -2791,18 +2782,10 @@ axiom pin, so no existing entry changes.
   `the_fixed_secrets_have_the_table_keys` in `tacenta-core/tests/identity_boundary.rs`. These three
   results are conditional on it, on the codec and on the clause, and none of the three is shown
   satisfiable inside Lean.
-- `oracleOf_kem_oracle_never_refuses`, `oracleOf_kem_call_never_errs`: `OracleOf.kemEncapsulateSuccess`
-  makes the model's KEM oracle accept every public key at every draw that a trace has, and the
-  translated `encapsulate` never return `Err` while the trace has a draw. This is not a refutation,
-  because `encapsulate` is an opaque constant: the shipped function returns `Err` on a key of the
-  wrong length (tested by `malformed_inputs_are_rejected`) and on a key that fails
-  `validate_public_key` (read from `tacenta-core/boundary/src/kem.rs`; `GAP-REGISTER.md`, row
-  `E2E-04`).
-
 No step of these proofs case-splits on the width of `usize`, and the only facts they use about
 `Usize.max` are the bounds Aeneas proves for the platform constant. `System.Platform.numBits` is an
 opaque constant of the kernel whose value is 32 or 64, so a proof that does not choose between the
-two holds for both. Each of the nineteen results is pinned under `#guard_msgs` twice at the end of the
+two holds for both. Each of the fifteen retained results is pinned under `#guard_msgs` twice at the end of the
 file, once as an axiom list and once as its statement (`#check`), and `attest.py` requires every axiom
 pin (`REQUIRED_PINS`), so deleting one fails it. The statement pins are held by the build only: no
 check requires them to exist. The axiom lists name the opaque constants that the statements mention,

@@ -671,6 +671,7 @@ def tripleRefusalOf : tacenta_triple.TripleError → Model.Lifecycle.TripleRefus
   | .PostQuantum reason => .postQuantum (sparseRefusalOf reason)
 
 def handshakeRefusalOf : SessionError → Model.Lifecycle.HandshakeRefusal
+  | .InvalidIdentityKey => .invalidIdentityKey
   | .BadSignedPrekeySignature => .badSignedPrekeySignature
   | .BadKemPrekeySignature => .badKemPrekeySignature
   | .NonContributoryAgreement => .nonContributoryAgreement
