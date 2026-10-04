@@ -1,5 +1,8 @@
+# PROJECT-CONTROLLED DRY RUN. NOT INDEPENDENT EVIDENCE. It does not close or reclassify the open item.
 #!/usr/bin/env python3
-"""Run tacenta_reader against every vector file and the derived negative cases.
+"""PROJECT-CONTROLLED DRY RUN. NOT INDEPENDENT EVIDENCE. It does not close or reclassify the open item.
+
+Run tacenta_reader against every vector file and the derived negative cases.
 
 Prints one line per vector: PASS, FAIL (with a short diff) or SKIP (with the
 reason), then per-file totals. Exit status is non-zero on any FAIL or any
@@ -20,21 +23,11 @@ sys.path.insert(0, HERE)
 # A skip is evidence about this reader's documented scope, not a free pass.
 # Keep the exact vector label here so adding, removing or moving a skip makes
 # the reader fail until the disposition is reviewed.
-EXPECTED_SKIPS = {
-    # Pass 13. Reason: the vector's `output` is the plaintext the responder
-    # recovers, which needs ML-KEM-1024 decapsulation, the Triple Ratchet's
-    # receive and the AEAD; this reader implements none of the first two (the
-    # Braid runs over a KEM test double). What the reader does check first, and
-    # fails on if it disagrees: the prekey store reads (all its stored
-    # signatures verify), the message decodes, the store holds the signed prekey
-    # and the KEM prekey and the one-time prekey it names, the message's
-    # identity is an identity key, the KEM ciphertext has the KEM's length, the
-    # store is unchanged, the responder's identity secret is the store's
-    # identity, the four agreements are contributory, and the ratchet message
-    # inside decodes. Not checked: decapsulation, SK, the replay identity, the
-    # AEAD and the plaintext.
-    "identity/initial-message-admission.json :: honest-initial-message",
-}
+EXPECTED_SKIPS = set()
+# The one entry this set held through pass 13, `identity/initial-message-admission.json
+# :: honest-initial-message`, is gone: the reader now decapsulates with the stored
+# key pair, derives SK, initialises the responder and receives the ratchet message
+# inside, and the plaintext is the vector's `output` (h_initial_message_admission).
 _OBSERVED_SKIPS = set()
 
 
@@ -1050,8 +1043,8 @@ def h_bundle_admission(v):
 def h_initial_message_admission(v):
     """The responder's side. Inputs: `bob_identity_secret`, `prekey_store` (a
     stored prekey store) and `initial_message`. A refused vector leaves the
-    prekey store as it was; the valid vector's output is a plaintext this
-    reader cannot recover (a Skip after every check it can make)."""
+    prekey store as it was; the valid vector's output is the plaintext the
+    responder recovers, which this reader now computes (I1)."""
     i = v["inputs"]
     if set(i) != {"bob_identity_secret", "prekey_store", "initial_message"}:
         raise Fail(f"vector: inputs {sorted(i)}")
@@ -1082,10 +1075,12 @@ def h_initial_message_admission(v):
     if any(len(d) != 32 or d == bytes(32) for d in dhs if d is not None):
         raise Fail("a Diffie-Hellman output is not contributory")
     wire.decode_ratchet_message(wire.decode_initial(bx(i["initial_message"])).ratchet_message)
-    raise Skip("output is the plaintext recovered; needs ML-KEM-1024 decapsulation and the ratchet's receive. "
-               "Checked: the store reads, the message decodes, its identity is an identity key, the prekeys it "
-               "names are held, its KEM ciphertext has the KEM's length, the four agreements are contributory, "
-               "the ratchet message inside decodes. Not checked: decapsulation, SK, the AEAD, the plaintext")
+    # I1: decapsulate with the stored key pair the message names, derive SK,
+    # initialise the responder and receive the ratchet message inside.
+    plaintext = admission.responder_receive(store, bx(i["initial_message"]), bx(i["bob_identity_secret"]), ctr)
+    check(v["output"], plaintext, "plaintext")
+    if persistence.prekey_store_to_bytes(store) != store_bytes:
+        raise Fail("the prekey store changed before the ratchet message was accepted")
 
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
@@ -1420,6 +1415,7 @@ CASE_MODULES = [
     "cases_signed",       # the prekey store's signature rule and its refusal kind, the rotations' obligation (pass 7)
     "cases_inventory",    # hosted device-inventory statements and the seven checks (pass 12)
     "cases_idkeys",       # identity keys at each boundary, step 3 of Verifying a signature (pass 13)
+    "cases_mlkem",        # ML-KEM-1024 rules the pages state and no vector pins (dry run)
 ]
 
 

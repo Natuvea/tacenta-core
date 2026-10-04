@@ -231,20 +231,21 @@ theorem try_skipped_no_panic (hrm : RemoveSkippedAtTotal) (st : State) (e n : U6
   step with try_skipped_loop_no_panic hrm; simp_all
 
 theorem skip_message_keys_loop0_no_panic
-    (v : alloc.vec.Vec Skipped) (e upto fromN : U64)
-    (skipped : alloc.vec.Vec Skipped) (i : Usize)
-    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
-    State.skip_message_keys_loop0 v e upto fromN skipped i
-      ⦃ fun r => r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ := by
+    (st : State) (e upto fromN : U64) (retained i : Usize)
+    (h : retained.val + (st.skipped.val.length - i.val) ≤ Usize.max) :
+    State.skip_message_keys_loop0 st e upto fromN retained i
+      ⦃ fun r => r.2.2.1 = st.chains ∧
+          r.2.2.2.1 = st.skipped ∧
+          r.2.2.2.2.2 ≤ retained.val + (st.skipped.val.length - i.val) ⦄ := by
   unfold State.skip_message_keys_loop0
   apply loop.spec_decr_nat
-    (measure := fun p => v.val.length - p.2.val)
-    (inv := fun p => p.1.val.length + (v.val.length - p.2.val)
-      ≤ skipped.val.length + (v.val.length - i.val))
+    (measure := fun p => st.skipped.val.length - p.2.val)
+    (inv := fun p => p.1.val + (st.skipped.val.length - p.2.val)
+      ≤ retained.val + (st.skipped.val.length - i.val))
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
     simp only [State.skip_message_keys_loop0.body]
-    by_cases hlt : j.val < v.val.length
+    by_cases hlt : j.val < st.skipped.val.length
     · step*
       all_goals repeat' (first | (step with skipped_clone_spec) | step | split)
       all_goals (try simp_all [alloc.vec.Vec.len])
@@ -252,20 +253,79 @@ theorem skip_message_keys_loop0_no_panic
     · step*
   · simpa using h
 
-theorem skip_message_keys_loop1_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
+theorem skip_message_keys_loop1_no_panic
+    (v : alloc.vec.Vec Skipped) (e upto i : U64)
+    (skipped : alloc.vec.Vec Skipped) (i1 : Usize)
+    (h : skipped.length + (v.length - i1.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 v e upto i skipped i1
+      ⦃ fun r => r.length ≤ skipped.length + (v.length - i1.val) ⦄ := by
+  unfold State.skip_message_keys_loop1
+  apply loop.spec_decr_nat
+    (measure := fun p => v.length - p.2.val)
+    (inv := fun p => i1.val ≤ p.2.val ∧
+      p.1.length + (v.length - p.2.val)
+        ≤ skipped.length + (v.length - i1.val))
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [State.skip_message_keys_loop1.body]
+    have hfits : v.length ≤ Usize.max := v.property
+    by_cases hlt : j.val < v.length
+    · have hwlt : w.length < Usize.max := by
+        omega
+      step*
+      all_goals repeat' (first | (step with skipped_clone_spec) |
+        (step with alloc.vec.Vec.push_spec w _ hwlt) | step | split)
+      all_goals (try simp_all [alloc.vec.Vec.len])
+      all_goals (try have hsub : v.length - (j.val + 1) + 1 =
+        v.length - j.val := by omega)
+      all_goals (try
+        (have hcalc : w.length + 1 + (v.length - (j.val + 1)) =
+            w.length + (v.length - j.val) := by
+          calc
+            w.length + 1 + (v.length - (j.val + 1)) =
+                w.length + ((v.length - (j.val + 1)) + 1) := by omega
+            _ = w.length + (v.length - j.val) := by rw [hsub]))
+      all_goals (try have hdecr : v.length - (j.val + 1) ≤
+        v.length - j.val := by omega)
+      all_goals
+        constructor
+        · omega
+        · constructor
+          · first
+            | exact Nat.le_trans (Nat.add_le_add_left hdecr _) hinv.2
+            | rw [hcalc]
+              exact hinv.2
+          · rw [Nat.sub_succ]
+            have hrempos : 0 < v.length - j.val := Nat.sub_pos_iff_lt.mpr hlt
+            exact Nat.pred_lt (ne_of_gt hrempos)
+    · step*
+      all_goals exact hinv.2
+  · simp only
+    exact ⟨le_refl _, le_refl _⟩
+
+@[step]
+theorem skip_message_keys_loop1_grows
+    (v : alloc.vec.Vec Skipped) (e upto i : U64)
+    (skipped : alloc.vec.Vec Skipped) (i1 : Usize)
+    (h : skipped.length + (v.length - i1.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 v e upto i skipped i1
+      ⦃ fun r => r.length ≤ skipped.length + (v.length - i1.val) ⦄ :=
+  skip_message_keys_loop1_no_panic v e upto i skipped i1 h
+
+theorem skip_message_keys_loop2_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     (e upto : U64) (skipped : alloc.vec.Vec Skipped)
     (ck : Array U8 32#usize) (num : U64)
     (h : skipped.length + (upto.val - num.val) ≤ Usize.max) :
-    State.skip_message_keys_loop1 e upto skipped ck num
+    State.skip_message_keys_loop2 e upto skipped ck num
       ⦃ fun r => r.1.length ≤ skipped.length + (upto.val - num.val) ⦄ := by
-  unfold State.skip_message_keys_loop1
+  unfold State.skip_message_keys_loop2
   apply loop.spec_decr_nat
     (measure := fun p => upto.val - p.2.2.val)
     (inv := fun p => p.1.val.length + (upto.val - p.2.2.val)
       ≤ skipped.length + (upto.val - num.val))
   · rintro ⟨w, ckA, nA⟩ hinv
     simp only at hinv
-    simp only [State.skip_message_keys_loop1.body]
+    simp only [State.skip_message_keys_loop2.body]
     split
     · step
       obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ckA num1
@@ -280,14 +340,14 @@ theorem skip_message_keys_loop1_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
   · simpa using h
 
 @[step]
-theorem skip_message_keys_loop1_grows
+theorem skip_message_keys_loop2_grows
     (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     (e upto : U64) (skipped : alloc.vec.Vec Skipped)
     (ck : Array U8 32#usize) (num : U64)
     (h : skipped.length + (upto.val - num.val) ≤ Usize.max) :
-    State.skip_message_keys_loop1 e upto skipped ck num
+    State.skip_message_keys_loop2 e upto skipped ck num
       ⦃ fun r => r.1.length ≤ skipped.length + (upto.val - num.val) ⦄ :=
-  skip_message_keys_loop1_no_panic hkdf hz e upto skipped ck num h
+  skip_message_keys_loop2_no_panic hkdf hz e upto skipped ck num h
 
 theorem prepare_chains_capacity_loop_no_panic
     (v replacement : alloc.vec.Vec (U64 × Chains)) (i : Usize)
@@ -637,8 +697,25 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal)
     (hskiproom : st.skipped.length + MAX_SKIP.val <= Usize.max)
     (hchainsroom : st.chains.length < Usize.max)
     (hupto : upto.val < U64.max) :
-    State.skip_message_keys st e upto ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ⦄ := by
+    State.skip_message_keys st e upto
+      ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ⦄ := by
   unfold State.skip_message_keys
+  have skipped_zeroize_no_panic (v : alloc.vec.Vec Skipped) :
+      alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        Skipped.Insts.ZeroizeZeroize v ⦃ fun _ => True ⦄ := by
+    obtain ⟨r, hr⟩ := hret.2.1 Skipped.Insts.ZeroizeZeroize v
+    rw [hr]
+    simp
+  have send_clone_no_panic (o : Option Chain) :
+      core.option.Option.Insts.CoreCloneClone.clone
+        Chain.Insts.CoreCloneClone o ⦃ fun _ => True ⦄ := by
+    step with hopt Chain.Insts.CoreCloneClone o (fun x _ => chain_clone_spec x)
+  have set_chains_bound (s : State) (epoch : U64) (c : Chains)
+      (room : s.chains.length < Usize.max) :
+      State.set_chains s epoch c
+        ⦃ fun r => r.chains.length ≤ s.chains.length + 1 ⦄ := by
+    step with set_chains_no_panic hret
+    all_goals simp_all
   step with find_chains_no_panic st e
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
@@ -648,16 +725,14 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal)
   all_goals (try (step with skip_message_keys_loop0_no_panic))
   all_goals (try simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     alloc.vec.Vec.length] at *)
-  all_goals (try (step with skip_message_keys_loop1_no_panic hkdf hz))
+  all_goals (try (step with skip_message_keys_loop2_no_panic hkdf hz))
   all_goals (try step*)
-  all_goals (try
-    (obtain ⟨r, hr⟩ := hret.2.1 Skipped.Insts.ZeroizeZeroize st.skipped
-     rw [hr]
-     simp_all))
-  all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
-  all_goals (try (step with set_chains_no_panic hret))
+  all_goals (try (step with skipped_zeroize_no_panic st.skipped))
+  all_goals (try (step with send_clone_no_panic cs.send))
+  all_goals (try (step with set_chains_bound))
   all_goals (try simp_all)
   all_goals (try scalar_tac)
+  all_goals (try (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac <;> omega))
 
 /-- The peer-facing entry point: a header an attacker chooses drives the epoch
 lookup, the skipped-key walk, and the forward-derivation count, so panic-freedom
@@ -703,6 +778,9 @@ theorem receive_no_panic (hret : VecRetainTotal)
   all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.send (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
+  all_goals (try simp_all)
+  all_goals trace_state
+  all_goals omega
 
 /-! ## Where this stands
 

@@ -1,4 +1,6 @@
-"""The real-primitive session vectors (`session-establishment/session-e2e.json`),
+"""PROJECT-CONTROLLED DRY RUN. NOT INDEPENDENT EVIDENCE. It does not close or reclassify the open item.
+
+The real-primitive session vectors (`session-establishment/session-e2e.json`),
 derived from the specification's rules and this reader's own primitives.
 
 Each vector names its inputs (the secrets, the random draws and the plaintexts)
@@ -8,36 +10,44 @@ triple-ratchet.md, ratchet.md, sparse-pq-ratchet.md, mlkem-braid.md and
 session-persistence.md give them, and compares each result with the vector. A
 vector that echoes a value it should have derived does not pass.
 
+Dry run: the ML-KEM-1024 and Braid key-generation steps below were added by the
+project's own agent standing in for a person, in a directory built for that
+purpose (RECORD.md). They compute: the responder's KEM key pairs from
+`bob_last_resort_kem_d_z` and `bob_one_time_kem_d_z` (K1); the encapsulation of
+`alice_kem_encapsulation_m` to the bundle's key (K2); the decapsulation by the
+responder (K3); `SK` and everything after it from the computed secret (K4); the
+Braid's header from the `d` half of `alice_braid_keygen_d_z` and the 96-byte value
+under the authenticator (B1, B2).
+
 What it does not derive is listed here and in `reader/README.md` and
 `../GAPS-11.md`, and `test_session_e2e_sweep.py` holds the list to what the code
 does (it corrupts every input and field and requires the reader to notice
 exactly the ones this module claims to check):
 
-- ML-KEM-1024 in every form: the bundle's KEM prekey, the encapsulation's
-  ciphertext and shared secret, and the four draws that feed them
-  (`bob_last_resort_kem_d_z`, `bob_one_time_kem_d_z`, `alice_kem_encapsulation_m`,
-  and the Braid's `alice_braid_keygen_d_z`). Their outputs are boundaries: the
-  vector supplies them, and this module checks their length, the FIPS 203
-  encapsulation-key modulus check and the signatures over the keys.
-- What the Braid's key generation makes: the header the first composite headers
-  carry a codeword of (its 96-byte value is checked against its own MAC, not
-  recomputed) and the stored `key_pair` (its layout is delegated to the KEM
-  library, session-persistence.md, Braid).
-- The stored KEM key pairs inside the responder's prekey store, apart from the
-  FIPS 203 checks the store's reader makes.
-- `bob_repeat_random`, and the `z` half of each `d || z` draw: consumed by the
-  implementation and never observable in an output.
+- The Braid's stored `key_pair` inside `alice_session_after_first_send`: 11,872
+  bytes whose layout the specification delegates to the KEM library
+  (session-persistence.md, Braid). The header and `ek_vector` it holds are
+  computed (B1), but nothing locates them in the field.
+- The `z` half of `alice_braid_keygen_d_z`: it is stored only inside that
+  `key_pair`, so no output shows it.
+- The `z` half of `bob_one_time_kem_d_z`: it matters only to implicit
+  rejection, and the one-time key's decapsulation key is not stored after the
+  message is received. The `z` half of `bob_last_resort_kem_d_z` is read: it is
+  the last 32 bytes of the stored key pair.
+- `bob_repeat_random`: consumed by the implementation and never observable in
+  an output.
 
 This module was written in the repository with the implementation's runner in
 view. It follows the pages it cites, but it is not a clean-room pass and makes
 no claim to be one (`reader/README.md`, Provenance).
 """
 
+import functools
 from dataclasses import replace
 
 from tacenta_reader import aead, braid, curve25519, persistence, pqxdh, ratchet, spqr, triple, wire
 from tacenta_reader import constants as K
-from tacenta_reader import erasure
+from tacenta_reader import erasure, mlkem
 
 bx = bytes.fromhex
 
@@ -77,12 +87,23 @@ INPUTS = {
 }
 
 # Inputs this module never reads, so that changing one cannot change its
-# verdict. The first four feed ML-KEM-1024, which is a boundary here; the last
-# is consumed and never observable (see above).
-UNREAD_INPUTS = {
-    "alice_braid_keygen_d_z", "alice_kem_encapsulation_m", "bob_last_resort_kem_d_z",
-    "bob_one_time_kem_d_z", "bob_repeat_random",
+# verdict: consumed by the implementation and never observable (see above).
+UNREAD_INPUTS = {"bob_repeat_random"}
+
+# Byte ranges (start, end) of inputs this module reads only in part. Each is the
+# `z` half of a `d || z` draw that no output shows (see above), so changing a
+# byte in one cannot change the verdict, and a byte outside it must.
+UNREAD_INPUT_RANGES = {
+    "alice_braid_keygen_d_z": [(32, 64)],
+    "bob_one_time_kem_d_z": [(32, 64)],
 }
+
+
+@functools.lru_cache(maxsize=256)
+def _decapsulate(dk, ciphertext):
+    """FIPS 203 Decaps_internal, kept for the run: a pure function of its two
+    arguments, called for several spellings of one message."""
+    return mlkem.decaps_internal(dk, ciphertext)
 
 
 def _eq(what, want, got):
@@ -158,19 +179,32 @@ def check(v):
     # `publish` names: the last one-time entry of each kind, or the last-resort
     # KEM prekey and no one-time curve prekey. One one-time prekey of each kind
     # makes the ids (1, 2, 4) and the last-resort key 3; none makes (1, none, 2).
-    given = wire.decode_bundle(bx(f["bundle"]))
     ids = (1, 2, 4) if one_time else (1, K.ABSENT_ID, 2)
     last_resort_id = 3 if one_time else 2
     next_id = 5 if one_time else 3
     kem_nonce = bx(i["bob_one_time_kem_signature_nonce" if one_time
                      else "bob_last_resort_kem_signature_nonce"])
-    pqxdh.check_kem_prekey(given.kem_prekey)             # boundary: FIPS 203 modulus check
+
+    # K1: each KEM prekey pair is FIPS 203 KeyGen_internal(d, z) of a 64-byte
+    # draw, d first (session-establishment.md, Primitives, ML-KEM-1024, Key
+    # generation). The bundle names the one-time key when there is one and the
+    # last-resort key otherwise (session-persistence.md, Prekey store).
+    def kem_pair_from(name):
+        d_z = bx(i[name])
+        if len(d_z) != 64:
+            raise Mismatch(f"{name} is not 64 bytes")
+        return mlkem.keygen_internal(d_z[:32], d_z[32:])
+
+    last_resort_ek, last_resort_dk = kem_pair_from("bob_last_resort_kem_d_z")
+    kem_ek, kem_dk = (kem_pair_from("bob_one_time_kem_d_z") if one_time
+                      else (last_resort_ek, last_resort_dk))
+    pqxdh.check_kem_prekey(kem_ek)                       # the page's section 7.2 check, on the computed key
     bundle = wire.PrekeyBundle(
         identity_key=bob_ik, signed_prekey=spk,
         signed_prekey_signature=_sign(bob_secret, wire.encode_ec(spk),
                                       bx(i["bob_signed_prekey_signature_nonce"])),
-        kem_prekey=given.kem_prekey,
-        kem_prekey_signature=_sign(bob_secret, wire.encode_kem(given.kem_prekey), kem_nonce),
+        kem_prekey=kem_ek,
+        kem_prekey_signature=_sign(bob_secret, wire.encode_kem(kem_ek), kem_nonce),
         one_time_prekey=otpk, signed_prekey_id=ids[0], one_time_prekey_id=ids[1],
         kem_prekey_id=ids[2])
     _field(f, "bundle", wire.encode_bundle(bundle))
@@ -184,10 +218,16 @@ def check(v):
     dh1, dh2, dh3, dh4 = pqxdh.initiator_agreements(alice_secret, eph_secret, bob_ik, spk, otpk)
     for name, got in (("dh1", dh1), ("dh2", dh2), ("dh3", dh3)) + ((("dh4", dh4),) if one_time else ()):
         _field(f, name, got)
-    kem_ciphertext, kem_secret = bx(f["kem_ciphertext"]), bx(f["kem_shared_secret"])
-    pqxdh.check_kem_ciphertext(kem_ciphertext)           # boundary: length
-    if len(kem_secret) != 32:
-        raise Mismatch("kem_shared_secret is not 32 bytes")
+    # K2: Encaps_internal(ek, m) with the 32-byte draw as m (Encapsulation).
+    kem_m = bx(i["alice_kem_encapsulation_m"])
+    kem_secret, kem_ciphertext = mlkem.encaps_internal(kem_ek, kem_m)
+    pqxdh.check_kem_ciphertext(kem_ciphertext)
+    _field(f, "kem_ciphertext", kem_ciphertext)
+    _field(f, "kem_shared_secret", kem_secret)
+    # K3: the responder's decapsulation with the decapsulation key the message
+    # names gives the same secret.
+    _eq("decapsulation", kem_secret, _decapsulate(kem_dk, kem_ciphertext))
+    # K4: SK and everything after it come from the computed secret.
     sk = pqxdh.shared_secret(dh1, dh2, dh3, dh4, kem_secret)
     _field(f, "sk", sk)
     split_ec, split_pq = triple.split_secret(sk)
@@ -199,21 +239,33 @@ def check(v):
     # ------------------- Alice: the Braid's boundary, then the first message
     # The stored Braid is what a send from KeysUnsampled leaves: the state
     # KeysSampled holding a key pair (delegated layout) and an encoder over the
-    # header and its MAC. Only those two are boundaries. The authenticator is
-    # Init(1, SK), and the MAC in the encoder's value must verify under it.
+    # header and its MAC. Only the key pair is a boundary now. The
+    # authenticator is Init(1, SK).
     alice_v = persistence.session_from_bytes(bx(f["alice_session_after_first_send"]))
     stored = alice_v.braid
     if stored.tag != braid.KEYS_SAMPLED or stored.epoch != 1:
         raise Mismatch("Alice's Braid is not KeysSampled at epoch 1 after her first send")
     auth = braid.Auth.init(1, sk)
     _eq("Braid authenticator", auth.root_key + auth.mac_key, stored.auth_root + stored.auth_mac)
+    # B1: key generation from the draw gives the header, rho || H(ek), and
+    # ek_vector, which validates against the header (mlkem-braid.md, The KEM split).
+    braid_d_z = bx(i["alice_braid_keygen_d_z"])
+    if len(braid_d_z) != 64:
+        raise Mismatch("alice_braid_keygen_d_z is not 64 bytes")
+    braid_ek, _braid_dk = mlkem.keygen_internal(braid_d_z[:32], braid_d_z[32:])
+    braid_header, braid_ek_vector = mlkem.braid_split(braid_ek)
+    if not braid.validate_ek_vector(braid_header, braid_ek_vector):
+        raise Mismatch("the Braid's ek_vector does not validate against its own header")
+    # B2: the 96-byte value is the header and its MAC under Init(1, SK); it is
+    # what the stored header encoder holds, three chunks with one codeword issued.
+    value = braid_header + auth.mac_hdr(1, braid_header)
     header_encoder = stored.fields["hdr_enc"]
-    value = b"".join(header_encoder.chunks)
-    if len(value) != braid.HDR_VALUE_LEN or header_encoder.next != 1 or header_encoder.exhausted:
-        raise Mismatch("Alice's header encoder is not a 96-byte value with one codeword issued")
-    _eq("header MAC", auth.mac_hdr(1, value[:braid.HEADER_LEN]), value[braid.HEADER_LEN:])
+    _eq("the Braid's header value against the stored header encoder", value,
+        b"".join(header_encoder.chunks))
+    if header_encoder.next != 1 or header_encoder.exhausted:
+        raise Mismatch("Alice's header encoder has not issued exactly one codeword")
     before_send = braid.from_persisted(stored)
-    before_send.hdr_enc = erasure.Encoder(list(header_encoder.chunks), 0, False)
+    before_send.hdr_enc = erasure.Encoder.for_value(value)
     first = braid.send(before_send, None)
     if (first.message.epoch, first.message.type, first.message.codeword[0], first.epoch) != (
             1, K.AG_HDR, 0, 0):
@@ -268,11 +320,14 @@ def check(v):
 
     # ------------------------------------------- Bob: agreements, same SK
     def responder_sk(message):
-        """SK as the responder derives it from a decoded initial message; the
-        KEM secret is the boundary, the same for every spelling."""
+        """SK as the responder derives it from a decoded initial message: the
+        decapsulation of the message's own ciphertext with the decapsulation key
+        it names (K3), the four agreements, then the KDF."""
         ika, eka = pqxdh.handshake_keys(message)
         r1, r2, r3, r4 = pqxdh.responder_agreements(bob_secret, spk_secret, otpk_secret, ika, eka)
-        return (r1, r2, r3, r4), pqxdh.shared_secret(r1, r2, r3, r4, kem_secret)
+        pqxdh.check_kem_ciphertext(message.kem_ciphertext)
+        decapsulated = _decapsulate(kem_dk, message.kem_ciphertext)
+        return (r1, r2, r3, r4), pqxdh.shared_secret(r1, r2, r3, r4, decapsulated)
 
     spellings = {}
     for name in ("initial_message", "torsion_initial"):
@@ -387,9 +442,10 @@ def check(v):
 
     # ----------------------- the last-resort path, and what refuses there
     store = persistence.prekey_store_from_bytes(bx(f["bob_prekey_store_after_receipt"]))
-    kem_pair = store.kem_pair                             # boundary: FIPS 203 checks only
-    if not one_time and kem_pair[K.KEM_DK_LEN:] != bundle.kem_prekey:
-        raise Mismatch("the store's last-resort key is not the bundle's KEM prekey")
+    # K1, the stored pair: `dk || ek` (session-persistence.md, Prekey store) of
+    # the last-resort draw. In the one-time vector the pair after receipt is
+    # that key, the one-time key having been consumed.
+    kem_pair = last_resort_dk + last_resort_ek
     seen = [] if one_time else [(last_resort_id, pqxdh.last_resort_fingerprint(sk))]
     expected_store = persistence.PrekeyStore(
         identity_public=bob_ik, signed_prekey_secret=spk_secret, signed_prekey_id=ids[0],

@@ -37,4 +37,25 @@ theorem replay_has_no_second_acceptance (st : State) (message : Nat)
     step st (.receive message) = st :=
   accepted_replay_is_no_op st message accepted
 
+/- The bounded lifecycle composition used by the concrete witness: an
+   ordinary refusal and restoration sit between a send and its eventual
+   authenticated receive without changing the accepted observation. -/
+theorem establish_send_refuse_restore_receive :
+    (run initial [.establish, .send 1, .refused, .restore, .receive 1]).accepted = [1] := by
+  native_decide
+
+/- The replay refusal branch is observationally empty, so continuation after
+   restoration still commits a later send. -/
+theorem replay_restore_then_continue :
+    (run initial [.establish, .send 1, .receive 1, .restore, .receive 1, .send 2]) =
+      { phase := .active, queued := [2], accepted := [1] } := by
+  native_decide
+
+/- Terminal failure is the distinct accepted-message branch: restoration does
+   not resurrect it and later operations remain refused. -/
+theorem terminal_failure_restore_then_refuse :
+    (run initial [.establish, .terminalFailure, .restore, .send 1, .receive 1]).phase =
+      .failed := by
+  native_decide
+
 end Proofs.SessionTrace

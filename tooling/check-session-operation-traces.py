@@ -68,6 +68,8 @@ REQUIRED = {
     "establish-initiator-non-contributory-dh-refused",
     "establish-initiator-malformed-bundle-refused",
     "control-family9-malformed-bundle-wrongly-pending",
+    "establish-responder-last-resort-with-one-time-curve",
+    "control-family10-mixed-initial-wrongly-commits-on-refusal",
 }
 
 

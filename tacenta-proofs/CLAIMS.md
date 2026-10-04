@@ -2816,6 +2816,14 @@ bounded evidence that selected Rust traces fit this boundary.
 - `replay_has_no_second_acceptance`: receiving a message already in the
   committed accepted observation has no abstract operation effect. Concrete
   P6 traces separately check the public replay refusal they return.
+- `establish_send_refuse_restore_receive`: the composed bounded trace reaches
+  establishment, queues a message, observes an ordinary refusal, restores the
+  same committed observation and then accepts the genuine delivery.
+- `replay_restore_then_continue`: a replay after restoration is a no-op and a
+  later send still commits in the active phase.
+- `terminal_failure_restore_then_refuse`: after the accepted transition into
+  terminal agreement failure, restoration does not resurrect the session and
+  later operations remain refused.
 
 ## Evidence, not proof
 

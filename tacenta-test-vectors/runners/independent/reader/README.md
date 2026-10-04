@@ -360,13 +360,11 @@ was used.
   statement whose second evaluation of the freshness rule refuses, as check 4
   refuses it (`../GAPS-12.md` G12-04, closed by the current text).
 - **`run.py`.** Handlers for `identity-key`, `bundle-admission` and
-  `initial-message-admission`; `cases_idkeys` in the case table; one new skip
-  label on the allowlist, `identity/initial-message-admission.json ::
-  honest-initial-message`, with its reason: the vector's `output` is a
-  plaintext, which needs ML-KEM-1024 decapsulation and the ratchet's receive.
-  Before it skips, the handler checks the store, the message, the identity, the
-  named prekeys, the ciphertext's length, the four agreements and the inner
-  ratchet message.
+  `initial-message-admission`; `cases_idkeys` and `cases_mlkem` in the case
+  table. The former `honest-initial-message` skip is now replayed through
+  ML-KEM-1024 decapsulation, session initialisation and the first ratchet
+  receive. This extension is project-controlled dry-run evidence, not
+  independent review.
 - **Cases:** `cases_idkeys.py`, new (17 cases, IK-01 to IK-17). IV-09 rewritten
   for the new check 4 sentence, IV-23 (a rule applies past the first entry of a
   list) and IV-24 (two revoked bindings with one `device_id`) added to
@@ -1035,11 +1033,11 @@ named (the cases in the list are those the run reported; a `...` means more).
 
 ## Not implemented
 
-- ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
-  The initiator stops at `PQKEM-ENC` and the responder just before `PQKEM-DEC`
-  (`admission.py`), so `identity/initial-message-admission.json`
-  `honest-initial-message` is a skip on the allowlist: its `output` is the
-  plaintext recovered.
+- The ML-KEM Braid's incremental split. The Braid still runs over
+  `kem_double.py`, a test double. ML-KEM-1024 itself is now implemented in
+  `tacenta_reader/mlkem.py` for a project-controlled dry run, and the former
+  `honest-initial-message` skip is replayed through decapsulation and plaintext
+  recovery. This does not close the independent-reader review gap.
 - The end-to-end `Session` implementation as a live object: the handshake with
   a real KEM, `pending_initial` resend, `established_ephemeral`, and
   export/import over live states. The real-primitive session vectors are
@@ -1122,18 +1120,17 @@ The exit status is non-zero on any FAIL, or when the observed skips differ from
 the checked allowlist in `run.py`. A full run takes about ten seconds on a
 laptop; the sweep takes about thirty.
 
-Current result (pass 13). "Vector checks" are the lines that name a vector, and
+Current result (project-controlled ML-KEM dry run). "Vector checks" are the lines that name a vector, and
 "derived cases" are the `negative ::` lines, each a case the reader's authors
 derived from a sentence of the specification; the total is their sum, and the
 run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
-the same three numbers. The one skip is on the allowlist in `run.py`, with its
-reason (Not implemented, above):
+the same three numbers. The skip allowlist is empty:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (45 files) | 762 | 761 | 0 | 1 |
-| Derived cases (14 modules) | 264 | 264 | 0 | 0 |
-| **Total** | 1026 | 1025 | 0 | 1 |
+| Vector checks (45 files) | 762 | 762 | 0 | 0 |
+| Derived cases (15 modules) | 270 | 270 | 0 | 0 |
+| **Total** | 1032 | 1032 | 0 | 0 |
 
 At the baseline of pass 13 (before any change to the reader) the runner gave
 911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
@@ -1217,8 +1214,9 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **1025 PASS, 0 FAIL, 1 SKIP** (762 vector checks
-and 264 derived cases). This supersedes the earlier pass-10 skip tally;
+derived cases merged, the pre-dry-run was **1025 PASS, 0 FAIL, 1 SKIP** (762 vector checks
+and 264 derived cases). The project-controlled dry run is **1032 PASS, 0 FAIL, 0 SKIP**
+(762 vector checks and 270 derived cases). It supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12

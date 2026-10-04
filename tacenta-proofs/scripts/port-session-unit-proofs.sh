@@ -52,7 +52,7 @@ jobs = [
     ("UnitSpqrT3.lean", "SessionUnitSpqrT3.lean", {
         "Translation.UnitSpqrT1": ("Translation.SessionUnitSpqrT1", 1),
         "Tacenta.UnitT1": ("Tacenta.SessionUnitT1", 1),
-        "Tacenta.UnitSpqrT1": ("Tacenta.SessionUnitSpqrT1", 45),
+        "Tacenta.UnitSpqrT1": ("Tacenta.SessionUnitSpqrT1", 46),
         "Tacenta.UnitSpqrT3": ("Tacenta.SessionUnitSpqrT3", 2),
         "port-unit-proofs.sh": ("port-session-unit-proofs.sh", 1),
     }),

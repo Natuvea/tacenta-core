@@ -913,6 +913,59 @@
           }
         }
       ]
+    },
+    {
+      "id": "establish-responder-last-resort-with-one-time-curve",
+      "comment": "Family 10: a last-resort KEM initial message may still name a one-time curve prekey. The responder commits both the replay record and the curve-prekey removal only after the authenticated inner message succeeds.",
+      "fixtures": {
+        "mixed-initial": "an initial message built against the reusable last-resort KEM key and a published one-time curve prekey"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "initial": "mixed-initial"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "last-resort-fingerprint-added",
+            "session": "responder-established",
+            "one_time_curve": "deleted",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "added"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-family10-mixed-initial-wrongly-commits-on-refusal",
+      "comment": "Control (family 10, deliberately wrong durable effect). The same mixed initial with an altered authentication tag is refused, so neither the replay record nor the one-time curve-prekey deletion may be committed.",
+      "fixtures": {
+        "forged-mixed-initial": "mixed-initial with one byte of its authentication tag changed"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "initial": "forged-mixed-initial"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "authentication-failure"
+          },
+          "effect": {
+            "prekey_store": "last-resort-fingerprint-added",
+            "session": "unchanged",
+            "one_time_curve": "deleted",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "added"
+          }
+        }
+      ]
     }
   ]
 }
