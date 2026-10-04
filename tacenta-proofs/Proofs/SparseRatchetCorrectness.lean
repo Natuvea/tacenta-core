@@ -157,8 +157,8 @@ theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
           · exact absurd h (by simp)
           · injection h with h'
             subst h'
-            simp only [setChains, List.length_append, List.length_map,
-              deriveInto_length]
+            simp only [setChains, skipSurvivors, List.length_append,
+              List.length_map, deriveInto_length]
             -- The total check counts the survivors, so the bound follows from
             -- that check directly: what the skip leaves is the survivors plus
             -- the `upto - ch.n` keys it stores.
