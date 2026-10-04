@@ -121,11 +121,13 @@ files and the pass-12 derived cases merged, it exits zero with **1025 PASS, 0 FA
 (lines that name a vector, in 45 vector files) and 264 derived cases
 (the `negative ::` lines). The total is the sum of the two; the run prints all
 three numbers. The session-e2e vectors are executed by their handler and are not
-in the skip set. A later project-controlled ML-KEM dry run removes the one
-identity-key admission skip and adds six derived ML-KEM cases: **1032 PASS, 0 FAIL, 0 SKIP**: 762 vector checks
-(lines that name a vector, in 45 vector files) and 270 derived cases. That dry
-run is not independent review and does not close the reader gap. The skip
-allowlist controls and the sweep pass.
+in the skip set. A later project-controlled ML-KEM run removes the one
+identity-key admission skip, replays the real session vector and its negative
+control, and adds six derived ML-KEM cases: **1036 PASS, 0 FAIL, 0 SKIP**: 766
+vector checks (lines that name a vector, in 45 vector files) and 270 derived
+cases. This is source-only reader evidence, but it is still project-controlled
+rather than a clean-room hosted receipt, so it does not by itself close the
+reader-independence gap. The skip allowlist controls and the sweep pass.
 
 This record supersedes the tally in `GAPS-10.md` while leaving that historical
 pass unchanged.

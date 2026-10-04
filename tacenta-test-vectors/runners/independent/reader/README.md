@@ -1120,7 +1120,8 @@ The exit status is non-zero on any FAIL, or when the observed skips differ from
 the checked allowlist in `run.py`. A full run takes about ten seconds on a
 laptop; the sweep takes about thirty.
 
-Current result (project-controlled ML-KEM dry run). "Vector checks" are the lines that name a vector, and
+Current result (project-controlled ML-KEM run). The reader now replays the real ML-KEM/session vector and its
+negative control; "Vector checks" are the lines that name a vector, and
 "derived cases" are the `negative ::` lines, each a case the reader's authors
 derived from a sentence of the specification; the total is their sum, and the
 run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
@@ -1128,9 +1129,9 @@ the same three numbers. The skip allowlist is empty:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (45 files) | 762 | 761 | 0 | 1 |
-| Derived cases (14 modules) | 264 | 264 | 0 | 0 |
-| **Total** | 1026 | 1025 | 0 | 1 |
+| Vector checks (45 files) | 766 | 766 | 0 | 0 |
+| Derived cases (15 modules) | 270 | 270 | 0 | 0 |
+| **Total** | 1036 | 1036 | 0 | 0 |
 
 At the baseline of pass 13 (before any change to the reader) the runner gave
 911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
@@ -1214,8 +1215,9 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **1025 PASS, 0 FAIL, 1 SKIP** (762 vector checks
-and 264 derived cases). This supersedes the earlier pass-10 skip tally;
+derived cases merged, the pre-ML-KEM run was **1025 PASS, 0 FAIL, 1 SKIP** (762 vector checks
+and 264 derived cases). The current ML-KEM run is **1036 PASS, 0 FAIL, 0 SKIP** (766 vector checks
+and 270 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12

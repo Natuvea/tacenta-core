@@ -63,6 +63,56 @@ open Aeneas Aeneas.Std Result
 
 namespace Tacenta.DispatchEvidenceVacuity
 
+section SameEphemeral
+open tacenta_session_unit
+open Tacenta.UnitLifecycleT3
+
+/-! ## A. `InitialSameEphemeralEvidence` is false
+
+`tacenta_session.decode_ec` returns `none` unless its slice has length `ENCODE_EC_LEN`, which is
+33, so `lifecycle.same_ephemeral_agreement` returns `false` on two empty byte strings. The Rust
+function does the same (`tacenta-core/lifecycle/src/lifecycle.rs`, the `None => return false`
+arms). `InitialSameEphemeralEvidence` asks for `true` on every pair of equal byte strings. -/
+
+theorem decode_ec_empty :
+    tacenta_session.decode_ec ⟨[], by simp⟩ = ok none := by
+  unfold tacenta_session.decode_ec
+  have : (Slice.len (⟨[], by simp⟩ : Slice Std.U8)) ≠ tacenta_session.ENCODE_EC_LEN := by
+    unfold tacenta_session.ENCODE_EC_LEN
+    intro h
+    have := congrArg UScalar.val h
+    simp [Slice.len] at this
+  simp [this]
+
+theorem lifecycle_decode_ec_empty :
+    decode_ec ⟨[], by simp⟩ = ok none := by
+  unfold decode_ec
+  rw [decode_ec_empty]
+  simp
+
+theorem same_ephemeral_agreement_empty (p : tacenta_boundary.dh.PrivateKey) :
+    lifecycle.same_ephemeral_agreement p ⟨[], by simp⟩ ⟨[], by simp⟩ = ok false := by
+  unfold lifecycle.same_ephemeral_agreement
+  rw [lifecycle_decode_ec_empty]
+  simp
+
+theorem initialSameEphemeralEvidence_false (dh : DhView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session) :
+    ¬ InitialSameEphemeralEvidence dh oracle real model := by
+  intro h
+  let est : alloc.vec.Vec Std.U8 := ⟨[], by simp⟩
+  let dec : tacenta_wire.DecodedInitial :=
+    { identity := est, ephemeral := est, kem_ciphertext := est, signed_prekey_id := 0#u32,
+      one_time_prekey_id := 0#u32, kem_prekey_id := 0#u32, message := est }
+  have h1 := (h est dec rfl).1
+  have h2 : lifecycle.same_ephemeral_agreement real.ratchet_private est.deref dec.ephemeral.deref =
+      ok false := same_ephemeral_agreement_empty real.ratchet_private
+  rw [h2] at h1
+  have := Result.ok.inj h1
+  exact absurd this (by decide)
+
+end SameEphemeral
+
 section CodewordView
 open tacenta_session_unit
 
@@ -873,6 +923,10 @@ theorem aeadConcreteEvidence_false_of_publicKeyNotConstant
 
 end ConcreteEvidence
 
+
+section KemOracle
+open tacenta_session_unit
+open Tacenta.UnitLifecycleT3
 
 /-! ## E. What the unguarded KEM success clause cost inside the model
 

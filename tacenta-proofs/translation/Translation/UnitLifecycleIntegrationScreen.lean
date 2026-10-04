@@ -850,7 +850,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidence_empty' depe
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -927,7 +926,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.endToEndEvidence_empty' depends on
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1004,7 +1002,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.agreementEndToEndEvidence_empty' d
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1089,15 +1086,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.random32Clause_of_oracleOf' depend
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.random32Clause_of_oracleOf
@@ -1120,15 +1115,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.sigSignClause_of_oracleOf' depends
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.sigSignClause_of_oracleOf
@@ -1152,15 +1145,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.kemClauses_of_oracleOf' depends on
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.kemClauses_of_oracleOf
@@ -1352,7 +1343,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.braidSendTrace_conflicts_with_sigS
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1368,7 +1358,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.braidSendTrace_conflicts_with_sigS
  core.num.Usize.div_ceil,
  tacenta_boundary.dh.PrivateKey.agree,
  tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  zeroize.Zeroize.Blanket.zeroize,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
@@ -1495,7 +1484,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view' depends
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1536,7 +1524,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrain
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1985,8 +1972,6 @@ fields:
       ∃ result,
         secret.agree publicKey = ok result ∧
           Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
-  Tacenta.UnitLifecycleT3.OracleOf.identityValid : ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
-      ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey)
   Tacenta.UnitLifecycleT3.OracleOf.aeadSeal : ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize)
       (ad plaintext : Slice U8),
       ∃ ciphertext,
@@ -2046,9 +2031,6 @@ constructor:
         ∃ result,
           secret.agree publicKey = ok result ∧
             Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey))
-    (identityValid :
-      ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
-        ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey))
     (aeadSeal :
       ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (ad plaintext : Slice U8),
         ∃ ciphertext,

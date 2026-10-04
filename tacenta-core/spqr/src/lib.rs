@@ -960,20 +960,6 @@ impl State {
             i += 1;
         }
 
-        // The total bound counts the store this skip would leave: the keys that
-        // survived the purge plus the `count` about to be stored, so a key that
-        // is replaced takes one slot and not two. Counting `self.skipped`
-        // here instead, before the purge, would refuse a stored state near the
-        // cap for a request that only replaces its own keys. A refusal returns
-        // before `self` is written: the working copy is dropped, which erases
-        // each key in it (`Skipped` is `ZeroizeOnDrop`, and
-        // `a_skip_refused_for_the_total_bound_frees_no_secret` in
-        // `tests/spqr_erasure_public.rs` fails if it stops being), and the
-        // state is exactly as it was.
-        if skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
-            return Err(SpqrError::SkippedStoreFull);
-        }
-
         // Numbers run from ch.n + 1, because this chain step is keyed by the
         // number it produces.
         let mut ck = ch.ck;

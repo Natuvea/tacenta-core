@@ -875,15 +875,13 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf.of_oracleOf' depend
  tacenta_session_unit.tacenta_boundary.aead.encrypt,
  tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair,
  tacenta_session_unit.tacenta_boundary.kem.decapsulate,
  tacenta_session_unit.tacenta_boundary.kem.encapsulate,
  tacenta_session_unit.tacenta_boundary.xeddsa.sign,
  tacenta_session_unit.tacenta_boundary.xeddsa.verify,
  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf.of_oracleOf
