@@ -9,7 +9,7 @@ plus the pinned toolchain (Lean +
 Charon/Aeneas) to reproduce them.
 
 Status: live. A script checks that every theorem the ledger names exists in the
-file it names and that every axiom-pinned theorem (678 at this commit) is named in
+file it names and that every axiom-pinned theorem (717 at this commit) is named in
 the ledger. Whether a pin is current is checked by the Lean build, which fails on a
 wrong pin; the script does not check it. The other 83 claimed theorems carry no pin. No recorded review of the theorem
 statements by a reader who did not write the ledger exists in this repository.

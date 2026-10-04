@@ -46,6 +46,9 @@ import Translation.UnitOracleDh
 import Translation.UnitOracleAead
 import Translation.UnitOracleKemSig
 import Translation.UnitOracleJoint
+import Translation.UnitLifecycleRetryLoopT3
+import Translation.UnitLifecycleDecryptRatchetT3
+import Translation.UnitLifecycleDecryptRatchetScreen
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
