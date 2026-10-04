@@ -997,6 +997,114 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
   session : SessionRefines dh K real.2.1 model.session
   draws : trace real.2.2 = model.oracle.draws
 
+/-! ## Establishment-level refinement
+
+`StepRefines` deliberately includes a live Session because every public
+Session operation already has one.  Establishment is the other public root:
+the model returns an `EstablishStep`, while the translated function returns a
+Session only on success and always returns the post-call RNG.  Keep that
+boundary explicit instead of smuggling establishment through a Session
+operation theorem. -/
+
+def EstablishResultRefines
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result lifecycle.Session lifecycle.Error)
+    (model : Except Model.Lifecycle.Refusal Model.Lifecycle.Session) : Prop :=
+  match real, model with
+  | .Ok realSession, .ok modelSession => SessionRefines dh K realSession modelSession
+  | .Err reason, .error modelReason => refusalOf reason = modelReason
+  | _, _ => False
+
+structure EstablishStepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result lifecycle.Session lifecycle.Error × R)
+    (model : Model.Lifecycle.EstablishStep) : Prop where
+  result : EstablishResultRefines dh K real.1 model.result
+  draws : trace real.2 = model.oracle.draws
+
+/-! The first concrete establishment composition.  The translated public
+root and executable model both refuse an unexpected peer identity before any
+signature, KEM, DH, or RNG work.  The comparison result is supplied by the
+existing translated boundary contract; the theorem consumes it and proves
+the complete public result/refinement pair, including the unchanged RNG. -/
+theorem establish_initiator_identity_mismatch_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok true)
+    (hmodelIdentity : (modelBundle.identityKey != modelExpectedIdentity) = true)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.UnexpectedIdentity, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp
+  have hmodel := Model.Lifecycle.establishInitiator_identity_mismatch
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity
+  refine ⟨(.Err lifecycle.Error.UnexpectedIdentity, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
+theorem establish_initiator_presence_mismatch_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hpresence : (modelBundle.oneTimePrekey.isSome !=
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId)) = true)
+    (hrealPresence : (core.option.Option.is_some theirBundle.bundle.one_time_prekey !=
+      (theirBundle.one_time_prekey_id != serialization.ABSENT_ID)) = true)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.InconsistentBundle, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp only [bne_iff_ne] at hrealPresence
+    have hrealPresence' :
+        ¬ (theirBundle.bundle.one_time_prekey.isSome =
+          (theirBundle.one_time_prekey_id != serialization.ABSENT_ID)) := by
+      intro h
+      exact hrealPresence h
+    simp [hrealPresence']
+  have hmodel := Model.Lifecycle.establishInitiator_presence_mismatch
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity hpresence
+  refine ⟨(.Err lifecycle.Error.InconsistentBundle, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
