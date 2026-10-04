@@ -50,9 +50,10 @@ jobs:
             bash tacenta-proofs/scripts/run-aeneas.sh 2>&1 | tee "$RUNNER_TEMP/translation-regeneration.log"
           git diff --exit-code -- tacenta-proofs/translation/Translation
           test -z "$(git status --porcelain)"
+          tree_suffix='^{tree}'
           {
             printf 'candidate_commit %s\n' "$(git rev-parse HEAD)"
-            printf 'candidate_tree %s\n' "$(git rev-parse HEAD^{tree})"
+            printf 'candidate_tree %s\n' "$(git rev-parse "HEAD$tree_suffix")"
             printf 'aeneas_release %s\n' "$AENEAS_RELEASE"
             printf 'aeneas_archive_sha256 %s\n' 'bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f'
             printf 'translation_diff clean\n'
