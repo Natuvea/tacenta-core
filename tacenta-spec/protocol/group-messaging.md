@@ -6,6 +6,20 @@ placeholder for work that is not yet scheduled. The bounded fan-out commitment
 helper below is an explicit exception: it is specified first for the product's
 one-authority validation profile, without selecting a sender-key mechanism.
 
+A draft of signed group membership epochs is in group-epochs.md. It is not
+ratified and is awaiting review. It does not select a cipher or a
+sender-key format, and it assumes that each accepted epoch starts a key epoch
+(group-epochs-decisions.md, Open decision D-2), which the open question below on sender keys or
+pairwise fan-out does not assume. It lists several authorities and up to eight
+devices per account, a different profile from the one-authority,
+one-device-per-identity profile of the bounded fan-out helper below. With
+several authorities two epochs can compete for one slot: the draft chooses
+between them by a fixed order of their writers while neither has an accepted
+successor (apart from one case between two devices of the owner's principal,
+where the order of arrival can decide), so an accepted epoch can be replaced by
+a competing one and its key material retired (group-epochs-siblings.md, Siblings). The outline
+below does not say what happens to sender keys in that case.
+
 The mechanism, in outline (tier `nominated`: this is the shape of sender keys
 that WhatsApp's white paper describes, listed under Published material): each
 member holds a sender key for the group (a chain key that ratchets forward per
@@ -67,6 +81,14 @@ different part of the problem.
 | Signal, "Private Group Messaging" (blog post, 5 May 2014) | Groups as pairwise fan-out: each message is encrypted to each member over the one-to-one sessions, and a large attachment is encrypted once under a fresh key that is then sent pairwise. Group management travels in pairwise messages, so the server holds no group state. | Sender keys. The post describes the alternative, and gives no wire format or derivation. |
 | Signal, "Technology Preview: Signal Private Group System" (blog post, 9 December 2019); Chase, Perrin and Zaverucha, "The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption" (IACR ePrint 2019/1416; ACM CCS 2020) | Group state and membership, stored by the server encrypted. Members authenticate with keyed-verification anonymous credentials, so the server enforces access control without learning who is in a group. | Encrypting messages to the group. |
 | WhatsApp, "WhatsApp Encryption Overview" (technical white paper, edition of 4 April 2016) | One deployment's description of sender keys, which it calls a component of the Signal Protocol: a chain key ratcheted per message, a signature key, the sender key sent to the other members over the pairwise sessions, one ciphertext that the server fans out, and a reset when a member leaves. | A specification. It is a descriptive overview of another vendor's system, which Tacenta does not target, and it gives steps, not formats or derivations. |
+
+RFC 9420, The Messaging Layer Security (MLS) Protocol (IETF, July 2023), is
+named here because it is published work on group messaging. It is not one of the
+sources in the table above, and this page states nothing about what it covers or
+how it relates to this outline. This project's design has not been compared with
+it, and a comparison is required before the key engine is fixed.
+group-epochs-decisions.md, Related published work, says the same of its signed membership
+epochs, and that page is awaiting review.
 
 ## Provenance rules for this page
 
