@@ -2447,11 +2447,14 @@ sends: `MsgRefines` holds of a real chunk of any content when the decoder needs 
 so the refinement theorems apply to states reachable from a fresh Braid and to restored states equal to
 such a state.
 
-### The `decrypt_ratchet` refinement: what it assumes, and the one path it leaves open
+### The `decrypt_ratchet` refinement: what it assumes, and the path its first form left open
 
-`decrypt_ratchet_refines` (`Translation/UnitLifecycleDecryptRatchetT3.lean`; `CLAIMS.md`, the section on `decrypt_ratchet`
-with the eviction retry loop) relates the private transaction behind `Session::decrypt` to `Model.Lifecycle.decryptRatchet`
-under the hypotheses in its statement. This section lists what they assume.
+`decrypt_ratchet_refines` (`Translation/UnitLifecycleDecryptRatchetT3.lean`; `CLAIMS.md`, the section on
+`decrypt_ratchet` with the eviction retry loop) relates the private transaction behind `Session::decrypt` to
+`Model.Lifecycle.decryptRatchet` under the hypotheses in its statement, and its complete form
+`decrypt_ratchet_refines_complete` (`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`) takes the same hypotheses
+(`decrypt_ratchet_refines_complete_implies_refines`) and closes the one path the first form left open. This section
+lists what they assume; it holds for both forms.
 
 **Assumed, about opaque operations.** `DecryptOracleOf` is the four clauses of `OracleOf` the transaction uses: the DH
 public key and the DH agreement of `tacenta_boundary::dh`, the AEAD open of `tacenta_boundary::aead`, and the 32-byte draw
@@ -2501,29 +2504,34 @@ store matches the header (`Ratchet::invariant` and `State::invariant` supply the
 the invariant's). Three runs meet all of these at both platform widths: one whose model step refuses at the first agreement,
 one whose model step succeeds without an eviction round, and one whose stores are non-empty and whose model step enters the
 eviction retry loop, evicts one key and retries (the outcome of the retry is not stated, and no run reaches an empty
-eviction, a second round or a switch between the stores). A fourth (`UnitLifecycleDecryptRatchetCompleteScreen.lean`) is
-one whose model step is a Triple refusal that is not a full store. Each shows the model side of the run, not which branch
-the shipped code takes. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
+eviction, a second round or a switch between the stores). A fourth (`UnitLifecycleDecryptRatchetCompleteScreen.lean`) meets
+them at both widths too and is one whose model step is a Triple refusal that is not a full store, returned by the first
+attempt; no run reaches such a refusal in a retry round, or a sparse refusal. Each shows the model side of the run, not
+which branch the shipped code takes; for the fourth, `generated_reaches_open_path` also gives the generated output under
+the boundary records. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
 store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
 invariant refuses.
 
-**The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
-nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). The
-predicate constrains only the generated output, so it can hold where the model's step succeeds.
-`triple_receive_refusal_refines` (`Translation/UnitLifecycleTripleRefusalT3.lean`) is the refusal refinement of one Triple
-receive at related states, and `decrypt_ratchet_refines_complete` (`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`)
-closes the path with it, under the same hypotheses and the same compiler-trusted constants; nothing is assumed beyond what
-this section lists. The screen's run on that path (`hypotheses_meet_open_path`) shows the model side only, as above.
+**The path the first form left open.** On a run whose output is a Triple refusal with a reason other than a full store,
+the first form says nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of
+no other output). The predicate constrains only the generated output, so it can hold where the model's step succeeds.
+`triple_receive_refusal_refines` (`Translation/UnitLifecycleTripleRefusalT3.lean`) is the refusal refinement of one
+Triple receive at related states, and `decrypt_ratchet_refines_complete`
+(`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`) closes the path with it, under the same hypotheses and the
+same compiler-trusted constants; nothing is assumed beyond what this section lists. The screen's run on that path
+(`hypotheses_meet_open_path`) shows the model side only, as above.
 
 **How the proof reaches the model loop.** `Model/Lifecycle.lean` keeps the fuel-indexed retry loop private. One lemma,
 `receiveWithEvictionLoopResult_stop`, names it through Batteries' `open private` to prove that a retry refused for a reason
 `fullStore` does not classify ends the loop; no model definition changes, and a public lemma in `Model/Lifecycle.lean`
 would replace it under rule 7.
 
-**Compiler trust.** The theorem and the loop theorems rest on the nine compiler-evaluated constants of the Session unit's
-discharged Triple receive refinement, and on no others (`CLAIMS.md`). The count of compiler-trusted pinned results rises
-from 13 to 22 because each of the nine new results that compose that refinement inherits its constants; one of the nine
-constants, `chain_start_agrees`, was on no earlier pinned result of the Session unit.
+**Compiler trust.** The theorem, its complete form and the loop theorems rest on the nine compiler-evaluated constants of
+the Session unit's discharged Triple receive refinement, and on no others (`CLAIMS.md`); one of the nine,
+`chain_start_agrees`, was on no earlier pinned result of the Session unit. Every new result that composes that refinement,
+or the sparse ratchet's own refinement, inherits some or all of them and is therefore compiler-trusted. The number of such
+results is the one `attest.py` reports (`counts.compiler_trusted`), not repeated here; `CLAIMS.md` gives it for the two
+sections. It is expected to change if the nine constants are settled by the kernel rather than by the compiler.
 
 ## The erasure coding's field is proved
 
