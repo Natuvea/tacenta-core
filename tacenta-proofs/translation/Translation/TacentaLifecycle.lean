@@ -2152,7 +2152,7 @@ def lifecycle.PrekeyNumbering.for_count
 @[rust_loop_body]
 def lifecycle.Identity.create_prekeys_loop0.body
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
-  (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (i : Std.U32) 
+  (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (i : Std.U32)
   (rng : R) (one_time : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
   (one_time_id : Std.U32) :
   Result (ControlFlow (R × (alloc.vec.Vec (Std.U32 × (Array Std.U8
@@ -3657,7 +3657,7 @@ def lifecycle.PrekeyStore.take_one_time_loop.body
     if i1 = id
     then
       ok (done (self.identity_public, self.signed_prekey_secret,
-        self.signed_prekey_id, self.signed_prekey_sig, self.one_time, 
+        self.signed_prekey_id, self.signed_prekey_sig, self.one_time,
         self.kem, self.kem_id, self.kem_sig, self.kem_one_time,
         self.previous_signed_prekey, self.previous_kem, self.next_id,
         self.last_resort_seen, self.legacy_last_resort_blocked, some index))
@@ -3896,7 +3896,7 @@ def lifecycle.PrekeyStore.take_one_time_kem_loop.body
     if i1 = id
     then
       ok (done (self.identity_public, self.signed_prekey_secret,
-        self.signed_prekey_id, self.signed_prekey_sig, self.one_time, 
+        self.signed_prekey_id, self.signed_prekey_sig, self.one_time,
         self.kem, self.kem_id, self.kem_sig, self.kem_one_time,
         self.previous_signed_prekey, self.previous_kem, self.next_id,
         self.last_resort_seen, self.legacy_last_resort_blocked, some index))
