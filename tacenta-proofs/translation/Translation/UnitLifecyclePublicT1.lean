@@ -1479,6 +1479,56 @@ theorem responder_initial_decrypt_headroom
   · rw [had]
     exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
 
+/-! A concrete witness for the decrypt-ratchet headroom record.  This composes
+the actual lifecycle initializers rather than proving headroom as an
+uninterpreted proposition: the Triple receiver, responder Braid and identity
+associated data are all returned by their translated operations, and the
+resulting session is exactly the shape consumed by `decrypt_ratchet_no_panic`.
+The remaining dependency is explicit in `contracts`; this theorem does not
+claim that the opaque boundary contracts or their five standard-library laws
+hold for the Rust implementation. -/
+theorem responder_initial_decrypt_headroom_witness {R : Type}
+    {rngCore : rand_core_1.RngCore R}
+    (contracts : EstablishResponderContracts rngCore)
+    (sk : Slice U8) (ourPublic : Array U8 32#usize)
+    (labels : tacenta_ratchet.LabelSet) (secret : Slice U8)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (initiatorIdentity ourIdentity peerIdentity : tacenta_boundary.dh.PublicKeyBytes)
+    (ephemeral : alloc.vec.Vec U8) :
+    ∃ triple braid,
+      ∃ identityAd,
+        DecryptRatchetHeadroom
+        { triple,
+          braid,
+          ratchet_private := ratchetPrivate,
+          identity_ad := identityAd,
+          our_identity_public := ourIdentity,
+          peer_identity_public := peerIdentity,
+          pending_initial := none,
+          established_ephemeral := some ephemeral } := by
+  obtain ⟨triple, _, htriple⟩ :=
+    Std.WP.spec_imp_exists
+      (triple_init_receiver_headroom
+        contracts.decrypt.triple.hkdf
+        contracts.decrypt.triple.zeroizing
+        contracts.spqrKdfInit
+        contracts.decrypt.triple.spqrZeroize
+        sk ourPublic labels)
+  obtain ⟨braid, _, hbraid⟩ :=
+    Std.WP.spec_imp_exists
+      (braid_responder_headroom
+        contracts.decrypt.braid.hkdf
+        contracts.decrypt.braid.zeroizingArray
+        contracts.divCeilValue
+        contracts.decrypt.braid.headerLen
+        secret)
+  obtain ⟨identityAd, _, had⟩ :=
+    Std.WP.spec_imp_exists
+      (identity_ad_length contracts.decrypt.dhCodec initiatorIdentity ourIdentity)
+  exact ⟨triple, braid, identityAd,
+    responder_initial_decrypt_headroom triple braid ratchetPrivate identityAd
+      ourIdentity peerIdentity ephemeral htriple hbraid.1 hbraid.2 had⟩
+
 set_option maxHeartbeats 1000000 in
 theorem establish_responder_no_panic {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
