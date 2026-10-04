@@ -3,10 +3,11 @@
 #
 # `attest.py` is intentionally rooted at its own repository path, so each
 # mutation runs in a disposable detached worktree instead of changing the
-# caller's tree. One worktree is made and reset between cases. The expected
-# diagnostic is part of every case: a nonzero exit alone could be caused by an
-# unrelated stale manifest. The first check is that the unmodified tree is
-# accepted, because a refusal is only evidence if acceptance is possible.
+# caller's tree. A worktree is made once per process and reset between cases.
+# The expected diagnostic is part of every case: a nonzero exit alone could be
+# caused by an unrelated stale manifest. The first check is that the unmodified
+# tree is accepted, because a refusal is only evidence if acceptance is
+# possible.
 #
 # The cases are grouped by what they hold:
 #   claims and manifests   -- the claim ledger, the three manifests
@@ -29,12 +30,483 @@
 #                             follows), moved to a module no audit imports,
 #                             dropped from the floor, or the floor's record
 #                             missing, unreadable, keyless or emptied
+#
+# Sharding. Every case runs `attest.py` (or `check-lean-constructs.sh`) once, and
+# that is where the time goes: it reads and hashes the tree. The cases are
+# independent, so the run is spread over the machine's cores.
+#
+#   ATTEST_NEGATIVES_JOBS=N   the number of shards. The default is the number
+#                             of CPUs (`getconf _NPROCESSORS_ONLN`), at most 16;
+#                             an explicit value may be up to 64. 1 is the single
+#                             in-process run, with no child process.
+#
+# With N above 1 this script is the parent. It starts N copies of itself, each
+# with `ATTEST_NEGATIVES_SHARD=i/N`, its own worktree and its own log, waits for
+# all of them, and accepts nothing that the shards do not show together. A shard
+# walks every case in the same order and makes every case's mutation, so a
+# mutation that no longer applies stops every shard, but it runs `attest.py`
+# only for the cases whose global index (counted from 0) satisfies
+# `index % N == i`. Every call that runs `attest.py` or another script of this
+# directory goes through `begin_case`, which counts the case and says whether
+# this shard runs it: the `expect_*` helpers and `premise_pass` below. Nothing
+# else in this file runs one, and a new kind of case has to go through it too.
+# So does a check that a refused run left a file alone (`expect_unchanged`): it
+# is a case of its own, listed and counted, and goes to the shard of the run
+# before it. That puts the check inside the counting: the per-case lists and the
+# totals cover it, and a shard that skips it is refused. It does not make the
+# check required: deleting one of the two calls lowers the count of a full run
+# by one (684 to 683) and passes, as deleting any case does, because the count
+# is not pinned (see below). The script before the sharding was the same.
+#
+# A case may read what the case before it wrote into the worktree: a `--check`
+# of what a regeneration has just rewritten. Another shard's worktree holds
+# none of that, so such a case is written with `expect_pass_after`, and goes to
+# the shard of the case before it instead of the shard its index selects.
+#
+# What the parent requires, and prints the final line only if all of it holds:
+#   - every shard exited 0 and printed no line beginning `WRONG`;
+#   - every shard printed `shard i/N: ran R of T` once, with its own i and N,
+#     the same T as the others, R above 0, and the R values add up to T;
+#   - every shard printed `shard i/N: premise P of Q`, with Q above 0, the same
+#     Q as the others and P equal to Q: the unmodified tree is accepted in every
+#     shard's own worktree, because a refusal in a worktree is evidence only if
+#     that worktree accepts;
+#   - the list of cases each shard walked (the file named by
+#     ATTEST_NEGATIVES_RESULTS, one line per case) is the same list in every
+#     shard, each case is assigned to the shard its index selects (or, for a
+#     case that follows, to the shard of the case before it), and each case is
+#     marked as run by exactly one shard, the one it is assigned to. The counts
+#     alone cannot show this: two shards of equal size that swap slices leave
+#     every count right and skip a slice.
+# On the first INT or TERM the parent stops each shard and what it started,
+# waits up to ten seconds and then kills what is left, removes the shards'
+# worktrees, prunes, and removes its logs. It does the same when the run ends
+# and when a shard was killed. A second signal while it is cleaning up ends the
+# parent at once, and so does KILL; either can leave shards running (each
+# carries on with its walk until it ends), their worktrees and the logs
+# directory. A shard started by hand (`ATTEST_NEGATIVES_SHARD=i/N`, for a run
+# split over machines) prints only its report lines; combining those is then
+# the caller's job, and CI refuses it.
+#
+# Only a shard reads ATTEST_NEGATIVES_WORKTREE, ATTEST_NEGATIVES_REV and
+# ATTEST_NEGATIVES_RESULTS; the single run and the parent ignore them and say so,
+# and a shard refuses a worktree directory that is not empty. The script removes
+# only directories it made, or that it found empty.
+#
+# Test seam. `ATTEST_NEGATIVES_ONLY=n` stops the walk after the first n cases,
+# so that tooling/tests/run-attest-negatives-shard-cases.sh can exercise the
+# sharding without the full run. It is read only together with
+# `ATTEST_NEGATIVES_SEAM=tests-only`, which that control sets. A run that used
+# it ends in a line that begins `PARTIAL RUN` and never prints the line of a full
+# run, and CI refuses the variable (GITHUB_ACTIONS is set), so a partial run
+# cannot stand for the gate.
+#
+# The number of cases of a full run is not pinned, and no file in this
+# repository states it. A walk that ends early, a block moved below `finish`,
+# or a deleted call of `expect_unchanged` prints a smaller count and passes;
+# the only check is a person who compares the count in the final line with the
+# count before the change (684 when this was written).
 set -euo pipefail
 
+self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 root="$(git rev-parse --show-toplevel)"
+tmp_base="${TMPDIR:-/tmp}"
+
+usage_error() {
+  echo "check-attest-negatives: $*" >&2
+  exit 2
+}
+
+# A whole number from the environment, read in base 10 whatever its leading zeros.
+whole_number() {
+  [[ "$2" =~ ^[0-9]{1,6}$ ]] || usage_error "$1 must be a whole number, not '$2'"
+  echo $((10#$2))
+}
+
+default_jobs() {
+  local n
+  n="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  case "$n" in
+    ''|*[!0-9]*) n="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)" ;;
+  esac
+  case "$n" in
+    ''|*[!0-9]*|0) n=1 ;;
+  esac
+  if [ "$n" -gt 16 ]; then
+    n=16
+  fi
+  echo "$n"
+}
+
+only=""
+if [ -n "${ATTEST_NEGATIVES_ONLY:-}" ]; then
+  only="$(whole_number ATTEST_NEGATIVES_ONLY "$ATTEST_NEGATIVES_ONLY")"
+  [ "$only" -ge 1 ] || usage_error "ATTEST_NEGATIVES_ONLY must be at least 1"
+  [ -z "${GITHUB_ACTIONS:-}" ] \
+    || usage_error "ATTEST_NEGATIVES_ONLY stops the run after its first cases, so CI refuses it"
+  [ "${ATTEST_NEGATIVES_SEAM:-}" = tests-only ] \
+    || usage_error "ATTEST_NEGATIVES_ONLY is a test seam that makes a partial run; it is read only with ATTEST_NEGATIVES_SEAM=tests-only"
+fi
+
+is_shard=0
+shard=0
+jobs=1
+if [ -n "${ATTEST_NEGATIVES_SHARD:-}" ]; then
+  [[ "$ATTEST_NEGATIVES_SHARD" =~ ^([0-9]{1,6})/([0-9]{1,6})$ ]] \
+    || usage_error "ATTEST_NEGATIVES_SHARD must look like 2/8, not '$ATTEST_NEGATIVES_SHARD'"
+  shard=$((10#${BASH_REMATCH[1]}))
+  jobs=$((10#${BASH_REMATCH[2]}))
+  { [ "$jobs" -ge 1 ] && [ "$shard" -lt "$jobs" ]; } \
+    || usage_error "ATTEST_NEGATIVES_SHARD=$ATTEST_NEGATIVES_SHARD is not a shard of a run"
+  is_shard=1
+  if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${ATTEST_NEGATIVES_PARENT:-}" != "$PPID" ]; then
+    usage_error "a shard is started by this script and not by hand, so CI refuses ATTEST_NEGATIVES_SHARD"
+  fi
+elif [ -n "${ATTEST_NEGATIVES_JOBS:-}" ]; then
+  jobs="$(whole_number ATTEST_NEGATIVES_JOBS "$ATTEST_NEGATIVES_JOBS")"
+  { [ "$jobs" -ge 1 ] && [ "$jobs" -le 64 ]; } || usage_error "ATTEST_NEGATIVES_JOBS must be from 1 to 64"
+else
+  jobs="$(default_jobs)"
+fi
+
+# What a shard is given by its parent. Nothing else reads these, so that a value left in the environment cannot
+# choose the revision that the single run checks or a directory that it removes.
+if [ "$is_shard" -eq 0 ]; then
+  for variable in ATTEST_NEGATIVES_REV ATTEST_NEGATIVES_RESULTS ATTEST_NEGATIVES_WORKTREE; do
+    if [ -n "${!variable:-}" ]; then
+      echo "check-attest-negatives: ignoring $variable, which only a shard reads" >&2
+    fi
+  done
+fi
+
+# The line a run that holds the gate ends in. The seam never prints the first form.
+final_line() {
+  if [ -n "$only" ]; then
+    echo "check-attest-negatives: PARTIAL RUN, not the gate (seam ATTEST_NEGATIVES_ONLY=$only): the first $1 cases passed"
+  else
+    echo "check-attest-negatives: $1 cases gave the expected result (the unmodified tree accepted; each mutation refused for its stated reason)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# The parent: start the shards, wait for all of them, accept what they show together.
+# ---------------------------------------------------------------------------
+
+shard_pids=()
+shard_works=()
+parent_logs=""
+ticker=""
+
+kill_tree() {  # pid: stop a process and everything it started
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null || true); do
+    kill_tree "$child"
+  done
+  kill -TERM "$1" 2>/dev/null || true
+}
+
+parent_cleanup() {
+  local i tries=0 alive
+  trap - EXIT INT TERM
+  if [ -n "$ticker" ]; then
+    kill_tree "$ticker"
+  fi
+  i=0
+  while [ "$i" -lt "${#shard_pids[@]}" ]; do
+    if [ -n "${shard_pids[$i]}" ]; then
+      kill_tree "${shard_pids[$i]}"
+    fi
+    i=$((i + 1))
+  done
+  # A shard runs its own cleanup when it is stopped; give it a moment, then force it.
+  while [ "$tries" -lt 20 ]; do
+    alive=0
+    i=0
+    while [ "$i" -lt "${#shard_pids[@]}" ]; do
+      if [ -n "${shard_pids[$i]}" ] && kill -0 "${shard_pids[$i]}" 2>/dev/null; then
+        alive=1
+      fi
+      i=$((i + 1))
+    done
+    [ "$alive" -eq 1 ] || break
+    sleep 0.5
+    tries=$((tries + 1))
+  done
+  i=0
+  while [ "$i" -lt "${#shard_pids[@]}" ]; do
+    if [ -n "${shard_pids[$i]}" ]; then
+      kill -KILL "${shard_pids[$i]}" 2>/dev/null || true
+    fi
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt "${#shard_works[@]}" ]; do
+    git -C "$root" worktree remove --force "${shard_works[$i]}" >/dev/null 2>&1 || rm -rf "${shard_works[$i]}"
+    i=$((i + 1))
+  done
+  git -C "$root" worktree prune >/dev/null 2>&1 || true
+  if [ -n "$parent_logs" ]; then
+    rm -rf "$parent_logs"
+  fi
+}
+
+# The cases walked so far by each shard, one number per shard.
+shard_progress() {
+  local i=0 line=""
+  while [ "$i" -lt "$jobs" ]; do
+    line="$line $({ wc -l < "$parent_logs/results-$i"; } 2>/dev/null | tr -d ' ' || true)"
+    i=$((i + 1))
+  done
+  echo "$line"
+}
+
+# Everything the parent requires of the shards, in one place. Exit 1 names each problem; exit 0
+# writes the number of cases to the file `total` and prints how the cases were shared.
+verify_shards() {
+  python3 - "$parent_logs" "$jobs" <<'PY'
+import pathlib
+import re
+import sys
+
+logs = pathlib.Path(sys.argv[1])
+jobs = int(sys.argv[2])
+problems = []
+REPORT = re.compile(r"^shard (\d+)/(\d+): ran (\d+) of (\d+)$", re.M)
+PREMISE = re.compile(r"^shard (\d+)/(\d+): premise (\d+) of (\d+)$", re.M)
+
+
+def read(path):
+    try:
+        return path.read_text(errors="replace")
+    except OSError:
+        return None
+
+
+reported = {}   # shard -> (cases it ran, cases it saw)
+premises = {}   # shard -> (times it checked that its worktree accepts the unmodified tree, times it had to)
+walks = {}      # shard -> [(index, ran or skip, verdict, seconds, shard the case belongs to, plain or follows, name)]
+for i in range(jobs):
+    label = f"shard {i}/{jobs}"
+    status = read(logs / f"rc-{i}")
+    try:
+        code = int(status.strip())
+    except (AttributeError, ValueError):
+        problems.append(f"{label} left no exit status")
+    else:
+        if code != 0:
+            problems.append(f"{label} exited with status {code}")
+    log = read(logs / f"shard-{i}.log") or ""
+    wrong = [line for line in log.splitlines() if line.startswith("WRONG")]
+    if wrong:
+        problems.append(f"{label} printed {len(wrong)} WRONG line(s)")
+    reports = REPORT.findall(log)
+    if len(reports) != 1:
+        problems.append(f"{label} printed {len(reports)} lines `shard i/N: ran R of T`, not exactly one")
+    else:
+        own, of, ran, seen = map(int, reports[0])
+        # Distinct and complete follow: every shard names itself, and the launcher gave each one index.
+        if (own, of) != (i, jobs):
+            problems.append(f"{label} reported itself as shard {own}/{of}")
+        reported[i] = (ran, seen)
+        if ran == 0:
+            problems.append(f"{label} ran 0 of {seen} cases")
+    found = PREMISE.findall(log)
+    if len(found) != 1:
+        problems.append(f"{label} printed {len(found)} lines `shard i/N: premise P of Q`, not exactly one")
+    else:
+        premises[i] = (int(found[0][2]), int(found[0][3]))
+    text = read(logs / f"results-{i}")
+    if text is None:
+        problems.append(f"{label} left no list of the cases it walked")
+        continue
+    rows = []
+    for number, line in enumerate(text.splitlines(), 1):
+        parts = line.split("\t", 6)
+        if (len(parts) != 7 or not parts[0].isdigit() or parts[1] not in ("ran", "skip")
+                or not parts[4].isdigit() or parts[5] not in ("plain", "follows")):
+            problems.append(f"{label}: line {number} of its list of cases is not a case")
+            break
+        # index, ran or skip, verdict, seconds, the shard the case belongs to, plain or follows, name
+        rows.append((int(parts[0]), parts[1], parts[2], parts[3], int(parts[4]), parts[5], parts[6]))
+    walks[i] = rows
+
+# Counts: one T, and the R values add up to it.
+totals = {seen for _, seen in reported.values()}
+if len(totals) > 1:
+    problems.append("the shards disagree on the number of cases: "
+                    + ", ".join(f"shard {i} saw {seen}" for i, (_, seen) in sorted(reported.items())))
+if len(totals) == 1 and len(reported) == jobs:
+    total = totals.pop()
+    ran_all = sum(ran for ran, _ in reported.values())
+    if ran_all != total:
+        problems.append(f"the shards ran {ran_all} cases between them, not the {total} there are")
+else:
+    total = None
+
+for i, (checked, reached) in sorted(premises.items()):
+    if reached < 1:
+        problems.append(f"shard {i}/{jobs} reaches no premise check")
+    elif checked != reached:
+        problems.append(f"shard {i}/{jobs} checked that its worktree accepts the unmodified tree {checked} time(s) "
+                        f"of the {reached} it reaches")
+if len({reached for _, reached in premises.values()}) > 1:
+    problems.append("the shards reach different numbers of premise checks: "
+                    + ", ".join(f"shard {i} reaches {reached}" for i, (_, reached) in sorted(premises.items())))
+
+# Cases: the same walk everywhere, and each case run once, by the shard its index selects.
+owners = {}
+reference = None
+for i, rows in sorted(walks.items()):
+    label = f"shard {i}/{jobs}"
+    if [row[0] for row in rows] != list(range(len(rows))):
+        problems.append(f"{label} did not walk the cases from 0 in order")
+        continue
+    if i in reported:
+        ran, seen = reported[i]
+        if len(rows) != seen:
+            problems.append(f"{label} lists {len(rows)} cases and reports {seen}")
+        if sum(1 for row in rows if row[1] == "ran") != ran:
+            problems.append(f"{label} lists {sum(1 for row in rows if row[1] == 'ran')} cases it ran and reports {ran}")
+    outside = [row for row in rows if (row[1] == "ran") != (row[4] == i)]
+    if outside:
+        problems.append(f"{label} ran or skipped {len(outside)} case(s) against its slice, the first being "
+                        f"case {outside[0][0]} ({outside[0][6]})")
+    for row in rows:
+        if row[1] == "ran":
+            owners.setdefault(row[0], []).append(i)
+    walk = [(row[6], row[4], row[5]) for row in rows]
+    if reference is None:
+        reference = (i, walk)
+    elif walk != reference[1]:
+        first = next((n for n, (a, b) in enumerate(zip(walk, reference[1])) if a != b), min(len(walk), len(reference[1])))
+        problems.append(f"{label} walked different cases from shard {reference[0]}/{jobs}, the first difference being case {first}")
+if reference is not None:
+    # The assignment: a case goes to the shard its index selects, except one that follows, which goes to the
+    # shard of the case before it.
+    bad = []
+    for n, (name, owner, kind) in enumerate(reference[1]):
+        if kind == "plain" and owner != n % jobs:
+            bad.append(f"case {n} ({name}) is assigned to shard {owner}, not to shard {n % jobs}, which its index selects")
+        elif kind == "follows" and (n == 0 or owner != reference[1][n - 1][1]):
+            bad.append(f"case {n} ({name}) follows the case before it and is assigned to shard {owner}, "
+                       f"not to the shard of that case")
+    problems.extend(bad[:5])
+    if len(bad) > 5:
+        problems.append(f"{len(bad) - 5} more cases are assigned to the wrong shard")
+    unrun = [n for n in range(len(reference[1])) if len(owners.get(n, [])) != 1]
+    for n in unrun[:5]:
+        who = owners.get(n, [])
+        problems.append(f"case {n} ({reference[1][n][0]}) was run by "
+                        + ("no shard" if not who else "shards " + " and ".join(map(str, who))))
+    if len(unrun) > 5:
+        problems.append(f"{len(unrun) - 5} more cases were not run exactly once")
+    wrong_rows = [(i, row) for i, rows in walks.items() for row in rows if row[2] == "wrong"]
+    for i, row in wrong_rows[:5]:
+        problems.append(f"shard {i}/{jobs} marks case {row[0]} ({row[6]}) wrong")
+
+if problems:
+    for problem in problems:
+        print(f"check-attest-negatives: {problem}", file=sys.stderr)
+    sys.exit(1)
+
+busy = [sum(int(row[3]) for row in walks[i] if row[1] == "ran") for i in range(jobs)]
+ran_each = " + ".join(str(reported[i][0]) for i in range(jobs))
+(logs / "total").write_text(f"{total}\n")
+print(f"check-attest-negatives: {jobs} shards ran {ran_each} = {total} cases "
+      f"(case time per shard {min(busy)} to {max(busy)} s)")
+PY
+}
+
+run_parent() {
+  local i pid rc start rev total
+  parent_logs="$(mktemp -d "$tmp_base/attest-negatives-logs.XXXXXX")"
+  trap parent_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  start=$SECONDS
+  # One revision for every shard, read once, in case HEAD moves while they start.
+  rev="$(git -C "$root" rev-parse HEAD)"
+  echo "check-attest-negatives: $jobs shards on ${rev:0:7}"
+  i=0
+  while [ "$i" -lt "$jobs" ]; do
+    shard_works[$i]="$(mktemp -d "$tmp_base/attest-negatives-wt.XXXXXX")"
+    ATTEST_NEGATIVES_SHARD="$i/$jobs" \
+      ATTEST_NEGATIVES_PARENT="$$" \
+      ATTEST_NEGATIVES_REV="$rev" \
+      ATTEST_NEGATIVES_WORKTREE="${shard_works[$i]}" \
+      ATTEST_NEGATIVES_RESULTS="$parent_logs/results-$i" \
+      "$BASH" "$self" > "$parent_logs/shard-$i.log" 2>&1 &
+    shard_pids[$i]=$!
+    i=$((i + 1))
+  done
+  # A line every five minutes, so that a long run is not silent.
+  (
+    while :; do
+      sleep 300
+      echo "check-attest-negatives: $(((SECONDS - start) / 60)) min in; cases walked by each shard:$(shard_progress)"
+    done
+  ) 2>/dev/null &
+  ticker=$!
+  disown "$ticker"
+  i=0
+  while [ "$i" -lt "$jobs" ]; do
+    pid="${shard_pids[$i]}"
+    wait "$pid" && rc=0 || rc=$?
+    shard_pids[$i]=""
+    echo "$rc" > "$parent_logs/rc-$i"
+    i=$((i + 1))
+  done
+  kill_tree "$ticker"
+  ticker=""
+  if verify_shards; then
+    echo "check-attest-negatives: the shards took $((SECONDS - start)) s"
+    total="$(cat "$parent_logs/total")"
+    [[ "$total" =~ ^[1-9][0-9]*$ ]] || { echo "check-attest-negatives: the verification left no count of cases" >&2; exit 1; }
+    final_line "$total"
+    exit 0
+  fi
+  i=0
+  while [ "$i" -lt "$jobs" ]; do
+    echo "check-attest-negatives: ---- log of shard $i/$jobs ----" >&2
+    cat "$parent_logs/shard-$i.log" >&2
+    i=$((i + 1))
+  done
+  echo "check-attest-negatives: the sharded run does not hold the gate" >&2
+  exit 1
+}
+
+if [ "$is_shard" -eq 0 ] && [ "$jobs" -gt 1 ]; then
+  run_parent
+  exit 1  # run_parent ends in an exit of its own; reaching here is a fault
+fi
+
+# ---------------------------------------------------------------------------
+# One process: the single run (JOBS=1) or one shard of a sharded run.
+# ---------------------------------------------------------------------------
+
 work=""
-cases=0
+seen=0          # cases walked, whoever runs them; the T of the report
+ran=0           # cases this process ran
 wrong=0
+premise=0       # times the unmodified tree was checked in this process's worktree
+premise_reached=0 # premise checks the walk reached, which is how many this process has to make
+case_index=0    # the global index of the case in hand, from 0
+case_owner=0    # the shard that runs the case in hand
+case_kind=plain # plain, or follows: it reads what the case before it wrote, and goes to that case's shard
+case_pending=0  # a case this process ran is waiting to be written to its list
+case_start=0
+case_end=0
+case_wrong_at_start=0
+case_name=""
+if [ "$is_shard" -eq 1 ]; then
+  shard_rev="${ATTEST_NEGATIVES_REV:-HEAD}"
+  shard_results="${ATTEST_NEGATIVES_RESULTS:-}"
+  shard_work="${ATTEST_NEGATIVES_WORKTREE:-}"
+else
+  shard_rev=HEAD
+  shard_results=""
+  shard_work=""
+fi
 
 cleanup() {
   if [ -n "$work" ]; then
@@ -42,15 +514,123 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+add_worktree() {
+  local attempt=1 failure
+  # Shards add their worktrees to one repository at the same moment; retry rather than depend on its locking.
+  until failure="$(git -C "$root" worktree add -q --detach "$work" "$shard_rev" 2>&1)"; do
+    if [ "$attempt" -ge 5 ]; then
+      echo "check-attest-negatives: cannot add a worktree at $work after $attempt tries: $failure" >&2
+      exit 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$attempt"
+    # What is in the directory now was put there by the failed add: the directory was made by this script or found
+    # empty. A worktree that git registered before it failed has to be pruned, or the next add refuses it.
+    if [ -d "$work" ]; then
+      find "$work" -mindepth 1 -delete 2>/dev/null || true
+    fi
+    git -C "$root" worktree prune >/dev/null 2>&1 || true
+    mkdir -p "$work"
+  done
+}
 
 make_case() {
+  local candidate
   if [ -z "$work" ]; then
-    work="$(mktemp -d)"
-    git -C "$root" worktree add -q --detach "$work" HEAD >/dev/null
+    # `work` is set only after the checks, because cleanup removes whatever it names.
+    candidate="$shard_work"
+    if [ -z "$candidate" ]; then
+      candidate="$(mktemp -d "$tmp_base/attest-negatives.XXXXXX")"
+    elif [ -n "$(ls -A "$candidate" 2>/dev/null)" ]; then
+      usage_error "ATTEST_NEGATIVES_WORKTREE=$candidate is not an empty directory"
+    fi
+    work="$candidate"
+    add_worktree
   else
     git -C "$work" checkout -q --force HEAD -- .
     git -C "$work" clean -fdq
   fi
+}
+
+# One line per case in the list the parent reads: index, ran or skip, ok or wrong, seconds, the shard the
+# case belongs to, plain or follows, name.
+note_case() {
+  if [ -n "$shard_results" ]; then
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7" >> "$shard_results" \
+      || { echo "check-attest-negatives: cannot write the list of cases to $shard_results" >&2; exit 1; }
+  fi
+}
+
+# Write the case this process ran last. It is written when the next case begins, so that a check that
+# follows the case and belongs to it (a `git diff` of what a refused run left behind) can still mark it wrong.
+flush_case() {
+  local verdict=ok
+  if [ "$case_pending" -eq 1 ]; then
+    if [ "$wrong" -ne "$case_wrong_at_start" ]; then
+      verdict=wrong
+    fi
+    note_case "$case_index" ran "$verdict" "$((case_end - case_start))" "$case_owner" "$case_kind" "$case_name"
+    case_pending=0
+  fi
+}
+
+# The end of the walk, or the seam. A shard reports to its parent; the single run prints the final line.
+finish() {
+  flush_case
+  if [ "$is_shard" -eq 1 ]; then
+    echo "shard $shard/$jobs: premise $premise of $premise_reached"
+    echo "shard $shard/$jobs: ran $ran of $seen"
+    if [ "$wrong" -ne 0 ]; then
+      echo "check-attest-negatives: shard $shard/$jobs gave $wrong wrong result(s) in the $ran cases it ran" >&2
+      exit 1
+    fi
+    exit 0
+  fi
+  if [ "$wrong" -ne 0 ]; then
+    echo "check-attest-negatives: $wrong of $seen cases gave the wrong result" >&2
+    exit 1
+  fi
+  final_line "$seen"
+  exit 0
+}
+
+# Every case passes through here, whichever process runs it, so that every shard counts the same
+# cases in the same order. Returns 0 when this process runs the case and 1 when another shard does.
+# The shard of a case is its index modulo the number of shards, except for a case that `follows`: it
+# reads what the case before it wrote into the worktree, so it goes to that case's shard.
+begin_case() {  # name [follows] [premise]
+  flush_case
+  if [ -n "$only" ] && [ "$seen" -ge "$only" ]; then
+    finish
+  fi
+  if [ "${3:-}" = premise ]; then
+    premise_reached=$((premise_reached + 1))
+  fi
+  case_index=$seen
+  case_name="$1"
+  seen=$((seen + 1))
+  if [ "${2:-}" = follows ] && [ "$case_index" -gt 0 ]; then
+    case_kind=follows
+  else
+    case_kind=plain
+    case_owner=$((case_index % jobs))
+  fi
+  if [ "$case_owner" -ne "$shard" ]; then
+    note_case "$case_index" skip - 0 "$case_owner" "$case_kind" "$case_name"
+    return 1
+  fi
+  ran=$((ran + 1))
+  case_pending=1
+  case_start=$SECONDS
+  case_wrong_at_start=$wrong
+  return 0
+}
+
+end_case() {
+  case_end=$SECONDS
 }
 
 # The cases must give the same result on a developer's machine and on the CI
@@ -60,84 +640,174 @@ attest() {
   (cd "$work" && env -u GITHUB_ACTIONS python3 tacenta-proofs/scripts/attest.py "$@" 2>&1)
 }
 
-expect_fail() {
-  local name="$1"
-  local expected="$2"
-  shift 2
-  local out rc
-  set +e
-  out="$(attest "$@")"
-  rc=$?
-  set -e
-  cases=$((cases + 1))
-  if [ "$rc" -eq 0 ]; then
-    echo "WRONG  $name: expected refusal containing '$expected', was accepted" >&2
-    wrong=$((wrong + 1))
-    return 0
-  fi
-  if [[ "$out" != *"$expected"* ]]; then
-    echo "WRONG  $name: refused, but not for '$expected':" >&2
-    printf '%s\n' "$out" >&2
-    wrong=$((wrong + 1))
-  fi
+attest_in_ci() {
+  (cd "$work" && GITHUB_ACTIONS=true python3 tacenta-proofs/scripts/attest.py "$@" 2>&1)
 }
-
-expect_pass() {
-  local name="$1"
-  shift
-  local out rc
-  set +e
-  out="$(attest "$@")"
-  rc=$?
-  set -e
-  cases=$((cases + 1))
-  if [ "$rc" -ne 0 ]; then
-    echo "WRONG  $name: expected acceptance, was refused:" >&2
-    printf '%s\n' "$out" >&2
-    wrong=$((wrong + 1))
-  fi
-}
-
-gen="tacenta-proofs/translation/Translation"
-allowlist="tacenta-proofs/manifests/translation-axiom-allowlist.json"
-record="tacenta-proofs/manifests/translation-attestation.json"
 
 # Run another script of this directory in the worktree; the same shape as attest.
 run_script() {
   (cd "$work" && env -u GITHUB_ACTIONS bash "tacenta-proofs/scripts/$1" 2>&1)
 }
 
-expect_script_fail() {
-  local name="$1" expected="$2" script="$3" out rc
-  set +e
-  out="$(run_script "$script")"
-  rc=$?
-  set -e
-  cases=$((cases + 1))
-  if [ "$rc" -eq 0 ]; then
-    echo "WRONG  $name: expected refusal containing '$expected', was accepted" >&2
+# The verdicts. Each takes the name of the case, what it was run for, the output and the exit status.
+judge_refusal() {
+  if [ "$4" -eq 0 ]; then
+    echo "WRONG  $1: expected refusal containing '$2', was accepted" >&2
     wrong=$((wrong + 1))
-    return 0
-  fi
-  if [[ "$out" != *"$expected"* ]]; then
-    echo "WRONG  $name: refused, but not for '$expected':" >&2
-    printf '%s\n' "$out" >&2
+  elif [[ "$3" != *"$2"* ]]; then
+    echo "WRONG  $1: refused, but not for '$2':" >&2
+    printf '%s\n' "$3" >&2
     wrong=$((wrong + 1))
   fi
 }
 
-expect_script_pass() {
-  local name="$1" script="$2" out rc
+judge_acceptance() {
+  if [ "$3" -ne 0 ]; then
+    echo "WRONG  $1: expected acceptance, was refused:" >&2
+    printf '%s\n' "$2" >&2
+    wrong=$((wrong + 1))
+  fi
+}
+
+judge_acceptance_saying() {
+  if [ "$4" -ne 0 ] || [[ "$3" != *"$2"* ]]; then
+    echo "WRONG  $1: rc=$4, expected acceptance printing '$2':" >&2
+    printf '%s\n' "$3" >&2
+    wrong=$((wrong + 1))
+  fi
+}
+
+expect_fail() {
+  local name="$1"
+  local expected="$2"
+  shift 2
+  local out rc
+  begin_case "$name" || return 0
+  set +e
+  out="$(attest "$@")"
+  rc=$?
+  set -e
+  judge_refusal "$name" "$expected" "$out" "$rc"
+  end_case
+}
+
+expect_pass() {
+  local name="$1"
+  shift
+  local out rc
+  begin_case "$name" || return 0
+  set +e
+  out="$(attest "$@")"
+  rc=$?
+  set -e
+  judge_acceptance "$name" "$out" "$rc"
+  end_case
+}
+
+# A case that must be accepted and reads what the case before it wrote into the worktree: a `--check` of
+# what a regeneration has just rewritten. It runs in the shard that ran that case, because no other
+# shard's worktree holds what that case wrote.
+expect_pass_after() {
+  local name="$1"
+  shift
+  local out rc
+  begin_case "$name" follows || return 0
+  set +e
+  out="$(attest "$@")"
+  rc=$?
+  set -e
+  judge_acceptance "$name" "$out" "$rc"
+  end_case
+}
+
+# A run that must be accepted and must say something.
+expect_pass_saying() {
+  local name="$1"
+  local expected="$2"
+  shift 2
+  local out rc
+  begin_case "$name" || return 0
+  set +e
+  out="$(attest "$@")"
+  rc=$?
+  set -e
+  judge_acceptance_saying "$name" "$expected" "$out" "$rc"
+  end_case
+}
+
+# A run with GITHUB_ACTIONS set, as the runner has it.
+expect_fail_in_ci() {
+  local name="$1"
+  local expected="$2"
+  shift 2
+  local out rc
+  begin_case "$name" || return 0
+  set +e
+  out="$(attest_in_ci "$@")"
+  rc=$?
+  set -e
+  judge_refusal "$name" "$expected" "$out" "$rc"
+  end_case
+}
+
+# The unmodified tree must be accepted by the worktree of every shard, because a refusal in a
+# worktree is evidence only if that worktree accepts. The case is counted once, where its index
+# puts it; a shard that does not own it still runs the check and counts it in `premise`.
+premise_pass() {
+  local name="$1"
+  shift
+  local out rc owned=0
+  if begin_case "$name" "" premise; then
+    owned=1
+  fi
+  set +e
+  out="$(attest "$@")"
+  rc=$?
+  set -e
+  judge_acceptance "$name" "$out" "$rc"
+  premise=$((premise + 1))
+  if [ "$owned" -eq 1 ]; then
+    end_case
+  fi
+}
+
+# A refused run must leave a file as it was. It is a case of its own that follows the run before it, so that it
+# is counted, listed and sent to the shard of that run, where the file was written; the parent sees it.
+expect_unchanged() {  # name path
+  local name="$1" path="$2" rc=0
+  begin_case "$name" follows || return 0
+  git -C "$work" diff --quiet -- "$path" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "WRONG  $name: $path was written by the run before it" >&2
+    wrong=$((wrong + 1))
+  fi
+  end_case
+}
+
+gen="tacenta-proofs/translation/Translation"
+allowlist="tacenta-proofs/manifests/translation-axiom-allowlist.json"
+record="tacenta-proofs/manifests/translation-attestation.json"
+
+expect_script_fail() {
+  local name="$1" expected="$2" script="$3" out rc
+  begin_case "$name" || return 0
   set +e
   out="$(run_script "$script")"
   rc=$?
   set -e
-  cases=$((cases + 1))
-  if [ "$rc" -ne 0 ]; then
-    echo "WRONG  $name: expected acceptance, was refused:" >&2
-    printf '%s\n' "$out" >&2
-    wrong=$((wrong + 1))
-  fi
+  judge_refusal "$name" "$expected" "$out" "$rc"
+  end_case
+}
+
+expect_script_pass() {
+  local name="$1" script="$2" out rc
+  begin_case "$name" || return 0
+  set +e
+  out="$(run_script "$script")"
+  rc=$?
+  set -e
+  judge_acceptance "$name" "$out" "$rc"
+  end_case
 }
 
 # Insert the text on stdin into a generated file just before the `end` that
@@ -194,8 +864,8 @@ PY
 # ---------------------------------------------------------------------------
 
 make_case
-expect_pass "unmodified-tree" --check
-expect_pass "unmodified-translation" --check-translation
+premise_pass "unmodified-tree" --check
+premise_pass "unmodified-translation" --check-translation
 
 # ---------------------------------------------------------------------------
 # Claims and manifests.
@@ -688,7 +1358,7 @@ done
 make_case
 replace_in "$screen" $'#guard_msgs in\n#print Model.Lifecycle.takeDraws\n' $'#guard_msgs in\n#check @Model.Lifecycle.takeDraws\n'
 expect_pass "statement-pin-check-form-off-the-print-list"
-expect_pass "statement-pin-check-form-off-the-print-list-then-checked" --check
+expect_pass_after "statement-pin-check-form-off-the-print-list-then-checked" --check
 
 # The spellings the floor accepts: the pin is the pin, not its exact form. The Lean file
 # changed, so the source attestation is stale until it is regenerated; regenerating
@@ -698,13 +1368,13 @@ for option in "check info, drop warning" "whitespace := normalized" "ordering :=
   make_case
   rewrite_statement_pin options "$option"
   expect_pass "statement-pin-accepted-option-$option"
-  expect_pass "statement-pin-accepted-option-$option-then-checked" --check
+  expect_pass_after "statement-pin-accepted-option-$option-then-checked" --check
 done
 
 make_case
 rewrite_statement_pin at-sign
 expect_pass "statement-pin-accepted-with-at-sign"
-expect_pass "statement-pin-accepted-with-at-sign-then-checked" --check
+expect_pass_after "statement-pin-accepted-with-at-sign-then-checked" --check
 
 # A pin in a module that no audit module imports: the pin moves to a new file under the
 # translation package, which nothing imports.
@@ -748,7 +1418,7 @@ rewrite_statement_pin delete
 edit_json tacenta-proofs/manifests/verification-manifest.json \
   "data['statement_pin_floor'].remove('$stmt_name')"
 expect_pass "statement-floor-shortened-by-hand-edit-and-regenerated"
-expect_pass "statement-floor-shortened-by-hand-edit-then-checked" --check
+expect_pass_after "statement-floor-shortened-by-hand-edit-then-checked" --check
 
 # The record does not fail open: with the script's floor shortened and its pin deleted, a
 # manifest that is missing, unreadable, without a floor list or with an empty one leaves
@@ -887,10 +1557,7 @@ insert_in TacentaRatchet.lean <<'EOF'
 axiom planted_false : False
 EOF
 expect_fail "planted-generated-axiom" "differ from the allowlist" --refresh-translation
-if ! git -C "$work" diff --quiet -- "$record"; then
-  echo "WRONG  planted-generated-axiom: the refused refresh still wrote the record" >&2
-  wrong=$((wrong + 1))
-fi
+expect_unchanged "planted-generated-axiom-wrote-nothing" "$record"
 
 make_case
 insert_in TacentaRatchet.lean <<'EOF'
@@ -1138,7 +1805,7 @@ def axiomatic : Nat := 1
 def not_a_declaration_c : Nat := 1
 EOF
 expect_pass "text-that-is-not-a-declaration" --refresh-translation
-expect_pass "text-that-is-not-a-declaration-is-current" --check
+expect_pass_after "text-that-is-not-a-declaration-is-current" --check
 
 # ---------------------------------------------------------------------------
 # The audit comparison.
@@ -1211,21 +1878,10 @@ expect_fail "audit-differs-from-the-allowlist" "not in the allowlist list" --com
 
 make_case
 expect_pass "writer-leaves-a-current-allowlist-alone" --write-axiom-allowlist
-if ! git -C "$work" diff --quiet -- "$allowlist"; then
-  echo "WRONG  writer-leaves-a-current-allowlist-alone: the writer changed the file" >&2
-  wrong=$((wrong + 1))
-fi
+expect_unchanged "writer-leaves-a-current-allowlist-alone-wrote-nothing" "$allowlist"
 
 make_case
-set +e
-out="$(cd "$work" && GITHUB_ACTIONS=true python3 tacenta-proofs/scripts/attest.py --write-axiom-allowlist 2>&1)"
-rc=$?
-set -e
-cases=$((cases + 1))
-if [ "$rc" -eq 0 ] || [[ "$out" != *"does not run in CI"* ]]; then
-  echo "WRONG  writer-refuses-in-ci: rc=$rc: $out" >&2
-  wrong=$((wrong + 1))
-fi
+expect_fail_in_ci "writer-refuses-in-ci" "does not run in CI" --write-axiom-allowlist
 
 make_case
 insert_in TacentaRatchet.lean <<'EOF'
@@ -1238,31 +1894,15 @@ make_case
 insert_in TacentaRatchet.lean <<'EOF'
 axiom planted_false : False
 EOF
-set +e
-out="$(attest --write-axiom-allowlist)"
-rc=$?
-set -e
-cases=$((cases + 1))
-if [ "$rc" -ne 0 ] || [[ "$out" != *"allowlist + TacentaRatchet.lean: tacenta_ratchet.planted_false : False"* ]]; then
-  echo "WRONG  writer-reports-what-it-added: rc=$rc, the addition was not printed:" >&2
-  printf '%s\n' "$out" >&2
-  wrong=$((wrong + 1))
-fi
+expect_pass_saying "writer-reports-what-it-added" \
+  "allowlist + TacentaRatchet.lean: tacenta_ratchet.planted_false : False" --write-axiom-allowlist
 
 make_case
 replace_in "$gen/TacentaErasure.lean" \
   "axiom core.num.Usize.div_ceil : Std.Usize → Std.Usize → Result Std.Usize" \
   "-- removed"
-set +e
-out="$(attest --write-axiom-allowlist)"
-rc=$?
-set -e
-cases=$((cases + 1))
-if [ "$rc" -ne 0 ] || [[ "$out" != *"allowlist - TacentaErasure.lean: tacenta_erasure.core.num.Usize.div_ceil : Std.Usize"* ]]; then
-  echo "WRONG  writer-reports-what-it-removed: rc=$rc, the removal was not printed:" >&2
-  printf '%s\n' "$out" >&2
-  wrong=$((wrong + 1))
-fi
+expect_pass_saying "writer-reports-what-it-removed" \
+  "allowlist - TacentaErasure.lean: tacenta_erasure.core.num.Usize.div_ceil : Std.Usize" --write-axiom-allowlist
 
 # ---------------------------------------------------------------------------
 # The construct scanner reads hand-written Lean the way the attestation scan
@@ -1331,8 +1971,4 @@ def axiomatic : Nat := 1
 EOF
 expect_script_pass "constructs-text-that-is-not-a-construct" check-lean-constructs.sh
 
-if [ "$wrong" -ne 0 ]; then
-  echo "check-attest-negatives: $wrong of $cases cases gave the wrong result" >&2
-  exit 1
-fi
-echo "check-attest-negatives: $cases cases gave the expected result (the unmodified tree accepted; each mutation refused for its stated reason)"
+finish
