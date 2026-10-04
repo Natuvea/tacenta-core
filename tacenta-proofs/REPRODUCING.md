@@ -14,7 +14,7 @@ running both.
 | Lean | `leanprover/lean4:v4.31.0` | `lean-toolchain` (and `translation/lean-toolchain`) |
 | Lean dependencies, model layer | exact revisions | `lake-manifest.json` |
 | Lean dependencies, translation (Aeneas library, Mathlib, Batteries, Aesop) | exact revisions | `translation/lake-manifest.json`, with the Aeneas library `rev` pinned by commit in `translation/lakefile.toml` |
-| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree), and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check`. The macOS arm64 archive `aeneas-macos-aarch64.tar.gz` of the same release (SHA-256 `9c3c76c0be6abc28b7ec8d2847ae8bd9c0d8eae7c4233c4b16724f267d9a7873`, the digest the release page lists for it) was used for the local regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in `GAP-REGISTER.md`; the workflow does not check it | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow carries the digest |
+| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The public `translation-regeneration` workflow checks this digest before extracting the archive, runs the pinned generator on Linux x86_64 and fails on any tracked diff. The public tree also checks the recorded manifest: the release name and library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files are held byte-for-byte to `manifests/translation-attestation.json` by `attest.py --check`. The macOS arm64 archive `aeneas-macos-aarch64.tar.gz` of the same release (SHA-256 `9c3c76c0be6abc28b7ec8d2847ae8bd9c0d8eae7c4233c4b16724f267d9a7873`) was used for the local regeneration before the hosted check | `scripts/run-aeneas.sh`, `translation/lakefile.toml` and `.github/workflows/translation-regeneration.yml` carry the pins and digest |
 | Mathlib build artifacts | **not pinned**: `lake exe cache get` fetches prebuilt oleans for the manifest's Mathlib commit from Mathlib's cache over HTTPS, and Lean loads them without re-checking against source | trusted, see `LIMITATIONS.md` |
 | Rust, for Charon | whatever the Aeneas release's `rust-toolchain` names | resolved at run time, not pinned here |
 
@@ -93,10 +93,11 @@ because the recorded generation commit would not contain them. Commit the
 generated files and manifests after the refresh. Running the command at any
 other time would record whatever the files happen to be, which is why its
 whole value is in when it is run. The drift
-step in the private verification workflow is the stronger check: it
-regenerates with the pinned toolchain and fails on any difference, which
-also catches a recorded generation the toolchain would no longer produce.
-The recorded manifest is what the public tree holds in its place.
+step in `.github/workflows/translation-regeneration.yml` is the stronger
+check: it regenerates with the pinned Linux x86_64 toolchain and fails on any
+difference, which also catches a recorded generation the toolchain would no
+longer produce. Its uploaded receipt and log are retained with the workflow
+run; the recorded manifest remains the byte-level provenance held in the tree.
 
 `manifests/translation-axiom-allowlist.json` is a second record of the same
 declarations, with the type text of each. `attest.py --check` compares every
