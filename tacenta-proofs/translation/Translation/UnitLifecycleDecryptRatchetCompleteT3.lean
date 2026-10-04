@@ -218,6 +218,17 @@ theorem decrypt_ratchet_refines_complete_statement : DecryptRatchetRefinesComple
   exact decrypt_ratchet_refines_complete rngCore cryptoRng trace dh view oracle oracleOf codec
     contracts agreements real model message rng hrel headroom htrace run
 
+/-- **The complete statement implies the first form's**, so the two take the same hypotheses by proof
+and not only by reading their pins side by side: every hypothesis of `DecryptRatchetRefinesStatement`
+is passed unchanged to `DecryptRatchetRefinesCompleteStatement`. -/
+theorem decrypt_ratchet_refines_complete_implies_refines :
+    DecryptRatchetRefinesCompleteStatement → DecryptRatchetRefinesStatement := by
+  intro h R rngCore cryptoRng trace dh view oracle oracleOf codec contracts inst agreements real
+    model message rng hrel headroom htrace run
+  obtain ⟨output, hcall, hstep⟩ := h rngCore cryptoRng trace dh view oracle oracleOf codec
+    contracts agreements real model message rng hrel headroom htrace run
+  exact ⟨output, hcall, Or.inl hstep⟩
+
 end Tacenta.UnitLifecycleDecryptRatchetCompleteT3
 
 /-! ## Pins -/
@@ -590,3 +601,66 @@ info: def Tacenta.UnitLifecycleDecryptRatchetCompleteT3.DecryptRatchetRefinesCom
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetCompleteT3.DecryptRatchetRefinesCompleteStatement
 
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_implies_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_implies_refines
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_implies_refines : Tacenta.UnitLifecycleDecryptRatchetCompleteT3.DecryptRatchetRefinesCompleteStatement →
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetRefinesStatement
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_implies_refines

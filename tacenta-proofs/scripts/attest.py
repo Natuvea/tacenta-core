@@ -1358,6 +1358,7 @@ REQUIRED_PINS = frozenset(
         "receive_with_eviction_refines_complete",
         "decrypt_ratchet_refines_complete",
         "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
         "ref_model_triple_refuses",
@@ -1368,6 +1369,7 @@ REQUIRED_PINS = frozenset(
         "ref_model_refuses",
         "hypotheses_meet_open_path",
         "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
         "decrypt_ratchet_refines_or_open",
@@ -1416,6 +1418,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
     }
 )
@@ -2023,6 +2026,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "receive_with_eviction_refines_complete",
         "decrypt_ratchet_refines_complete",
         "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
         "DecryptRatchetRefinesCompleteStatement",
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
@@ -2034,6 +2038,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "ref_model_refuses",
         "hypotheses_meet_open_path",
         "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
         "refTriple",
         "refHeader",
         "refModelHeader",
