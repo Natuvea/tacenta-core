@@ -59,7 +59,7 @@ obligations recorded below.
 - **Met:**
   - no `unsafe` in the libraries of the default feature set (practice 3), and no FFI in the core;
   - I/O separated from protocol logic, with bytes in and out and randomness injected;
-  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; `E2E-07` is closed on a recorded run at `75387aa9`, `E2E-07-UNTESTED-CASES` lists two cases no test holds, and the order inside `establish_responder` rests on tests, because that checker reads names and receiver shapes and not bodies);
+  - receives run on a copy and commit after authentication (`tooling/check_authentication_boundary.py` registers 29 receive paths; `E2E-07` is closed on a recorded run at `75387aa9`, `E2E-07-UNTESTED-CASES` lists the one case no test holds, the commit of a send that enters `Failed`, which the public interface does not reach, and the order inside `establish_responder` rests on tests, because that checker reads names and receiver shapes and not bodies);
   - bounded stores and profiles.
 - **Weak:**
   - protocol keys are `[u8; 32]` aliases (the ratchet, session and sparse-ratchet crates each define `Key`); X25519 keys are newtypes in `tacenta-boundary` and in `Session`;
