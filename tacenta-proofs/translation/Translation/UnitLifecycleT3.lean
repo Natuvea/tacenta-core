@@ -1208,6 +1208,56 @@ theorem establish_initiator_presence_mismatch_step_refines {R : Type}
   · simp [EstablishResultRefines, refusalOf]
   · exact htrace
 
+/-! The next refusal is the public canonical-key gate.  This is deliberately
+composed at the root rather than left as a leaf predicate: the translated
+optional-key checks and the model's three-key canonicality guard must agree on
+the same ordering, and the refusal must still leave the RNG trace untouched. -/
+theorem establish_initiator_noncanonical_identity_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hpresence : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hnoOneTime : theirBundle.bundle.one_time_prekey = none)
+    (habsentId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hcanonical : is_canonical_key theirBundle.bundle.identity_key = ok false)
+    (hmodelCanonical : Model.Messages.canonicalKey modelBundle.identityKey = false)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.BadEncoding, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp [hnoOneTime, habsentId, hcanonical]
+  have hmodelCanonical' :
+      (!Model.Messages.canonicalKey modelBundle.identityKey ||
+        !Model.Messages.canonicalKey modelBundle.signedPrekey ||
+        !modelBundle.oneTimePrekey.all Model.Messages.canonicalKey) = true := by
+    simp [hmodelCanonical]
+  have hmodel := Model.Lifecycle.establishInitiator_noncanonical
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity
+    hpresence hmodelCanonical'
+  refine ⟨(.Err lifecycle.Error.BadEncoding, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
