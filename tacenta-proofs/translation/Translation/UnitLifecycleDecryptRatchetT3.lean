@@ -2153,3 +2153,33 @@ info: def Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees : Prop :=
 -/
 #guard_msgs in
 #print Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
+
+/-
+info: @Tacenta.UnitLifecycleT3.establish_initiator_noncanonical_identity_step_refines : ∀ {R : Type}
+  (rngCore : tacenta_session_unit.rand_core_1.RngCore R) (cryptoRng : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (K : Model.Braid.Kem)
+  (oracle : Model.Lifecycle.Oracle) (ourIdentity : tacenta_session_unit.lifecycle.Identity)
+  (theirBundle : tacenta_session_unit.lifecycle.PublishedBundle)
+  (expectedIdentity : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+  (modelIdentity : Model.Lifecycle.Identity) (modelBundle : Model.Lifecycle.Bundle)
+  (modelExpectedIdentity : Model.Lifecycle.Key),
+  Aeneas.Std.core.cmp.PartialEq.ne.trait_default
+        tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+        theirBundle.bundle.identity_key expectedIdentity =
+      Aeneas.Std.Result.ok false →
+    modelBundle.identityKey = modelExpectedIdentity →
+      modelBundle.oneTimePrekey.isSome = (modelBundle.oneTimeId != Model.Lifecycle.absentId) →
+        theirBundle.bundle.one_time_prekey = none →
+          theirBundle.one_time_prekey_id = tacenta_session_unit.serialization.ABSENT_ID →
+            tacenta_session_unit.is_canonical_key theirBundle.bundle.identity_key = Aeneas.Std.Result.ok false →
+              Model.Messages.canonicalKey modelBundle.identityKey = false →
+                trace rng = oracle.draws →
+                  ∃ output,
+                    tacenta_session_unit.lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+                          expectedIdentity rng =
+                        Aeneas.Std.Result.ok output ∧
+                      Tacenta.UnitLifecycleT3.EstablishStepRefines trace dh K output
+                        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle modelExpectedIdentity)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleT3.establish_initiator_noncanonical_identity_step_refines
