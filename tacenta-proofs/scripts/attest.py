@@ -2022,6 +2022,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "ResultRefines",
         "SessionRefines",
         "establish_initiator_noncanonical_identity_step_refines",
+        "establish_initiator_noncanonical_identity_public_step_refines",
     )]
     + ["Tacenta.SessionUnitSpqrT3." + n for n in (
         "VecRetainAgrees",

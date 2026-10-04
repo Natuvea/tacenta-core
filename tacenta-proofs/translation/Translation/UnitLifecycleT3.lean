@@ -1258,6 +1258,41 @@ theorem establish_initiator_noncanonical_identity_step_refines {R : Type}
   · simp [EstablishResultRefines, refusalOf]
   · exact htrace
 
+/-! The shipped public initiator root fixes the expected identity to the
+bundle's advertised identity.  Compose that wrapper explicitly so the
+canonical-key refusal is attached to the public root, not only to the
+parameterised helper above. -/
+theorem establish_initiator_noncanonical_identity_public_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (hcmpSelf : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key theirBundle.bundle.identity_key = ok false)
+    (hpresence : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hnoOneTime : theirBundle.bundle.one_time_prekey = none)
+    (habsentId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hcanonical : is_canonical_key theirBundle.bundle.identity_key = ok false)
+    (hmodelCanonical : Model.Messages.canonicalKey modelBundle.identityKey = false)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelBundle.identityKey) := by
+  obtain ⟨output, hcall, hstep⟩ := establish_initiator_noncanonical_identity_step_refines
+    rngCore cryptoRng trace dh K oracle ourIdentity theirBundle
+      theirBundle.bundle.identity_key rng modelIdentity modelBundle
+      modelBundle.identityKey hcmpSelf rfl hpresence hnoOneTime habsentId hcanonical
+      hmodelCanonical htrace
+  refine ⟨output, ?_, hstep⟩
+  simpa [lifecycle.establish_initiator] using hcall
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
