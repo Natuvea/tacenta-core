@@ -117,7 +117,7 @@ python3 tacenta-test-vectors/runners/independent/reader/test_session_e2e_sweep.p
 
 At this pass the run exited zero with 671 PASS, 0 FAIL, 0 SKIP: 450 vector
 checks (in 39 vector files) and 221 derived cases. With the hosted-inventory
-files and the pass-12 derived cases merged, it exits zero with **1023 PASS, 0 FAIL, 1 SKIP**: 760 vector checks
+files and the pass-12 derived cases merged, it exits zero with **1025 PASS, 0 FAIL, 1 SKIP**: 762 vector checks
 (lines that name a vector, in 45 vector files) and 264 derived cases
 (the `negative ::` lines). The total is the sum of the two; the run prints all
 three numbers. The session-e2e vectors are executed by their handler and are not

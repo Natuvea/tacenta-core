@@ -462,7 +462,9 @@ def skipMessageKeys (st : State) (e : Nat) (upto : Nat) : Option State :=
         some st
       else if upto > ch.n + maxSkip then
         none
-      else if st.skipped.length + (upto - ch.n) > maxSkippedStore then
+      else if (st.skipped.filter
+          (fun x => !(x.1 == e && decide (ch.n < x.2.1)
+                      && decide (x.2.1 ≤ upto)))).length + (upto - ch.n) > maxSkippedStore then
         none
       else
         let res := deriveInto ch.ck ch.n (upto - ch.n)

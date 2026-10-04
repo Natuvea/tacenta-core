@@ -917,14 +917,27 @@ impl State {
         if count > MAX_SKIP {
             return Err(SpqrError::TooManySkipped);
         }
-        if self.skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
+        // The bound applies to the resulting store. Entries for this epoch
+        // and range are replaced before the newly derived keys are appended,
+        // so checking the pre-purge length would reject a valid stored-state
+        // replacement at the boundary.
+        let mut retained = 0usize;
+        let mut i = 0;
+        while i < self.skipped.len() {
+            let s = &self.skipped[i];
+            if !(s.epoch == e && ch.n < s.n && s.n <= upto) {
+                retained += 1;
+            }
+            i += 1;
+        }
+        if retained + (count as usize) > MAX_SKIPPED_STORE {
             return Err(SpqrError::SkippedStoreFull);
         }
 
         // Rebuild at the final capacity before copying secret-bearing entries.
         // Derive directly into the final vector: appending a separate vector
         // moves its keys and leaves the source allocation unwiped.
-        let mut skipped = Vec::with_capacity(self.skipped.len() + count as usize);
+        let mut skipped = Vec::with_capacity(retained + count as usize);
         let mut i = 0;
         while i < self.skipped.len() {
             let s = &self.skipped[i];

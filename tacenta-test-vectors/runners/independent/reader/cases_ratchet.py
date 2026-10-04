@@ -301,8 +301,8 @@ def _():
     assert e.shortfall == 1
 
 
-@case("CR-21 (pass 12) the sparse store's total bound on a stored state that holds keys the next receive re-derives: the page now says the current implementation and model count the store before the purge, and that counting the resulting store is an open follow-up; the two counts give different verdicts on CR-18's own state, which the sparse reader accepts, and this reader keeps the resulting-store count CR-18 asserts (GAPS-12.md G12-05)",
-      f"{SP} The store also has a total bound: The current sparse implementation and model check the pre-purge store length; they do not yet implement resulting-store replacement semantics. The purge-before-check order, replacement semantics and refusal atomicity are the open `HL-R1-SPARSE-TRANSLATION` follow-up, not current sparse behaviour")
+@case("CR-21 (pass 12, closed) the sparse store's total bound on a stored state that holds keys the next receive re-derives: replacement purges those entries before the bound is checked, and the resulting store reaches the exact cap (GAPS-12.md G12-05)",
+      f"{SP} The store also has a total bound: replacement purges the epoch-and-range entries before the bound is checked, then appends the newly derived keys. The model, Rust runner and stored-state vector agree on the resulting-store count.")
 def _():
     from tacenta_reader import persistence
     _, c = _pair()

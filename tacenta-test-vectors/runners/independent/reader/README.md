@@ -1131,9 +1131,9 @@ reason (Not implemented, above):
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (45 files) | 760 | 759 | 0 | 1 |
+| Vector checks (45 files) | 762 | 761 | 0 | 1 |
 | Derived cases (14 modules) | 264 | 264 | 0 | 0 |
-| **Total** | 1024 | 1023 | 0 | 1 |
+| **Total** | 1026 | 1025 | 0 | 1 |
 
 At the baseline of pass 13 (before any change to the reader) the runner gave
 911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
@@ -1217,7 +1217,7 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **1023 PASS, 0 FAIL, 1 SKIP** (760 vector checks
+derived cases merged, the current run is **1025 PASS, 0 FAIL, 1 SKIP** (762 vector checks
 and 264 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
