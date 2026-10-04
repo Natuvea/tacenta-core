@@ -24,9 +24,14 @@ state that meets its hypotheses.
 ## B. A `decrypt_ratchet` run on that path
 
 `hypotheses_meet_open_path`: with the oracle of `UnitLifecycleDecryptRatchetScreen`'s part B, every
-per-run hypothesis holds at a run over that Triple state, and the model's step returns the Triple
-refusal `outOfOrder`, the path `decrypt_ratchet_refines` left open (`TripleRefusalOpen`).
-`decrypt_ratchet_refines_complete_at_refusal` is the complete theorem at that run.
+per-run hypothesis holds at a run over that Triple state, and the model's step there is the Triple
+refusal `outOfOrder`, which is not a full store, returned by the first attempt.
+`decrypt_ratchet_refines_complete_at_refusal` is the complete theorem at that run.  Under the boundary
+records, the generated output there is the Triple refusal `Classical OutOfOrder`, of which
+`TripleRefusalOpen` holds (`generated_reaches_open_path`): the path `decrypt_ratchet_refines` left
+open.  No run here reaches a sparse refusal or a refusal returned by a retry inside the eviction loop,
+and unlike the first and third runs of `UnitLifecycleDecryptRatchetScreen` this run is not composed
+with the boundary model inside Lean.
 
 No proof here chooses a width of `usize`; the facts used hold at both.  The oracle clauses hold of
 part B's interpretation, not at the real constants, as in the earlier screen.
@@ -292,6 +297,46 @@ theorem decrypt_ratchet_refines_complete_at_refusal (dh : DhView)
   exact Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete _ _ _ dh
     view oracle oracleOf codec contracts agreements (refReal sk pk) (modelOf dh (refReal sk pk))
     succMessage sampleRng hrel hroom htrace run
+
+/-- **The generated output at the run is on the path the first form left open**: under the boundary
+records, `decrypt_ratchet` returns the Triple refusal `Classical OutOfOrder`, which is not a full
+store, so `TripleRefusalOpen` holds of it.  The complete theorem relates it to the model's refusal
+there; this is the generated side of the run, conditional on those records, and says nothing about
+the real primitives. -/
+theorem generated_reaches_open_path (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (oracleOf : DecryptOracleOf Tacenta.UnitLifecycleIntegrationScreen.byteRng
+      Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh Tacenta.UnitLifecycleIntegrationScreen.byteTrace
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)))
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts
+      Tacenta.UnitLifecycleIntegrationScreen.byteRng)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)).braidKem)
+    (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc (refReal sk pk) succMessage sampleRng =
+          ok output ∧
+      output.1 = .Err (.Triple (.Classical .OutOfOrder)) ∧ TripleRefusalOpen output := by
+  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_complete_at_refusal dh view
+    (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)) rfl oracleOf
+    codec contracts agreements sk pk
+  have hres := hstep.result
+  rw [ref_model_refuses dh view sk pk] at hres
+  have hsound : refusalOf (.Triple (.Classical .OutOfOrder)) =
+      Model.Lifecycle.tripleReceiveRefusalOf (.classical .outOfOrder) :=
+    tripleReceiveRefusalOfReal_sound (realReason := .Classical .OutOfOrder) rfl
+  have hout : output.1 = .Err (.Triple (.Classical .OutOfOrder)) := by
+    rcases h1 : output.1 with v | e
+    · rw [h1] at hres
+      exact absurd hres (by simp [ResultRefines])
+    · rw [h1] at hres
+      have he : refusalOf e = refusalOf (.Triple (.Classical .OutOfOrder)) := by
+        rw [hsound]
+        exact hres
+      rw [refusalOf_injective he]
+  exact ⟨output, hcall, hout, .Classical .OutOfOrder, hout, rfl⟩
 
 end Tacenta.UnitLifecycleDecryptRatchetCompleteScreen
 
@@ -685,3 +730,94 @@ fun sk pk =>
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.refReal
 
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path : ∀ (dh : DhView)
+  (view : Model.Lifecycle.CodewordView),
+  DecryptOracleOf Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+      Tacenta.UnitLifecycleIntegrationScreen.byteTrace
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)) →
+    DhCodecOf dh →
+      Tacenta.UnitLifecycleT1.DecryptRatchetContracts Tacenta.UnitLifecycleIntegrationScreen.byteRng →
+        ∀ [Tacenta.SessionUnitT1.DerivedKeysModel],
+          DecryptRatchetAgreements
+              (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)).braidKem →
+            ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
+              ∃ output,
+                lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                      (Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.refReal sk pk) succMessage sampleRng =
+                    ok output ∧
+                  output.1 =
+                      core.result.Result.Err
+                        (lifecycle.Error.Triple
+                          (tacenta_triple.TripleError.Classical tacenta_ratchet.RatchetError.OutOfOrder)) ∧
+                    TripleRefusalOpen output
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path
