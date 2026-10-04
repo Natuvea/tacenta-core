@@ -2500,9 +2500,12 @@ epochs and chain counters leave room, its chain table has room for two more entr
 store matches the header (`Ratchet::invariant` and `State::invariant` supply the last; the event bound is one stricter than
 the invariant's). Three runs meet all of these at both platform widths: one whose model step refuses at the first agreement,
 one whose model step succeeds without an eviction round, and one whose stores are non-empty and whose model step enters the
-eviction retry loop and takes its retry branch; a fourth (`UnitLifecycleDecryptRatchetCompleteScreen.lean`) is one whose
-model step is a Triple refusal that is not a full store. Each shows the model side of the run, not which branch the
-shipped code takes.
+eviction retry loop, evicts one key and retries (the outcome of the retry is not stated, and no run reaches an empty
+eviction, a second round or a switch between the stores). A fourth (`UnitLifecycleDecryptRatchetCompleteScreen.lean`) is
+one whose model step is a Triple refusal that is not a full store. Each shows the model side of the run, not which branch
+the shipped code takes. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
+store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
+invariant refuses.
 
 **The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
 nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). The
@@ -2518,7 +2521,9 @@ this section lists. The screen's run on that path (`hypotheses_meet_open_path`) 
 would replace it under rule 7.
 
 **Compiler trust.** The theorem and the loop theorems rest on the nine compiler-evaluated constants of the Session unit's
-discharged Triple receive refinement, and on no others (`CLAIMS.md`).
+discharged Triple receive refinement, and on no others (`CLAIMS.md`). The count of compiler-trusted pinned results rises
+from 13 to 22 because each of the nine new results that compose that refinement inherits its constants; one of the nine
+constants, `chain_start_agrees`, was on no earlier pinned result of the Session unit.
 
 ## The erasure coding's field is proved
 
