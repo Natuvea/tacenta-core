@@ -1338,6 +1338,43 @@ REQUIRED_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: `UnitLifecycleTripleRefusalT3.lean`,
+    # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`,
+    # and the split form added to `UnitLifecycleDecryptRatchetT3.lean`.
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1367,6 +1404,22 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
+        # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
+        # compiler-evaluated constants, and the results that compose them on those of the discharged
+        # Triple receive refinement, no others.
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_continuation_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.triple_receive_refusal_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.concrete_receive_attempt_refusal_from_retry_bounds",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.receive_with_eviction_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
     }
 )
 
@@ -1953,6 +2006,50 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: the statements, and the bodies of the definitions they are
+    # written in (`#print`).
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+        "OpenRefusalCloses",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2011,6 +2108,22 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.SessionUnitSpqrT3." + n for n in (
         "VecRetainAgrees",
         "RemoveSkippedAtAgrees",
+    )]
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "OpenRefusalCloses",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
