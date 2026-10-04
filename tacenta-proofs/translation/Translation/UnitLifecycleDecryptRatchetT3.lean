@@ -2209,3 +2209,28 @@ info: @Tacenta.UnitLifecycleT3.establish_initiator_noncanonical_identity_public_
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleT3.establish_initiator_noncanonical_identity_public_step_refines
+
+/--
+info: @Tacenta.UnitLifecycleT3.establish_initiator_presence_mismatch_public_step_refines : ∀ {R : Type}
+  (rngCore : tacenta_session_unit.rand_core_1.RngCore R) (cryptoRng : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (K : Model.Braid.Kem)
+  (oracle : Model.Lifecycle.Oracle) (ourIdentity : tacenta_session_unit.lifecycle.Identity)
+  (theirBundle : tacenta_session_unit.lifecycle.PublishedBundle) (rng : R) (modelIdentity : Model.Lifecycle.Identity)
+  (modelBundle : Model.Lifecycle.Bundle),
+  Aeneas.Std.core.cmp.PartialEq.ne.trait_default
+        tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+        theirBundle.bundle.identity_key theirBundle.bundle.identity_key =
+      Aeneas.Std.Result.ok false →
+    (modelBundle.oneTimePrekey.isSome != (modelBundle.oneTimeId != Model.Lifecycle.absentId)) = true →
+      (Aeneas.Std.core.option.Option.is_some theirBundle.bundle.one_time_prekey !=
+            (theirBundle.one_time_prekey_id != tacenta_session_unit.serialization.ABSENT_ID)) =
+          true →
+        trace rng = oracle.draws →
+          ∃ output,
+            tacenta_session_unit.lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+                Aeneas.Std.Result.ok output ∧
+              Tacenta.UnitLifecycleT3.EstablishStepRefines trace dh K output
+                (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle modelBundle.identityKey)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleT3.establish_initiator_presence_mismatch_public_step_refines
