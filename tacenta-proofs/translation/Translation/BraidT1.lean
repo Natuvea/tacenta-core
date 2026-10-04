@@ -393,12 +393,12 @@ theorem State.epoch_no_panic (self : State) : State.epoch self ⦃ fun _ => True
   unfold State.epoch
   rcases self with _|_|_|_|_|_|_|_|_|_|_|_ <;> simp
 
-/-- An invariant `step_send` maintains but this file does not prove (that
-would be a T3-shaped claim about the whole state machine, not a T1 one about
-a single function): the `ct1` field held across the encapsulation exchange is
-the KEM ciphertext `encapsulate1` produced, concrete-capped the same way
-`Encapsulate1Total` caps it fresh. Received exactly as sent, it carries the
-same bound forward through every state that still holds it. -/
+/-- A size cap on the stored KEM ciphertext. It is not closed under `step_receive`
+by itself: the initiator's `ct1` is the message of the `ct1` decoder, as long as
+that decoder was sized for, and only the responder's is what `encapsulate1`
+produced. `BraidPreserve.lean` proves it kept, together with a clause on that
+decoder (`State.sized`), by every successful step. This file takes it as a
+premise. -/
 def State.ct1_bounded : State → Prop
   | .Ct1Received _ _ _ ct1 _ => ct1.length ≤ 4096
   | .EkSentCt1Received _ _ _ ct1 _ => ct1.length ≤ 4096
@@ -825,9 +825,10 @@ message and a remote denial of service, for this leaf crate.
 
 One real precondition travels with `step_receive` and `receive`, not a
 formality: `State.ct1_bounded`, a size cap on the KEM ciphertext carried
-across the encapsulation exchange that `step_send` maintains but this file
-does not prove (that would be a T3 claim about the whole state machine, not a
-T1 one about a single function). The epoch bound this file used to carry as
+across the encapsulation exchange. This file does not prove it is kept (that
+would be a T3-shaped claim about the whole state machine, not a T1 one about a
+single function); `BraidPreserve.lean` proves it for `State.sized`. The epoch
+bound this file used to carry as
 well (`State.epoch_val _ < U64.max`, the same shape of counter bound the
 classical ratchet and the sparse ratchet each need) is gone: the two
 transitions that advance the epoch (5 and 13) now use `checked_add`, and at
