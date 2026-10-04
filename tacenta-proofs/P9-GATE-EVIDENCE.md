@@ -124,7 +124,11 @@ reason, rather than merely to a nonzero exit.
 
 `bash tacenta-proofs/scripts/check-attest-negatives.sh` makes a detached
 worktree, resets it between cases, and runs the production attestation script
-in it.  It first requires that the unmodified tree is accepted.  It then
+in it.  By default it runs its cases in shards, one per CPU and at most 16,
+each with its own worktree; the parent accepts the run only if every shard
+exited cleanly and the shards together ran each case once, and prints the same
+final line as the single run (`ATTEST_NEGATIVES_JOBS=1`).  It first requires
+that the unmodified tree is accepted, in every shard's worktree.  It then
 requires these fault classes, each with its own diagnostic: a ledger theorem
 not declared by Lean, a missing generated verification manifest, a stale
 source-commit attestation, a generated translation whose bytes or assembly
