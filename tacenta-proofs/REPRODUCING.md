@@ -14,9 +14,9 @@ running both.
 | Lean | `leanprover/lean4:v4.31.0` | `lean-toolchain` (and `translation/lean-toolchain`) |
 | Lean dependencies, model layer | exact revisions | `lake-manifest.json` |
 | Lean dependencies, translation (Aeneas library, Mathlib, Batteries, Aesop) | exact revisions | `translation/lake-manifest.json`, with the Aeneas library `rev` pinned by commit in `translation/lakefile.toml` |
-| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree), and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check`. The macOS arm64 archive `aeneas-macos-aarch64.tar.gz` of the same release (SHA-256 `9c3c76c0be6abc28b7ec8d2847ae8bd9c0d8eae7c4233c4b16724f267d9a7873`, the digest the release page lists for it) was used for the local regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in `GAP-REGISTER.md`; the workflow does not check it | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow carries the digest |
+| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree) and by `scripts/regenerate-in-container.sh`, and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check`. The macOS arm64 archive `aeneas-macos-aarch64.tar.gz` of the same release (SHA-256 `9c3c76c0be6abc28b7ec8d2847ae8bd9c0d8eae7c4233c4b16724f267d9a7873`, the digest the release page lists for it) was used for the local regeneration recorded under `HL-R1-SPARSE-TRANSLATION` in `GAP-REGISTER.md`; the workflow does not check it | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow and `scripts/regenerate-in-container.sh` carry the digest |
 | Mathlib build artifacts | **not pinned**: `lake exe cache get` fetches prebuilt oleans for the manifest's Mathlib commit from Mathlib's cache over HTTPS, and Lean loads them without re-checking against source | trusted, see `LIMITATIONS.md` |
-| Rust, for Charon | whatever the Aeneas release's `rust-toolchain` names | resolved at run time, not pinned here |
+| Rust, for Charon | whatever the Aeneas release's `rust-toolchain` names | resolved at run time, not pinned here; `scripts/regenerate-in-container.sh` requires the channel `nightly-2026-06-01` and checks the SHA-256 of a download of its manifest |
 
 The last row is a real dependency edge and not an omission: Charon is a `rustc`
 driver, so it must be built against the compiler version its release was built
@@ -96,7 +96,9 @@ whole value is in when it is run. The drift
 step in the private verification workflow is the stronger check: it
 regenerates with the pinned toolchain and fails on any difference, which
 also catches a recorded generation the toolchain would no longer produce.
-The recorded manifest is what the public tree holds in its place.
+The recorded manifest is what the public tree holds in its place. A reader
+with Docker can run the same regeneration and comparison by hand with
+`scripts/regenerate-in-container.sh`, described below.
 
 `manifests/translation-axiom-allowlist.json` is a second record of the same
 declarations, with the type text of each. `attest.py --check` compares every
@@ -214,6 +216,94 @@ lines: `check-audit-reach-negatives.sh` (an unwalked module and a wrong audit ca
 `check-pin-negatives.sh` (Lean refuses a changed `#guard_msgs` pin) after the audit-reach line, and
 `check-kernel-replay-negative.sh` (`leanchecker` refuses a declaration added under
 `debug.skipKernelTC`) after the replays. Each prints one summary line beginning with its own name.
+
+## Regenerating the translation on Linux x86_64, by hand
+
+```sh
+bash tacenta-proofs/scripts/regenerate-in-container.sh --check
+```
+
+This is the drift step of the private verification workflow, done by hand by
+anyone with Docker. It copies the tracked files as they are on disk, starts a
+`linux/amd64` container from an image pinned by digest, installs the pinned
+toolchain, extracts the release's `aeneas-linux-x86_64.tar.gz` after checking
+its SHA-256, runs `scripts/run-aeneas.sh` on the copy and compares the tracked
+files with the result, by bytes and by executable bit. A changed, missing, extra
+or linked file, and a comparison that could not be made, exit nonzero. It
+writes nothing into the checkout and refreshes no manifest, so a difference is
+something to read and not something to overwrite; nothing is kept unless
+`--keep DIR` is given. The script is in no workflow; hosted CI has no step that
+regenerates.
+
+Its header says what it pins and what it does not. The image, archive,
+rustup-init and channel manifest digests and the compiler version line that it
+holds must be stated in this file, and the release it holds must be the one
+`run-aeneas.sh` pins; it refuses to start otherwise. The Rust toolchain is
+installed by rustup from static.rust-lang.org. A separate download of its dated
+channel manifest is checked by hash, which is a canary: rustup installs from its
+own download, and the components are not pinned. The Ubuntu packages come from
+the archive of the day, and so does the libc that `libc6-dev` requires, so the
+libc the tools ran under is not fixed by the image digest alone; the crates are
+fixed by `Cargo.lock`. `tooling/tests/run-regenerate-in-container-cases.sh`,
+which `tooling/tests/run-gate-controls.sh` runs in CI, holds the comparison, the
+exit status of `--check` and the refusals that come before docker to planted
+changes, with a stub docker; it starts no container. On an Apple-silicon Mac the
+container is emulated, and the script's header explains the one QEMU setting it
+needs.
+
+**The run recorded here** is of the committed script.
+
+| | |
+| --- | --- |
+| Run | 2026-10-03, 21:13Z to 21:37Z (24 min 1 s; `run-aeneas.sh` 19 min 33 s) |
+| Script | `tacenta-proofs/scripts/regenerate-in-container.sh`, git blob `5d32f0c72d7a252156fa8750f4fa6935cecbfbf5` |
+| Tree | `6b6a48a1581d2db2b659c4902855eddfde7b95ae`, a clean tree (the run counted 0 tracked paths differing from HEAD): `1cabffba85219029cd85f129a81f627f911b06b5` (`main`, 5,132 tracked files) with this change's script and control added, 5,134 tracked files in all, and the documents of this change. After the run, this section and two register rows were changed (`HL-R1-SPARSE-TRANSLATION`, which names the run, and one sentence of `READER-OPEN-GAPS`), and the control `tooling/tests/run-regenerate-in-container-cases.sh`, which the run does not use, was extended; no other file differs, and the script is the blob above. No Rust, Lean, model, specification or vector file differed from `main`. |
+| Host | Apple-silicon Mac (Darwin arm64, macOS 26.5.1), Docker Desktop 4.78.0 on Apple's virtualization framework, engine 29.5.3. The `linux/amd64` container ran under QEMU user-mode emulation; the machine is not x86_64 and the run is not native. |
+| Image | `ubuntu@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60` (the `ubuntu:24.04` index; its `linux/amd64` manifest is `sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b`), Ubuntu 24.04.5 LTS, glibc 2.39 |
+| Archive | `aeneas-linux-x86_64.tar.gz`, 123,515,708 bytes, SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`, the digest above and the one the release page lists; checked on the host and again in the container before extraction |
+| Binaries | `aeneas` `0c58f05b2d9941b76e29155235069915afd5302e8fcff49be501775c3e3c7f97`, `charon` `573198ce7e7d94d74cf0c9c27febeacc29c6aeee70ef1dad3cb4fdee5c4924b1`, `charon-driver` `73da048703631d5069a8f63fe136ce344b79682804606b5bd7fe86b7dd97af59` (SHA-256, read after extraction); all x86-64 ELF |
+| Versions | Aeneas `nightly-2026.07.22-b1214ca`; Charon 0.1.223; `rustc 1.98.0-nightly (14210df0e 2026-05-31)` with LLVM 22.1.6, from rustup 1.29.1 (`rustup-init` SHA-256 `dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71`) and the channel `nightly-2026-06-01`, whose dated manifest has SHA-256 `aaf1cb59b5996dd51831c9114b6e3a4a176e197851de91194b473117e142b935` (a canary, as above; the manifest rustup kept for the installed toolchain has SHA-256 `accac0633b1299e08f681c24d9ea0f701bc726983c58a59580675bf49d9ce794`, recorded and not pinned), with the components and targets the archive's `rust-toolchain` names; `cargo 1.98.0-nightly (fbb61be30 2026-05-26)`; gcc 13.3.0; Python 3.12.3. Ubuntu packages installed on the day: ca-certificates 20260601~24.04.1, curl 8.5.0-2ubuntu10.15, gcc 4:13.2.0-7ubuntu1, libc6 2.39-0ubuntu8.9, libc6-dev 2.39-0ubuntu8.9, python3 3.12.3-0ubuntu2.1. |
+| Compared | All 5,134 tracked files of the tree. The run rewrites 29 of them (the run lists them in `rewritten.txt`): the eleven generated `Translation/Tacenta*.lean` and the 18 files of the three assembled unit crates (`tacenta-core/triple-unit`, `braid-unit`, `session-unit`); those are the reproduction. The other 5,105, `Cargo.lock` among them, pass through the run and show that it changed nothing else. All were equal by bytes and executable bit. `run-aeneas.sh` staged all eleven generated files, and its lifecycle coverage check found all 30 public operations generated. |
+| Result | Every file equal. The eleven generated files and their SHA-256 (each also the digest `manifests/translation-attestation.json` records): |
+
+```
+e374be8e8302259159ae3b493a0aba1a21e60c544a763b14ad17c03f00327be6  TacentaBraid.lean
+0ce8035516476746ed7ea232b713a228993d43939339e1fbed213755504a44a9  TacentaBraidUnit.lean
+038508a176672c827cde5d7ced0ec8fca003ea3a8e4c1e840e698ef111a20d88  TacentaErasure.lean
+a99625035a24607655603769ff7ae6ca74f098b69965f27ae3226c351c706599  TacentaLifecycle.lean
+9b8f031d4d495cf1805f0bffd0ea580b7ffce5b7479a15008b79a6ff2ea97410  TacentaProtobuf.lean
+46a1d8944208e0359c69e0847336add2f2d7262f42c82b0d3f690749ec153839  TacentaRatchet.lean
+025aa0b9dec3da6a17e84a9ff3fb51f70989552e34e9b72dcd14c8a7fe8848b2  TacentaSession.lean
+531b572f42a6406418793979f7e5efb181659e69554a86e3958de8eff537d0e0  TacentaSessionUnit.lean
+fb7976957f7fd80fea3a7216d0c5c0d851f99fc357c157c38f9ef17eb9d3e26a  TacentaSpqr.lean
+65e9818ad345c58f5d1a565bae04ff443ecd30c4f6772912baf5d558187270b0  TacentaTripleUnit.lean
+646bce56a8fcbac1068e3e64aa407e7e51d83be436c876fe2208c749fa4f6db8  TacentaWire.lean
+```
+
+The four files `HL-R1-SPARSE-TRANSLATION` named (`TacentaSpqr.lean`,
+`TacentaTripleUnit.lean`, `TacentaSessionUnit.lean`, `TacentaLifecycle.lean`)
+are among them. Earlier runs passed on earlier versions of the script and are
+not tabulated: one by hand in a container, and two runs of the script on
+2026-10-03 (19:11Z to 19:30Z, and 19:37Z to 20:13Z on a clean tree, the second
+of git blob `34fa4fdefec035525653d0d9fa7d88c1ef6eb95f`, which has a different
+comparison and cleanup from the script above). A first attempt of the script
+stopped on a missing directory in the container before it compared anything.
+If `docker pull` hangs on the keychain credential helper, set `DOCKER_CONFIG`
+to a directory whose `config.json` is `{}`; the image is public, and the runs
+above used that.
+
+**What this is evidence of.** That `run-aeneas.sh`, with the release's
+linux-x86_64 binaries, produces from the tracked Rust the bytes that are
+committed for the files it rewrites, on the date and with the tools above. It
+is one run of the committed script by the maintainer's tool-assisted session in
+an emulated container, repeatable with the script. It is not a hosted-CI job, it
+did not run on the project's runner, and it was not made by anyone independent
+of the maintainer. The logs of the run are not kept in this repository. It does
+not change `SC-08-TRANSLATION-CHECKSUM` in `GAP-REGISTER.md`: the recorded
+checksum still cannot establish that a toolchain regenerated a file, and nothing
+in this tree regenerates on its own. It does not show that the translation is
+the same on every platform; it adds a second platform (Linux x86_64) to the first
+(macOS arm64) on which the committed bytes were reproduced.
 
 ## Replaying through the kernel
 

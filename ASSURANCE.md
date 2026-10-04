@@ -18,7 +18,7 @@ made by anyone independent of the maintainer. This assessment did not
 run every acceptance criterion of every closed gap row. `GAP-REGISTER.md` and
 `ASSURANCE-OBLIGATIONS.md` carry their own stamps. The pin counts in practice 2, the Session row, the readiness section and the Gate 2 count, and the trust-base sentences beside them, are those of the tree after #215, the `SessionBraidReceiveVacuity` change, the repair of the decoder hypothesis, the inhabitation modules and the `DispatchEvidenceVacuity` change, not of `dea57eaf`. The pin counts and the rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-01`, `E2E-04` and `E2E-04-SAME-EPHEMERAL-MODEL` are those of the tree after the integration of the session contract branch (2026-10-02), not of `dea57eaf`. The reads of those rows were made by the author, and no reviewer independent of the maintainer has read them. Pull request #210 (a
 specification page) merged after `dea57eaf`, and neither it nor pull request #211
-is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. In this record, "hosted" means run by GitHub
+is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. So is the closure of `HL-R1-SPARSE-TRANSLATION`, made on 2026-10-03 on one Linux x86_64 regeneration (an emulated run by the maintainer's tool-assisted session, not independent), whose record is in `tacenta-proofs/REPRODUCING.md`, and so is the row `HL-R1-SPARSE-READER`, added the same day. In this record, "hosted" means run by GitHub
 Actions. On a push to `main`, the `proofs` and `translation` jobs run on the
 project's self-hosted runners and every other job on GitHub-hosted machines; a
 pull request's `proofs` and `translation` jobs run on GitHub-hosted machines and
@@ -31,8 +31,9 @@ checks and reviews are evidence of what they ran, not independent review.
 The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
 target. Gate 2 is not met: four rows are open at BLOCKING in `GAP-REGISTER.md`
-(HL-R1-SPARSE-TRANSLATION, SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY and E2E-01, the last while the
-tacenta.com home page says "proven core"), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
+(SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, E2E-01, which stays open while the
+tacenta.com home page says "proven core", and HL-R1-SPARSE-READER, the reader finding that used to be carried by
+HL-R1-SPARSE-TRANSLATION), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
 `ASSURANCE-OBLIGATIONS.md`. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
 session replay with its listed limits satisfies the row (HL-IMP-01-READER tracks the remaining step), and INV-01 is classified
 NONBLOCKING. Gates 3 and 4 have not been met either; see the readiness section.
@@ -119,7 +120,7 @@ auditing a ledger that is still moving wastes the engagement.
 
 **Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), and the ML-KEM Braid row reads L3 against an L4 target.
-- Gate 2 is not met. `GAP-REGISTER.md` has four rows open at BLOCKING, and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence.
+- Gate 2 is not met. `GAP-REGISTER.md` has four rows open at BLOCKING, one of them the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION` (now `HL-R1-SPARSE-READER`), and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 
