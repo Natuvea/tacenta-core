@@ -145,6 +145,12 @@ report_time "send refusal proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-sparse-store-full-negatives.py || fail=1
 report_time "sparse store-full proof-dependency control" "$t"
+# The decrypt_ratchet refinement and its retry-loop induction (`UnitLifecycleRetryLoopT3.lean`,
+# `UnitLifecycleDecryptRatchetT3.lean`): a copy with the fact a proof rests on removed, and a copy whose
+# open disjunct grows, must each be refused, after the unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-decrypt-ratchet-negatives.py || fail=1
+report_time "decrypt_ratchet refinement proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
