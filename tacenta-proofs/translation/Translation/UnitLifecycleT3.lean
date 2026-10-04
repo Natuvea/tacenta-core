@@ -1022,6 +1022,109 @@ structure EstablishStepRefines {R : Type} (trace : R → List Model.Lifecycle.Ke
   result : EstablishResultRefines dh K real.1 model.result
   draws : trace real.2 = model.oracle.draws
 
+/-! Responder establishment has one additional durable component: the
+prekey store.  Keep its representation relation abstract at this boundary;
+the decode-refusal theorem below needs only that the input stores correspond,
+while the authenticated success theorem will have to define and preserve the
+field-level relation. -/
+
+def ResponderResultRefines
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result
+      (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error)
+    (model : Except Model.Lifecycle.Refusal
+      (Model.Lifecycle.Session × Bytes)) : Prop :=
+  match real, model with
+  | .Ok (realSession, realBytes), .ok (modelSession, modelBytes) =>
+      SessionRefines dh K realSession modelSession ∧ vecOf realBytes = modelBytes
+  | .Err reason, .error modelReason => refusalOf reason = modelReason
+  | _, _ => False
+
+structure ResponderEstablishStepRefines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result
+        (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.PrekeyStore × R)
+    (model : Model.Lifecycle.ResponderStep) : Prop where
+  result : ResponderResultRefines dh K real.1 model.result
+  store : storeRel real.2.1 model.store
+  draws : trace real.2.2 = model.oracle.draws
+
+/-! The responder's malformed-initial-message branch is now composed at the
+public root.  The generated decoder classification supplies the model's
+exact refusal, `establish_responder` returns the original prekey store, and
+the model's `establishResponder` does the same through `prepareResponder`.
+No authenticated session or durable-consumption claim is hidden in this
+theorem. -/
+theorem establish_responder_decode_refusal_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hdecodeReal : tacenta_wire.decode_initial initialMessage =
+      ok (.Err realReason)) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refusal_classifies initialMessage)
+  have hclassifiedEq : classified = .Err realReason := by
+    rw [hdecodeReal] at hclassified
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = classified := by simpa using hclassified
+    exact heq.symm
+  subst classified
+  have hreason' : decodeRefusalOf realReason =
+      Model.Messages.initialDecodeRefusal (sliceOf initialMessage) := by
+    cases realReason <;>
+      simpa [decodeRefusalOf,
+        Tacenta.SessionUnitWireInitialT3.decodeRefusalOf,
+        wire_bytesOf_eq_sliceOf] using hreason
+  obtain ⟨decoded, hdecoded, hnone⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refines initialMessage)
+  have hdecodedEq : decoded = .Err realReason := by
+    rw [hdecodeReal] at hdecoded
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = decoded := by simpa using hdecoded
+    exact heq.symm
+  subst decoded
+  have hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .error (decodeRefusalOf realReason) := by
+    simp only [Model.Messages.decodeInitialDetailed]
+    have hnone' : Model.Messages.decodeInitial (sliceOf initialMessage) = none := by
+      simpa [wire_bytesOf_eq_sliceOf] using hnone
+    rw [hnone', hreason']
+  have hreal :
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Err (.Decode realReason), ourPrekeys, rng) := by
+    unfold lifecycle.establish_responder
+    simp [hdecodeReal]
+  have hmodel :
+      Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+        (sliceOf initialMessage) =
+        { store := modelStore,
+          result := .error (.decode (decodeRefusalOf realReason)),
+          oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, Model.Lifecycle.prepareResponder,
+      hdecodeModel]
+  refine ⟨(.Err (.Decode realReason), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
 /-! The first concrete establishment composition.  The translated public
 root and executable model both refuse an unexpected peer identity before any
 signature, KEM, DH, or RNG work.  The comparison result is supplied by the
