@@ -152,7 +152,7 @@ message is listed with its reason or fails the run; 11 edits are listed as equiv
 known gap). The four edits added since delete or swallow the calls of the two proof controls the session contract integration added to
 `no-sorry.sh`; they were run with the other `no-sorry.sh` edits (`--only`), and each was seen as accepted or as another wrong verdict. `--guards FILE... --verdict` removes each
 failure guard of a gate in turn and reports the guards whose removal no control notices, and those whose removal changes only a diagnostic. In the
-tree as committed the inventory has 75 rows: 60 with a control in CI, 3 with a control that runs only locally and 12 with none.
+tree as committed the inventory has 76 rows: 61 with a control in CI, 3 with a control that runs only locally and 12 with none.
 
 What the pass added, by where it runs.
 
