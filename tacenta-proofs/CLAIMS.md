@@ -40,8 +40,9 @@ this section says in one place what is not proved.
   record `OracleOf`. Its KEM, signing and `random32` clauses are shown to hold of the shipped functions, under laws read
   from the source. Its other clauses (DH, AEAD, KEM decapsulation, signature verification, identity validity) and the
   record as a whole are shown satisfiable at the real constants under seven totality assumptions of the contract records
-  and two assumptions that the byte views of the DH and KEM key types are injective, none of them checked against the
-  shipped functions, and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)").
+  and two assumptions that the byte views of the DH and KEM key types are injective, none of them proved of the
+  shipped functions (a test, `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions on sampled
+  inputs; the two view assumptions are read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -3610,7 +3611,7 @@ which a change to it passed the build and every gate. These are text pins: they 
 met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the 52
 definition pins (`REQUIRED_PRINT_FORM`), because `#check @name` holds the type of a definition and not its body; `takeDraws`
 is held by its equation pin and may take either form. `check-attest-negatives.sh` deletes each axiom pin, and each of the model
-and record definition pins, in turn, and plants the `#check` form for two of them. In the model package, examples in
+and record definition pins, in turn, and plants the `#check` form for six of them. In the model package, examples in
 `Model/Lifecycle.lean` hold `braidSendDrawCount` to `mlkem-braid.md` at one state of each of the twelve kinds and check the draws
 an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one. They are
 anonymous, so no gate requires them; the pin on `braidSendDrawCount` is the part that is required.
