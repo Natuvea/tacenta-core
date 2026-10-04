@@ -925,7 +925,8 @@
           "actor": "responder",
           "op": "establish-responder",
           "inputs": {
-            "initial": "mixed-initial"
+            "store": "bob-store-with-last-resort-and-one-time-curve",
+            "message": "mixed-initial"
           },
           "expect": {
             "outcome": "ok"
@@ -934,7 +935,7 @@
             "prekey_store": "last-resort-fingerprint-added",
             "session": "responder-established",
             "one_time_curve": "deleted",
-            "one_time_kem": "unchanged",
+            "one_time_kem": "last-resort",
             "last_resort_record": "added"
           }
         }
@@ -951,7 +952,8 @@
           "actor": "responder",
           "op": "establish-responder",
           "inputs": {
-            "initial": "forged-mixed-initial"
+            "store": "bob-store-with-last-resort-and-one-time-curve",
+            "message": "forged-mixed-initial"
           },
           "expect": {
             "outcome": "refused",
