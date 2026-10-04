@@ -1,0 +1,67 @@
+# Independent Linux regeneration receipt for the committed Aeneas translation.
+# This is intentionally separate from the heavy Lean build: the latter proves
+# the committed files, while this workflow proves that the pinned Rust-to-Lean
+# generator reproduces them on the accepted Linux x86_64 toolchain.
+name: translation-regeneration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  translation-regeneration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: nightly-2026-06-01
+          components: rustc-dev,llvm-tools-preview,rust-src,miri
+      - name: Download and verify the pinned Aeneas release
+        env:
+          AENEAS_RELEASE: nightly-2026.07.22-b1214ca
+          AENEAS_SHA256: bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/aeneas-linux-x86_64.tar.gz"
+          tools="$RUNNER_TEMP/aeneas-$AENEAS_RELEASE"
+          url="https://github.com/AeneasVerif/aeneas/releases/download/$AENEAS_RELEASE/aeneas-linux-x86_64.tar.gz"
+          curl --fail --location --silent --show-error --retry 3 --output "$archive" "$url"
+          echo "$AENEAS_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p "$tools"
+          tar -xzf "$archive" -C "$tools" --strip-components=1
+          test -x "$tools/charon"
+          test -x "$tools/aeneas"
+          printf '%s\n' "$tools" > "$RUNNER_TEMP/aeneas-tools"
+      - name: Regenerate and diff the committed translation
+        env:
+          AENEAS_RELEASE: nightly-2026.07.22-b1214ca
+        run: |
+          set -euo pipefail
+          tools=$(cat "$RUNNER_TEMP/aeneas-tools")
+          AENEAS_RELEASE="$AENEAS_RELEASE" AENEAS_TOOLS="$tools" \
+            bash tacenta-proofs/scripts/run-aeneas.sh 2>&1 | tee "$RUNNER_TEMP/translation-regeneration.log"
+          git diff --exit-code -- tacenta-proofs/translation/Translation
+          test -z "$(git status --porcelain)"
+          {
+            printf 'candidate_commit %s\n' "$(git rev-parse HEAD)"
+            printf 'candidate_tree %s\n' "$(git rev-parse HEAD^{tree})"
+            printf 'aeneas_release %s\n' "$AENEAS_RELEASE"
+            printf 'aeneas_archive_sha256 %s\n' 'bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f'
+            printf 'translation_diff clean\n'
+          } > "$RUNNER_TEMP/translation-regeneration-receipt.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: translation-regeneration-receipt
+          path: |
+            ${{ runner.temp }}/translation-regeneration-receipt.txt
+            ${{ runner.temp }}/translation-regeneration.log
+          if-no-files-found: error
+          retention-days: 90
