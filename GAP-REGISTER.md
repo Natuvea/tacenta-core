@@ -6,7 +6,7 @@ one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
-Last assessed: 2026-10-05, at candidate `3748d18a`. Historical row runs retain
+Last assessed: 2026-10-05, at candidate `d4ab556b`. Historical row runs retain
 their original revision stamps. Row `E2E-07` was re-run later on 2026-09-30
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
