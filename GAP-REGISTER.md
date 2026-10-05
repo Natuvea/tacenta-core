@@ -162,6 +162,12 @@ gate obligations that are not individual reader findings.
   model ciphertext/input equality, and responder refinement. It does not yet prove the sender
   route evidence or the responder/decrypt/restore continuations, so `E2E-01` remains blocking.
 
+- 2026-10-05 candidate update: `public_responder_then_decrypt` now provides the public-dispatch
+  continuation from the exact responder-established session, plaintext, store relation, and RNG
+  trace, including establishment refusal and success arms. Both `decrypt` and `decrypt_ratchet`
+  now have explicit responder continuations; their route/contract evidence and restore/continue
+  composition remain conditional. `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the

@@ -3514,6 +3514,87 @@ theorem public_encrypt_success_to_responder_handoff
   exact ⟨recvOutput, hsendRoot, hsendStep, hmodelSend, hrealWire, hmodelWire,
     hrecv, hrecvStep⟩
 
+/-! The public-dispatch continuation for a responder-established session.  It
+    carries the same authenticated session/store/plaintext/RNG boundary as
+    the ratchet-root continuation, but targets `Session.decrypt` itself.  A
+    caller therefore cannot use a detached public-decrypt witness to claim
+    that the session returned by responder establishment can receive. -/
+theorem public_responder_then_decrypt
+    {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    {view : Model.Lifecycle.CodewordView} {message : Slice Std.U8}
+    (established : PublicResponderEstablishWitness storeRel trace dh K rngCore
+      cryptoRng ourIdentity ourPrekeys initialMessage rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {realPlaintext : alloc.vec.Vec Std.U8}
+      {realStoreAfter : lifecycle.PrekeyStore}
+      {modelSession : Model.Lifecycle.Session} {modelPlaintext : Bytes}
+      {modelStoreAfter : Model.Lifecycle.PrekeyStore} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) →
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } →
+      SessionRefines dh K realSession modelSession →
+      vecOf realPlaintext = modelPlaintext →
+      storeRel realStoreAfter modelStoreAfter →
+      ∃ output,
+        lifecycle.Session.decrypt rngCore cryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.decrypt view oracleAfter modelSession (sliceOf message))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle)
+        (realStoreAfter : lifecycle.PrekeyStore) (rngAfter : R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok (.Err reason, realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .error modelReason, oracle := oracleAfter } ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session)
+        (realPlaintext : alloc.vec.Vec Std.U8)
+        (realStoreAfter : lifecycle.PrekeyStore)
+        (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R) (output :
+          core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+          lifecycle.Session × R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      vecOf realPlaintext = modelPlaintext ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      trace rngAfter = oracleAfter.draws ∧
+      lifecycle.Session.decrypt rngCore cryptoRng realSession message rngAfter =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracleAfter modelSession (sliceOf message))) := by
+  obtain evidence := responder_establish_end_to_end_evidence_of_witness established
+  cases evidence with
+  | @refusal reason modelReason modelStore oracleAfter realStoreAfter rngAfter
+      hroot hmodel hstore hrefusal htrace =>
+      left
+      exact ⟨reason, modelReason, modelStore, oracleAfter, realStoreAfter,
+        rngAfter, hroot, hmodel, hstore, hrefusal, htrace⟩
+  | @success realSession realPlaintext realStoreAfter modelSession modelPlaintext
+      modelStoreAfter oracleAfter rngAfter hroot hmodel hrel hplaintext hstore htrace =>
+      right
+      obtain ⟨decryptOutput, hdecrypt, hdecryptRefines⟩ :=
+        continuation hroot hmodel hrel hplaintext hstore
+      exact ⟨realSession, realPlaintext, realStoreAfter, modelSession,
+        modelPlaintext, modelStoreAfter, oracleAfter, rngAfter, decryptOutput,
+        hroot, hmodel, hrel, hplaintext, hstore, htrace, hdecrypt,
+        hdecryptRefines⟩
+
 structure InitialDispatchContext {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
