@@ -1541,6 +1541,61 @@ theorem establish_initiator_for_kem_refusal_of_calls {R : Type}
   simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
     hephemeral, hkem]
 
+/-! Join the concrete KEM refusal call-order proof to the executable model.
+    The model draw and encapsulation equations remain explicit: this theorem
+    closes the refinement seam without pretending that a concrete KEM error is
+    itself evidence for the model oracle transition. -/
+theorem establish_initiator_kem_refusal_step_refines_of_root
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (ephemeralPrivate : Model.Lifecycle.Key)
+    (afterEphemeral afterKem : Model.Lifecycle.Oracle)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng =
+      ok (.Err lifecycle.Error.Kem, rngAfter))
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hOne : modelBundle.oneTimePrekey = none)
+    (hOneId : modelBundle.oneTimeId = Model.Lifecycle.absentId)
+    (hp : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hv : oracle.identityValid modelBundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey modelBundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey modelBundle.signedPrekey = true)
+    (ho : modelBundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify modelBundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc modelBundle.signedPrekey)
+      modelBundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify modelBundle.identityKey
+      (Model.Lifecycle.encodeKem modelBundle.kemPrekey)
+      modelBundle.kemPrekeySig = true)
+    (hDraw : Model.Lifecycle.random32 oracle =
+      some (ephemeralPrivate, afterEphemeral))
+    (hKem : Model.Lifecycle.kemEncapsulate afterEphemeral
+      modelBundle.kemPrekey = some (none, afterKem))
+    (htrace : trace rngAfter = afterKem.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+        theirBundle expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hmodel := Model.Lifecycle.establishInitiator_kem_refusal oracle
+    afterEphemeral afterKem modelIdentity modelBundle modelExpectedIdentity
+    ephemeralPrivate hmodelIdentity hOne hOneId hp hv hc hs ho hSignedSig hKemSig
+    hDraw hKem
+  refine ⟨(.Err lifecycle.Error.Kem, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
 /-! Once the concrete call-order theorem and the model success theorem have
     been instantiated, this adapter composes them at the public refinement
     boundary.  Keeping the model equality and the constructor `SessionRefines`
