@@ -3002,6 +3002,11 @@ inductive InitialDispatchRoute {R : Type}
         ok (core.result.Result.Ok decoded))
       (hestablished : real.established_ephemeral = some established)
       (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok false)
+      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+        oracle.dhAgree model.ratchetPrivate
+          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val))
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | identityMismatch
@@ -3019,14 +3024,16 @@ inductive InitialDispatchRoute {R : Type}
   | repeatRefusal
       (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
       (realReason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hidentity : vecOf decoded.identity =
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hidentity : vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc
           (dh.publicKey real.peer_identity_public))
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
       (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
         (alloc.vec.Vec.deref decoded.message) rng =
           ok (.Err realReason, next, rngNext))
@@ -3043,6 +3050,8 @@ inductive InitialDispatchRoute {R : Type}
           (dh.publicKey real.peer_identity_public))
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
       (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
         (alloc.vec.Vec.deref decoded.message) rng =
           ok (.Ok plaintext, realNext, rngNext))
@@ -3061,10 +3070,10 @@ theorem initial_dispatch_join
   cases route with
   | decodeRefusal _ _ w => exact w
   | noEstablished _ _ _ w => exact w
-  | ephemeralMismatch _ _ _ _ _ w => exact w
+  | ephemeralMismatch _ _ _ _ _ _ _ w => exact w
   | identityMismatch _ _ _ _ _ _ w => exact w
-  | repeatRefusal _ _ _ _ _ _ _ _ _ _ w => exact w
-  | repeatSuccess _ _ _ _ _ _ _ _ _ _ w => exact w
+  | repeatRefusal _ _ _ _ _ _ _ _ _ _ _ w => exact w
+  | repeatSuccess _ _ _ _ _ _ _ _ _ _ _ w => exact w
 
 /-- Final composition step for the initial dispatcher.  The selector supplies
 the typed route after proving the generated control-flow premises; this lemma
@@ -3125,9 +3134,15 @@ def initial_dispatch_ephemeral_mismatch_route
       ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok false)
+    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+      oracle.dhAgree model.ratchetPrivate
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val))
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .ephemeralMismatch established decoded hdecode hestablished hmismatch w
+  .ephemeralMismatch established decoded hdecode hestablished hmismatch
+    hsameAgreement hagreementMismatch w
 
 def initial_dispatch_identity_mismatch_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -3171,6 +3186,8 @@ def initial_dispatch_repeat_refusal_route
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Err realReason, real, rngNext))
@@ -3180,7 +3197,7 @@ def initial_dispatch_repeat_refusal_route
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
   .repeatRefusal established decoded realReason real rngNext hdecode hestablished hidentity
-    hsameAgreement hinner w
+    hsameAgreement hmodelSame hinner w
 
 def initial_dispatch_repeat_success_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -3202,6 +3219,8 @@ def initial_dispatch_repeat_success_route
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Ok plaintext, realNext, rngNext))
@@ -3212,7 +3231,7 @@ def initial_dispatch_repeat_success_route
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
   .repeatSuccess established decoded plaintext realNext rngNext hdecode hestablished
-    hidentity hsameAgreement hinner w
+    hidentity hsameAgreement hmodelSame hinner w
 
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
@@ -5050,7 +5069,8 @@ def initial_dispatch_ephemeral_mismatch_from_premises
       oracle.dhAgree model.ratchetPrivate
         (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.ephemeralMismatch established decoded hdecode hestablished hmismatch ?_
+  refine InitialDispatchRoute.ephemeralMismatch established decoded hdecode hestablished hmismatch
+    hsameAgreement hagreementMismatch ?_
   exact decrypt_initial_ephemeral_mismatch_refines rngCore cryptoRng trace dh K view oracle
     real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
     hestablished hmismatch hsameAgreement hagreementMismatch
@@ -5385,10 +5405,10 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
     (hrel : SessionRefines dh K real model)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
-    (hdecode : tacenta_wire.decode_initial message =
-      ok (core.result.Result.Ok decoded))
-    (hestablished : real.established_ephemeral = some established)
-    (hidentity : vecOf decoded.identity =
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
@@ -5628,7 +5648,7 @@ def initial_dispatch_repeat_refusal_from_premises
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.repeatRefusal established decoded realReason real rngNext hdecode
-    hestablished hidentity hsameAgreement hinner ?_
+    hestablished hidentity hsameAgreement hmodelSame hinner ?_
   exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
     oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished
@@ -5805,7 +5825,7 @@ def initial_dispatch_repeat_success_from_premises
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.repeatSuccess established decoded plaintext realNext rngNext
-    hdecode hestablished hidentity hsameAgreement hinner ?_
+    hdecode hestablished hidentity hsameAgreement hmodelSame hinner ?_
   exact decrypt_initial_repeat_success_exact rngCore cryptoRng trace dh codec K view oracle oracleNext
     real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement

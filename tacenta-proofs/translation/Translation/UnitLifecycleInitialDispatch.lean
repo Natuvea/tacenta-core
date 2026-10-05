@@ -9047,9 +9047,9 @@ theorem initial_dispatch_route_from_concrete_evidence
         hcall hstep
       cases result with
       | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode
-          hestablished hidentity hsameAgreement hcall hw⟩
+          hestablished hidentity hsameAgreement hmodelSame hcall hw⟩
       | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
-          hestablished hidentity hsameAgreement hcall hw⟩
+          hestablished hidentity hsameAgreement hmodelSame hcall hw⟩
 
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
@@ -9099,9 +9099,9 @@ theorem initial_dispatch_agreement_equivalent_route
     ctx.hrel ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
   cases result with
   | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode hestablished
-      hi hsameAgreement hcall hw⟩
+      hi hsameAgreement hmodelSame hcall hw⟩
   | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
-      hestablished hi hsameAgreement hcall hw⟩
+      hestablished hi hsameAgreement hmodelSame hcall hw⟩
 
 theorem initial_dispatch_agreement_identity_mismatch_route
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
