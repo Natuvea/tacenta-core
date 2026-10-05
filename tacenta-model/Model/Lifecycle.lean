@@ -2135,6 +2135,83 @@ theorem prepareResponder_one_time_slot_refusal (oracle : Oracle) (identity : Ide
   have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
   simp [prepareResponder, hd, hs, hk, hv', ho]
 
+/-! The authenticated preparation success is named separately from the public
+    responder root.  This theorem records the exact pre-commit inputs: all
+    lookups, identity admission, decapsulation, the four DH contributions, and
+    the last-resort replay decision.  The durable store is intentionally absent
+    from the conclusion; it is consumed only by `finishResponderReceive` after
+    the authenticated ratchet step succeeds. -/
+theorem prepareResponder_success_of_calls (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (initial : Model.Messages.Initial) (signedSecret kemPair : Key)
+    (lastResort : Bool) (oneTimeSecret : Option Key)
+    (kemSecret dh1 dh2 dh3 : Key)
+    (fingerprint : Option Key)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat =
+      .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = some kemSecret)
+    (hDh1 : oracle.dhAgree signedSecret (initial.identity.drop 1) = some dh1)
+    (hDh2 : oracle.dhAgree identity.secret (initial.ephemeral.drop 1) = some dh2)
+    (hDh3 : oracle.dhAgree signedSecret (initial.ephemeral.drop 1) = some dh3)
+    (hNoDh4 : (oneTimeSecret.map (fun secret =>
+      oracle.dhAgree secret (initial.ephemeral.drop 1))).any Option.isNone = false)
+    (hReplay : lastResortReplayCheck store initial.kemPrekeyId.toNat
+      (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+        ((oneTimeSecret.map (fun secret =>
+          oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id) kemSecret)
+      lastResort = .ok fingerprint) :
+    prepareResponder oracle identity store initialMessage =
+      .ok
+        { session :=
+            { triple := Model.Triple.initBob
+                (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+                  ((oneTimeSecret.map (fun secret =>
+                    oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id)
+                  kemSecret)
+                (oracle.dhPublic signedSecret) .tacenta
+              braid := Model.Braid.initBob
+                (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+                  ((oneTimeSecret.map (fun secret =>
+                    oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id)
+                  kemSecret)
+              ratchetPrivate := signedSecret
+              identityAd := Model.SessionEstablishment.associatedData
+                initial.identity
+                (Model.PersistedState.SessionState.encodeEc identity.publicKey)
+              ourIdentityPublic := identity.publicKey
+              peerIdentityPublic := initial.identity.drop 1
+              pendingInitial := none
+              establishedEphemeral := some initial.ephemeral }
+          ratchetMessage := initial.ratchetMessage
+          oneTimeId := initial.oneTimeId.toNat
+          kemId := initial.kemPrekeyId.toNat
+          lastResort
+          fingerprint } := by
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  have hDh1' : oracle.dhAgree signedSecret initial.identity.tail = some dh1 := by
+    simpa using hDh1
+  have hDh2' : oracle.dhAgree identity.secret initial.ephemeral.tail = some dh2 := by
+    simpa using hDh2
+  have hDh3' : oracle.dhAgree signedSecret initial.ephemeral.tail = some dh3 := by
+    simpa using hDh3
+  have hNoDh4' : (oneTimeSecret.map (fun secret =>
+      oracle.dhAgree secret initial.ephemeral.tail)).any Option.isNone = false := by
+    simpa using hNoDh4
+  have hReplay' : lastResortReplayCheck store initial.kemPrekeyId.toNat
+      (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+        ((oneTimeSecret.map (fun secret =>
+          oracle.dhAgree secret initial.ephemeral.tail)).bind id) kemSecret)
+      lastResort = .ok fingerprint := by
+    simpa using hReplay
+  simp [prepareResponder, hd, hs, hk, hv', ho, hkem, hDh1', hDh2', hDh3',
+    hNoDh4', hReplay']
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
