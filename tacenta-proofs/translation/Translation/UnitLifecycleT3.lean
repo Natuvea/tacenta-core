@@ -2462,6 +2462,117 @@ theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
     hsharedSlice, hratchetPublic, hratchetPublicBytes, hsignedBytes, htriple,
     hbraid, hidentityPublic, hidentityAd, hephemeralPublic]
 
+/-! The matching concrete success composition when the published bundle carries
+    a curve one-time prekey.  The generated implementation folds that
+    optional agreement into `initiator_shared_secret`; keeping the full bundle
+    in the shared-secret premise makes the branch explicit and prevents the
+    no-one-time proof from being mistaken for coverage of the consuming path. -/
+theorem establish_initiator_for_success_with_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rng1 rng2 rng3 : R)
+    (oneTimePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ephemeralBytes ratchetBytes kemSecret sharedSecretArray dhOutArray :
+      Array Std.U8 32#usize)
+    (ephemeralPrivate ratchetPrivate identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (kemWrapped sharedWrapped dhOutWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (ephemeralPublic ratchetPublic ourIdentityPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ratchetPublicBytes signedPrekeyBytes : Array Std.U8 32#usize)
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id ≠ serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = some oneTimePublic)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (honeCanonical : is_canonical_key oneTimePublic = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with
+      one_time_prekey := some oneTimePublic } = ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rng1))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rng1 =
+      ok (.Ok (kemCiphertext, kemSecret), rng2))
+    (hkemNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hkemDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hshared : initiator_shared_secret identityPrivate ephemeralPrivate
+      { theirBundle.bundle with one_time_prekey := some oneTimePublic } kemSecret =
+      ok (.Ok sharedSecretArray))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecretArray =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecretArray)
+    (hrandomRatchet : lifecycle.random_secret rngCore cryptoRng rng2 =
+      ok (ratchetBytes, rng3))
+    (hratchet : tacenta_boundary.dh.PrivateKey.from_bytes ratchetBytes =
+      ok ratchetPrivate)
+    (hagreement : tacenta_boundary.dh.PrivateKey.agree ratchetPrivate
+      theirBundle.bundle.signed_prekey = ok (some dhOutArray))
+    (hdhOutNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutArray =
+      ok dhOutWrapped)
+    (hdhOutDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutWrapped =
+      ok dhOutArray)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice Std.U8))
+      sharedSecretArray () = ok sharedSlice)
+    (hratchetPublic : tacenta_boundary.dh.PrivateKey.public_key ratchetPrivate =
+      ok ratchetPublic)
+    (hratchetPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes ratchetPublic =
+      ok ratchetPublicBytes)
+    (hsignedBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      theirBundle.bundle.signed_prekey = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_sender sharedSlice ratchetPublicBytes
+      signedPrekeyBytes dhOutArray tacenta_ratchet.LabelSet.Tacenta = ok realTriple)
+    (hbraid : tacenta_braid.Braid.initiator sharedSlice = ok realBraid)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity = ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad ourIdentityPublic
+      theirBundle.bundle.identity_key = ok identityAd)
+    (hephemeralPublic : tacenta_boundary.dh.PrivateKey.public_key ephemeralPrivate =
+      ok ephemeralPublic) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := theirBundle.bundle.identity_key,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := theirBundle.signed_prekey_id,
+              one_time_prekey_id := theirBundle.one_time_prekey_id,
+              kem_prekey_id := theirBundle.kem_prekey_id },
+          established_ephemeral := none }, rng3) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hone, hidentityCanonical, hsignedCanonical, honeCanonical,
+    hverify,
+    hrandom, hephemeral, hkem, hkemNew, hkemDeref, hidentityDh, hshared,
+    hsharedNew, hsharedDeref, hrandomRatchet, hratchet, hagreement, hdhOutNew,
+    hdhOutDeref, hsharedSlice, hratchetPublic, hratchetPublicBytes,
+    hsignedBytes, htriple, hbraid, hidentityPublic, hidentityAd,
+    hephemeralPublic]
+
 /-! The corresponding KEM refusal is a complete public-root branch up to the
     boundary error.  It proves the important effect fact for this branch: the
     first ephemeral draw is retained in the returned RNG state, while no
