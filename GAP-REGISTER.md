@@ -150,6 +150,12 @@ gate obligations that are not individual reader findings.
   continuation theorem: it does not discharge the encrypt contracts, route evidence, oracle
   laws, responder/decrypt roots, or restore/continue path. `E2E-01` remains blocking.
 
+- 2026-10-05 candidate update: `public_responder_then_decrypt_ratchet` now provides the matching
+  responder-establishment→`decrypt_ratchet` join, including the authenticated plaintext and
+  post-authentication prekey-store relation, with refusal and success arms. It is likewise a
+  conditional continuation theorem: the decrypt-ratchet contracts and the cross-session
+  establish→send/receive→restore path are not yet discharged. `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the
