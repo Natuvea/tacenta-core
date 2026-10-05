@@ -2058,6 +2058,142 @@ theorem establish_initiator_success_step_refines_of_root_and_model
     realSession modelSession modelIdentity modelBundle modelExpectedIdentity
     modelOracleAfter hreal hmodel hrel htrace
 
+/-! Constructor-backed success composition for the no-curve-one-time-prekey
+    branch.  The root equations remain explicit inputs, but the session
+    relation is derived here from the generated Triple/Braid relations and
+    each persisted field correspondence rather than supplied as a witness. -/
+theorem establish_initiator_success_no_one_time_step_refines_of_constructors
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic ephemeralPublic ratchetPublic
+      signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (dhOut : Array Std.U8 32#usize)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : Std.U32)
+    (modelRatchetPrivate : Model.Lifecycle.Key)
+    (modelIdentityAd modelOurIdentityPublic modelPeerIdentityPublic :
+      Model.Lifecycle.Key)
+    (modelEphemeralPublic modelKemCiphertext modelDhOut : Model.Lifecycle.Key)
+    (modelSignedPrekeyId modelOneTimePrekeyId modelKemPrekeyId : Nat)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := peerIdentityPublic,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := signedPrekeyId,
+              one_time_prekey_id := oneTimePrekeyId,
+              kem_prekey_id := kemPrekeyId },
+          established_ephemeral := none }, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok
+          { triple := Model.Triple.initAlice sharedSecret
+              (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+              modelDhOut .tacenta,
+            braid := Model.Braid.initAlice sharedSecret,
+            ratchetPrivate := modelRatchetPrivate,
+            identityAd := modelIdentityAd,
+            ourIdentityPublic := modelOurIdentityPublic,
+            peerIdentityPublic := modelPeerIdentityPublic,
+            pendingInitial := some
+              { ephemeralPublic := modelEphemeralPublic,
+                kemCiphertext := modelKemCiphertext,
+                signedPrekeyId := modelSignedPrekeyId,
+                oneTimePrekeyId := modelOneTimePrekeyId,
+                kemPrekeyId := modelKemPrekeyId },
+            establishedEphemeral := none },
+        oracle := modelOracleAfter })
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        modelDhOut .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initAlice sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hephemeral : dh.publicKey ephemeralPublic = modelEphemeralPublic)
+    (hkem : vecOf kemCiphertext = modelKemCiphertext)
+    (hdhOut : arrayOf dhOut = modelDhOut)
+    (hsigned : signedPrekeyId.val = modelSignedPrekeyId)
+    (hone : oneTimePrekeyId.val = modelOneTimePrekeyId)
+    (hkemId : kemPrekeyId.val = modelKemPrekeyId)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  let realSession : lifecycle.Session :=
+    { triple := realTriple, braid := realBraid,
+      ratchet_private := ratchetPrivate, identity_ad := identityAd,
+      our_identity_public := ourIdentityPublic,
+      peer_identity_public := peerIdentityPublic,
+      pending_initial := some
+        { ephemeral_public := ephemeralPublic,
+          kem_ciphertext := kemCiphertext,
+          signed_prekey_id := signedPrekeyId,
+          one_time_prekey_id := oneTimePrekeyId,
+          kem_prekey_id := kemPrekeyId },
+      established_ephemeral := none }
+  let modelSession : Model.Lifecycle.Session :=
+    { triple := Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        modelDhOut .tacenta,
+      braid := Model.Braid.initAlice sharedSecret,
+      ratchetPrivate := modelRatchetPrivate,
+      identityAd := modelIdentityAd,
+      ourIdentityPublic := modelOurIdentityPublic,
+      peerIdentityPublic := modelPeerIdentityPublic,
+      pendingInitial := some
+        { ephemeralPublic := modelEphemeralPublic,
+          kemCiphertext := modelKemCiphertext,
+          signedPrekeyId := modelSignedPrekeyId,
+          oneTimePrekeyId := modelOneTimePrekeyId,
+          kemPrekeyId := modelKemPrekeyId },
+      establishedEphemeral := none }
+  have hreal' : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter) := by
+    simpa [realSession] using hreal
+  have hmodel' : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity = { result := .ok modelSession, oracle := modelOracleAfter } := by
+    simpa [modelSession] using hmodel
+  have hrel : SessionRefines dh K realSession modelSession := by
+    simpa [realSession, modelSession] using
+      (initiator_session_refines_of_constructors dh K sharedSecret realTriple realBraid
+        ratchetPrivate identityAd ourIdentityPublic peerIdentityPublic ephemeralPublic
+        ratchetPublic signedPrekeyPublic dhOut kemCiphertext signedPrekeyId
+        oneTimePrekeyId kemPrekeyId modelRatchetPrivate modelIdentityAd
+        modelOurIdentityPublic modelPeerIdentityPublic modelEphemeralPublic
+        modelKemCiphertext modelDhOut modelSignedPrekeyId modelOneTimePrekeyId
+        modelKemPrekeyId htriple hbraid hprivate had hour hpeer hephemeral hkem
+        hdhOut hsigned hone hkemId)
+  exact establish_initiator_success_step_refines_of_root_and_model trace dh K oracle
+    rngCore cryptoRng ourIdentity theirBundle expectedIdentity rng rngAfter
+    realSession modelSession modelIdentity modelBundle modelExpectedIdentity
+    modelOracleAfter hexpected hreal' hmodel' hrel htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
