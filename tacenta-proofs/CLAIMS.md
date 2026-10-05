@@ -4216,8 +4216,11 @@ in the platform width.
   `UnitSatisfiabilityTripleLaws.clearOldEpochsAgrees`, `UnitSatisfiabilityTripleLaws.vecRetainAgreesOfLaws`,
   `UnitSatisfiabilityTripleLaws.vecRetainAgrees`: the same on the unit, for `UnitSpqrT3.RemoveSkippedAtAgrees`
   and `UnitSpqrT3.VecRetainAgrees`, which the Triple's discharged theorems take.
-- `SessionUnitSatisfiabilitySpqrLaws.removeSkippedAtAgrees`, `setChainsAgrees`, `clearOldEpochsAgrees`,
-  `vecRetainAgreesOfLaws`, `vecRetainAgrees`: the same body-level derivations for the eight-leaf session
+- `Tacenta.SessionUnitSatisfiabilitySpqrLaws.removeSkippedAtAgrees`,
+  `Tacenta.SessionUnitSatisfiabilitySpqrLaws.setChainsAgrees`,
+  `Tacenta.SessionUnitSatisfiabilitySpqrLaws.clearOldEpochsAgrees`,
+  `Tacenta.SessionUnitSatisfiabilitySpqrLaws.vecRetainAgreesOfLaws`,
+  `Tacenta.SessionUnitSatisfiabilitySpqrLaws.vecRetainAgrees`: the same body-level derivations for the eight-leaf session
   unit, proving `SessionUnitSpqrT3.RemoveSkippedAtAgrees` and `SessionUnitSpqrT3.VecRetainAgrees` from
   named standard-library and zeroize laws. `session_sparse_agreements_of_shapes` repacks the
   `StdLaws`, `VecRetainAxiomShape` and `SpqrZeroizeShape` fields used by the lifecycle screen into
