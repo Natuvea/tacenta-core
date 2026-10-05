@@ -136,6 +136,13 @@ gate obligations that are not individual reader findings.
 
 ## Notes
 
+- 2026-10-05 candidate update: `InitialDispatchRoute` was tightened so each of its six constructors
+  carries the actual decoder/state/agreement/identity/result premises for that branch. The Lean
+  build and full proof hygiene pass succeed. This closes the prior composition-integrity loophole
+  (a branch could carry an unrelated public witness); it does not close `E2E-01` or
+  `DISPATCH-EVIDENCE-VACUITY`, because the per-run primitive records, the joint `OracleOf`, and the
+  establish/send/receive/restore composition are still conditional and not shown inhabited.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the

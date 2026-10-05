@@ -9025,7 +9025,7 @@ theorem initial_dispatch_route_from_concrete_evidence
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
   cases branch with
   | decodeRefusal ctx reason hdecode =>
-      exact ⟨.decodeRefusal (decrypt_initial_decode_refusal_refines rc crc trace dh K view
+      exact ⟨.decodeRefusal reason hdecode (decrypt_initial_decode_refusal_refines rc crc trace dh K view
         oracle real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode)⟩
   | noEstablished ctx decoded hdecode hnone =>
       exact ⟨initial_dispatch_no_established_from_premises ctx decoded hdecode hnone⟩
@@ -9046,8 +9046,10 @@ theorem initial_dispatch_route_from_concrete_evidence
         ctx.hrel ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame
         hcall hstep
       cases result with
-      | Err reason => exact ⟨.repeatRefusal hw⟩
-      | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+      | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode
+          hestablished hidentity hsameAgreement hcall hw⟩
+      | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
+          hestablished hidentity hsameAgreement hcall hw⟩
 
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
@@ -9096,8 +9098,10 @@ theorem initial_dispatch_agreement_equivalent_route
     oracle real model message rng established decoded (result, next, rngNext)
     ctx.hrel ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
   cases result with
-  | Err reason => exact ⟨.repeatRefusal hw⟩
-  | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+  | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode hestablished
+      hi hsameAgreement hcall hw⟩
+  | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
+      hestablished hi hsameAgreement hcall hw⟩
 
 theorem initial_dispatch_agreement_identity_mismatch_route
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -9117,7 +9121,7 @@ theorem initial_dispatch_agreement_identity_mismatch_route
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true) :
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
-  refine ⟨.identityMismatch ?_⟩
+  refine ⟨.identityMismatch established decoded hdecode hestablished hsameAgreement hmismatch ?_⟩
   exact decrypt_initial_identity_mismatch_agreement_refines rc crc trace dh codec K view
     oracle real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
     hestablished hmismatch hsameAgreement

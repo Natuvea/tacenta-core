@@ -25,6 +25,14 @@ had a `ceiling` field and is not decided here. The notes dated 2026-09-30 to 202
 replaces described the tree before the integration; `GAP-REGISTER.md`, rows `SESSION-CONTRACT-VACUITY`
 and `DISPATCH-EVIDENCE-VACUITY`, keep that history.
 
+Current candidate update, 2026-10-05. `InitialDispatchRoute` now retains the branch selector facts
+inside each constructor: decoder refusal, established-ephemeral presence, agreement/identity
+conditions, and the actual inner refusal or success result. The public join therefore cannot be
+constructed with a branch label and an unrelated public witness. The route hardening closes that
+composition-integrity defect, but it does not make the per-run primitive contracts, `OracleOf`, or
+the full establish/send/receive/restore evidence inhabited; those remain the blocking part of
+`DISPATCH-EVIDENCE-VACUITY` and `E2E-01`.
+
 The checkpoints below are a work log. The build and gate results they report were run on the commits
 they name and are not retained in this repository.
 
