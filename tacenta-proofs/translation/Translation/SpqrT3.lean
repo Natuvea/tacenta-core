@@ -1984,7 +1984,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               rfl
         have hi1 : i1.val = count.val := by
           have := max_skip_val
-          rw [i4_post, UScalar.cast_val_eq]
+          rw [i1_post, UScalar.cast_val_eq]
           rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
         have hC : (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length
             + (upto.val - (chainOf ch).n) > Model.SparseRatchet.maxSkippedStore := by
@@ -2060,6 +2060,22 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
             rw [count_post1, hn]
             simpa [hmax, hn] using hbad
           scalar_tac
+        step
+        step
+        have hnoti7 : ¬ i7 > MAX_SKIPPED_STORE := by
+          intro hbad
+          apply hnotC
+          have hbad' : i7.val > MAX_SKIPPED_STORE.val := by scalar_tac
+          have hi6 : i6.val = count.val := by
+            have := max_skip_val
+            rw [i6_post, UScalar.cast_val_eq]
+            rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+          rw [i7_post, hlenval, hi6] at hbad'
+          rw [count_post1] at hbad'
+          have hn : (chainOf ch).n = ch1.n.val := by simp [chainOf, ch1_post]
+          rw [← hsurvlen]
+          simpa [max_skipped_store_agrees, hn] using hbad'
+        simp [hnoti7]
         step with skip_message_keys_loop1_derive_refines hkr hz64 hz e upto skipped1 ch1.ck ch1.n
           (by scalar_tac)
           (by
@@ -2127,7 +2143,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
           simpa [not_and_or] using heq
         · rename_i hbound
           simp [hnotCcond] at hbound
-          simp_all [chainOf, chainsOf, ch1_post, hnewSkipped, skipped2_post1]
+          simp_all [chainOf, chainsOf, ch1_post, hnewSkipped]
 
 attribute [step] Tacenta.SpqrT1.skip_message_keys_loop1_no_panic
 attribute [step] Tacenta.SpqrT1.skip_message_keys_loop1_grows
