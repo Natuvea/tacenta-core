@@ -1510,6 +1510,37 @@ theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
     hsharedSlice, hratchetPublic, hratchetPublicBytes, hsignedBytes, htriple,
     hbraid, hidentityPublic, hidentityAd, hephemeralPublic]
 
+/-! The corresponding KEM refusal is a complete public-root branch up to the
+    boundary error.  It proves the important effect fact for this branch: the
+    first ephemeral draw is retained in the returned RNG state, while no
+    session is constructed and no later primitive is called. -/
+theorem establish_initiator_for_kem_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (ephemeralBytes : Array Std.U8 32#usize)
+    (ephemeralPrivate : tacenta_boundary.dh.PrivateKey) (kemError : Unit)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
+      ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rngAfter))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rngAfter =
+      ok (.Err kemError, rngAfter)) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng = ok (.Err lifecycle.Error.Kem, rngAfter) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+    hephemeral, hkem]
+
 /-! Once the concrete call-order theorem and the model success theorem have
     been instantiated, this adapter composes them at the public refinement
     boundary.  Keeping the model equality and the constructor `SessionRefines`

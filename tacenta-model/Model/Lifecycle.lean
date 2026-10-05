@@ -783,6 +783,35 @@ theorem establishInitiator_bad_signed_prekey_signature (oracle : Oracle)
   subst expectedIdentity
   simp [establishInitiator, hp, hv, hc, hs, ho, hSig]
 
+/-! A KEM refusal is reached only after the bundle checks, signatures and the
+    first ephemeral draw.  The model's KEM boundary is deliberately allowed to
+    refuse without consuming another draw; this theorem names that state
+    transition so the translated establishment root can compose it instead of
+    treating `Error.Kem` as an unindexed branch label. -/
+theorem establishInitiator_kem_refusal (oracle afterEphemeral afterKem : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity ephemeralPrivate : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hOne : bundle.oneTimePrekey = none)
+    (hOneId : bundle.oneTimeId = absentId)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (none, afterKem)) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error .kem, oracle := afterKem } := by
+  subst expectedIdentity
+  simp [establishInitiator, hOne, hOneId, hp, hv, hc, hs, ho, hSignedSig,
+    hKemSig, hDraw, hKem]
+
 /-- A non-contributory initiator-ephemeral/signed-prekey agreement is rejected
     after the preceding draws and agreements, retaining their remaining oracle
     state and constructing no Session. -/
