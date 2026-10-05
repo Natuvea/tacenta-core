@@ -340,6 +340,80 @@ theorem take_one_time_kem_loop_preserves_fields
     · simp
   · exact hindex
 
+/-! The generated search loop also exposes the semantic first-match fact needed
+    by the model-side `swapRemove` equation: a successful index is in range,
+    its entry carries the requested id, and every earlier entry is a non-match.
+    The exhausted branch returns `none` without changing the vector. -/
+def kemPrefixNoMatch
+    (entries : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize)))
+    (id : Std.U32) (n : Nat) : Prop :=
+  ∀ j, j < n → ∃ entry, entries[j]? = some entry ∧
+    (entry.1 == id) = false
+
+theorem take_one_time_kem_loop_first_match
+    (store : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length)
+    (hprefix : kemPrefixNoMatch store.kem_one_time.val id index.val) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id index
+      ⦃ fun r =>
+        let (_, _, _, _, _, _, _, _, v, _, _, _, _, _, found1) := r
+        v = store.kem_one_time ∧
+          (match found1 with
+          | none => True
+          | some foundIndex =>
+            foundIndex.val < store.kem_one_time.val.length ∧
+              (∃ entry, store.kem_one_time.val[foundIndex.val]? = some entry ∧
+                (entry.1 == id) = true) ∧
+              kemPrefixNoMatch store.kem_one_time.val id foundIndex.val)⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem_loop
+  apply loop.spec_decr_nat
+    (measure := fun i => store.kem_one_time.val.length - i.val)
+    (inv := fun i => i.val ≤ store.kem_one_time.val.length ∧
+      kemPrefixNoMatch store.kem_one_time.val id i.val)
+  · intro indexAt hi
+    simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
+    simp only [alloc.vec.Vec.len]
+    split
+    · step
+      split
+      · rename_i hEq
+        simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta,
+          Aeneas.Std.WP.wp_return, hEq, i1_post]
+        have hidx : indexAt.val < store.kem_one_time.val.length := by
+          scalar_tac
+        refine ⟨hidx, ?_, hi.2⟩
+        refine ⟨(store.kem_one_time.val[indexAt.val]'hidx).2.1,
+          (store.kem_one_time.val[indexAt.val]'hidx).2.2, ?_⟩
+        · rw [List.getElem?_eq_getElem hidx]
+          rw [← i1_post]
+          simp [hEq]
+      · rename_i hNotEq
+        step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · scalar_tac
+          · constructor
+            · intro j hj
+              by_cases hbefore : j < indexAt.val
+              · exact hi.2 j hbefore
+              · have hcur : j = indexAt.val := by omega
+                subst hcur
+                have hidx : indexAt.val < store.kem_one_time.val.length := by
+                  scalar_tac
+                refine ⟨store.kem_one_time.val[indexAt.val]'hidx, ?_, ?_⟩
+                · rw [List.getElem?_eq_getElem hidx]
+                · rw [← i1_post]
+                  simp [hNotEq]
+            · have hAt : indexAt.val < store.kem_one_time.val.length := by
+                scalar_tac
+              have hstep : index1.val = indexAt.val + 1 := by
+                exact index1_post
+              omega
+    · simp
+  · exact ⟨hindex, hprefix⟩
+
 /-! The public KEM removal preserves the whole store shape.  Its opaque
     `Vec::pop` call is needed only for totality here; the value-level
     swap/remove equation is kept separate in `hkem` below. -/
