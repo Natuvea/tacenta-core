@@ -2241,6 +2241,48 @@ theorem establish_responder_kem_refusal_step_refines_of_root {R : Type}
   · exact hstore
   · exact htrace
 
+/-! The decapsulation refusal also preserves the concrete persisted-state
+    relation.  No authenticated receive has occurred on this path, so the
+    returned Rust store is the input store and the model keeps its store
+    unchanged. -/
+theorem establish_responder_kem_refusal_step_refines_of_field_store
+    {R : Type}
+    (kemView : KemView)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (oneTimeSecret : Option Model.Lifecycle.Key)
+    (hstore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err lifecycle.Error.Kem, ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  exact establish_responder_kem_refusal_step_refines_of_root
+    (PrekeyStoreRefines dh kemView) rngCore cryptoRng trace dh K oracle view
+    ourIdentity modelIdentity ourPrekeys modelStore initialMessage rng initial
+    signedSecret kemPair lastResort oneTimeSecret hstore htrace hreal
+    hdecodeModel hs hk hv ho hkem
+
 /-! The successful responder branch has a different commit shape from every
     preparation refusal: authenticated `decrypt_ratchet` returns a plaintext,
     then the named one-time slots and (when applicable) the last-resort
