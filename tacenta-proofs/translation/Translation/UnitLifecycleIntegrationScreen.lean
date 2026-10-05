@@ -63,9 +63,10 @@ product.
   changed record fails the build, and nothing here shows the whole record can be met.
 * **C. Numeric state records.** `RetryReceiveBounds`, `GeneratedTripleRefusalConditions` and
   `GeneratedTripleSuccessConditions` hold at the initiator's initial Triple state,
-  `Model.Triple.initAlice` (`retryReceiveBounds_initAlice` and the two `_initAlice` results), and
-  the first is not true of every state (`retryReceiveBounds_not_trivial`). The responder's initial
-  state, `Model.Triple.initBob`, is not decided.
+  `Model.Triple.initAlice` (`retryReceiveBounds_initAlice` and the two `_initAlice` results),
+  and the two generated-condition records now also hold at the responder's initial state,
+  `Model.Triple.initBob` (the two `_initBob` results). The first is not true of every state
+  (`retryReceiveBounds_not_trivial`).
 
 ## The sense of the laws
 
@@ -672,6 +673,33 @@ theorem generatedTripleSuccessConditions_initAlice [Tacenta.SessionUnitT1.Derive
     Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
   refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
     simp [htriple, Model.Triple.initAlice, Model.SparseRatchet.initAlice,
+      Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+/-! The responder starts from `initBob`, so keep its finite-store bounds explicit
+    rather than treating the initiator witness as if it covered both roles. -/
+theorem generatedTripleRefusalConditions_initBob [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+    (model : Model.Lifecycle.Session)
+    (htriple : model.triple = Model.Triple.initBob sk ourPub labels) :
+    Nonempty (GeneratedTripleRefusalConditions model none) := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
+    simp [htriple, Model.Triple.initBob, Model.SparseRatchet.initBob,
+      Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+theorem generatedTripleSuccessConditions_initBob [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+    (model : Model.Lifecycle.Session)
+    (htriple : model.triple = Model.Triple.initBob sk ourPub labels)
+    (realEpoch : Std.U64) :
+    Nonempty (GeneratedTripleSuccessConditions model realEpoch none) := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
+    simp [htriple, Model.Triple.initBob, Model.SparseRatchet.initBob,
       Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
     first | omega | (rintro ch (h | h) <;> subst h <;> simp)
 
@@ -1474,6 +1502,49 @@ info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_i
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initAlice
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob
+
+/--
+info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+  (model : Model.Lifecycle.Session),
+  model.triple = Model.Triple.initBob sk ourPub labels → Nonempty (GeneratedTripleRefusalConditions model none)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob
+
+/--
+info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+  (model : Model.Lifecycle.Session),
+  model.triple = Model.Triple.initBob sk ourPub labels →
+    ∀ (realEpoch : U64), Nonempty (GeneratedTripleSuccessConditions model realEpoch none)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob
 
 /--
 info: 'Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view' depends on axioms: [propext,

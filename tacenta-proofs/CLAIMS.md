@@ -3859,9 +3859,12 @@ records to the dispatch layer. These results decide some of them. They are about
   the build at that pin. Its other clauses (the refinement of the model send by the generated result, and the `headerReceived`
   draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
 - `retryReceiveBounds_initAlice`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
-  `generatedTripleSuccessConditions_initAlice`: `RetryReceiveBounds` and the two finite-store condition records hold at the
-  initiator's initial Triple state, `Model.Triple.initAlice` (the responder's, `Model.Triple.initBob`, is not decided), the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
-  the first fails at a sparse epoch of `u64::MAX`. That they hold at the states the retry loop reaches is not shown here.
+  `generatedTripleSuccessConditions_initAlice`, `generatedTripleRefusalConditions_initBob`,
+  `generatedTripleSuccessConditions_initBob`: `RetryReceiveBounds` and the two finite-store condition records hold at the
+  initiator's initial Triple state, `Model.Triple.initAlice`, and the two generated-condition records also hold at the
+  responder's initial Triple state, `Model.Triple.initBob`. The last four require the class
+  `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and the first fails at a sparse epoch of `u64::MAX`.
+  That they hold at the states the retry loop reaches is not shown here.
 - `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: given the DH codec, `OracleOf` still holds when the
   oracle's `dhAgree` is changed at second arguments that are not 32 bytes long, so for two strings that are not 32 bytes long
   the model's `sameEphemeralAgreement` can be made either value by an oracle that meets `OracleOf`. The repeated-initial premises
