@@ -1401,6 +1401,151 @@ theorem initiator_session_refines_of_constructors
   · simp [pendingInitialOf, hephemeral, hkem, hsigned, hone, hkemId]
   · simp
 
+/-! The first concrete successful-root composition.  This theorem is intentionally
+    below the model relation: it proves that the generated public root follows
+    the documented successful call order and constructs exactly one pending
+    initial record.  Every opaque boundary result and every `Zeroizing` readback
+    is an explicit premise.  The refinement theorem must additionally relate
+    those results to the model oracle and discharge the session-field relation;
+    this separation prevents a root theorem from hiding an unproved primitive
+    contract behind a pre-built `SessionRefines` witness. -/
+theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rng1 rng2 rng3 : R)
+    (ephemeralBytes ratchetBytes kemSecret sharedSecretArray dhOutArray :
+      Array Std.U8 32#usize)
+    (ephemeralPrivate ratchetPrivate identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (kemWrapped sharedWrapped dhOutWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (ephemeralPublic ratchetPublic ourIdentityPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ratchetPublicBytes signedPrekeyBytes : Array Std.U8 32#usize)
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
+      ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rng1))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rng1 =
+      ok (.Ok (kemCiphertext, kemSecret), rng2))
+    (hkemNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hkemDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hshared : initiator_shared_secret identityPrivate ephemeralPrivate
+      { theirBundle.bundle with one_time_prekey := none } kemSecret =
+      ok (.Ok sharedSecretArray))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecretArray =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecretArray)
+    (hrandomRatchet : lifecycle.random_secret rngCore cryptoRng rng2 =
+      ok (ratchetBytes, rng3))
+    (hratchet : tacenta_boundary.dh.PrivateKey.from_bytes ratchetBytes =
+      ok ratchetPrivate)
+    (hagreement : tacenta_boundary.dh.PrivateKey.agree ratchetPrivate
+      theirBundle.bundle.signed_prekey = ok (some dhOutArray))
+    (hdhOutNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutArray =
+      ok dhOutWrapped)
+    (hdhOutDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutWrapped =
+      ok dhOutArray)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice Std.U8))
+      sharedSecretArray () = ok sharedSlice)
+    (hratchetPublic : tacenta_boundary.dh.PrivateKey.public_key ratchetPrivate =
+      ok ratchetPublic)
+    (hratchetPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes ratchetPublic =
+      ok ratchetPublicBytes)
+    (hsignedBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      theirBundle.bundle.signed_prekey = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_sender sharedSlice ratchetPublicBytes
+      signedPrekeyBytes dhOutArray tacenta_ratchet.LabelSet.Tacenta = ok realTriple)
+    (hbraid : tacenta_braid.Braid.initiator sharedSlice = ok realBraid)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity = ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad ourIdentityPublic
+      theirBundle.bundle.identity_key = ok identityAd)
+    (hephemeralPublic : tacenta_boundary.dh.PrivateKey.public_key ephemeralPrivate =
+      ok ephemeralPublic) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := theirBundle.bundle.identity_key,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := theirBundle.signed_prekey_id,
+              one_time_prekey_id := theirBundle.one_time_prekey_id,
+              kem_prekey_id := theirBundle.kem_prekey_id },
+          established_ephemeral := none }, rng3) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+    hephemeral, hkem, hkemNew, hkemDeref, hidentityDh, hshared, hsharedNew,
+    hsharedDeref, hrandomRatchet, hratchet, hagreement, hdhOutNew, hdhOutDeref,
+    hsharedSlice, hratchetPublic, hratchetPublicBytes, hsignedBytes, htriple,
+    hbraid, hidentityPublic, hidentityAd, hephemeralPublic]
+
+/-! Once the concrete call-order theorem and the model success theorem have
+    been instantiated, this adapter composes them at the public refinement
+    boundary.  Keeping the model equality and the constructor `SessionRefines`
+    relation as separate arguments makes the remaining work measurable: it is
+    the discharge of those relations from the named oracle/leaf contracts, not
+    an unexamined `simp` over the public root. -/
+theorem establish_initiator_for_success_step_refines_of_root_and_model
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok modelSession, oracle := oracle })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngAfter = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  refine ⟨(.Ok realSession, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simpa [EstablishResultRefines] using hrel
+  · exact htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
