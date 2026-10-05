@@ -3858,7 +3858,7 @@ records to the dispatch layer. These results decide some of them. They are about
   no theorem constructs the record; its body carries a `#print` pin (below), so a stronger record, an empty one included, fails
   the build at that pin. Its other clauses (the refinement of the model send by the generated result, and the `headerReceived`
   draw, a 32-byte `encapsulate1` fill by reading) are not decided here.
-- `retryReceiveBounds_initAlice`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
+- `retryReceiveBounds_initAlice`, `retryReceiveBounds_initBob`, `retryReceiveBounds_not_trivial`, `generatedTripleRefusalConditions_initAlice`,
   `generatedTripleSuccessConditions_initAlice`, `generatedTripleRefusalConditions_initBob`,
   `generatedTripleSuccessConditions_initBob`: `RetryReceiveBounds` and the two finite-store condition records hold at the
   initiator's initial Triple state, `Model.Triple.initAlice`, and the two generated-condition records also hold at the

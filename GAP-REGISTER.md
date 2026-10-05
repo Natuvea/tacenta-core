@@ -6,7 +6,7 @@ one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
-Last assessed: 2026-10-05, at candidate `b105e6cb`. Historical row runs retain
+Last assessed: 2026-10-05, at candidate `b975d02f`. Historical row runs retain
 their original revision stamps. Row `E2E-07` was re-run later on 2026-09-30
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
@@ -22,6 +22,7 @@ Current candidate update (2026-10-05): `establish_initiator_for_success_with_one
 Current candidate update (2026-10-05): `tacenta-proofs/SEMANTIC-INVARIANT-REVIEW.md` records an evidence-class disposition for all eight `INV-*` rows and accepts the explicit successor-headroom scope decision. The review closes the Gate 1/2 ambiguity about what is claimed, but leaves the substantive orchestration, contract-vacuity, dispatch-vacuity, and partial invariant relations open.
 Current candidate update (2026-10-05): the decoder receive contract boundary was repaired rather than merely screened. `DecoderMessageTotal` now requires both `size <= 4128` and `needed <= 65536`; `State.decoders_sized` is preserved through decoder chunking and threaded through the session-unit T1/T3 receive, restore, and refinement entry points. `SessionBraidReceiveRepair.lean` discharges the strengthened translation contract, the full `Translation` build passes all 2,379 targets, generated-copy checks and attestation pass, the independent reader reports 1,036 PASS / 0 FAIL / 0 SKIP, and the three transaction-boundary mutations are rejected. This narrows `SESSION-CONTRACT-VACUITY`; it does not close `E2E-01` or `DISPATCH-EVIDENCE-VACUITY`, because the public five-root T3 composition, real-call contract/law review, and independent review remain open.
 Current candidate update (2026-10-05): `generatedTripleRefusalConditions_initBob` and `generatedTripleSuccessConditions_initBob` now kernel-check the responder's initial `Model.Triple.initBob` finite-store witnesses at both platform widths. This removes the previously undecided responder-initial numeric sub-item from `DISPATCH-EVIDENCE-VACUITY`; whole per-run record satisfiability, the remaining `OracleOf` clauses, and public five-root composition remain open.
+Current candidate update (2026-10-05): `retryReceiveBounds_initBob` now kernel-checks the responder's initial retry/headroom record, matching the existing `initAlice` witness. The responder-initial numeric witness surface is now covered for both the retry record and the generated Triple condition records; whole per-run record satisfiability, the remaining `OracleOf` clauses, and public five-root composition remain open.
 at `75387aa9` and closed; the row records the run. The evidence named in rows `HL-IMP-01`,
 `INV-01`, `HL-FUZZ-01`, `HL-SC-10`,
 `HL-SC-14`, `HL-SC-16`, `TRACE-EVIDENCE-INDEX` and `SC-08-TRANSLATION-CHECKSUM`

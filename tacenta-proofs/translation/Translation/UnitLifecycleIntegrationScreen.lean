@@ -626,7 +626,7 @@ theorem braidSendTrace_conflicts_with_sigSign
   · rw [hf] at hgenCall; simp at hgenCall
   · rw [hf] at hgenCall; simp at hgenCall
 
-/-! ## C. The numeric state records hold at the initiator's initial Triple state -/
+/-! ## C. The numeric state records hold at both initial Triple states -/
 
 theorem retryReceiveBounds_initAlice (sk ourPub peerPub dhOut : Model.Lifecycle.Key)
     (labels : Model.State.LabelSet) (header : tacenta_triple.Header)
@@ -637,6 +637,24 @@ theorem retryReceiveBounds_initAlice (sk ourPub peerPub dhOut : Model.Lifecycle.
     Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
   constructor <;>
     simp [Model.Triple.initAlice, Model.Ratchet.initSender, Model.SparseRatchet.initAlice,
+      Model.SparseRatchet.init, Model.State.maxSkippedStore, Model.State.maxSkip,
+      Model.SparseRatchet.maxSkip, Model.SparseRatchet.epochsKept, U32.max_eq, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+/-! The responder's first authenticated receive starts from `initBob`, whose
+    classical side has no sending chain and whose sparse side runs in the
+    opposite direction.  Keep this witness separate from `initAlice`: the
+    retry dispatcher consumes the same bounds record, but the two initial
+    states are not definitionally interchangeable. -/
+theorem retryReceiveBounds_initBob (sk ourPub : Model.Lifecycle.Key)
+    (labels : Model.State.LabelSet) (header : tacenta_triple.Header)
+    (modelHeader : Model.State.Header) :
+    RetryReceiveBounds (Model.Triple.initBob sk ourPub labels) header
+      modelHeader none := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  constructor <;>
+    simp [Model.Triple.initBob, Model.Ratchet.initReceiver, Model.SparseRatchet.initBob,
       Model.SparseRatchet.init, Model.State.maxSkippedStore, Model.State.maxSkip,
       Model.SparseRatchet.maxSkip, Model.SparseRatchet.epochsKept, U32.max_eq, U64.max_eq] <;>
     first | omega | (rintro ch (h | h) <;> subst h <;> simp)
@@ -850,6 +868,22 @@ theorem braidSendTraceCounted_with_sigSign_byte (hS : SignFillsOnce64) (hgen : G
       _ rfl⟩
 
 end Tacenta.UnitLifecycleIntegrationScreen
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob : ∀ (sk ourPub : Model.Lifecycle.Key)
+  (labels : Model.State.LabelSet) (header : tacenta_triple.Header) (modelHeader : Model.State.Header),
+  RetryReceiveBounds (Model.Triple.initBob sk ourPub labels) header modelHeader none
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob
 
 /-! ## Pins
 
