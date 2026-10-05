@@ -1125,6 +1125,80 @@ theorem establish_responder_decode_refusal_step_refines {R : Type}
   · exact hstore
   · exact htrace
 
+/-! The responder's identity refusal is reached after the decoder and the two
+    key-slot lookups, but before one-time lookup, decapsulation, DH, replay
+    recording, or session construction.  Keep those call results explicit so
+    the proof also records the transaction boundary being protected. -/
+theorem establish_responder_invalid_identity_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Err (.Handshake .InvalidIdentityKey))) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve]
+
+/-! Join the concrete responder identity refusal to the model's pre-lookup
+    identity check.  The store relation is carried through unchanged, making
+    the no-durable-effect claim part of the refinement result. -/
+theorem establish_responder_invalid_identity_step_refines_of_root {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = false) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_invalid_identity oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial signedSecret kemPair
+    lastResort hdecodeModel hs hk hv
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore,
+        result := .error (.handshake .invalidIdentityKey), oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
 /-! The first concrete establishment composition.  The translated public
 root and executable model both refuse an unexpected peer identity before any
 signature, KEM, DH, or RNG work.  The comparison result is supplied by the
