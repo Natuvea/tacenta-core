@@ -265,6 +265,84 @@ structure PrekeyStoreRefines (dh : DhView) (kemView : KemView)
     model.state.previousSigned
   previousKem : previousKemOf real.previous_kem kemView = model.state.previousKem
 
+/-! The generated search loop carries every persisted field through to its
+    terminal tuple.  This is the structural half of the KEM commit law; it
+    intentionally says nothing yet about the list mutation performed after
+    the index is found. -/
+theorem take_one_time_kem_loop_preserves_fields
+    (store : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id index
+      ⦃ fun r =>
+        let (pkb, a, i, a1, z, kp, i1, a2, v, o, o1, i2, v1, v2, found1) := r
+        pkb = store.identity_public ∧ a = store.signed_prekey_secret ∧
+          i = store.signed_prekey_id ∧ a1 = store.signed_prekey_sig ∧
+          z = store.one_time ∧ kp = store.kem ∧ i1 = store.kem_id ∧
+          a2 = store.kem_sig ∧ v = store.kem_one_time ∧
+          o = store.previous_signed_prekey ∧ o1 = store.previous_kem ∧
+          i2 = store.next_id ∧ v1 = store.last_resort_seen ∧
+          v2 = store.legacy_last_resort_blocked ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem_loop
+  apply loop.spec_decr_nat
+    (measure := fun i => store.kem_one_time.val.length - i.val)
+    (inv := fun i => i.val ≤ store.kem_one_time.val.length)
+  · intro index1 hi
+    simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
+    simp only [alloc.vec.Vec.len]
+    split
+    · step
+      split
+      · simp
+      · step
+        case hmax => scalar_tac
+        case a => constructor <;> scalar_tac
+    · simp
+  · exact hindex
+
+/-! A first concrete authenticated commit bridge.  The generated KEM removal
+    returns a store whose non-KEM fields are copied from the input; the only
+    semantic effect is the swap-with-last removal from `kem_one_time`.  This
+    theorem turns that field-level effect into the model's exact
+    `consumeResponderPrekeys` state for the no-curve/no-last-resort shape.
+
+    The `hshape` premise is deliberately structural rather than an arbitrary
+    store relation: it names every field that must be unchanged across the
+    generated mutation.  The remaining `hkem` premise is the one translation
+    law still needed to connect the generated vector mutation to the model
+    list operation. -/
+theorem prekey_store_refines_after_kem_consumption
+    (kemView : KemView) (dh : DhView)
+    (before : lifecycle.PrekeyStore)
+    (modelBefore : Model.Lifecycle.PrekeyStore)
+    (kemId : Nat) (after : lifecycle.PrekeyStore)
+    (hbefore : PrekeyStoreRefines dh kemView before modelBefore)
+    (hshape : after = { before with kem_one_time := after.kem_one_time })
+    (hkem : kemOneTimeOf after.kem_one_time kemView =
+      Model.swapRemove (fun entry => entry.1 == kemId)
+        modelBefore.state.kemOneTime) :
+    PrekeyStoreRefines dh kemView after
+      (Model.Lifecycle.consumeResponderPrekeys modelBefore
+        Model.PersistedState.PrekeyStoreState.absentId kemId false none) := by
+  rw [hshape]
+  simp only [Model.Lifecycle.consumeResponderPrekeys, ↓reduceIte, Option.map_none]
+  constructor
+  · simpa using hbefore.identityPublic
+  · simpa using hbefore.signedPrekeySecret
+  · simpa using hbefore.signedPrekeyId
+  · simpa using hbefore.signedPrekeySig
+  · simpa using hbefore.oneTimeDeref_exists
+  · intro decoded hdecoded
+    exact hbefore.oneTime decoded (by simpa using hdecoded)
+  · simpa using hbefore.kem
+  · simpa using hbefore.kemId
+  · simpa using hbefore.kemSig
+  · simpa [hkem] using hkem
+  · simpa using hbefore.nextId
+  · simpa using hbefore.seen
+  · simpa using hbefore.legacyBlocked
+  · simpa using hbefore.previousSigned
+  · simpa using hbefore.previousKem
+
 def resultOptionOf {A B : Type} (f : A → B) : core.result.Result A Unit → Option B
   | .Ok value => some (f value)
   | .Err _ => none
@@ -2384,6 +2462,59 @@ theorem establish_responder_success_step_refines_of_root_and_model
   · exact ⟨hrel, hplaintext⟩
   · exact hstore
   · exact htrace
+
+/-! Public-success adapter for the same commit shape.  Unlike the generic
+    `storeRel` adapter above, this result is tied to the concrete field
+    relation and to the model's authenticated KEM consumption.  It is the
+    composition point the no-curve/no-last-resort responder branch will use
+    once the generated `take_one_time_kem` effect law supplies `hshape` and
+    `hkem`. -/
+theorem establish_responder_success_step_refines_of_field_store_kem_consumption
+    {R : Type}
+    (kemView : KemView) (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (storeAfter : lifecycle.PrekeyStore) (kemId : Nat)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hbefore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (hshape : storeAfter = { ourPrekeys with kem_one_time := storeAfter.kem_one_time })
+    (hkem : kemOneTimeOf storeAfter.kem_one_time kemView =
+      Model.swapRemove (fun entry => entry.1 == kemId)
+        modelStore.state.kemOneTime)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity
+      ourPrekeys initialMessage rng =
+      ok (.Ok (realSession, realPlaintext), storeAfter, rngAfter))
+    (hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity
+      modelStore (sliceOf initialMessage) =
+      { store := Model.Lifecycle.consumeResponderPrekeys modelStore
+          Model.PersistedState.PrekeyStoreState.absentId kemId false none,
+        result := .ok (modelSession, modelPlaintext),
+        oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hstore := prekey_store_refines_after_kem_consumption kemView dh
+    ourPrekeys modelStore kemId storeAfter hbefore hshape hkem
+  exact establish_responder_success_step_refines_of_root_and_model
+    (PrekeyStoreRefines dh kemView) trace dh K view oracle rngCore cryptoRng
+    ourIdentity ourPrekeys initialMessage rng rngAfter realSession realPlaintext
+    storeAfter modelIdentity modelStore modelSession modelPlaintext
+    (Model.Lifecycle.consumeResponderPrekeys modelStore
+      Model.PersistedState.PrekeyStoreState.absentId kemId false none)
+    modelOracleAfter hreal hmodel hrel hplaintext hstore htrace
 
 /-! Concrete successful call-order branch: no curve one-time prekey and no
     last-resort replay record.  This is the first responder success equation

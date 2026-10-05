@@ -200,6 +200,15 @@ gate obligations that are not individual reader findings.
   postcondition bridge, not closure of the establish→send/receive→restore/continue path.
   `E2E-01` and `SESSION-CONTRACT-VACUITY` remain blocking.
 
+- 2026-10-05 candidate update: `take_one_time_kem_loop_preserves_fields` now kernel-checks that
+  the generated KEM one-time-key search carries every persisted field unchanged to its terminal
+  tuple. `prekey_store_refines_after_kem_consumption` and
+  `establish_responder_success_step_refines_of_field_store_kem_consumption` then connect the
+  no-curve/no-last-resort authenticated shape to the model's swap-remove store transition using
+  an explicit field-level mutation premise. This removes the arbitrary `storeRel` at that
+  composition point, but the generated swap/pop value law and the other three commit shapes are
+  still open; `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the
