@@ -1334,8 +1334,9 @@ theorem initiator_session_refines_of_constructors
     (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
     (identityAd : alloc.vec.Vec Std.U8)
     (ourIdentityPublic peerIdentityPublic ephemeralPublic ratchetPublic
-      signedPrekeyPublic dhOutPublic :
+      signedPrekeyPublic :
       tacenta_boundary.dh.PublicKeyBytes)
+    (dhOut : Array Std.U8 32#usize)
     (kemCiphertext : alloc.vec.Vec Std.U8)
     (signedPrekeyId oneTimePrekeyId kemPrekeyId : Std.U32)
     (modelRatchetPrivate : Model.Lifecycle.Key)
@@ -1343,13 +1344,14 @@ theorem initiator_session_refines_of_constructors
       Model.Lifecycle.Key)
     (modelEphemeralPublic : Model.Lifecycle.Key)
     (modelKemCiphertext : Model.Lifecycle.Key)
+    (modelDhOut : Model.Lifecycle.Key)
     (modelSignedPrekeyId modelOneTimePrekeyId modelKemPrekeyId : Nat)
     (htriple : Tacenta.SessionUnitTripleT3.StateRefines
       Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
       realTriple
       (Model.Triple.initAlice sharedSecret
         (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
-        (dh.publicKey dhOutPublic) .tacenta))
+        modelDhOut .tacenta))
     (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
       (Model.Braid.initAlice sharedSecret))
     (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
@@ -1358,6 +1360,7 @@ theorem initiator_session_refines_of_constructors
     (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
     (hephemeral : dh.publicKey ephemeralPublic = modelEphemeralPublic)
     (hkem : vecOf kemCiphertext = modelKemCiphertext)
+    (hdhOut : arrayOf dhOut = modelDhOut)
     (hsigned : signedPrekeyId.val = modelSignedPrekeyId)
     (hone : oneTimePrekeyId.val = modelOneTimePrekeyId)
     (hkemId : kemPrekeyId.val = modelKemPrekeyId) :
@@ -1375,7 +1378,7 @@ theorem initiator_session_refines_of_constructors
         established_ephemeral := none }
       { triple := Model.Triple.initAlice sharedSecret
           (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
-          (dh.publicKey dhOutPublic) .tacenta,
+          modelDhOut .tacenta,
         braid := Model.Braid.initAlice sharedSecret,
         ratchetPrivate := modelRatchetPrivate,
         identityAd := modelIdentityAd,
@@ -1389,7 +1392,7 @@ theorem initiator_session_refines_of_constructors
             kemPrekeyId := modelKemPrekeyId },
         establishedEphemeral := none } := by
   constructor
-  · simpa [hour, hpeer] using htriple
+  · simpa [hour, hpeer, hdhOut] using htriple
   · exact hbraid
   · exact hprivate
   · exact had
