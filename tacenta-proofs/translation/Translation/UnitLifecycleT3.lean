@@ -1125,6 +1125,63 @@ theorem establish_responder_decode_refusal_step_refines {R : Type}
   · exact hstore
   · exact htrace
 
+/-! An unknown signed-prekey ID is a pre-KEM refusal.  The concrete root
+    returns the original store and RNG, and no later lookup or primitive is
+    part of the branch equation. -/
+theorem establish_responder_unknown_signed_prekey_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (unknown : lifecycle.Error)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Err unknown)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.UnknownPrekeyId), ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned]
+
+/-! Join the unknown-signed-prekey refusal to the model's corresponding
+    pre-lookup refusal, preserving the store relation and trace. -/
+theorem establish_responder_unknown_signed_prekey_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err (.UnknownPrekeyId), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_unknown_signed_prekey oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial hdecodeModel hs
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error .unknownPrekeyId, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err (.UnknownPrekeyId), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
 /-! The responder's identity refusal is reached after the decoder and the two
     key-slot lookups, but before one-time lookup, decapsulation, DH, replay
     recording, or session construction.  Keep those call results explicit so

@@ -2098,6 +2098,16 @@ theorem prepareResponder_kem_refusal (oracle : Oracle) (identity : Identity)
   have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
   simp [prepareResponder, hd, hs, hk, hv', ho, hkem]
 
+/-! An unknown signed-prekey identifier is rejected before the KEM slot is
+    inspected. -/
+theorem prepareResponder_unknown_signed_prekey (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat = none) :
+    prepareResponder oracle identity store initialMessage =
+      .error .unknownPrekeyId := by
+  simp [prepareResponder, hd, hs]
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
