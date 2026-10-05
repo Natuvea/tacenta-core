@@ -6,7 +6,7 @@ one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
-Last assessed: 2026-10-05, at candidate `6a6718e9`. Historical row runs retain
+Last assessed: 2026-10-05, at candidate `ba7b793b`. Historical row runs retain
 their original revision stamps. Row `E2E-07` was re-run later on 2026-09-30
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
@@ -26,6 +26,7 @@ Current candidate update (2026-10-05): `retryReceiveBounds_initBob` now kernel-c
 Current candidate update (2026-10-05): the public session test `the_message_that_fails_the_agreement_still_returns_its_plaintext` now snapshots the exported session after a Braid receive reaches `Failed` and proves that the subsequent public `encrypt` refusal leaves it byte-for-byte unchanged. The runtime mutation control runs both this public failed-send case and the mixed responder transaction case against disposable mutants; the lifecycle composition and dispatch-vacuity blockers remain open.
 Current candidate update (2026-10-05): `check-sparse-store-runtime-negatives.py` now runs the sparse ratchet's exact 2,000-key acceptance and 2,001-key atomic-refusal tests in disposable workspaces and rejects both a pre-replacement-count mutant and a commit-before-refusal mutant. The control is required by the hosted `checks` receipt; `HL-R1-SPARSE-TRANSLATION` remains open for independent review and merge.
 Current candidate update (2026-10-05): lifecycle `OracleOf.kemEncapsulateSuccess` now explicitly requires `oracle.kemValid = true` as well as a model encapsulation result, and its law proof and statement pins build cleanly. This removes the invalid-key inconsistency identified in `DISPATCH-EVIDENCE-VACUITY`; the remaining dispatch gap is whole-record satisfiability and the undecided DH/AEAD/KEM/signature clauses, not this KEM guard.
+Current candidate update (2026-10-05): the existing `UnitSatisfiabilityRecords.headroom_of_axiom_base` and `UnitHeadroomSatisfiable.headroom_hypotheses_satisfiable` results were rechecked as part of the candidate review. They show the four public contract records and matching headroom have a joint model-level witness under the recorded axiom base and laws. This removes “the T1 records/headroom might be empty” as the current explanation for the dispatch gap; it does not show the real primitives meet those assumptions, and it does not construct the run-local initial-dispatch records, counted agreement, or full `OracleOf` at once.
 at `75387aa9` and closed; the row records the run. The evidence named in rows `HL-IMP-01`,
 `INV-01`, `HL-FUZZ-01`, `HL-SC-10`,
 `HL-SC-14`, `HL-SC-16`, `TRACE-EVIDENCE-INDEX` and `SC-08-TRANSLATION-CHECKSUM`
