@@ -1,5 +1,6 @@
 import Translation.UnitLifecycleDecryptRatchetT3
 import Translation.UnitLifecycleTripleRefusalT3
+import Translation.UnitHeadroomInvariant
 
 /-!
 # `decrypt_ratchet` refines the model's decrypt step on every path
@@ -210,6 +211,50 @@ theorem decrypt_ratchet_refines_complete {R : Type}
   obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_or_open rngCore cryptoRng trace dh
     view oracle oracleOf codec contracts agreements real model message rng hrel headroom htrace run
   exact ⟨output, hcall, hstep.resolve_right (fun h => h.1 hclose)⟩
+
+/-! A successful public restore now feeds the complete receive root.  The
+    imported value is the exact real session indexed by `hrel`; the model
+    restore is a no-op, while the public import equation supplies the
+    invariant.  Consequently decoder size and the remaining receive
+    headroom are derived from the restored session rather than supplied as a
+    second, unrelated witness. -/
+theorem public_restore_then_decrypt_ratchet_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : DecryptOracleOf rngCore cryptoRng dh trace oracle)
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements oracle.braidKem)
+    (bytes : Slice Std.U8) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : R)
+    (hdecode : lifecycle.Session.import_unchecked bytes =
+      ok (core.result.Result.Ok real))
+    (himport : lifecycle.Session.import bytes = ok (.Ok real))
+    (hrel : SessionRefines dh oracle.braidKem real model)
+    (htrace : trace rng = oracle.draws)
+    (run : DecryptRatchetRun view oracle trace real model message rng) :
+    ∃ output,
+      lifecycle.Session.import bytes = ok (.Ok real) ∧
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh oracle.braidKem output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hinv : lifecycle.Session.invariant real = ok true :=
+    session_import_success_has_invariant bytes real hdecode himport
+  have hdecoderSize :
+      Tacenta.SessionUnitBraidT1.State.decoders_sized real.braid.state :=
+    session_invariant_gives_braid_decoder_size
+      contracts.braid.ct1Len contracts.braid.ct2Len contracts.braid.headerLen
+      contracts.braid.ekVectorLen real hinv
+  have hheadroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real :=
+    Tacenta.UnitHeadroomInvariant.decryptHeadroom_of_invariant
+      contracts.dhCodec contracts.braid.ct1Len real hdecoderSize hinv
+  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_complete
+    rngCore cryptoRng trace dh view oracle oracleOf codec contracts agreements
+    real model message rng hrel hheadroom htrace run
+  exact ⟨output, himport, hcall, hstep⟩
 
 /-- The theorem has exactly the statement recorded in `DecryptRatchetRefinesCompleteStatement`. -/
 theorem decrypt_ratchet_refines_complete_statement : DecryptRatchetRefinesCompleteStatement := by

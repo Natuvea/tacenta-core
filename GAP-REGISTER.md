@@ -137,6 +137,15 @@ gate obligations that are not individual reader findings.
 
 ## Notes
 
+- 2026-10-05 candidate update: `public_restore_then_decrypt_ratchet_refines` now composes a
+  successful public `Session::import` with the complete `decrypt_ratchet` refinement. The
+  successful import equation yields `Session::invariant`; the restored decoder-size premise and
+  receive headroom are then derived from that invariant before the exact restored session is
+  passed to the receive root. This closes the headroom-only restore seam, but it still consumes
+  the generated unchecked-decoder equation, the imported-session/model relation, and the existing
+  primitive/run evidence. It therefore narrows `SESSION-CONTRACT-VACUITY` without closing it, and
+  `E2E-01` remains blocking.
+
 - 2026-10-05 candidate update: `InitialDispatchRoute` was tightened so each of its six constructors
   carries the actual decoder/state/agreement/identity/result premises for that branch. The Lean
   build and full proof hygiene pass succeed. This closes the prior composition-integrity loophole
