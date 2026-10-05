@@ -2108,6 +2108,18 @@ theorem prepareResponder_unknown_signed_prekey (oracle : Oracle) (identity : Ide
       .error .unknownPrekeyId := by
   simp [prepareResponder, hd, hs]
 
+/-! Any KEM-slot refusal is returned before curve-input decoding and before
+    one-time lookup. -/
+theorem prepareResponder_kem_slot_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (signedSecret : Key) (reason : Refusal)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat = .error reason) :
+    prepareResponder oracle identity store initialMessage = .error reason := by
+  simp [prepareResponder, hd, hs, hk]
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
