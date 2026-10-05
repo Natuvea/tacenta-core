@@ -1050,7 +1050,7 @@ UnitSatisfiabilityErasure Tacenta.UnitSatisfiabilityErasure decoderAddChunk_tota
 UnitSatisfiabilityRatchet Tacenta.UnitSatisfiabilityRatchet kdfRkTotal kdfCkTotal kdfInitTotal spqrRemoveSkippedAtTotal ratchetRemoveSkippedAtTotal setChainsLoopTotal clearChainsLoop0Total clearSkippedLoopTotal vecRetainTotal defined_fields_hold spqrRemoveSkippedAtTotal_false_of_noop_pop ratchetRemoveSkippedAtTotal_false_of_noop_pop ratchetRemoveSkippedAtTotal_forces_blanketU32 setChainsLoopTotal_forces_asMut
 UnitSatisfiabilitySession Tacenta.UnitSatisfiabilitySession vec_pop_satisfiable noop_pop_not_faithful VecPopLaw_is all_thirteen_contracts_satisfiable
 UnitSatisfiabilityZeroizeScope Tacenta.UnitSatisfiabilityZeroizeScope zeroize_failure_propagation_conflicts faithful_propagates faithful_refutes_unscoped faithful_satisfies_rest ArrayZeroizeU8Total_of_spqr ArrayZeroizeU8Total_of_braid VecZeroizeChainsTotal_of_vecRetain arrayZeroizeScoped_of_total VecZeroizeSkippedTotal_of_vecRetain
-DispatchEvidenceVacuity Tacenta.DispatchEvidenceVacuity same_ephemeral_agreement_empty initialSameEphemeralEvidence_false codewordViewOf_false codewordViewOf_false_of_encoderNewTotal record_empty_of_nonempty_decoder record_empty_headerSent record_empty_ekSentCt1Received record_empty_noHeaderReceived record_empty_ct1Sampled_ek record_empty_ct1Sampled_ekCt1Ack record_empty_ct1Acknowledged keysSampled_receive_ct1_holds_chunk tripleConcreteEvidence_forces_constant_dhPublic aeadConcreteEvidence_forces_constant_dhPublic constant_dhPublic_false_of_publicKeyNotConstant tripleConcreteEvidence_false_of_publicKeyNotConstant aeadConcreteEvidence_false_of_publicKeyNotConstant oracleOf_kem_oracle_never_refuses oracleOf_kem_call_never_errs
+DispatchEvidenceVacuity Tacenta.DispatchEvidenceVacuity codewordViewOf_false codewordViewOf_false_of_encoderNewTotal record_empty_of_nonempty_decoder record_empty_headerSent record_empty_ekSentCt1Received record_empty_noHeaderReceived record_empty_ct1Sampled_ek record_empty_ct1Sampled_ekCt1Ack record_empty_ct1Acknowledged keysSampled_receive_ct1_holds_chunk tripleConcreteEvidence_forces_constant_dhPublic aeadConcreteEvidence_forces_constant_dhPublic constant_dhPublic_false_of_publicKeyNotConstant tripleConcreteEvidence_false_of_publicKeyNotConstant aeadConcreteEvidence_false_of_publicKeyNotConstant
 BraidPreserve Tacenta.BraidPreserve Braid.step_send_sized Braid.step_receive_sized State.clone_sized Braid.send_sized Braid.receive_sized Braid.commit_sized Braid.initiator_sized Braid.responder_sized Braid.Run.sized Braid.Constructed.sized State.sized_ct1_bounded Braid.Run.exists_initiator Braid.Run.exists_responder Braid.Run.exists_send
 SessionUnitBraidPreserve Tacenta.SessionUnitBraidPreserve Braid.step_send_sized Braid.step_receive_sized State.clone_sized Braid.send_sized Braid.receive_sized Braid.commit_sized Braid.initiator_sized Braid.responder_sized Braid.Run.sized Braid.Constructed.sized State.sized_ct1_bounded Braid.Run.exists_initiator Braid.Run.exists_responder Braid.Run.exists_send
 BraidPreserveWitness Tacenta.BraidPreserveWitness newMsgLen_iff api_newMsgLen erasure_laws_satisfiable model_for_both_widths
@@ -1211,6 +1211,26 @@ expect_fail "pin-block-copied-over-another" "theorems pinned more than once: Tac
 stmt_name="Tacenta.DispatchEvidenceVacuity.record_empty_headerSent"
 stmt_file="tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean"
 stmt_head="\`$stmt_name\` is on REQUIRED_STATEMENT_PINS and"
+
+# Four DispatchEvidenceVacuity results are deliberately statement-only: their
+# axiom pins are not on REQUIRED_PINS, but their statements are on the floor.
+# Keep those cases in the statement-pin control rather than pretending the
+# axiom-pin floor holds them.
+for n in same_ephemeral_agreement_empty initialSameEphemeralEvidence_false \
+         oracleOf_kem_oracle_never_refuses oracleOf_kem_call_never_errs; do
+  name="Tacenta.DispatchEvidenceVacuity.$n"
+  make_case
+  python3 - "$work/$stmt_file" "$name" <<'PY'
+import pathlib, re, sys
+path, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+pin = re.compile(r"#guard_msgs in\n#check @?" + re.escape(name) + r"\n")
+text, count = pin.subn("", text)
+assert count == 1, count
+path.write_text(text)
+PY
+  expect_fail "statement-pin-deleted-$n" "\`$name\` is on REQUIRED_STATEMENT_PINS and has no statement pin" --check
+done
 
 # Rewrite the statement pin of $stmt_name in $stmt_file. `mode` picks the mutation;
 # `option` is the text between the parentheses of `#guard_msgs` for mode `options`.
