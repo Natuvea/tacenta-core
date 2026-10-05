@@ -143,6 +143,13 @@ gate obligations that are not individual reader findings.
   `DISPATCH-EVIDENCE-VACUITY`, because the per-run primitive records, the joint `OracleOf`, and the
   establish/send/receive/restore composition are still conditional and not shown inhabited.
 
+- 2026-10-05 candidate update: `public_initiator_then_encrypt` now composes an established
+  initiator witness with the next public `encrypt` root at the exact post-establishment session,
+  model state, and RNG trace, while retaining the establishment refusal arm. This removes an
+  outer adapter seam and kernel-checks on the candidate, but it is still a conditional
+  continuation theorem: it does not discharge the encrypt contracts, route evidence, oracle
+  laws, responder/decrypt roots, or restore/continue path. `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the
