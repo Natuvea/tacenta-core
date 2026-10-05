@@ -7,6 +7,8 @@ the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
 Last assessed: 2026-09-30, at `dea57eaf`. Row `E2E-07` was re-run later the same day
+
+Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
 at `75387aa9` and closed; the row records the run. The evidence named in rows `HL-IMP-01`,
 `INV-01`, `HL-FUZZ-01`, `HL-SC-10`,
 `HL-SC-14`, `HL-SC-16`, `TRACE-EVIDENCE-INDEX` and `SC-08-TRANSLATION-CHECKSUM`

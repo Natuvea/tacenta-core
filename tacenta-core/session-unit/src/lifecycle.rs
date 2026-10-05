@@ -1616,6 +1616,14 @@ impl PrekeyStore {
     ///   computed it, and no operation changes it.
     #[allow(clippy::manual_map)] // Explicit matches remain translatable by Aeneas.
     pub fn invariant(&self) -> bool {
+        // A successful last-resort establishment appends one replay record
+        // after the authenticated decrypt.  Keep one representable Vec slot
+        // available so the persistence invariant supplies the responder
+        // establishment headroom instead of leaving that boundary implicit.
+        if self.last_resort_seen.len() == usize::MAX {
+            return false;
+        }
+
         if !is_valid_identity_key(&self.identity_public) {
             return false;
         }
