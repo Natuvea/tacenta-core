@@ -1546,6 +1546,22 @@ theorem establish_initiator_for_success_step_refines_of_root_and_model
   · simpa [EstablishResultRefines] using hrel
   · exact htrace
 
+/-! The public wrapper fixes the expected identity to the bundle's advertised
+    identity.  This small theorem keeps the distinction visible: a successful
+    parameterised-root proof is not silently counted as a proof of the public
+    root until this wrapper equation is discharged. -/
+theorem establish_initiator_success_no_one_time_of_calls
+    {R : Type} (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (output : core.result.Result lifecycle.Session lifecycle.Error × R)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hfor : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok output) :
+    lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+      ok output := by
+  simpa [lifecycle.establish_initiator, hexpected] using hfor
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
