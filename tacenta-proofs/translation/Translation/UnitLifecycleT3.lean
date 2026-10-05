@@ -1189,6 +1189,98 @@ def public_establish_responder_end_to_end
       rw [hmodel]
       exact { result := ⟨hrel, hplaintext⟩, store := hstore, draws := htrace }
 
+/-! These adapters are the direct public-root joins for establishment.  The
+    evidence constructors above are useful when a branch has already been
+    classified; these theorems instead take the actual public call equation
+    and the corresponding model equation.  Keeping the relations and draw
+    trace explicit prevents a branch package from being mistaken for a proof
+    that the public root was reached. -/
+def public_establish_initiator_success_of_root_and_model {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng rngNext : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+      theirBundle rng = ok (.Ok realSession, rngNext))
+    (hmodel : modelStep = { result := .ok modelSession, oracle := oracleNext })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  refine ⟨(.Ok realSession, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := hrel, draws := htrace }
+
+def public_establish_initiator_refusal_of_root_and_model {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng rngNext : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+      theirBundle rng = ok (.Err reason, rngNext))
+    (hmodel : modelStep = { result := .error modelReason, oracle := oracleNext })
+    (hrefusal : refusalOf reason = modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  refine ⟨(.Err reason, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := by simpa [EstablishResultRefines] using hrefusal
+          draws := htrace }
+
+def public_establish_responder_success_of_root_and_model {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng rngNext : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (realStoreAfter : lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, realPlaintext), realStoreAfter, rngNext))
+    (hmodel : modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleNext })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (hstore : storeRel realStoreAfter modelStoreAfter)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := ⟨hrel, hplaintext⟩, store := hstore, draws := htrace }
+
+def public_establish_responder_refusal_of_root_and_model {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng rngNext : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (storeAfter : lifecycle.PrekeyStore) (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err reason, storeAfter, rngNext))
+    (hmodel : modelStep = { store := modelStore, result := .error modelReason, oracle := oracleNext })
+    (hstore : storeRel storeAfter modelStore)
+    (hrefusal : refusalOf reason = modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  refine ⟨(.Err reason, storeAfter, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := by simpa [ResponderResultRefines] using hrefusal
+          store := hstore
+          draws := htrace }
+
 /-! A typed public witness is enough to inhabit the corresponding end-to-end
     evidence record.  This is deliberately a shape split, not a new contract:
     impossible real/model result combinations are rejected by the refinement
