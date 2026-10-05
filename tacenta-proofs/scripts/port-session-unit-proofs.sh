@@ -135,10 +135,10 @@ for old, new, expected in [
     ("tacenta_triple_unit", "tacenta_session_unit", 2),
     ("Tacenta.UnitTripleT3", "Tacenta.SessionUnitTripleT3", 3),
     ("Tacenta.UnitTripleT1", "Tacenta.SessionUnitTripleT1", 6),
-    ("Tacenta.UnitT3", "Tacenta.SessionUnitT3", 43),
-    ("Tacenta.UnitSpqrT3", "Tacenta.SessionUnitSpqrT3", 54),
+    ("Tacenta.UnitT3", "Tacenta.SessionUnitT3", 55),
+    ("Tacenta.UnitSpqrT3", "Tacenta.SessionUnitSpqrT3", 62),
     ("Tacenta.UnitT1", "Tacenta.SessionUnitT1", 11),
-    ("Tacenta.UnitSpqrT1", "Tacenta.SessionUnitSpqrT1", 13),
+    ("Tacenta.UnitSpqrT1", "Tacenta.SessionUnitSpqrT1", 15),
     ("three-leaf translation unit", "eight-leaf Session translation unit", 1),
 ]:
     text = replace_exact(text, old, new, expected, origin)
