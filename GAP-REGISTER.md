@@ -168,6 +168,14 @@ gate obligations that are not individual reader findings.
   now have explicit responder continuations; their route/contract evidence and restore/continue
   composition remain conditional. `E2E-01` remains blocking.
 
+- 2026-10-05 candidate update: `public_encrypt_to_responder_then_decrypt` now composes the
+  successful sender wire, the exact responder establishment output, and the public `decrypt`
+  continuation in one kernel-checked theorem. It preserves the sender/model wire equalities and
+  exposes both responder refusal and authenticated-success branches with store and RNG relations.
+  This is a real three-root lifecycle edge, but the theorem still consumes the existing public
+  witnesses and continuation contracts; `decrypt_ratchet`, restore/continue, and the joint
+  contract/dispatch evidence remain open. `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the
