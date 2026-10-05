@@ -174,8 +174,9 @@ gate obligations that are not individual reader findings.
   successful sender wire, the exact responder establishment output, and the public `decrypt`
   continuation in one kernel-checked theorem. It preserves the sender/model wire equalities and
   exposes both responder refusal and authenticated-success branches with store and RNG relations.
-  This is a real three-root lifecycle edge, but the theorem still consumes the existing public
-  witnesses and continuation contracts; `decrypt_ratchet`, restore/continue, and the joint
+  Its sibling `public_encrypt_to_responder_then_decrypt_ratchet` now gives the same connected edge
+  for the ratchet receive root. These are real multi-root lifecycle edges, but the theorems still
+  consume the existing public witnesses and continuation contracts; restore/continue and the joint
   contract/dispatch evidence remain open. `E2E-01` remains blocking.
 
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
