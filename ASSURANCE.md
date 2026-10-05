@@ -37,7 +37,7 @@ The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
 target. Gate 2 is not met: four rows are open at BLOCKING in `GAP-REGISTER.md`
 (HL-R1-SPARSE-TRANSLATION, SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY and E2E-01, the last while the
-tacenta.com home page says "proven core"), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
+tacenta.com home page says "proven core"), and the rows MU-02 to MU-05 are BLOCKING in
 `ASSURANCE-OBLIGATIONS.md`. MU-01 and the Session orchestration component are now explicitly decided CLOSED at the recorded L2 target; that decision does not close the public-root composition, contract-vacuity or dispatch-vacuity gaps. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
 session replay with its listed limits satisfies the row (HL-IMP-01-READER tracks the remaining step), and INV-01 is classified
 NONBLOCKING. Gates 3 and 4 have not been met either; see the readiness section.
