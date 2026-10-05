@@ -4,6 +4,7 @@ import Translation.SessionUnitWireT3
 import Translation.SessionUnitWireInitialT3
 import Translation.SessionUnitSessionT1
 import Translation.SessionUnitBraidPreserveFacts
+import Translation.UnitLifecyclePublicT1
 import Model.Lifecycle
 import Mathlib.Tactic.IntervalCases
 
@@ -281,7 +282,10 @@ theorem take_one_time_kem_loop_preserves_fields
           a2 = store.kem_sig ∧ v = store.kem_one_time ∧
           o = store.previous_signed_prekey ∧ o1 = store.previous_kem ∧
           i2 = store.next_id ∧ v1 = store.last_resort_seen ∧
-          v2 = store.legacy_last_resort_blocked ⦄ := by
+          v2 = store.legacy_last_resort_blocked ∧
+          (match found1 with
+          | none => True
+          | some foundIndex => foundIndex.val < store.kem_one_time.val.length) ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_kem_loop
   apply loop.spec_decr_nat
     (measure := fun i => store.kem_one_time.val.length - i.val)
@@ -293,11 +297,58 @@ theorem take_one_time_kem_loop_preserves_fields
     · step
       split
       · simp
+        scalar_tac
       · step
         case hmax => scalar_tac
         case a => constructor <;> scalar_tac
     · simp
   · exact hindex
+
+/-! The public KEM removal preserves the whole store shape.  Its opaque
+    `Vec::pop` call is needed only for totality here; the value-level
+    swap/remove equation is kept separate in `hkem` below. -/
+theorem take_one_time_kem_preserves_nonvector_fields
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (store : lifecycle.PrekeyStore) (id : Std.U32) :
+    lifecycle.PrekeyStore.take_one_time_kem store id
+      ⦃ fun r => r.2 = { store with kem_one_time := r.2.kem_one_time } ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem
+  step with take_one_time_kem_loop_preserves_fields store id 0#usize (by simp)
+  rcases pkb_post with ⟨hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, hv, ho, ho1,
+    hi2, hv1, hv2, hfound⟩
+  rcases found with _ | foundIndex
+  · simp [hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, hv, ho, ho1, hi2, hv1, hv2]
+  · step
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hfoundV : foundIndex.val < v.val.length := by
+      rw [hv]
+      exact hfound
+    have hlastV : r.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at r_post1 r_post2
+      omega
+    step with Tacenta.UnitLifecycleT1.slice_swap_no_panic v foundIndex r hfoundV hlastV
+    obtain ⟨popped, hpopped⟩ := hpop _ s1
+    rw [hpopped]
+    rcases popped with ⟨poppedValue, poppedVec⟩
+    rcases poppedValue with _ | entry
+    · simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+        hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, ho, ho1, hi2, hv1, hv2]
+    · rcases entry with ⟨entryId, entryPair, entrySignature⟩
+      simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+        hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, ho, ho1, hi2, hv1, hv2]
+
+theorem take_one_time_kem_result_preserves_nonvector_fields
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (store : lifecycle.PrekeyStore) (id : Std.U32)
+    (result : Option tacenta_boundary.kem.KeyPair) (after : lifecycle.PrekeyStore)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem store id =
+      ok (result, after)) :
+    after = { store with kem_one_time := after.kem_one_time } := by
+  have h := take_one_time_kem_preserves_nonvector_fields hpop store id
+  rw [htake] at h
+  simpa [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return] using h
 
 /-! A first concrete authenticated commit bridge.  The generated KEM removal
     returns a store whose non-KEM fields are copied from the input; the only
@@ -2467,8 +2518,8 @@ theorem establish_responder_success_step_refines_of_root_and_model
     `storeRel` adapter above, this result is tied to the concrete field
     relation and to the model's authenticated KEM consumption.  It is the
     composition point the no-curve/no-last-resort responder branch will use
-    once the generated `take_one_time_kem` effect law supplies `hshape` and
-    `hkem`. -/
+    once the generated call-site supplies the concrete store result and the
+    value-level KEM list equation. -/
 theorem establish_responder_success_step_refines_of_field_store_kem_consumption
     {R : Type}
     (kemView : KemView) (trace : R → List Model.Lifecycle.Key)
@@ -2484,7 +2535,12 @@ theorem establish_responder_success_step_refines_of_field_store_kem_consumption
     (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
     (modelOracleAfter : Model.Lifecycle.Oracle)
     (hbefore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
-    (hshape : storeAfter = { ourPrekeys with kem_one_time := storeAfter.kem_one_time })
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (kemRemovalId : Std.U32)
+    (kemResult : Option tacenta_boundary.kem.KeyPair)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem ourPrekeys kemRemovalId =
+      ok (kemResult, storeAfter))
     (hkem : kemOneTimeOf storeAfter.kem_one_time kemView =
       Model.swapRemove (fun entry => entry.1 == kemId)
         modelStore.state.kemOneTime)
@@ -2506,6 +2562,8 @@ theorem establish_responder_success_step_refines_of_field_store_kem_consumption
       ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
         (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
           (sliceOf initialMessage)) := by
+  have hshape := take_one_time_kem_result_preserves_nonvector_fields hpop
+    ourPrekeys kemRemovalId kemResult storeAfter htake
   have hstore := prekey_store_refines_after_kem_consumption kemView dh
     ourPrekeys modelStore kemId storeAfter hbefore hshape hkem
   exact establish_responder_success_step_refines_of_root_and_model

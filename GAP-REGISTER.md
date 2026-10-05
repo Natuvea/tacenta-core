@@ -202,12 +202,14 @@ gate obligations that are not individual reader findings.
 
 - 2026-10-05 candidate update: `take_one_time_kem_loop_preserves_fields` now kernel-checks that
   the generated KEM one-time-key search carries every persisted field unchanged to its terminal
-  tuple. `prekey_store_refines_after_kem_consumption` and
+  tuple. `take_one_time_kem_preserves_nonvector_fields` and its successful-result corollary now
+  kernel-check that the generated swap/pop mutation changes only `kem_one_time`; they need pop
+  totality, not a guessed store relation. `prekey_store_refines_after_kem_consumption` and
   `establish_responder_success_step_refines_of_field_store_kem_consumption` then connect the
-  no-curve/no-last-resort authenticated shape to the model's swap-remove store transition using
-  an explicit field-level mutation premise. This removes the arbitrary `storeRel` at that
-  composition point, but the generated swap/pop value law and the other three commit shapes are
-  still open; `E2E-01` remains blocking.
+  no-curve/no-last-resort authenticated shape to the model's swap-remove store transition. The
+  remaining explicit premise at that point is the value-level KEM vector-to-model equation; the
+  other three commit shapes, public five-root composition, and dispatch/contract review are still
+  open; `E2E-01` remains blocking.
 
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
