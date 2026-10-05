@@ -397,6 +397,57 @@ theorem generated_reaches_open_path (dh : DhView) (view : Model.Lifecycle.Codewo
       rw [refusalOf_injective he]
   exact ⟨output, hcall, hout, .Classical .OutOfOrder, hout, rfl⟩
 
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+/-- The generated open-path witness with its complete agreement record built from the joint
+boundary shapes.  This is the shape-backed facade for `generated_reaches_open_path`. -/
+theorem generated_reaches_open_path_from_shapes
+    (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (hA : AllT1Shapes Interp.real) (hL : StdLaws Interp.real)
+    (hTP : TruncatePrefixShape Interp.real)
+    (hD : ZeroizingModelShape Interp.real DerivedZ)
+    (hT : T3Agreements Interp.real
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)).braidKem)
+    (hZ : ZeroizeRoundTripShapes Interp.real)
+    (hC : DhCodecOfShape Interp.real ⟨dh.privateKey, dh.publicKey⟩)
+    (hO : DecryptOracleShape Interp.real ⟨dh.privateKey, dh.publicKey⟩
+      Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+      Tacenta.UnitLifecycleIntegrationScreen.byteTrace
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)))
+    (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc (refReal sk pk) succMessage sampleRng =
+          ok output ∧ output.1 = .Err (.Triple (.Classical .OutOfOrder)) ∧
+      TripleRefusalOpen output := by
+  have hb := decrypt_shapes_are_predicates
+  let oracle := oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)
+  have oracleOf := (hb.2.1 Tacenta.UnitLifecycleIntegrationScreen.byteRng
+    Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+    Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle).2 hO
+  have codec := (hb.1 dh).2 hC
+  have hz := hb.2.2.2 hZ
+  have r32 : Tacenta.UnitLifecycleT1.Random32Total Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    fun _ _ _ => ⟨_, rfl⟩
+  have ax : DecryptAxiom Interp.real Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    ⟨hA.dhCodec, hA.dhAgree, hA.aeadOpen, r32,
+      ⟨hA.ct1Len, hA.ct2Len, hA.headerLen, hA.ekVectorLen, hA.keyPairEkVector,
+        hA.keyPairDecapsulate, hA.hkdf, hA.hmac, hA.validateEk, hA.encapsulate2, hA.keyPairClone,
+        hA.encapsStateClone, hA.optionClone, hA.zeroizingArray, hA.arrayZeroize, hA.rangeFullIndex⟩,
+      ⟨hA.hmac, hA.hkdf, hA.zeroizingTotal, hA.spqrZeroize, hA.vecRetainAxiom, hA.optionClone,
+        trivial⟩,
+      hA.messageKeyMaterial⟩
+  have contracts := Tacenta.UnitSatisfiabilityRecords.decrypt_contracts_of_axiom_base
+    Tacenta.UnitLifecycleIntegrationScreen.byteRng ax hL
+  have er : Tacenta.SessionUnitBraidT3.ErasureAgrees :=
+    Tacenta.UnitErasureRs.Glue.erasureAgrees hA.divCeilValue hTP
+  obtain ⟨vr, rm⟩ := Tacenta.SessionUnitSatisfiabilitySpqrLaws.session_sparse_agreements_of_shapes
+    hL hA.vecRetainAxiom hA.spqrZeroize
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := hD.toDerived
+  have agreements : DecryptRatchetAgreements oracle.braidKem :=
+    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
+      hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
+  exact generated_reaches_open_path dh view oracleOf codec contracts agreements sk pk
+
 end Tacenta.UnitLifecycleDecryptRatchetCompleteScreen
 
 /-! ## Pins -/
