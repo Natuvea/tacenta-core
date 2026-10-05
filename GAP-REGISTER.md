@@ -179,6 +179,15 @@ gate obligations that are not individual reader findings.
   consume the existing public witnesses and continuation contracts; restore/continue and the joint
   contract/dispatch evidence remain open. `E2E-01` remains blocking.
 
+- 2026-10-05 candidate update: `session_import_success_has_invariant` now kernel-checks the
+  successful public `Session::import` control flow after an exact successful
+  `import_unchecked` equation: export, zeroizing dereference, byte comparison, and the final
+  invariant gate are all split explicitly, so a restored session supplied to a later receive root
+  carries `Session::invariant = true`. The generated decoder, slice-comparison law, and the
+  decoded-session-to-`SessionRefines` relation are still boundary premises; this is a restore
+  postcondition bridge, not closure of the establish→send/receive→restore/continue path.
+  `E2E-01` and `SESSION-CONTRACT-VACUITY` remain blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the

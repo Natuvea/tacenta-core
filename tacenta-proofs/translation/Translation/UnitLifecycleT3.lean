@@ -62,6 +62,58 @@ structure SessionRefines (view : DhView) (K : Model.Braid.Kem)
   pendingInitial : real.pending_initial.map (pendingInitialOf view) = model.pendingInitial
   establishedEphemeral : real.established_ephemeral.map vecOf = model.establishedEphemeral
 
+/-! ## Restore boundary
+
+The public import path is deliberately checked in two stages: the unchecked
+decoder produces a candidate, then `Session::import` re-encodes it and checks
+the cross-field invariant.  The generated boundary leaves the decoder and the
+slice comparison opaque, so the T3 bridge states the exact successful decoder
+equation it consumes instead of silently treating every public import success
+as a decoded-state witness.  Once the decoder equation is supplied, the
+kernel proof below follows the actual public control flow and exposes the
+post-restore invariant needed by the receive roots.
+-/
+
+theorem session_import_success_has_invariant
+    (bytes : Slice Std.U8) (session : lifecycle.Session)
+    (hdecode : lifecycle.Session.import_unchecked bytes =
+      ok (core.result.Result.Ok session))
+    (himport : lifecycle.Session.import bytes = ok (.Ok session)) :
+    lifecycle.Session.invariant session = ok true := by
+  simp [lifecycle.Session.import, hdecode,
+    core.result.Result.Insts.CoreOpsTry.branch] at himport
+  cases hE : session.export with
+  | ok z =>
+    simp [hE] at himport
+    cases hD : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z with
+    | ok v =>
+      simp [hD] at himport
+      cases hS : alloc.vec.Vec.as_slice Global v with
+      | ok s =>
+        simp [hS] at himport
+        cases hN : core.cmp.PartialEq.ne.default
+            (core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8) s bytes with
+        | ok b =>
+          simp [hN] at himport
+          split at himport
+          · simp at himport
+          · cases hI : session.invariant with
+            | ok b1 =>
+              simp [hI] at himport
+              cases b1 <;> simp_all
+            | fail e => simp [hI] at himport
+            | div => simp [hI] at himport
+        | fail e => simp [hN] at himport
+        | div => simp [hN] at himport
+      | fail e => simp [hS] at himport
+      | div => simp [hS] at himport
+    | fail e => simp [hD] at himport
+    | div => simp [hD] at himport
+  | fail e => simp [hE] at himport
+  | div => simp [hE] at himport
+
 /-! The lifecycle unit and the Braid port call the same generated KDF
     operations. Keep the correspondence at the shared lifecycle boundary so
     callers do not restate the same primitive contracts under Braid-specific
