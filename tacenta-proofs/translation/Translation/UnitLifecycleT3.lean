@@ -1378,6 +1378,59 @@ theorem public_initiator_then_encrypt
                     encryptOutput, hroot, rfl, hrel, htrace, hencrypt,
                     hencryptRefines⟩
 
+/-! Repackage the successful arm of the preceding join at the exact
+    post-establishment state.  This is intentionally a witness-producing
+    adapter: it makes the initiator -> encrypt edge consumable by the
+    cross-session wire theorem, while retaining the establishment refusal arm
+    instead of silently assuming that establishment succeeded. -/
+theorem public_initiator_then_encrypt_witness
+    {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    {view : Model.Lifecycle.CodewordView} {plaintext : Slice Std.U8}
+    (established : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {modelSession : Model.Lifecycle.Session} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) →
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } →
+      ∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Err reason, rngAfter) ∧
+      modelStep = { result := .error modelReason, oracle := oracleAfter } ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) ∧
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      trace rngAfter = oracleAfter.draws ∧
+      (∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext)))) := by
+  obtain branch := public_initiator_then_encrypt established continuation
+  cases branch with
+  | inl refusal => exact Or.inl refusal
+  | inr success =>
+      rcases success with ⟨realSession, modelSession, oracleAfter, rngAfter,
+        output, hroot, hmodel, hrel, htrace, hencrypt, hencryptRefines⟩
+      exact Or.inr ⟨realSession, modelSession, oracleAfter, rngAfter, hroot,
+        hmodel, hrel, htrace, ⟨output, hencrypt, hencryptRefines⟩⟩
+
 /-! A typed public witness is enough to inhabit the corresponding end-to-end
     evidence record.  This is deliberately a shape split, not a new contract:
     impossible real/model result combinations are rejected by the refinement

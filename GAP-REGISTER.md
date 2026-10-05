@@ -146,8 +146,10 @@ gate obligations that are not individual reader findings.
 - 2026-10-05 candidate update: `public_initiator_then_encrypt` now composes an established
   initiator witness with the next public `encrypt` root at the exact post-establishment session,
   model state, and RNG trace, while retaining the establishment refusal arm. This removes an
-  outer adapter seam and kernel-checks on the candidate, but it is still a conditional
-  continuation theorem: it does not discharge the encrypt contracts, route evidence, oracle
+  outer adapter seam; `public_initiator_then_encrypt_witness` now exposes its successful arm as
+  the exact encrypt witness consumed by the cross-session sender/receiver composition. These
+  theorems kernel-check on the candidate, but they are still conditional
+  continuations: they do not discharge the encrypt contracts, route evidence, oracle
   laws, responder/decrypt roots, or restore/continue path. `E2E-01` remains blocking.
 
 - 2026-10-05 candidate update: `public_responder_then_decrypt_ratchet` now provides the matching
