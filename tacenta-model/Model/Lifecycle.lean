@@ -2090,12 +2090,13 @@ theorem prepareResponder_kem_refusal (oracle : Oracle) (identity : Identity)
       some signedSecret)
     (hk : responderKemPair store initial.kemPrekeyId.toNat =
       .ok (kemPair, lastResort))
-    (hv : oracle.identityValid initial.identity.drop 1 = true)
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
     (ho : responderOneTimeSecret store initial.oneTimeId.toNat =
       .ok oneTimeSecret)
     (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
     prepareResponder oracle identity store initialMessage = .error .kem := by
-  simp [prepareResponder, hd, hs, hk, hv, ho, hkem]
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  simp [prepareResponder, hd, hs, hk, hv', ho, hkem]
 
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes

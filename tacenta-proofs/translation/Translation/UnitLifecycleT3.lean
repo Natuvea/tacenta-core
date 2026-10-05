@@ -1256,7 +1256,7 @@ theorem establish_responder_kem_refusal_step_refines_of_root {R : Type}
       initial.signedPrekeyId.toNat = some signedSecret)
     (hk : Model.Lifecycle.responderKemPair modelStore
       initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
-    (hv : oracle.identityValid initial.identity.drop 1 = true)
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
     (ho : Model.Lifecycle.responderOneTimeSecret modelStore
       initial.oneTimeId.toNat = .ok oneTimeSecret)
     (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
