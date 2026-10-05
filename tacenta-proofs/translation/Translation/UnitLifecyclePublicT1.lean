@@ -1105,6 +1105,7 @@ structure DecryptRatchetHeadroom (self : lifecycle.Session) : Prop where
   triple : ReceiveHeadroom self.triple
   braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
   braidDecoders : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.braid.state
+  braidDecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized self.braid.state
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
 
 /-- The Triple invariant discharges every receive-capacity premise inherited
@@ -1240,6 +1241,29 @@ theorem hdr_decoder_bounded
   rw [hd]
   simpa using hdle
 
+/-- The responder's fresh header decoder reserves the protocol header-plus-MAC
+size, not an attacker-chosen size. -/
+theorem hdr_decoder_sized
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hhl : Tacenta.SessionUnitBraidT1.HeaderLenTotal) :
+    tacenta_braid.hdr_decoder ⦃ fun d => d.size.val ≤ 4128 ⦄ := by
+  obtain ⟨v, hv, hvle⟩ := hhl
+  unfold tacenta_braid.hdr_decoder
+  simp only [hv, Aeneas.Std.bind_tc_ok]
+  step
+  case hmax =>
+    simp [tacenta_braid.MAC_LEN] at *
+    have hmax : 4296 ≤ Usize.max :=
+      Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
+    omega
+  case a =>
+    unfold tacenta_erasure.Decoder.new
+    obtain ⟨r, hr, hrv⟩ := hdiv i1
+    simp only [tacenta_erasure.chunk_count, tacenta_erasure.CHUNK_BYTES]
+    rw [hr]
+    simp [i1_post, tacenta_braid.MAC_LEN]
+    exact hvle
+
 /-- A freshly built responder Braid meets both receive preconditions: the ciphertext cap
 (it holds no ciphertext) and the decoder bound. -/
 theorem braid_responder_headroom
@@ -1257,6 +1281,30 @@ theorem braid_responder_headroom
   simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
     Tacenta.SessionUnitBraidT1.State.decoders_bounded]
   assumption
+
+/-- The responder initializer carries all three receive-state facts together.  This
+is the composition point used by lifecycle proofs, so the facts remain attached to
+the same returned Braid rather than being obtained from separate executions. -/
+theorem braid_responder_headroom_sized
+    (hkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hhl : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (secret : Slice U8) :
+    tacenta_braid.Braid.responder secret ⦃ fun braid =>
+      Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state ∧
+      Tacenta.SessionUnitBraidT1.State.decoders_bounded braid.state ∧
+      Tacenta.SessionUnitBraidT1.State.decoders_sized braid.state ⦄ := by
+  unfold tacenta_braid.Braid.responder
+  obtain ⟨d, hd, hdb, hds⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitDecoderBound.spec_and
+      (hdr_decoder_bounded hdiv hhl) (hdr_decoder_sized hdiv hhl))
+  step with Tacenta.SessionUnitBraidT1.Auth.init_no_panic hkdf hz 1#u64 secret
+  rw [hd]
+  simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_sized]
+  exact ⟨hdb, hds⟩
 
 theorem identity_ad_length (hdh : DhCodecTotal)
     (initiator responder : tacenta_boundary.dh.PublicKeyBytes) :
@@ -1295,6 +1343,7 @@ theorem decrypt_ratchet_no_panic {R : Type}
         boundary.braid.arrayZeroize boundary.braid.rangeFullIndex
         self.braid braidMsg (DecryptRatchetHeadroom.braid headroom)
         (DecryptRatchetHeadroom.braidDecoders headroom)
+        (DecryptRatchetHeadroom.braidDecoderSize headroom)
       rcases hag : ag_out with _ | o <;> simp only [hag, tacenta_spqr.Output.new]
       all_goals step with public_key_from_bytes_no_panic boundary.dhCodec decoded.header.dh
       all_goals step with private_key_agree_no_panic boundary.dhAgree self.ratchet_private
@@ -1460,6 +1509,7 @@ theorem responder_initial_decrypt_headroom
     (htriple : ReceiveHeadroom triple)
     (hbraid : Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state)
     (hdecoders : Tacenta.SessionUnitBraidT1.State.decoders_bounded braid.state)
+    (hdecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized braid.state)
     (had : identityAd.val.length = 66) :
     DecryptRatchetHeadroom
       {
@@ -1476,6 +1526,7 @@ theorem responder_initial_decrypt_headroom
   · exact htriple
   · exact hbraid
   · exact hdecoders
+  · exact hdecoderSize
   · rw [had]
     exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
 
@@ -1516,7 +1567,7 @@ theorem responder_initial_decrypt_headroom_witness {R : Type}
         sk ourPublic labels)
   obtain ⟨braid, _, hbraid⟩ :=
     Std.WP.spec_imp_exists
-      (braid_responder_headroom
+      (braid_responder_headroom_sized
         contracts.decrypt.braid.hkdf
         contracts.decrypt.braid.zeroizingArray
         contracts.divCeilValue
@@ -1527,7 +1578,7 @@ theorem responder_initial_decrypt_headroom_witness {R : Type}
       (identity_ad_length contracts.decrypt.dhCodec initiatorIdentity ourIdentity)
   exact ⟨triple, braid, identityAd,
     responder_initial_decrypt_headroom triple braid ratchetPrivate identityAd
-      ourIdentity peerIdentity ephemeral htriple hbraid.1 hbraid.2 had⟩
+      ourIdentity peerIdentity ephemeral htriple hbraid.1 hbraid.2.1 hbraid.2.2 had⟩
 
 set_option maxHeartbeats 1000000 in
 theorem establish_responder_no_panic {R : Type}
@@ -1616,12 +1667,12 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with public_key_as_bytes_no_panic contracts.decrypt.dhCodec pkb
               all_goals step with triple_init_receiver_headroom contracts.decrypt.triple.hkdf contracts.decrypt.triple.zeroizing contracts.spqrKdfInit contracts.decrypt.triple.spqrZeroize s3 a2 tacenta_ratchet.LabelSet.Tacenta
               all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
-              all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.divCeilValue contracts.decrypt.braid.headerLen s4
+              all_goals step with braid_responder_headroom_sized contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.divCeilValue contracts.decrypt.braid.headerLen s4
               all_goals step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
               all_goals step with identity_public_no_panic contracts.decrypt.dhCodec ourIdentity
               all_goals step with identity_ad_length contracts.decrypt.dhCodec initiatorIdentity pkb1
               all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
-              all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post1 braid_post2 v_post
+              all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post1 braid_post2 braid_post3 v_post
               all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
               all_goals (rcases r7 with decrypted | decryptError)
               all_goals try

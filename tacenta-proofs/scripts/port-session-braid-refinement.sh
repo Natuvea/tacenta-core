@@ -62,10 +62,11 @@ attribute [-step] Tacenta.SessionUnitT1.zeroizing_deref_step
 """, 1)
 
 # In the complete unit `Decoder::message` is a translated definition and returns only for a
-# decoder that needs at most `MAX_CODEWORDS` chunks (`SessionUnitBraidT1.DecoderMessageTotal`
-# states that, and `SessionBraidReceiveVacuity.lean` refutes the statement without the bound).
-# The refinement theorems therefore take the bound from the state (`State.decoders_bounded`),
-# carry it across `add_chunk` and across the state clone, and pass it to `hdmsg`. The
+# decoder with a protocol-sized output reservation and at most `MAX_CODEWORDS` chunks
+# (`SessionUnitBraidT1.DecoderMessageTotal` states both, and `SessionBraidReceiveVacuity.lean`
+# refutes the statement without the chunk bound). The refinement theorems therefore take the
+# two bounds from the state (`State.decoders_sized` and `State.decoders_bounded`), carry them
+# across `add_chunk` and across the state clone, and pass them to `hdmsg`. The
 # standalone BraidT3.lean has an opaque `Decoder` and keeps its statements. Each edit below
 # names the place it changes and fails if the source proof no longer has exactly that text.
 def unit_edit(text, label, old, new, expected=1):
@@ -80,6 +81,7 @@ for name, count in [("ct1_dec1", 1), ("ek_dec1", 3), ("ct2_dec1", 1), ("hdr_dec1
     text = unit_edit(text, f"message call on {name}",
         f"obtain ⟨omsg, homsg⟩ := hdmsg {name}\n",
         f"obtain ⟨omsg, homsg⟩ := hdmsg {name} "
+        f"(Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) "
         f"(Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)\n", count)
 
 text = unit_edit(text, "step_receive_refines signature",
@@ -87,6 +89,7 @@ text = unit_edit(text, "step_receive_refines signature",
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val state).val + 1 < Std.U64.max)""",
     """    (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val state).val + 1 < Std.U64.max)""")
 
 text = unit_edit(text, "receive_refines signature",
@@ -94,6 +97,7 @@ text = unit_edit(text, "receive_refines signature",
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)""",
     """    (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)""")
 
 text = unit_edit(text, "receive_refines clone step",
@@ -109,7 +113,7 @@ text = unit_edit(text, "receive_refines clone step",
 
 text = unit_edit(text, "receive_refines step_receive call",
     "self s msg (hct1bimp hct1b) (by rw [hepocheq]; exact hepoch)",
-    "self s msg (hct1bimp hct1b) (s_post4 hdb) (by rw [hepocheq]; exact hepoch)")
+    "self s msg (hct1bimp hct1b) (s_post4 hdb) (s_post5 hds) (by rw [hepocheq]; exact hepoch)")
 
 text = unit_edit(text, "step_receive_refines note on the decoder bound",
     """but `epoch + 1 < u64::MAX` is strictly more than that, and is the caller's
@@ -117,11 +121,11 @@ premise, not a fact about reachable states. -/""",
     """but `epoch + 1 < u64::MAX` is strictly more than that, and is the caller's
 premise, not a fact about reachable states.
 
-`hdb` is the decoder bound (`SessionUnitBraidT1.State.decoders_bounded`): every decoder the
-state holds needs at most `MAX_CODEWORDS` chunks. `hdmsg` is stated for such decoders only,
+`hdb` is the decoder chunk bound (`SessionUnitBraidT1.State.decoders_bounded`) and `hds` is the
+decoder output-size bound (`State.decoders_sized`). `hdmsg` is stated for decoders satisfying both,
 because the unit's `Decoder::message` fails for a decoder that needs and holds
 `(Usize.max + 1) / 32` chunks, and the Braid's bound `MAX_CODEWORDS` is far below that; `add_chunk` keeps `needed`
-(`SessionUnitDecoderBound`), so the bound on the state gives it for the decoder after the
+(`SessionUnitDecoderBound`) and `size`, so the state bounds give them for the decoder after the
 chunk is added. -/""")
 
 remove = [

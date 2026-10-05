@@ -556,6 +556,7 @@ theorem decrypt_ratchet_refines_or_open {R : Type}
       contracts.braid.optionClone contracts.braid.zeroizingArray contracts.braid.arrayZeroize
       contracts.braid.rangeFullIndex real.braid msg
       (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braid headroom) (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoders headroom)
+      (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoderSize headroom)
       run.braidEpoch hrel.braid hmsgRel hhonest)
   obtain ⟨-, houtRel, hnextRel⟩ := hrecvPost
   have hsparseEx : ∃ sparse, RealSparseConversion out sparse := by

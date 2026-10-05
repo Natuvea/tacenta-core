@@ -50,6 +50,12 @@ theorem sized_decoders_bounded {s : State} (h : State.sized s) : State.decoders_
   rcases s with _|_|_|_|_|_|_|_|_|_|_|_ <;>
     simp_all [State.sized, State.decoders_bounded, Good]
 
+/-- `State.sized` also supplies the concrete output-reservation bound needed
+by the translated `Decoder::message` totality contract. -/
+theorem sized_decoders_sized {s : State} (h : State.sized s) : State.decoders_sized s := by
+  rcases s with _|_|_|_|_|_|_|_|_|_|_|_ <;>
+    simp_all [State.sized, State.decoders_sized, Good] <;> omega
+
 /-- A Braid with `sized` has `Braid.Inv`, the two-field mirror of `Braid::invariant`. -/
 theorem sized_inv {b : Braid} (h : Braid.sized b) :
     Tacenta.SessionUnitBraidImportInv.Braid.Inv b :=
@@ -248,7 +254,7 @@ theorem Braid.Run.receive_no_panic (hl : Laws) (hencaps1 : Encapsulate1Total)
   have hs := Braid.Run.sized_of_start hl hct1len hct2len hhdrlen hekveclen hencaps1 hrun
   Braid.receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap
     hkdf hmac hvalek hencaps2 henc hdec hkp hes hopt hz hzz hrf self msg
-    (State.sized_ct1_bounded hs) (sized_decoders_bounded hs)
+    (State.sized_ct1_bounded hs) (sized_decoders_bounded hs) (sized_decoders_sized hs)
 
 /-- **`receive` refines `Model.Braid.receive` on a Braid a run reaches**, under the premises of
 `SessionUnitBraidT3.Braid.receive_refines` other than `ct1_bounded` and `decoders_bounded`.  Beyond
@@ -283,7 +289,8 @@ theorem Braid.Run.receive_refines {K : Model.Braid.Kem} (hl : Laws) (hencaps1 : 
   have hs := Braid.Run.sized_of_start hl hct1lenB hct2lenB hheaderlenB hekveclenB hencaps1 hrun
   Tacenta.SessionUnitBraidT3.Braid.receive_refines hka hea hmac hkdf hlens hvalek hencaps2len
     hdadd hdmsg hct1lenB hct2lenB hheaderlenB hkcl hecl henc hdec hkp hes hopt hz hzz hrf self msg
-    (State.sized_ct1_bounded hs) (sized_decoders_bounded hs) hepoch hrel hmsg hhonest
+    (State.sized_ct1_bounded hs) (sized_decoders_bounded hs) (sized_decoders_sized hs)
+    hepoch hrel hmsg hhonest
 
 /-! ## E. The two-field mirror is not closed under the transitions by itself -/
 

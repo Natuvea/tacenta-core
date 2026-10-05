@@ -172,6 +172,7 @@ theorem braid_receive_evidence
       real.braid message
         (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braid headroom)
         (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoders headroom)
+        (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoderSize headroom)
         hepoch hrel.braid
       hmessageRel hhonest)
   rcases result with ⟨receivedEpoch, output, next⟩

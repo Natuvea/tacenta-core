@@ -45,8 +45,8 @@ for old, new, expected in substitutions:
 
 # In the complete unit the erasure decoder is a translated definition, so `Braid::invariant`
 # can be unfolded to the `Decoder::invariant` calls it makes, and that is what gives the receive
-# theorems their decoder bound (`State.decoders_bounded`; `Decoder::message` returns only for a
-# decoder that needs at most `MAX_CODEWORDS` chunks). The standalone ImportInv.lean has opaque
+# theorems their decoder chunk bound (`State.decoders_bounded`; `Decoder::message` additionally
+# requires the protocol size bound `State.decoders_sized`). The standalone ImportInv.lean has opaque
 # erasure types and derives the `ct1_bounded` clause alone. Each edit below names the place it
 # changes and fails if the source proof no longer has exactly that text.
 def unit_edit(text, label, old, new, expected=1):
@@ -115,6 +115,20 @@ body = unit_edit(body, "decoded_receive_no_panic decoder bound",
 """,
     """    (from_bytes_establishes_inv hct1len bytes self hdec').ct1_bounded
     (from_bytes_establishes_inv hct1len bytes self hdec').decoders_bounded
+""")
+
+body = unit_edit(body, "decoded_receive_no_panic sized decoder bound",
+    """    (hdec' : Braid.from_bytes bytes = ok (core.result.Result.Ok self)) (msg : Msg) :
+    Braid.receive self msg""",
+    """    (hdec' : Braid.from_bytes bytes = ok (core.result.Result.Ok self)) (msg : Msg)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state) :
+    Braid.receive self msg""")
+
+body = unit_edit(body, "decoded_receive_no_panic pass sized decoder bound",
+    """    (from_bytes_establishes_inv hct1len bytes self hdec').decoders_bounded
+""",
+    """    (from_bytes_establishes_inv hct1len bytes self hdec').decoders_bounded
+    hds
 """)
 
 body = unit_edit(body, "decoded receive title",

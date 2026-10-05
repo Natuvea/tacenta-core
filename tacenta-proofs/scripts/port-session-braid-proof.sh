@@ -62,8 +62,9 @@ for old, new, expected in substitutions:
 # translated definition and "it returns for every decoder" is false (a decoder that needs
 # (Usize.max + 1) / 32 chunks overflows the output vector; see SessionBraidReceiveVacuity.lean).
 # The standalone BraidT1.lean has an opaque `Decoder` and keeps its statement. In the unit the
-# field is stated for decoders within MAX_CODEWORDS, and the receive theorems take that bound
-# from the state (`State.decoders_bounded`). Each edit below names the place it changes and
+# field is stated for decoders with both a protocol-sized output reservation and at most
+# MAX_CODEWORDS chunks, and the receive theorems take those bounds from the state
+# (`State.decoders_sized` and `State.decoders_bounded`). Each edit below names the place it changes and
 # fails if the source proof no longer has exactly that text.
 def unit_edit(text, label, old, new, expected=1):
     found = text.count(old)
@@ -79,20 +80,16 @@ text = unit_edit(text, "DecoderMessageTotal",
     f"""def DecoderMessageTotal : Prop :=
   ∀ (d : {E}Decoder), ∃ r, {E}Decoder.message d = ok r
 """,
-    f"""/-- `Decoder::message` returns for every decoder that needs at most `MAX_CODEWORDS`
-(65536) chunks, the bound `Decoder::invariant` checks. The translation's `Vec::with_capacity`
-never fails, so the statement also holds for a decoder with a small `needed` and a huge `size`,
-on which the Rust function panics or aborts; `Decoder::invariant` rejects such a decoder through
-`needed == chunk_count(size)`. The bound is part of the
-statement: in the complete unit `Decoder::message` is a translated definition, and it fails for a
-decoder that needs and holds `(Usize.max + 1) / 32` chunks (`SessionBraidReceiveVacuity.lean`), so the
-statement without the bound, `DecoderMessageTotalUnbounded`, is false. The Braid builds no such
-decoder. The public `Decoder::new(usize::MAX)` does build one that needs that many chunks, but
-`Decoder::add_chunk` admits one chunk per `u16` index, so a decoder the crate builds holds at most
-65536 chunks, and that one never has a message.
-The receive theorems take the bound from the state (`State.decoders_bounded`). -/
+    f"""/-- `Decoder::message` returns for every protocol-sized decoder that needs at most
+`MAX_CODEWORDS` (65536) chunks. Both bounds matter in the concrete unit: the translated function
+reserves its output by `size`, while its reconstruction workspace is bounded by `needed`. The
+old needed-only field admitted a decoder with a small `needed` and a huge `size`, which is not a
+real reachable decoder but is enough to make the contract vacuous at the translated boundary.
+The field is stated for `size <= 4128`, the largest Braid decoder, and `needed <= 65536`; the
+preservation facts supply both. The unbounded statement remains false for the old witness in
+`SessionBraidReceiveVacuity.lean`. -/
 def DecoderMessageTotal : Prop :=
-  ∀ (d : {E}Decoder), d.needed.val ≤ 65536 →
+  ∀ (d : {E}Decoder), d.size.val ≤ 4128 → d.needed.val ≤ 65536 →
     ∃ r, {E}Decoder.message d = ok r
 
 /-- `DecoderMessageTotal` without the bound on `needed`. It is false
@@ -126,6 +123,18 @@ def State.decoders_bounded : State → Prop
   | .Ct1Acknowledged _ _ _ _ _ ek_dec => ek_dec.needed.val ≤ 65536
   | _ => True
 
+/-- The output reservation of every decoder held by a reachable Braid is at
+most the largest protocol decoder (4128 bytes). This is separate from
+`decoders_bounded`, whose name and callers retain the chunk-count fact. -/
+def State.decoders_sized : State → Prop
+  | .HeaderSent _ _ _ ct1_dec _ => ct1_dec.size.val ≤ 4128
+  | .EkSentCt1Received _ _ _ _ ct2_dec => ct2_dec.size.val ≤ 4128
+  | .NoHeaderReceived _ _ hdr_dec => hdr_dec.size.val ≤ 4128
+  | .HeaderReceived _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | .Ct1Sampled _ _ _ _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | .Ct1Acknowledged _ _ _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | _ => True
+
 """)
 
 text = unit_edit(text, "State.clone_no_panic postcondition",
@@ -133,7 +142,8 @@ text = unit_edit(text, "State.clone_no_panic postcondition",
                  (State.ct1_bounded self → State.ct1_bounded r) ⦄ := by""",
     """      ⦃ fun r => State.epoch_val r = State.epoch_val self ∧
                  (State.ct1_bounded self → State.ct1_bounded r) ∧
-                 (State.decoders_bounded self → State.decoders_bounded r) ⦄ := by""")
+                 (State.decoders_bounded self → State.decoders_bounded r) ∧
+                 (State.decoders_sized self → State.decoders_sized r) ⦄ := by""")
 
 text = unit_edit(text, "State.clone_no_panic decoder clone",
     "all_goals (try (obtain ⟨r, hr⟩ := hdec ‹_›; simp only [hr]))",
@@ -149,31 +159,32 @@ text = unit_edit(text, "State.clone_no_panic redundant step",
 
 text = unit_edit(text, "State.clone_no_panic closer",
     "all_goals (try (simp_all [State.epoch_val, State.ct1_bounded])))",
-    "all_goals (try (simp_all [State.epoch_val, State.ct1_bounded, State.decoders_bounded])))")
+    "all_goals (try (simp_all [State.epoch_val, State.ct1_bounded, State.decoders_bounded, State.decoders_sized])))")
 
 for name, count in [("ct1_dec1", 1), ("ct2_dec1", 1), ("hdr_dec1", 1), ("ek_dec1", 2)]:
     text = unit_edit(text, f"step_receive_no_panic message call on {name}",
         f"hdmsg {name}; simp only [ho]",
-        f"hdmsg {name} (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); "
+        f"hdmsg {name} (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) "
+        f"(Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); "
         f"simp only [ho]", count)
 
 text = unit_edit(text, "step_receive_no_panic signature",
     """    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state) :
     Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by""",
     """    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state)
-    (hdb : State.decoders_bounded state) :
+    (hdb : State.decoders_bounded state) (hds : State.decoders_sized state) :
     Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by""")
 
 text = unit_edit(text, "receive_no_panic signature",
     """    (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state) :
     Braid.receive self msg ⦃ fun _ => True ⦄ := by""",
     """    (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state)
-    (hdb : State.decoders_bounded self.state) :
+    (hdb : State.decoders_bounded self.state) (hds : State.decoders_sized self.state) :
     Braid.receive self msg ⦃ fun _ => True ⦄ := by""")
 
 text = unit_edit(text, "receive_no_panic step_receive call",
     "hencaps2 hz hzz hrf self ‹_› msg (by simp_all)))",
-    "hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all)))")
+    "hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all) (by simp_all)))")
 
 text = unit_edit(text, "what this covers: second premise",
     """single function); `BraidPreserve.lean` proves it for `State.sized`. The epoch

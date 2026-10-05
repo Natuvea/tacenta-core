@@ -267,11 +267,12 @@ they apply are; whether the records, or the headroom, are met by a real session 
 data bound holds. -/
 theorem decrypt_headroom_of_invariant
     (hct1 : SessionUnitBraidT1.Ct1LenTotal) (self : lifecycle.Session)
+    (hdecoderSize : SessionUnitBraidT1.State.decoders_sized self.braid.state)
     (hinv : lifecycle.Session.invariant self = Result.ok true)
     (had : self.identity_ad.val.length + 106 ≤ Usize.max) :
     UnitLifecycleT1.DecryptRatchetHeadroom self := by
   obtain ⟨h1, h2, h3⟩ := UnitLifecycleT1.invariant_gives_preconditions hct1 self hinv
-  exact ⟨h1, h2, h3, had⟩
+  exact ⟨h1, h2, h3, hdecoderSize, had⟩
 
 /-- `UnitLifecycleT1.decrypt_ratchet_no_panic` for a session that passes `Session::invariant`. -/
 theorem decrypt_ratchet_no_panic_of_invariant {R : Type}
@@ -279,11 +280,12 @@ theorem decrypt_ratchet_no_panic_of_invariant {R : Type}
     (boundary : UnitLifecycleT1.DecryptRatchetContracts rc)
     [SessionUnitT1.DerivedKeysModel]
     (self : lifecycle.Session) (message : Slice U8) (rng : R)
+    (hdecoderSize : SessionUnitBraidT1.State.decoders_sized self.braid.state)
     (hinv : lifecycle.Session.invariant self = Result.ok true)
     (had : self.identity_ad.val.length + 106 ≤ Usize.max) :
     lifecycle.Session.decrypt_ratchet rc crc self message rng ⦃ fun _ => True ⦄ :=
   UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary self message rng
-    (decrypt_headroom_of_invariant boundary.braid.ct1Len self hinv had)
+    (decrypt_headroom_of_invariant boundary.braid.ct1Len self hdecoderSize hinv had)
 
 /-- `UnitLifecycleT1.decrypt_no_panic` for a session that passes `Session::invariant`. -/
 theorem decrypt_no_panic_of_invariant {R : Type}
@@ -291,11 +293,12 @@ theorem decrypt_no_panic_of_invariant {R : Type}
     (boundary : UnitLifecycleT1.DecryptRatchetContracts rc)
     [SessionUnitT1.DerivedKeysModel]
     (self : lifecycle.Session) (message : Slice U8) (rng : R)
+    (hdecoderSize : SessionUnitBraidT1.State.decoders_sized self.braid.state)
     (hinv : lifecycle.Session.invariant self = Result.ok true)
     (had : self.identity_ad.val.length + 106 ≤ Usize.max) :
     lifecycle.Session.decrypt rc crc self message rng ⦃ fun _ => True ⦄ :=
   UnitLifecycleT1.decrypt_no_panic rc crc boundary self message rng
-    (decrypt_headroom_of_invariant boundary.braid.ct1Len self hinv had)
+    (decrypt_headroom_of_invariant boundary.braid.ct1Len self hdecoderSize hinv had)
 
 end Tacenta.SessionUnitDecodedStateDischarge
 

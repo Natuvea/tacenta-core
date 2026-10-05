@@ -726,7 +726,8 @@ theorem succ_headroom (sk : tacenta_boundary.dh.PrivateKey)
     Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom (succReal sk pk) := by
   have h4 := Tacenta.UnitHeadroomSatisfiable.usize_max_ge
   refine ⟨?_, Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.1,
-    Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.2, ?_⟩
+    Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.2,
+    Tacenta.UnitHeadroomSatisfiable.freshBraid_decoder_sized, ?_⟩
   · unfold Tacenta.UnitLifecycleT1.ReceiveHeadroom
     simp [succReal, succTriple, Tacenta.UnitHeadroomSatisfiable.vecOf,
       tacenta_ratchet.MAX_SKIPPED_STORE, tacenta_ratchet.MAX_SKIP, tacenta_spqr.MAX_SKIP]
@@ -885,7 +886,8 @@ theorem evict_headroom (sk : tacenta_boundary.dh.PrivateKey)
     Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom (evictReal sk pk) := by
   have h4 := Tacenta.UnitHeadroomSatisfiable.usize_max_ge
   refine ⟨?_, Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.1,
-    Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.2, ?_⟩
+    Tacenta.UnitHeadroomSatisfiable.freshBraid_bounds.2,
+    Tacenta.UnitHeadroomSatisfiable.freshBraid_decoder_sized, ?_⟩
   · unfold Tacenta.UnitLifecycleT1.ReceiveHeadroom
     simp [evictReal, evictTriple, succTriple, Tacenta.UnitHeadroomSatisfiable.vecOf,
       tacenta_ratchet.MAX_SKIPPED_STORE, tacenta_ratchet.MAX_SKIP, tacenta_spqr.MAX_SKIP, -List.reduceReplicate]

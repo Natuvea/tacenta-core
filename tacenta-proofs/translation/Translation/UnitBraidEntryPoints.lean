@@ -77,6 +77,7 @@ theorem Braid.receive_refines_given_erasure
     (msg : tacenta_session_unit.tacenta_braid.Msg)
     (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K self.state model) (hmsg : MsgRefines msg modelMsg)
@@ -87,7 +88,7 @@ theorem Braid.receive_refines_given_erasure
       StateRefines K next.state (Model.Braid.receive K model modelMsg).2.2 ⦄ := by
   obtain ⟨hecl, hdadd, hdmsg, henc, hdec⟩ := defined_hypotheses_given_erasure htr
   exact Braid.receive_refines hka hea hmac hkdf hlens hvalek hencaps2len hdadd hdmsg hct1lenB
-    hct2lenB hheaderlenB hkcl hecl henc hdec hkp hes hopt hz hzz hrf self msg hct1b hdb hepoch
+    hct2lenB hheaderlenB hkcl hecl henc hdec hkp hes hopt hz hzz hrf self msg hct1b hdb hds hepoch
     hrel hmsg hhonest
 
 theorem Braid.send_refines_given_erasure
@@ -153,6 +154,7 @@ theorem Braid.receive_refines_of_laws
     (msg : tacenta_session_unit.tacenta_braid.Msg)
     (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K self.state model) (hmsg : MsgRefines msg modelMsg)
@@ -163,7 +165,7 @@ theorem Braid.receive_refines_of_laws
       StateRefines K next.state (Model.Braid.receive K model modelMsg).2.2 ⦄ :=
   Braid.receive_refines_given_erasure htr.total hka
     (Tacenta.UnitErasureRs.Glue.erasureAgrees hdiv htr) hmac hkdf hlens hvalek hencaps2len
-    hct1lenB hct2lenB hheaderlenB hkcl hkp hes hopt hz hzz hrf self msg hct1b hdb hepoch hrel hmsg
+    hct1lenB hct2lenB hheaderlenB hkcl hkp hes hopt hz hzz hrf self msg hct1b hdb hds hepoch hrel hmsg
     hhonest
 
 theorem Braid.send_refines_of_laws
@@ -334,6 +336,7 @@ info: Tacenta.UnitBraidEntryPoints.Braid.receive_refines_given_erasure (htr : Ta
   (self : tacenta_braid.Braid) (msg : tacenta_braid.Msg)
   (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
   (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+  (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
   (hepoch : ↑(Tacenta.SessionUnitBraidT1.State.epoch_val self.state) + 1 < U64.max) {model : Model.Braid.BraidState}
   {modelMsg : Model.Braid.Msg} (hrel : Tacenta.SessionUnitBraidT3.StateRefines K self.state model)
   (hmsg : Tacenta.SessionUnitBraidT3.MsgRefines msg modelMsg)
@@ -532,6 +535,7 @@ info: Tacenta.UnitBraidEntryPoints.Braid.receive_refines_of_laws (hdiv : Tacenta
   (self : tacenta_braid.Braid) (msg : tacenta_braid.Msg)
   (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
   (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+  (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
   (hepoch : ↑(Tacenta.SessionUnitBraidT1.State.epoch_val self.state) + 1 < U64.max) {model : Model.Braid.BraidState}
   {modelMsg : Model.Braid.Msg} (hrel : Tacenta.SessionUnitBraidT3.StateRefines K self.state model)
   (hmsg : Tacenta.SessionUnitBraidT3.MsgRefines msg modelMsg)

@@ -1,13 +1,20 @@
 # Semantic invariant review
 
-Review scope: candidate `167d34e22d486b2619225c655291559c6277316d`, branch
-`codex/proven-core-braid`, reviewed against the invariant catalogue in
+Review scope: current `codex/proven-core-braid` candidate, with the decoder
+receive-boundary repair included, reviewed against the invariant catalogue in
 `tacenta-spec/security-properties/evidence-index.json`, the implementation,
 the model, the translated proofs, and the named Rust tests.
 
 This is a semantic sufficiency review. It does not turn test evidence into a
 theorem, and it does not close the separate session-orchestration or contract
 vacuity gates.
+
+The receive-boundary review is now explicit: the old needed-only premise was
+insufficient for the concrete decoder because `Decoder::message` also reserves
+by `size`. The repaired contract requires both `size <= 4128` and
+`needed <= 65536`; the state-size fact is preserved and supplied at the T1/T3,
+restore, and refinement boundaries. This is a repaired proof boundary, not an
+end-to-end lifecycle proof and not an independent review of the contract laws.
 
 ## Dispositions
 

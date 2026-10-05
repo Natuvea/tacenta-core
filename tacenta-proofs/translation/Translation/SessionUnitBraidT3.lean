@@ -1678,11 +1678,11 @@ without it has not been checked. Every state a run can reach satisfies
 but `epoch + 1 < u64::MAX` is strictly more than that, and is the caller's
 premise, not a fact about reachable states.
 
-`hdb` is the decoder bound (`SessionUnitBraidT1.State.decoders_bounded`): every decoder the
-state holds needs at most `MAX_CODEWORDS` chunks. `hdmsg` is stated for such decoders only,
+`hdb` is the decoder chunk bound (`SessionUnitBraidT1.State.decoders_bounded`) and `hds` is the
+decoder output-size bound (`State.decoders_sized`). `hdmsg` is stated for decoders satisfying both,
 because the unit's `Decoder::message` fails for a decoder that needs and holds
 `(Usize.max + 1) / 32` chunks, and the Braid's bound `MAX_CODEWORDS` is far below that; `add_chunk` keeps `needed`
-(`SessionUnitDecoderBound`), so the bound on the state gives it for the decoder after the
+(`SessionUnitDecoderBound`) and `size`, so the state bounds give them for the decoder after the
 chunk is added. -/
 theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
@@ -1697,6 +1697,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (self : Braid) (state : State) (msg : tacenta_session_unit.tacenta_braid.Msg)
     (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K state model) (hmsg : MsgRefines msg modelMsg)
@@ -1848,7 +1849,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             have h := hhonest mc hdm hepM
             rw [htyM] at h
             exact h
-          obtain ⟨omsg, homsg⟩ := hdmsg ct1_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+          obtain ⟨omsg, homsg⟩ := hdmsg ct1_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
           obtain ⟨hct1decr, hmsgeq⟩ := DecoderRefines.add_message hdcr hfit hsame hcw hidx hadd homsg
           simp only [homsg]
           rcases hom : omsg with _ | ct1raw
@@ -2137,7 +2138,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             have h := hhonest mc hdm hepM
             rw [htyM] at h
             exact h
-          obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+          obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
           obtain ⟨hekdecr, hmsgeq⟩ := DecoderRefines.add_message hdecr hfit hsame hcw hidx hadd homsg
           simp only [homsg]
           have hackedFalse : acked = false := by
@@ -2235,7 +2236,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               have h := hhonest mc hdm hepM
               rw [htyM2] at h
               exact h
-            obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+            obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
             obtain ⟨hekdecr, hmsgeq⟩ := DecoderRefines.add_message hdecr hfit hsame hcw hidx hadd homsg
             simp only [homsg]
             rcases hom : omsg with _ | ekVecRaw
@@ -2378,7 +2379,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             have h := hhonest mc hdm hepM
             rw [htyM] at h
             exact h
-          obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+          obtain ⟨omsg, homsg⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
           obtain ⟨hekdecr, hmsgeq⟩ := DecoderRefines.add_message hdecr hfit hsame hcw hidx hadd homsg
           simp only [homsg]
           rcases hom : omsg with _ | ekVecRaw
@@ -2516,7 +2517,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             exact h
           have haddSize : (ct2DecM.addChunk mc).size = K.ct2Size + Model.Braid.macSize := by
             unfold Model.Braid.Decoder.addChunk; split <;> simp [hdsize]
-          obtain ⟨omsg, homsg⟩ := hdmsg ct2_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+          obtain ⟨omsg, homsg⟩ := hdmsg ct2_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
           obtain ⟨hct2decr, hmsgeq⟩ := DecoderRefines.add_message hdecr hfit hsame hcw hidx hadd homsg
           simp only [homsg]
           rcases hom : omsg with _ | framedRaw
@@ -2754,7 +2755,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             exact h
           have haddSize : (hdrDecM.addChunk mc).size = Model.Braid.headerSize + Model.Braid.macSize := by
             unfold Model.Braid.Decoder.addChunk; split <;> simp [hdsize]
-          obtain ⟨omsg, homsg⟩ := hdmsg hdr_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
+          obtain ⟨omsg, homsg⟩ := hdmsg hdr_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hadd hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hadd hdb)
           obtain ⟨hhdrdecr, hmsgeq⟩ := DecoderRefines.add_message hdecr hfit hsame hcw hidx hadd homsg
           simp only [homsg]
           rcases hom : omsg with _ | framedRaw
@@ -2990,6 +2991,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (self : Braid) (msg : tacenta_session_unit.tacenta_braid.Msg)
     (hct1b : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.state)
     (hdb : Tacenta.SessionUnitBraidT1.State.decoders_bounded self.state)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state)
     (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K self.state model) (hmsg : MsgRefines msg modelMsg)
@@ -3005,7 +3007,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
   have s_post : StateRefines K s model := s_post1
   obtain ⟨hepocheq, hct1bimp⟩ := State.clone_bounds_refines hrel s_post
   step with step_receive_refines hka hea hmac hkdf hlens hvalek hencaps2len hdadd hdmsg
-    hct1lenB hct2lenB hheaderlenB hz hzz hrf self s msg (hct1bimp hct1b) (s_post4 hdb) (by rw [hepocheq]; exact hepoch)
+    hct1lenB hct2lenB hheaderlenB hz hzz hrf self s msg (hct1bimp hct1b) (s_post4 hdb) (s_post5 hds) (by rw [hepocheq]; exact hepoch)
     s_post hmsg hhonest
   obtain ⟨hout, hnext⟩ := ‹_›
   rcases hom : out with _ | o

@@ -45,7 +45,8 @@ namespace Tacenta.SessionBraidReceiveRepair
 
 /-- The decoder of the old refutation, as a statement: it needs `K = (Usize.max + 1) / 32`
 chunks (so `32 * needed = Usize.max + 1`) and `Decoder::message` cannot return a value on it. -/
-theorem old_witness : ∃ d : Decoder, 32 * d.needed.val = Usize.max + 1 ∧
+theorem old_witness : ∃ d : Decoder, d.size.val ≤ 4128 ∧
+    32 * d.needed.val = Usize.max + 1 ∧
     ¬ ∃ r, Decoder.message d = ok r := by
   obtain ⟨K, hK32, hKlt⟩ := usize_max_facts
   have hKb : K < 2 ^ UScalarTy.Usize.numBits := by
@@ -57,7 +58,7 @@ theorem old_witness : ∃ d : Decoder, 32 * d.needed.val = Usize.max + 1 ∧
   let hv : alloc.vec.Vec Chunk := ⟨List.replicate K c, by simp; omega⟩
   let d : Decoder := ⟨0#usize, needed, hv⟩
   have hneed : d.needed.val = K := Usize.ofNatCore_val_eq hKb
-  refine ⟨d, by omega, ?_⟩
+  refine ⟨d, by simp [d], by omega, ?_⟩
   rintro ⟨r, hr⟩
   have hh : d.needed.val ≤ d.«have».val.length := by
     simp [d, hv, hneed]
@@ -75,7 +76,7 @@ theorem boundary_gt_max_codewords : 65536 < (Usize.max + 1) / 32 := by
 return, and it needs more than 65536 chunks, so `DecoderMessageTotal` says nothing about it. -/
 theorem old_witness_fails_bounded_premise :
     ∃ d : Decoder, ¬ d.needed.val ≤ 65536 ∧ ¬ ∃ r, Decoder.message d = ok r := by
-  obtain ⟨d, hd, hf⟩ := old_witness
+  obtain ⟨d, hsize, hd, hf⟩ := old_witness
   refine ⟨d, ?_, hf⟩
   have := boundary_gt_max_codewords
   omega
@@ -86,7 +87,7 @@ decoder with `32 * needed = Usize.max + 1` on which `message` cannot return, and
 theorem old_witness_rejected_by_invariant :
     ∃ d : Decoder, 32 * d.needed.val = Usize.max + 1 ∧
       ¬ Decoder.invariant d = ok true ∧ ¬ ∃ r, Decoder.message d = ok r := by
-  obtain ⟨d, h32, hf⟩ := old_witness
+  obtain ⟨d, hsize, h32, hf⟩ := old_witness
   refine ⟨d, h32, fun h => ?_, hf⟩
   have hle := Tacenta.SessionUnitDecoderBound.invariant_true_needed_le d h
   have := boundary_gt_max_codewords
@@ -99,7 +100,7 @@ every decoder with `needed <= 65536`.  The law is the only assumption: the real 
 never panics. -/
 theorem decoderMessageTotal_of_truncate (htr : TruncateTotal) :
     Tacenta.SessionUnitBraidT1.DecoderMessageTotal := by
-  intro d hd
+  intro d _hsize hd
   have hbig : Usize.max ≥ 4294967295 := by scalar_tac
   exact (noPanic_iff _).mp
     (Tacenta.SessionUnitErasureT1.message_no_panic htr d (by scalar_tac) (by scalar_tac))
@@ -115,8 +116,8 @@ theorem bounded_holds_unbounded_fails (htr : TruncateTotal) :
 `Decoder::message`**, given `Vec::truncate` returns.  This is what the repair buys for a state that
 passed `Braid::invariant`. -/
 theorem message_total_of_invariant (htr : TruncateTotal) (d : Decoder)
-    (h : Decoder.invariant d = ok true) : ∃ r, Decoder.message d = ok r :=
-  decoderMessageTotal_of_truncate htr d
+    (hsize : d.size.val ≤ 4128) (h : Decoder.invariant d = ok true) : ∃ r, Decoder.message d = ok r :=
+  decoderMessageTotal_of_truncate htr d hsize
     (Tacenta.SessionUnitDecoderBound.invariant_true_needed_le d h)
 
 /-! ## C. Where the line is
@@ -128,26 +129,27 @@ chunks.  Below it the call returns (given the law), at it the call fails.  A pre
 /-- `DecoderMessageTotal` with the bound as a parameter.  `decoderMessageTotal_is` ties it to the
 field by `Iff.rfl`, so a change to the consequent of the field stops this file from building. -/
 def DecoderMessageTotalAt (n : Nat) : Prop :=
-  ∀ d : Decoder, d.needed.val ≤ n → ∃ r, Decoder.message d = ok r
+  ∀ d : Decoder, d.size.val ≤ 4128 → d.needed.val ≤ n → ∃ r, Decoder.message d = ok r
 
 theorem decoderMessageTotal_is :
     Tacenta.SessionUnitBraidT1.DecoderMessageTotal ↔ DecoderMessageTotalAt 65536 := Iff.rfl
 
 /-- The field holds for every `needed < K` and fails at `needed = K`. -/
 theorem boundary_exact (htr : TruncateTotal) :
-    (∀ d : Decoder, d.needed.val < (Usize.max + 1) / 32 →
+    (∀ d : Decoder, d.size.val ≤ 4128 →
+      d.needed.val < (Usize.max + 1) / 32 →
         ∃ r, Decoder.message d = ok r) ∧
       ¬ DecoderMessageTotalAt ((Usize.max + 1) / 32) := by
   constructor
-  · intro d hd
+  · intro d hsize hd
     obtain ⟨K, hK32, hKlt⟩ := usize_max_facts
     have hKeq : (Usize.max + 1) / 32 = K := by omega
     rw [hKeq] at hd
     exact (noPanic_iff _).mp
       (Tacenta.SessionUnitErasureT1.message_no_panic htr d (by omega) (by omega))
   · intro H
-    obtain ⟨d, hd, hf⟩ := old_witness
-    exact hf (H d (by omega))
+    obtain ⟨d, hsize, hd, hf⟩ := old_witness
+    exact hf (H d hsize (by omega))
 
 /-- **The premise at the boundary is refuted.**  Replacing `65536` by `K` in the repaired field
 gives a false statement, for every interpretation of the unit's axioms.  This is the second part of
@@ -155,8 +157,8 @@ gives a false statement, for every interpretation of the unit's axioms.  This is
 theorem mutant_premise_at_boundary_refuted :
     ¬ DecoderMessageTotalAt ((Usize.max + 1) / 32) := by
   intro H
-  obtain ⟨d, hd, hf⟩ := old_witness
-  exact hf (H d (by omega))
+  obtain ⟨d, hsize, hd, hf⟩ := old_witness
+  exact hf (H d hsize (by omega))
 
 /-! ## D. The new law is consistent
 

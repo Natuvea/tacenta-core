@@ -140,12 +140,14 @@ theorem decoded_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAddCh
     (hes : EncapsStateCloneTotal) (hopt : OptionCloneTotal)
     (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
     (bytes : Slice Std.U8) (self : Braid)
-    (hdec' : Braid.from_bytes bytes = ok (core.result.Result.Ok self)) (msg : Msg) :
+    (hdec' : Braid.from_bytes bytes = ok (core.result.Result.Ok self)) (msg : Msg)
+    (hds : Tacenta.SessionUnitBraidT1.State.decoders_sized self.state) :
     Braid.receive self msg ⦃ fun _ => True ⦄ :=
   Braid.receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew
     hdecap hkdf hmac hvalek hencaps2 henc hdec hkp hes hopt hz hzz hrf self msg
     (from_bytes_establishes_inv hct1len bytes self hdec').ct1_bounded
     (from_bytes_establishes_inv hct1len bytes self hdec').decoders_bounded
+    hds
 
 end Braid
 
