@@ -3435,6 +3435,85 @@ def PublicEncryptWitness {R : Type}
     StepRefines trace dh K output
       (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext))
 
+/-! A successful send can now be handed to the responder root without losing
+    the byte relation at the wire boundary.  The sender and responder may use
+    different RNGs and model oracles; the handoff is the common encoded
+    ciphertext, not accidental equality of those environments.  Refused
+    sends remain covered by `PublicEncryptWitness`; this theorem deliberately
+    proves the successful cross-session edge that is needed before composing
+    authenticated receive and restore/continue. -/
+theorem public_encrypt_success_to_responder_handoff
+    {RI RR : Type}
+    {sendRngCore : rand_core_1.RngCore RI}
+    {sendCryptoRng : rand_core_1.CryptoRng RI}
+    {sendTrace : RI → List Model.Lifecycle.Key}
+    {sendDh : DhView} {sendK : Model.Braid.Kem}
+    {sendView : Model.Lifecycle.CodewordView}
+    {sendOracle : Model.Lifecycle.Oracle}
+    {sendReal : lifecycle.Session} {sendModel : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {sendRng : RI}
+    {recvStoreRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {recvTrace : RR → List Model.Lifecycle.Key} {recvDh : DhView}
+    {recvK : Model.Braid.Kem} {recvRngCore : rand_core_1.RngCore RR}
+    {recvCryptoRng : rand_core_1.CryptoRng RR}
+    {recvOurIdentity : lifecycle.Identity}
+    {recvOurPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {recvRng : RR}
+    {recvModelStep : Model.Lifecycle.ResponderStep}
+    {recvView : Model.Lifecycle.CodewordView}
+    {recvOracle : Model.Lifecycle.Oracle}
+    {recvModelIdentity : Model.Lifecycle.Identity}
+    {recvModelStore : Model.Lifecycle.PrekeyStore}
+    {realWire : alloc.vec.Vec Std.U8}
+    {sendRealAfter : lifecycle.Session} {sendRngAfter : RI}
+    {modelWire : Bytes} {sendModelAfter : Model.Lifecycle.Session}
+    {sendOracleAfter : Model.Lifecycle.Oracle}
+    (sent : PublicEncryptWitness sendRngCore sendCryptoRng sendTrace sendDh sendK
+      sendView sendOracle sendReal sendModel plaintext sendRng)
+    (received : PublicResponderEstablishWitness recvStoreRel recvTrace recvDh recvK
+      recvRngCore recvCryptoRng recvOurIdentity recvOurPrekeys initialMessage recvRng
+      recvModelStep)
+    (hsendRoot : lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal
+      plaintext sendRng = ok (.Ok realWire, sendRealAfter, sendRngAfter))
+    (hmodelSend : Model.Lifecycle.encrypt sendView sendOracle sendModel
+      (sliceOf plaintext) =
+      { session := sendModelAfter, result := .ok modelWire,
+        oracle := sendOracleAfter })
+    (hrealWire : sliceOf initialMessage = vecOf realWire)
+    (hmodelWire : sliceOf initialMessage = modelWire)
+    (hmodelResponder : recvModelStep =
+      Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+        recvModelStore modelWire) :
+    ∃ recvOutput,
+      lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal plaintext sendRng =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) ∧
+      StepRefines sendTrace sendDh sendK
+        (.Ok realWire, sendRealAfter, sendRngAfter)
+        (Model.Lifecycle.encrypt sendView sendOracle sendModel
+          (sliceOf plaintext)) ∧
+      Model.Lifecycle.encrypt sendView sendOracle sendModel (sliceOf plaintext) =
+        { session := sendModelAfter, result := .ok modelWire,
+          oracle := sendOracleAfter } ∧
+      sliceOf initialMessage = vecOf realWire ∧
+      sliceOf initialMessage = modelWire ∧
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng = ok recvOutput ∧
+      ResponderEstablishStepRefines recvStoreRel recvTrace recvDh recvK recvOutput
+        (Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+          recvModelStore modelWire) := by
+  obtain ⟨sendOutput, hsend, hsendStep⟩ := sent
+  have hsendOutput : sendOutput =
+      (.Ok realWire, sendRealAfter, sendRngAfter) := by
+    have heq : ok sendOutput =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) :=
+      hsend.symm.trans hsendRoot
+    injection heq
+  subst sendOutput
+  obtain ⟨recvOutput, hrecv, hrecvStep⟩ := received
+  rw [hmodelResponder] at hrecvStep
+  exact ⟨recvOutput, hsendRoot, hsendStep, hmodelSend, hrealWire, hmodelWire,
+    hrecv, hrecvStep⟩
+
 structure InitialDispatchContext {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)

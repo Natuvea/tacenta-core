@@ -156,6 +156,12 @@ gate obligations that are not individual reader findings.
   conditional continuation theorem: the decrypt-ratchet contracts and the cross-session
   establish→send/receive→restore path are not yet discharged. `E2E-01` remains blocking.
 
+- 2026-10-05 candidate update: `public_encrypt_success_to_responder_handoff` now joins a
+  successful encrypt witness to the responder root through both real and model wire bytes. The
+  theorem exposes the exact sender output, model send transition, real ciphertext/input equality,
+  model ciphertext/input equality, and responder refinement. It does not yet prove the sender
+  route evidence or the responder/decrypt/restore continuations, so `E2E-01` remains blocking.
+
 - G5-02 is historical and closed: the Braid `key_pair` content clause is scoped
   to implementations that know the delegated KEM layout.
 - G5-07 is narrowed by ADR-0006 point 7: evidence may be cited from outside the
