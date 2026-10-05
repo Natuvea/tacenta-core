@@ -211,6 +211,42 @@ def kemOneTimeOf
     List (Nat × Bytes × Bytes) :=
   v.val.map fun entry => (entry.1.val, view.keyPair entry.2.1, arrayOf entry.2.2)
 
+/-! A vector-level swap/remove equation is enough to derive the model-side KEM
+    store equation.  This keeps the opaque KEM pair interpretation in
+    `KemView`, while making the generated mutation obligation concrete. -/
+theorem kemOneTimeOf_swapRemove_of_vector
+    (view : KemView)
+    (before after : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize)))
+    (kemId : Nat) (removalId : Std.U32)
+    (hId : removalId.val = kemId)
+    (hvector : after.val = Model.swapRemove (fun entry => entry.1 == removalId)
+      before.val) :
+    kemOneTimeOf after view = Model.swapRemove (fun entry => entry.1 == kemId)
+      (kemOneTimeOf before view) := by
+  let f := fun entry : Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize) =>
+    (entry.1.val, view.keyPair entry.2.1, arrayOf entry.2.2)
+  have hp : ∀ entry, (fun mapped => mapped.1 == kemId) (f entry) =
+      (fun entry => entry.1 == removalId) entry := by
+    intro entry
+    simp only [f]
+    apply Bool.eq_iff_iff.mpr
+    simp only [beq_iff_eq]
+    constructor
+    · intro h
+      apply U32.bv_eq_imp_eq
+      apply BitVec.eq_of_toNat_eq
+      change entry.1.val = removalId.val
+      exact h.trans hId.symm
+    · intro h
+      exact (congrArg (fun value : Std.U32 => value.val) h).trans hId
+  rw [show kemOneTimeOf after view = after.val.map f by rfl]
+  rw [show kemOneTimeOf before view = before.val.map f by rfl]
+  rw [hvector]
+  exact Model.map_swapRemove f (fun entry => entry.1 == removalId)
+    (fun mapped => mapped.1 == kemId) before.val hp
+
 def previousSignedOf
     (value : Option ((Array Std.U8 32#usize) × Std.U32 ×
       (Array Std.U8 64#usize))) :
@@ -393,6 +429,36 @@ theorem prekey_store_refines_after_kem_consumption
   · simpa using hbefore.legacyBlocked
   · simpa using hbefore.previousSigned
   · simpa using hbefore.previousKem
+
+/-! The same store refinement, with the remaining mutation obligation stated at
+    the generated vector boundary.  This is the form intended for the public
+    responder composition once the call-site proof exposes the swap/pop
+    equation. -/
+theorem prekey_store_refines_after_kem_consumption_of_vector
+    (kemView : KemView) (dh : DhView)
+    (before : lifecycle.PrekeyStore)
+    (modelBefore : Model.Lifecycle.PrekeyStore)
+    (kemId : Nat) (removalId : Std.U32) (after : lifecycle.PrekeyStore)
+    (hbefore : PrekeyStoreRefines dh kemView before modelBefore)
+    (hshape : after = { before with kem_one_time := after.kem_one_time })
+    (hId : removalId.val = kemId)
+    (hvector : after.kem_one_time.val =
+      Model.swapRemove (fun entry => entry.1 == removalId)
+        before.kem_one_time.val) :
+    PrekeyStoreRefines dh kemView after
+      (Model.Lifecycle.consumeResponderPrekeys modelBefore
+        Model.PersistedState.PrekeyStoreState.absentId kemId false none) := by
+  apply prekey_store_refines_after_kem_consumption kemView dh before modelBefore
+    kemId after hbefore hshape
+  calc
+    kemOneTimeOf after.kem_one_time kemView =
+        Model.swapRemove (fun entry => entry.1 == kemId)
+          (kemOneTimeOf before.kem_one_time kemView) := by
+      exact kemOneTimeOf_swapRemove_of_vector kemView before.kem_one_time
+        after.kem_one_time kemId removalId hId hvector
+    _ = Model.swapRemove (fun entry => entry.1 == kemId)
+          modelBefore.state.kemOneTime := by
+      rw [hbefore.kemOneTime]
 
 def resultOptionOf {A B : Type} (f : A → B) : core.result.Result A Unit → Option B
   | .Ok value => some (f value)

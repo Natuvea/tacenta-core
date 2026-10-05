@@ -24,6 +24,26 @@ def swapRemove {α : Type} (p : α → Bool) (l : List α) : List α :=
   | some i, some last => (l.set i last).dropLast
   | _, _ => l
 
+/-! `swapRemove` is structural: a view of the entries may be mapped through
+    the removal as long as it preserves the predicate.  Lifecycle refinement
+    uses this to transport the generated KEM vector mutation into the model's
+    byte-view list. -/
+theorem map_swapRemove {α β : Type} (f : α → β) (p : α → Bool) (q : β → Bool)
+    (l : List α) (hp : ∀ x, q (f x) = p x) :
+    (swapRemove p l).map f = swapRemove q (l.map f) := by
+  simp only [swapRemove, List.findIdx?_map]
+  have hpfun : (q ∘ f) = p := by
+    funext x
+    exact hp x
+  rw [hpfun]
+  cases hfind : l.findIdx? p with
+  | none => simp
+  | some i =>
+    cases hlast : l.getLast? with
+    | none => simp [hlast]
+    | some last =>
+      simp [hlast, List.map_set, List.map_dropLast]
+
 theorem swapRemove_of_no_match {α : Type} (p : α → Bool) (l : List α)
     (h : l.findIdx? p = none) : swapRemove p l = l := by
   simp [swapRemove, h]
