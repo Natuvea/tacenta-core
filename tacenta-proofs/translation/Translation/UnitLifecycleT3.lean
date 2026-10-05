@@ -414,9 +414,185 @@ theorem take_one_time_kem_loop_first_match
     · simp
   · exact ⟨hindex, hprefix⟩
 
+/-! The public KEM removal realizes the model's exact swap-with-last removal.
+    The remaining `Vec::pop` premise is the faithful value-level law for the
+    generated vector operation; it is kept explicit so this bridge cannot be
+    discharged by pop totality alone. -/
+theorem take_one_time_kem_result_refines_swapRemove
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
+    (store : lifecycle.PrekeyStore) (id : Std.U32) :
+    lifecycle.PrekeyStore.take_one_time_kem store id
+      ⦃ fun r =>
+        match r.1 with
+        | none => r.2.kem_one_time.val = store.kem_one_time.val
+        | some _ => r.2.kem_one_time.val =
+            Model.swapRemove (fun entry => entry.1 == id)
+              store.kem_one_time.val ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem
+  step with take_one_time_kem_loop_first_match store id 0#usize (by simp) (by
+    intro j hj
+    have : False := by simpa using hj
+    exact this.elim)
+  have hv : v = store.kem_one_time := pkb_post.1
+  have hfound := pkb_post.2
+  rcases found with _ | foundIndex
+  · simp [hv]
+  · step
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hfoundV : foundIndex.val < v.val.length := by
+      rw [hv]
+      exact hfound.1
+    have hlastV : r.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at r_post1 r_post2
+      omega
+    letI : Inhabited (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize)) :=
+      Classical.inhabited_of_nonempty ⟨v.val[foundIndex.val]'hfoundV⟩
+    step with core.slice.Slice.swap_spec v foundIndex r hfoundV hlastV
+    intro s1 hswap
+    simp only
+    rcases hswap with ⟨hswapLen, hswapFound, hswapLast, hswapOther⟩
+    simp at hfound
+    have hprefix := hfound.2.2
+    have hs1nonempty : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize))) ≠ [] := by
+      intro hs1empty
+      have hs1len : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+          (Array Std.U8 64#usize))).length = v.val.length := by
+        simpa [Slice.length] using hswapLen
+      have hvlen : 0 < v.val.length := by
+        simp [alloc.vec.Vec.len] at r_post2
+        omega
+      have hs1zero : (0 : Nat) = v.val.length := by
+        simpa [hs1empty] using hs1len
+      clear hs1len
+      omega
+    have hs1len : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize))).length = v.val.length := by
+      simpa [Slice.length] using hswapLen
+    have hlast : r.val = v.val.length - 1 := by
+      simpa [alloc.vec.Vec.len] using r_post1
+    have hfoundS : foundIndex.val < (↑s1 : List (Std.U32 ×
+        tacenta_boundary.kem.KeyPair × (Array Std.U8 64#usize))).length := by
+      rw [hs1len]
+      simpa [hv] using hfound.1
+    have hlastS : r.val < (↑s1 : List (Std.U32 ×
+        tacenta_boundary.kem.KeyPair × (Array Std.U8 64#usize))).length := by
+      rw [hs1len]
+      have : r.val < v.val.length := by omega
+      exact this
+    have hfind : List.findIdx? (fun entry => entry.1 == id)
+        store.kem_one_time.val = some foundIndex.val := by
+      apply (List.findIdx?_eq_some_iff_getElem).2
+      refine ⟨hfound.1, ?_, ?_⟩
+      · obtain ⟨entry, hentry, hentryId⟩ := hfound.2.1
+        rw [List.getElem?_eq_getElem hfound.1] at hentryId
+        have heq := Option.some.inj hentryId
+        rw [heq]
+        simp
+      · intro j hj
+        obtain ⟨entry, hentry, hentryId⟩ := hprefix j hj
+        rw [List.getElem?_eq_getElem (by omega)] at hentry
+        have heq := Option.some.inj hentry
+        simpa [heq] using hentryId
+    have hdropSwap :
+        (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+          (Array Std.U8 64#usize))).dropLast =
+          (store.kem_one_time.val.set foundIndex.val
+            (store.kem_one_time.val[r.val]'(by simpa [hv] using hlastV))).dropLast := by
+      apply List.ext_getElem
+      · simp [List.length_dropLast, hs1len, hlast, hv, hfound.1]
+      · intro j hjS hjStore
+        have hjSdrop := hjS
+        have hjSbound : j < (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize))).length - 1 := by
+          simpa only [List.length_dropLast] using hjS
+        have hjS' : j < (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize))).length := by
+          exact Nat.lt_of_lt_of_le hjSbound (Nat.sub_le _ _)
+        rw [List.getElem_dropLast hjSdrop, List.getElem_dropLast hjStore]
+        have hjSource : j < store.kem_one_time.val.length := by
+          have : j < v.val.length := by
+            rw [← hs1len]
+            omega
+          simpa [hv] using this
+        have hjNotLast : j ≠ r.val := by
+          have : j < r.val := by
+            rw [hlast]
+            have : j < v.val.length - 1 := by
+              rw [← hs1len]
+              exact hjSbound
+            exact this
+          omega
+        have hswapFound' : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize)))[foundIndex.val] =
+            v.val[r.val] := by
+          have h : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[foundIndex.val]! =
+              (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[r.val]! := by
+            exact hswapFound
+          rw [getElem!_pos (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) foundIndex.val hfoundS,
+            getElem!_pos (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) r.val hlastV] at h
+          exact h
+        by_cases hji : j = foundIndex.val
+        · subst j
+          rw [hswapFound']
+          simp [List.getElem_set, hfound.1, hv]
+        · have hswapOtherAt : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j]! =
+              (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j]! := by
+            exact hswapOther j hji hjNotLast
+          have hjSourceV : j < v.val.length := by
+            simpa [hv] using hjSource
+          rw [getElem!_pos (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) j hjS',
+            getElem!_pos (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) j hjSourceV] at hswapOtherAt
+          have hswapOther' : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j] = v.val[j] := by
+            simpa [Aeneas.Std.Slice.getElem!_Nat_eq] using hswapOtherAt
+          rw [hswapOther']
+          have hji' : foundIndex.val ≠ j := by
+            intro h
+            exact hji h.symm
+          simp [List.getElem_set, hv, hji']
+    obtain ⟨poppedValue, poppedVec, hpopped, hdrop⟩ := hpopLaw s1 hs1nonempty
+    rw [hpopped]
+    rcases poppedValue with ⟨entryId, entryPair, entrySignature⟩
+    have hstoreNonempty : store.kem_one_time.val ≠ [] := by
+      intro hempty
+      simp [hempty] at hfound
+    have hlastValue : store.kem_one_time.val.getLast? =
+        some (store.kem_one_time.val[r.val]'(by simpa [hv] using hlastV)) := by
+      rw [List.getLast?_eq_some_getLast hstoreNonempty,
+        List.getLast_eq_getElem hstoreNonempty]
+      simp [hv, hlast]
+    simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+      hdrop, hdropSwap, hfind, hlastValue, hv, Model.swapRemove]
+
+theorem take_one_time_kem_result_vector_swapRemove
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
+    (store : lifecycle.PrekeyStore) (id : Std.U32)
+    (kemPair : tacenta_boundary.kem.KeyPair) (after : lifecycle.PrekeyStore)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem store id =
+      ok (some kemPair, after)) :
+    after.kem_one_time.val = Model.swapRemove (fun entry => entry.1 == id)
+      store.kem_one_time.val := by
+  have h := take_one_time_kem_result_refines_swapRemove hpopLaw store id
+  rw [htake] at h
+  simpa [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return] using h
+
 /-! The public KEM removal preserves the whole store shape.  Its opaque
-    `Vec::pop` call is needed only for totality here; the value-level
-    swap/remove equation is kept separate in `hkem` below. -/
+    `Vec::pop` call is needed only for totality here; the faithful value-level
+    swap/remove equation is proved separately above. -/
 theorem take_one_time_kem_preserves_nonvector_fields
     (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
       ∃ r, alloc.vec.Vec.pop Global v = ok r)
@@ -2659,7 +2835,7 @@ theorem establish_responder_success_step_refines_of_root_and_model
     relation and to the model's authenticated KEM consumption.  It is the
     composition point the no-curve/no-last-resort responder branch will use
     once the generated call-site supplies the concrete store result and the
-    value-level KEM list equation. -/
+    faithful pop law. -/
 theorem establish_responder_success_step_refines_of_field_store_kem_consumption
     {R : Type}
     (kemView : KemView) (trace : R → List Model.Lifecycle.Key)
@@ -2677,13 +2853,14 @@ theorem establish_responder_success_step_refines_of_field_store_kem_consumption
     (hbefore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
     (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
       ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
     (kemRemovalId : Std.U32)
-    (kemResult : Option tacenta_boundary.kem.KeyPair)
+    (kemPair : tacenta_boundary.kem.KeyPair)
     (htake : lifecycle.PrekeyStore.take_one_time_kem ourPrekeys kemRemovalId =
-      ok (kemResult, storeAfter))
-    (hkem : kemOneTimeOf storeAfter.kem_one_time kemView =
-      Model.swapRemove (fun entry => entry.1 == kemId)
-        modelStore.state.kemOneTime)
+      ok (some kemPair, storeAfter))
+    (hId : kemRemovalId.val = kemId)
     (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity
       ourPrekeys initialMessage rng =
       ok (.Ok (realSession, realPlaintext), storeAfter, rngAfter))
@@ -2703,9 +2880,11 @@ theorem establish_responder_success_step_refines_of_field_store_kem_consumption
         (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
           (sliceOf initialMessage)) := by
   have hshape := take_one_time_kem_result_preserves_nonvector_fields hpop
-    ourPrekeys kemRemovalId kemResult storeAfter htake
-  have hstore := prekey_store_refines_after_kem_consumption kemView dh
-    ourPrekeys modelStore kemId storeAfter hbefore hshape hkem
+    ourPrekeys kemRemovalId (some kemPair) storeAfter htake
+  have hvector := take_one_time_kem_result_vector_swapRemove hpopLaw
+    ourPrekeys kemRemovalId kemPair storeAfter htake
+  have hstore := prekey_store_refines_after_kem_consumption_of_vector kemView dh
+    ourPrekeys modelStore kemId kemRemovalId storeAfter hbefore hshape hId hvector
   exact establish_responder_success_step_refines_of_root_and_model
     (PrekeyStoreRefines dh kemView) trace dh K view oracle rngCore cryptoRng
     ourIdentity ourPrekeys initialMessage rng rngAfter realSession realPlaintext
