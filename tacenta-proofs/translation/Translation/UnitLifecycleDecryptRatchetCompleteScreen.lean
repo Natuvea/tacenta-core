@@ -299,6 +299,64 @@ theorem decrypt_ratchet_refines_complete_at_refusal (dh : DhView)
     view oracle oracleOf codec contracts agreements (refReal sk pk) (modelOf dh (refReal sk pk))
     succMessage sampleRng hrel hroom htrace run
 
+/-! The same complete refusal, with the agreement record constructed from the joint boundary
+records rather than supplied as an opaque per-run argument.  The real law and primitive records
+remain explicit: this theorem removes only the duplicate agreement packaging boundary. -/
+
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+theorem decrypt_ratchet_refines_complete_from_shapes_at_refusal
+    (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (hA : AllT1Shapes Interp.real) (hL : StdLaws Interp.real)
+    (hTP : TruncatePrefixShape Interp.real)
+    (hD : ZeroizingModelShape Interp.real DerivedZ)
+    (hT : T3Agreements Interp.real
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)).braidKem)
+    (hZ : ZeroizeRoundTripShapes Interp.real)
+    (hC : DhCodecOfShape Interp.real ⟨dh.privateKey, dh.publicKey⟩)
+    (hO : DecryptOracleShape Interp.real ⟨dh.privateKey, dh.publicKey⟩
+      Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+      Tacenta.UnitLifecycleIntegrationScreen.byteTrace
+      (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)))
+    (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc (refReal sk pk) succMessage sampleRng =
+          ok output ∧
+      StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh
+        (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)).braidKem output
+        (Model.Lifecycle.decryptRatchet view
+          (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng))
+          (modelOf dh (refReal sk pk)) (sliceOf succMessage)) := by
+  have hb := decrypt_shapes_are_predicates
+  let oracle := oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng)
+  have oracleOf := (hb.2.1 Tacenta.UnitLifecycleIntegrationScreen.byteRng
+    Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+    Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle).2 hO
+  have codec := (hb.1 dh).2 hC
+  have hz := hb.2.2.2 hZ
+  have r32 : Tacenta.UnitLifecycleT1.Random32Total Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    fun _ _ _ => ⟨_, rfl⟩
+  have ax : DecryptAxiom Interp.real Tacenta.UnitLifecycleIntegrationScreen.byteRng :=
+    ⟨hA.dhCodec, hA.dhAgree, hA.aeadOpen, r32,
+      ⟨hA.ct1Len, hA.ct2Len, hA.headerLen, hA.ekVectorLen, hA.keyPairEkVector,
+        hA.keyPairDecapsulate, hA.hkdf, hA.hmac, hA.validateEk, hA.encapsulate2, hA.keyPairClone,
+        hA.encapsStateClone, hA.optionClone, hA.zeroizingArray, hA.arrayZeroize, hA.rangeFullIndex⟩,
+      ⟨hA.hmac, hA.hkdf, hA.zeroizingTotal, hA.spqrZeroize, hA.vecRetainAxiom, hA.optionClone,
+        trivial⟩,
+      hA.messageKeyMaterial⟩
+  have contracts := Tacenta.UnitSatisfiabilityRecords.decrypt_contracts_of_axiom_base
+    Tacenta.UnitLifecycleIntegrationScreen.byteRng ax hL
+  have er : Tacenta.SessionUnitBraidT3.ErasureAgrees :=
+    Tacenta.UnitErasureRs.Glue.erasureAgrees hA.divCeilValue hTP
+  obtain ⟨vr, rm⟩ := Tacenta.SessionUnitSatisfiabilitySpqrLaws.session_sparse_agreements_of_shapes
+    hL hA.vecRetainAxiom hA.spqrZeroize
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := hD.toDerived
+  have agreements : DecryptRatchetAgreements oracle.braidKem :=
+    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
+      hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
+  exact decrypt_ratchet_refines_complete_at_refusal dh view oracle rfl oracleOf codec contracts
+    agreements sk pk
+
 /-- **The generated output at the run is on the path the first form left open**: under the boundary
 records, `decrypt_ratchet` returns the Triple refusal `Classical OutOfOrder`, which is not a full
 store, so `TripleRefusalOpen` holds of it.  The complete theorem relates it to the model's refusal

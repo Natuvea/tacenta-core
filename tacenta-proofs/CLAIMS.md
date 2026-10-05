@@ -41,8 +41,9 @@ this section says in one place what is not proved.
   the sparse ratchet's `ChainExhausted`, which needs an epoch or a chain counter at `u64::MAX`), among them the refusal of
   a message whose key was already used (`OutOfOrder`), the skip-limit refusal (`TooManySkipped`) and a full store, after
   the eviction retry loop, an authentication refusal and a success. It holds only for a message whose agreement chunk is a
-  codeword of one source that fits the receiving decoder; it takes two agreements about the sparse ratchet that no proof
-  here derives (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
+  codeword of one source that fits the receiving decoder; the complete refusal screen now constructs the two sparse
+  agreements from the named `StdLaws`, `VecRetainAxiomShape` and `SpqrZeroizeShape` records, while the real external laws
+  remain unproved (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
   state, which a source with no state of its own, such as `OsRng`, is not; and it is compiler-trusted (the section "Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet`
   on every path, on the eight-leaf unit)"). Its first form, `decrypt_ratchet_refines`, left every Triple receive refusal other than a full
   store open, saying for it neither that the model refuses nor why (the section "Proved (tier T3, session lifecycle
