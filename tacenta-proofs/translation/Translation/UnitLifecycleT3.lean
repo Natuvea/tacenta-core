@@ -188,6 +188,83 @@ def sliceOf (s : Slice Std.U8) : Bytes :=
 structure KemView where
   keyPair : tacenta_boundary.kem.KeyPair → Bytes
 
+/-! ## Prekey-store representation relation
+
+The responder root used to quantify an arbitrary `storeRel`.  That is useful
+while proving individual branches, but it is too weak for the public
+composition claim: a relation could forget the one-time pools or replay
+markers entirely.  The following view records every persisted field that the
+model can observe.  The KEM pair remains opaque at the generated boundary, so
+its byte interpretation is explicit in `KemView`; all other byte-bearing
+fields are structurally readable from the translation.
+-/
+
+def oneTimeOf
+    (v : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) :
+    List (Nat × Bytes) :=
+  v.val.map fun entry => (entry.1.val, arrayOf entry.2)
+
+def kemOneTimeOf
+    (v : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize))) (view : KemView) :
+    List (Nat × Bytes × Bytes) :=
+  v.val.map fun entry => (entry.1.val, view.keyPair entry.2.1, arrayOf entry.2.2)
+
+def previousSignedOf
+    (value : Option ((Array Std.U8 32#usize) × Std.U32 ×
+      (Array Std.U8 64#usize))) :
+  Option (Bytes × Nat × Bytes) :=
+  value.map fun entry => (arrayOf entry.1, entry.2.1.val, arrayOf entry.2.2)
+
+def previousKemOf
+    (value : Option (tacenta_boundary.kem.KeyPair × Std.U32 ×
+      (Array Std.U8 64#usize))) (view : KemView) :
+  Option (Bytes × Nat × Bytes) :=
+  value.map fun entry => (view.keyPair entry.1, entry.2.1.val, arrayOf entry.2.2)
+
+def replaySeenOf
+    (v : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) :
+    List (Nat × Bytes) :=
+  v.val.map fun entry => (entry.1.val, arrayOf entry.2)
+
+def legacyBlockedOf (v : alloc.vec.Vec Std.U32) : List Nat :=
+  v.val.map fun id => id.val
+
+noncomputable def oneTimeDeref
+    (value : zeroize.Zeroizing
+      (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))) :=
+  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (alloc.vec.Vec.Insts.ZeroizeZeroize
+      (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)))) value
+
+structure PrekeyStoreRefines (dh : DhView) (kemView : KemView)
+    (real : lifecycle.PrekeyStore)
+    (model : Model.Lifecycle.PrekeyStore) : Prop where
+  identityPublic : dh.publicKey real.identity_public =
+    model.state.identityPublic
+  signedPrekeySecret : arrayOf real.signed_prekey_secret =
+    model.state.signedPrekeySecret
+  signedPrekeyId : real.signed_prekey_id.val = model.state.signedPrekeyId
+  signedPrekeySig : arrayOf real.signed_prekey_sig = model.state.signedPrekeySig
+  oneTimeDeref_exists : ∃ decoded,
+    oneTimeDeref real.one_time = ok decoded
+  oneTime : ∀ decoded, oneTimeDeref real.one_time = ok decoded →
+    oneTimeOf decoded = model.state.oneTime
+  kem : kemView.keyPair real.kem = model.state.kemPair
+  kemId : real.kem_id.val = model.state.kemId
+  kemSig : arrayOf real.kem_sig = model.state.kemSig
+  kemOneTime : kemOneTimeOf real.kem_one_time kemView = model.state.kemOneTime
+  nextId : real.next_id.val = model.state.nextId
+  seen : replaySeenOf real.last_resort_seen = model.state.seen
+  legacyBlocked : legacyBlockedOf real.legacy_last_resort_blocked =
+    model.state.legacyLastResortBlocked
+  previousSigned : previousSignedOf real.previous_signed_prekey =
+    model.state.previousSigned
+  previousKem : previousKemOf real.previous_kem kemView = model.state.previousKem
+
 def resultOptionOf {A B : Type} (f : A → B) : core.result.Result A Unit → Option B
   | .Ok value => some (f value)
   | .Err _ => none
@@ -2075,6 +2152,47 @@ theorem establish_responder_invalid_identity_step_refines_of_root {R : Type}
   · simp [ResponderResultRefines, refusalOf, handshakeRefusalOf]
   · exact hstore
   · exact htrace
+
+/-! The first responder public join with the concrete persisted-state
+    relation.  The Rust refusal returns the original store, and the model
+    refusal returns its original store; the field-level relation therefore
+    crosses the transaction boundary unchanged.  This specialization is
+    intentionally separate from the generic adapter above so its result
+    cannot be read as accepting an unconstrained `storeRel`. -/
+theorem establish_responder_invalid_identity_step_refines_of_field_store
+    {R : Type}
+    (kemView : KemView)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool)
+    (hstore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = false) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  exact establish_responder_invalid_identity_step_refines_of_root
+    (PrekeyStoreRefines dh kemView) rngCore cryptoRng trace dh K oracle view
+    ourIdentity modelIdentity ourPrekeys modelStore initialMessage rng initial
+    signedSecret kemPair lastResort hstore htrace hreal hdecodeModel hs hk hv
 
 /-! Join the concrete responder KEM refusal to the model's authenticated
     preparation refusal.  The store and RNG are unchanged on both sides. -/
