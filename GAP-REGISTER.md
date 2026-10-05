@@ -6,10 +6,11 @@ one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
-Last assessed: 2026-10-05, at candidate `d4ab556b`. Historical row runs retain
+Last assessed: 2026-10-05, at candidate `82b85975`. Historical row runs retain
 their original revision stamps. Row `E2E-07` was re-run later on 2026-09-30
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
+Current candidate update (2026-10-05): `SessionUnitSatisfiabilitySpqrLaws.lean` now derives the session-unit `VecRetainAgrees` and `RemoveSkippedAtAgrees` bodies from named standard-library and zeroize laws. The decrypt-ratchet composition screen constructs those agreements internally from `StdLaws`, `VecRetainAxiomShape` and `SpqrZeroizeShape`, so they are no longer independent `vr`/`rm` hypotheses. The real external-law premises remain explicit and `E2E-01` remains blocking.
 Current candidate update (2026-10-05): `public_decrypt_end_to_end` now joins the six initial-dispatch routes with the two non-initial ratchet passthrough routes, and `Translation.UnitLifecycleT3` plus `Translation.AxiomAuditSessionUnit` build locally. This is composition evidence only; `E2E-01` remains open until the contract-vacuity, dispatch-vacuity, and independent review conditions are accepted.
 Current candidate update (2026-10-05): `public_decrypt_ratchet_end_to_end` now joins the exact generated ratchet refusal and success evidence into one public-root witness. This removes the missing named root join, but it remains evidence-indexed and does not discharge `SESSION-CONTRACT-VACUITY`, `DISPATCH-EVIDENCE-VACUITY` or the independent review requirement.
 Current candidate update (2026-10-05): `take_one_time_kem_loop_first_match` now kernel-checks the generated KEM search's actual first-match behavior: the successful index is in range, the selected entry matches, every earlier entry is a non-match, and exhaustion leaves the vector unchanged. This removes search-loop behavior as an unexamined responder-store premise; the generated swap/pop value law and public five-root composition remain open.
