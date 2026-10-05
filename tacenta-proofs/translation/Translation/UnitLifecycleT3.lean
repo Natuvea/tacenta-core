@@ -1061,14 +1061,14 @@ equation, the corresponding model transition, and the field relations that
 the branch adapters establish.
 -/
 
-def PublicInitiatorEstablishWitness {R : Type}
+structure PublicInitiatorEstablishWitness {R : Type}
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
-    (rng : R) (modelStep : Model.Lifecycle.EstablishStep) : Prop :=
-  ∃ output,
-    lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
-      ok output ∧ EstablishStepRefines trace dh K output modelStep
+    (rng : R) (modelStep : Model.Lifecycle.EstablishStep) : Type where
+  output : core.result.Result lifecycle.Session lifecycle.Error × R
+  root : lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng = ok output
+  refines : EstablishStepRefines trace dh K output modelStep
 
 inductive InitiatorEstablishEndToEndEvidence {R : Type}
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -1096,7 +1096,7 @@ inductive InitiatorEstablishEndToEndEvidence {R : Type}
       InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
         ourIdentity theirBundle rng modelStep
 
-theorem public_establish_initiator_end_to_end
+def public_establish_initiator_end_to_end
     {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
     {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
     {cryptoRng : rand_core_1.CryptoRng R}
@@ -1117,17 +1117,18 @@ theorem public_establish_initiator_end_to_end
       rw [hmodel]
       exact { result := hrel, draws := htrace }
 
-def PublicResponderEstablishWitness {R : Type}
+structure PublicResponderEstablishWitness {R : Type}
     (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
     (initialMessage : Slice Std.U8) (rng : R)
-    (modelStep : Model.Lifecycle.ResponderStep) : Prop :=
-  ∃ output,
-    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
-      initialMessage rng = ok output ∧
-    ResponderEstablishStepRefines storeRel trace dh K output modelStep
+    (modelStep : Model.Lifecycle.ResponderStep) : Type where
+  output : (core.result.Result (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.PrekeyStore × R)
+  root : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok output
+  refines : ResponderEstablishStepRefines storeRel trace dh K output modelStep
 
 inductive ResponderEstablishEndToEndEvidence {R : Type}
     (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
@@ -1163,7 +1164,7 @@ inductive ResponderEstablishEndToEndEvidence {R : Type}
       ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
         ourIdentity ourPrekeys initialMessage rng modelStep
 
-theorem public_establish_responder_end_to_end
+def public_establish_responder_end_to_end
     {R : Type} {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
@@ -1187,6 +1188,90 @@ theorem public_establish_responder_end_to_end
       refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngNext), hroot, ?_⟩
       rw [hmodel]
       exact { result := ⟨hrel, hplaintext⟩, store := hstore, draws := htrace }
+
+/-! A typed public witness is enough to inhabit the corresponding end-to-end
+    evidence record.  This is deliberately a shape split, not a new contract:
+    impossible real/model result combinations are rejected by the refinement
+    field, while the surviving branches expose the exact root equation, model
+    step, store relation, and draw trace required by the public join. -/
+def initiator_establish_end_to_end_evidence_of_witness {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (witness : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep) :
+    InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  obtain ⟨output, hroot, hstep⟩ := witness
+  rcases output with ⟨result, rngNext⟩
+  cases result with
+  | Err reason =>
+      cases modelStep with
+      | mk modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hrefusal : refusalOf reason = modelReason := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact .refusal reason modelReason oracleNext rngNext hroot rfl
+                hrefusal hstep.draws
+          | ok modelSession =>
+              have hfalse : False := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact hfalse.elim
+  | Ok realSession =>
+      cases modelStep with
+      | mk modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hfalse : False := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact hfalse.elim
+          | ok modelSession =>
+              exact .success realSession modelSession oracleNext rngNext hroot rfl
+                hstep.result hstep.draws
+
+def responder_establish_end_to_end_evidence_of_witness {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (witness : PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep) :
+    ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  obtain ⟨output, hroot, hstep⟩ := witness
+  rcases output with ⟨result, storeAfter, rngNext⟩
+  cases result with
+  | Err reason =>
+      cases modelStep with
+      | mk modelStore modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hrefusal : refusalOf reason = modelReason := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact .refusal reason modelReason modelStore oracleNext storeAfter
+                rngNext hroot rfl hstep.store hrefusal hstep.draws
+          | ok modelOutput =>
+              have hfalse : False := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact hfalse.elim
+  | Ok realOutput =>
+      rcases realOutput with ⟨realSession, realPlaintext⟩
+      cases modelStep with
+      | mk modelStore modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hfalse : False := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact hfalse.elim
+          | ok modelOutput =>
+              rcases modelOutput with ⟨modelSession, modelPlaintext⟩
+              exact .success realSession realPlaintext storeAfter modelSession
+                modelPlaintext modelStore oracleNext rngNext hroot rfl hstep.result.1
+                hstep.result.2 hstep.store hstep.draws
 
 /-! The responder's malformed-initial-message branch is now composed at the
 public root.  The generated decoder classification supplies the model's
