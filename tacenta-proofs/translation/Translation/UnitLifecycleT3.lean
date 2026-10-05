@@ -1321,6 +1321,83 @@ theorem establish_initiator_presence_mismatch_public_step_refines {R : Type}
   refine ⟨output, ?_, hstep⟩
   simpa [lifecycle.establish_initiator] using hcall
 
+/-! The successful establishment tail is an explicit composition seam.
+
+The generated root constructs a Session only after the two aggregate
+initialisers and the identity/public-key encodings have returned.  Keeping
+this constructor relation separate makes the remaining root theorem consume
+field-level evidence rather than a pre-built `SessionRefines` proposition. -/
+theorem initiator_session_refines_of_constructors
+    (dh : DhView) (K : Model.Braid.Kem)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic ephemeralPublic ratchetPublic
+      signedPrekeyPublic dhOutPublic :
+      tacenta_boundary.dh.PublicKeyBytes)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : Std.U32)
+    (modelRatchetPrivate : Model.Lifecycle.Key)
+    (modelIdentityAd modelOurIdentityPublic modelPeerIdentityPublic :
+      Model.Lifecycle.Key)
+    (modelEphemeralPublic : Model.Lifecycle.Key)
+    (modelKemCiphertext : Model.Lifecycle.Key)
+    (modelSignedPrekeyId modelOneTimePrekeyId modelKemPrekeyId : Nat)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        (dh.publicKey dhOutPublic) .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initAlice sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hephemeral : dh.publicKey ephemeralPublic = modelEphemeralPublic)
+    (hkem : vecOf kemCiphertext = modelKemCiphertext)
+    (hsigned : signedPrekeyId.val = modelSignedPrekeyId)
+    (hone : oneTimePrekeyId.val = modelOneTimePrekeyId)
+    (hkemId : kemPrekeyId.val = modelKemPrekeyId) :
+    SessionRefines dh K
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := ratchetPrivate, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := peerIdentityPublic,
+        pending_initial := some
+          { ephemeral_public := ephemeralPublic,
+            kem_ciphertext := kemCiphertext,
+            signed_prekey_id := signedPrekeyId,
+            one_time_prekey_id := oneTimePrekeyId,
+            kem_prekey_id := kemPrekeyId },
+        established_ephemeral := none }
+      { triple := Model.Triple.initAlice sharedSecret
+          (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+          (dh.publicKey dhOutPublic) .tacenta,
+        braid := Model.Braid.initAlice sharedSecret,
+        ratchetPrivate := modelRatchetPrivate,
+        identityAd := modelIdentityAd,
+        ourIdentityPublic := modelOurIdentityPublic,
+        peerIdentityPublic := modelPeerIdentityPublic,
+        pendingInitial := some
+          { ephemeralPublic := modelEphemeralPublic,
+            kemCiphertext := modelKemCiphertext,
+            signedPrekeyId := modelSignedPrekeyId,
+            oneTimePrekeyId := modelOneTimePrekeyId,
+            kemPrekeyId := modelKemPrekeyId },
+        establishedEphemeral := none } := by
+  constructor
+  · simpa [hour, hpeer] using htriple
+  · exact hbraid
+  · exact hprivate
+  · exact had
+  · exact hour
+  · exact hpeer
+  · simp [pendingInitialOf, hephemeral, hkem, hsigned, hone, hkemId]
+  · simp
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
