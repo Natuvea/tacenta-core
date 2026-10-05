@@ -129,15 +129,21 @@ theorem session_invariant_gives_braid_decoder_size
     (hinv : lifecycle.Session.invariant session = ok true) :
     Tacenta.SessionUnitBraidT1.State.decoders_sized session.braid.state := by
   unfold lifecycle.Session.invariant at hinv
-  obtain ⟨structural, hstructural, hleaf⟩ := bind_ok_inv hinv
-  simp only [ok.injEq] at hstructural
-  subst structural
+  obtain ⟨structural, _, hleaf⟩ :=
+    SessionUnitBraidPreserve.bind_ok_inv hinv
   split at hleaf
-  · simp at hleaf
-  · exact SessionUnitBraidPreserveFacts.sized_decoders_sized
-      (SessionUnitBraidPreserveFacts.invariant_true_gives_sized
-        hct1 hct2 hheader hek session.braid
-        (by simpa using hleaf))
+  all_goals (try simp at hleaf)
+  all_goals
+    unfold lifecycle.Session.leaf_invariants at hleaf
+    obtain ⟨tripleInv, _, hbraid⟩ :=
+      SessionUnitBraidPreserve.bind_ok_inv hleaf
+    split at hbraid
+    all_goals (try
+      exact SessionUnitBraidPreserveFacts.sized_decoders_sized
+        (SessionUnitBraidPreserveFacts.invariant_true_gives_sized
+          hct1 hct2 hheader hek session.braid
+          (by simpa using hbraid)))
+    all_goals simp at hbraid
 
 /-! The lifecycle unit and the Braid port call the same generated KDF
     operations. Keep the correspondence at the shared lifecycle boundary so
@@ -7942,6 +7948,26 @@ private theorem setWidth32_usize_scalar_model (n : Usize) :
       UInt32.ofNat n.val := by
   simpa only [UScalar.val] using setWidth32_usize_model n
 
+/- The corresponding `Std.U8` value, kept separate so the result relation is
+   explicit at the translated/model boundary. -/
+private def agreement_byte : tacenta_wire.AgreementType → Std.U8
+  | .None => 0#u8
+  | .Hdr => 1#u8
+  | .Ek => 2#u8
+  | .EkCt1Ack => 3#u8
+  | .Ct1 => 4#u8
+  | .Ct2 => 5#u8
+
+private theorem agreement_type_to_byte_eq (t : tacenta_wire.AgreementType) :
+    tacenta_wire.AgreementType.to_byte t = ok (agreement_byte t) := by
+  exact match t with
+  | .None => rfl
+  | .Hdr => rfl
+  | .Ek => rfl
+  | .EkCt1Ack => rfl
+  | .Ct1 => rfl
+  | .Ct2 => rfl
+
 set_option maxHeartbeats 2000000 in
 /-- Encoding a related shipping composite header produces exactly the model's
 fixed-width header bytes. -/
@@ -7952,6 +7978,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
       vecOf encoded = Model.CompositeHeader.encode model ⦄ := by
   rw [← wire_compositeOf_eq real model hrel]
   unfold tacenta_wire.encode_composite
+  simp only [agreement_type_to_byte_eq]
   step*
   all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     Array.to_slice, Slice.length])
@@ -7961,8 +7988,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
     Array.to_slice, Slice.length])
   all_goals (try scalar_tac)
   all_goals cases htype : real.ag_type <;> cases hchunk : real.ag_chunk
-  all_goals simp only [tacenta_wire.AgreementType.to_byte, pure]
-  all_goals step*
+  all_goals (try simp only [tacenta_wire.AgreementType.to_byte, pure])
   all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     Array.to_slice, Slice.length])
   all_goals (try scalar_tac)
@@ -7992,7 +8018,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
     u16_be_agrees_map, tacenta_wire.VERSION, tacenta_wire.TYPE_RATCHET,
     Model.Messages.version, Model.Messages.typeRatchet,
     Model.CompositeHeader.chunkBytes, Model.CompositeHeader.encodeAgreementType,
-    SessionUnitWireT3.agTypeOf, Model.CompositeHeader.be16]
+    SessionUnitWireT3.agTypeOf, Model.CompositeHeader.be16, agreement_byte]
   all_goals rfl
 
 /-- Appending the AEAD output to a related composite header produces exactly
