@@ -826,8 +826,6 @@ REQUIRED_PINS = frozenset(
     # every axiom pin of the module. A pin outside this list can be deleted with its claim and
     # the manifest regenerated without a refusal.
     + ["Tacenta.DispatchEvidenceVacuity." + n for n in (
-        "same_ephemeral_agreement_empty",
-        "initialSameEphemeralEvidence_false",
         "codewordViewOf_false",
         "codewordViewOf_false_of_encoderNewTotal",
         "record_empty_of_nonempty_decoder",
@@ -843,8 +841,74 @@ REQUIRED_PINS = frozenset(
         "constant_dhPublic_false_of_publicKeyNotConstant",
         "tripleConcreteEvidence_false_of_publicKeyNotConstant",
         "aeadConcreteEvidence_false_of_publicKeyNotConstant",
-        "oracleOf_kem_oracle_never_refuses",
-        "oracleOf_kem_call_never_errs",
+    )]
+    # The Braid's preservation results: every axiom pin of the six BraidPreserve modules that have
+    # one. They are the preservation theorems for the standalone Braid translation and, as a
+    # count-checked port, for the session unit, the one law they add and its model, the unit's
+    # decoder lemmas and decoded-Braid results, and the two receive corollaries. A pin outside this
+    # list can be deleted with its claim and the manifest regenerated without a refusal. The
+    # statement and definition pins in the same modules are not on any list.
+    + ["Tacenta.BraidPreserve." + n for n in (
+        "Braid.step_send_sized",
+        "Braid.step_receive_sized",
+        "State.clone_sized",
+        "Braid.send_sized",
+        "Braid.receive_sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.responder_sized",
+        "Braid.Run.sized",
+        "Braid.Constructed.sized",
+        "State.sized_ct1_bounded",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserve." + n for n in (
+        "Braid.step_send_sized",
+        "Braid.step_receive_sized",
+        "State.clone_sized",
+        "Braid.send_sized",
+        "Braid.receive_sized",
+        "Braid.commit_sized",
+        "Braid.initiator_sized",
+        "Braid.responder_sized",
+        "Braid.Run.sized",
+        "Braid.Constructed.sized",
+        "State.sized_ct1_bounded",
+        "Braid.Run.exists_initiator",
+        "Braid.Run.exists_responder",
+        "Braid.Run.exists_send",
+    )]
+    + ["Tacenta.BraidPreserveWitness." + n for n in (
+        "newMsgLen_iff",
+        "api_newMsgLen",
+        "erasure_laws_satisfiable",
+        "model_for_both_widths",
+    )]
+    + ["Tacenta.BraidPreserveCorollary." + n for n in (
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveDecoder." + n for n in (
+        "message_length_le",
+        "Good.new",
+        "Good.msg",
+        "Good.add",
+        "Good.clone",
+    )]
+    + ["Tacenta.SessionUnitBraidPreserveFacts." + n for n in (
+        "sized_decoders_bounded",
+        "invariant_true_gives_sized",
+        "from_bytes_sized",
+        "Braid.Run.sized_of_start",
+        "Braid.Run.inv",
+        "Braid.Run.receive_no_panic",
+        "Braid.Run.receive_refines",
+        "inv_not_sized",
+        "TruncateLen_is",
+        "truncateLen_model",
+        "laws_model",
     )]
     # The Braid's preservation results: every axiom pin of the six BraidPreserve modules that have
     # one. They are the preservation theorems for the standalone Braid translation and, as a
@@ -1280,6 +1344,7 @@ REQUIRED_PINS = frozenset(
         "braid_send_keysUnsampled_generate",
         "braidSendTrace_conflicts_with_sigSign",
         "retryReceiveBounds_initAlice",
+        "retryReceiveBounds_initBob",
         "retryReceiveBounds_not_trivial",
         "generatedTripleRefusalConditions_initAlice",
         "generatedTripleSuccessConditions_initAlice",
@@ -1338,6 +1403,43 @@ REQUIRED_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: `UnitLifecycleTripleRefusalT3.lean`,
+    # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`,
+    # and the split form added to `UnitLifecycleDecryptRatchetT3.lean`.
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1367,6 +1469,22 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
+        # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
+        # compiler-evaluated constants, and the results that compose them on those of the discharged
+        # Triple receive refinement, no others.
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_continuation_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.triple_receive_refusal_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.concrete_receive_attempt_refusal_from_retry_bounds",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.receive_with_eviction_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
     }
 )
 
@@ -1818,6 +1936,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "oracleOf_dhAgree_off_view",
         "random32Clause_of_oracleOf",
         "retryReceiveBounds_initAlice",
+        "retryReceiveBounds_initBob",
         "retryReceiveBounds_not_trivial",
         "sameEphemeralAgreement_unconstrained",
         "sigSignClause_of_law",
@@ -1904,6 +2023,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "StepRefines",
         "ResultRefines",
         "SessionRefines",
+        "establish_initiator_noncanonical_identity_step_refines",
+        "establish_initiator_noncanonical_identity_public_step_refines",
+        "establish_initiator_presence_mismatch_public_step_refines",
     )]
     + ["Tacenta.SessionUnitSpqrT3." + n for n in (
         "VecRetainAgrees",
@@ -1952,6 +2074,50 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "receiveWithEviction_first_round",
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
+    )]
+    # Package F, the refusal closure: the statements, and the bodies of the definitions they are
+    # written in (`#print`).
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+        "OpenRefusalCloses",
     )]
 )
 
@@ -2011,6 +2177,22 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.SessionUnitSpqrT3." + n for n in (
         "VecRetainAgrees",
         "RemoveSkippedAtAgrees",
+    )]
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "OpenRefusalCloses",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

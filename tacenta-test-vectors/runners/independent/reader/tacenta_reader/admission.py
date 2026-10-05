@@ -1,5 +1,13 @@
-"""Admitting an identity key at the two boundaries that read one off the wire
+"""PROJECT-CONTROLLED DRY RUN. NOT INDEPENDENT EVIDENCE. It does not close or reclassify the open item.
+
+Admitting an identity key at the two boundaries that read one off the wire
 (pass 13).
+
+Dry run addition: `responder_receive` continues `responder_prefix` through
+decapsulation (`mlkem.decaps_internal`), the KDF, the responder's
+initialisation and the ratchet message's receive, to the plaintext. Everything
+below that says this reader stops before decapsulation describes
+`responder_prefix` and `initiator_prefix`, which still stop there.
 
 From identities-and-devices.md, Identity keys, and session-establishment.md,
 Sending the initial message and Receiving the initial message. Nothing here is
@@ -35,7 +43,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from . import constants as K
-from . import curve25519, persistence, pqxdh, wire
+from . import braid, curve25519, mlkem, persistence, pqxdh, triple, wire
 from .curve25519 import x25519_public
 
 
@@ -224,3 +232,50 @@ def responder_agreements(store, message_bytes: bytes, identity_secret: bytes):
         opkb = next(sec for i, sec in store.one_time if i == msg.one_time_prekey_id)
     return pqxdh.responder_agreements(bytes(identity_secret), spkb, opkb,
                                       wire.decode_ec(msg.identity), wire.decode_ec(msg.ephemeral))
+
+
+def responder_receive(store, message_bytes: bytes, identity_secret: bytes,
+                      counters: Optional[Counters] = None,
+                      rng: Optional[Rng] = None) -> bytes:
+    """Receiving the initial message, through to the plaintext (I1).
+
+    1. `responder_prefix`: decode, find the signed prekey and the KEM prekey the
+       message names, the identity-key rule, the one-time curve prekey, the
+       ciphertext's length. Every refusal there changes nothing.
+    2. "recovers SS = PQKEM-DEC(PQPKB, CT)": the decapsulation key is the first
+       3,168 bytes of the stored `kem_pair` (session-persistence.md, Prekey
+       store), and decapsulation runs `ML-KEM.Decaps_internal`.
+    3. "repeats the same DH and KDF computations": `SK`.
+    4. On the last-resort path, the replay identity is computed from `SK` and
+       the record consulted, before the initial ciphertext is decrypted.
+    5. "He rebuilds AD and decrypts": `AD = EncodeEC(IKA) || EncodeEC(IKB)`,
+       the Triple Ratchet's responder initialisation from `SK` and the signed
+       prekey's secret (triple-ratchet.md, Initialisation), and the receive of
+       the ratchet message inside, which runs the Braid's first receive.
+
+    The first receive makes a Diffie-Hellman ratchet step, which draws a fresh
+    32-byte ratchet secret (ratchet.md). The plaintext does not depend on it, and
+    the vector does not name it, so it is drawn from `rng`.
+
+    The store is not changed: the page's removals apply once the ratchet
+    message has authenticated, and the vector pins only the plaintext."""
+    c = counters if counters is not None else Counters()
+    r = rng if rng is not None else Rng(b"tacenta-reader receive")
+    if isinstance(store, (bytes, bytearray)):
+        store = persistence.prekey_store_from_bytes(bytes(store))
+    responder_prefix(store, message_bytes, c)
+    msg = wire.decode_initial(message_bytes)
+    pair = _find_kem_prekey(store, msg.kem_prekey_id)
+    shared = mlkem.decaps_internal(bytes(pair[:K.KEM_DK_LEN]), msg.kem_ciphertext)
+    c.private_keys_used += 1
+    dh1, dh2, dh3, dh4 = responder_agreements(store, message_bytes, identity_secret)
+    sk = pqxdh.shared_secret(dh1, dh2, dh3, dh4, shared)
+    pqxdh.check_last_resort(store, msg, sk)
+    ika = wire.decode_ec(msg.identity)
+    ikb = x25519_public(bytes(identity_secret))
+    identity_ad = pqxdh.associated_data(ika, ikb)
+    spk_secret = _find_signed_prekey(store, msg.signed_prekey_id)
+    party = triple.init_responder(sk, identity_ad, spk_secret, braid.init_responder(sk))
+    _party, plaintext = triple.decrypt(party, braid.BraidAgreement(None), msg.ratchet_message,
+                                       r.draw(32))
+    return plaintext

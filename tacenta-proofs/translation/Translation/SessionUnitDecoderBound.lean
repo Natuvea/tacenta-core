@@ -57,6 +57,14 @@ theorem needed_le_after_add_chunk {d d' : Decoder} {c : Chunk} {b : Bool} {n : N
   rw [(add_chunk_keeps_needed d c b d' h).1]
   exact hd
 
+/-- A size bound survives a successful chunk offer as well.  The concrete
+decoder reserves its output by `size`, so receive totality needs this fact in
+addition to the `needed` bound above. -/
+theorem size_le_after_add_chunk {d d' : Decoder} {c : Chunk} {b : Bool} {n : Nat}
+    (h : Decoder.add_chunk d c = ok (b, d')) (hd : d.size.val ≤ n) : d'.size.val ≤ n := by
+  rw [(add_chunk_keeps_needed d c b d' h).2]
+  exact hd
+
 /-- `Decoder::clone` keeps `size` and `needed`. -/
 theorem clone_keeps_needed (d d' : Decoder)
     (h : Decoder.Insts.CoreCloneClone.clone d = ok d') : d'.needed = d.needed ∧ d'.size = d.size := by

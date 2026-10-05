@@ -1126,6 +1126,63 @@ fn skipped_replacement_allocates_its_final_capacity() {
     assert_eq!(b.skipped.capacity(), 4);
 }
 
+/// A persisted state one short of the total bound may replace the two held
+/// pairs it is about to derive. The capacity guard must count the resulting
+/// store, not the pre-purge store, and the case must work after a
+/// serialize/deserialize boundary rather than only for an in-memory shape.
+#[test]
+fn stored_state_replacement_at_the_total_bound_succeeds() {
+    let fresh = State::init_bob(&sk());
+    let bytes = fresh.to_bytes();
+    let skipped_count_at = CHAINS_AT + CHAINS_ENTRY_LEN;
+    let entry = |epoch: u64, n: u64, key: u8| {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&epoch.to_be_bytes());
+        bytes.extend_from_slice(&n.to_be_bytes());
+        bytes.extend_from_slice(&[key; 32]);
+        bytes
+    };
+    let mut stored = Vec::new();
+    stored.extend_from_slice(&bytes[..skipped_count_at]);
+    stored.extend_from_slice(&((MAX_SKIPPED_STORE - 1) as u32).to_be_bytes());
+    stored.extend_from_slice(&entry(0, 1, 0x51));
+    stored.extend_from_slice(&entry(0, 2, 0x52));
+    let mut i = 0usize;
+    while i < MAX_SKIPPED_STORE - 3 {
+        stored.extend_from_slice(&entry(0, 10_000 + i as u64, 0x53));
+        i += 1;
+    }
+    let mut state = State::from_bytes(&stored).expect("stored replacement fixture is canonical");
+    assert_eq!(state.skipped_len(), MAX_SKIPPED_STORE - 1);
+    assert_eq!(state.receive(0, None, 3).unwrap().len(), 32);
+    assert_eq!(state.skipped_len(), MAX_SKIPPED_STORE - 1);
+    assert!(state.invariant());
+    assert_eq!(State::from_bytes(&state.to_bytes()).unwrap(), state);
+}
+
+/// At the same boundary, a request with no replacements is refused before the
+/// store is changed. This is the refusal side of the resulting-store rule.
+#[test]
+fn stored_state_replacement_bound_refusal_is_atomic() {
+    let fresh = State::init_bob(&sk());
+    let bytes = fresh.to_bytes();
+    let skipped_count_at = CHAINS_AT + CHAINS_ENTRY_LEN;
+    let mut stored = Vec::new();
+    stored.extend_from_slice(&bytes[..skipped_count_at]);
+    stored.extend_from_slice(&(MAX_SKIPPED_STORE as u32).to_be_bytes());
+    let mut i = 0usize;
+    while i < MAX_SKIPPED_STORE {
+        stored.extend_from_slice(&0u64.to_be_bytes());
+        stored.extend_from_slice(&(10_000 + i as u64).to_be_bytes());
+        stored.extend_from_slice(&[0x54; 32]);
+        i += 1;
+    }
+    let mut state = State::from_bytes(&stored).expect("stored refusal fixture is canonical");
+    let before = state.to_bytes();
+    assert_eq!(state.receive(0, None, 2), Err(SpqrError::SkippedStoreFull));
+    assert_eq!(state.to_bytes(), before);
+}
+
 /// The custom removal path preserves order. The security-sensitive wipe is
 /// covered by the public allocator-spy tests in `tests/spqr_erasure_public.rs`;
 /// this unit test stays functional and does not inspect source text.

@@ -63,9 +63,10 @@ product.
   changed record fails the build, and nothing here shows the whole record can be met.
 * **C. Numeric state records.** `RetryReceiveBounds`, `GeneratedTripleRefusalConditions` and
   `GeneratedTripleSuccessConditions` hold at the initiator's initial Triple state,
-  `Model.Triple.initAlice` (`retryReceiveBounds_initAlice` and the two `_initAlice` results), and
-  the first is not true of every state (`retryReceiveBounds_not_trivial`). The responder's initial
-  state, `Model.Triple.initBob`, is not decided.
+  `Model.Triple.initAlice` (`retryReceiveBounds_initAlice` and the two `_initAlice` results),
+  and the two generated-condition records now also hold at the responder's initial state,
+  `Model.Triple.initBob` (the two `_initBob` results). The first is not true of every state
+  (`retryReceiveBounds_not_trivial`).
 
 ## The sense of the laws
 
@@ -288,6 +289,7 @@ def KemClauses {R : Type}
     (trace : R → List Model.Lifecycle.Key) (oracle : Model.Lifecycle.Oracle) : Prop :=
   (∀ publicKey rng draw rest expected,
     trace rng = draw :: rest →
+    oracle.kemValid (sliceOf publicKey) = true →
     oracle.kemEncaps (sliceOf publicKey) draw = some expected →
     ∃ result rng', encap publicKey rng = ok (.Ok result, rng') ∧
       trace rng' = rest ∧ encapsulationOf (.Ok result) = some expected) ∧
@@ -431,16 +433,15 @@ theorem kemClauses_of_law (valid : Bytes → Bool)
     (he : oracle.kemEncaps = kemEncapsOf valid E) :
     KemClauses encap byteTrace oracle := by
   refine ⟨?_, ?_, ?_⟩
-  · intro publicKey rng d rest expected h hsome
+  · intro publicKey rng d rest expected h hvalid hsome
+    rw [hv] at hvalid
     rw [he] at hsome
     unfold kemEncapsOf at hsome
-    split at hsome
-    · rename_i hvalid
-      obtain ⟨s, hf, htr, hsl, _⟩ := byte_fill_32 h
-      refine ⟨E (sliceOf publicKey) (sliceOf s), rng.drop 32, ?_, htr, ?_⟩
-      · rw [hK, if_pos hvalid, hf]; rfl
-      · rw [hsl]; exact hsome
-    · simp at hsome
+    rw [if_pos hvalid] at hsome
+    obtain ⟨s, hf, htr, hsl, _⟩ := byte_fill_32 h
+    refine ⟨E (sliceOf publicKey) (sliceOf s), rng.drop 32, ?_, htr, ?_⟩
+    · rw [hK, if_pos hvalid, hf]; rfl
+    · rw [hsl]; exact hsome
   · intro publicKey rng error hinv
     rw [hv] at hinv
     rw [hK, if_neg (by simp [hinv])]
@@ -625,7 +626,7 @@ theorem braidSendTrace_conflicts_with_sigSign
   · rw [hf] at hgenCall; simp at hgenCall
   · rw [hf] at hgenCall; simp at hgenCall
 
-/-! ## C. The numeric state records hold at the initiator's initial Triple state -/
+/-! ## C. The numeric state records hold at both initial Triple states -/
 
 theorem retryReceiveBounds_initAlice (sk ourPub peerPub dhOut : Model.Lifecycle.Key)
     (labels : Model.State.LabelSet) (header : tacenta_triple.Header)
@@ -636,6 +637,24 @@ theorem retryReceiveBounds_initAlice (sk ourPub peerPub dhOut : Model.Lifecycle.
     Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
   constructor <;>
     simp [Model.Triple.initAlice, Model.Ratchet.initSender, Model.SparseRatchet.initAlice,
+      Model.SparseRatchet.init, Model.State.maxSkippedStore, Model.State.maxSkip,
+      Model.SparseRatchet.maxSkip, Model.SparseRatchet.epochsKept, U32.max_eq, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+/-! The responder's first authenticated receive starts from `initBob`, whose
+    classical side has no sending chain and whose sparse side runs in the
+    opposite direction.  Keep this witness separate from `initAlice`: the
+    retry dispatcher consumes the same bounds record, but the two initial
+    states are not definitionally interchangeable. -/
+theorem retryReceiveBounds_initBob (sk ourPub : Model.Lifecycle.Key)
+    (labels : Model.State.LabelSet) (header : tacenta_triple.Header)
+    (modelHeader : Model.State.Header) :
+    RetryReceiveBounds (Model.Triple.initBob sk ourPub labels) header
+      modelHeader none := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  constructor <;>
+    simp [Model.Triple.initBob, Model.Ratchet.initReceiver, Model.SparseRatchet.initBob,
       Model.SparseRatchet.init, Model.State.maxSkippedStore, Model.State.maxSkip,
       Model.SparseRatchet.maxSkip, Model.SparseRatchet.epochsKept, U32.max_eq, U64.max_eq] <;>
     first | omega | (rintro ch (h | h) <;> subst h <;> simp)
@@ -672,6 +691,33 @@ theorem generatedTripleSuccessConditions_initAlice [Tacenta.SessionUnitT1.Derive
     Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
   refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
     simp [htriple, Model.Triple.initAlice, Model.SparseRatchet.initAlice,
+      Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+/-! The responder starts from `initBob`, so keep its finite-store bounds explicit
+    rather than treating the initiator witness as if it covered both roles. -/
+theorem generatedTripleRefusalConditions_initBob [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+    (model : Model.Lifecycle.Session)
+    (htriple : model.triple = Model.Triple.initBob sk ourPub labels) :
+    Nonempty (GeneratedTripleRefusalConditions model none) := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
+    simp [htriple, Model.Triple.initBob, Model.SparseRatchet.initBob,
+      Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
+    first | omega | (rintro ch (h | h) <;> subst h <;> simp)
+
+theorem generatedTripleSuccessConditions_initBob [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+    (model : Model.Lifecycle.Session)
+    (htriple : model.triple = Model.Triple.initBob sk ourPub labels)
+    (realEpoch : Std.U64) :
+    Nonempty (GeneratedTripleSuccessConditions model realEpoch none) := by
+  have hu : 4294967295 ≤ Usize.max :=
+    Tacenta.SessionUnitSessionT1.small_le_usize_max (le_refl _)
+  refine ⟨⟨inferInstance, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
+    simp [htriple, Model.Triple.initBob, Model.SparseRatchet.initBob,
       Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
     first | omega | (rintro ch (h | h) <;> subst h <;> simp)
 
@@ -823,6 +869,22 @@ theorem braidSendTraceCounted_with_sigSign_byte (hS : SignFillsOnce64) (hgen : G
 
 end Tacenta.UnitLifecycleIntegrationScreen
 
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob : ∀ (sk ourPub : Model.Lifecycle.Key)
+  (labels : Model.State.LabelSet) (header : tacenta_triple.Header) (modelHeader : Model.State.Header),
+  RetryReceiveBounds (Model.Triple.initBob sk ourPub labels) header modelHeader none
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.retryReceiveBounds_initBob
+
 /-! ## Pins
 
 The axiom list and the statement of each result, held by the build, and the text of each clause
@@ -850,7 +912,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.concreteBranchEvidence_empty' depe
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -927,7 +988,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.endToEndEvidence_empty' depends on
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1004,7 +1064,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.agreementEndToEndEvidence_empty' d
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1089,15 +1148,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.random32Clause_of_oracleOf' depend
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.random32Clause_of_oracleOf
@@ -1120,15 +1177,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.sigSignClause_of_oracleOf' depends
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.sigSignClause_of_oracleOf
@@ -1152,15 +1207,13 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.kemClauses_of_oracleOf' depends on
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
  tacenta_boundary.xeddsa.sign,
  tacenta_boundary.xeddsa.verify,
  tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+ tacenta_boundary.dh.PrivateKey.public_key]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleIntegrationScreen.kemClauses_of_oracleOf
@@ -1352,7 +1405,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.braidSendTrace_conflicts_with_sigS
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1368,7 +1420,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.braidSendTrace_conflicts_with_sigS
  core.num.Usize.div_ceil,
  tacenta_boundary.dh.PrivateKey.agree,
  tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  zeroize.Zeroize.Blanket.zeroize,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
@@ -1487,6 +1538,49 @@ info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_i
 #check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initAlice
 
 /--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob
+
+/--
+info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+  (model : Model.Lifecycle.Session),
+  model.triple = Model.Triple.initBob sk ourPub labels → Nonempty (GeneratedTripleRefusalConditions model none)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleRefusalConditions_initBob
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob
+
+/--
+info: @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] (sk ourPub : Model.Lifecycle.Key) (labels : Model.State.LabelSet)
+  (model : Model.Lifecycle.Session),
+  model.triple = Model.Triple.initBob sk ourPub labels →
+    ∀ (realEpoch : U64), Nonempty (GeneratedTripleSuccessConditions model realEpoch none)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.generatedTripleSuccessConditions_initBob
+
+/--
 info: 'Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -1495,7 +1589,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view' depends
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1536,7 +1629,6 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrain
  tacenta_boundary.aead.encrypt,
  tacenta_boundary.dh.PrivateKey,
  tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
  tacenta_boundary.kem.KeyPair,
  tacenta_boundary.kem.decapsulate,
  tacenta_boundary.kem.encapsulate,
@@ -1604,10 +1696,11 @@ fun {R} encap trace oracle =>
   (∀ (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
       (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
       trace rng = draw :: rest →
-        oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-          ∃ result rng',
-            encap publicKey rng = ok (core.result.Result.Ok result, rng') ∧
-              trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected) ∧
+        oracle.kemValid (sliceOf publicKey) = true →
+          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+            ∃ result rng',
+              encap publicKey rng = ok (core.result.Result.Ok result, rng') ∧
+                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected) ∧
     (∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
         oracle.kemValid (sliceOf publicKey) = false → encap publicKey rng = ok (core.result.Result.Err error, rng)) ∧
       ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
@@ -1985,8 +2078,6 @@ fields:
       ∃ result,
         secret.agree publicKey = ok result ∧
           Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
-  Tacenta.UnitLifecycleT3.OracleOf.identityValid : ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
-      ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey)
   Tacenta.UnitLifecycleT3.OracleOf.aeadSeal : ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize)
       (ad plaintext : Slice U8),
       ∃ ciphertext,
@@ -2002,10 +2093,12 @@ fields:
       (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
       (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
       trace rng = draw :: rest →
-        oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-          ∃ result rng',
-            tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Ok result, rng') ∧
-              trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected
+        oracle.kemValid (sliceOf publicKey) = true →
+          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+            ∃ result rng',
+              tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+                  ok (core.result.Result.Ok result, rng') ∧
+                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected
   Tacenta.UnitLifecycleT3.OracleOf.kemInvalidKey : ∀ (publicKey : Slice U8) (rng : R)
       (error : tacenta_boundary.kem.KemError),
       oracle.kemValid (sliceOf publicKey) = false →
@@ -2046,9 +2139,6 @@ constructor:
         ∃ result,
           secret.agree publicKey = ok result ∧
             Option.map arrayOf result = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey))
-    (identityValid :
-      ∀ (publicKey : tacenta_boundary.dh.PublicKeyBytes),
-        ∃ result, is_valid_identity_key publicKey = ok result ∧ result = oracle.identityValid (dh.publicKey publicKey))
     (aeadSeal :
       ∀ (key1 key2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (ad plaintext : Slice U8),
         ∃ ciphertext,
@@ -2065,11 +2155,12 @@ constructor:
       ∀ (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
         (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
         trace rng = draw :: rest →
-          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-            ∃ result rng',
-              tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
-                  ok (core.result.Result.Ok result, rng') ∧
-                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected)
+          oracle.kemValid (sliceOf publicKey) = true →
+            oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+              ∃ result rng',
+                tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+                    ok (core.result.Result.Ok result, rng') ∧
+                  trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected)
     (kemInvalidKey :
       ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
         oracle.kemValid (sliceOf publicKey) = false →

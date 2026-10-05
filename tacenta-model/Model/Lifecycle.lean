@@ -783,6 +783,35 @@ theorem establishInitiator_bad_signed_prekey_signature (oracle : Oracle)
   subst expectedIdentity
   simp [establishInitiator, hp, hv, hc, hs, ho, hSig]
 
+/-! A KEM refusal is reached only after the bundle checks, signatures and the
+    first ephemeral draw.  The model's KEM boundary is deliberately allowed to
+    refuse without consuming another draw; this theorem names that state
+    transition so the translated establishment root can compose it instead of
+    treating `Error.Kem` as an unindexed branch label. -/
+theorem establishInitiator_kem_refusal (oracle afterEphemeral afterKem : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity ephemeralPrivate : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hOne : bundle.oneTimePrekey = none)
+    (hOneId : bundle.oneTimeId = absentId)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (none, afterKem)) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error .kem, oracle := afterKem } := by
+  subst expectedIdentity
+  simp [establishInitiator, hOne, hOneId, hp, hv, hc, hs, ho, hSignedSig,
+    hKemSig, hDraw, hKem]
+
 /-- A non-contributory initiator-ephemeral/signed-prekey agreement is rejected
     after the preceding draws and agreements, retaining their remaining oracle
     state and constructing no Session. -/
@@ -811,6 +840,114 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
   subst expectedIdentity
   simp [establishInitiator, hp, hv, hc, hs, ho, hSignedSig, hKemSig, hDraw,
     hKem, hDh1, hDh2, hDh3]
+
+/-! A successful initiator establishment with no curve one-time prekey.  This
+is the model-side target for the first concrete success composition: the two
+random draws, KEM result and four contributory agreements are consumed in the
+same order as the translated root, and the resulting session retains the
+pending initial message. -/
+theorem establishInitiator_success_no_one_time (oracle afterEphemeral afterKem afterRatchet : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity : Key)
+    (ephemeralPrivate kemCiphertext kemSecret ratchetPrivate dh1 dh2 dh3 dhOut : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hOne : bundle.oneTimePrekey = none)
+    (hOneId : bundle.oneTimeId = absentId)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (some (kemCiphertext, kemSecret), afterKem))
+    (hDh1 : oracle.dhAgree identity.secret bundle.signedPrekey = some dh1)
+    (hDh2 : oracle.dhAgree ephemeralPrivate bundle.identityKey = some dh2)
+    (hDh3 : oracle.dhAgree ephemeralPrivate bundle.signedPrekey = some dh3)
+    (hDrawRatchet : random32 afterKem = some (ratchetPrivate, afterRatchet))
+    (hDhOut : oracle.dhAgree ratchetPrivate bundle.signedPrekey = some dhOut) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .ok
+          { triple := Model.Triple.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 none kemSecret)
+              (oracle.dhPublic ratchetPrivate) bundle.signedPrekey dhOut .tacenta
+            braid := Model.Braid.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 none kemSecret)
+            ratchetPrivate
+            identityAd := Model.SessionEstablishment.associatedData
+              (Model.PersistedState.SessionState.encodeEc identity.publicKey)
+              (Model.PersistedState.SessionState.encodeEc bundle.identityKey)
+            ourIdentityPublic := identity.publicKey
+            peerIdentityPublic := bundle.identityKey
+            pendingInitial := some
+              { ephemeralPublic := oracle.dhPublic ephemeralPrivate
+                kemCiphertext
+                signedPrekeyId := bundle.signedPrekeyId.toNat
+                oneTimePrekeyId := bundle.oneTimeId.toNat
+                kemPrekeyId := bundle.kemPrekeyId.toNat }
+            establishedEphemeral := none }
+        oracle := afterRatchet } := by
+  subst expectedIdentity
+  simp [establishInitiator, hOne, hOneId, hp, hv, hc, hs, ho, hSignedSig, hKemSig,
+    hDraw, hKem, hDh1, hDh2, hDh3, hDrawRatchet, hDhOut]
+
+/-! The corresponding successful branch with a curve one-time prekey.  This
+keeps the optional fourth agreement explicit, so the concrete establishment
+composition cannot accidentally discharge only the no-one-time case. -/
+theorem establishInitiator_success_with_one_time (oracle afterEphemeral afterKem afterRatchet : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity oneTimePublic : Key)
+    (ephemeralPrivate kemCiphertext kemSecret ratchetPrivate dh1 dh2 dh3 dh4 dhOut : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hOne : bundle.oneTimePrekey = some oneTimePublic)
+    (hOneId : (bundle.oneTimeId != absentId) = true)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (hOneCanonical : Model.Messages.canonicalKey oneTimePublic = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (some (kemCiphertext, kemSecret), afterKem))
+    (hDh1 : oracle.dhAgree identity.secret bundle.signedPrekey = some dh1)
+    (hDh2 : oracle.dhAgree ephemeralPrivate bundle.identityKey = some dh2)
+    (hDh3 : oracle.dhAgree ephemeralPrivate bundle.signedPrekey = some dh3)
+    (hDh4 : oracle.dhAgree ephemeralPrivate oneTimePublic = some dh4)
+    (hDrawRatchet : random32 afterKem = some (ratchetPrivate, afterRatchet))
+    (hDhOut : oracle.dhAgree ratchetPrivate bundle.signedPrekey = some dhOut) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .ok
+          { triple := Model.Triple.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 (some dh4) kemSecret)
+              (oracle.dhPublic ratchetPrivate) bundle.signedPrekey dhOut .tacenta
+            braid := Model.Braid.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 (some dh4) kemSecret)
+            ratchetPrivate
+            identityAd := Model.SessionEstablishment.associatedData
+              (Model.PersistedState.SessionState.encodeEc identity.publicKey)
+              (Model.PersistedState.SessionState.encodeEc bundle.identityKey)
+            ourIdentityPublic := identity.publicKey
+            peerIdentityPublic := bundle.identityKey
+            pendingInitial := some
+              { ephemeralPublic := oracle.dhPublic ephemeralPrivate
+                kemCiphertext
+                signedPrekeyId := bundle.signedPrekeyId.toNat
+                oneTimePrekeyId := bundle.oneTimeId.toNat
+                kemPrekeyId := bundle.kemPrekeyId.toNat }
+            establishedEphemeral := none }
+        oracle := afterRatchet } := by
+  subst expectedIdentity
+  simp [establishInitiator, hOne, hOneId, hp, hv, hc, hs, hOneCanonical, ho, hSignedSig, hKemSig,
+    hDraw, hKem, hDh1, hDh2, hDh3, hDh4, hDrawRatchet, hDhOut]
 
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
@@ -1449,12 +1586,25 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
-/- Whether two ephemeral values are in the same successful X25519 agreement
-   class. Two rejected/non-contributory agreements are not a match: the
-   shipping predicate fails closed when either agreement is unavailable. -/
+/- Decode the `EncodeEC` values used by the repeat-initial predicate before
+   entering the DH oracle.  The wire values carry the curve tag; Rust's
+   `same_ephemeral_agreement` strips it with `decode_ec` and rejects malformed
+   or non-canonical encodings. -/
+def decodeEcForAgreement (encoded : Bytes) : Option Key :=
+  if encoded.length = 33 && encoded.head? = some Model.Messages.ecCurveByte
+      && Model.Messages.canonicalKey (encoded.drop 1) then
+    some (encoded.drop 1)
+  else none
+
+/- Whether two canonical ephemeral encodings are in the same successful X25519
+   agreement class. Two rejected/non-contributory agreements are not a match:
+   the shipping predicate fails closed when either agreement is unavailable. -/
 def sameEphemeralAgreement (oracle : Oracle) (secret established incoming : Key) : Bool :=
-  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
-  | some left, some right => left == right
+  match decodeEcForAgreement established, decodeEcForAgreement incoming with
+  | some establishedKey, some incomingKey =>
+      match oracle.dhAgree secret establishedKey, oracle.dhAgree secret incomingKey with
+      | some left, some right => left == right
+      | _, _ => false
   | _, _ => false
 
 def repeatedInitial (oracle : Oracle) (session : Session) (initial : Initial) : Bool :=
@@ -1839,6 +1989,18 @@ theorem finishResponderReceive_refusal_keeps_store (store : PrekeyStore)
   | mk session result oracle =>
       cases result <;> simp_all [finishResponderReceive]
 
+/-! The successful finish equation is the model-side transaction boundary:
+    durable prekey effects are exactly `consumeResponderPrekeys`, and they are
+    selected only from the authenticated receive result. -/
+theorem finishResponderReceive_success (store : PrekeyStore)
+    (oneTimeId kemId : Nat) (lastResort : Bool) (fingerprint : Option Key)
+    (session : Session) (plaintext : Bytes) (oracleAfter : Oracle) :
+    finishResponderReceive store oneTimeId kemId lastResort fingerprint
+      { session := session, result := .ok plaintext, oracle := oracleAfter } =
+      { store := consumeResponderPrekeys store oneTimeId kemId lastResort fingerprint,
+        result := .ok (session, plaintext), oracle := oracleAfter } := by
+  simp [finishResponderReceive]
+
 structure PreparedResponder where
   session : Session
   ratchetMessage : Bytes
@@ -1941,6 +2103,140 @@ theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity
   have hv' : oracle.identityValid initial.identity.tail = false := by simpa using hv
   simp [prepareResponder, hd, hs, hk, hv']
 
+/-! A KEM refusal is reached only after the decoded identifiers, signed-prekey
+    slot, KEM slot, identity and one-time slot have all been accepted.  It is
+    still a preparation refusal, so the store remains untouched. -/
+theorem prepareResponder_kem_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (initial : Model.Messages.Initial) (signedSecret : Key) (kemPair : Bytes)
+    (lastResort : Bool) (oneTimeSecret : Option Key)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat =
+      .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    prepareResponder oracle identity store initialMessage = .error .kem := by
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  simp [prepareResponder, hd, hs, hk, hv', ho, hkem]
+
+/-! An unknown signed-prekey identifier is rejected before the KEM slot is
+    inspected. -/
+theorem prepareResponder_unknown_signed_prekey (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat = none) :
+    prepareResponder oracle identity store initialMessage =
+      .error .unknownPrekeyId := by
+  simp [prepareResponder, hd, hs]
+
+/-! Any KEM-slot refusal is returned before curve-input decoding and before
+    one-time lookup. -/
+theorem prepareResponder_kem_slot_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (signedSecret : Key) (reason : Refusal)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat = .error reason) :
+    prepareResponder oracle identity store initialMessage = .error reason := by
+  simp [prepareResponder, hd, hs, hk]
+
+theorem prepareResponder_one_time_slot_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (signedSecret : Key) (kemPair : Bytes) (lastResort : Bool)
+    (reason : Refusal)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat = .error reason) :
+    prepareResponder oracle identity store initialMessage = .error reason := by
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  simp [prepareResponder, hd, hs, hk, hv', ho]
+
+/-! The authenticated preparation success is named separately from the public
+    responder root.  This theorem records the exact pre-commit inputs: all
+    lookups, identity admission, decapsulation, the four DH contributions, and
+    the last-resort replay decision.  The durable store is intentionally absent
+    from the conclusion; it is consumed only by `finishResponderReceive` after
+    the authenticated ratchet step succeeds. -/
+theorem prepareResponder_success_of_calls (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (initial : Model.Messages.Initial) (signedSecret kemPair : Key)
+    (lastResort : Bool) (oneTimeSecret : Option Key)
+    (kemSecret dh1 dh2 dh3 : Key)
+    (fingerprint : Option Key)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat =
+      .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = some kemSecret)
+    (hDh1 : oracle.dhAgree signedSecret (initial.identity.drop 1) = some dh1)
+    (hDh2 : oracle.dhAgree identity.secret (initial.ephemeral.drop 1) = some dh2)
+    (hDh3 : oracle.dhAgree signedSecret (initial.ephemeral.drop 1) = some dh3)
+    (hNoDh4 : (oneTimeSecret.map (fun secret =>
+      oracle.dhAgree secret (initial.ephemeral.drop 1))).any Option.isNone = false)
+    (hReplay : lastResortReplayCheck store initial.kemPrekeyId.toNat
+      (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+        ((oneTimeSecret.map (fun secret =>
+          oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id) kemSecret)
+      lastResort = .ok fingerprint) :
+    prepareResponder oracle identity store initialMessage =
+      .ok
+        { session :=
+            { triple := Model.Triple.initBob
+                (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+                  ((oneTimeSecret.map (fun secret =>
+                    oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id)
+                  kemSecret)
+                (oracle.dhPublic signedSecret) .tacenta
+              braid := Model.Braid.initBob
+                (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+                  ((oneTimeSecret.map (fun secret =>
+                    oracle.dhAgree secret (initial.ephemeral.drop 1))).bind id)
+                  kemSecret)
+              ratchetPrivate := signedSecret
+              identityAd := Model.SessionEstablishment.associatedData
+                initial.identity
+                (Model.PersistedState.SessionState.encodeEc identity.publicKey)
+              ourIdentityPublic := identity.publicKey
+              peerIdentityPublic := initial.identity.drop 1
+              pendingInitial := none
+              establishedEphemeral := some initial.ephemeral }
+          ratchetMessage := initial.ratchetMessage
+          oneTimeId := initial.oneTimeId.toNat
+          kemId := initial.kemPrekeyId.toNat
+          lastResort
+          fingerprint } := by
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  have hDh1' : oracle.dhAgree signedSecret initial.identity.tail = some dh1 := by
+    simpa using hDh1
+  have hDh2' : oracle.dhAgree identity.secret initial.ephemeral.tail = some dh2 := by
+    simpa using hDh2
+  have hDh3' : oracle.dhAgree signedSecret initial.ephemeral.tail = some dh3 := by
+    simpa using hDh3
+  have hNoDh4' : (oneTimeSecret.map (fun secret =>
+      oracle.dhAgree secret initial.ephemeral.tail)).any Option.isNone = false := by
+    simpa using hNoDh4
+  have hReplay' : lastResortReplayCheck store initial.kemPrekeyId.toNat
+      (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+        ((oneTimeSecret.map (fun secret =>
+          oracle.dhAgree secret initial.ephemeral.tail)).bind id) kemSecret)
+      lastResort = .ok fingerprint := by
+    simpa using hReplay
+  simp [prepareResponder, hd, hs, hk, hv', ho, hkem, hDh1', hDh2', hDh3',
+    hNoDh4', hReplay']
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
@@ -1952,6 +2248,26 @@ def establishResponder (view : CodewordView) (oracle : Oracle) (identity : Ident
       finishResponderReceive store prepared.oneTimeId prepared.kemId
         prepared.lastResort prepared.fingerprint
         (decryptRatchet view oracle prepared.session prepared.ratchetMessage)
+
+/-! Compose authenticated preparation, ratchet receive, and the durable finish
+    into the public model responder root.  This is intentionally separate from
+    `prepareResponder_success_of_calls`: the latter stops before the commit,
+    while this theorem makes the complete establish-success equation explicit.
+    Refusal atomicity remains covered by `establishResponder_refusal_keeps_store`.
+-/
+theorem establishResponder_success_of_prepare_and_receive
+    (view : CodewordView) (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (prepared : PreparedResponder) (sessionAfter : Session)
+    (plaintext : Bytes) (oracleAfter : Oracle)
+    (hprepare : prepareResponder oracle identity store initialMessage = .ok prepared)
+    (hreceive : decryptRatchet view oracle prepared.session prepared.ratchetMessage =
+      { session := sessionAfter, result := .ok plaintext, oracle := oracleAfter }) :
+    establishResponder view oracle identity store initialMessage =
+      { store := consumeResponderPrekeys store prepared.oneTimeId prepared.kemId
+          prepared.lastResort prepared.fingerprint,
+        result := .ok (sessionAfter, plaintext), oracle := oracleAfter } := by
+  simp [establishResponder, hprepare, hreceive, finishResponderReceive]
 
 /-- Every responder-establishment refusal is store-atomic, including decode,
     key lookup, replay-budget, primitive and authenticated-decrypt failures. -/

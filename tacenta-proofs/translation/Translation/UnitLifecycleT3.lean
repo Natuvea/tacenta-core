@@ -3,6 +3,8 @@ import Translation.SessionUnitBraidT3
 import Translation.SessionUnitWireT3
 import Translation.SessionUnitWireInitialT3
 import Translation.SessionUnitSessionT1
+import Translation.SessionUnitBraidPreserveFacts
+import Translation.UnitLifecyclePublicT1
 import Model.Lifecycle
 import Mathlib.Tactic.IntervalCases
 
@@ -62,6 +64,88 @@ structure SessionRefines (view : DhView) (K : Model.Braid.Kem)
   pendingInitial : real.pending_initial.map (pendingInitialOf view) = model.pendingInitial
   establishedEphemeral : real.established_ephemeral.map vecOf = model.establishedEphemeral
 
+/-! ## Restore boundary
+
+The public import path is deliberately checked in two stages: the unchecked
+decoder produces a candidate, then `Session::import` re-encodes it and checks
+the cross-field invariant.  The generated boundary leaves the decoder and the
+slice comparison opaque, so the T3 bridge states the exact successful decoder
+equation it consumes instead of silently treating every public import success
+as a decoded-state witness.  Once the decoder equation is supplied, the
+kernel proof below follows the actual public control flow and exposes the
+post-restore invariant needed by the receive roots.
+-/
+
+theorem session_import_success_has_invariant
+    (bytes : Slice Std.U8) (session : lifecycle.Session)
+    (hdecode : lifecycle.Session.import_unchecked bytes =
+      ok (core.result.Result.Ok session))
+    (himport : lifecycle.Session.import bytes = ok (.Ok session)) :
+    lifecycle.Session.invariant session = ok true := by
+  simp [lifecycle.Session.import, hdecode,
+    core.result.Result.Insts.CoreOpsTry.branch] at himport
+  cases hE : session.export with
+  | ok z =>
+    simp [hE] at himport
+    cases hD : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z with
+    | ok v =>
+      simp [hD] at himport
+      cases hS : alloc.vec.Vec.as_slice Global v with
+      | ok s =>
+        simp [hS] at himport
+        cases hN : core.cmp.PartialEq.ne.default
+            (core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8) s bytes with
+        | ok b =>
+          simp [hN] at himport
+          split at himport
+          · simp at himport
+          · cases hI : session.invariant with
+            | ok b1 =>
+              simp [hI] at himport
+              cases b1 <;> simp_all
+            | fail e => simp [hI] at himport
+            | div => simp [hI] at himport
+        | fail e => simp [hN] at himport
+        | div => simp [hN] at himport
+      | fail e => simp [hS] at himport
+      | div => simp [hS] at himport
+    | fail e => simp [hD] at himport
+    | div => simp [hD] at himport
+  | fail e => simp [hE] at himport
+  | div => simp [hE] at himport
+
+/-! A successful restored session also carries the concrete Braid decoder-size
+    premise needed by the receive roots.  This is derived from the actual
+    session leaf-invariant path and the Braid preservation theorem; it is not
+    another caller-supplied headroom assumption. -/
+
+theorem session_invariant_gives_braid_decoder_size
+    (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
+    (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal)
+    (hheader : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
+    (session : lifecycle.Session)
+    (hinv : lifecycle.Session.invariant session = ok true) :
+    Tacenta.SessionUnitBraidT1.State.decoders_sized session.braid.state := by
+  unfold lifecycle.Session.invariant at hinv
+  obtain ⟨structural, _, hleaf⟩ :=
+    SessionUnitBraidPreserve.bind_ok_inv hinv
+  split at hleaf
+  all_goals (try simp at hleaf)
+  all_goals
+    unfold lifecycle.Session.leaf_invariants at hleaf
+    obtain ⟨tripleInv, _, hbraid⟩ :=
+      SessionUnitBraidPreserve.bind_ok_inv hleaf
+    split at hbraid
+    all_goals (try
+      exact SessionUnitBraidPreserveFacts.sized_decoders_sized
+        (SessionUnitBraidPreserveFacts.invariant_true_gives_sized
+          hct1 hct2 hheader hek session.braid
+          (by simpa using hbraid)))
+    all_goals simp at hbraid
+
 /-! The lifecycle unit and the Braid port call the same generated KDF
     operations. Keep the correspondence at the shared lifecycle boundary so
     callers do not restate the same primitive contracts under Braid-specific
@@ -105,6 +189,527 @@ def sliceOf (s : Slice Std.U8) : Bytes :=
 structure KemView where
   keyPair : tacenta_boundary.kem.KeyPair → Bytes
 
+/-! ## Prekey-store representation relation
+
+The responder root used to quantify an arbitrary `storeRel`.  That is useful
+while proving individual branches, but it is too weak for the public
+composition claim: a relation could forget the one-time pools or replay
+markers entirely.  The following view records every persisted field that the
+model can observe.  The KEM pair remains opaque at the generated boundary, so
+its byte interpretation is explicit in `KemView`; all other byte-bearing
+fields are structurally readable from the translation.
+-/
+
+def oneTimeOf
+    (v : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) :
+    List (Nat × Bytes) :=
+  v.val.map fun entry => (entry.1.val, arrayOf entry.2)
+
+def kemOneTimeOf
+    (v : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize))) (view : KemView) :
+    List (Nat × Bytes × Bytes) :=
+  v.val.map fun entry => (entry.1.val, view.keyPair entry.2.1, arrayOf entry.2.2)
+
+/-! A vector-level swap/remove equation is enough to derive the model-side KEM
+    store equation.  This keeps the opaque KEM pair interpretation in
+    `KemView`, while making the generated mutation obligation concrete. -/
+theorem kemOneTimeOf_swapRemove_of_vector
+    (view : KemView)
+    (before after : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize)))
+    (kemId : Nat) (removalId : Std.U32)
+    (hId : removalId.val = kemId)
+    (hvector : after.val = Model.swapRemove (fun entry => entry.1 == removalId)
+      before.val) :
+    kemOneTimeOf after view = Model.swapRemove (fun entry => entry.1 == kemId)
+      (kemOneTimeOf before view) := by
+  let f := fun entry : Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize) =>
+    (entry.1.val, view.keyPair entry.2.1, arrayOf entry.2.2)
+  have hp : ∀ entry, (fun mapped => mapped.1 == kemId) (f entry) =
+      (fun entry => entry.1 == removalId) entry := by
+    intro entry
+    simp only [f]
+    apply Bool.eq_iff_iff.mpr
+    simp only [beq_iff_eq]
+    constructor
+    · intro h
+      apply U32.bv_eq_imp_eq
+      apply BitVec.eq_of_toNat_eq
+      change entry.1.val = removalId.val
+      exact h.trans hId.symm
+    · intro h
+      exact (congrArg (fun value : Std.U32 => value.val) h).trans hId
+  rw [show kemOneTimeOf after view = after.val.map f by rfl]
+  rw [show kemOneTimeOf before view = before.val.map f by rfl]
+  rw [hvector]
+  exact Model.map_swapRemove f (fun entry => entry.1 == removalId)
+    (fun mapped => mapped.1 == kemId) before.val hp
+
+def previousSignedOf
+    (value : Option ((Array Std.U8 32#usize) × Std.U32 ×
+      (Array Std.U8 64#usize))) :
+  Option (Bytes × Nat × Bytes) :=
+  value.map fun entry => (arrayOf entry.1, entry.2.1.val, arrayOf entry.2.2)
+
+def previousKemOf
+    (value : Option (tacenta_boundary.kem.KeyPair × Std.U32 ×
+      (Array Std.U8 64#usize))) (view : KemView) :
+  Option (Bytes × Nat × Bytes) :=
+  value.map fun entry => (view.keyPair entry.1, entry.2.1.val, arrayOf entry.2.2)
+
+def replaySeenOf
+    (v : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) :
+    List (Nat × Bytes) :=
+  v.val.map fun entry => (entry.1.val, arrayOf entry.2)
+
+def legacyBlockedOf (v : alloc.vec.Vec Std.U32) : List Nat :=
+  v.val.map fun id => id.val
+
+noncomputable def oneTimeDeref
+    (value : zeroize.Zeroizing
+      (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))) :=
+  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (alloc.vec.Vec.Insts.ZeroizeZeroize
+      (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)))) value
+
+structure PrekeyStoreRefines (dh : DhView) (kemView : KemView)
+    (real : lifecycle.PrekeyStore)
+    (model : Model.Lifecycle.PrekeyStore) : Prop where
+  identityPublic : dh.publicKey real.identity_public =
+    model.state.identityPublic
+  signedPrekeySecret : arrayOf real.signed_prekey_secret =
+    model.state.signedPrekeySecret
+  signedPrekeyId : real.signed_prekey_id.val = model.state.signedPrekeyId
+  signedPrekeySig : arrayOf real.signed_prekey_sig = model.state.signedPrekeySig
+  oneTimeDeref_exists : ∃ decoded,
+    oneTimeDeref real.one_time = ok decoded
+  oneTime : ∀ decoded, oneTimeDeref real.one_time = ok decoded →
+    oneTimeOf decoded = model.state.oneTime
+  kem : kemView.keyPair real.kem = model.state.kemPair
+  kemId : real.kem_id.val = model.state.kemId
+  kemSig : arrayOf real.kem_sig = model.state.kemSig
+  kemOneTime : kemOneTimeOf real.kem_one_time kemView = model.state.kemOneTime
+  nextId : real.next_id.val = model.state.nextId
+  seen : replaySeenOf real.last_resort_seen = model.state.seen
+  legacyBlocked : legacyBlockedOf real.legacy_last_resort_blocked =
+    model.state.legacyLastResortBlocked
+  previousSigned : previousSignedOf real.previous_signed_prekey =
+    model.state.previousSigned
+  previousKem : previousKemOf real.previous_kem kemView = model.state.previousKem
+
+/-! The generated search loop carries every persisted field through to its
+    terminal tuple.  This is the structural half of the KEM commit law; it
+    intentionally says nothing yet about the list mutation performed after
+    the index is found. -/
+theorem take_one_time_kem_loop_preserves_fields
+    (store : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id index
+      ⦃ fun r =>
+        let (pkb, a, i, a1, z, kp, i1, a2, v, o, o1, i2, v1, v2, found1) := r
+        pkb = store.identity_public ∧ a = store.signed_prekey_secret ∧
+          i = store.signed_prekey_id ∧ a1 = store.signed_prekey_sig ∧
+          z = store.one_time ∧ kp = store.kem ∧ i1 = store.kem_id ∧
+          a2 = store.kem_sig ∧ v = store.kem_one_time ∧
+          o = store.previous_signed_prekey ∧ o1 = store.previous_kem ∧
+          i2 = store.next_id ∧ v1 = store.last_resort_seen ∧
+          v2 = store.legacy_last_resort_blocked ∧
+          (match found1 with
+          | none => True
+          | some foundIndex => foundIndex.val < store.kem_one_time.val.length) ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem_loop
+  apply loop.spec_decr_nat
+    (measure := fun i => store.kem_one_time.val.length - i.val)
+    (inv := fun i => i.val ≤ store.kem_one_time.val.length)
+  · intro index1 hi
+    simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
+    simp only [alloc.vec.Vec.len]
+    split
+    · step
+      split
+      · simp
+        scalar_tac
+      · step
+        case hmax => scalar_tac
+        case a => constructor <;> scalar_tac
+    · simp
+  · exact hindex
+
+/-! The generated search loop also exposes the semantic first-match fact needed
+    by the model-side `swapRemove` equation: a successful index is in range,
+    its entry carries the requested id, and every earlier entry is a non-match.
+    The exhausted branch returns `none` without changing the vector. -/
+def kemPrefixNoMatch
+    (entries : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+      (Array Std.U8 64#usize)))
+    (id : Std.U32) (n : Nat) : Prop :=
+  ∀ j, j < n → ∃ entry, entries[j]? = some entry ∧
+    (entry.1 == id) = false
+
+theorem take_one_time_kem_loop_first_match
+    (store : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length)
+    (hprefix : kemPrefixNoMatch store.kem_one_time.val id index.val) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id index
+      ⦃ fun r =>
+        let (_, _, _, _, _, _, _, _, v, _, _, _, _, _, found1) := r
+        v = store.kem_one_time ∧
+          (match found1 with
+          | none => True
+          | some foundIndex =>
+            foundIndex.val < store.kem_one_time.val.length ∧
+              (∃ entry, store.kem_one_time.val[foundIndex.val]? = some entry ∧
+                (entry.1 == id) = true) ∧
+              kemPrefixNoMatch store.kem_one_time.val id foundIndex.val)⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem_loop
+  apply loop.spec_decr_nat
+    (measure := fun i => store.kem_one_time.val.length - i.val)
+    (inv := fun i => i.val ≤ store.kem_one_time.val.length ∧
+      kemPrefixNoMatch store.kem_one_time.val id i.val)
+  · intro indexAt hi
+    simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
+    simp only [alloc.vec.Vec.len]
+    split
+    · step
+      split
+      · rename_i hEq
+        simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta,
+          Aeneas.Std.WP.wp_return, hEq, i1_post]
+        have hidx : indexAt.val < store.kem_one_time.val.length := by
+          scalar_tac
+        refine ⟨hidx, ?_, hi.2⟩
+        refine ⟨(store.kem_one_time.val[indexAt.val]'hidx).2.1,
+          (store.kem_one_time.val[indexAt.val]'hidx).2.2, ?_⟩
+        · rw [List.getElem?_eq_getElem hidx]
+          rw [← i1_post]
+          simp [hEq]
+      · rename_i hNotEq
+        step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · scalar_tac
+          · constructor
+            · intro j hj
+              by_cases hbefore : j < indexAt.val
+              · exact hi.2 j hbefore
+              · have hcur : j = indexAt.val := by omega
+                subst hcur
+                have hidx : indexAt.val < store.kem_one_time.val.length := by
+                  scalar_tac
+                refine ⟨store.kem_one_time.val[indexAt.val]'hidx, ?_, ?_⟩
+                · rw [List.getElem?_eq_getElem hidx]
+                · rw [← i1_post]
+                  simp [hNotEq]
+            · have hAt : indexAt.val < store.kem_one_time.val.length := by
+                scalar_tac
+              have hstep : index1.val = indexAt.val + 1 := by
+                exact index1_post
+              omega
+    · simp
+  · exact ⟨hindex, hprefix⟩
+
+/-! The public KEM removal realizes the model's exact swap-with-last removal.
+    The remaining `Vec::pop` premise is the faithful value-level law for the
+    generated vector operation; it is kept explicit so this bridge cannot be
+    discharged by pop totality alone. -/
+theorem take_one_time_kem_result_refines_swapRemove
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
+    (store : lifecycle.PrekeyStore) (id : Std.U32) :
+    lifecycle.PrekeyStore.take_one_time_kem store id
+      ⦃ fun r =>
+        match r.1 with
+        | none => r.2.kem_one_time.val = store.kem_one_time.val
+        | some _ => r.2.kem_one_time.val =
+            Model.swapRemove (fun entry => entry.1 == id)
+              store.kem_one_time.val ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem
+  step with take_one_time_kem_loop_first_match store id 0#usize (by simp) (by
+    intro j hj
+    have : False := by simpa using hj
+    exact this.elim)
+  have hv : v = store.kem_one_time := pkb_post.1
+  have hfound := pkb_post.2
+  rcases found with _ | foundIndex
+  · simp [hv]
+  · step
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hfoundV : foundIndex.val < v.val.length := by
+      rw [hv]
+      exact hfound.1
+    have hlastV : r.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at r_post1 r_post2
+      omega
+    letI : Inhabited (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize)) :=
+      Classical.inhabited_of_nonempty ⟨v.val[foundIndex.val]'hfoundV⟩
+    step with core.slice.Slice.swap_spec v foundIndex r hfoundV hlastV
+    intro s1 hswap
+    simp only
+    rcases hswap with ⟨hswapLen, hswapFound, hswapLast, hswapOther⟩
+    simp at hfound
+    have hprefix := hfound.2.2
+    have hs1nonempty : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize))) ≠ [] := by
+      intro hs1empty
+      have hs1len : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+          (Array Std.U8 64#usize))).length = v.val.length := by
+        simpa [Slice.length] using hswapLen
+      have hvlen : 0 < v.val.length := by
+        simp [alloc.vec.Vec.len] at r_post2
+        omega
+      have hs1zero : (0 : Nat) = v.val.length := by
+        simpa [hs1empty] using hs1len
+      clear hs1len
+      omega
+    have hs1len : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+        (Array Std.U8 64#usize))).length = v.val.length := by
+      simpa [Slice.length] using hswapLen
+    have hlast : r.val = v.val.length - 1 := by
+      simpa [alloc.vec.Vec.len] using r_post1
+    have hfoundS : foundIndex.val < (↑s1 : List (Std.U32 ×
+        tacenta_boundary.kem.KeyPair × (Array Std.U8 64#usize))).length := by
+      rw [hs1len]
+      simpa [hv] using hfound.1
+    have hlastS : r.val < (↑s1 : List (Std.U32 ×
+        tacenta_boundary.kem.KeyPair × (Array Std.U8 64#usize))).length := by
+      rw [hs1len]
+      have : r.val < v.val.length := by omega
+      exact this
+    have hfind : List.findIdx? (fun entry => entry.1 == id)
+        store.kem_one_time.val = some foundIndex.val := by
+      apply (List.findIdx?_eq_some_iff_getElem).2
+      refine ⟨hfound.1, ?_, ?_⟩
+      · obtain ⟨entry, hentry, hentryId⟩ := hfound.2.1
+        rw [List.getElem?_eq_getElem hfound.1] at hentryId
+        have heq := Option.some.inj hentryId
+        rw [heq]
+        simp
+      · intro j hj
+        obtain ⟨entry, hentry, hentryId⟩ := hprefix j hj
+        rw [List.getElem?_eq_getElem (by omega)] at hentry
+        have heq := Option.some.inj hentry
+        simpa [heq] using hentryId
+    have hdropSwap :
+        (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+          (Array Std.U8 64#usize))).dropLast =
+          (store.kem_one_time.val.set foundIndex.val
+            (store.kem_one_time.val[r.val]'(by simpa [hv] using hlastV))).dropLast := by
+      apply List.ext_getElem
+      · simp [List.length_dropLast, hs1len, hlast, hv, hfound.1]
+      · intro j hjS hjStore
+        have hjSdrop := hjS
+        have hjSbound : j < (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize))).length - 1 := by
+          simpa only [List.length_dropLast] using hjS
+        have hjS' : j < (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize))).length := by
+          exact Nat.lt_of_lt_of_le hjSbound (Nat.sub_le _ _)
+        rw [List.getElem_dropLast hjSdrop, List.getElem_dropLast hjStore]
+        have hjSource : j < store.kem_one_time.val.length := by
+          have : j < v.val.length := by
+            rw [← hs1len]
+            omega
+          simpa [hv] using this
+        have hjNotLast : j ≠ r.val := by
+          have : j < r.val := by
+            rw [hlast]
+            have : j < v.val.length - 1 := by
+              rw [← hs1len]
+              exact hjSbound
+            exact this
+          omega
+        have hswapFound' : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+            (Array Std.U8 64#usize)))[foundIndex.val] =
+            v.val[r.val] := by
+          have h : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[foundIndex.val]! =
+              (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[r.val]! := by
+            exact hswapFound
+          rw [getElem!_pos (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) foundIndex.val hfoundS,
+            getElem!_pos (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) r.val hlastV] at h
+          exact h
+        by_cases hji : j = foundIndex.val
+        · subst j
+          rw [hswapFound']
+          simp [List.getElem_set, hfound.1, hv]
+        · have hswapOtherAt : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j]! =
+              (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j]! := by
+            exact hswapOther j hji hjNotLast
+          have hjSourceV : j < v.val.length := by
+            simpa [hv] using hjSource
+          rw [getElem!_pos (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) j hjS',
+            getElem!_pos (↑v : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize))) j hjSourceV] at hswapOtherAt
+          have hswapOther' : (↑s1 : List (Std.U32 × tacenta_boundary.kem.KeyPair ×
+              (Array Std.U8 64#usize)))[j] = v.val[j] := by
+            simpa [Aeneas.Std.Slice.getElem!_Nat_eq] using hswapOtherAt
+          rw [hswapOther']
+          have hji' : foundIndex.val ≠ j := by
+            intro h
+            exact hji h.symm
+          simp [List.getElem_set, hv, hji']
+    obtain ⟨poppedValue, poppedVec, hpopped, hdrop⟩ := hpopLaw s1 hs1nonempty
+    rw [hpopped]
+    rcases poppedValue with ⟨entryId, entryPair, entrySignature⟩
+    have hstoreNonempty : store.kem_one_time.val ≠ [] := by
+      intro hempty
+      simp [hempty] at hfound
+    have hlastValue : store.kem_one_time.val.getLast? =
+        some (store.kem_one_time.val[r.val]'(by simpa [hv] using hlastV)) := by
+      rw [List.getLast?_eq_some_getLast hstoreNonempty,
+        List.getLast_eq_getElem hstoreNonempty]
+      simp [hv, hlast]
+    simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+      hdrop, hdropSwap, hfind, hlastValue, hv, Model.swapRemove]
+
+theorem take_one_time_kem_result_vector_swapRemove
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
+    (store : lifecycle.PrekeyStore) (id : Std.U32)
+    (kemPair : tacenta_boundary.kem.KeyPair) (after : lifecycle.PrekeyStore)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem store id =
+      ok (some kemPair, after)) :
+    after.kem_one_time.val = Model.swapRemove (fun entry => entry.1 == id)
+      store.kem_one_time.val := by
+  have h := take_one_time_kem_result_refines_swapRemove hpopLaw store id
+  rw [htake] at h
+  simpa [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return] using h
+
+/-! The public KEM removal preserves the whole store shape.  Its opaque
+    `Vec::pop` call is needed only for totality here; the faithful value-level
+    swap/remove equation is proved separately above. -/
+theorem take_one_time_kem_preserves_nonvector_fields
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (store : lifecycle.PrekeyStore) (id : Std.U32) :
+    lifecycle.PrekeyStore.take_one_time_kem store id
+      ⦃ fun r => r.2 = { store with kem_one_time := r.2.kem_one_time } ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem
+  step with take_one_time_kem_loop_preserves_fields store id 0#usize (by simp)
+  rcases pkb_post with ⟨hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, hv, ho, ho1,
+    hi2, hv1, hv2, hfound⟩
+  rcases found with _ | foundIndex
+  · simp [hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, hv, ho, ho1, hi2, hv1, hv2]
+  · step
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hfoundV : foundIndex.val < v.val.length := by
+      rw [hv]
+      exact hfound
+    have hlastV : r.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at r_post1 r_post2
+      omega
+    step with Tacenta.UnitLifecycleT1.slice_swap_no_panic v foundIndex r hfoundV hlastV
+    obtain ⟨popped, hpopped⟩ := hpop _ s1
+    rw [hpopped]
+    rcases popped with ⟨poppedValue, poppedVec⟩
+    rcases poppedValue with _ | entry
+    · simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+        hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, ho, ho1, hi2, hv1, hv2]
+    · rcases entry with ⟨entryId, entryPair, entrySignature⟩
+      simp [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return,
+        hpkb, ha, hi, ha1, hz, hkp, hi1, ha2, ho, ho1, hi2, hv1, hv2]
+
+theorem take_one_time_kem_result_preserves_nonvector_fields
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (store : lifecycle.PrekeyStore) (id : Std.U32)
+    (result : Option tacenta_boundary.kem.KeyPair) (after : lifecycle.PrekeyStore)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem store id =
+      ok (result, after)) :
+    after = { store with kem_one_time := after.kem_one_time } := by
+  have h := take_one_time_kem_preserves_nonvector_fields hpop store id
+  rw [htake] at h
+  simpa [Aeneas.Std.WP.spec, Aeneas.Std.WP.theta, Aeneas.Std.WP.wp_return] using h
+
+/-! A first concrete authenticated commit bridge.  The generated KEM removal
+    returns a store whose non-KEM fields are copied from the input; the only
+    semantic effect is the swap-with-last removal from `kem_one_time`.  This
+    theorem turns that field-level effect into the model's exact
+    `consumeResponderPrekeys` state for the no-curve/no-last-resort shape.
+
+    The `hshape` premise is deliberately structural rather than an arbitrary
+    store relation: it names every field that must be unchanged across the
+    generated mutation.  The remaining `hkem` premise is the one translation
+    law still needed to connect the generated vector mutation to the model
+    list operation. -/
+theorem prekey_store_refines_after_kem_consumption
+    (kemView : KemView) (dh : DhView)
+    (before : lifecycle.PrekeyStore)
+    (modelBefore : Model.Lifecycle.PrekeyStore)
+    (kemId : Nat) (after : lifecycle.PrekeyStore)
+    (hbefore : PrekeyStoreRefines dh kemView before modelBefore)
+    (hshape : after = { before with kem_one_time := after.kem_one_time })
+    (hkem : kemOneTimeOf after.kem_one_time kemView =
+      Model.swapRemove (fun entry => entry.1 == kemId)
+        modelBefore.state.kemOneTime) :
+    PrekeyStoreRefines dh kemView after
+      (Model.Lifecycle.consumeResponderPrekeys modelBefore
+        Model.PersistedState.PrekeyStoreState.absentId kemId false none) := by
+  rw [hshape]
+  simp only [Model.Lifecycle.consumeResponderPrekeys, ↓reduceIte, Option.map_none]
+  constructor
+  · simpa using hbefore.identityPublic
+  · simpa using hbefore.signedPrekeySecret
+  · simpa using hbefore.signedPrekeyId
+  · simpa using hbefore.signedPrekeySig
+  · simpa using hbefore.oneTimeDeref_exists
+  · intro decoded hdecoded
+    exact hbefore.oneTime decoded (by simpa using hdecoded)
+  · simpa using hbefore.kem
+  · simpa using hbefore.kemId
+  · simpa using hbefore.kemSig
+  · simpa [hkem] using hkem
+  · simpa using hbefore.nextId
+  · simpa using hbefore.seen
+  · simpa using hbefore.legacyBlocked
+  · simpa using hbefore.previousSigned
+  · simpa using hbefore.previousKem
+
+/-! The same store refinement, with the remaining mutation obligation stated at
+    the generated vector boundary.  This is the form intended for the public
+    responder composition once the call-site proof exposes the swap/pop
+    equation. -/
+theorem prekey_store_refines_after_kem_consumption_of_vector
+    (kemView : KemView) (dh : DhView)
+    (before : lifecycle.PrekeyStore)
+    (modelBefore : Model.Lifecycle.PrekeyStore)
+    (kemId : Nat) (removalId : Std.U32) (after : lifecycle.PrekeyStore)
+    (hbefore : PrekeyStoreRefines dh kemView before modelBefore)
+    (hshape : after = { before with kem_one_time := after.kem_one_time })
+    (hId : removalId.val = kemId)
+    (hvector : after.kem_one_time.val =
+      Model.swapRemove (fun entry => entry.1 == removalId)
+        before.kem_one_time.val) :
+    PrekeyStoreRefines dh kemView after
+      (Model.Lifecycle.consumeResponderPrekeys modelBefore
+        Model.PersistedState.PrekeyStoreState.absentId kemId false none) := by
+  apply prekey_store_refines_after_kem_consumption kemView dh before modelBefore
+    kemId after hbefore hshape
+  calc
+    kemOneTimeOf after.kem_one_time kemView =
+        Model.swapRemove (fun entry => entry.1 == kemId)
+          (kemOneTimeOf before.kem_one_time kemView) := by
+      exact kemOneTimeOf_swapRemove_of_vector kemView before.kem_one_time
+        after.kem_one_time kemId removalId hId hvector
+    _ = Model.swapRemove (fun entry => entry.1 == kemId)
+          modelBefore.state.kemOneTime := by
+      rw [hbefore.kemOneTime]
+
 def resultOptionOf {A B : Type} (f : A → B) : core.result.Result A Unit → Option B
   | .Ok value => some (f value)
   | .Err _ => none
@@ -118,7 +723,7 @@ def encapsulationOf :
       Option (Bytes × Model.Lifecycle.Key) :=
   resultOptionOf (fun value => (vecOf value.1, arrayOf value.2))
 
-/-- Agreement between all ten translated primitive calls and one executable
+/-- Agreement between all nine translated primitive calls and one executable
 model oracle.  `trace` interprets the threaded RNG state; the three random
 clauses make call order observable rather than allowing a fresh existential
 draw at each call. -/
@@ -132,10 +737,6 @@ structure OracleOf {R : Type}
   dhAgree : ∀ secret publicKey,
     ∃ result, tacenta_boundary.dh.PrivateKey.agree secret publicKey = ok result ∧
       result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
-  identityValid : ∀ publicKey,
-    ∃ result,
-      is_valid_identity_key publicKey = ok result ∧
-      result = oracle.identityValid (dh.publicKey publicKey)
   aeadSeal : ∀ key1 key2 iv ad plaintext,
     ∃ ciphertext,
       tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
@@ -147,13 +748,13 @@ structure OracleOf {R : Type}
       resultOptionOf vecOf result = oracle.aeadOpen (arrayOf key1) (arrayOf key2)
         (arrayOf iv) (sliceOf ciphertext) (sliceOf associatedData)
   /-- A model refusal is allowed for malformed public keys; only a model
-      `some` result obliges the real boundary to produce the matching success.
-      This keeps the contract satisfiable for the wrapper's pre-RNG length
-      refusal while still making a predicted success observable. It binds the
-      code only where the model's `kemEncaps` returns `some`, so an oracle that
-      never encapsulates meets it. -/
-kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
+      `some` result for a model-valid public key obliges the real boundary to
+      produce the matching success. This keeps the contract satisfiable for
+      the wrapper's pre-RNG length refusal while making invalid-key refusal
+      explicit rather than relying on `kemEncaps = none` to imply it. -/
+  kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
     trace rng = draw :: rest →
+    oracle.kemValid (sliceOf publicKey) = true →
     oracle.kemEncaps (sliceOf publicKey) draw = some expected →
     ∃ result rng',
       tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
@@ -1001,6 +1602,2612 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
   session : SessionRefines dh K real.2.1 model.session
   draws : trace real.2.2 = model.oracle.draws
 
+/-! ## Establishment-level refinement
+
+`StepRefines` deliberately includes a live Session because every public
+Session operation already has one.  Establishment is the other public root:
+the model returns an `EstablishStep`, while the translated function returns a
+Session only on success and always returns the post-call RNG.  Keep that
+boundary explicit instead of smuggling establishment through a Session
+operation theorem. -/
+
+def EstablishResultRefines
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result lifecycle.Session lifecycle.Error)
+    (model : Except Model.Lifecycle.Refusal Model.Lifecycle.Session) : Prop :=
+  match real, model with
+  | .Ok realSession, .ok modelSession => SessionRefines dh K realSession modelSession
+  | .Err reason, .error modelReason => refusalOf reason = modelReason
+  | _, _ => False
+
+structure EstablishStepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result lifecycle.Session lifecycle.Error × R)
+    (model : Model.Lifecycle.EstablishStep) : Prop where
+  result : EstablishResultRefines dh K real.1 model.result
+  draws : trace real.2 = model.oracle.draws
+
+/-! Responder establishment has one additional durable component: the
+prekey store.  Keep its representation relation abstract at this boundary;
+the decode-refusal theorem below needs only that the input stores correspond,
+while the authenticated success theorem will have to define and preserve the
+field-level relation. -/
+
+def ResponderResultRefines
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result
+      (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error)
+    (model : Except Model.Lifecycle.Refusal
+      (Model.Lifecycle.Session × Bytes)) : Prop :=
+  match real, model with
+  | .Ok (realSession, realBytes), .ok (modelSession, modelBytes) =>
+      SessionRefines dh K realSession modelSession ∧ vecOf realBytes = modelBytes
+  | .Err reason, .error modelReason => refusalOf reason = modelReason
+  | _, _ => False
+
+structure ResponderEstablishStepRefines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result
+        (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.PrekeyStore × R)
+    (model : Model.Lifecycle.ResponderStep) : Prop where
+  result : ResponderResultRefines dh K real.1 model.result
+  store : storeRel real.2.1 model.store
+  draws : trace real.2.2 = model.oracle.draws
+
+/-! ## Public establishment joins
+
+The branch adapters below prove individual establishment paths.  Keep the
+public roots' result split explicit here, just as the decrypt roots use typed
+end-to-end evidence.  These joins do not manufacture a primitive contract or
+an inhabited branch witness: their constructors require the exact public root
+equation, the corresponding model transition, and the field relations that
+the branch adapters establish.
+-/
+
+structure PublicInitiatorEstablishWitness {R : Type}
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (modelStep : Model.Lifecycle.EstablishStep) : Type where
+  output : core.result.Result lifecycle.Session lifecycle.Error × R
+  root : lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng = ok output
+  refines : EstablishStepRefines trace dh K output modelStep
+
+inductive InitiatorEstablishEndToEndEvidence {R : Type}
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (modelStep : Model.Lifecycle.EstablishStep) : Type where
+  | refusal
+      (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+      (oracleNext : Model.Lifecycle.Oracle) (rngNext : R)
+      (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+        theirBundle rng = ok (.Err reason, rngNext))
+      (hmodel : modelStep = { result := .error modelReason, oracle := oracleNext })
+      (hrefusal : refusalOf reason = modelReason)
+      (htrace : trace rngNext = oracleNext.draws) :
+      InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
+        ourIdentity theirBundle rng modelStep
+  | success
+      (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+      (oracleNext : Model.Lifecycle.Oracle) (rngNext : R)
+      (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+        theirBundle rng = ok (.Ok realSession, rngNext))
+      (hmodel : modelStep = { result := .ok modelSession, oracle := oracleNext })
+      (hrel : SessionRefines dh K realSession modelSession)
+      (htrace : trace rngNext = oracleNext.draws) :
+      InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
+        ourIdentity theirBundle rng modelStep
+
+def public_establish_initiator_end_to_end
+    {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (evidence : InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep) :
+    PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  cases evidence with
+  | @refusal reason modelReason oracleNext rngNext hroot hmodel hrefusal htrace =>
+      refine ⟨(.Err reason, rngNext), hroot, ?_⟩
+      rw [hmodel]
+      exact { result := by simpa [EstablishResultRefines] using hrefusal
+              draws := htrace }
+  | @success realSession modelSession oracleNext rngNext hroot hmodel hrel htrace =>
+      refine ⟨(.Ok realSession, rngNext), hroot, ?_⟩
+      rw [hmodel]
+      exact { result := hrel, draws := htrace }
+
+structure PublicResponderEstablishWitness {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (modelStep : Model.Lifecycle.ResponderStep) : Type where
+  output : (core.result.Result (lifecycle.Session × alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.PrekeyStore × R)
+  root : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok output
+  refines : ResponderEstablishStepRefines storeRel trace dh K output modelStep
+
+inductive ResponderEstablishEndToEndEvidence {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R) (modelStep : Model.Lifecycle.ResponderStep) : Type where
+  | refusal
+      (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+      (modelStore : Model.Lifecycle.PrekeyStore)
+      (oracleNext : Model.Lifecycle.Oracle) (storeAfter : lifecycle.PrekeyStore)
+      (rngNext : R)
+      (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok (.Err reason, storeAfter, rngNext))
+      (hmodel : modelStep = { store := modelStore, result := .error modelReason, oracle := oracleNext })
+      (hstore : storeRel storeAfter modelStore)
+      (hrefusal : refusalOf reason = modelReason)
+      (htrace : trace rngNext = oracleNext.draws) :
+      ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
+        ourIdentity ourPrekeys initialMessage rng modelStep
+  | success
+      (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+      (realStoreAfter : lifecycle.PrekeyStore) (modelSession : Model.Lifecycle.Session)
+      (modelPlaintext : Bytes) (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+      (oracleNext : Model.Lifecycle.Oracle) (rngNext : R)
+      (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok (.Ok (realSession, realPlaintext), realStoreAfter, rngNext))
+      (hmodel : modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleNext })
+      (hrel : SessionRefines dh K realSession modelSession)
+      (hplaintext : vecOf realPlaintext = modelPlaintext)
+      (hstore : storeRel realStoreAfter modelStoreAfter)
+      (htrace : trace rngNext = oracleNext.draws) :
+      ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
+        ourIdentity ourPrekeys initialMessage rng modelStep
+
+def public_establish_responder_end_to_end
+    {R : Type} {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (evidence : ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep) :
+    PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  cases evidence with
+  | @refusal reason modelReason modelStore oracleNext storeAfter rngNext hroot hmodel
+      hstore hrefusal htrace =>
+      refine ⟨(.Err reason, storeAfter, rngNext), hroot, ?_⟩
+      rw [hmodel]
+      exact { result := by simpa [ResponderResultRefines] using hrefusal
+              store := hstore
+              draws := htrace }
+  | @success realSession realPlaintext realStoreAfter modelSession modelPlaintext
+      modelStoreAfter oracleNext rngNext hroot hmodel hrel hplaintext hstore htrace =>
+      refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngNext), hroot, ?_⟩
+      rw [hmodel]
+      exact { result := ⟨hrel, hplaintext⟩, store := hstore, draws := htrace }
+
+/-! These adapters are the direct public-root joins for establishment.  The
+    evidence constructors above are useful when a branch has already been
+    classified; these theorems instead take the actual public call equation
+    and the corresponding model equation.  Keeping the relations and draw
+    trace explicit prevents a branch package from being mistaken for a proof
+    that the public root was reached. -/
+def public_establish_initiator_success_of_root_and_model {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng rngNext : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+      theirBundle rng = ok (.Ok realSession, rngNext))
+    (hmodel : modelStep = { result := .ok modelSession, oracle := oracleNext })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  refine ⟨(.Ok realSession, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := hrel, draws := htrace }
+
+def public_establish_initiator_refusal_of_root_and_model {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng rngNext : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_initiator rngCore cryptoRng ourIdentity
+      theirBundle rng = ok (.Err reason, rngNext))
+    (hmodel : modelStep = { result := .error modelReason, oracle := oracleNext })
+    (hrefusal : refusalOf reason = modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  refine ⟨(.Err reason, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := by simpa [EstablishResultRefines] using hrefusal
+          draws := htrace }
+
+def public_establish_responder_success_of_root_and_model {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng rngNext : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (realStoreAfter : lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+    (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, realPlaintext), realStoreAfter, rngNext))
+    (hmodel : modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleNext })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (hstore : storeRel realStoreAfter modelStoreAfter)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := ⟨hrel, hplaintext⟩, store := hstore, draws := htrace }
+
+def public_establish_responder_refusal_of_root_and_model {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng rngNext : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (storeAfter : lifecycle.PrekeyStore) (oracleNext : Model.Lifecycle.Oracle)
+    (hroot : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err reason, storeAfter, rngNext))
+    (hmodel : modelStep = { store := modelStore, result := .error modelReason, oracle := oracleNext })
+    (hstore : storeRel storeAfter modelStore)
+    (hrefusal : refusalOf reason = modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  refine ⟨(.Err reason, storeAfter, rngNext), hroot, ?_⟩
+  rw [hmodel]
+  exact { result := by simpa [ResponderResultRefines] using hrefusal
+          store := hstore
+          draws := htrace }
+
+/-! The first genuinely connected lifecycle join.  A public establishment
+    witness is not merely an isolated root equation: on success it supplies
+    the exact translated/model session pair and the post-establishment RNG
+    trace that the next public operation must consume.  The continuation is
+    indexed by that concrete pair and by the model transition equation; it
+    cannot be discharged with a witness for an unrelated session.  The
+    refusal arm is retained so the join covers both public result families. -/
+theorem public_initiator_then_encrypt
+    {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    {view : Model.Lifecycle.CodewordView}
+    {plaintext : Slice Std.U8}
+    (established : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {modelSession : Model.Lifecycle.Session} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) →
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } →
+      ∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Err reason, rngAfter) ∧
+      modelStep = { result := .error modelReason, oracle := oracleAfter } ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R) (output :
+          core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+          lifecycle.Session × R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) ∧
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      trace rngAfter = oracleAfter.draws ∧
+      lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) := by
+  let output := established.output
+  cases houtput : output with
+  | mk realResult rngAfter =>
+      cases hresult : realResult with
+      | Err reason =>
+          left
+          cases hmodel : modelStep with
+          | mk modelResult oracleAfter =>
+              cases hmodelResult : modelResult with
+              | error modelReason =>
+                  refine ⟨reason, modelReason, oracleAfter, rngAfter, ?_, ?_, ?_, ?_⟩
+                  · simpa [output, houtput, hresult] using established.root
+                  · simpa [hmodel, hmodelResult]
+                  · simpa [output, houtput, hresult, hmodel, hmodelResult,
+                      EstablishResultRefines] using established.refines.result
+                  · simpa [output, houtput, hresult, hmodel, hmodelResult] using
+                      established.refines.draws
+              | ok modelSession =>
+                  exfalso
+                  simpa [output, houtput, hresult, hmodel, hmodelResult,
+                    EstablishResultRefines] using established.refines.result
+      | Ok realSession =>
+          cases hmodel : modelStep with
+          | mk modelResult oracleAfter =>
+              cases hmodelResult : modelResult with
+              | error modelReason =>
+                  exfalso
+                  simpa [output, houtput, hresult, hmodel, hmodelResult,
+                    EstablishResultRefines] using established.refines.result
+              | ok modelSession =>
+                  right
+                  let hroot : lifecycle.establish_initiator rngCore cryptoRng
+                      ourIdentity theirBundle rng = ok (.Ok realSession, rngAfter) := by
+                    simpa [output, houtput, hresult] using established.root
+                  let hmodel : modelStep =
+                      { result := .ok modelSession, oracle := oracleAfter } := by
+                    simpa [hmodel, hmodelResult]
+                  have hrel : SessionRefines dh K realSession modelSession := by
+                    simpa [output, houtput, hresult, hmodel, hmodelResult,
+                      EstablishResultRefines] using established.refines.result
+                  have htrace : trace rngAfter = oracleAfter.draws := by
+                    simpa [output, houtput, hresult, hmodel, hmodelResult] using
+                      established.refines.draws
+                  obtain ⟨encryptOutput, hencrypt, hencryptRefines⟩ :=
+                    continuation hroot hmodel
+                  exact ⟨realSession, modelSession, oracleAfter, rngAfter,
+                    encryptOutput, hroot, rfl, hrel, htrace, hencrypt,
+                    hencryptRefines⟩
+
+/-! Repackage the successful arm of the preceding join at the exact
+    post-establishment state.  This is intentionally a witness-producing
+    adapter: it makes the initiator -> encrypt edge consumable by the
+    cross-session wire theorem, while retaining the establishment refusal arm
+    instead of silently assuming that establishment succeeded. -/
+theorem public_initiator_then_encrypt_witness
+    {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    {view : Model.Lifecycle.CodewordView} {plaintext : Slice Std.U8}
+    (established : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {modelSession : Model.Lifecycle.Session} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) →
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } →
+      ∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Err reason, rngAfter) ∧
+      modelStep = { result := .error modelReason, oracle := oracleAfter } ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) ∧
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      trace rngAfter = oracleAfter.draws ∧
+      (∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext)))) := by
+  obtain branch := public_initiator_then_encrypt established continuation
+  cases branch with
+  | inl refusal => exact Or.inl refusal
+  | inr success =>
+      rcases success with ⟨realSession, modelSession, oracleAfter, rngAfter,
+        output, hroot, hmodel, hrel, htrace, hencrypt, hencryptRefines⟩
+      exact Or.inr ⟨realSession, modelSession, oracleAfter, rngAfter, hroot,
+        hmodel, hrel, htrace, ⟨output, hencrypt, hencryptRefines⟩⟩
+
+/-! A typed public witness is enough to inhabit the corresponding end-to-end
+    evidence record.  This is deliberately a shape split, not a new contract:
+    impossible real/model result combinations are rejected by the refinement
+    field, while the surviving branches expose the exact root equation, model
+    step, store relation, and draw trace required by the public join. -/
+def initiator_establish_end_to_end_evidence_of_witness {R : Type}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    (witness : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep) :
+    InitiatorEstablishEndToEndEvidence trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep := by
+  obtain ⟨output, hroot, hstep⟩ := witness
+  rcases output with ⟨result, rngNext⟩
+  cases result with
+  | Err reason =>
+      cases modelStep with
+      | mk modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hrefusal : refusalOf reason = modelReason := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact .refusal reason modelReason oracleNext rngNext hroot rfl
+                hrefusal hstep.draws
+          | ok modelSession =>
+              have hfalse : False := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact hfalse.elim
+  | Ok realSession =>
+      cases modelStep with
+      | mk modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hfalse : False := by
+                simpa [EstablishResultRefines] using hstep.result
+              exact hfalse.elim
+          | ok modelSession =>
+              exact .success realSession modelSession oracleNext rngNext hroot rfl
+                hstep.result hstep.draws
+
+def responder_establish_end_to_end_evidence_of_witness {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    (witness : PublicResponderEstablishWitness storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep) :
+    ResponderEstablishEndToEndEvidence storeRel trace dh K rngCore cryptoRng
+      ourIdentity ourPrekeys initialMessage rng modelStep := by
+  obtain ⟨output, hroot, hstep⟩ := witness
+  rcases output with ⟨result, storeAfter, rngNext⟩
+  cases result with
+  | Err reason =>
+      cases modelStep with
+      | mk modelStore modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hrefusal : refusalOf reason = modelReason := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact .refusal reason modelReason modelStore oracleNext storeAfter
+                rngNext hroot rfl hstep.store hrefusal hstep.draws
+          | ok modelOutput =>
+              have hfalse : False := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact hfalse.elim
+  | Ok realOutput =>
+      rcases realOutput with ⟨realSession, realPlaintext⟩
+      cases modelStep with
+      | mk modelStore modelResult oracleNext =>
+          cases modelResult with
+          | error modelReason =>
+              have hfalse : False := by
+                simpa [ResponderResultRefines] using hstep.result
+              exact hfalse.elim
+          | ok modelOutput =>
+              rcases modelOutput with ⟨modelSession, modelPlaintext⟩
+              exact .success realSession realPlaintext storeAfter modelSession
+                modelPlaintext modelStore oracleNext rngNext hroot rfl hstep.result.1
+                hstep.result.2 hstep.store hstep.draws
+
+/-! The responder-side companion to `public_initiator_then_encrypt`.  On a
+    successful responder establishment, the continuation is indexed by the
+    exact authenticated session, plaintext, post-authentication store, model
+    session/store, and remaining RNG.  Consequently a following
+    `decrypt_ratchet` proof cannot be supplied for a detached session or for
+    a store state that ignores the authentication boundary. -/
+theorem public_responder_then_decrypt_ratchet
+    {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    {view : Model.Lifecycle.CodewordView} {message : Slice Std.U8}
+    (established : PublicResponderEstablishWitness storeRel trace dh K rngCore
+      cryptoRng ourIdentity ourPrekeys initialMessage rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {realPlaintext : alloc.vec.Vec Std.U8}
+      {realStoreAfter : lifecycle.PrekeyStore}
+      {modelSession : Model.Lifecycle.Session} {modelPlaintext : Bytes}
+      {modelStoreAfter : Model.Lifecycle.PrekeyStore} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) →
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } →
+      SessionRefines dh K realSession modelSession →
+      vecOf realPlaintext = modelPlaintext →
+      storeRel realStoreAfter modelStoreAfter →
+      ∃ output,
+        lifecycle.Session.decrypt_ratchet rngCore cryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.decryptRatchet view oracleAfter modelSession
+            (sliceOf message))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle)
+        (realStoreAfter : lifecycle.PrekeyStore) (rngAfter : R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok (.Err reason, realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .error modelReason, oracle := oracleAfter } ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session)
+        (realPlaintext : alloc.vec.Vec Std.U8)
+        (realStoreAfter : lifecycle.PrekeyStore)
+        (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R) (output :
+          core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+          lifecycle.Session × R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      vecOf realPlaintext = modelPlaintext ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      trace rngAfter = oracleAfter.draws ∧
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng realSession message rngAfter =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracleAfter modelSession
+          (sliceOf message))) := by
+  obtain evidence := responder_establish_end_to_end_evidence_of_witness established
+  cases evidence with
+  | @refusal reason modelReason modelStore oracleAfter realStoreAfter rngAfter
+      hroot hmodel hstore hrefusal htrace =>
+      left
+      exact ⟨reason, modelReason, modelStore, oracleAfter, realStoreAfter,
+        rngAfter, hroot, hmodel, hstore, hrefusal, htrace⟩
+  | @success realSession realPlaintext realStoreAfter modelSession modelPlaintext
+      modelStoreAfter oracleAfter rngAfter hroot hmodel hrel hplaintext hstore htrace =>
+      right
+      obtain ⟨decryptOutput, hdecrypt, hdecryptRefines⟩ :=
+        continuation hroot hmodel hrel hplaintext hstore
+      exact ⟨realSession, realPlaintext, realStoreAfter, modelSession,
+        modelPlaintext, modelStoreAfter, oracleAfter, rngAfter, decryptOutput,
+        hroot, hmodel, hrel, hplaintext, hstore, htrace, hdecrypt,
+        hdecryptRefines⟩
+
+/-! The responder's malformed-initial-message branch is now composed at the
+public root.  The generated decoder classification supplies the model's
+exact refusal, `establish_responder` returns the original prekey store, and
+the model's `establishResponder` does the same through `prepareResponder`.
+No authenticated session or durable-consumption claim is hidden in this
+theorem. -/
+theorem establish_responder_decode_refusal_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hdecodeReal : tacenta_wire.decode_initial initialMessage =
+      ok (.Err realReason)) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refusal_classifies initialMessage)
+  have hclassifiedEq : classified = .Err realReason := by
+    rw [hdecodeReal] at hclassified
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = classified := by simpa using hclassified
+    exact heq.symm
+  subst classified
+  have hreason' : decodeRefusalOf realReason =
+      Model.Messages.initialDecodeRefusal (sliceOf initialMessage) := by
+    cases realReason <;>
+      simpa [decodeRefusalOf,
+        Tacenta.SessionUnitWireInitialT3.decodeRefusalOf,
+        wire_bytesOf_eq_sliceOf] using hreason
+  obtain ⟨decoded, hdecoded, hnone⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refines initialMessage)
+  have hdecodedEq : decoded = .Err realReason := by
+    rw [hdecodeReal] at hdecoded
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = decoded := by simpa using hdecoded
+    exact heq.symm
+  subst decoded
+  have hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .error (decodeRefusalOf realReason) := by
+    simp only [Model.Messages.decodeInitialDetailed]
+    have hnone' : Model.Messages.decodeInitial (sliceOf initialMessage) = none := by
+      simpa [wire_bytesOf_eq_sliceOf] using hnone
+    rw [hnone', hreason']
+  have hreal :
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Err (.Decode realReason), ourPrekeys, rng) := by
+    unfold lifecycle.establish_responder
+    simp [hdecodeReal]
+  have hmodel :
+      Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+        (sliceOf initialMessage) =
+        { store := modelStore,
+          result := .error (.decode (decodeRefusalOf realReason)),
+          oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, Model.Lifecycle.prepareResponder,
+      hdecodeModel]
+  refine ⟨(.Err (.Decode realReason), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
+/-! An unknown signed-prekey ID is a pre-KEM refusal.  The concrete root
+    returns the original store and RNG, and no later lookup or primitive is
+    part of the branch equation. -/
+theorem establish_responder_unknown_signed_prekey_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (unknown : lifecycle.Error)
+    (hunknown : unknown = lifecycle.Error.UnknownPrekeyId)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Err unknown)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.UnknownPrekeyId), ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from, hunknown]
+
+/-! Join the unknown-signed-prekey refusal to the model's corresponding
+    pre-lookup refusal, preserving the store relation and trace. -/
+theorem establish_responder_unknown_signed_prekey_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err (.UnknownPrekeyId), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_unknown_signed_prekey oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial hdecodeModel hs
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error .unknownPrekeyId, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err (.UnknownPrekeyId), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
+/-! A refusal from the responder's KEM-slot lookup is also public-root and
+    store-atomic.  Its mapped model reason is supplied explicitly because the
+    Rust error vocabulary is implementation-defined. -/
+theorem establish_responder_kem_slot_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemError : lifecycle.Error)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Err kemError)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err kemError, ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+theorem establish_responder_kem_slot_refusal_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (reason : Model.Lifecycle.Refusal) (kemError : lifecycle.Error)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err kemError, ourPrekeys, rng))
+    (hmap : refusalOf kemError = reason)
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .error reason) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_kem_slot_refusal oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial signedSecret reason
+    hdecodeModel hs hk
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error reason, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err kemError, ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, hmap]
+  · exact hstore
+  · exact htrace
+
+/-! A missing curve one-time-prekey is a public-root refusal after identity
+    validation and before any decapsulation or durable mutation. -/
+theorem establish_responder_one_time_slot_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (unknown : lifecycle.Error)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Err unknown)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err unknown, ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve, hone,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+theorem establish_responder_one_time_slot_refusal_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (reason : Model.Lifecycle.Refusal)
+    (unknown : lifecycle.Error)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err unknown, ourPrekeys, rng))
+    (hmap : refusalOf unknown = reason)
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .error reason) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_one_time_slot_refusal oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial signedSecret kemPair
+    lastResort reason hdecodeModel hs hk hv ho
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error reason, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err unknown, ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, hmap]
+  · exact hstore
+  · exact htrace
+
+/-! The responder's identity refusal is reached after the decoder and the two
+    key-slot lookups, but before one-time lookup, decapsulation, DH, replay
+    recording, or session construction.  Keep those call results explicit so
+    the proof also records the transaction boundary being protected. -/
+theorem establish_responder_invalid_identity_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Err (.Handshake .InvalidIdentityKey))) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! The concrete responder KEM refusal follows the same protected ordering as
+    the model: no DH agreement, replay check, session construction, or store
+    consumption is reached after decapsulation refuses. -/
+theorem establish_responder_kem_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (oneTimeSecret : Option tacenta_boundary.dh.PrivateKey)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys decoded.one_time_prekey_id =
+      ok (.Ok oneTimeSecret))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Err lifecycle.Error.Kem)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err lifecycle.Error.Kem, ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve, hone, hdecap,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! Join the concrete responder identity refusal to the model's pre-lookup
+    identity check.  The store relation is carried through unchanged, making
+    the no-durable-effect claim part of the refinement result. -/
+theorem establish_responder_invalid_identity_step_refines_of_root {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = false) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_invalid_identity oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial signedSecret kemPair
+    lastResort hdecodeModel hs hk hv
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore,
+        result := .error (.handshake .invalidIdentityKey), oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf, handshakeRefusalOf]
+  · exact hstore
+  · exact htrace
+
+/-! The first responder public join with the concrete persisted-state
+    relation.  The Rust refusal returns the original store, and the model
+    refusal returns its original store; the field-level relation therefore
+    crosses the transaction boundary unchanged.  This specialization is
+    intentionally separate from the generic adapter above so its result
+    cannot be read as accepting an unconstrained `storeRel`. -/
+theorem establish_responder_invalid_identity_step_refines_of_field_store
+    {R : Type}
+    (kemView : KemView)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool)
+    (hstore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = false) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  exact establish_responder_invalid_identity_step_refines_of_root
+    (PrekeyStoreRefines dh kemView) rngCore cryptoRng trace dh K oracle view
+    ourIdentity modelIdentity ourPrekeys modelStore initialMessage rng initial
+    signedSecret kemPair lastResort hstore htrace hreal hdecodeModel hs hk hv
+
+/-! Join the concrete responder KEM refusal to the model's authenticated
+    preparation refusal.  The store and RNG are unchanged on both sides. -/
+theorem establish_responder_kem_refusal_step_refines_of_root {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (oneTimeSecret : Option Model.Lifecycle.Key)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err lifecycle.Error.Kem, ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_kem_refusal oracle modelIdentity
+    modelStore (sliceOf initialMessage) initial signedSecret kemPair lastResort
+    oneTimeSecret hdecodeModel hs hk hv ho hkem
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error .kem, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err lifecycle.Error.Kem, ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
+/-! The decapsulation refusal also preserves the concrete persisted-state
+    relation.  No authenticated receive has occurred on this path, so the
+    returned Rust store is the input store and the model keeps its store
+    unchanged. -/
+theorem establish_responder_kem_refusal_step_refines_of_field_store
+    {R : Type}
+    (kemView : KemView)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (oneTimeSecret : Option Model.Lifecycle.Key)
+    (hstore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err lifecycle.Error.Kem, ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  exact establish_responder_kem_refusal_step_refines_of_root
+    (PrekeyStoreRefines dh kemView) rngCore cryptoRng trace dh K oracle view
+    ourIdentity modelIdentity ourPrekeys modelStore initialMessage rng initial
+    signedSecret kemPair lastResort oneTimeSecret hstore htrace hreal
+    hdecodeModel hs hk hv ho hkem
+
+/-! The successful responder branch has a different commit shape from every
+    preparation refusal: authenticated `decrypt_ratchet` returns a plaintext,
+    then the named one-time slots and (when applicable) the last-resort
+    fingerprint are committed.  Keep that public success boundary explicit so
+    a later call-order theorem cannot hide either the post-auth store or the
+    returned wire bytes behind an existential `SessionRefines` witness. -/
+theorem responder_session_refines_of_constructors
+    (dh : DhView) (K : Model.Braid.Kem)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic establishedEphemeral :
+      tacenta_boundary.dh.PublicKeyBytes)
+    (establishedBytes : alloc.vec.Vec Std.U8)
+    (modelRatchetPrivate modelIdentityAd modelOurIdentityPublic
+      modelPeerIdentityPublic modelEstablishedEphemeral : Model.Lifecycle.Key)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initBob sharedSecret
+        (dh.publicKey establishedEphemeral) .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initBob sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hEstablished : vecOf establishedBytes = modelEstablishedEphemeral) :
+    SessionRefines dh K
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := ratchetPrivate, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := peerIdentityPublic,
+        pending_initial := none,
+        established_ephemeral := some establishedBytes }
+      { triple := Model.Triple.initBob sharedSecret
+          (dh.publicKey establishedEphemeral) .tacenta,
+        braid := Model.Braid.initBob sharedSecret,
+        ratchetPrivate := modelRatchetPrivate,
+        identityAd := modelIdentityAd,
+        ourIdentityPublic := modelOurIdentityPublic,
+        peerIdentityPublic := modelPeerIdentityPublic,
+        pendingInitial := none,
+        establishedEphemeral := some modelEstablishedEphemeral } := by
+  constructor
+  · exact htriple
+  · exact hbraid
+  · exact hprivate
+  · exact had
+  · exact hour
+  · exact hpeer
+  · simp
+  · simp [hEstablished]
+
+/-! Root/model adapter for the successful responder branch.  This is the
+    responder analogue of the initiator success adapter below: the concrete
+    root equation, executable-model equation, session relation, plaintext
+    relation, store relation, and trace relation are all separate obligations.
+    In particular, this theorem does not prove the transaction boundary by
+    assumption; it makes the post-auth store that must be supplied by that
+    proof visible in the result. -/
+theorem establish_responder_success_step_refines_of_root_and_model
+    {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (realStoreAfter : lifecycle.PrekeyStore)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity
+      ourPrekeys initialMessage rng =
+      ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter))
+    (hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity
+      modelStore (sliceOf initialMessage) =
+      { store := modelStoreAfter,
+        result := .ok (modelSession, modelPlaintext),
+        oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (hstore : storeRel realStoreAfter modelStoreAfter)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · exact ⟨hrel, hplaintext⟩
+  · exact hstore
+  · exact htrace
+
+/-! Public-success adapter for the same commit shape.  Unlike the generic
+    `storeRel` adapter above, this result is tied to the concrete field
+    relation and to the model's authenticated KEM consumption.  It is the
+    composition point the no-curve/no-last-resort responder branch will use
+    once the generated call-site supplies the concrete store result and the
+    faithful pop law. -/
+theorem establish_responder_success_step_refines_of_field_store_kem_consumption
+    {R : Type}
+    (kemView : KemView) (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (storeAfter : lifecycle.PrekeyStore) (kemId : Nat)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hbefore : PrekeyStoreRefines dh kemView ourPrekeys modelStore)
+    (hpop : ∀ (T : Type) (v : alloc.vec.Vec T),
+      ∃ r, alloc.vec.Vec.pop Global v = ok r)
+    (hpopLaw : ∀ {T : Type} (v : alloc.vec.Vec T), v.val ≠ [] →
+      ∃ value w, alloc.vec.Vec.pop Global v = ok (some value, w) ∧
+        w.val = v.val.dropLast)
+    (kemRemovalId : Std.U32)
+    (kemPair : tacenta_boundary.kem.KeyPair)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem ourPrekeys kemRemovalId =
+      ok (some kemPair, storeAfter))
+    (hId : kemRemovalId.val = kemId)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity
+      ourPrekeys initialMessage rng =
+      ok (.Ok (realSession, realPlaintext), storeAfter, rngAfter))
+    (hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity
+      modelStore (sliceOf initialMessage) =
+      { store := Model.Lifecycle.consumeResponderPrekeys modelStore
+          Model.PersistedState.PrekeyStoreState.absentId kemId false none,
+        result := .ok (modelSession, modelPlaintext),
+        oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines (PrekeyStoreRefines dh kemView) trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hshape := take_one_time_kem_result_preserves_nonvector_fields hpop
+    ourPrekeys kemRemovalId (some kemPair) storeAfter htake
+  have hvector := take_one_time_kem_result_vector_swapRemove hpopLaw
+    ourPrekeys kemRemovalId kemPair storeAfter htake
+  have hstore := prekey_store_refines_after_kem_consumption_of_vector kemView dh
+    ourPrekeys modelStore kemId kemRemovalId storeAfter hbefore hshape hId hvector
+  exact establish_responder_success_step_refines_of_root_and_model
+    (PrekeyStoreRefines dh kemView) trace dh K view oracle rngCore cryptoRng
+    ourIdentity ourPrekeys initialMessage rng rngAfter realSession realPlaintext
+    storeAfter modelIdentity modelStore modelSession modelPlaintext
+    (Model.Lifecycle.consumeResponderPrekeys modelStore
+      Model.PersistedState.PrekeyStoreState.absentId kemId false none)
+    modelOracleAfter hreal hmodel hrel hplaintext hstore htrace
+
+/-! Concrete successful call-order branch: no curve one-time prekey and no
+    last-resort replay record.  This is the first responder success equation
+    at the generated public root.  The other successful store-commit variants
+    will reuse the same prefix and replace only the explicit commit tail. -/
+theorem establish_responder_success_no_one_time_no_last_resort_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (kemSlot : lifecycle.KemKeySlot)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (oneTimeSecret : Option tacenta_boundary.dh.PrivateKey)
+    (kemSecret sharedSecret : Array Std.U8 32#usize)
+    (signedBytes : Array Std.U8 32#usize)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (signedPrekey identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (sharedWrapped kemWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (signedPrekeyBytes : Array Std.U8 32#usize)
+    (establishedEphemeral : alloc.vec.Vec Std.U8)
+    (realSession : lifecycle.Session)
+    (plaintext : alloc.vec.Vec Std.U8)
+    (storeAfter : lifecycle.PrekeyStore)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, false)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Ok none))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Ok kemSecret))
+    (hdecapNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hdecapDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hsignedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) signedSecret =
+      ok signedBytes)
+    (hsignedPrivate : tacenta_boundary.dh.PrivateKey.from_bytes signedBytes =
+      ok signedPrekey)
+    (hshared : responder_shared_secret identityPrivate signedPrekey none
+      initiatorIdentity initiatorEphemeral kemSecret =
+      ok (.Ok sharedSecret))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecret =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity =
+      ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad initiatorIdentity ourIdentityPublic =
+      ok identityAd)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+      Std.U8)) sharedSecret () = ok sharedSlice)
+    (hsignedPublic : tacenta_boundary.dh.PrivateKey.public_key signedPrekey =
+      ok signedPrekeyPublic)
+    (hsignedPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      signedPrekeyPublic = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_receiver sharedSlice
+      signedPrekeyBytes tacenta_ratchet.LabelSet.Tacenta =
+      ok realTriple)
+    (hbraid : tacenta_braid.Braid.responder sharedSlice = ok realBraid)
+    (hclone : alloc.vec.CloneVec.clone core.clone.CloneU8 decoded.ephemeral =
+      ok establishedEphemeral)
+    (hdecrypt : lifecycle.Session.decrypt_ratchet rngCore cryptoRng
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := signedPrekey, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := initiatorIdentity,
+        pending_initial := none,
+        established_ephemeral := some establishedEphemeral }
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realSession, rngAfter))
+    (honeId : decoded.one_time_prekey_id = serialization.ABSENT_ID)
+    (htake : lifecycle.PrekeyStore.take_one_time_kem ourPrekeys
+      decoded.kem_prekey_id = ok (none, storeAfter)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, plaintext), storeAfter, rngAfter) := by
+  have hone' : lifecycle.responder_one_time_key ourPrekeys
+      serialization.ABSENT_ID = ok (.Ok none) := by
+    simpa [honeId] using hone
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap, hdecapNew,
+    hdecapDeref, hsignedDeref, hsignedPrivate, hshared, hsharedNew,
+    hsharedDeref, hidentityDh, hidentityPublic, hidentityAd, hsharedSlice,
+    hsignedPublic, hsignedPublicBytes, htriple, hbraid, hclone, hdecrypt,
+    honeId, hone', htake, lifecycle.responder_replay_fingerprint,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! The matching one-time-prekey success branch.  The authenticated prefix is
+    intentionally repeated here rather than hidden behind a postulated root
+    result: this branch proves that both durable consumptions occur only after
+    `decrypt_ratchet` has returned an authenticated plaintext. -/
+theorem establish_responder_success_one_time_no_last_resort_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (kemSlot : lifecycle.KemKeySlot)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (oneTimePrivate : tacenta_boundary.dh.PrivateKey)
+    (kemSecret sharedSecret : Array Std.U8 32#usize)
+    (signedBytes : Array Std.U8 32#usize)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (signedPrekey identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (sharedWrapped kemWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (signedPrekeyBytes : Array Std.U8 32#usize)
+    (establishedEphemeral : alloc.vec.Vec Std.U8)
+    (realSession : lifecycle.Session)
+    (plaintext : alloc.vec.Vec Std.U8)
+    (storeAfterKem storeAfter : lifecycle.PrekeyStore)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, false)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Ok (some oneTimePrivate)))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Ok kemSecret))
+    (hdecapNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hdecapDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hsignedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) signedSecret =
+      ok signedBytes)
+    (hsignedPrivate : tacenta_boundary.dh.PrivateKey.from_bytes signedBytes =
+      ok signedPrekey)
+    (hshared : responder_shared_secret identityPrivate signedPrekey
+      (some oneTimePrivate) initiatorIdentity initiatorEphemeral kemSecret =
+      ok (.Ok sharedSecret))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecret =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity =
+      ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad initiatorIdentity ourIdentityPublic =
+      ok identityAd)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+      Std.U8)) sharedSecret () = ok sharedSlice)
+    (hsignedPublic : tacenta_boundary.dh.PrivateKey.public_key signedPrekey =
+      ok signedPrekeyPublic)
+    (hsignedPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      signedPrekeyPublic = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_receiver sharedSlice
+      signedPrekeyBytes tacenta_ratchet.LabelSet.Tacenta =
+      ok realTriple)
+    (hbraid : tacenta_braid.Braid.responder sharedSlice = ok realBraid)
+    (hclone : alloc.vec.CloneVec.clone core.clone.CloneU8 decoded.ephemeral =
+      ok establishedEphemeral)
+    (hdecrypt : lifecycle.Session.decrypt_ratchet rngCore cryptoRng
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := signedPrekey, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := initiatorIdentity,
+        pending_initial := none,
+        established_ephemeral := some establishedEphemeral }
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realSession, rngAfter))
+    (honeId : decoded.one_time_prekey_id ≠ serialization.ABSENT_ID)
+    (htakeKem : lifecycle.PrekeyStore.take_one_time_kem ourPrekeys
+      decoded.kem_prekey_id = ok (none, storeAfterKem))
+    (htakeOne : lifecycle.PrekeyStore.take_one_time storeAfterKem
+      decoded.one_time_prekey_id = ok (true, storeAfter)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, plaintext), storeAfter, rngAfter) := by
+  unfold lifecycle.establish_responder
+  have honeId' : ¬ (decoded.one_time_prekey_id.val =
+      serialization.ABSENT_ID.val) := by
+    intro h
+    exact honeId (UScalar.eq_of_val_eq h)
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap, hdecapNew,
+    hdecapDeref, hsignedDeref, hsignedPrivate, hshared, hsharedNew,
+    hsharedDeref, hidentityDh, hidentityPublic, hidentityAd, hsharedSlice,
+    hsignedPublic, hsignedPublicBytes, htriple, hbraid, hclone, hdecrypt,
+    honeId, honeId', htakeKem, htakeOne,
+    lifecycle.responder_replay_fingerprint,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! The last-resort success branch.  Unlike the reusable one-time branch above,
+    this branch proves the authenticated replay-record append and its capacity
+    check after the ratchet has accepted the inner message. -/
+theorem establish_responder_success_last_resort_no_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (kemSlot : lifecycle.KemKeySlot)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (kemSecret sharedSecret : Array Std.U8 32#usize)
+    (signedBytes : Array Std.U8 32#usize)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (signedPrekey identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (sharedWrapped kemWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (signedPrekeyBytes : Array Std.U8 32#usize)
+    (establishedEphemeral : alloc.vec.Vec Std.U8)
+    (realSession : lifecycle.Session)
+    (plaintext : alloc.vec.Vec Std.U8)
+    (fingerprint : Array Std.U8 32#usize)
+    (seenCount : Std.Usize)
+    (seenAfter : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+    (storeAfter : lifecycle.PrekeyStore)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, true)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Ok none))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Ok kemSecret))
+    (hdecapNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hdecapDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hsignedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) signedSecret =
+      ok signedBytes)
+    (hsignedPrivate : tacenta_boundary.dh.PrivateKey.from_bytes signedBytes =
+      ok signedPrekey)
+    (hshared : responder_shared_secret identityPrivate signedPrekey none
+      initiatorIdentity initiatorEphemeral kemSecret =
+      ok (.Ok sharedSecret))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecret =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity =
+      ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad initiatorIdentity ourIdentityPublic =
+      ok identityAd)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+      Std.U8)) sharedSecret () = ok sharedSlice)
+    (hsignedPublic : tacenta_boundary.dh.PrivateKey.public_key signedPrekey =
+      ok signedPrekeyPublic)
+    (hsignedPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      signedPrekeyPublic = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_receiver sharedSlice
+      signedPrekeyBytes tacenta_ratchet.LabelSet.Tacenta =
+      ok realTriple)
+    (hbraid : tacenta_braid.Braid.responder sharedSlice = ok realBraid)
+    (hclone : alloc.vec.CloneVec.clone core.clone.CloneU8 decoded.ephemeral =
+      ok establishedEphemeral)
+    (hdecrypt : lifecycle.Session.decrypt_ratchet rngCore cryptoRng
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := signedPrekey, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := initiatorIdentity,
+        pending_initial := none,
+        established_ephemeral := some establishedEphemeral }
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realSession, rngAfter))
+    (honeId : decoded.one_time_prekey_id = serialization.ABSENT_ID)
+    (hreplay : lifecycle.responder_replay_fingerprint ourPrekeys
+      decoded.kem_prekey_id sharedSecret true =
+      ok (.Ok (some fingerprint)))
+    (hseen : lifecycle.PrekeyStore.last_resort_seen_for ourPrekeys
+      decoded.kem_prekey_id = ok seenCount)
+    (hcount : seenCount < lifecycle.MAX_LAST_RESORT_SEEN)
+    (hpush : alloc.vec.Vec.push ourPrekeys.last_resort_seen
+      (decoded.kem_prekey_id, fingerprint) = ok seenAfter)
+    (hstore : { ourPrekeys with last_resort_seen := seenAfter } = storeAfter) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, plaintext), storeAfter, rngAfter) := by
+  have hone' : lifecycle.responder_one_time_key ourPrekeys
+      serialization.ABSENT_ID = ok (.Ok none) := by
+    simpa [honeId] using hone
+  have hcount' : (↑seenCount : Nat) <
+      (↑lifecycle.MAX_LAST_RESORT_SEEN : Nat) :=
+    (UScalar.lt_equiv _ _).mp hcount
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap, hdecapNew,
+    hdecapDeref, hsignedDeref, hsignedPrivate, hshared, hsharedNew,
+    hsharedDeref, hidentityDh, hidentityPublic, hidentityAd, hsharedSlice,
+    hsignedPublic, hsignedPublicBytes, htriple, hbraid, hclone, hdecrypt,
+    honeId, hone', hreplay, hseen, hcount, hcount', hpush, hstore,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! The mixed success branch is the remaining concrete responder commit shape:
+    the reusable last-resort KEM is recorded, while the authenticated message
+    also consumes a curve one-time prekey.  The KEM slot is not removed on this
+    path; the curve slot is removed before the replay record is appended. -/
+theorem establish_responder_success_last_resort_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (kemSlot : lifecycle.KemKeySlot)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (oneTimePrivate : tacenta_boundary.dh.PrivateKey)
+    (kemSecret sharedSecret : Array Std.U8 32#usize)
+    (signedBytes : Array Std.U8 32#usize)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (signedPrekey identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (sharedWrapped kemWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (signedPrekeyBytes : Array Std.U8 32#usize)
+    (establishedEphemeral : alloc.vec.Vec Std.U8)
+    (realSession : lifecycle.Session)
+    (plaintext : alloc.vec.Vec Std.U8)
+    (fingerprint : Array Std.U8 32#usize)
+    (seenCount : Std.Usize)
+    (seenAfter : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+    (storeAfterCurve storeAfter : lifecycle.PrekeyStore)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, true)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Ok (some oneTimePrivate)))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Ok kemSecret))
+    (hdecapNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hdecapDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hsignedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) signedSecret =
+      ok signedBytes)
+    (hsignedPrivate : tacenta_boundary.dh.PrivateKey.from_bytes signedBytes =
+      ok signedPrekey)
+    (hshared : responder_shared_secret identityPrivate signedPrekey
+      (some oneTimePrivate) initiatorIdentity initiatorEphemeral kemSecret =
+      ok (.Ok sharedSecret))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecret =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity =
+      ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad initiatorIdentity ourIdentityPublic =
+      ok identityAd)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+      Std.U8)) sharedSecret () = ok sharedSlice)
+    (hsignedPublic : tacenta_boundary.dh.PrivateKey.public_key signedPrekey =
+      ok signedPrekeyPublic)
+    (hsignedPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      signedPrekeyPublic = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_receiver sharedSlice
+      signedPrekeyBytes tacenta_ratchet.LabelSet.Tacenta =
+      ok realTriple)
+    (hbraid : tacenta_braid.Braid.responder sharedSlice = ok realBraid)
+    (hclone : alloc.vec.CloneVec.clone core.clone.CloneU8 decoded.ephemeral =
+      ok establishedEphemeral)
+    (hdecrypt : lifecycle.Session.decrypt_ratchet rngCore cryptoRng
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := signedPrekey, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := initiatorIdentity,
+        pending_initial := none,
+        established_ephemeral := some establishedEphemeral }
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realSession, rngAfter))
+    (honeId : decoded.one_time_prekey_id ≠ serialization.ABSENT_ID)
+    (hreplay : lifecycle.responder_replay_fingerprint ourPrekeys
+      decoded.kem_prekey_id sharedSecret true =
+      ok (.Ok (some fingerprint)))
+    (hseen : lifecycle.PrekeyStore.last_resort_seen_for ourPrekeys
+      decoded.kem_prekey_id = ok seenCount)
+    (hcount : seenCount < lifecycle.MAX_LAST_RESORT_SEEN)
+    (hpush : alloc.vec.Vec.push ourPrekeys.last_resort_seen
+      (decoded.kem_prekey_id, fingerprint) = ok seenAfter)
+    (htakeOne : lifecycle.PrekeyStore.take_one_time ourPrekeys
+      decoded.one_time_prekey_id = ok (true, storeAfterCurve))
+    (hseenCurve : storeAfterCurve.last_resort_seen = ourPrekeys.last_resort_seen)
+    (hseenCurveCount : lifecycle.PrekeyStore.last_resort_seen_for storeAfterCurve
+      decoded.kem_prekey_id = ok seenCount)
+    (hpushCurve : alloc.vec.Vec.push storeAfterCurve.last_resort_seen
+      (decoded.kem_prekey_id, fingerprint) = ok seenAfter)
+    (hstore : { storeAfterCurve with last_resort_seen := seenAfter } = storeAfter) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, plaintext), storeAfter, rngAfter) := by
+  have honeId' : ¬ (decoded.one_time_prekey_id.val =
+      serialization.ABSENT_ID.val) := by
+    intro h
+    exact honeId (UScalar.eq_of_val_eq h)
+  have hcount' : (↑seenCount : Nat) <
+      (↑lifecycle.MAX_LAST_RESORT_SEEN : Nat) :=
+    (UScalar.lt_equiv _ _).mp hcount
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap, hdecapNew,
+    hdecapDeref, hsignedDeref, hsignedPrivate, hshared, hsharedNew,
+    hsharedDeref, hidentityDh, hidentityPublic, hidentityAd, hsharedSlice,
+    hsignedPublic, hsignedPublicBytes, htriple, hbraid, hclone, hdecrypt,
+    honeId, honeId', hreplay, hseen, hcount, hcount', hpush, htakeOne,
+    hseenCurve, hseenCurveCount, hpushCurve, hstore,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
+/-! The first concrete establishment composition.  The translated public
+root and executable model both refuse an unexpected peer identity before any
+signature, KEM, DH, or RNG work.  The comparison result is supplied by the
+existing translated boundary contract; the theorem consumes it and proves
+the complete public result/refinement pair, including the unchanged RNG. -/
+theorem establish_initiator_identity_mismatch_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok true)
+    (hmodelIdentity : (modelBundle.identityKey != modelExpectedIdentity) = true)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.UnexpectedIdentity, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp
+  have hmodel := Model.Lifecycle.establishInitiator_identity_mismatch
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity
+  refine ⟨(.Err lifecycle.Error.UnexpectedIdentity, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
+theorem establish_initiator_presence_mismatch_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hpresence : (modelBundle.oneTimePrekey.isSome !=
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId)) = true)
+    (hrealPresence : (core.option.Option.is_some theirBundle.bundle.one_time_prekey !=
+      (theirBundle.one_time_prekey_id != serialization.ABSENT_ID)) = true)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.InconsistentBundle, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp only [bne_iff_ne] at hrealPresence
+    have hrealPresence' :
+        ¬ (theirBundle.bundle.one_time_prekey.isSome =
+          (theirBundle.one_time_prekey_id != serialization.ABSENT_ID)) := by
+      intro h
+      exact hrealPresence h
+    simp [hrealPresence']
+  have hmodel := Model.Lifecycle.establishInitiator_presence_mismatch
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity hpresence
+  refine ⟨(.Err lifecycle.Error.InconsistentBundle, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
+/-! The next refusal is the public canonical-key gate.  This is deliberately
+composed at the root rather than left as a leaf predicate: the translated
+optional-key checks and the model's three-key canonicality guard must agree on
+the same ordering, and the refusal must still leave the RNG trace untouched. -/
+theorem establish_initiator_noncanonical_identity_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle) (modelExpectedIdentity : Model.Lifecycle.Key)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hpresence : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hnoOneTime : theirBundle.bundle.one_time_prekey = none)
+    (habsentId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hcanonical : is_canonical_key theirBundle.bundle.identity_key = ok false)
+    (hmodelCanonical : Model.Messages.canonicalKey modelBundle.identityKey = false)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hreal :
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng =
+        ok (.Err lifecycle.Error.BadEncoding, rng) := by
+    unfold lifecycle.establish_initiator_for
+    rw [hcmp]
+    simp [hnoOneTime, habsentId, hcanonical]
+  have hmodelCanonical' :
+      (!Model.Messages.canonicalKey modelBundle.identityKey ||
+        !Model.Messages.canonicalKey modelBundle.signedPrekey ||
+        !modelBundle.oneTimePrekey.all Model.Messages.canonicalKey) = true := by
+    simp [hmodelCanonical]
+  have hmodel := Model.Lifecycle.establishInitiator_noncanonical
+    oracle modelIdentity modelBundle modelExpectedIdentity hmodelIdentity
+    hpresence hmodelCanonical'
+  refine ⟨(.Err lifecycle.Error.BadEncoding, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
+/-! The shipped public initiator root fixes the expected identity to the
+bundle's advertised identity.  Compose that wrapper explicitly so the
+canonical-key refusal is attached to the public root, not only to the
+parameterised helper above. -/
+theorem establish_initiator_noncanonical_identity_public_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (hcmpSelf : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key theirBundle.bundle.identity_key = ok false)
+    (hpresence : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hnoOneTime : theirBundle.bundle.one_time_prekey = none)
+    (habsentId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hcanonical : is_canonical_key theirBundle.bundle.identity_key = ok false)
+    (hmodelCanonical : Model.Messages.canonicalKey modelBundle.identityKey = false)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelBundle.identityKey) := by
+  obtain ⟨output, hcall, hstep⟩ := establish_initiator_noncanonical_identity_step_refines
+    rngCore cryptoRng trace dh K oracle ourIdentity theirBundle
+      theirBundle.bundle.identity_key rng modelIdentity modelBundle
+      modelBundle.identityKey hcmpSelf rfl hpresence hnoOneTime habsentId hcanonical
+      hmodelCanonical htrace
+  refine ⟨output, ?_, hstep⟩
+  simpa [lifecycle.establish_initiator] using hcall
+
+theorem establish_initiator_presence_mismatch_public_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (hcmpSelf : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key theirBundle.bundle.identity_key = ok false)
+    (hmodelPresence : (modelBundle.oneTimePrekey.isSome !=
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId)) = true)
+    (hrealPresence : (core.option.Option.is_some theirBundle.bundle.one_time_prekey !=
+      (theirBundle.one_time_prekey_id != serialization.ABSENT_ID)) = true)
+    (htrace : trace rng = oracle.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelBundle.identityKey) := by
+  obtain ⟨output, hcall, hstep⟩ := establish_initiator_presence_mismatch_step_refines
+    rngCore cryptoRng trace dh K oracle ourIdentity theirBundle
+      theirBundle.bundle.identity_key rng modelIdentity modelBundle
+      modelBundle.identityKey hcmpSelf rfl hmodelPresence hrealPresence htrace
+  refine ⟨output, ?_, hstep⟩
+  simpa [lifecycle.establish_initiator] using hcall
+
+/-! The successful establishment tail is an explicit composition seam.
+
+The generated root constructs a Session only after the two aggregate
+initialisers and the identity/public-key encodings have returned.  Keeping
+this constructor relation separate makes the remaining root theorem consume
+field-level evidence rather than a pre-built `SessionRefines` proposition. -/
+theorem initiator_session_refines_of_constructors
+    (dh : DhView) (K : Model.Braid.Kem)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic ephemeralPublic ratchetPublic
+      signedPrekeyPublic :
+      tacenta_boundary.dh.PublicKeyBytes)
+    (dhOut : Array Std.U8 32#usize)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : Std.U32)
+    (modelRatchetPrivate : Model.Lifecycle.Key)
+    (modelIdentityAd modelOurIdentityPublic modelPeerIdentityPublic :
+      Model.Lifecycle.Key)
+    (modelEphemeralPublic : Model.Lifecycle.Key)
+    (modelKemCiphertext : Model.Lifecycle.Key)
+    (modelDhOut : Model.Lifecycle.Key)
+    (modelSignedPrekeyId modelOneTimePrekeyId modelKemPrekeyId : Nat)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        modelDhOut .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initAlice sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hephemeral : dh.publicKey ephemeralPublic = modelEphemeralPublic)
+    (hkem : vecOf kemCiphertext = modelKemCiphertext)
+    (hdhOut : arrayOf dhOut = modelDhOut)
+    (hsigned : signedPrekeyId.val = modelSignedPrekeyId)
+    (hone : oneTimePrekeyId.val = modelOneTimePrekeyId)
+    (hkemId : kemPrekeyId.val = modelKemPrekeyId) :
+    SessionRefines dh K
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := ratchetPrivate, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := peerIdentityPublic,
+        pending_initial := some
+          { ephemeral_public := ephemeralPublic,
+            kem_ciphertext := kemCiphertext,
+            signed_prekey_id := signedPrekeyId,
+            one_time_prekey_id := oneTimePrekeyId,
+            kem_prekey_id := kemPrekeyId },
+        established_ephemeral := none }
+      { triple := Model.Triple.initAlice sharedSecret
+          (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+          modelDhOut .tacenta,
+        braid := Model.Braid.initAlice sharedSecret,
+        ratchetPrivate := modelRatchetPrivate,
+        identityAd := modelIdentityAd,
+        ourIdentityPublic := modelOurIdentityPublic,
+        peerIdentityPublic := modelPeerIdentityPublic,
+        pendingInitial := some
+          { ephemeralPublic := modelEphemeralPublic,
+            kemCiphertext := modelKemCiphertext,
+            signedPrekeyId := modelSignedPrekeyId,
+            oneTimePrekeyId := modelOneTimePrekeyId,
+            kemPrekeyId := modelKemPrekeyId },
+        establishedEphemeral := none } := by
+  constructor
+  · simpa [hour, hpeer, hdhOut] using htriple
+  · exact hbraid
+  · exact hprivate
+  · exact had
+  · exact hour
+  · exact hpeer
+  · simp [pendingInitialOf, hephemeral, hkem, hsigned, hone, hkemId]
+  · simp
+
+/-! The first concrete successful-root composition.  This theorem is intentionally
+    below the model relation: it proves that the generated public root follows
+    the documented successful call order and constructs exactly one pending
+    initial record.  Every opaque boundary result and every `Zeroizing` readback
+    is an explicit premise.  The refinement theorem must additionally relate
+    those results to the model oracle and discharge the session-field relation;
+    this separation prevents a root theorem from hiding an unproved primitive
+    contract behind a pre-built `SessionRefines` witness. -/
+theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rng1 rng2 rng3 : R)
+    (ephemeralBytes ratchetBytes kemSecret sharedSecretArray dhOutArray :
+      Array Std.U8 32#usize)
+    (ephemeralPrivate ratchetPrivate identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (kemWrapped sharedWrapped dhOutWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (ephemeralPublic ratchetPublic ourIdentityPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ratchetPublicBytes signedPrekeyBytes : Array Std.U8 32#usize)
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = none)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
+      ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rng1))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rng1 =
+      ok (.Ok (kemCiphertext, kemSecret), rng2))
+    (hkemNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hkemDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hshared : initiator_shared_secret identityPrivate ephemeralPrivate
+      { theirBundle.bundle with one_time_prekey := none } kemSecret =
+      ok (.Ok sharedSecretArray))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecretArray =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecretArray)
+    (hrandomRatchet : lifecycle.random_secret rngCore cryptoRng rng2 =
+      ok (ratchetBytes, rng3))
+    (hratchet : tacenta_boundary.dh.PrivateKey.from_bytes ratchetBytes =
+      ok ratchetPrivate)
+    (hagreement : tacenta_boundary.dh.PrivateKey.agree ratchetPrivate
+      theirBundle.bundle.signed_prekey = ok (some dhOutArray))
+    (hdhOutNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutArray =
+      ok dhOutWrapped)
+    (hdhOutDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutWrapped =
+      ok dhOutArray)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice Std.U8))
+      sharedSecretArray () = ok sharedSlice)
+    (hratchetPublic : tacenta_boundary.dh.PrivateKey.public_key ratchetPrivate =
+      ok ratchetPublic)
+    (hratchetPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes ratchetPublic =
+      ok ratchetPublicBytes)
+    (hsignedBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      theirBundle.bundle.signed_prekey = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_sender sharedSlice ratchetPublicBytes
+      signedPrekeyBytes dhOutArray tacenta_ratchet.LabelSet.Tacenta = ok realTriple)
+    (hbraid : tacenta_braid.Braid.initiator sharedSlice = ok realBraid)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity = ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad ourIdentityPublic
+      theirBundle.bundle.identity_key = ok identityAd)
+    (hephemeralPublic : tacenta_boundary.dh.PrivateKey.public_key ephemeralPrivate =
+      ok ephemeralPublic) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := theirBundle.bundle.identity_key,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := theirBundle.signed_prekey_id,
+              one_time_prekey_id := theirBundle.one_time_prekey_id,
+              kem_prekey_id := theirBundle.kem_prekey_id },
+          established_ephemeral := none }, rng3) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+    hone,
+    hephemeral, hkem, hkemNew, hkemDeref, hidentityDh, hshared, hsharedNew,
+    hsharedDeref, hrandomRatchet, hratchet, hagreement, hdhOutNew, hdhOutDeref,
+    hsharedSlice, hratchetPublic, hratchetPublicBytes, hsignedBytes, htriple,
+    hbraid, hidentityPublic, hidentityAd, hephemeralPublic]
+
+/-! The matching concrete success composition when the published bundle carries
+    a curve one-time prekey.  The generated implementation folds that
+    optional agreement into `initiator_shared_secret`; keeping the full bundle
+    in the shared-secret premise makes the branch explicit and prevents the
+    no-one-time proof from being mistaken for coverage of the consuming path. -/
+theorem establish_initiator_for_success_with_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rng1 rng2 rng3 : R)
+    (oneTimePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ephemeralBytes ratchetBytes kemSecret sharedSecretArray dhOutArray :
+      Array Std.U8 32#usize)
+    (ephemeralPrivate ratchetPrivate identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (kemWrapped sharedWrapped dhOutWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (ephemeralPublic ratchetPublic ourIdentityPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ratchetPublicBytes signedPrekeyBytes : Array Std.U8 32#usize)
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id ≠ serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = some oneTimePublic)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (honeCanonical : is_canonical_key oneTimePublic = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with
+      one_time_prekey := some oneTimePublic } = ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rng1))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rng1 =
+      ok (.Ok (kemCiphertext, kemSecret), rng2))
+    (hkemNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hkemDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hshared : initiator_shared_secret identityPrivate ephemeralPrivate
+      { theirBundle.bundle with one_time_prekey := some oneTimePublic } kemSecret =
+      ok (.Ok sharedSecretArray))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecretArray =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecretArray)
+    (hrandomRatchet : lifecycle.random_secret rngCore cryptoRng rng2 =
+      ok (ratchetBytes, rng3))
+    (hratchet : tacenta_boundary.dh.PrivateKey.from_bytes ratchetBytes =
+      ok ratchetPrivate)
+    (hagreement : tacenta_boundary.dh.PrivateKey.agree ratchetPrivate
+      theirBundle.bundle.signed_prekey = ok (some dhOutArray))
+    (hdhOutNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutArray =
+      ok dhOutWrapped)
+    (hdhOutDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) dhOutWrapped =
+      ok dhOutArray)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice Std.U8))
+      sharedSecretArray () = ok sharedSlice)
+    (hratchetPublic : tacenta_boundary.dh.PrivateKey.public_key ratchetPrivate =
+      ok ratchetPublic)
+    (hratchetPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes ratchetPublic =
+      ok ratchetPublicBytes)
+    (hsignedBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      theirBundle.bundle.signed_prekey = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_sender sharedSlice ratchetPublicBytes
+      signedPrekeyBytes dhOutArray tacenta_ratchet.LabelSet.Tacenta = ok realTriple)
+    (hbraid : tacenta_braid.Braid.initiator sharedSlice = ok realBraid)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity = ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad ourIdentityPublic
+      theirBundle.bundle.identity_key = ok identityAd)
+    (hephemeralPublic : tacenta_boundary.dh.PrivateKey.public_key ephemeralPrivate =
+      ok ephemeralPublic) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := theirBundle.bundle.identity_key,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := theirBundle.signed_prekey_id,
+              one_time_prekey_id := theirBundle.one_time_prekey_id,
+              kem_prekey_id := theirBundle.kem_prekey_id },
+          established_ephemeral := none }, rng3) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hone, hidentityCanonical, hsignedCanonical, honeCanonical,
+    hverify,
+    hrandom, hephemeral, hkem, hkemNew, hkemDeref, hidentityDh, hshared,
+    hsharedNew, hsharedDeref, hrandomRatchet, hratchet, hagreement, hdhOutNew,
+    hdhOutDeref, hsharedSlice, hratchetPublic, hratchetPublicBytes,
+    hsignedBytes, htriple, hbraid, hidentityPublic, hidentityAd,
+    hephemeralPublic]
+
+/-! The corresponding KEM refusal is a complete public-root branch up to the
+    boundary error.  It proves the important effect fact for this branch: the
+    first ephemeral draw is retained in the returned RNG state, while no
+    session is constructed and no later primitive is called. -/
+theorem establish_initiator_for_kem_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (ephemeralBytes : Array Std.U8 32#usize)
+    (ephemeralPrivate : tacenta_boundary.dh.PrivateKey) (kemError : Unit)
+    (hcmp : core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
+      theirBundle.bundle.identity_key expectedIdentity = ok false)
+    (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = none)
+    (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
+    (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
+    (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
+      ok (.Ok ()))
+    (hrandom : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (ephemeralBytes, rngAfter))
+    (hephemeral : tacenta_boundary.dh.PrivateKey.from_bytes ephemeralBytes =
+      ok ephemeralPrivate)
+    (hkem : tacenta_boundary.kem.encapsulate rngCore cryptoRng
+      (alloc.vec.Vec.deref theirBundle.bundle.kem_prekey) rngAfter =
+      ok (.Err kemError, rngAfter)) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng = ok (.Err lifecycle.Error.Kem, rngAfter) := by
+  unfold lifecycle.establish_initiator_for
+  simp [hcmp, honeId, hone, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+    hephemeral, hkem]
+
+/-! Join the concrete KEM refusal call-order proof to the executable model.
+    The model draw and encapsulation equations remain explicit: this theorem
+    closes the refinement seam without pretending that a concrete KEM error is
+    itself evidence for the model oracle transition. -/
+theorem establish_initiator_kem_refusal_step_refines_of_root
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (ephemeralPrivate : Model.Lifecycle.Key)
+    (afterEphemeral afterKem : Model.Lifecycle.Oracle)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng =
+      ok (.Err lifecycle.Error.Kem, rngAfter))
+    (hmodelIdentity : modelBundle.identityKey = modelExpectedIdentity)
+    (hOne : modelBundle.oneTimePrekey = none)
+    (hOneId : modelBundle.oneTimeId = Model.Lifecycle.absentId)
+    (hp : modelBundle.oneTimePrekey.isSome =
+      (modelBundle.oneTimeId != Model.Lifecycle.absentId))
+    (hv : oracle.identityValid modelBundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey modelBundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey modelBundle.signedPrekey = true)
+    (ho : modelBundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify modelBundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc modelBundle.signedPrekey)
+      modelBundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify modelBundle.identityKey
+      (Model.Lifecycle.encodeKem modelBundle.kemPrekey)
+      modelBundle.kemPrekeySig = true)
+    (hDraw : Model.Lifecycle.random32 oracle =
+      some (ephemeralPrivate, afterEphemeral))
+    (hKem : Model.Lifecycle.kemEncapsulate afterEphemeral
+      modelBundle.kemPrekey = some (none, afterKem))
+    (htrace : trace rngAfter = afterKem.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+        theirBundle expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  have hmodel := Model.Lifecycle.establishInitiator_kem_refusal oracle
+    afterEphemeral afterKem modelIdentity modelBundle modelExpectedIdentity
+    ephemeralPrivate hmodelIdentity hOne hOneId hp hv hc hs ho hSignedSig hKemSig
+    hDraw hKem
+  refine ⟨(.Err lifecycle.Error.Kem, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [EstablishResultRefines, refusalOf]
+  · exact htrace
+
+/-! Once the concrete call-order theorem and the model success theorem have
+    been instantiated, this adapter composes them at the public refinement
+    boundary.  Keeping the model equality and the constructor `SessionRefines`
+    relation as separate arguments makes the remaining work measurable: it is
+    the discharge of those relations from the named oracle/leaf contracts, not
+    an unexamined `simp` over the public root. -/
+theorem establish_initiator_for_success_step_refines_of_root_and_model
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok modelSession, oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+        expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  refine ⟨(.Ok realSession, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simpa [EstablishResultRefines] using hrel
+  · exact htrace
+
+/-! The public wrapper fixes the expected identity to the bundle's advertised
+    identity.  This small theorem keeps the distinction visible: a successful
+    parameterised-root proof is not silently counted as a proof of the public
+    root until this wrapper equation is discharged. -/
+theorem establish_initiator_success_no_one_time_of_calls
+    {R : Type} (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (output : core.result.Result lifecycle.Session lifecycle.Error × R)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hfor : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok output) :
+    lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+      ok output := by
+  simpa [lifecycle.establish_initiator, hexpected] using hfor
+
+/-! Lift any parameterised-root refinement to the public initiator root once
+    its expected identity is the bundle identity.  Branch theorems therefore
+    cannot accidentally stop one wrapper short of the advertised API. -/
+theorem establish_initiator_public_step_refines_of_for_step
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelStep : Model.Lifecycle.EstablishStep)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hstep : ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+        theirBundle expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output modelStep) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output modelStep := by
+  obtain ⟨output, hfor, hrefines⟩ := hstep
+  refine ⟨output, ?_, hrefines⟩
+  simpa [lifecycle.establish_initiator, hexpected] using hfor
+
+/-! Complete the successful initiator composition at the advertised public
+    root.  The premises are intentionally the four reviewable seams rather
+    than one opaque witness: concrete control flow, model transition, session
+    fields, and the consumed-randomness trace. -/
+theorem establish_initiator_success_step_refines_of_root_and_model
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok modelSession, oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  apply establish_initiator_public_step_refines_of_for_step trace dh K rngCore
+    cryptoRng ourIdentity theirBundle expectedIdentity rng
+    (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity) hexpected
+  exact establish_initiator_for_success_step_refines_of_root_and_model trace dh K
+    oracle rngCore cryptoRng ourIdentity theirBundle expectedIdentity rng rngAfter
+    realSession modelSession modelIdentity modelBundle modelExpectedIdentity
+    modelOracleAfter hreal hmodel hrel htrace
+
+/-! Constructor-backed success composition for the no-curve-one-time-prekey
+    branch.  The root equations remain explicit inputs, but the session
+    relation is derived here from the generated Triple/Braid relations and
+    each persisted field correspondence rather than supplied as a witness. -/
+theorem establish_initiator_success_no_one_time_step_refines_of_constructors
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic ephemeralPublic ratchetPublic
+      signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (dhOut : Array Std.U8 32#usize)
+    (kemCiphertext : alloc.vec.Vec Std.U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : Std.U32)
+    (modelRatchetPrivate : Model.Lifecycle.Key)
+    (modelIdentityAd modelOurIdentityPublic modelPeerIdentityPublic :
+      Model.Lifecycle.Key)
+    (modelEphemeralPublic modelKemCiphertext modelDhOut : Model.Lifecycle.Key)
+    (modelSignedPrekeyId modelOneTimePrekeyId modelKemPrekeyId : Nat)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng =
+      ok (.Ok
+        { triple := realTriple, braid := realBraid,
+          ratchet_private := ratchetPrivate, identity_ad := identityAd,
+          our_identity_public := ourIdentityPublic,
+          peer_identity_public := peerIdentityPublic,
+          pending_initial := some
+            { ephemeral_public := ephemeralPublic,
+              kem_ciphertext := kemCiphertext,
+              signed_prekey_id := signedPrekeyId,
+              one_time_prekey_id := oneTimePrekeyId,
+              kem_prekey_id := kemPrekeyId },
+          established_ephemeral := none }, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok
+          { triple := Model.Triple.initAlice sharedSecret
+              (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+              modelDhOut .tacenta,
+            braid := Model.Braid.initAlice sharedSecret,
+            ratchetPrivate := modelRatchetPrivate,
+            identityAd := modelIdentityAd,
+            ourIdentityPublic := modelOurIdentityPublic,
+            peerIdentityPublic := modelPeerIdentityPublic,
+            pendingInitial := some
+              { ephemeralPublic := modelEphemeralPublic,
+                kemCiphertext := modelKemCiphertext,
+                signedPrekeyId := modelSignedPrekeyId,
+                oneTimePrekeyId := modelOneTimePrekeyId,
+                kemPrekeyId := modelKemPrekeyId },
+            establishedEphemeral := none },
+        oracle := modelOracleAfter })
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        modelDhOut .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initAlice sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hephemeral : dh.publicKey ephemeralPublic = modelEphemeralPublic)
+    (hkem : vecOf kemCiphertext = modelKemCiphertext)
+    (hdhOut : arrayOf dhOut = modelDhOut)
+    (hsigned : signedPrekeyId.val = modelSignedPrekeyId)
+    (hone : oneTimePrekeyId.val = modelOneTimePrekeyId)
+    (hkemId : kemPrekeyId.val = modelKemPrekeyId)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  let realSession : lifecycle.Session :=
+    { triple := realTriple, braid := realBraid,
+      ratchet_private := ratchetPrivate, identity_ad := identityAd,
+      our_identity_public := ourIdentityPublic,
+      peer_identity_public := peerIdentityPublic,
+      pending_initial := some
+        { ephemeral_public := ephemeralPublic,
+          kem_ciphertext := kemCiphertext,
+          signed_prekey_id := signedPrekeyId,
+          one_time_prekey_id := oneTimePrekeyId,
+          kem_prekey_id := kemPrekeyId },
+      established_ephemeral := none }
+  let modelSession : Model.Lifecycle.Session :=
+    { triple := Model.Triple.initAlice sharedSecret
+        (dh.publicKey ratchetPublic) (dh.publicKey signedPrekeyPublic)
+        modelDhOut .tacenta,
+      braid := Model.Braid.initAlice sharedSecret,
+      ratchetPrivate := modelRatchetPrivate,
+      identityAd := modelIdentityAd,
+      ourIdentityPublic := modelOurIdentityPublic,
+      peerIdentityPublic := modelPeerIdentityPublic,
+      pendingInitial := some
+        { ephemeralPublic := modelEphemeralPublic,
+          kemCiphertext := modelKemCiphertext,
+          signedPrekeyId := modelSignedPrekeyId,
+          oneTimePrekeyId := modelOneTimePrekeyId,
+          kemPrekeyId := modelKemPrekeyId },
+      establishedEphemeral := none }
+  have hreal' : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter) := by
+    simpa [realSession] using hreal
+  have hmodel' : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity = { result := .ok modelSession, oracle := modelOracleAfter } := by
+    simpa [modelSession] using hmodel
+  have hrel : SessionRefines dh K realSession modelSession := by
+    simpa [realSession, modelSession] using
+      (initiator_session_refines_of_constructors dh K sharedSecret realTriple realBraid
+        ratchetPrivate identityAd ourIdentityPublic peerIdentityPublic ephemeralPublic
+        ratchetPublic signedPrekeyPublic dhOut kemCiphertext signedPrekeyId
+        oneTimePrekeyId kemPrekeyId modelRatchetPrivate modelIdentityAd
+        modelOurIdentityPublic modelPeerIdentityPublic modelEphemeralPublic
+        modelKemCiphertext modelDhOut modelSignedPrekeyId modelOneTimePrekeyId
+        modelKemPrekeyId htriple hbraid hprivate had hour hpeer hephemeral hkem
+        hdhOut hsigned hone hkemId)
+  exact establish_initiator_success_step_refines_of_root_and_model trace dh K oracle
+    rngCore cryptoRng ourIdentity theirBundle expectedIdentity rng rngAfter
+    realSession modelSession modelIdentity modelBundle modelExpectedIdentity
+    modelOracleAfter hexpected hreal' hmodel' hrel htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
@@ -1031,6 +4238,479 @@ def PublicEncryptWitness {R : Type}
     lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
     StepRefines trace dh K output
       (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext))
+
+/-! A successful send can now be handed to the responder root without losing
+    the byte relation at the wire boundary.  The sender and responder may use
+    different RNGs and model oracles; the handoff is the common encoded
+    ciphertext, not accidental equality of those environments.  Refused
+    sends remain covered by `PublicEncryptWitness`; this theorem deliberately
+    proves the successful cross-session edge that is needed before composing
+    authenticated receive and restore/continue. -/
+theorem public_encrypt_success_to_responder_handoff
+    {RI RR : Type}
+    {sendRngCore : rand_core_1.RngCore RI}
+    {sendCryptoRng : rand_core_1.CryptoRng RI}
+    {sendTrace : RI → List Model.Lifecycle.Key}
+    {sendDh : DhView} {sendK : Model.Braid.Kem}
+    {sendView : Model.Lifecycle.CodewordView}
+    {sendOracle : Model.Lifecycle.Oracle}
+    {sendReal : lifecycle.Session} {sendModel : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {sendRng : RI}
+    {recvStoreRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {recvTrace : RR → List Model.Lifecycle.Key} {recvDh : DhView}
+    {recvK : Model.Braid.Kem} {recvRngCore : rand_core_1.RngCore RR}
+    {recvCryptoRng : rand_core_1.CryptoRng RR}
+    {recvOurIdentity : lifecycle.Identity}
+    {recvOurPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {recvRng : RR}
+    {recvModelStep : Model.Lifecycle.ResponderStep}
+    {recvView : Model.Lifecycle.CodewordView}
+    {recvOracle : Model.Lifecycle.Oracle}
+    {recvModelIdentity : Model.Lifecycle.Identity}
+    {recvModelStore : Model.Lifecycle.PrekeyStore}
+    {realWire : alloc.vec.Vec Std.U8}
+    {sendRealAfter : lifecycle.Session} {sendRngAfter : RI}
+    {modelWire : Bytes} {sendModelAfter : Model.Lifecycle.Session}
+    {sendOracleAfter : Model.Lifecycle.Oracle}
+    (sent : PublicEncryptWitness sendRngCore sendCryptoRng sendTrace sendDh sendK
+      sendView sendOracle sendReal sendModel plaintext sendRng)
+    (received : PublicResponderEstablishWitness recvStoreRel recvTrace recvDh recvK
+      recvRngCore recvCryptoRng recvOurIdentity recvOurPrekeys initialMessage recvRng
+      recvModelStep)
+    (hsendRoot : lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal
+      plaintext sendRng = ok (.Ok realWire, sendRealAfter, sendRngAfter))
+    (hmodelSend : Model.Lifecycle.encrypt sendView sendOracle sendModel
+      (sliceOf plaintext) =
+      { session := sendModelAfter, result := .ok modelWire,
+        oracle := sendOracleAfter })
+    (hrealWire : sliceOf initialMessage = vecOf realWire)
+    (hmodelWire : sliceOf initialMessage = modelWire)
+    (hmodelResponder : recvModelStep =
+      Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+        recvModelStore modelWire) :
+    ∃ recvOutput,
+      lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal plaintext sendRng =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) ∧
+      StepRefines sendTrace sendDh sendK
+        (.Ok realWire, sendRealAfter, sendRngAfter)
+        (Model.Lifecycle.encrypt sendView sendOracle sendModel
+          (sliceOf plaintext)) ∧
+      Model.Lifecycle.encrypt sendView sendOracle sendModel (sliceOf plaintext) =
+        { session := sendModelAfter, result := .ok modelWire,
+          oracle := sendOracleAfter } ∧
+      sliceOf initialMessage = vecOf realWire ∧
+      sliceOf initialMessage = modelWire ∧
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng = ok recvOutput ∧
+      ResponderEstablishStepRefines recvStoreRel recvTrace recvDh recvK recvOutput
+        (Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+          recvModelStore modelWire) := by
+  obtain ⟨sendOutput, hsend, hsendStep⟩ := sent
+  have hsendOutput : sendOutput =
+      (.Ok realWire, sendRealAfter, sendRngAfter) := by
+    have heq : ok sendOutput =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) :=
+      hsend.symm.trans hsendRoot
+    injection heq
+  subst sendOutput
+  obtain ⟨recvOutput, hrecv, hrecvStep⟩ := received
+  rw [hmodelResponder] at hrecvStep
+  exact ⟨recvOutput, hsendRoot, hsendStep, hmodelSend, hrealWire, hmodelWire,
+    hrecv, hrecvStep⟩
+
+/-! The public-dispatch continuation for a responder-established session.  It
+    carries the same authenticated session/store/plaintext/RNG boundary as
+    the ratchet-root continuation, but targets `Session.decrypt` itself.  A
+    caller therefore cannot use a detached public-decrypt witness to claim
+    that the session returned by responder establishment can receive. -/
+theorem public_responder_then_decrypt
+    {R : Type}
+    {storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {ourPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {rng : R}
+    {modelStep : Model.Lifecycle.ResponderStep}
+    {view : Model.Lifecycle.CodewordView} {message : Slice Std.U8}
+    (established : PublicResponderEstablishWitness storeRel trace dh K rngCore
+      cryptoRng ourIdentity ourPrekeys initialMessage rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {realPlaintext : alloc.vec.Vec Std.U8}
+      {realStoreAfter : lifecycle.PrekeyStore}
+      {modelSession : Model.Lifecycle.Session} {modelPlaintext : Bytes}
+      {modelStoreAfter : Model.Lifecycle.PrekeyStore} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) →
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } →
+      SessionRefines dh K realSession modelSession →
+      vecOf realPlaintext = modelPlaintext →
+      storeRel realStoreAfter modelStoreAfter →
+      ∃ output,
+        lifecycle.Session.decrypt rngCore cryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.decrypt view oracleAfter modelSession (sliceOf message))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle)
+        (realStoreAfter : lifecycle.PrekeyStore) (rngAfter : R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok (.Err reason, realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .error modelReason, oracle := oracleAfter } ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session)
+        (realPlaintext : alloc.vec.Vec Std.U8)
+        (realStoreAfter : lifecycle.PrekeyStore)
+        (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+        (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R) (output :
+          core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+          lifecycle.Session × R),
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) ∧
+      modelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      vecOf realPlaintext = modelPlaintext ∧
+      storeRel realStoreAfter modelStoreAfter ∧
+      trace rngAfter = oracleAfter.draws ∧
+      lifecycle.Session.decrypt rngCore cryptoRng realSession message rngAfter =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracleAfter modelSession (sliceOf message))) := by
+  obtain evidence := responder_establish_end_to_end_evidence_of_witness established
+  cases evidence with
+  | @refusal reason modelReason modelStore oracleAfter realStoreAfter rngAfter
+      hroot hmodel hstore hrefusal htrace =>
+      left
+      exact ⟨reason, modelReason, modelStore, oracleAfter, realStoreAfter,
+        rngAfter, hroot, hmodel, hstore, hrefusal, htrace⟩
+  | @success realSession realPlaintext realStoreAfter modelSession modelPlaintext
+      modelStoreAfter oracleAfter rngAfter hroot hmodel hrel hplaintext hstore htrace =>
+      right
+      obtain ⟨decryptOutput, hdecrypt, hdecryptRefines⟩ :=
+        continuation hroot hmodel hrel hplaintext hstore
+      exact ⟨realSession, realPlaintext, realStoreAfter, modelSession,
+        modelPlaintext, modelStoreAfter, oracleAfter, rngAfter, decryptOutput,
+        hroot, hmodel, hrel, hplaintext, hstore, htrace, hdecrypt,
+        hdecryptRefines⟩
+
+/-! This is the first three-root wire composition.  The sender's successful
+    output is not merely shown to have the right bytes: those bytes are fed to
+    the exact responder establishment witness, and the resulting authenticated
+    session is then the receiver of the public `decrypt` continuation.  The
+    two refusal/success arms below keep the transaction boundary and the
+    post-establishment store relation visible in the composed obligation. -/
+theorem public_encrypt_to_responder_then_decrypt
+    {SI SR : Type}
+    {sendRngCore : rand_core_1.RngCore SI}
+    {sendCryptoRng : rand_core_1.CryptoRng SI}
+    {sendTrace : SI → List Model.Lifecycle.Key}
+    {sendDh : DhView} {sendK : Model.Braid.Kem}
+    {sendView : Model.Lifecycle.CodewordView}
+    {sendOracle : Model.Lifecycle.Oracle}
+    {sendReal : lifecycle.Session} {sendModel : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {sendRng : SI}
+    {recvStoreRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {recvTrace : SR → List Model.Lifecycle.Key} {recvDh : DhView}
+    {recvK : Model.Braid.Kem} {recvRngCore : rand_core_1.RngCore SR}
+    {recvCryptoRng : rand_core_1.CryptoRng SR}
+    {recvOurIdentity : lifecycle.Identity}
+    {recvOurPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {recvRng : SR}
+    {recvModelStep : Model.Lifecycle.ResponderStep}
+    {recvView : Model.Lifecycle.CodewordView}
+    {recvOracle : Model.Lifecycle.Oracle}
+    {recvModelIdentity : Model.Lifecycle.Identity}
+    {recvModelStore : Model.Lifecycle.PrekeyStore}
+    {realWire : alloc.vec.Vec Std.U8}
+    {sendRealAfter : lifecycle.Session} {sendRngAfter : SI}
+    {modelWire : Bytes} {sendModelAfter : Model.Lifecycle.Session}
+    {sendOracleAfter : Model.Lifecycle.Oracle}
+    {message : Slice Std.U8}
+    (sent : PublicEncryptWitness sendRngCore sendCryptoRng sendTrace sendDh sendK
+      sendView sendOracle sendReal sendModel plaintext sendRng)
+    (received : PublicResponderEstablishWitness recvStoreRel recvTrace recvDh recvK
+      recvRngCore recvCryptoRng recvOurIdentity recvOurPrekeys initialMessage recvRng
+      recvModelStep)
+    (hsendRoot : lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal
+      plaintext sendRng = ok (.Ok realWire, sendRealAfter, sendRngAfter))
+    (hmodelSend : Model.Lifecycle.encrypt sendView sendOracle sendModel
+      (sliceOf plaintext) =
+      { session := sendModelAfter, result := .ok modelWire,
+        oracle := sendOracleAfter })
+    (hrealWire : sliceOf initialMessage = vecOf realWire)
+    (hmodelWire : sliceOf initialMessage = modelWire)
+    (hmodelResponder : recvModelStep =
+      Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+        recvModelStore modelWire)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {realPlaintext : alloc.vec.Vec Std.U8}
+      {realStoreAfter : lifecycle.PrekeyStore}
+      {modelSession : Model.Lifecycle.Session} {modelPlaintext : Bytes}
+      {modelStoreAfter : Model.Lifecycle.PrekeyStore} {rngAfter : SR}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) →
+      recvModelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } →
+      SessionRefines recvDh recvK realSession modelSession →
+      vecOf realPlaintext = modelPlaintext →
+      recvStoreRel realStoreAfter modelStoreAfter →
+      ∃ output,
+        lifecycle.Session.decrypt recvRngCore recvCryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines recvTrace recvDh recvK output
+          (Model.Lifecycle.decrypt recvView oracleAfter modelSession (sliceOf message))) :
+    ∃ recvOutput,
+      lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal plaintext sendRng =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) ∧
+      StepRefines sendTrace sendDh sendK
+        (.Ok realWire, sendRealAfter, sendRngAfter)
+        (Model.Lifecycle.encrypt sendView sendOracle sendModel
+          (sliceOf plaintext)) ∧
+      Model.Lifecycle.encrypt sendView sendOracle sendModel (sliceOf plaintext) =
+        { session := sendModelAfter, result := .ok modelWire,
+          oracle := sendOracleAfter } ∧
+      sliceOf initialMessage = vecOf realWire ∧
+      sliceOf initialMessage = modelWire ∧
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng = ok recvOutput ∧
+      ResponderEstablishStepRefines recvStoreRel recvTrace recvDh recvK recvOutput
+        (Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+          recvModelStore modelWire) ∧
+      ((∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+          (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+          (oracleAfter : Model.Lifecycle.Oracle)
+          (realStoreAfter : lifecycle.PrekeyStore) (rngAfter : SR),
+        recvOutput = (.Err reason, realStoreAfter, rngAfter) ∧
+        recvModelStep = { store := modelStoreAfter, result := .error modelReason, oracle := oracleAfter } ∧
+        recvStoreRel realStoreAfter modelStoreAfter ∧
+        refusalOf reason = modelReason ∧
+        recvTrace rngAfter = oracleAfter.draws) ∨
+      (∃ (realSession : lifecycle.Session)
+          (realPlaintext : alloc.vec.Vec Std.U8)
+          (realStoreAfter : lifecycle.PrekeyStore)
+          (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+          (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : SR)
+          (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+            lifecycle.Session × SR),
+        recvOutput = (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) ∧
+        recvModelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } ∧
+        SessionRefines recvDh recvK realSession modelSession ∧
+        vecOf realPlaintext = modelPlaintext ∧
+        recvStoreRel realStoreAfter modelStoreAfter ∧
+        recvTrace rngAfter = oracleAfter.draws ∧
+        lifecycle.Session.decrypt recvRngCore recvCryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines recvTrace recvDh recvK output
+          (Model.Lifecycle.decrypt recvView oracleAfter modelSession (sliceOf message)))) := by
+  obtain ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+    hmodelWire', hrecvRoot, hrecvStep⟩ :=
+    public_encrypt_success_to_responder_handoff sent received hsendRoot hmodelSend
+      hrealWire hmodelWire hmodelResponder
+  obtain hreceive := public_responder_then_decrypt received continuation
+  cases hreceive with
+  | inl refusal =>
+      rcases refusal with ⟨reason, modelReason, modelStoreAfter, oracleAfter,
+        realStoreAfter, rngAfter, hroot, hmodel, hstore, hrefusal, htrace⟩
+      have hroot' : lifecycle.establish_responder recvRngCore recvCryptoRng
+          recvOurIdentity recvOurPrekeys initialMessage recvRng = ok recvOutput := by
+        have heq : ok recvOutput =
+            ok (.Err reason, realStoreAfter, rngAfter) := hrecvRoot.symm.trans hroot
+        injection heq
+      have hout : recvOutput = (.Err reason, realStoreAfter, rngAfter) := by
+        have heq : ok recvOutput =
+            ok (.Err reason, realStoreAfter, rngAfter) := hroot'.symm.trans hroot
+        injection heq
+      exact ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+        hmodelWire', hroot', hrecvStep, Or.inl ⟨reason, modelReason,
+        modelStoreAfter, oracleAfter, realStoreAfter, rngAfter, hout, hmodel,
+        hstore, hrefusal, htrace⟩⟩
+  | inr success =>
+      rcases success with ⟨realSession, realPlaintext, realStoreAfter,
+        modelSession, modelPlaintext, modelStoreAfter, oracleAfter, rngAfter,
+        output, hroot, hmodel, hrel, hplaintext, hstore, htrace, hdecrypt,
+        hdecryptRefines⟩
+      have hroot' : lifecycle.establish_responder recvRngCore recvCryptoRng
+          recvOurIdentity recvOurPrekeys initialMessage recvRng = ok recvOutput := by
+        have heq : ok recvOutput =
+            ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) :=
+          hrecvRoot.symm.trans hroot
+        injection heq
+      have hout : recvOutput =
+          (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) := by
+        have heq : ok recvOutput =
+            ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) :=
+          hroot'.symm.trans hroot
+        injection heq
+      exact ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+        hmodelWire', hroot', hrecvStep, Or.inr ⟨realSession, realPlaintext,
+        realStoreAfter, modelSession, modelPlaintext, modelStoreAfter,
+        oracleAfter, rngAfter, output, hout, hmodel, hrel, hplaintext, hstore,
+        htrace, hdecrypt, hdecryptRefines⟩⟩
+
+/-! The same concrete wire composition for the ratchet receive root.  Keeping
+    this as a separate theorem makes the five-root target explicit: the
+    successful encrypt output feeds one responder establishment, and that
+    exact authenticated result feeds `decrypt_ratchet`, not a detached
+    receive witness. -/
+theorem public_encrypt_to_responder_then_decrypt_ratchet
+    {SI SR : Type}
+    {sendRngCore : rand_core_1.RngCore SI}
+    {sendCryptoRng : rand_core_1.CryptoRng SI}
+    {sendTrace : SI → List Model.Lifecycle.Key}
+    {sendDh : DhView} {sendK : Model.Braid.Kem}
+    {sendView : Model.Lifecycle.CodewordView}
+    {sendOracle : Model.Lifecycle.Oracle}
+    {sendReal : lifecycle.Session} {sendModel : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {sendRng : SI}
+    {recvStoreRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop}
+    {recvTrace : SR → List Model.Lifecycle.Key} {recvDh : DhView}
+    {recvK : Model.Braid.Kem} {recvRngCore : rand_core_1.RngCore SR}
+    {recvCryptoRng : rand_core_1.CryptoRng SR}
+    {recvOurIdentity : lifecycle.Identity}
+    {recvOurPrekeys : lifecycle.PrekeyStore}
+    {initialMessage : Slice Std.U8} {recvRng : SR}
+    {recvModelStep : Model.Lifecycle.ResponderStep}
+    {recvView : Model.Lifecycle.CodewordView}
+    {recvOracle : Model.Lifecycle.Oracle}
+    {recvModelIdentity : Model.Lifecycle.Identity}
+    {recvModelStore : Model.Lifecycle.PrekeyStore}
+    {realWire : alloc.vec.Vec Std.U8}
+    {sendRealAfter : lifecycle.Session} {sendRngAfter : SI}
+    {modelWire : Bytes} {sendModelAfter : Model.Lifecycle.Session}
+    {sendOracleAfter : Model.Lifecycle.Oracle}
+    {message : Slice Std.U8}
+    (sent : PublicEncryptWitness sendRngCore sendCryptoRng sendTrace sendDh sendK
+      sendView sendOracle sendReal sendModel plaintext sendRng)
+    (received : PublicResponderEstablishWitness recvStoreRel recvTrace recvDh recvK
+      recvRngCore recvCryptoRng recvOurIdentity recvOurPrekeys initialMessage recvRng
+      recvModelStep)
+    (hsendRoot : lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal
+      plaintext sendRng = ok (.Ok realWire, sendRealAfter, sendRngAfter))
+    (hmodelSend : Model.Lifecycle.encrypt sendView sendOracle sendModel
+      (sliceOf plaintext) =
+      { session := sendModelAfter, result := .ok modelWire,
+        oracle := sendOracleAfter })
+    (hrealWire : sliceOf initialMessage = vecOf realWire)
+    (hmodelWire : sliceOf initialMessage = modelWire)
+    (hmodelResponder : recvModelStep =
+      Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+        recvModelStore modelWire)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {realPlaintext : alloc.vec.Vec Std.U8}
+      {realStoreAfter : lifecycle.PrekeyStore}
+      {modelSession : Model.Lifecycle.Session} {modelPlaintext : Bytes}
+      {modelStoreAfter : Model.Lifecycle.PrekeyStore} {rngAfter : SR}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng =
+        ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) →
+      recvModelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } →
+      SessionRefines recvDh recvK realSession modelSession →
+      vecOf realPlaintext = modelPlaintext →
+      recvStoreRel realStoreAfter modelStoreAfter →
+      ∃ output,
+        lifecycle.Session.decrypt_ratchet recvRngCore recvCryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines recvTrace recvDh recvK output
+          (Model.Lifecycle.decryptRatchet recvView oracleAfter modelSession
+            (sliceOf message))) :
+    ∃ recvOutput,
+      lifecycle.Session.encrypt sendRngCore sendCryptoRng sendReal plaintext sendRng =
+        ok (.Ok realWire, sendRealAfter, sendRngAfter) ∧
+      StepRefines sendTrace sendDh sendK
+        (.Ok realWire, sendRealAfter, sendRngAfter)
+        (Model.Lifecycle.encrypt sendView sendOracle sendModel
+          (sliceOf plaintext)) ∧
+      Model.Lifecycle.encrypt sendView sendOracle sendModel (sliceOf plaintext) =
+        { session := sendModelAfter, result := .ok modelWire,
+          oracle := sendOracleAfter } ∧
+      sliceOf initialMessage = vecOf realWire ∧
+      sliceOf initialMessage = modelWire ∧
+      lifecycle.establish_responder recvRngCore recvCryptoRng recvOurIdentity
+        recvOurPrekeys initialMessage recvRng = ok recvOutput ∧
+      ResponderEstablishStepRefines recvStoreRel recvTrace recvDh recvK recvOutput
+        (Model.Lifecycle.establishResponder recvView recvOracle recvModelIdentity
+          recvModelStore modelWire) ∧
+      ((∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+          (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+          (oracleAfter : Model.Lifecycle.Oracle)
+          (realStoreAfter : lifecycle.PrekeyStore) (rngAfter : SR),
+        recvOutput = (.Err reason, realStoreAfter, rngAfter) ∧
+        recvModelStep = { store := modelStoreAfter, result := .error modelReason, oracle := oracleAfter } ∧
+        recvStoreRel realStoreAfter modelStoreAfter ∧
+        refusalOf reason = modelReason ∧
+        recvTrace rngAfter = oracleAfter.draws) ∨
+      (∃ (realSession : lifecycle.Session)
+          (realPlaintext : alloc.vec.Vec Std.U8)
+          (realStoreAfter : lifecycle.PrekeyStore)
+          (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+          (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : SR)
+          (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+            lifecycle.Session × SR),
+        recvOutput = (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) ∧
+        recvModelStep = { store := modelStoreAfter, result := .ok (modelSession, modelPlaintext), oracle := oracleAfter } ∧
+        SessionRefines recvDh recvK realSession modelSession ∧
+        vecOf realPlaintext = modelPlaintext ∧
+        recvStoreRel realStoreAfter modelStoreAfter ∧
+        recvTrace rngAfter = oracleAfter.draws ∧
+        lifecycle.Session.decrypt_ratchet recvRngCore recvCryptoRng realSession message rngAfter =
+          ok output ∧
+        StepRefines recvTrace recvDh recvK output
+          (Model.Lifecycle.decryptRatchet recvView oracleAfter modelSession
+            (sliceOf message)))) := by
+  obtain ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+    hmodelWire', hrecvRoot, hrecvStep⟩ :=
+    public_encrypt_success_to_responder_handoff sent received hsendRoot hmodelSend
+      hrealWire hmodelWire hmodelResponder
+  obtain hreceive := public_responder_then_decrypt_ratchet received continuation
+  cases hreceive with
+  | inl refusal =>
+      rcases refusal with ⟨reason, modelReason, modelStoreAfter, oracleAfter,
+        realStoreAfter, rngAfter, hroot, hmodel, hstore, hrefusal, htrace⟩
+      have hroot' : lifecycle.establish_responder recvRngCore recvCryptoRng
+          recvOurIdentity recvOurPrekeys initialMessage recvRng = ok recvOutput := by
+        have heq : ok recvOutput =
+            ok (.Err reason, realStoreAfter, rngAfter) := hrecvRoot.symm.trans hroot
+        injection heq
+      have hout : recvOutput = (.Err reason, realStoreAfter, rngAfter) := by
+        have heq : ok recvOutput =
+            ok (.Err reason, realStoreAfter, rngAfter) := hroot'.symm.trans hroot
+        injection heq
+      exact ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+        hmodelWire', hroot', hrecvStep, Or.inl ⟨reason, modelReason,
+        modelStoreAfter, oracleAfter, realStoreAfter, rngAfter, hout, hmodel,
+        hstore, hrefusal, htrace⟩⟩
+  | inr success =>
+      rcases success with ⟨realSession, realPlaintext, realStoreAfter,
+        modelSession, modelPlaintext, modelStoreAfter, oracleAfter, rngAfter,
+        output, hroot, hmodel, hrel, hplaintext, hstore, htrace, hdecrypt,
+        hdecryptRefines⟩
+      have hroot' : lifecycle.establish_responder recvRngCore recvCryptoRng
+          recvOurIdentity recvOurPrekeys initialMessage recvRng = ok recvOutput := by
+        have heq : ok recvOutput =
+            ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) :=
+          hrecvRoot.symm.trans hroot
+        injection heq
+      have hout : recvOutput =
+          (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) := by
+        have heq : ok recvOutput =
+            ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter) :=
+          hroot'.symm.trans hroot
+        injection heq
+      exact ⟨recvOutput, hsendRoot', hsendStep, hmodelSend', hrealWire',
+        hmodelWire', hroot', hrecvStep, Or.inr ⟨realSession, realPlaintext,
+        realStoreAfter, modelSession, modelPlaintext, modelStoreAfter,
+        oracleAfter, rngAfter, output, hout, hmodel, hrel, hplaintext, hstore,
+        htrace, hdecrypt, hdecryptRefines⟩⟩
 
 structure InitialDispatchContext {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -1076,21 +4756,77 @@ inductive InitialDispatchRoute {R : Type}
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng : R) : Type where
   | decodeRefusal
+      (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Err reason))
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | noEstablished
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hnone : real.established_ephemeral = none)
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | ephemeralMismatch
+      (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok false)
+      (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+        model.ratchetPrivate (vecOf established)
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false)
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | identityMismatch
+      (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | repeatRefusal
+      (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+      (realReason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R)
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hidentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref decoded.message) rng =
+          ok (.Err realReason, next, rngNext))
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
   | repeatSuccess
+      (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+      (plaintext : alloc.vec.Vec Std.U8) (realNext : lifecycle.Session)
+      (rngNext : R) (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hidentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref decoded.message) rng =
+          ok (.Ok plaintext, realNext, rngNext))
       (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
       InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
 
@@ -1104,12 +4840,12 @@ theorem initial_dispatch_join
     (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
   cases route with
-  | decodeRefusal w => exact w
-  | noEstablished w => exact w
-  | ephemeralMismatch w => exact w
-  | identityMismatch w => exact w
-  | repeatRefusal w => exact w
-  | repeatSuccess w => exact w
+  | decodeRefusal _ _ w => exact w
+  | noEstablished _ _ _ w => exact w
+  | ephemeralMismatch _ _ _ _ _ _ _ w => exact w
+  | identityMismatch _ _ _ _ _ _ w => exact w
+  | repeatRefusal _ _ _ _ _ _ _ _ _ _ _ w => exact w
+  | repeatSuccess _ _ _ _ _ _ _ _ _ _ _ w => exact w
 
 /-- Final composition step for the initial dispatcher.  The selector supplies
 the typed route after proving the generated control-flow premises; this lemma
@@ -1138,7 +4874,7 @@ def initial_dispatch_decode_refusal_route
       ok (core.result.Result.Err reason))
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  exact .decodeRefusal w
+  exact .decodeRefusal reason hdecode w
 
 def initial_dispatch_no_established_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -1154,7 +4890,7 @@ def initial_dispatch_no_established_route
     (hnone : real.established_ephemeral = none)
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .noEstablished w
+  .noEstablished decoded hdecode hnone w
 
 def initial_dispatch_ephemeral_mismatch_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -1170,9 +4906,15 @@ def initial_dispatch_ephemeral_mismatch_route
       ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok false)
+    (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+      model.ratchetPrivate (vecOf established)
+      (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false)
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .ephemeralMismatch w
+  .ephemeralMismatch established decoded hdecode hestablished hmismatch
+    hsameAgreement hagreementMismatch w
 
 def initial_dispatch_identity_mismatch_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -1187,13 +4929,14 @@ def initial_dispatch_identity_mismatch_route
     (hdecode : tacenta_wire.decode_initial message =
       ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
-    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hmismatch : vecOf decoded.identity ≠
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .identityMismatch w
+  .identityMismatch established decoded hdecode hestablished hsameAgreement hmismatch w
 
 def initial_dispatch_repeat_refusal_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -1215,6 +4958,8 @@ def initial_dispatch_repeat_refusal_route
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Err realReason, real, rngNext))
@@ -1223,7 +4968,8 @@ def initial_dispatch_repeat_refusal_route
       { session := modelNext, result := .error modelReason, oracle := oracle })
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .repeatRefusal w
+  .repeatRefusal established decoded realReason real rngNext hdecode hestablished hidentity
+    hsameAgreement hmodelSame hinner w
 
 def initial_dispatch_repeat_success_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -1245,6 +4991,8 @@ def initial_dispatch_repeat_success_route
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Ok plaintext, realNext, rngNext))
@@ -1254,7 +5002,8 @@ def initial_dispatch_repeat_success_route
     (hbytes : vecOf plaintext = modelPlaintext)
     (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
-  .repeatSuccess w
+  .repeatSuccess established decoded plaintext realNext rngNext hdecode hestablished
+    hidentity hsameAgreement hmodelSame hinner w
 
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
@@ -1592,6 +5341,59 @@ theorem encode_ec_refines (dh : DhView) (codec : DhCodecOf dh)
   · rw [Model.PersistedState.SessionState.encodeEc, ← hview]
     simp [vecOf, arrayOf, hvalue, tacenta_session.ENCODE_EC_CURVE25519,
       Model.Messages.ecCurveByte, Tacenta.SessionUnitBraidT3.u8]
+
+/-! The lifecycle identity binding is the session associated-data binding with
+the two curve encodings made explicit.  This is a small but necessary bridge
+for establishment: the final Session relation must account for the bytes
+stored by the generated `identity_ad` wrapper, not merely assume them. -/
+theorem identity_ad_refines {dh : DhView} (codec : DhCodecOf dh)
+    (initiator responder : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.identity_ad initiator responder = ok output ∧
+      vecOf output = Model.SessionEstablishment.associatedData
+        (Model.PersistedState.SessionState.encodeEc (dh.publicKey initiator))
+        (Model.PersistedState.SessionState.encodeEc (dh.publicKey responder)) := by
+  obtain ⟨initiatorEncoded, hInitiatorEncoded, hInitiatorEncodedVal⟩ :=
+    encode_ec_refines dh codec initiator
+  obtain ⟨responderEncoded, hResponderEncoded, hResponderEncodedVal⟩ :=
+    encode_ec_refines dh codec responder
+  obtain ⟨initiatorBytes, _, hInitiatorBytesView⟩ := codec.asBytes initiator
+  obtain ⟨responderBytes, _, hResponderBytesView⟩ := codec.asBytes responder
+  have hInitiatorPublicLen : (dh.publicKey initiator).length = 32 := by
+    rw [← hInitiatorBytesView]
+    simp [arrayOf]
+  have hResponderPublicLen : (dh.publicKey responder).length = 32 := by
+    rw [← hResponderBytesView]
+    simp [arrayOf]
+  have hInitiatorLen : initiatorEncoded.val.length = 33 := by
+    have h := congrArg List.length hInitiatorEncodedVal
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      Tacenta.SessionUnitBraidT3.u8, hInitiatorPublicLen] at h
+    exact h
+  have hResponderLen : responderEncoded.val.length = 33 := by
+    have h := congrArg List.length hResponderEncodedVal
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      Tacenta.SessionUnitBraidT3.u8, hResponderPublicLen] at h
+    exact h
+  have hbound : initiatorEncoded.deref.val.length + responderEncoded.deref.val.length ≤
+      Usize.max := by
+    simp only [hInitiatorLen, hResponderLen, alloc.vec.Vec.deref]
+    have := Tacenta.SessionUnitSessionT1.small_le_usize_max (n := 66) (by omega)
+    omega
+  unfold lifecycle.identity_ad
+  rw [hInitiatorEncoded, hResponderEncoded]
+  obtain ⟨output, hOutput, hOutputVal⟩ :=
+    Std.WP.spec_imp_exists (Tacenta.SessionUnitSessionT1.associated_data_spec
+      initiatorEncoded.deref responderEncoded.deref hbound)
+  refine ⟨output, ?_, ?_⟩
+  · exact hOutput
+  · have hOutputVal' := congrArg
+      (List.map Tacenta.SessionUnitBraidT3.u8) hOutputVal
+    change List.map Tacenta.SessionUnitBraidT3.u8 output.val =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey initiator) ++
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey responder)
+    rw [← hInitiatorEncodedVal, ← hResponderEncodedVal]
+    simpa [vecOf, alloc.vec.Vec.deref] using hOutputVal'
 
 /-- The candidate ratchet private key's public bytes are exactly the model
 oracle's public-key result.  Receive uses both opaque calls in sequence, so the
@@ -2605,6 +6407,62 @@ theorem decrypt_ratchet_message_refines {R : Type}
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
     real model message rng (some .Ratchet) innerOutput htype (by simp) hinner hstep
 
+/-! ## Public decrypt composition
+
+The initial dispatcher and the ratchet passthrough are separate control-flow
+roots in the generated function.  Keep their composition explicit: the
+initial route is a typed sum of all six decoder/identity/repeat branches, and
+the passthrough route is split by the two non-initial message-type outcomes.
+The theorem below is the public-root join, rather than another branch lemma.
+-/
+
+inductive DecryptEndToEndEvidence {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | initial
+      (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model
+        message rng) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+  | ratchetNone
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (htype : serialization.message_type message = ok none)
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+  | ratchetMessage
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (htype : serialization.message_type message = ok (some serialization.MessageType.Ratchet))
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+
+theorem public_decrypt_end_to_end
+    {R : Type} {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (evidence : DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  cases evidence with
+  | initial route => exact initial_dispatch_select_and_join route
+  | ratchetNone innerOutput htype hinner hstep =>
+      exact decrypt_none_refines rngCore cryptoRng trace dh K view oracle real model message rng
+        innerOutput htype hinner hstep
+  | ratchetMessage innerOutput htype hinner hstep =>
+      exact decrypt_ratchet_message_refines rngCore cryptoRng trace dh K view oracle real model
+        message rng innerOutput htype hinner hstep
+
 theorem decrypt_passthrough_refusal_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
@@ -2810,7 +6668,7 @@ def initial_dispatch_decode_refusal_from_premises
     (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf message) =
       .error (Tacenta.SessionUnitWireInitialT3.decodeRefusalOf reason)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.decodeRefusal ?_
+  refine InitialDispatchRoute.decodeRefusal reason hdecode ?_
   exact decrypt_initial_decode_refusal_refines rngCore cryptoRng trace dh K view oracle
     real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode
 
@@ -2867,7 +6725,7 @@ def initial_dispatch_no_established_from_premises
     (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
     (hnone : real.established_ephemeral = none)
     : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.noEstablished ?_
+  refine InitialDispatchRoute.noEstablished decoded hdecode hnone ?_
   exact decrypt_initial_without_established_refines rngCore cryptoRng trace dh K view oracle
     real model message rng decoded ctx.hrel ctx.htrace ctx.htype hdecode hnone
 
@@ -2889,9 +6747,9 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok false)
-    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-      oracle.dhAgree model.ratchetPrivate
-        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+    (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+      model.ratchetPrivate (vecOf established)
+      (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
     ∃ output,
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
@@ -2920,35 +6778,9 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
     exact h.symm
   have hrepeat : Model.Lifecycle.repeatedInitial oracle model
       (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = false := by
-    cases hr : Model.Lifecycle.repeatedInitial oracle model
-        (Tacenta.SessionUnitWireInitialT3.initialOf decoded) with
-    | false => rfl
-    | true =>
-        obtain ⟨ephemeral, he, heq, _⟩ :=
-          (Model.Lifecycle.repeatedInitial_iff oracle _ _).1 hr
-        rw [hmodelEstablished] at he
-        cases he
-        have hcontra : False := by
-          have heq' : oracle.dhAgree model.ratchetPrivate (vecOf established) =
-              oracle.dhAgree model.ratchetPrivate
-                (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) := by
-            cases hleft : oracle.dhAgree model.ratchetPrivate (vecOf established) with
-            | none =>
-                simp [Model.Lifecycle.sameEphemeralAgreement,
-                  Tacenta.SessionUnitWireInitialT3.initialOf, hleft] at heq
-            | some left =>
-                cases hright : oracle.dhAgree model.ratchetPrivate
-                    (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) with
-                | none =>
-                    simp [Model.Lifecycle.sameEphemeralAgreement,
-                      Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] at heq
-                | some right =>
-                    have hkeys : left = right := by
-                      simpa [Model.Lifecycle.sameEphemeralAgreement,
-                        Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] using heq
-                    simpa [hleft, hright, hkeys]
-          exact hagreementMismatch heq'
-        exact hcontra.elim
+    simp only [Model.Lifecycle.repeatedInitial,
+      Tacenta.SessionUnitWireInitialT3.initialOf, hmodelEstablished,
+      hagreementMismatch, Bool.false_and, Bool.and_false]
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
@@ -2979,11 +6811,12 @@ def initial_dispatch_ephemeral_mismatch_from_premises
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok false)
-    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-      oracle.dhAgree model.ratchetPrivate
-        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+    (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+      model.ratchetPrivate (vecOf established)
+      (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.ephemeralMismatch ?_
+  refine InitialDispatchRoute.ephemeralMismatch established decoded hdecode hestablished hmismatch
+    hsameAgreement hagreementMismatch ?_
   exact decrypt_initial_ephemeral_mismatch_refines rngCore cryptoRng trace dh K view oracle
     real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
     hestablished hmismatch hsameAgreement hagreementMismatch
@@ -3199,7 +7032,8 @@ def initial_dispatch_identity_mismatch_from_premises
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.identityMismatch ?_
+  refine InitialDispatchRoute.identityMismatch established decoded hdecode hestablished
+    hsameAgreement hmismatch ?_
   exact decrypt_initial_identity_mismatch_refines rngCore cryptoRng trace dh codec K view oracle
     real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
     hestablished hephemeral hmismatch hsameAgreement
@@ -3317,10 +7151,10 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
     (hrel : SessionRefines dh K real model)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
-    (hdecode : tacenta_wire.decode_initial message =
-      ok (core.result.Result.Ok decoded))
-    (hestablished : real.established_ephemeral = some established)
-    (hidentity : vecOf decoded.identity =
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
@@ -3559,7 +7393,8 @@ def initial_dispatch_repeat_refusal_from_premises
       (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.repeatRefusal ?_
+  refine InitialDispatchRoute.repeatRefusal established decoded realReason real rngNext hdecode
+    hestablished hidentity hsameAgreement hmodelSame hinner ?_
   exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
     oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished
@@ -3735,7 +7570,8 @@ def initial_dispatch_repeat_success_from_premises
       (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine InitialDispatchRoute.repeatSuccess ?_
+  refine InitialDispatchRoute.repeatSuccess established decoded plaintext realNext rngNext
+    hdecode hestablished hidentity hsameAgreement hmodelSame hinner ?_
   exact decrypt_initial_repeat_success_exact rngCore cryptoRng trace dh codec K view oracle oracleNext
     real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
@@ -4754,6 +8590,26 @@ private theorem setWidth32_usize_scalar_model (n : Usize) :
       UInt32.ofNat n.val := by
   simpa only [UScalar.val] using setWidth32_usize_model n
 
+/- The corresponding `Std.U8` value, kept separate so the result relation is
+   explicit at the translated/model boundary. -/
+private def agreement_byte : tacenta_wire.AgreementType → Std.U8
+  | .None => 0#u8
+  | .Hdr => 1#u8
+  | .Ek => 2#u8
+  | .EkCt1Ack => 3#u8
+  | .Ct1 => 4#u8
+  | .Ct2 => 5#u8
+
+private theorem agreement_type_to_byte_eq (t : tacenta_wire.AgreementType) :
+    tacenta_wire.AgreementType.to_byte t = ok (agreement_byte t) := by
+  exact match t with
+  | .None => rfl
+  | .Hdr => rfl
+  | .Ek => rfl
+  | .EkCt1Ack => rfl
+  | .Ct1 => rfl
+  | .Ct2 => rfl
+
 set_option maxHeartbeats 2000000 in
 /-- Encoding a related shipping composite header produces exactly the model's
 fixed-width header bytes. -/
@@ -4764,6 +8620,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
       vecOf encoded = Model.CompositeHeader.encode model ⦄ := by
   rw [← wire_compositeOf_eq real model hrel]
   unfold tacenta_wire.encode_composite
+  simp only [agreement_type_to_byte_eq]
   step*
   all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     Array.to_slice, Slice.length])
@@ -4773,8 +8630,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
     Array.to_slice, Slice.length])
   all_goals (try scalar_tac)
   all_goals cases htype : real.ag_type <;> cases hchunk : real.ag_chunk
-  all_goals simp only [tacenta_wire.AgreementType.to_byte, pure]
-  all_goals step*
+  all_goals (try simp only [tacenta_wire.AgreementType.to_byte, pure])
   all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     Array.to_slice, Slice.length])
   all_goals (try scalar_tac)
@@ -4804,7 +8660,7 @@ theorem encode_composite_refines (real : tacenta_wire.Composite)
     u16_be_agrees_map, tacenta_wire.VERSION, tacenta_wire.TYPE_RATCHET,
     Model.Messages.version, Model.Messages.typeRatchet,
     Model.CompositeHeader.chunkBytes, Model.CompositeHeader.encodeAgreementType,
-    SessionUnitWireT3.agTypeOf, Model.CompositeHeader.be16]
+    SessionUnitWireT3.agTypeOf, Model.CompositeHeader.be16, agreement_byte]
   all_goals rfl
 
 /-- Appending the AEAD output to a related composite header produces exactly

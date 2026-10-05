@@ -158,10 +158,16 @@ fn the_message_that_fails_the_agreement_still_returns_its_plaintext() {
     );
 
     // The refusals begin with the next message, in both directions.
+    let before_failed_send = bob.export().to_vec();
     assert!(matches!(
         bob.encrypt(b"after", &mut r),
         Err(sessions::LifecycleError::AgreementFailed)
     ));
+    assert_eq!(
+        bob.export().to_vec(),
+        before_failed_send,
+        "a public send refused by a failed agreement must not mutate the session"
+    );
     let next = alice.encrypt(b"next", &mut r).unwrap();
     assert!(matches!(
         bob.decrypt(&next, &mut r),

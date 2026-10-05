@@ -3,12 +3,12 @@
 
 `Tacenta.SpqrT3.skip_message_keys_refines` has two conjuncts. The second, that a
 `SkippedStoreFull` result is the detailed model refusal `skippedStoreFull`, is
-proved in the store-full branch of the proof, which reads the store a skip leaves
-(`skipSurvivors`, the total bound) through the hypothesis `hC`. This is a
+proved in the store-full branch of the proof, which carries the survivor/store
+bound through `hCraw'` and `hCtarget`. This is a
 proof-dependency control, not a protocol or runtime mutation test. It compiles
 disposable copies of `SpqrT3.lean`: the unmodified copy must elaborate, a copy
 whose second conjunct names a different refusal must be refused, and a copy whose
-store-full branch no longer uses `hC` must be refused.
+store-full branch no longer uses `hCraw'`/`hCtarget` must be refused.
 
 Dependencies must already be built (`lake build Translation.SpqrT3`). No source,
 olean or git worktree is changed by this script.
@@ -29,14 +29,15 @@ SOURCE = ROOT / "translation/Translation/SpqrT3.lean"
 STATEMENT = """          .error .skippedStoreFull) ⦄ := by
   unfold State.skip_message_keys
 """
-BRANCH = """          simp [Model.SparseRatchet.skipMessageKeys, ← o_post, chainsOf,
-            hcsr, hnotA, hnotB, hC]
+BRANCH = """          simp [Model.SparseRatchet.skipMessageKeys, ← o_post, chainsOf, hcsr,
+            hnotA, hnotB, hCraw', hCtarget]
 """
-# The store-full branch opens here; both mutants must be refused at this line, as an
-# unsolved goal, so a failure elsewhere (a syntax error, a consumer) does not count.
-BRANCH_HEAD = """        · intro _
-          unfold Model.SparseRatchet.skipMessageKeysDetailed
-          simp [Model.SparseRatchet.skipMessageKeys, ← o_post, chainsOf,
+# The store-full branch's detailed-result simplification is the mutation target; both mutants
+# must be refused at this branch, as an unsolved goal, so a failure elsewhere (a syntax error, a
+# consumer) does not count. The wrong-refusal mutant reports at `unfold`, while the survivor-bound
+# mutant reports at the following `simp`, so the check accepts either adjacent line.
+BRANCH_HEAD = """        · unfold Model.SparseRatchet.skipMessageKeysDetailed
+          simp [Model.SparseRatchet.skipMessageKeys, ← o_post, chainsOf, hcsr,
 """
 
 MUTANTS = (
@@ -51,8 +52,8 @@ MUTANTS = (
         "NoSurvivorBound.lean",
         "no-survivor-bound.log",
         BRANCH,
-        BRANCH.replace(", hC]", "]"),
-        "the store-full branch without the survivor bound `hC`",
+        BRANCH.replace(", hCraw', hCtarget]", "]"),
+        "the store-full branch without the survivor bound `hCraw'`/`hCtarget`",
     ),
 )
 
@@ -98,7 +99,7 @@ def main() -> None:
                          + "; update the anchor with the proof edit")
 
     branch_line = source[:source.find(BRANCH_HEAD)].count("\n") + 1
-    expected = re.compile(rf":{branch_line}:\d+: error: unsolved goals")
+    expected = re.compile(rf":(?:{branch_line}|{branch_line + 1}):\d+: error: unsolved goals")
 
     with tempfile.TemporaryDirectory(prefix="sparse-store-full-controls-") as tmp_name:
         tmp = Path(tmp_name)

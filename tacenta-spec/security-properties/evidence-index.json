@@ -2748,18 +2748,18 @@
     {
       "id": "INV-IDENTITY-ROLE",
       "rule_source": "tacenta-spec/protocol/session-persistence.md#Semantic rules",
-      "scope": "Persisted session identity orientation, role agreement and phase fields.",
+      "scope": "Persisted session identity orientation, identity-key admission, role agreement and phase fields.",
       "establishing_operations": ["initiator establishment", "responder establishment"],
       "preserving_operations": ["authenticated send", "authenticated receive", "canonical export/import"],
-      "refusal_terminal_effects": ["inconsistent stored role/identity state is refused", "unrelated initial wrappers do not replace an established peer"],
+      "refusal_terminal_effects": ["inconsistent stored role/identity state is refused", "stored identity keys that fail the identity-key rule are refused", "unrelated initial wrappers do not replace an established peer"],
       "requirements": ["REQ-AUTH-01", "REQ-AUTH-02", "REQ-AUTH-05", "REQ-AUTH-13"],
       "assumptions": ["ASM-19"],
       "headroom": "not applicable: identity and role bindings do not consume a numeric budget.",
       "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "Session::import"}],
       "model_properties": [],
       "proofs": [],
-      "tests": [{"path": "tacenta-core/tests/canonical_curve_keys.rs", "name": "a_repeated_initial_message_must_carry_the_sessions_peer_identity", "coverage": "An initial wrapper from a different peer cannot alter the established session."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "associated_data_in_the_wrong_orientation_is_refused", "coverage": "A persisted session with reversed identity-associated data is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_role_the_braid_disagrees_with_is_refused", "coverage": "A persisted session whose Braid role disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_sparse_ratchet_direction_the_session_disagrees_with_is_refused", "coverage": "A persisted session whose sparse-ratchet direction disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_session_that_is_both_an_unanswered_initiator_and_a_responder_is_refused", "coverage": "The forbidden unanswered-initiator/responder combination is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "an_established_ephemeral_that_is_not_an_encoded_curve_key_is_refused", "coverage": "A non-canonical persisted established ephemeral key is refused."}],
-      "missing_evidence": [{"kind": "orchestration refinement", "reason": "The concrete session lifecycle is not translated or refined end to end.", "references": ["ASM-19"]}]
+      "tests": [{"path": "tacenta-core/tests/canonical_curve_keys.rs", "name": "a_repeated_initial_message_must_carry_the_sessions_peer_identity", "coverage": "An initial wrapper from a different peer cannot alter the established session."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "associated_data_in_the_wrong_orientation_is_refused", "coverage": "A persisted session with reversed identity-associated data is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_role_the_braid_disagrees_with_is_refused", "coverage": "A persisted session whose Braid role disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_sparse_ratchet_direction_the_session_disagrees_with_is_refused", "coverage": "A persisted session whose sparse-ratchet direction disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_session_that_is_both_an_unanswered_initiator_and_a_responder_is_refused", "coverage": "The forbidden unanswered-initiator/responder combination is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "an_established_ephemeral_that_is_not_an_encoded_curve_key_is_refused", "coverage": "A non-canonical persisted established ephemeral key is refused."}, {"path": "tacenta-core/tests/identity_boundary.rs", "name": "a_stored_session_over_the_table", "coverage": "Canonical but non-identity stored session identity fields are refused on import."}],
+      "missing_evidence": [{"kind": "orchestration refinement", "reason": "The concrete session lifecycle is not translated or refined end to end.", "references": ["ASM-19"]}, {"kind": "identity-key computation proof", "reason": "The identity-key predicate is tested and vector-pinned but not proved against the translated primitive; the Session target keeps this as an explicit contract boundary.", "references": ["ASM-19", "LIM-07"]}]
     },
     {
       "id": "INV-PREKEY-CONSUMPTION",
@@ -2844,17 +2844,17 @@
     {
       "id": "INV-CANONICAL-RESTORE",
       "rule_source": "tacenta-spec/protocol/session-persistence.md#Principles",
-      "scope": "Session and prekey-store canonical import/export at operation checkpoints.",
+      "scope": "Session and prekey-store canonical import/export at operation checkpoints, including the identity-key admission rule for stored identity fields.",
       "establishing_operations": ["successful session or prekey-store export"],
       "preserving_operations": ["import of canonical bytes", "operation continuation after fresh-object restoration"],
-      "refusal_terminal_effects": ["malformed or inconsistent import creates no usable new object", "valid live state remains available to the caller"],
+      "refusal_terminal_effects": ["malformed or inconsistent import creates no usable new object", "stored identity fields that fail the identity-key rule are refused without repair", "valid live state remains available to the caller"],
       "requirements": ["REQ-AUTH-09", "REQ-CONF-04"],
       "assumptions": ["ASM-19"],
       "headroom": "Stored-format numeric bounds are checked by readers; no claim is made that a later successor operation has spare headroom.",
       "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "Session::import"}],
       "model_properties": [],
       "proofs": [],
-      "tests": [{"path": "tacenta-core/tests/session_persistence.rs", "name": "a_session_survives_export_and_import", "coverage": "A fresh imported object continues a bidirectional conversation."}],
+      "tests": [{"path": "tacenta-core/tests/session_persistence.rs", "name": "a_session_survives_export_and_import", "coverage": "A fresh imported object continues a bidirectional conversation."}, {"path": "tacenta-core/tests/identity_boundary.rs", "name": "a_stored_session_over_the_table", "coverage": "Canonical but non-identity stored identity fields are refused on import."}],
       "missing_evidence": [{"kind": "atomic multi-object persistence", "reason": "Joint session/store writes are a caller contract outside this crate.", "references": ["ASM-12"]}]
     }
   ]

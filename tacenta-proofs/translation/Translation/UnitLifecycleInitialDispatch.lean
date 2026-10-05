@@ -172,6 +172,7 @@ theorem braid_receive_evidence
       real.braid message
         (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braid headroom)
         (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoders headroom)
+        (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braidDecoderSize headroom)
         hepoch hrel.braid
       hmessageRel hhonest)
   rcases result with ⟨receivedEpoch, output, next⟩
@@ -8930,9 +8931,9 @@ def InitialMismatchedEphemeralEvidence
     vecOf established ≠ vecOf decoded.ephemeral →
     lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok false ∧
-      oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)
+      Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established)
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false
 
 /-! The generated wrapper checks agreement before it enters the ratchet.  The
     aggregate composition therefore carries the two concrete outcomes of that
@@ -8982,9 +8983,9 @@ inductive InitialDispatchBranchEvidence {R : Type}
       (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok false)
-      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+        model.ratchetPrivate (vecOf established)
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
       InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
   | identityMismatch
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
@@ -9024,7 +9025,7 @@ theorem initial_dispatch_route_from_concrete_evidence
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
   cases branch with
   | decodeRefusal ctx reason hdecode =>
-      exact ⟨.decodeRefusal (decrypt_initial_decode_refusal_refines rc crc trace dh K view
+      exact ⟨.decodeRefusal reason hdecode (decrypt_initial_decode_refusal_refines rc crc trace dh K view
         oracle real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode)⟩
   | noEstablished ctx decoded hdecode hnone =>
       exact ⟨initial_dispatch_no_established_from_premises ctx decoded hdecode hnone⟩
@@ -9045,8 +9046,10 @@ theorem initial_dispatch_route_from_concrete_evidence
         ctx.hrel ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame
         hcall hstep
       cases result with
-      | Err reason => exact ⟨.repeatRefusal hw⟩
-      | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+      | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode
+          hestablished hidentity hsameAgreement hmodelSame hcall hw⟩
+      | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
+          hestablished hidentity hsameAgreement hmodelSame hcall hw⟩
 
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
@@ -9095,8 +9098,10 @@ theorem initial_dispatch_agreement_equivalent_route
     oracle real model message rng established decoded (result, next, rngNext)
     ctx.hrel ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
   cases result with
-  | Err reason => exact ⟨.repeatRefusal hw⟩
-  | Ok plaintext => exact ⟨.repeatSuccess hw⟩
+  | Err reason => exact ⟨.repeatRefusal established decoded reason next rngNext hdecode hestablished
+      hi hsameAgreement hmodelSame hcall hw⟩
+  | Ok plaintext => exact ⟨.repeatSuccess established decoded plaintext next rngNext hdecode
+      hestablished hi hsameAgreement hmodelSame hcall hw⟩
 
 theorem initial_dispatch_agreement_identity_mismatch_route
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -9116,7 +9121,7 @@ theorem initial_dispatch_agreement_identity_mismatch_route
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true) :
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
-  refine ⟨.identityMismatch ?_⟩
+  refine ⟨.identityMismatch established decoded hdecode hestablished hsameAgreement hmismatch ?_⟩
   exact decrypt_initial_identity_mismatch_agreement_refines rc crc trace dh codec K view
     oracle real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
     hestablished hmismatch hsameAgreement
@@ -9221,6 +9226,58 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
     InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
+
+/-! ## Public `decrypt_ratchet` composition
+
+The ratchet is a public lifecycle root in its own right, even though the
+outer `Session.decrypt` dispatcher calls it for both initial and passthrough
+messages.  The branch adapters above already carry the exact generated call
+and result.  Keep the root join explicit so a caller cannot prove only a
+conditional refusal or success lemma and then silently omit the other result
+family.
+-/
+def PublicDecryptRatchetWitness {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Prop :=
+  ∃ output,
+    lifecycle.Session.decrypt_ratchet rc crc real message rng = ok output ∧
+    StepRefines trace dh K output
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))
+
+inductive DecryptRatchetEndToEndEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | refusal {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
+      (evidence : InitialRatchetRefusalEvidence rc crc trace dh K view oracle
+        real model message rng reason next rngNext) :
+      DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model message rng
+  | success {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session} {rngNext : R}
+      (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle
+        real model message rng plaintext next rngNext) :
+      DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model message rng
+
+theorem public_decrypt_ratchet_end_to_end
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (evidence : DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model
+      message rng) :
+    PublicDecryptRatchetWitness rc crc trace dh K view oracle real model message rng := by
+  cases evidence with
+  | @refusal reason next rngNext evidence =>
+      exact ⟨(.Err reason, next, rngNext), evidence.hcall,
+        evidence.hstep⟩
+  | @success plaintext next rngNext evidence =>
+      exact ⟨(.Ok plaintext, next, rngNext), evidence.hreal,
+        initial_ratchet_success_step_from_evidence (R := R) evidence⟩
 
 /-! A model random-source ceiling is only compatible with an empty draw
 trace.  This small contradiction lemma makes the missing ceiling premise
@@ -10077,8 +10134,6 @@ theorem initial_agreement_ratchet_nonterminal_route_of_model_result
       hdecodeModel := result.hdecodeModel, hmodelStep := result.hmodelStep,
       hcase := modelCase }
   exact initial_ratchet_refusal_route_of_branch_providers input (hproviders input hdecode)
-
-
 
 def initial_ratchet_refusal_evidence_of_route
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -13730,9 +13785,9 @@ inductive SessionDecryptEvidence {R : Type}
       (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok false)
-      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle
+        model.ratchetPrivate (vecOf established)
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialIdentityMismatch
       (codec : DhCodecOf dh)

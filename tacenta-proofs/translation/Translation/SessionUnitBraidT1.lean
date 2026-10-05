@@ -106,20 +106,16 @@ def DecoderAddChunkTotal : Prop :=
   ∀ (d : tacenta_session_unit.tacenta_erasure.Decoder) (c : tacenta_session_unit.tacenta_erasure.Chunk),
     ∃ r, tacenta_session_unit.tacenta_erasure.Decoder.add_chunk d c = ok r
 
-/-- `Decoder::message` returns for every decoder that needs at most `MAX_CODEWORDS`
-(65536) chunks, the bound `Decoder::invariant` checks. The translation's `Vec::with_capacity`
-never fails, so the statement also holds for a decoder with a small `needed` and a huge `size`,
-on which the Rust function panics or aborts; `Decoder::invariant` rejects such a decoder through
-`needed == chunk_count(size)`. The bound is part of the
-statement: in the complete unit `Decoder::message` is a translated definition, and it fails for a
-decoder that needs and holds `(Usize.max + 1) / 32` chunks (`SessionBraidReceiveVacuity.lean`), so the
-statement without the bound, `DecoderMessageTotalUnbounded`, is false. The Braid builds no such
-decoder. The public `Decoder::new(usize::MAX)` does build one that needs that many chunks, but
-`Decoder::add_chunk` admits one chunk per `u16` index, so a decoder the crate builds holds at most
-65536 chunks, and that one never has a message.
-The receive theorems take the bound from the state (`State.decoders_bounded`). -/
+/-- `Decoder::message` returns for every protocol-sized decoder that needs at most
+`MAX_CODEWORDS` (65536) chunks. Both bounds matter in the concrete unit: the translated function
+reserves its output by `size`, while its reconstruction workspace is bounded by `needed`. The
+old needed-only field admitted a decoder with a small `needed` and a huge `size`, which is not a
+real reachable decoder but is enough to make the contract vacuous at the translated boundary.
+The field is stated for `size <= 4128`, the largest Braid decoder, and `needed <= 65536`; the
+preservation facts supply both. The unbounded statement remains false for the old witness in
+`SessionBraidReceiveVacuity.lean`. -/
 def DecoderMessageTotal : Prop :=
-  ∀ (d : tacenta_session_unit.tacenta_erasure.Decoder), d.needed.val ≤ 65536 →
+  ∀ (d : tacenta_session_unit.tacenta_erasure.Decoder), d.size.val ≤ 4128 → d.needed.val ≤ 65536 →
     ∃ r, tacenta_session_unit.tacenta_erasure.Decoder.message d = ok r
 
 /-- `DecoderMessageTotal` without the bound on `needed`. It is false
@@ -462,6 +458,18 @@ def State.decoders_bounded : State → Prop
   | .Ct1Acknowledged _ _ _ _ _ ek_dec => ek_dec.needed.val ≤ 65536
   | _ => True
 
+/-- The output reservation of every decoder held by a reachable Braid is at
+most the largest protocol decoder (4128 bytes). This is separate from
+`decoders_bounded`, whose name and callers retain the chunk-count fact. -/
+def State.decoders_sized : State → Prop
+  | .HeaderSent _ _ _ ct1_dec _ => ct1_dec.size.val ≤ 4128
+  | .EkSentCt1Received _ _ _ _ ct2_dec => ct2_dec.size.val ≤ 4128
+  | .NoHeaderReceived _ _ hdr_dec => hdr_dec.size.val ≤ 4128
+  | .HeaderReceived _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | .Ct1Sampled _ _ _ _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | .Ct1Acknowledged _ _ _ _ _ ek_dec => ek_dec.size.val ≤ 4128
+  | _ => True
+
 /-- The epoch every state constructor carries, as a plain value rather than
 wrapped in `Result` the way `State.epoch` is -- needed to state a bound on it
 directly, since `EkSentCt1Received` and `Ct2Sampled` each advance it by one on
@@ -492,7 +500,8 @@ theorem State.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTota
     State.Insts.CoreCloneClone.clone self
       ⦃ fun r => State.epoch_val r = State.epoch_val self ∧
                  (State.ct1_bounded self → State.ct1_bounded r) ∧
-                 (State.decoders_bounded self → State.decoders_bounded r) ⦄ := by
+                 (State.decoders_bounded self → State.decoders_bounded r) ∧
+                 (State.decoders_sized self → State.decoders_sized r) ⦄ := by
   unfold State.Insts.CoreCloneClone.clone
   rcases self with _|_|_|_|_|_|_|_|_|_|_|_ <;>
     first
@@ -506,7 +515,7 @@ theorem State.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTota
        all_goals (try (step with Auth.clone_no_panic))
        all_goals (try (step with vecU8_clone_no_panic))
        all_goals (try (step with vecU8_clone_no_panic))
-       all_goals (try (simp_all [State.epoch_val, State.ct1_bounded, State.decoders_bounded])))
+       all_goals (try (simp_all [State.epoch_val, State.ct1_bounded, State.decoders_bounded, State.decoders_sized])))
 
 theorem Braid.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTotal)
     (hkp : KeyPairCloneTotal) (hes : EncapsStateCloneTotal) (self : Braid) :
@@ -715,7 +724,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     (hmac : HmacSha256Total) (hvalek : ValidateEkTotal) (hencaps2 : Encapsulate2Total)
     (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
     (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state)
-    (hdb : State.decoders_bounded state) :
+    (hdb : State.decoders_bounded state) (hds : State.decoders_sized state) :
     Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by
   unfold Braid.step_receive
   rcases state with
@@ -745,7 +754,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     step*
     all_goals (try (obtain ⟨⟨b, ct1_dec1⟩, hr⟩ := hdadd ct1_dec ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ct1_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
+    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ct1_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
     all_goals (try step*)
   case Ct1Received =>
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
@@ -763,7 +772,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     step*
     all_goals (try (obtain ⟨⟨b, ct2_dec1⟩, hr⟩ := hdadd ct2_dec ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ct2_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
+    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ct2_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
     all_goals (try step*)
     all_goals (try (obtain ⟨v, hv, hvb⟩ := hct2len; simp only [hv]))
     all_goals (try step*)
@@ -787,7 +796,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     step*
     all_goals (try (obtain ⟨⟨b, hdr_dec1⟩, hr⟩ := hdadd hdr_dec ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try (obtain ⟨o, ho⟩ := hdmsg hdr_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
+    all_goals (try (obtain ⟨o, ho⟩ := hdmsg hdr_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
     all_goals (try step*)
     all_goals (try (obtain ⟨v, hv, hvb⟩ := hhdrlen; simp only [hv]))
     all_goals (try step*)
@@ -809,7 +818,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try step*)
     all_goals (try (obtain ⟨⟨b, ek_dec1⟩, hr⟩ := hdadd ek_dec ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
+    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
     all_goals (try step*)
     all_goals (try (obtain ⟨b2, hb2⟩ := hvalek header.deref ek_vector.deref; simp only [hb2]))
     all_goals (try step*)
@@ -825,7 +834,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     step*
     all_goals (try (obtain ⟨⟨b, ek_dec1⟩, hr⟩ := hdadd ek_dec ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
+    all_goals (try (obtain ⟨o, ho⟩ := hdmsg ek_dec1 (Tacenta.SessionUnitDecoderBound.size_le_after_add_chunk hr hds) (Tacenta.SessionUnitDecoderBound.needed_le_after_add_chunk hr hdb); simp only [ho]))
     all_goals (try step*)
     all_goals (try (obtain ⟨b1, hb1⟩ := hvalek header.deref ek_vector.deref; simp only [hb1]))
     all_goals (try step*)
@@ -858,11 +867,11 @@ theorem Braid.receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAddChun
     (hes : EncapsStateCloneTotal) (hopt : OptionCloneTotal)
     (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
     (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state)
-    (hdb : State.decoders_bounded self.state) :
+    (hdb : State.decoders_bounded self.state) (hds : State.decoders_sized self.state) :
     Braid.receive self msg ⦃ fun _ => True ⦄ := by
   unfold Braid.receive
   step with State.clone_no_panic henc hdec hkp hes
-  all_goals (try (step with Braid.step_receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap hkdf hmac hvalek hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all)))
+  all_goals (try (step with Braid.step_receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap hkdf hmac hvalek hencaps2 hz hzz hrf self ‹_› msg (by simp_all) (by simp_all) (by simp_all)))
   all_goals (try step*)
   all_goals (try (step with Braid.reported_no_panic))
   all_goals (try (step with hopt Output.Insts.CoreCloneClone (some o) (fun x _ => Output.clone_no_panic x)))

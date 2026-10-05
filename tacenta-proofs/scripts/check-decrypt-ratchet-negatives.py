@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Hold the `decrypt_ratchet` refinement and its retry-loop induction against a planted fault.
+"""Hold the `decrypt_ratchet` refinement, its retry-loop induction and its refusal closure against a planted fault.
 
 `Translation/UnitLifecycleRetryLoopT3.lean` relates the generated eviction retry loop to the model loop
 for every fuel (`receive_with_eviction_loop_refines`), and `Translation/UnitLifecycleDecryptRatchetT3.lean`
 composes it into `decrypt_ratchet_refines`, whose conclusion has one open disjunct, `TripleRefusalOpen`.
-A proof that Lean accepts after the fact it rests on is removed would hold nothing, and an open disjunct
+`Translation/UnitLifecycleTripleRefusalT3.lean` relates every refusal of one Triple receive to the model's
+(`triple_receive_refusal_refines`), and `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean` closes the
+disjunct with it (`decrypt_ratchet_refines_complete`); `Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean`
+shows one state and one run on the model side of the closed path, and the generated output there under the boundary
+records. A proof that Lean accepts after the fact it rests on is removed would hold nothing, and an open disjunct
 that grew would quietly absorb runs the theorem claims to cover, so this script makes one change to a
 copy of a module and requires Lean to refuse it, at a named place:
 
@@ -28,15 +32,26 @@ copy of a module and requires Lean to refuse it, at a named place:
     be empty (refused in `evict_run_satisfiable`, the run that reaches an eviction round);
   * the composition with an open disjunct that holds of every refusal, with its pins kept (refused by
     the pin of `TripleRefusalOpen` itself: the refusal must be at that pin's line, so a copy without
-    that pin is not counted as refused).
+    that pin is not counted as refused);
+  * the refusal refinement with the classical out-of-order refusal named as a missing chain (refused in
+    `ratchet_receive_tail_refusal_refines`), with the chain derivation's refusal no longer located past
+    `u32::MAX` (refused in `ratchet_skip_refusal_refines`), with the sparse epoch bound weakened to the
+    type's ceiling (refused in `spqr_receive_refusal_refines`), and with the Triple model reason fixed to
+    one refusal (refused in `triple_receive_refusal_refines`);
+  * the closure with a bridge that no longer gives the public mapping (refused in the bridge or in
+    `openRefusal_closes`);
+  * the closure with the open disjunct put back into the complete statement, with its pins kept (refused
+    at the pin of `DecryptRatchetRefinesCompleteStatement`);
+  * the closure's screen with the model's refusal at its state named as a missing chain (refused in
+    `ref_model_triple_refuses`).
 
 The changes are checked on copies without the module's pins, so that the refusal comes from a proof and
-not from a pin, except the last. The unmodified copies must be accepted first. A timeout, a compiler
+not from a pin, except the two kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
 that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place
 never count. These are proof-dependency controls on copies of the Lean; no source, olean or git state
 changes.
 
-Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetScreen`).
+Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen`).
 """
 from pathlib import Path
 import argparse
@@ -53,9 +68,12 @@ ROOT = Path(__file__).resolve().parents[1]
 LOOP = ROOT / 'translation/Translation/UnitLifecycleRetryLoopT3.lean'
 T3 = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetT3.lean'
 SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetScreen.lean'
+REFUSAL = ROOT / 'translation/Translation/UnitLifecycleTripleRefusalT3.lean'
+COMPLETE = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteT3.lean'
+COMPLETE_SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean'
 
 # The declaration that composes the loop into `decrypt_ratchet`.
-COMPOSITION = 'decrypt_ratchet_refines'
+COMPOSITION = 'decrypt_ratchet_refines_or_open'
 
 PROOF = (r'unsolved goals|Application type mismatch|Type mismatch|omega could not prove|made no progress'
          r'|rcases|Dependent elimination failed|Insufficient number of fields')
@@ -94,9 +112,11 @@ MUTANTS = [
        '  draw : ∃ (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),\n'
        '    draw :: rest = draw :: rest\n')], PROOF, [COMPOSITION]),
     ('t3', 'conclusion-widened-to-every-refusal',
-     [(r'        TripleRefusalOpen output\) := by\n  -- The terminal guard\.',
-       '        (TripleRefusalOpen output ∨ ∃ e, output.1 = .Err e)) := by\n  -- The terminal guard.'),
-      (r'Or\.inr ⟨e, rfl, hfull⟩⟩', 'Or.inr (Or.inl ⟨e, rfl, hfull⟩)⟩')], PROOF,
+     [(r'        TripleRefusalOpen output\) := by\n  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_or_open',
+       '        (TripleRefusalOpen output ∨ ∃ e, output.1 = .Err e)) := by\n'
+       '  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_or_open'),
+      (r'exact ⟨output, hcall, hstep\.imp_right And\.right⟩',
+       'exact ⟨output, hcall, hstep.imp_right (fun h => Or.inl h.2)⟩')], PROOF,
      ['decrypt_ratchet_refines_unless_open']),
     ('joint', 'run-bounds-with-empty-stores',
      [(r'  sparseStore : state\.postQuantum\.skipped\.length \+ Model\.SparseRatchet\.maxSkippedStore ≤\n'
@@ -110,6 +130,37 @@ MUTANTS = [
        '  ∃ reason, output.1 = .Err reason\n')],
      r'Docstring on `#guard_msgs` does not match generated message',
      ('pin', 'Tacenta.UnitLifecycleDecryptRatchetT3.TripleRefusalOpen')),
+    ('refusal', 'tail-out-of-order-named-as-missing-chain',
+     [(r'if n\.val < st2\.nr then \.error \.outOfOrder',
+       'if n.val < st2.nr then .error .noReceivingChain')], PROOF,
+     ['ratchet_receive_tail_refusal_refines']),
+    ('refusal', 'derivation-refusal-not-located',
+     [(r'e = RatchetError\.ChainExhausted ∧ Std\.U32\.max < start_n\.val \+ count\.val',
+       'e = RatchetError.ChainExhausted ∧ start_n.val + count.val ≤ start_n.val + count.val + 1')],
+     PROOF, ['ratchet_skip_refusal_refines']),
+    ('refusal', 'sparse-epoch-bound-at-the-ceiling',
+     [(r'    \(hepoch : s\.epoch\.val \+ 1 < Std\.U64\.max\)\n',
+       '    (hepoch : s.epoch.val < Std.U64.max)\n')], PROOF, ['spqr_receive_refusal_refines']),
+    ('refusal', 'triple-model-reason-fixed',
+     [(r'\(output\.map Tacenta\.SessionUnitTripleT3\.spqrOutputOf\) = \.error modelReason ⦄',
+       '(output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error (.classical .outOfOrder) ⦄')],
+     PROOF, ['triple_receive_refusal_refines']),
+    ('complete', 'bridge-without-the-public-mapping',
+     [(r'    ∃ modelReason, tripleReceiveRefusalOfReal realReason = some modelReason ∧\n',
+       '    ∃ modelReason,\n')], PROOF,
+     ['concrete_receive_attempt_refusal_from_retry_bounds', 'openRefusal_closes']),
+    ('completepinned', 'complete-statement-with-the-open-disjunct-pinned',
+     [(r'        StepRefines trace dh oracle\.braidKem output\n'
+       r'          \(Model\.Lifecycle\.decryptRatchet view oracle model \(sliceOf message\)\)\n\n',
+       '        (StepRefines trace dh oracle.braidKem output\n'
+       '          (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) ∨\n'
+       '          TripleRefusalOpen output)\n\n')],
+     r'Docstring on `#guard_msgs` does not match generated message',
+     ('pin', 'Tacenta.UnitLifecycleDecryptRatchetCompleteT3.DecryptRatchetRefinesCompleteStatement')),
+    ('completescreen', 'screen-model-reason-misnamed',
+     [(r'      \.error \(\.classical \.outOfOrder\) ∧\n    Model\.Lifecycle\.fullStore',
+       '      .error (.classical .noReceivingChain) ∧\n    Model.Lifecycle.fullStore')], PROOF,
+     ['ref_model_triple_refuses']),
 ]
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
@@ -232,16 +283,25 @@ def main():
     logs = args.log_dir or Path(tempfile.mkdtemp(prefix='decrypt-ratchet-logs-'))
     logs.mkdir(parents=True, exist_ok=True)
     loop, t3, screen = LOOP.read_text(), T3.read_text(), SCREEN.read_text()
+    refusal, complete = REFUSAL.read_text(), COMPLETE.read_text()
+    complete_screen = COMPLETE_SCREEN.read_text()
     sources = {
         'loop': without_pins(loop, LOOP),
         't3': without_pins(t3, T3),
         't3pinned': t3,
         'joint': joint_copy(without_pins(t3, T3), without_pins(screen, SCREEN)),
+        'refusal': without_pins(refusal, REFUSAL),
+        'complete': without_pins(complete, COMPLETE),
+        'completepinned': complete,
+        'completescreen': without_pins(complete_screen, COMPLETE_SCREEN),
     }
     results = {
         'loop_sha256': hashlib.sha256(loop.encode()).hexdigest(),
         't3_sha256': hashlib.sha256(t3.encode()).hexdigest(),
         'screen_sha256': hashlib.sha256(screen.encode()).hexdigest(),
+        'refusal_sha256': hashlib.sha256(refusal.encode()).hexdigest(),
+        'complete_sha256': hashlib.sha256(complete.encode()).hexdigest(),
+        'complete_screen_sha256': hashlib.sha256(complete_screen.encode()).hexdigest(),
         'accepted': [], 'rejected': {},
     }
     with tempfile.TemporaryDirectory(prefix='decrypt-ratchet-controls-') as tmp:

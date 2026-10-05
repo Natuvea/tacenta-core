@@ -17,6 +17,9 @@ theorem empty for every session a caller can reach.  This module closes that gap
   table and the associated data) hold, and what remains is the plaintext bound and the `initial` field.  With no
   pending initial message the `initial` field is `True`; with one, `structural_invariant` ties its ciphertext to
   `kem::ciphertext_len`, an opaque constant no record bounds, so that field stays a hypothesis there.
+* **Responder establishment headroom** (`prekey_invariant_gives_establish_headroom`).  If
+  `PrekeyStore::invariant` returns `true`, the store's replay-record vector has a free representable
+  slot for the authenticated last-resort append.
 * **Existence, at the real constants** (`sessionOf_invariant`, `invariant_session_meets_both`).  A session over fresh
   states passes `Session::invariant` and meets `DecryptRatchetHeadroom` and `EncryptHeadroom` (for every plaintext
   its own bound admits), under two assumptions about opaque constants that no record states:
@@ -44,8 +47,6 @@ primitives.  The assumptions are about the DH primitives and the standard librar
 ## What it does not show
 
 * That a send or a receive keeps the invariant.  The lifecycle theorems are single-step.
-* That `PrekeyStore::invariant` gives `EstablishResponderHeadroom` (`last_resort_seen` is bounded per key id by
-  the invariant's loops; no theorem here reads them).
 * That the witness session passes `Session::invariant` with a pending initial message or an established ephemeral
   key: it has neither.  Those arms call `kem::ciphertext_len` and `decode_ec`.
 * That the witness is a session the crate can reach by `establish_initiator` or `establish_responder`.
@@ -60,6 +61,31 @@ open Tacenta.UnitSatisfiabilityJoint
 open Tacenta.UnitSatisfiabilityRecords
 open Tacenta.UnitHeadroomSatisfiable
 open Tacenta.SessionUnitRatchetImportInv
+
+/-! The persistence invariant now records the one-slot condition required by
+    the authenticated last-resort append.  Keep this implication at the
+    lifecycle boundary so responder establishment does not need a separate
+    headroom premise for a restored store. -/
+theorem prekey_invariant_gives_establish_headroom
+    (store : lifecycle.PrekeyStore)
+    (h : lifecycle.PrekeyStore.invariant store = ok true) :
+    EstablishResponderHeadroom store := by
+  have hlen : store.last_resort_seen.val.length ≤ Usize.max :=
+    store.last_resort_seen.property
+  have hlt : store.last_resort_seen.val.length < Usize.max := by
+    by_contra hnot
+    have heq : store.last_resort_seen.val.length = Usize.max := by omega
+    have hlen_val : (alloc.vec.Vec.len store.last_resort_seen).val = Usize.max := by
+      simp [alloc.vec.Vec.len, heq]
+    have hmax_val : (core.num.Usize.MAX).val = Usize.max := by
+      simp [core.num.Usize.MAX]
+    have hif : alloc.vec.Vec.len store.last_resort_seen = core.num.Usize.MAX := by
+      apply UScalar.eq_of_val_eq
+      exact hlen_val.trans hmax_val.symm
+    have hnottrue : lifecycle.PrekeyStore.invariant store ≠ ok true := by
+      simp [lifecycle.PrekeyStore.invariant, hif]
+    exact False.elim (hnottrue h)
+  exact ⟨by omega⟩
 
 /-! ## Two assumptions about opaque constants -/
 
@@ -421,19 +447,23 @@ theorem invariant_gives_ad_length (hdh : DhCodecTotal) (self : lifecycle.Session
 
 /-- **`DecryptRatchetHeadroom` holds of every session that passes `Session::invariant`**, with nothing left
 for the caller to supply.  `decrypt_headroom_of_invariant`-style bridge: the record is
-`InvariantPreconditions` and the associated-data bound, and the invariant gives the bound. -/
+`InvariantPreconditions`, the persisted decoder-size fact, and the associated-data bound.  The
+decoder-size fact is explicit because the base invariant bridge deliberately does not import the
+session-unit preservation package. -/
 theorem decryptHeadroom_of_invariant (hdh : DhCodecTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal) (self : lifecycle.Session)
+    (hdecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized self.braid.state)
     (h : lifecycle.Session.invariant self = ok true) : DecryptRatchetHeadroom self := by
   obtain ⟨h1, h2, h3⟩ := invariant_gives_preconditions hct1 self h
   have hlen := invariant_gives_ad_length hdh self h
   have h4 := usize_max_ge
-  exact ⟨h1, h2, h3, by omega⟩
+  exact ⟨h1, h2, h3, hdecoderSize, by omega⟩
 
 /-- **For a session that passes `Session::invariant`, `EncryptHeadroom` is exactly the plaintext bound and the
 `initial` field**: the chain table and the associated data are covered. -/
 theorem encryptHeadroom_iff_of_invariant (hdh : DhCodecTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal) (self : lifecycle.Session)
+    (hdecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized self.braid.state)
     (h : lifecycle.Session.invariant self = ok true) (plaintext : Slice U8) :
     EncryptHeadroom self plaintext ↔
       102 + (plaintext.val.length + 48) ≤ Usize.max ∧
@@ -442,7 +472,7 @@ theorem encryptHeadroom_iff_of_invariant (hdh : DhCodecTotal)
         | some p => 33 + 33 + p.kem_ciphertext.val.length +
             (102 + (plaintext.val.length + 48)) + 18 ≤ Usize.max) := by
   obtain ⟨h1, _, _⟩ := invariant_gives_preconditions hct1 self h
-  obtain ⟨_, _, _, hA⟩ := decryptHeadroom_of_invariant hdh hct1 self h
+  obtain ⟨_, _, _, _, hA⟩ := decryptHeadroom_of_invariant hdh hct1 self hdecoderSize h
   constructor
   · rintro ⟨_, _, h2, h3⟩
     exact ⟨h2, h3⟩
@@ -1038,6 +1068,7 @@ info: Tacenta.UnitHeadroomInvariant.invariant_hypotheses_satisfiable :
 /--
 info: Tacenta.UnitHeadroomInvariant.decryptHeadroom_of_invariant (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
   (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal) (self : tacenta_session_unit.lifecycle.Session)
+  (hdecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized self.braid.state)
   (h : self.invariant = Aeneas.Std.Result.ok true) : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom self
 -/
 #guard_msgs in
@@ -1046,6 +1077,7 @@ info: Tacenta.UnitHeadroomInvariant.decryptHeadroom_of_invariant (hdh : Tacenta.
 /--
 info: Tacenta.UnitHeadroomInvariant.encryptHeadroom_iff_of_invariant (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
   (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal) (self : tacenta_session_unit.lifecycle.Session)
+  (hdecoderSize : Tacenta.SessionUnitBraidT1.State.decoders_sized self.braid.state)
   (h : self.invariant = Aeneas.Std.Result.ok true) (plaintext : Aeneas.Std.Slice Aeneas.Std.U8) :
   Tacenta.UnitLifecycleT1.EncryptHeadroom self plaintext ↔
     102 + ((↑plaintext).length + 48) ≤ Aeneas.Std.Usize.max ∧

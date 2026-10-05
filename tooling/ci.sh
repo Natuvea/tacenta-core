@@ -158,6 +158,8 @@ python3 tooling/check-vectors.py
 bash tooling/tests/run-check-vectors-cases.sh
 python3 tooling/check-session-operation-traces.py
 bash tooling/tests/run-check-session-operation-traces-cases.sh
+echo "== Session transaction-boundary mutations are rejected =="
+python3 tooling/check-session-transaction-mutations.py
 bash tooling/tests/run-build-assurance-manifest-cases.sh
 bash tooling/tests/run-collect-assurance-receipts-cases.sh
 bash tooling/tests/run-check-signoff-cases.sh

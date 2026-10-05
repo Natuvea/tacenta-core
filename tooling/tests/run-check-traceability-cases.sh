@@ -50,6 +50,7 @@ make_case() {
   cp "$root/tacenta-core/tests/timing.rs" "$dst/tacenta-core/tests/timing.rs"
   cp "$root/tacenta-core/tests/session_lifecycle_property.rs" "$dst/tacenta-core/tests/session_lifecycle_property.rs"
   cp "$root/tacenta-core/tests/import_invariants.rs" "$dst/tacenta-core/tests/import_invariants.rs"
+  cp "$root/tacenta-core/tests/identity_boundary.rs" "$dst/tacenta-core/tests/identity_boundary.rs"
   cp "$root/tacenta-core/tests/session_persistence.rs" "$dst/tacenta-core/tests/session_persistence.rs"
   cp "$root/tacenta-model/Properties/Authentication.lean" "$dst/tacenta-model/Properties/Authentication.lean"
   cp "$root/tacenta-model/Properties/StateConsistency.lean" "$dst/tacenta-model/Properties/StateConsistency.lean"

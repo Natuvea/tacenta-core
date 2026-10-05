@@ -107,5 +107,27 @@ theorem failed_run_stays_failed (st : State) (actions : List Action)
 example : (run initial [.establish, .send 1, .receive 1, .restore]).accepted = [1] := by
   native_decide
 
+/- A refused delivery and a restore inserted into the same established
+   trace do not prevent the next genuine delivery. This is the composed
+   establish -> send -> refused receive -> restore -> receive branch used by
+   the concrete lifecycle witness. -/
+example :
+    (run initial [.establish, .send 1, .refused, .restore, .receive 1]).accepted = [1] := by
+  native_decide
+
+/- A replay refusal remains a no-op after restoration, while a later send is
+   still committed. -/
+example :
+    (run initial [.establish, .send 1, .receive 1, .restore, .receive 1, .send 2]) =
+      { phase := .active, queued := [2], accepted := [1] } := by
+  native_decide
+
+/- A committed terminal failure remains refused after restoration and any
+   later continuation attempt. -/
+example :
+    (run initial [.establish, .terminalFailure, .restore, .send 1, .receive 1]).phase =
+      .failed := by
+  native_decide
+
 end SessionTrace
 end Model

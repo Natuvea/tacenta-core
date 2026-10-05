@@ -1540,6 +1540,11 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
   let out (e : Nat) (b : UInt8) : Option Model.SparseRatchet.Output := some { keyEpoch := e, key := fill b }
   let alice := SparseStart.alice.state
   let bob := SparseStart.bob.state
+  let replacementStart : Model.SparseRatchet.State :=
+    { bob with skipped :=
+        ([(0, 1, fill 0x51), (0, 2, fill 0x52)] ++
+          (List.range (maxSkippedStore - 3)).map
+            (fun i => (0, 10000 + i, fill 0x53))) }
   let cs := (alice.chains.getD 0 (0, default)).2
   let bobCs := (bob.chains.getD 0 (0, default)).2
   let withChain (st : Model.SparseRatchet.State) (f : Model.SparseRatchet.Chain → Model.SparseRatchet.Chain)
@@ -1574,6 +1579,9 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     sparseOps "alice-after-two-sends" "two sends on epoch 0: its sending chain's n is 2" .alice
       [.send 0 none, .send 0 none],
     sparseOps "bob-stores-skipped-keys" "message 3 first: keys 1 and 2 of epoch 0 stored" .bob [.receive 0 none 3],
+    sparseOps "stored-state-replacement-bound"
+      "a persisted 1,999-key store re-derives its two held pairs and remains at 1,999 entries"
+      (.stored replacementStart) [.receive 0 none 3],
     sparseOps "bob-uses-a-stored-key" "then message 1, from the store" .bob [.receive 0 none 3, .receive 0 none 1],
     sparseOps "alice-opens-an-epoch"
       "a send carrying epoch 1's secret, on epoch 0: both epochs' chains, epoch 0's entry rewritten last" .alice

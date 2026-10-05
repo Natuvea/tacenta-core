@@ -17,7 +17,9 @@
 //! decrypt. That is the property an attacker would otherwise be able to break.
 
 use rand::SeedableRng;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, PreKeyBundle, PublishedBundle, Session, establish_initiator, establish_responder,
+};
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
@@ -228,6 +230,46 @@ fn a_failed_last_resort_message_does_not_record_a_replay_identity() {
         before,
         "a failed ciphertext must not consume replay-record capacity"
     );
+}
+
+/// The last-resort KEM path may still name a one-time curve prekey. A failed
+/// initial message must leave both effects pending: neither the replay record
+/// nor the one-time curve key is committed until the inner ciphertext
+/// authenticates. This is the combined transaction boundary that the
+/// individual controls cannot cover.
+#[test]
+fn a_failed_mixed_initial_message_commits_neither_store_effect() {
+    let mut r = rng(18);
+    let alice_id = sessions::Identity::generate(&mut r);
+    let bob_id = sessions::Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(1, &mut r);
+    let one_time = bob_prekeys.publish();
+    let last_resort = bob_prekeys.publish_multi_use();
+    let mixed = PublishedBundle {
+        bundle: PreKeyBundle {
+            identity_key: one_time.bundle.identity_key,
+            signed_prekey: one_time.bundle.signed_prekey,
+            signed_prekey_signature: one_time.bundle.signed_prekey_signature,
+            kem_prekey: last_resort.bundle.kem_prekey.clone(),
+            kem_prekey_signature: last_resort.bundle.kem_prekey_signature,
+            one_time_prekey: one_time.bundle.one_time_prekey,
+        },
+        signed_prekey_id: one_time.signed_prekey_id,
+        one_time_prekey_id: one_time.one_time_prekey_id,
+        kem_prekey_id: last_resort.kem_prekey_id,
+    };
+    let before = bob_prekeys.to_bytes();
+    let mut alice = establish_initiator(&alice_id, &mixed, &mut r).unwrap();
+    let initial = alice.encrypt(b"mixed boundary", &mut r).unwrap();
+    assert!(establish_responder(&bob_id, &mut bob_prekeys, &forge(&initial), &mut r).is_err());
+    assert_eq!(bob_prekeys.to_bytes(), before);
+
+    let (_, plaintext) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r)
+        .expect("the genuine mixed initial must still find both private keys");
+    assert_eq!(plaintext, b"mixed boundary");
+    assert_eq!(bob_prekeys.last_resort_record_remaining(), 1023);
+    let next = bob_prekeys.publish();
+    assert_ne!(next.one_time_prekey_id, one_time.one_time_prekey_id);
 }
 
 /// A successful establishment *must* consume them, which is the other half of

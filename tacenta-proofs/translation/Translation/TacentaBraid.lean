@@ -1871,7 +1871,7 @@ def Braid.step_send
     Visibility: public -/
 def Braid.send
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
-  (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (self : Braid) 
+  (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (self : Braid)
   (rng : R) :
   Result ((Msg × Std.U64 × (Option Output) × Braid) × R)
   := do

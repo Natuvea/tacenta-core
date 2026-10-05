@@ -93,7 +93,7 @@ theorem hdrRel : SessionUnitT3.HeaderR hdr0 mh0 := ⟨rfl, rfl, rfl⟩
 theorem spqrRel : SessionUnitSpqrT3.StateRefines spqrS spqrM := ⟨rfl, rfl, rfl, rfl, rfl⟩
 @[simp] def chunk0 : tacenta_erasure.Chunk := ⟨0#u16, key0⟩
 /-- A decoder at the largest `needed` its invariant admits, `MAX_CODEWORDS`, holding one chunk. -/
-@[simp] def decMax : tacenta_erasure.Decoder := ⟨2097152#usize, 65536#usize, vec1 chunk0⟩
+@[simp] def decMax : tacenta_erasure.Decoder := ⟨4128#usize, 65536#usize, vec1 chunk0⟩
 @[simp] def auth0 : tacenta_braid.Auth := ⟨key0, key0⟩
 @[simp] def braidS : tacenta_braid.Braid := ⟨.NoHeaderReceived 1#u64 auth0 decMax⟩
 @[simp] def modelEnc : Model.Braid.Encoder := ⟨[], 0⟩
@@ -369,42 +369,54 @@ theorem sat_SessionUnitTripleT3_send_refines_discharged : Premises.SessionUnitTr
 
 abbrev Premises.SessionUnitBraidT1.Braid.receive_no_panic : Prop :=
   ∃ (self : tacenta_session_unit.tacenta_braid.Braid),
-    SessionUnitBraidT1.State.ct1_bounded self.state ∧ SessionUnitBraidT1.State.decoders_bounded self.state
+    SessionUnitBraidT1.State.ct1_bounded self.state ∧
+      SessionUnitBraidT1.State.decoders_bounded self.state ∧
+        SessionUnitBraidT1.State.decoders_sized self.state
 
 /-- The premises of `SessionUnitBraidT1.Braid.receive_no_panic` that the table of `check-precondition-witnesses.sh` puts inside the witness hold at one state. -/
 theorem sat_SessionUnitBraidT1_Braid_receive_no_panic : Premises.SessionUnitBraidT1.Braid.receive_no_panic :=
-  ⟨braidS, by simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded, Tacenta.SessionUnitBraidT1.State.decoders_bounded]⟩
+  ⟨braidS, by simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_sized]⟩
 
 abbrev Premises.SessionUnitBraidT1.Braid.step_receive_no_panic : Prop :=
   ∃ (state : tacenta_session_unit.tacenta_braid.State),
-    SessionUnitBraidT1.State.ct1_bounded state ∧ SessionUnitBraidT1.State.decoders_bounded state
+    SessionUnitBraidT1.State.ct1_bounded state ∧
+      SessionUnitBraidT1.State.decoders_bounded state ∧
+        SessionUnitBraidT1.State.decoders_sized state
 
 /-- The premises of `SessionUnitBraidT1.Braid.step_receive_no_panic` that the table of `check-precondition-witnesses.sh` puts inside the witness hold at one state. -/
 theorem sat_SessionUnitBraidT1_Braid_step_receive_no_panic : Premises.SessionUnitBraidT1.Braid.step_receive_no_panic :=
   ⟨.NoHeaderReceived 1#u64 auth0 decMax, by simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
-    Tacenta.SessionUnitBraidT1.State.decoders_bounded]⟩
+    Tacenta.SessionUnitBraidT1.State.decoders_bounded,
+    Tacenta.SessionUnitBraidT1.State.decoders_sized]⟩
 
 abbrev Premises.SessionUnitBraidT3.Braid.receive_refines : Prop :=
   ∃ (self : tacenta_session_unit.tacenta_braid.Braid),
     SessionUnitBraidT1.State.ct1_bounded self.state ∧
       SessionUnitBraidT1.State.decoders_bounded self.state ∧
-        (SessionUnitBraidT1.State.epoch_val self.state).val + 1 < U64.max
+        SessionUnitBraidT1.State.decoders_sized self.state ∧
+          (SessionUnitBraidT1.State.epoch_val self.state).val + 1 < U64.max
 
 /-- The premises of `SessionUnitBraidT3.Braid.receive_refines` that the table of `check-precondition-witnesses.sh` puts inside the witness hold at one state. -/
 theorem sat_SessionUnitBraidT3_Braid_receive_refines : Premises.SessionUnitBraidT3.Braid.receive_refines :=
   ⟨braidS, by (simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
       Tacenta.SessionUnitBraidT1.State.decoders_bounded,
+      Tacenta.SessionUnitBraidT1.State.decoders_sized,
       Tacenta.SessionUnitBraidT1.State.epoch_val]; scalar_tac)⟩
 
 abbrev Premises.SessionUnitBraidT3.step_receive_refines : Prop :=
   ∃ (state : tacenta_session_unit.tacenta_braid.State),
     SessionUnitBraidT1.State.ct1_bounded state ∧
-      SessionUnitBraidT1.State.decoders_bounded state ∧ (SessionUnitBraidT1.State.epoch_val state).val + 1 < U64.max
+      SessionUnitBraidT1.State.decoders_bounded state ∧
+        SessionUnitBraidT1.State.decoders_sized state ∧
+          (SessionUnitBraidT1.State.epoch_val state).val + 1 < U64.max
 
 /-- The premises of `SessionUnitBraidT3.step_receive_refines` that the table of `check-precondition-witnesses.sh` puts inside the witness hold at one state. -/
 theorem sat_SessionUnitBraidT3_step_receive_refines : Premises.SessionUnitBraidT3.step_receive_refines :=
   ⟨.NoHeaderReceived 1#u64 auth0 decMax, by (simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded,
       Tacenta.SessionUnitBraidT1.State.decoders_bounded,
+      Tacenta.SessionUnitBraidT1.State.decoders_sized,
       Tacenta.SessionUnitBraidT1.State.epoch_val]; scalar_tac)⟩
 
 abbrev Premises.SessionUnitBraidT3.Braid.send_refines : Prop :=

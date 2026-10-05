@@ -136,6 +136,10 @@ theorem freshBraid_bounds :
   simp [freshBraid, Tacenta.SessionUnitBraidT1.State.ct1_bounded,
     Tacenta.SessionUnitBraidT1.State.decoders_bounded]
 
+theorem freshBraid_decoder_sized :
+    Tacenta.SessionUnitBraidT1.State.decoders_sized freshBraid.state := by
+  simp [freshBraid, Tacenta.SessionUnitBraidT1.State.decoders_sized]
+
 /-! ## Sessions -/
 
 /-- A session over fresh Triple and Braid states.  The opaque values are arguments. -/
@@ -157,10 +161,11 @@ theorem decryptHeadroom_sessionOf_iff (sk our peer ad dhs pending) :
     DecryptRatchetHeadroom (sessionOf sk our peer ad dhs pending) ↔
       ad.val.length + 106 ≤ Usize.max := by
   constructor
-  · rintro ⟨_, _, _, h⟩
+  · rintro ⟨_, _, _, _, h⟩
     exact h
   · intro h
-    exact ⟨freshTriple_headroom dhs, freshBraid_bounds.1, freshBraid_bounds.2, h⟩
+    exact ⟨freshTriple_headroom dhs, freshBraid_bounds.1, freshBraid_bounds.2,
+      freshBraid_decoder_sized, h⟩
 
 theorem invariantPreconditions_sessionOf (sk our peer ad dhs pending) :
     InvariantPreconditions (sessionOf sk our peer ad dhs pending) :=

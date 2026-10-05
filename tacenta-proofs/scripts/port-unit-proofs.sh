@@ -38,7 +38,7 @@
 #      than inside either;
 #   4. qualified references to the four leaf proof namespaces
 #      (`Tacenta.T1.` and so on) become references to the unit's copies. These
-#      do reach statements and proof bodies -- 71 in `T3.lean`, 48 in
+#      do reach statements and proof bodies -- 71 in `T3.lean`, 49 in
 #      `SpqrT3.lean`: a hypothesis's type, a lemma a body cites, the rules an
 #      `attribute [-step]` removes. The others fall inside pins and go with them;
 #   5. in `SpqrT3.lean` only, one inserted stepping-rule erasure, explained
@@ -482,7 +482,7 @@ JOBS = [
              "-- and they are left. The removal is local to this file: a module that\n"
              "-- imports it has the rule back.\n"
              "attribute [-step] Tacenta.UnitT1.zeroizing_deref_step", 1),
-        ] + renames(0, 48, 0, 4),
+        ] + renames(0, 49, 0, 4),
     ),
 ]
 

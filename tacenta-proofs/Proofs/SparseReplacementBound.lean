@@ -87,10 +87,10 @@ theorem skipMessageKeys_refused_iff (st : State) (e upto : Nat) (cs : Chains) (c
   have hnhi : ¬ upto > ch.n + maxSkip := Nat.not_lt.mpr hhi
   unfold skipMessageKeys
   rw [hc]
-  simp only [hr, if_neg hnle, if_neg hnhi, gt_iff_lt]
+  simp only [hr, if_neg hnle, if_neg hnhi, gt_iff_lt, skipSurvivors]
   by_cases hbound : maxSkippedStore < (skipSurvivors st e ch.n upto).length + (upto - ch.n)
-  · simp [hbound]
-  · simp [hbound]
+  · simp
+  · simp
 
 /-- A skip that steps the chain and succeeds leaves exactly the survivors
 followed by the keys it derives, in number order, and so exactly the resulting
@@ -109,6 +109,12 @@ theorem skipMessageKeys_leaves_survivors_then_batch (st st' : State) (e upto : N
   unfold skipMessageKeys at h
   rw [hc] at h
   simp only [hr, if_neg hnle] at h
+  have hfilter :
+      (st.skipped.filter
+          (fun x => !(x.1 == e && decide (ch.n < x.2.1)
+            && decide (x.2.1 ≤ upto)))).length =
+        (skipSurvivors st e ch.n upto).length := rfl
+  rw [hfilter] at h
   by_cases hhi : upto > ch.n + maxSkip
   · simp [hhi] at h
   · by_cases hbound : (skipSurvivors st e ch.n upto).length + (upto - ch.n) > maxSkippedStore

@@ -84,6 +84,14 @@ FACTS = {
         # fixture: "naming no one-time curve prekey and Bob's last-resort KEM
         # prekey, never seen before, whose ciphertext authenticates".
     },
+    "establish-responder-last-resort-with-one-time-curve": {
+        0: dict(ciphertext_authenticates=True, names_one_time_curve=True,
+                kem_path="last-resort", already_consumed=False, is_last_resort=True,
+                is_last_resort_replay=False, last_resort_record_full=False),
+        # fixture: "an initial message built against the reusable last-resort
+        # KEM key and a published one-time curve prekey" whose inner
+        # authentication succeeds.
+    },
     "establish-responder-forged-initial-ciphertext": {
         0: dict(ciphertext_authenticates=False, names_one_time_curve=True,
                 kem_path="one-time", already_consumed=False, is_last_resort=False),
@@ -154,6 +162,13 @@ FACTS = {
     },
     "control-missing-required-input": {
         0: dict(),  # No facts possible: the step is missing its message input.
+    },
+    "control-family10-mixed-initial-wrongly-commits-on-refusal": {
+        0: dict(ciphertext_authenticates=False, names_one_time_curve=True,
+                kem_path="last-resort", already_consumed=False, is_last_resort=True,
+                is_last_resort_replay=False, last_resort_record_full=False),
+        # Same mixed-initial shape as the ordinary family-10 trace, but with
+        # its authentication tag altered, so the required result is a no-op.
     },
     "receive-ordinary-authenticated": {
         0: dict(ciphertext_authenticates=True, is_duplicate=False, braid_mac_fails=False, braid_already_failed=False),

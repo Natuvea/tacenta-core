@@ -132,6 +132,12 @@ translate() {
     exit 1
   fi
 
+  # The pinned Aeneas emits two stable trailing spaces in the SPQR call site.
+  # Normalize generated text before staging so the committed artifact remains
+  # diff-clean while the exact generator remains the source of truth.
+  normalized="$out/$module.lean.normalized"
+  sed -E 's/[[:space:]]+$//' "$out/$module.lean" > "$normalized"
+  mv "$normalized" "$out/$module.lean"
   cp "$out/$module.lean" "$staged/$module.lean"
   echo "run-aeneas: staged $staged/$module.lean"
 }
