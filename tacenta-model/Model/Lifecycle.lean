@@ -1976,6 +1976,18 @@ theorem finishResponderReceive_refusal_keeps_store (store : PrekeyStore)
   | mk session result oracle =>
       cases result <;> simp_all [finishResponderReceive]
 
+/-! The successful finish equation is the model-side transaction boundary:
+    durable prekey effects are exactly `consumeResponderPrekeys`, and they are
+    selected only from the authenticated receive result. -/
+theorem finishResponderReceive_success (store : PrekeyStore)
+    (oneTimeId kemId : Nat) (lastResort : Bool) (fingerprint : Option Key)
+    (session : Session) (plaintext : Bytes) (oracleAfter : Oracle) :
+    finishResponderReceive store oneTimeId kemId lastResort fingerprint
+      { session := session, result := .ok plaintext, oracle := oracleAfter } =
+      { store := consumeResponderPrekeys store oneTimeId kemId lastResort fingerprint,
+        result := .ok (session, plaintext), oracle := oracleAfter } := by
+  simp [finishResponderReceive]
+
 structure PreparedResponder where
   session : Session
   ratchetMessage : Bytes
@@ -2223,6 +2235,26 @@ def establishResponder (view : CodewordView) (oracle : Oracle) (identity : Ident
       finishResponderReceive store prepared.oneTimeId prepared.kemId
         prepared.lastResort prepared.fingerprint
         (decryptRatchet view oracle prepared.session prepared.ratchetMessage)
+
+/-! Compose authenticated preparation, ratchet receive, and the durable finish
+    into the public model responder root.  This is intentionally separate from
+    `prepareResponder_success_of_calls`: the latter stops before the commit,
+    while this theorem makes the complete establish-success equation explicit.
+    Refusal atomicity remains covered by `establishResponder_refusal_keeps_store`.
+-/
+theorem establishResponder_success_of_prepare_and_receive
+    (view : CodewordView) (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (prepared : PreparedResponder) (sessionAfter : Session)
+    (plaintext : Bytes) (oracleAfter : Oracle)
+    (hprepare : prepareResponder oracle identity store initialMessage = .ok prepared)
+    (hreceive : decryptRatchet view oracle prepared.session prepared.ratchetMessage =
+      { session := sessionAfter, result := .ok plaintext, oracle := oracleAfter }) :
+    establishResponder view oracle identity store initialMessage =
+      { store := consumeResponderPrekeys store prepared.oneTimeId prepared.kemId
+          prepared.lastResort prepared.fingerprint,
+        result := .ok (sessionAfter, plaintext), oracle := oracleAfter } := by
+  simp [establishResponder, hprepare, hreceive, finishResponderReceive]
 
 /-- Every responder-establishment refusal is store-atomic, including decode,
     key lookup, replay-budget, primitive and authenticated-decrypt failures. -/
