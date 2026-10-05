@@ -10,6 +10,7 @@ Last assessed: 2026-09-30, at `dea57eaf`. Row `E2E-07` was re-run later the same
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
 Current candidate update (2026-10-05): `public_decrypt_end_to_end` now joins the six initial-dispatch routes with the two non-initial ratchet passthrough routes, and `Translation.UnitLifecycleT3` plus `Translation.AxiomAuditSessionUnit` build locally. This is composition evidence only; `E2E-01` remains open until the contract-vacuity, dispatch-vacuity, and independent review conditions are accepted.
+Current candidate update (2026-10-05): responder establishment now has a kernel-checked constructor-level session relation and an explicit successful-root adapter carrying plaintext, post-auth store, and draw-trace obligations. This is a measured composition seam, not closure: the concrete responder call-order proof, successful model preparation relation, and the remaining contract/dispatch-vacuity review are still open.
 at `75387aa9` and closed; the row records the run. The evidence named in rows `HL-IMP-01`,
 `INV-01`, `HL-FUZZ-01`, `HL-SC-10`,
 `HL-SC-14`, `HL-SC-16`, `TRACE-EVIDENCE-INDEX` and `SC-08-TRANSLATION-CHECKSUM`

@@ -124,7 +124,6 @@ def main():
          '      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)',
          'by_cases hi : True', 'hi'),
         ('weaken-terminal-guard',
-         'theorem initial_ratchet_refines_terminal',
          '(hfailed : Model.Lifecycle.agreementFailed model = true) :',
          '(hfailed : Model.Lifecycle.agreementFailed model = false) :', 'hfailed'),
         ('swap-decrypt-refusal-cross-family-arm',

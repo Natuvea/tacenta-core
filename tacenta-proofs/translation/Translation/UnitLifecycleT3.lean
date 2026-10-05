@@ -1492,6 +1492,108 @@ theorem establish_responder_kem_refusal_step_refines_of_root {R : Type}
   · exact hstore
   · exact htrace
 
+/-! The successful responder branch has a different commit shape from every
+    preparation refusal: authenticated `decrypt_ratchet` returns a plaintext,
+    then the named one-time slots and (when applicable) the last-resort
+    fingerprint are committed.  Keep that public success boundary explicit so
+    a later call-order theorem cannot hide either the post-auth store or the
+    returned wire bytes behind an existential `SessionRefines` witness. -/
+theorem responder_session_refines_of_constructors
+    (dh : DhView) (K : Model.Braid.Kem)
+    (sharedSecret : Model.Lifecycle.Key)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (ratchetPrivate : tacenta_boundary.dh.PrivateKey)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic peerIdentityPublic establishedEphemeral :
+      tacenta_boundary.dh.PublicKeyBytes)
+    (establishedBytes : alloc.vec.Vec Std.U8)
+    (modelRatchetPrivate modelIdentityAd modelOurIdentityPublic
+      modelPeerIdentityPublic modelEstablishedEphemeral : Model.Lifecycle.Key)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple
+      (Model.Triple.initBob sharedSecret
+        (dh.publicKey establishedEphemeral) .tacenta))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state
+      (Model.Braid.initBob sharedSecret))
+    (hprivate : dh.privateKey ratchetPrivate = modelRatchetPrivate)
+    (had : vecOf identityAd = modelIdentityAd)
+    (hour : dh.publicKey ourIdentityPublic = modelOurIdentityPublic)
+    (hpeer : dh.publicKey peerIdentityPublic = modelPeerIdentityPublic)
+    (hEstablished : vecOf establishedBytes = modelEstablishedEphemeral) :
+    SessionRefines dh K
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := ratchetPrivate, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := peerIdentityPublic,
+        pending_initial := none,
+        established_ephemeral := some establishedBytes }
+      { triple := Model.Triple.initBob sharedSecret
+          (dh.publicKey establishedEphemeral) .tacenta,
+        braid := Model.Braid.initBob sharedSecret,
+        ratchetPrivate := modelRatchetPrivate,
+        identityAd := modelIdentityAd,
+        ourIdentityPublic := modelOurIdentityPublic,
+        peerIdentityPublic := modelPeerIdentityPublic,
+        pendingInitial := none,
+        establishedEphemeral := some modelEstablishedEphemeral } := by
+  constructor
+  · exact htriple
+  · exact hbraid
+  · exact hprivate
+  · exact had
+  · exact hour
+  · exact hpeer
+  · simp
+  · simp [hEstablished]
+
+/-! Root/model adapter for the successful responder branch.  This is the
+    responder analogue of the initiator success adapter below: the concrete
+    root equation, executable-model equation, session relation, plaintext
+    relation, store relation, and trace relation are all separate obligations.
+    In particular, this theorem does not prove the transaction boundary by
+    assumption; it makes the post-auth store that must be supplied by that
+    proof visible in the result. -/
+theorem establish_responder_success_step_refines_of_root_and_model
+    {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (realPlaintext : alloc.vec.Vec Std.U8)
+    (realStoreAfter : lifecycle.PrekeyStore)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelStore : Model.Lifecycle.PrekeyStore)
+    (modelSession : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+    (modelStoreAfter : Model.Lifecycle.PrekeyStore)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity
+      ourPrekeys initialMessage rng =
+      ok (.Ok (realSession, realPlaintext), realStoreAfter, rngAfter))
+    (hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity
+      modelStore (sliceOf initialMessage) =
+      { store := modelStoreAfter,
+        result := .ok (modelSession, modelPlaintext),
+        oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (hplaintext : vecOf realPlaintext = modelPlaintext)
+    (hstore : storeRel realStoreAfter modelStoreAfter)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  refine ⟨(.Ok (realSession, realPlaintext), realStoreAfter, rngAfter), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · exact ⟨hrel, hplaintext⟩
+  · exact hstore
+  · exact htrace
+
 /-! The first concrete establishment composition.  The translated public
 root and executable model both refuse an unexpected peer identity before any
 signature, KEM, DH, or RNG work.  The comparison result is supplied by the
