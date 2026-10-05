@@ -1281,6 +1281,103 @@ def public_establish_responder_refusal_of_root_and_model {R : Type}
           store := hstore
           draws := htrace }
 
+/-! The first genuinely connected lifecycle join.  A public establishment
+    witness is not merely an isolated root equation: on success it supplies
+    the exact translated/model session pair and the post-establishment RNG
+    trace that the next public operation must consume.  The continuation is
+    indexed by that concrete pair and by the model transition equation; it
+    cannot be discharged with a witness for an unrelated session.  The
+    refusal arm is retained so the join covers both public result families. -/
+theorem public_initiator_then_encrypt
+    {R : Type} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {K : Model.Braid.Kem} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {ourIdentity : lifecycle.Identity} {theirBundle : lifecycle.PublishedBundle}
+    {rng : R} {modelStep : Model.Lifecycle.EstablishStep}
+    {view : Model.Lifecycle.CodewordView}
+    {plaintext : Slice Std.U8}
+    (established : PublicInitiatorEstablishWitness trace dh K rngCore cryptoRng
+      ourIdentity theirBundle rng modelStep)
+    (continuation : ∀ {realSession : lifecycle.Session}
+      {modelSession : Model.Lifecycle.Session} {rngAfter : R}
+      {oracleAfter : Model.Lifecycle.Oracle},
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) →
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } →
+      ∃ output,
+        lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+          ok output ∧
+        StepRefines trace dh K output
+          (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) :
+    (∃ (reason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Err reason, rngAfter) ∧
+      modelStep = { result := .error modelReason, oracle := oracleAfter } ∧
+      refusalOf reason = modelReason ∧
+      trace rngAfter = oracleAfter.draws) ∨
+    (∃ (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+        (oracleAfter : Model.Lifecycle.Oracle) (rngAfter : R) (output :
+          core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+          lifecycle.Session × R),
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok (.Ok realSession, rngAfter) ∧
+      modelStep = { result := .ok modelSession, oracle := oracleAfter } ∧
+      SessionRefines dh K realSession modelSession ∧
+      trace rngAfter = oracleAfter.draws ∧
+      lifecycle.Session.encrypt rngCore cryptoRng realSession plaintext rngAfter =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracleAfter modelSession (sliceOf plaintext))) := by
+  let output := established.output
+  cases houtput : output with
+  | mk realResult rngAfter =>
+      cases hresult : realResult with
+      | Err reason =>
+          left
+          cases hmodel : modelStep with
+          | mk modelResult oracleAfter =>
+              cases hmodelResult : modelResult with
+              | error modelReason =>
+                  refine ⟨reason, modelReason, oracleAfter, rngAfter, ?_, ?_, ?_, ?_⟩
+                  · simpa [output, houtput, hresult] using established.root
+                  · simpa [hmodel, hmodelResult]
+                  · simpa [output, houtput, hresult, hmodel, hmodelResult,
+                      EstablishResultRefines] using established.refines.result
+                  · simpa [output, houtput, hresult, hmodel, hmodelResult] using
+                      established.refines.draws
+              | ok modelSession =>
+                  exfalso
+                  simpa [output, houtput, hresult, hmodel, hmodelResult,
+                    EstablishResultRefines] using established.refines.result
+      | Ok realSession =>
+          cases hmodel : modelStep with
+          | mk modelResult oracleAfter =>
+              cases hmodelResult : modelResult with
+              | error modelReason =>
+                  exfalso
+                  simpa [output, houtput, hresult, hmodel, hmodelResult,
+                    EstablishResultRefines] using established.refines.result
+              | ok modelSession =>
+                  right
+                  let hroot : lifecycle.establish_initiator rngCore cryptoRng
+                      ourIdentity theirBundle rng = ok (.Ok realSession, rngAfter) := by
+                    simpa [output, houtput, hresult] using established.root
+                  let hmodel : modelStep =
+                      { result := .ok modelSession, oracle := oracleAfter } := by
+                    simpa [hmodel, hmodelResult]
+                  have hrel : SessionRefines dh K realSession modelSession := by
+                    simpa [output, houtput, hresult, hmodel, hmodelResult,
+                      EstablishResultRefines] using established.refines.result
+                  have htrace : trace rngAfter = oracleAfter.draws := by
+                    simpa [output, houtput, hresult, hmodel, hmodelResult] using
+                      established.refines.draws
+                  obtain ⟨encryptOutput, hencrypt, hencryptRefines⟩ :=
+                    continuation hroot hmodel
+                  exact ⟨realSession, modelSession, oracleAfter, rngAfter,
+                    encryptOutput, hroot, rfl, hrel, htrace, hencrypt,
+                    hencryptRefines⟩
+
 /-! A typed public witness is enough to inhabit the corresponding end-to-end
     evidence record.  This is deliberately a shape split, not a new contract:
     impossible real/model result combinations are rejected by the refinement
