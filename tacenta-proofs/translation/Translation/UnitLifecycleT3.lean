@@ -1820,6 +1820,128 @@ theorem establish_responder_success_one_time_no_last_resort_of_calls {R : Type}
     core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
     core.convert.FromSame.from]
 
+/-! The last-resort success branch.  Unlike the reusable one-time branch above,
+    this branch proves the authenticated replay-record append and its capacity
+    check after the ratchet has accepted the inner message. -/
+theorem establish_responder_success_last_resort_no_one_time_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng rngAfter : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (kemSlot : lifecycle.KemKeySlot)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (kemSecret sharedSecret : Array Std.U8 32#usize)
+    (signedBytes : Array Std.U8 32#usize)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (signedPrekey identityPrivate : tacenta_boundary.dh.PrivateKey)
+    (sharedWrapped kemWrapped : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (sharedSlice : Slice Std.U8)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (identityAd : alloc.vec.Vec Std.U8)
+    (ourIdentityPublic signedPrekeyPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (signedPrekeyBytes : Array Std.U8 32#usize)
+    (establishedEphemeral : alloc.vec.Vec Std.U8)
+    (realSession : lifecycle.Session)
+    (plaintext : alloc.vec.Vec Std.U8)
+    (fingerprint : Array Std.U8 32#usize)
+    (seenCount : Std.Usize)
+    (seenAfter : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+    (storeAfter : lifecycle.PrekeyStore)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, true)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Ok none))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Ok kemSecret))
+    (hdecapNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemSecret =
+      ok kemWrapped)
+    (hdecapDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) kemWrapped =
+      ok kemSecret)
+    (hsignedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) signedSecret =
+      ok signedBytes)
+    (hsignedPrivate : tacenta_boundary.dh.PrivateKey.from_bytes signedBytes =
+      ok signedPrekey)
+    (hshared : responder_shared_secret identityPrivate signedPrekey none
+      initiatorIdentity initiatorEphemeral kemSecret =
+      ok (.Ok sharedSecret))
+    (hsharedNew : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedSecret =
+      ok sharedWrapped)
+    (hsharedDeref : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sharedWrapped =
+      ok sharedSecret)
+    (hidentityDh : lifecycle.Identity.dh_key ourIdentity = ok identityPrivate)
+    (hidentityPublic : lifecycle.Identity.public ourIdentity =
+      ok ourIdentityPublic)
+    (hidentityAd : lifecycle.identity_ad initiatorIdentity ourIdentityPublic =
+      ok identityAd)
+    (hsharedSlice : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+      Std.U8)) sharedSecret () = ok sharedSlice)
+    (hsignedPublic : tacenta_boundary.dh.PrivateKey.public_key signedPrekey =
+      ok signedPrekeyPublic)
+    (hsignedPublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes
+      signedPrekeyPublic = ok signedPrekeyBytes)
+    (htriple : tacenta_triple.State.init_receiver sharedSlice
+      signedPrekeyBytes tacenta_ratchet.LabelSet.Tacenta =
+      ok realTriple)
+    (hbraid : tacenta_braid.Braid.responder sharedSlice = ok realBraid)
+    (hclone : alloc.vec.CloneVec.clone core.clone.CloneU8 decoded.ephemeral =
+      ok establishedEphemeral)
+    (hdecrypt : lifecycle.Session.decrypt_ratchet rngCore cryptoRng
+      { triple := realTriple, braid := realBraid,
+        ratchet_private := signedPrekey, identity_ad := identityAd,
+        our_identity_public := ourIdentityPublic,
+        peer_identity_public := initiatorIdentity,
+        pending_initial := none,
+        established_ephemeral := some establishedEphemeral }
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realSession, rngAfter))
+    (honeId : decoded.one_time_prekey_id = serialization.ABSENT_ID)
+    (hreplay : lifecycle.responder_replay_fingerprint ourPrekeys
+      decoded.kem_prekey_id sharedSecret true =
+      ok (.Ok (some fingerprint)))
+    (hseen : lifecycle.PrekeyStore.last_resort_seen_for ourPrekeys
+      decoded.kem_prekey_id = ok seenCount)
+    (hcount : seenCount < lifecycle.MAX_LAST_RESORT_SEEN)
+    (hpush : alloc.vec.Vec.push ourPrekeys.last_resort_seen
+      (decoded.kem_prekey_id, fingerprint) = ok seenAfter)
+    (hstore : { ourPrekeys with last_resort_seen := seenAfter } = storeAfter) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Ok (realSession, plaintext), storeAfter, rngAfter) := by
+  have hone' : lifecycle.responder_one_time_key ourPrekeys
+      serialization.ABSENT_ID = ok (.Ok none) := by
+    simpa [honeId] using hone
+  have hcount' : (↑seenCount : Nat) <
+      (↑lifecycle.MAX_LAST_RESORT_SEEN : Nat) :=
+    (UScalar.lt_equiv _ _).mp hcount
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap, hdecapNew,
+    hdecapDeref, hsignedDeref, hsignedPrivate, hshared, hsharedNew,
+    hsharedDeref, hidentityDh, hidentityPublic, hidentityAd, hsharedSlice,
+    hsignedPublic, hsignedPublicBytes, htriple, hbraid, hclone, hdecrypt,
+    honeId, hone', hreplay, hseen, hcount, hcount', hpush, hstore,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
+
 /-! The first concrete establishment composition.  The translated public
 root and executable model both refuse an unexpected peer identity before any
 signature, KEM, DH, or RNG work.  The comparison result is supplied by the
