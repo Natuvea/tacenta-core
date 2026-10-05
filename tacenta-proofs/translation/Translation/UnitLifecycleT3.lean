@@ -1134,6 +1134,7 @@ theorem establish_responder_unknown_signed_prekey_of_calls {R : Type}
     (initialMessage : Slice Std.U8) (rng : R)
     (decoded : tacenta_wire.DecodedInitial)
     (unknown : lifecycle.Error)
+    (hunknown : unknown = lifecycle.Error.UnknownPrekeyId)
     (hdecode : tacenta_wire.decode_initial initialMessage =
       ok (.Ok decoded))
     (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
@@ -1142,7 +1143,10 @@ theorem establish_responder_unknown_signed_prekey_of_calls {R : Type}
       initialMessage rng =
       ok (.Err (.UnknownPrekeyId), ourPrekeys, rng) := by
   unfold lifecycle.establish_responder
-  simp [hdecode, hsigned]
+  simp [hdecode, hsigned,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from, hunknown]
 
 /-! Join the unknown-signed-prekey refusal to the model's corresponding
     pre-lookup refusal, preserving the store relation and trace. -/
@@ -1202,7 +1206,10 @@ theorem establish_responder_kem_slot_refusal_of_calls {R : Type}
       initialMessage rng =
       ok (.Err kemError, ourPrekeys, rng) := by
   unfold lifecycle.establish_responder
-  simp [hdecode, hsigned, hkem]
+  simp [hdecode, hsigned, hkem,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
 
 theorem establish_responder_kem_slot_refusal_step_refines {R : Type}
     (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
@@ -1272,7 +1279,11 @@ theorem establish_responder_one_time_slot_refusal_of_calls {R : Type}
       initialMessage rng =
       ok (.Err unknown, ourPrekeys, rng) := by
   unfold lifecycle.establish_responder
-  simp [hdecode, hsigned, hkem, hcurve, hone]
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve, hone,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
 
 theorem establish_responder_one_time_slot_refusal_step_refines {R : Type}
     (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
@@ -1344,7 +1355,11 @@ theorem establish_responder_invalid_identity_of_calls {R : Type}
       initialMessage rng =
       ok (.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng) := by
   unfold lifecycle.establish_responder
-  simp [hdecode, hsigned, hkem, hcurve]
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
 
 /-! The concrete responder KEM refusal follows the same protected ordering as
     the model: no DH agreement, replay check, session construction, or store
@@ -1358,7 +1373,6 @@ theorem establish_responder_kem_refusal_of_calls {R : Type}
     (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
     (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
     (oneTimeSecret : Option tacenta_boundary.dh.PrivateKey)
-    (decapError : Unit)
     (hdecode : tacenta_wire.decode_initial initialMessage =
       ok (.Ok decoded))
     (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
@@ -1373,12 +1387,16 @@ theorem establish_responder_kem_refusal_of_calls {R : Type}
       ok (.Ok oneTimeSecret))
     (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
       (alloc.vec.Vec.deref decoded.kem_ciphertext) =
-      ok (.Err decapError)) :
+      ok (.Err lifecycle.Error.Kem)) :
     lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
       initialMessage rng =
       ok (.Err lifecycle.Error.Kem, ourPrekeys, rng) := by
   unfold lifecycle.establish_responder
-  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap]
+  cases lastResort <;>
+    simp [hdecode, hsigned, hkem, hcurve, hone, hdecap,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+    core.convert.FromSame.from]
 
 /-! Join the concrete responder identity refusal to the model's pre-lookup
     identity check.  The store relation is carried through unchanged, making
@@ -1423,7 +1441,7 @@ theorem establish_responder_invalid_identity_step_refines_of_root {R : Type}
   refine ⟨(.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng), hreal, ?_⟩
   rw [hmodel]
   constructor
-  · simp [ResponderResultRefines, refusalOf]
+  · simp [ResponderResultRefines, refusalOf, handshakeRefusalOf]
   · exact hstore
   · exact htrace
 
@@ -1776,6 +1794,7 @@ theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
       tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
       theirBundle.bundle.identity_key expectedIdentity = ok false)
     (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = none)
     (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
     (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
     (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
@@ -1854,6 +1873,7 @@ theorem establish_initiator_for_success_no_one_time_of_calls {R : Type}
           established_ephemeral := none }, rng3) := by
   unfold lifecycle.establish_initiator_for
   simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+    hone,
     hephemeral, hkem, hkemNew, hkemDeref, hidentityDh, hshared, hsharedNew,
     hsharedDeref, hrandomRatchet, hratchet, hagreement, hdhOutNew, hdhOutDeref,
     hsharedSlice, hratchetPublic, hratchetPublicBytes, hsignedBytes, htriple,
@@ -1873,6 +1893,7 @@ theorem establish_initiator_for_kem_refusal_of_calls {R : Type}
       tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes
       theirBundle.bundle.identity_key expectedIdentity = ok false)
     (honeId : theirBundle.one_time_prekey_id = serialization.ABSENT_ID)
+    (hone : theirBundle.bundle.one_time_prekey = none)
     (hidentityCanonical : is_canonical_key theirBundle.bundle.identity_key = ok true)
     (hsignedCanonical : is_canonical_key theirBundle.bundle.signed_prekey = ok true)
     (hverify : verify_bundle { theirBundle.bundle with one_time_prekey := none } =
@@ -1887,7 +1908,7 @@ theorem establish_initiator_for_kem_refusal_of_calls {R : Type}
     lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
       expectedIdentity rng = ok (.Err lifecycle.Error.Kem, rngAfter) := by
   unfold lifecycle.establish_initiator_for
-  simp [hcmp, honeId, hidentityCanonical, hsignedCanonical, hverify, hrandom,
+  simp [hcmp, honeId, hone, hidentityCanonical, hsignedCanonical, hverify, hrandom,
     hephemeral, hkem]
 
 /-! Join the concrete KEM refusal call-order proof to the executable model.
@@ -3850,6 +3871,62 @@ theorem decrypt_ratchet_message_refines {R : Type}
       message rng := by
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
     real model message rng (some .Ratchet) innerOutput htype (by simp) hinner hstep
+
+/-! ## Public decrypt composition
+
+The initial dispatcher and the ratchet passthrough are separate control-flow
+roots in the generated function.  Keep their composition explicit: the
+initial route is a typed sum of all six decoder/identity/repeat branches, and
+the passthrough route is split by the two non-initial message-type outcomes.
+The theorem below is the public-root join, rather than another branch lemma.
+-/
+
+inductive DecryptEndToEndEvidence {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | initial
+      (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model
+        message rng) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+  | ratchetNone
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (htype : serialization.message_type message = ok none)
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+  | ratchetMessage
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (htype : serialization.message_type message = ok (some serialization.MessageType.Ratchet))
+      (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model message rng
+
+theorem public_decrypt_end_to_end
+    {R : Type} {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (evidence : DecryptEndToEndEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  cases evidence with
+  | initial route => exact initial_dispatch_select_and_join route
+  | ratchetNone innerOutput htype hinner hstep =>
+      exact decrypt_none_refines rngCore cryptoRng trace dh K view oracle real model message rng
+        innerOutput htype hinner hstep
+  | ratchetMessage innerOutput htype hinner hstep =>
+      exact decrypt_ratchet_message_refines rngCore cryptoRng trace dh K view oracle real model
+        message rng innerOutput htype hinner hstep
 
 theorem decrypt_passthrough_refusal_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
