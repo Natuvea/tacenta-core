@@ -1984,7 +1984,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               rfl
         have hi1 : i1.val = count.val := by
           have := max_skip_val
-          rw [i1_post, UScalar.cast_val_eq]
+          rw [i4_post, UScalar.cast_val_eq]
           rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
         have hC : (Model.SparseRatchet.skipSurvivors m e.val (chainOf ch).n upto.val).length
             + (upto.val - (chainOf ch).n) > Model.SparseRatchet.maxSkippedStore := by
