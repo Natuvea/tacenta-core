@@ -3447,8 +3447,9 @@ What these do not show.
   `BraidSendTraceAgreementCounted`, whose draw clause holds together with `OracleOf.sigSign` under two laws at a Braid send from
   `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); the one-draw form the session contract branch introduced
   contradicted it (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
-  the per-branch `InitialDispatchBranchEvidence`, whose model-side premises are a choice of oracle
-  (`sameEphemeralAgreement_unconstrained`).
+  the per-branch `InitialDispatchBranchEvidence`, whose model-side premises now use the decoded-`EncodeEC`
+  `sameEphemeralAgreement` predicate; the branch verdict is still supplied as run-indexed evidence
+  (`sameEphemeralAgreement_unconstrained` remains relevant to the missing public composition).
 - That the consumer structure is satisfiable in general. The old `InitialRatchetConcreteBranchEvidence` is empty at any model
   state at which one inner message passes the first agreement, given `OracleOf` (`concreteBranchEvidence_empty`), and it asked the
   scoped Braid record of every inner message that reaches a refusal, an inconsistent one included. The seven dispatch theorems
@@ -3868,12 +3869,12 @@ records to the dispatch layer. These results decide some of them. They are about
   responder's initial Triple state, `Model.Triple.initBob`. The last four require the class
   `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and the first fails at a sparse epoch of `u64::MAX`.
   That they hold at the states the retry loop reaches is not shown here.
-- `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: given the DH codec, `OracleOf` still holds when the
-  oracle's `dhAgree` is changed at second arguments that are not 32 bytes long, so for two strings that are not 32 bytes long
-  the model's `sameEphemeralAgreement` can be made either value by an oracle that meets `OracleOf`. The repeated-initial premises
-  `hmodelSame` and `hagreementMismatch` of `SessionDecryptEvidence` and `InitialDispatchBranchEvidence` compare the 33-byte encoded
-  ephemerals, so they are a choice of oracle and not a fact the code supplies (`GAP-REGISTER.md`, row
-  `E2E-04-SAME-EPHEMERAL-MODEL`).
+- `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: the former off-view counterexample no longer applies
+  to the corrected model predicate, which decodes both `EncodeEC` values and calls `dhAgree` only on their 32-byte views.
+  The repeated-initial premises `hmodelSame` and `hagreementMismatch` of `SessionDecryptEvidence` and
+  `InitialDispatchBranchEvidence` now use that corrected predicate, but they remain caller-supplied branch verdicts until
+  a derived theorem relates the predicate to translated `same_ephemeral_agreement` and the public dispatch is composed
+  without evidence records (`GAP-REGISTER.md`, row `E2E-04-SAME-EPHEMERAL-MODEL`).
 
 What these do not show: that `OracleOf` as a whole is satisfiable (its `dh`, `aead`, `kemDecapsulate`, `sigVerify` and
 `identityValid` clauses are not decided here); that the shipped functions meet the three laws; that any dispatch theorem is

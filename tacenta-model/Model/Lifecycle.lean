@@ -1586,12 +1586,25 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
-/- Whether two ephemeral values are in the same successful X25519 agreement
-   class. Two rejected/non-contributory agreements are not a match: the
-   shipping predicate fails closed when either agreement is unavailable. -/
+/- Decode the `EncodeEC` values used by the repeat-initial predicate before
+   entering the DH oracle.  The wire values carry the curve tag; Rust's
+   `same_ephemeral_agreement` strips it with `decode_ec` and rejects malformed
+   or non-canonical encodings. -/
+def decodeEcForAgreement (encoded : Bytes) : Option Key :=
+  if encoded.length = 33 && encoded.head? = some Model.Messages.ecCurveByte
+      && Model.Messages.canonicalKey (encoded.drop 1) then
+    some (encoded.drop 1)
+  else none
+
+/- Whether two canonical ephemeral encodings are in the same successful X25519
+   agreement class. Two rejected/non-contributory agreements are not a match:
+   the shipping predicate fails closed when either agreement is unavailable. -/
 def sameEphemeralAgreement (oracle : Oracle) (secret established incoming : Key) : Bool :=
-  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
-  | some left, some right => left == right
+  match decodeEcForAgreement established, decodeEcForAgreement incoming with
+  | some establishedKey, some incomingKey =>
+      match oracle.dhAgree secret establishedKey, oracle.dhAgree secret incomingKey with
+      | some left, some right => left == right
+      | _, _ => false
   | _, _ => false
 
 def repeatedInitial (oracle : Oracle) (session : Session) (initial : Initial) : Bool :=
