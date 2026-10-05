@@ -1152,6 +1152,40 @@ theorem establish_responder_invalid_identity_of_calls {R : Type}
   unfold lifecycle.establish_responder
   simp [hdecode, hsigned, hkem, hcurve]
 
+/-! The concrete responder KEM refusal follows the same protected ordering as
+    the model: no DH agreement, replay check, session construction, or store
+    consumption is reached after decapsulation refuses. -/
+theorem establish_responder_kem_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (oneTimeSecret : Option tacenta_boundary.dh.PrivateKey)
+    (decapError : Unit)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys decoded.one_time_prekey_id =
+      ok (.Ok oneTimeSecret))
+    (hdecap : lifecycle.responder_decapsulate ourPrekeys kemSlot
+      (alloc.vec.Vec.deref decoded.kem_ciphertext) =
+      ok (.Err decapError)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err lifecycle.Error.Kem, ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone, hdecap]
+
 /-! Join the concrete responder identity refusal to the model's pre-lookup
     identity check.  The store relation is carried through unchanged, making
     the no-durable-effect claim part of the refinement result. -/
@@ -1193,6 +1227,53 @@ theorem establish_responder_invalid_identity_step_refines_of_root {R : Type}
         result := .error (.handshake .invalidIdentityKey), oracle := oracle } := by
     simp [Model.Lifecycle.establishResponder, hprep]
   refine ⟨(.Err (.Handshake .InvalidIdentityKey), ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, refusalOf]
+  · exact hstore
+  · exact htrace
+
+/-! Join the concrete responder KEM refusal to the model's authenticated
+    preparation refusal.  The store and RNG are unchanged on both sides. -/
+theorem establish_responder_kem_refusal_step_refines_of_root {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (oneTimeSecret : Option Model.Lifecycle.Key)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err lifecycle.Error.Kem, ourPrekeys, rng))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid initial.identity.drop 1 = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_kem_refusal oracle modelIdentity
+    modelStore (sliceOf initialMessage) initial signedSecret kemPair lastResort
+    oneTimeSecret hdecodeModel hs hk hv ho hkem
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error .kem, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err lifecycle.Error.Kem, ourPrekeys, rng), hreal, ?_⟩
   rw [hmodel]
   constructor
   · simp [ResponderResultRefines, refusalOf]

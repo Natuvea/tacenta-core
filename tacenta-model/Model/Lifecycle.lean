@@ -2078,6 +2078,25 @@ theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity
   have hv' : oracle.identityValid initial.identity.tail = false := by simpa using hv
   simp [prepareResponder, hd, hs, hk, hv']
 
+/-! A KEM refusal is reached only after the decoded identifiers, signed-prekey
+    slot, KEM slot, identity and one-time slot have all been accepted.  It is
+    still a preparation refusal, so the store remains untouched. -/
+theorem prepareResponder_kem_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes)
+    (initial : Model.Messages.Initial) (signedSecret : Key) (kemPair : Bytes)
+    (lastResort : Bool) (oneTimeSecret : Option Key)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid initial.identity.drop 1 = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat =
+      .ok oneTimeSecret)
+    (hkem : oracle.kemDecaps kemPair initial.kemCiphertext = none) :
+    prepareResponder oracle identity store initialMessage = .error .kem := by
+  simp [prepareResponder, hd, hs, hk, hv, ho, hkem]
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
