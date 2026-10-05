@@ -1613,13 +1613,14 @@ theorem establish_initiator_for_success_step_refines_of_root_and_model
     (modelIdentity : Model.Lifecycle.Identity)
     (modelBundle : Model.Lifecycle.Bundle)
     (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
     (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
       theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter))
     (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
       modelExpectedIdentity =
-      { result := .ok modelSession, oracle := oracle })
+      { result := .ok modelSession, oracle := modelOracleAfter })
     (hrel : SessionRefines dh K realSession modelSession)
-    (htrace : trace rngAfter = oracle.draws) :
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
     ∃ output,
       lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
         expectedIdentity rng = ok output ∧
@@ -1646,6 +1647,28 @@ theorem establish_initiator_success_no_one_time_of_calls
       theirBundle expectedIdentity rng = ok output) :
     lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
       ok output := by
+  simpa [lifecycle.establish_initiator, hexpected] using hfor
+
+/-! Lift any parameterised-root refinement to the public initiator root once
+    its expected identity is the bundle identity.  Branch theorems therefore
+    cannot accidentally stop one wrapper short of the advertised API. -/
+theorem establish_initiator_public_step_refines_of_for_step
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (modelStep : Model.Lifecycle.EstablishStep)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hstep : ∃ output,
+      lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+        theirBundle expectedIdentity rng = ok output ∧
+      EstablishStepRefines trace dh K output modelStep) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output modelStep := by
+  obtain ⟨output, hfor, hrefines⟩ := hstep
+  refine ⟨output, ?_, hrefines⟩
   simpa [lifecycle.establish_initiator, hexpected] using hfor
 
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
