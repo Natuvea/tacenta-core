@@ -33,6 +33,23 @@ The P6 component and MU-01 are closed at L2. The result leaves the stated
 untranslated and bounded exclusions in place, and does not change any public
 security claim or the separate P9 ledger-review requirement.
 
+## Reassessment at the proven-core candidate
+
+On 2026-10-05, candidate `e7968dc4` was reassessed against the two triggers
+recorded in the original decision. The `legacy_blocked` rules are now present
+in the model, vectors, differential checks and reader evidence. The identity-
+key refusals are likewise present in the model, vectors, concrete checks and
+the current reader path. They remain explicit refusal and contract-boundary
+evidence; they are not a computational cryptographic verdict and they do not
+extend the covered lifecycle composition claim.
+
+The triggers are therefore answered without raising the target: the bounded
+L2 decision remains closed, while the operation corpus and reader evidence are
+kept current for the changed rules. The reader's current ML-KEM/session pass
+is project-controlled evidence and is not an independent review or a reason
+to close `HL-IMP-01-READER`, the session-orchestration composition gap, or the
+P9 ledger obligation.
+
 Reopen this decision before raising the target above L2, adding an observable
 operation/refusal to the session or prekey surface, changing a covered
 persistence or failure effect, or relying on a cryptographic verdict as if the

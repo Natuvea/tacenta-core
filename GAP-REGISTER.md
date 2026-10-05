@@ -6,7 +6,8 @@ one note on G12-05 that the sparse change added; this file records
 the current disposition of the findings that later work fixed. Findings still
 open at the latest reader pass are in `READER-OPEN-GAPS`.
 
-Last assessed: 2026-09-30, at `dea57eaf`. Row `E2E-07` was re-run later the same day
+Last assessed: 2026-10-05, at candidate `e7968dc4`. Historical row runs retain
+their original revision stamps. Row `E2E-07` was re-run later on 2026-09-30
 
 Current candidate update (2026-10-05): `prekey_invariant_gives_establish_headroom` now derives one free replay-record slot from `PrekeyStore::invariant`; the older residual wording in `SESSION-CONTRACT-VACUITY` is superseded for that sub-item. The remaining contract-vacuity items are unchanged.
 Current candidate update (2026-10-05): `public_decrypt_end_to_end` now joins the six initial-dispatch routes with the two non-initial ratchet passthrough routes, and `Translation.UnitLifecycleT3` plus `Translation.AxiomAuditSessionUnit` build locally. This is composition evidence only; `E2E-01` remains open until the contract-vacuity, dispatch-vacuity, and independent review conditions are accepted.
