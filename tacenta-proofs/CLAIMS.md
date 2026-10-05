@@ -3648,9 +3648,11 @@ carrying a chunk. The theorem takes `DecryptRatchetContracts`, three of whose fi
 `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal`) say that
 `Array::zeroize` and `Vec::zeroize` return for every `Zeroize` record, which the real functions do not; the proof uses
 all three, so it cannot be applied to the shipped functions until they are restated at the instances the unit uses. The
-agreements include `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`, statements about
-translated functions the session unit assumes (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), which the screen does
-not decide. `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement", lists what is assumed.
+agreements include `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`,
+which the lifecycle screen now derives from named standard-library and zeroize law shapes rather than
+accepting as independent `vr`/`rm` hypotheses. The screen still does not prove those external law
+shapes for the shipped functions, and `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement",
+lists the remaining assumptions.
 
 **Compiler trust and pins.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
 `decrypt_ratchet_refines_statement`, `decrypt_ratchet_refines_unless_open`, `decrypt_ratchet_refines_at_sample`,
@@ -4145,9 +4147,9 @@ real run reaches a size, or that the Rust source has the constant the translatio
 The 27 theorems of the five bound modules are pinned with `#guard_msgs in #print axioms`; each lists only `propext`,
 `Classical.choice` and `Quot.sound`, or fewer of them. No pin lists a compiler-trust axiom.
 
-## Proved (hypotheses about translated functions in the leaf crates and the three-leaf unit, from named laws, and the decoder acceptance witnesses)
+## Proved (hypotheses about translated functions in the leaf crates and session units, from named laws, and the decoder acceptance witnesses)
 
-Location: `Translation/SatisfiabilitySpqrLaws.lean`, `Translation/SatisfiabilityRatchetLaws.lean`, `Translation/SatisfiabilityBraidZeroize.lean`, `Translation/UnitSatisfiabilityTripleLaws.lean`, `Translation/SpqrFromBytesWitness.lean`, `Translation/BraidFromBytesWitness.lean`, `Translation/SessionUnitBraidFromBytesWitness.lean`, `Translation/RatchetDecodedWitness.lean`.
+Location: `Translation/SatisfiabilitySpqrLaws.lean`, `Translation/SatisfiabilityRatchetLaws.lean`, `Translation/SatisfiabilityBraidZeroize.lean`, `Translation/UnitSatisfiabilityTripleLaws.lean`, `Translation/SessionUnitSatisfiabilitySpqrLaws.lean`, `Translation/SpqrFromBytesWitness.lean`, `Translation/BraidFromBytesWitness.lean`, `Translation/SessionUnitBraidFromBytesWitness.lean`, `Translation/RatchetDecodedWitness.lean`.
 
 Most boundary hypotheses of the leaf and three-leaf-unit theorems are statements about opaque
 constants, and `Translation/Satisfiability.lean` and `Translation/UnitSatisfiabilityTriple.lean`
@@ -4214,6 +4216,12 @@ in the platform width.
   `UnitSatisfiabilityTripleLaws.clearOldEpochsAgrees`, `UnitSatisfiabilityTripleLaws.vecRetainAgreesOfLaws`,
   `UnitSatisfiabilityTripleLaws.vecRetainAgrees`: the same on the unit, for `UnitSpqrT3.RemoveSkippedAtAgrees`
   and `UnitSpqrT3.VecRetainAgrees`, which the Triple's discharged theorems take.
+- `SessionUnitSatisfiabilitySpqrLaws.removeSkippedAtAgrees`, `setChainsAgrees`, `clearOldEpochsAgrees`,
+  `vecRetainAgreesOfLaws`, `vecRetainAgrees`: the same body-level derivations for the eight-leaf session
+  unit, proving `SessionUnitSpqrT3.RemoveSkippedAtAgrees` and `SessionUnitSpqrT3.VecRetainAgrees` from
+  named standard-library and zeroize laws. `session_sparse_agreements_of_shapes` repacks the
+  `StdLaws`, `VecRetainAxiomShape` and `SpqrZeroizeShape` fields used by the lifecycle screen into
+  those agreements; the laws remain explicit assumptions about the real external operations.
 - `SatisfiabilitySpqrLaws.defined_hyps_from_axiom_hyps`,
   `UnitSatisfiabilityTripleLaws.defined_hyps_from_axiom_hyps`: the defined-function T1 hypotheses follow
   from the hypotheses the T3 theorems already take (`ZeroizeTotal`, `SpqrHkdfAgrees`, the two round
