@@ -1671,6 +1671,44 @@ theorem establish_initiator_public_step_refines_of_for_step
   refine ⟨output, ?_, hrefines⟩
   simpa [lifecycle.establish_initiator, hexpected] using hfor
 
+/-! Complete the successful initiator composition at the advertised public
+    root.  The premises are intentionally the four reviewable seams rather
+    than one opaque witness: concrete control flow, model transition, session
+    fields, and the consumed-randomness trace. -/
+theorem establish_initiator_success_step_refines_of_root_and_model
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng rngAfter : R)
+    (realSession : lifecycle.Session) (modelSession : Model.Lifecycle.Session)
+    (modelIdentity : Model.Lifecycle.Identity)
+    (modelBundle : Model.Lifecycle.Bundle)
+    (modelExpectedIdentity : Model.Lifecycle.Key)
+    (modelOracleAfter : Model.Lifecycle.Oracle)
+    (hexpected : expectedIdentity = theirBundle.bundle.identity_key)
+    (hreal : lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity
+      theirBundle expectedIdentity rng = ok (.Ok realSession, rngAfter))
+    (hmodel : Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity =
+      { result := .ok modelSession, oracle := modelOracleAfter })
+    (hrel : SessionRefines dh K realSession modelSession)
+    (htrace : trace rngAfter = modelOracleAfter.draws) :
+    ∃ output,
+      lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng =
+        ok output ∧ EstablishStepRefines trace dh K output
+        (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+          modelExpectedIdentity) := by
+  apply establish_initiator_public_step_refines_of_for_step trace dh K rngCore
+    cryptoRng ourIdentity theirBundle expectedIdentity rng
+    (Model.Lifecycle.establishInitiator oracle modelIdentity modelBundle
+      modelExpectedIdentity) hexpected
+  exact establish_initiator_for_success_step_refines_of_root_and_model trace dh K
+    oracle rngCore cryptoRng ourIdentity theirBundle expectedIdentity rng rngAfter
+    realSession modelSession modelIdentity modelBundle modelExpectedIdentity
+    modelOracleAfter hreal hmodel hrel htrace
+
 /-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
 Keeping the concrete output and its refinement witness together gives the
 initial dispatcher a single premise/result interface instead of six unrelated
