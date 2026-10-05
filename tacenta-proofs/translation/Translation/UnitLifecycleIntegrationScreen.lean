@@ -289,6 +289,7 @@ def KemClauses {R : Type}
     (trace : R → List Model.Lifecycle.Key) (oracle : Model.Lifecycle.Oracle) : Prop :=
   (∀ publicKey rng draw rest expected,
     trace rng = draw :: rest →
+    oracle.kemValid (sliceOf publicKey) = true →
     oracle.kemEncaps (sliceOf publicKey) draw = some expected →
     ∃ result rng', encap publicKey rng = ok (.Ok result, rng') ∧
       trace rng' = rest ∧ encapsulationOf (.Ok result) = some expected) ∧
@@ -432,16 +433,15 @@ theorem kemClauses_of_law (valid : Bytes → Bool)
     (he : oracle.kemEncaps = kemEncapsOf valid E) :
     KemClauses encap byteTrace oracle := by
   refine ⟨?_, ?_, ?_⟩
-  · intro publicKey rng d rest expected h hsome
+  · intro publicKey rng d rest expected h hvalid hsome
+    rw [hv] at hvalid
     rw [he] at hsome
     unfold kemEncapsOf at hsome
-    split at hsome
-    · rename_i hvalid
-      obtain ⟨s, hf, htr, hsl, _⟩ := byte_fill_32 h
-      refine ⟨E (sliceOf publicKey) (sliceOf s), rng.drop 32, ?_, htr, ?_⟩
-      · rw [hK, if_pos hvalid, hf]; rfl
-      · rw [hsl]; exact hsome
-    · simp at hsome
+    rw [if_pos hvalid] at hsome
+    obtain ⟨s, hf, htr, hsl, _⟩ := byte_fill_32 h
+    refine ⟨E (sliceOf publicKey) (sliceOf s), rng.drop 32, ?_, htr, ?_⟩
+    · rw [hK, if_pos hvalid, hf]; rfl
+    · rw [hsl]; exact hsome
   · intro publicKey rng error hinv
     rw [hv] at hinv
     rw [hK, if_neg (by simp [hinv])]
@@ -1696,10 +1696,11 @@ fun {R} encap trace oracle =>
   (∀ (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
       (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
       trace rng = draw :: rest →
-        oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-          ∃ result rng',
-            encap publicKey rng = ok (core.result.Result.Ok result, rng') ∧
-              trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected) ∧
+        oracle.kemValid (sliceOf publicKey) = true →
+          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+            ∃ result rng',
+              encap publicKey rng = ok (core.result.Result.Ok result, rng') ∧
+                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected) ∧
     (∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
         oracle.kemValid (sliceOf publicKey) = false → encap publicKey rng = ok (core.result.Result.Err error, rng)) ∧
       ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
@@ -2092,10 +2093,12 @@ fields:
       (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
       (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
       trace rng = draw :: rest →
-        oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-          ∃ result rng',
-            tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (core.result.Result.Ok result, rng') ∧
-              trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected
+        oracle.kemValid (sliceOf publicKey) = true →
+          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+            ∃ result rng',
+              tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+                  ok (core.result.Result.Ok result, rng') ∧
+                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected
   Tacenta.UnitLifecycleT3.OracleOf.kemInvalidKey : ∀ (publicKey : Slice U8) (rng : R)
       (error : tacenta_boundary.kem.KemError),
       oracle.kemValid (sliceOf publicKey) = false →
@@ -2152,11 +2155,12 @@ constructor:
       ∀ (publicKey : Slice U8) (rng : R) (draw : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
         (expected : Model.Lifecycle.Bytes × Model.Lifecycle.Key),
         trace rng = draw :: rest →
-          oracle.kemEncaps (sliceOf publicKey) draw = some expected →
-            ∃ result rng',
-              tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
-                  ok (core.result.Result.Ok result, rng') ∧
-                trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected)
+          oracle.kemValid (sliceOf publicKey) = true →
+            oracle.kemEncaps (sliceOf publicKey) draw = some expected →
+              ∃ result rng',
+                tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+                    ok (core.result.Result.Ok result, rng') ∧
+                  trace rng' = rest ∧ encapsulationOf (core.result.Result.Ok result) = some expected)
     (kemInvalidKey :
       ∀ (publicKey : Slice U8) (rng : R) (error : tacenta_boundary.kem.KemError),
         oracle.kemValid (sliceOf publicKey) = false →

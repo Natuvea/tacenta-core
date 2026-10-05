@@ -940,9 +940,10 @@ success only where the model's `kemEncaps` returns `some`, and adds a pre-draw r
 what the old field asserted inside the model: the model's oracle never refuses an encapsulation
 key at any draw, and the call never returns `Err` while the trace has a draw.
 `UnitLifecycleIntegrationScreen.lean` shows the restated clauses follow from three laws about the
-shipped function that a model with a refused key satisfies. The restated success clause binds the
-code only where the model's `kemEncaps` returns `some`, so an oracle that never encapsulates also
-meets it. -/
+shipped function that a model with a refused key satisfies. The success clause is explicitly
+guarded by the model's `kemValid = true` predicate as well as `kemEncaps = some`, so invalid-key
+refusal cannot be made inconsistent merely by assigning an encapsulation result to an invalid key.
+An oracle that never encapsulates still meets it. -/
 
 /-- The `kemEncapsulateSuccess` field of `OracleOf` before the KEM clauses were restated, unchanged: success
 for every public key at every draw. No consumer takes it. -/
