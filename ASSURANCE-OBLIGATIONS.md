@@ -3,7 +3,7 @@
 Current inventory for P1 of the assurance execution plan. This file makes the
 remaining readiness work assessable; it is not evidence that the work is done.
 
-Last assessed: 2026-10-05, at candidate `e7968dc4`. The gate evidence inventory and historical rows retain their original run stamps where applicable. The Gate 2 and component rows were re-read against `GAP-REGISTER.md`, the semantic invariant review, and the P6 reassessment at `tacenta-model/P6-L2-TARGET-DECISION.md`.
+Last assessed: 2026-10-05, at candidate `b105e6cb`. The gate evidence inventory and historical rows retain their original run stamps where applicable. The Gate 2 and component rows were re-read against `GAP-REGISTER.md`, the semantic invariant review, and the P6 reassessment at `tacenta-model/P6-L2-TARGET-DECISION.md`.
 
 ## Gate classes
 
