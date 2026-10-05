@@ -812,6 +812,60 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
   simp [establishInitiator, hp, hv, hc, hs, ho, hSignedSig, hKemSig, hDraw,
     hKem, hDh1, hDh2, hDh3]
 
+/-! A successful initiator establishment with no curve one-time prekey.  This
+is the model-side target for the first concrete success composition: the two
+random draws, KEM result and four contributory agreements are consumed in the
+same order as the translated root, and the resulting session retains the
+pending initial message. -/
+theorem establishInitiator_success_no_one_time (oracle afterEphemeral afterKem afterRatchet : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity : Key)
+    (ephemeralPrivate kemCiphertext kemSecret ratchetPrivate dh1 dh2 dh3 dhOut : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hOne : bundle.oneTimePrekey = none)
+    (hOneId : bundle.oneTimeId = absentId)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (some (kemCiphertext, kemSecret), afterKem))
+    (hDh1 : oracle.dhAgree identity.secret bundle.signedPrekey = some dh1)
+    (hDh2 : oracle.dhAgree ephemeralPrivate bundle.identityKey = some dh2)
+    (hDh3 : oracle.dhAgree ephemeralPrivate bundle.signedPrekey = some dh3)
+    (hDrawRatchet : random32 afterKem = some (ratchetPrivate, afterRatchet))
+    (hDhOut : oracle.dhAgree ratchetPrivate bundle.signedPrekey = some dhOut) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .ok
+          { triple := Model.Triple.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 none kemSecret)
+              (oracle.dhPublic ratchetPrivate) bundle.signedPrekey dhOut .tacenta
+            braid := Model.Braid.initAlice
+              (Model.SessionEstablishment.sharedSecret dh1 dh2 dh3 none kemSecret)
+            ratchetPrivate
+            identityAd := Model.SessionEstablishment.associatedData
+              (Model.PersistedState.SessionState.encodeEc identity.publicKey)
+              (Model.PersistedState.SessionState.encodeEc bundle.identityKey)
+            ourIdentityPublic := identity.publicKey
+            peerIdentityPublic := bundle.identityKey
+            pendingInitial := some
+              { ephemeralPublic := oracle.dhPublic ephemeralPrivate
+                kemCiphertext
+                signedPrekeyId := bundle.signedPrekeyId.toNat
+                oneTimePrekeyId := bundle.oneTimeId.toNat
+                kemPrekeyId := bundle.kemPrekeyId.toNat }
+            establishedEphemeral := none }
+        oracle := afterRatchet } := by
+  subst expectedIdentity
+  simp [establishInitiator, hOne, hOneId, hp, hv, hc, hs, ho, hSignedSig, hKemSig,
+    hDraw, hKem, hDh1, hDh2, hDh3, hDrawRatchet, hDhOut]
+
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
   -- A consumed entry is removed by moving the last entry into its slot, as `take_one_time` and

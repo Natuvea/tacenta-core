@@ -700,6 +700,121 @@ theorem spqr_init_refines (h : Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees)
     Tacenta.SessionUnitSpqrT3.chainsOf, Tacenta.SessionUnitSpqrT3.chainOf,
     Tacenta.SessionUnitSpqrT3.directionOf, alloc.vec.Vec.new]
 
+/-! The aggregate Triple initializer composes the already proved split,
+classical-ratchet and sparse-ratchet leaves. -/
+theorem init_sender_refines (h : TripleHkdfAgrees) (hz : ZeroizingRoundTrips)
+    (hclass : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzclass : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hpq : Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees)
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hzpq : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (sk : Slice Std.U8) (ourPub peerPub dhOut : Array Std.U8 32#usize)
+    (labels : tacenta_ratchet.LabelSet) :
+    ∃ r, tacenta_triple.State.init_sender sk ourPub peerPub dhOut labels = ok r ∧
+      StateRefines ratchetAbs spqrAbs r
+        (Model.Triple.initAlice
+          (sliceOf sk)
+          (keyOf ourPub) (keyOf peerPub) (keyOf dhOut)
+          (match labels with | .Tacenta => Model.State.LabelSet.tacenta)) := by
+  obtain ⟨parts, hparts, hpartsModel⟩ := Std.WP.spec_imp_exists
+    (split_secret_refines h hz sk)
+  rcases parts with ⟨ec, pq0⟩
+  obtain ⟨classical, hclassical, hclassicalModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.init_sender_refines hclass hzclass
+      ec ourPub peerPub dhOut labels)
+  obtain ⟨pq, hpqCall, hpqModel⟩ := spqr_init_refines hpq hz96
+    (by simpa using (Array.to_slice pq0)) tacenta_spqr.Direction.A2b
+  have hkeyOfEc : keyOf ec = Tacenta.SessionUnitT3.keyOf ec := by rfl
+  have hkeyOfOur : keyOf ourPub = Tacenta.SessionUnitT3.keyOf ourPub := by rfl
+  have hkeyOfPeer : keyOf peerPub = Tacenta.SessionUnitT3.keyOf peerPub := by rfl
+  have hkeyOfDh : keyOf dhOut = Tacenta.SessionUnitT3.keyOf dhOut := by rfl
+  have hspqrSlice : keyOf pq0 = Tacenta.SessionUnitSpqrT3.sliceOf pq0.to_slice := by rfl
+  obtain ⟨_, hecZeroize⟩ := hzpq
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ec
+  obtain ⟨_, hpqZeroize⟩ := hzpq
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) pq0
+  unfold tacenta_triple.State.init_sender
+  refine ⟨{ classical := classical, post_quantum := pq }, ?_, ?_⟩
+  · simp [hparts, hclassical, tacenta_spqr.State.init_alice, hpqCall,
+      hecZeroize, hpqZeroize, lift, alloc.slice.Slice.into_vec]
+  · have hpartsEc : keyOf ec = (Model.TripleRatchet.splitSecret (sliceOf sk)).1 := by
+      simpa using congrArg Prod.fst hpartsModel
+    have hpartsPq : keyOf pq0 = (Model.TripleRatchet.splitSecret (sliceOf sk)).2 := by
+      simpa using congrArg Prod.snd hpartsModel
+    change ratchetAbs classical = _ ∧ spqrAbs pq = _
+    constructor
+    · have hpartsEc' : Tacenta.SessionUnitT3.keyOf ec =
+          (Model.TripleRatchet.splitSecret (sliceOf sk)).1 := by
+        rw [← hkeyOfEc]
+        exact hpartsEc
+      have h := ratchetAbs_eq hclassicalModel
+      rw [hpartsEc'] at h
+      simp only [Model.Triple.initAlice]
+      rw [hkeyOfOur, hkeyOfPeer, hkeyOfDh]
+      exact h
+    · have hpartsPq' : Tacenta.SessionUnitSpqrT3.sliceOf pq0.to_slice =
+          (Model.TripleRatchet.splitSecret (sliceOf sk)).2 := by
+        rw [← hspqrSlice]
+        exact hpartsPq
+      have h := hpqModel
+      rw [hpartsPq'] at h
+      simp only [Model.Triple.initAlice, Model.SparseRatchet.initAlice]
+      exact h
+
+/-! The responder initializer has the same aggregate seam, with the receiver
+classical state and the sparse B2a state. -/
+theorem init_receiver_refines (h : TripleHkdfAgrees) (hz : ZeroizingRoundTrips)
+    (hpq : Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees)
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hzpq : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (sk : Slice Std.U8) (ourPub : Array Std.U8 32#usize)
+    (labels : tacenta_ratchet.LabelSet) :
+    ∃ r, tacenta_triple.State.init_receiver sk ourPub labels = ok r ∧
+      StateRefines ratchetAbs spqrAbs r
+        (Model.Triple.initBob (sliceOf sk) (keyOf ourPub)
+          (match labels with | .Tacenta => Model.State.LabelSet.tacenta)) := by
+  obtain ⟨parts, hparts, hpartsModel⟩ := Std.WP.spec_imp_exists
+    (split_secret_refines h hz sk)
+  rcases parts with ⟨ec, pq0⟩
+  obtain ⟨classical, hclassical, hclassicalModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.init_receiver_refines ec ourPub labels)
+  obtain ⟨pq, hpqCall, hpqModel⟩ := spqr_init_refines hpq hz96
+    (by simpa using (Array.to_slice pq0)) tacenta_spqr.Direction.B2a
+  have hkeyOfEc : keyOf ec = Tacenta.SessionUnitT3.keyOf ec := by rfl
+  have hkeyOfOur : keyOf ourPub = Tacenta.SessionUnitT3.keyOf ourPub := by rfl
+  have hspqrSlice : keyOf pq0 = Tacenta.SessionUnitSpqrT3.sliceOf pq0.to_slice := by rfl
+  obtain ⟨_, hecZeroize⟩ := hzpq
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ec
+  obtain ⟨_, hpqZeroize⟩ := hzpq
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) pq0
+  unfold tacenta_triple.State.init_receiver
+  refine ⟨{ classical := classical, post_quantum := pq }, ?_, ?_⟩
+  · simp [hparts, hclassical, tacenta_spqr.State.init_bob, hpqCall,
+      hecZeroize, hpqZeroize, lift]
+  · have hpartsEc : keyOf ec = (Model.TripleRatchet.splitSecret (sliceOf sk)).1 := by
+      simpa using congrArg Prod.fst hpartsModel
+    have hpartsPq : keyOf pq0 = (Model.TripleRatchet.splitSecret (sliceOf sk)).2 := by
+      simpa using congrArg Prod.snd hpartsModel
+    change ratchetAbs classical = _ ∧ spqrAbs pq = _
+    constructor
+    · have hpartsEc' : Tacenta.SessionUnitT3.keyOf ec =
+          (Model.TripleRatchet.splitSecret (sliceOf sk)).1 := by
+        rw [← hkeyOfEc]
+        exact hpartsEc
+      have h := ratchetAbs_eq hclassicalModel
+      rw [hpartsEc'] at h
+      simp only [Model.Triple.initBob]
+      rw [hkeyOfOur]
+      exact h
+    · have hpartsPq' : Tacenta.SessionUnitSpqrT3.sliceOf pq0.to_slice =
+          (Model.TripleRatchet.splitSecret (sliceOf sk)).2 := by
+        rw [← hspqrSlice]
+        exact hpartsPq
+      have h := hpqModel
+      rw [hpartsPq'] at h
+      simp only [Model.Triple.initBob, Model.SparseRatchet.initBob]
+      exact h
+
 /-- `RatchetAgreesFor`, proved. Every clause is `UnitT3.lean`'s theorem for that
 call, a field read, or `UnitTripleT1.lean`'s clone lemma, and the hypotheses are
 the boundary those take: `HmacAgrees`, `HkdfAgrees`, `ZeroizingRoundTrips`,
