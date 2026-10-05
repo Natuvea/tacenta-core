@@ -3,6 +3,7 @@ import Translation.SessionUnitBraidT3
 import Translation.SessionUnitWireT3
 import Translation.SessionUnitWireInitialT3
 import Translation.SessionUnitSessionT1
+import Translation.SessionUnitBraidPreserveFacts
 import Model.Lifecycle
 import Mathlib.Tactic.IntervalCases
 
@@ -113,6 +114,30 @@ theorem session_import_success_has_invariant
     | div => simp [hD] at himport
   | fail e => simp [hE] at himport
   | div => simp [hE] at himport
+
+/-! A successful restored session also carries the concrete Braid decoder-size
+    premise needed by the receive roots.  This is derived from the actual
+    session leaf-invariant path and the Braid preservation theorem; it is not
+    another caller-supplied headroom assumption. -/
+
+theorem session_invariant_gives_braid_decoder_size
+    (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
+    (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal)
+    (hheader : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
+    (session : lifecycle.Session)
+    (hinv : lifecycle.Session.invariant session = ok true) :
+    Tacenta.SessionUnitBraidT1.State.decoders_sized session.braid.state := by
+  unfold lifecycle.Session.invariant at hinv
+  obtain ⟨structural, hstructural, hleaf⟩ := bind_ok_inv hinv
+  simp only [ok.injEq] at hstructural
+  subst structural
+  split at hleaf
+  · simp at hleaf
+  · exact SessionUnitBraidPreserveFacts.sized_decoders_sized
+      (SessionUnitBraidPreserveFacts.invariant_true_gives_sized
+        hct1 hct2 hheader hek session.braid
+        (by simpa using hleaf))
 
 /-! The lifecycle unit and the Braid port call the same generated KDF
     operations. Keep the correspondence at the shared lifecycle boundary so
