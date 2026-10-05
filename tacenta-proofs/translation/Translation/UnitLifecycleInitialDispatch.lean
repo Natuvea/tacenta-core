@@ -9222,6 +9222,58 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+/-! ## Public `decrypt_ratchet` composition
+
+The ratchet is a public lifecycle root in its own right, even though the
+outer `Session.decrypt` dispatcher calls it for both initial and passthrough
+messages.  The branch adapters above already carry the exact generated call
+and result.  Keep the root join explicit so a caller cannot prove only a
+conditional refusal or success lemma and then silently omit the other result
+family.
+-/
+def PublicDecryptRatchetWitness {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Prop :=
+  ∃ output,
+    lifecycle.Session.decrypt_ratchet rc crc real message rng = ok output ∧
+    StepRefines trace dh K output
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))
+
+inductive DecryptRatchetEndToEndEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | refusal {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
+      (evidence : InitialRatchetRefusalEvidence rc crc trace dh K view oracle
+        real model message rng reason next rngNext) :
+      DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model message rng
+  | success {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session} {rngNext : R}
+      (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle
+        real model message rng plaintext next rngNext) :
+      DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model message rng
+
+theorem public_decrypt_ratchet_end_to_end
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (evidence : DecryptRatchetEndToEndEvidence rc crc trace dh K view oracle real model
+      message rng) :
+    PublicDecryptRatchetWitness rc crc trace dh K view oracle real model message rng := by
+  cases evidence with
+  | @refusal reason next rngNext evidence =>
+      exact ⟨(.Err reason, next, rngNext), evidence.hcall,
+        evidence.hstep⟩
+  | @success plaintext next rngNext evidence =>
+      exact ⟨(.Ok plaintext, next, rngNext), evidence.hreal,
+        initial_ratchet_success_step_from_evidence (R := R) evidence⟩
+
 /-! A model random-source ceiling is only compatible with an empty draw
 trace.  This small contradiction lemma makes the missing ceiling premise
 explicit: any caller that proves the receive path starts with a concrete draw
