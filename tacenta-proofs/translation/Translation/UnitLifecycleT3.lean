@@ -1990,6 +1990,59 @@ theorem encode_ec_refines (dh : DhView) (codec : DhCodecOf dh)
     simp [vecOf, arrayOf, hvalue, tacenta_session.ENCODE_EC_CURVE25519,
       Model.Messages.ecCurveByte, Tacenta.SessionUnitBraidT3.u8]
 
+/-! The lifecycle identity binding is the session associated-data binding with
+the two curve encodings made explicit.  This is a small but necessary bridge
+for establishment: the final Session relation must account for the bytes
+stored by the generated `identity_ad` wrapper, not merely assume them. -/
+theorem identity_ad_refines {dh : DhView} (codec : DhCodecOf dh)
+    (initiator responder : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ output,
+      lifecycle.identity_ad initiator responder = ok output ∧
+      vecOf output = Model.SessionEstablishment.associatedData
+        (Model.PersistedState.SessionState.encodeEc (dh.publicKey initiator))
+        (Model.PersistedState.SessionState.encodeEc (dh.publicKey responder)) := by
+  obtain ⟨initiatorEncoded, hInitiatorEncoded, hInitiatorEncodedVal⟩ :=
+    encode_ec_refines dh codec initiator
+  obtain ⟨responderEncoded, hResponderEncoded, hResponderEncodedVal⟩ :=
+    encode_ec_refines dh codec responder
+  obtain ⟨initiatorBytes, _, hInitiatorBytesView⟩ := codec.asBytes initiator
+  obtain ⟨responderBytes, _, hResponderBytesView⟩ := codec.asBytes responder
+  have hInitiatorPublicLen : (dh.publicKey initiator).length = 32 := by
+    rw [← hInitiatorBytesView]
+    simp [arrayOf]
+  have hResponderPublicLen : (dh.publicKey responder).length = 32 := by
+    rw [← hResponderBytesView]
+    simp [arrayOf]
+  have hInitiatorLen : initiatorEncoded.val.length = 33 := by
+    have h := congrArg List.length hInitiatorEncodedVal
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      Tacenta.SessionUnitBraidT3.u8, hInitiatorPublicLen] at h
+    exact h
+  have hResponderLen : responderEncoded.val.length = 33 := by
+    have h := congrArg List.length hResponderEncodedVal
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      Tacenta.SessionUnitBraidT3.u8, hResponderPublicLen] at h
+    exact h
+  have hbound : initiatorEncoded.deref.val.length + responderEncoded.deref.val.length ≤
+      Usize.max := by
+    simp only [hInitiatorLen, hResponderLen, alloc.vec.Vec.deref]
+    have := Tacenta.SessionUnitSessionT1.small_le_usize_max (n := 66) (by omega)
+    omega
+  unfold lifecycle.identity_ad
+  rw [hInitiatorEncoded, hResponderEncoded]
+  obtain ⟨output, hOutput, hOutputVal⟩ :=
+    Std.WP.spec_imp_exists (Tacenta.SessionUnitSessionT1.associated_data_spec
+      initiatorEncoded.deref responderEncoded.deref hbound)
+  refine ⟨output, ?_, ?_⟩
+  · exact hOutput
+  · have hOutputVal' := congrArg
+      (List.map Tacenta.SessionUnitBraidT3.u8) hOutputVal
+    change List.map Tacenta.SessionUnitBraidT3.u8 output.val =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey initiator) ++
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey responder)
+    rw [← hInitiatorEncodedVal, ← hResponderEncodedVal]
+    simpa [vecOf, alloc.vec.Vec.deref] using hOutputVal'
+
 /-- The candidate ratchet private key's public bytes are exactly the model
 oracle's public-key result.  Receive uses both opaque calls in sequence, so the
 bridge records both call equations rather than assuming a byte value after the
