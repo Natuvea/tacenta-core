@@ -1245,6 +1245,80 @@ theorem establish_responder_kem_slot_refusal_step_refines {R : Type}
   · exact hstore
   · exact htrace
 
+/-! A missing curve one-time-prekey is a public-root refusal after identity
+    validation and before any decapsulation or durable mutation. -/
+theorem establish_responder_one_time_slot_refusal_of_calls {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedInitial)
+    (signedSecret : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (kemSlot : lifecycle.KemKeySlot) (lastResort : Bool)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (unknown : lifecycle.Error)
+    (hdecode : tacenta_wire.decode_initial initialMessage =
+      ok (.Ok decoded))
+    (hsigned : lifecycle.responder_signed_prekey_secret ourPrekeys
+      decoded.signed_prekey_id = ok (.Ok signedSecret))
+    (hkem : lifecycle.responder_kem_slot ourPrekeys decoded.kem_prekey_id =
+      ok (.Ok (kemSlot, lastResort)))
+    (hcurve : lifecycle.responder_curve_inputs
+      (alloc.vec.Vec.deref decoded.identity)
+      (alloc.vec.Vec.deref decoded.ephemeral) =
+      ok (.Ok (initiatorIdentity, initiatorEphemeral)))
+    (hone : lifecycle.responder_one_time_key ourPrekeys
+      decoded.one_time_prekey_id = ok (.Err unknown)) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng =
+      ok (.Err unknown, ourPrekeys, rng) := by
+  unfold lifecycle.establish_responder
+  simp [hdecode, hsigned, hkem, hcurve, hone]
+
+theorem establish_responder_one_time_slot_refusal_step_refines {R : Type}
+    (storeRel : lifecycle.PrekeyStore → Model.Lifecycle.PrekeyStore → Prop)
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (oracle : Model.Lifecycle.Oracle) (view : Model.Lifecycle.CodewordView)
+    (ourIdentity : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (ourPrekeys : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (initialMessage : Slice Std.U8) (rng : R)
+    (initial : Model.Messages.Initial) (signedSecret : Model.Lifecycle.Key)
+    (kemPair : Bytes) (lastResort : Bool) (reason : Model.Lifecycle.Refusal)
+    (unknown : lifecycle.Error)
+    (hstore : storeRel ourPrekeys modelStore)
+    (htrace : trace rng = oracle.draws)
+    (hreal : lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng = ok (.Err unknown, ourPrekeys, rng))
+    (hmap : refusalOf unknown = reason)
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf initialMessage) =
+      .ok initial)
+    (hs : Model.Lifecycle.responderSignedPrekeySecret modelStore
+      initial.signedPrekeyId.toNat = some signedSecret)
+    (hk : Model.Lifecycle.responderKemPair modelStore
+      initial.kemPrekeyId.toNat = .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : Model.Lifecycle.responderOneTimeSecret modelStore
+      initial.oneTimeId.toNat = .error reason) :
+    ∃ output,
+      lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+        initialMessage rng = ok output ∧
+      ResponderEstablishStepRefines storeRel trace dh K output
+        (Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (sliceOf initialMessage)) := by
+  have hprep := Model.Lifecycle.prepareResponder_one_time_slot_refusal oracle
+    modelIdentity modelStore (sliceOf initialMessage) initial signedSecret kemPair
+    lastResort reason hdecodeModel hs hk hv ho
+  have hmodel : Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+      (sliceOf initialMessage) =
+      { store := modelStore, result := .error reason, oracle := oracle } := by
+    simp [Model.Lifecycle.establishResponder, hprep]
+  refine ⟨(.Err unknown, ourPrekeys, rng), hreal, ?_⟩
+  rw [hmodel]
+  constructor
+  · simp [ResponderResultRefines, hmap]
+  · exact hstore
+  · exact htrace
+
 /-! The responder's identity refusal is reached after the decoder and the two
     key-slot lookups, but before one-time lookup, decapsulation, DH, replay
     recording, or session construction.  Keep those call results explicit so

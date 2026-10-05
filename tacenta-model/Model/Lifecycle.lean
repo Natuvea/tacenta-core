@@ -2120,6 +2120,21 @@ theorem prepareResponder_kem_slot_refusal (oracle : Oracle) (identity : Identity
     prepareResponder oracle identity store initialMessage = .error reason := by
   simp [prepareResponder, hd, hs, hk]
 
+theorem prepareResponder_one_time_slot_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) (initial : Model.Messages.Initial)
+    (signedSecret : Key) (kemPair : Bytes) (lastResort : Bool)
+    (reason : Refusal)
+    (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
+    (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
+      some signedSecret)
+    (hk : responderKemPair store initial.kemPrekeyId.toNat =
+      .ok (kemPair, lastResort))
+    (hv : oracle.identityValid (initial.identity.drop 1) = true)
+    (ho : responderOneTimeSecret store initial.oneTimeId.toNat = .error reason) :
+    prepareResponder oracle identity store initialMessage = .error reason := by
+  have hv' : oracle.identityValid initial.identity.tail = true := by simpa using hv
+  simp [prepareResponder, hd, hs, hk, hv', ho]
+
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
     the named one-time keys or records a last-resort fingerprint. -/
