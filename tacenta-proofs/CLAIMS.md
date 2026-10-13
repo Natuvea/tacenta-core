@@ -808,14 +808,24 @@ The calculation on which both sides must agree exactly, and it rests on
   initiator emits at transition 5, after advancing, and reads the label back off
   the advanced state. The two agreeing is what makes an epoch a shared name for
   a shared key.
-- `send_reports`: the epoch a `Send` reports is the one before the state's, so
-  it names the last epoch both parties are known to hold rather than the one
-  being negotiated.
+- `send_reports`: the epoch a `Send` reports is the one before the state it
+  lands in, so it names the last epoch both parties are known to hold rather
+  than the one being negotiated. A send whose KEM call refuses lands in
+  `Failed`, whose epoch is 0, and reports 0, as the implementation reads the
+  report off the candidate state; `send_reports_of_ne_failed` gives the
+  state's own epoch less one when the send does not fail.
 - `receive_reports`: and the epoch a `Receive` reports is the one before the
   state it lands in, on every branch. A receive that fails lands in `Failed`,
   whose epoch is 0, and reports 0, as mlkem-braid.md's Failure section says.
+- `send_epoch`, `send_epoch_of_ne_failed`: a send never raises the epoch, and
+  keeps it whenever it does not land in `Failed`. That a KEM refusal on
+  transition (1) or (7) lands there, at epoch 0, is the definition of `send`
+  rather than a theorem.
+- `send_reports_of_ne_failed`: from a state the send does not fail in, the
+  report is that state's own epoch less one, by `send_reports` and
+  `send_epoch_of_ne_failed`.
 - `receive_epoch_lt`: a receive from a state whose epoch is below `u64::MAX`
-  (`u64Max`) leaves the Braid below it. A send never changes the epoch
+  (`u64Max`) leaves the Braid below it. A send never raises the epoch
   (`send_epoch`), so no run from such a state reaches `u64::MAX`, the epoch
   session-persistence.md's reader refuses.
 - `receive_advance_lt`: a receive that advances the epoch leaves it below
@@ -2244,7 +2254,24 @@ What a reader has to grant:
   `finish_encaps_refines` takes `BraidHmacAgrees` and `ErasureAgrees`, since `finish_encaps` and `mac_eq`
   are fully translated Rust (no opaque call in the ones that matter for value,
   only in the KEM/erasure primitives they call), and the epoch fact is a
-  finite case split over the model alone.
+  finite case split over the model alone. Its conclusion is the model's
+  `Model.Braid.finishEncaps`, which includes the `Failed` arm: when the real
+  `encapsulate2` refuses, the two-sided `EncapsRefines` says the model's
+  `encaps2` is `none`, and both sides land in `Failed`. Its length premise is
+  over the `some` case only.
+- **The KEM agreements are two-sided.** Each clause of `KemAgreesFor`, of
+  `KeyPairRefines` and of `EncapsRefines` says the real call and the model
+  answer alike: either the real call returns `Ok` and the model `some` of
+  the converted bytes, or the real call returns `Err` and the model `none`.
+  So the four `Err` arms of the Rust (`generate` and `encapsulate1` in
+  `step_send`, `encapsulate2` in `finish_encaps`, `decapsulate` in
+  transition (5)) are refined against the model's `Failed` transitions
+  (mlkem-braid.md, Failure) rather than excluded by hypothesis, as an earlier
+  revision did ("the real `Err` arm never fires"). Nothing in the records
+  says the real KEM never refuses: a KEM that refused every call, with a `K`
+  that refused every call, satisfies them, which is why the state witnesses
+  below take `KemDrawsSucceed`. `KemCloneAgrees` carries the whole `Result`
+  of `decapsulate` and `encapsulate2` across a clone, refusals included.
 - **The KEM boundary, `KemAgreesFor`:** two relations between a specific
   `Model.Braid.Kem` witness and the real `IncrementalKeyPair`/`EncapsState`
   operations, rather than one axiom per KEM operation, since the model's own
@@ -3015,7 +3042,12 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   other and with every axiom-level contract field. The proofs hold on both platform widths: they use only
   that `Usize.max` is at least `2^32 - 1`. `ValidateEkAgrees K` holds of the real call only for a `K` whose
   `hashEk` folds in the coefficient check that `validate_ek` makes after the hash; such a `K` exists because
-  `K` is existential.
+  `K` is existential. The interpretation also satisfies `KemDrawsSucceedShape`, so the one premise the
+  state witnesses add is in the same model as the agreements rather than shown separately.
+- `modelT3_kemDrawsSucceed`: `Interp.modelT3` satisfies `KemDrawsSucceedShape`: its key generation and
+  first encapsulation half each return `Ok` for some RNG. Together with `KemDrawsSucceed_is`, the
+  `Iff.rfl` bridge to the real-constant premise, this is what puts the state witnesses' extra premise
+  inside the model above. It says nothing about the real wrapper.
 - `erasureCloneAgrees`: `ErasureCloneAgrees` is a theorem of the translated unit, outright: a clone of an
   encoder or a decoder equals it. No law about an opaque constant is used.
 - `erasureAgrees_iff_clauses`, `erasureAgrees_encoder`: `ErasureAgrees` is its encoder clause and its decoder
@@ -3023,15 +3055,18 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   (`DivCeil32`, which `DivCeilValue` implies): `Encoder::new` of any message refines the model encoder of the
   same bytes, for every number of steps a `u16` index allows. The decoder clause is the section above.
 - `ingredients`, `twelve_states`, `six_receive_witnesses`: given `ErasureAgrees`, `KemAgreesFor K`,
-  `KemLenAgrees K`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
+  `KemLenAgrees K`, `KemDrawsSucceed`, `DivCeilValue` and the three size shapes the receive records carry, every one of the twelve
   state constructors has a real state and a model state satisfying `StateRefines`, `ct1_bounded`,
   `decoders_bounded`, the epoch headroom and `EncodersLive` at once (`Good`, which `Good_iff` unfolds), and
   each of the six state and message-type pairs in which `Model.Braid.receive` feeds a chunk to a decoder has
   a message satisfying `MsgRefines` and `HonestChunk`, in the state's epoch, with data, and not through the
-  vacuous arm of `HonestChunk`. The witnesses are built from the agreements: the key pairs and encapsulation
-  states from the `generate` and `encapsulate1` clauses of `KemAgreesFor`, the encoders and decoders from the
-  two clauses of `ErasureAgrees` (discharged under the two laws by `twelve_states_of_laws`). So these hypotheses
-  are satisfiable together whenever the agreements are, and a model of the agreements is the one above.
+  vacuous arm of `HonestChunk`. The witnesses are built from the agreements and one more premise: the key
+  pairs and encapsulation states from `KemDrawsSucceed`, that the real `generate` and `encapsulate1` each
+  succeed for some RNG (the two-sided `KemAgreesFor` alone admits a KEM that refuses every call), related to
+  the model through the success arms of `KemAgreesFor`; the encoders and decoders from the two clauses of
+  `ErasureAgrees` (discharged under the two laws by `twelve_states_of_laws`). So these hypotheses are
+  satisfiable together whenever the agreements and `KemDrawsSucceed` are, and a model of them is the one
+  above (`modelT3_kemDrawsSucceed`). `KemDrawsSucceed` is assumed of the real wrapper, not proved.
 - `initiator_refines`, `responder_refines`: the states `Braid::initiator` and `Braid::responder` build refine
   the model's initial states `Model.Braid.initAlice` and `Model.Braid.initBob` and satisfy `ct1_bounded`,
   `decoders_bounded`, the epoch headroom and `EncodersLive`, so `hrel` holds of an honest fresh state and not
@@ -3053,8 +3088,8 @@ real KDF: the six agreements are assumed, and `LIMITATIONS.md` records where.
   What remains of their hypotheses is what a model of the unit's opaque constants can satisfy (the six agreements and
   the totality shapes), the two laws, and the hypotheses about state and message.
 - `twelve_states_of_laws`, `six_receive_witnesses_of_laws`: the state witnesses with `ErasureAgrees` supplied by the
-  laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the
-  two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
+  laws, so the hypotheses of `Braid.receive_refines_of_laws` are satisfiable together under the agreements,
+  `KemDrawsSucceed` and the two laws alone. With `braid_agreements_have_a_model`, no hypothesis of the four refinement theorems is left
   without a witness for the unit, in the sense of the substitution argument. The state and message witnesses are
   derived from the agreements and the two laws, so they exist in the model because the agreements hold there;
   the step from the model to the real constants is the substitution argument and not a theorem inside Lean.
