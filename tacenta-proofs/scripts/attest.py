@@ -689,6 +689,7 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
         "erasureCloneAgrees",
@@ -734,6 +735,10 @@ REQUIRED_PINS = frozenset(
     # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
     # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
     + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    # The Braid's send epoch accounting (Proofs/TrustedBase.lean), kernel-only: the pins that hold
+    # it, so that deleting one is refused.
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Polynomial.interp_eq", "Tacenta.ErasureT3.mul_refines"]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
@@ -1760,6 +1765,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
         "FeedsDecoder",
@@ -1827,6 +1833,10 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The statements of the Braid's send epoch theorems the fallible KEM introduced or restated
+    # (Proofs/TrustedBase.lean).
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",

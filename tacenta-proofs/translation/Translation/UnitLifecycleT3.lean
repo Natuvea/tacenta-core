@@ -1894,8 +1894,8 @@ theorem braid_send_model_result_of_no_draw
       (modelMessage, modelEpoch, modelOutput, modelNext) := by
     simpa [sent] using hsent
   have hsendEpoch : (Model.Braid.send K rand model).2.1 =
-      (Model.Braid.send K rand model).2.2.2.epoch - 1 := by
-    cases model <;> rfl
+      (Model.Braid.send K rand model).2.2.2.epoch - 1 :=
+    Model.Braid.send_reports K rand model
   rw [htuple] at hmsg hepoch hout hnext
   rw [htuple] at hsendEpoch
   rw [hsent] at horacle
@@ -1960,8 +1960,8 @@ theorem braid_send_model_result_of_draw
       (modelMessage, modelEpoch, modelOutput, modelNext) := by
     simpa [sent] using hsent
   have hsendEpoch : (Model.Braid.send K rand model).2.1 =
-      (Model.Braid.send K rand model).2.2.2.epoch - 1 := by
-    cases model <;> rfl
+      (Model.Braid.send K rand model).2.2.2.epoch - 1 :=
+    Model.Braid.send_reports K rand model
   rw [htuple] at hmsg hepoch hout hnext
   rw [htuple] at hsendEpoch
   rw [hsent] at hsentDraw
@@ -2057,7 +2057,8 @@ theorem braid_send_post_of_contracts
   have heq : result = ((realMessage, realEpoch, realOutput, realNext), rngNext) := by
     exact Result.ok.inj (hcall.symm.trans hsendReal)
   cases heq
-  exact hpost
+  obtain ⟨rand, hmsg, -, hrest⟩ := hpost
+  exact ⟨rand, hmsg, hrest⟩
 
 /-! The corresponding Triple adapter keeps the exact generated candidate-send
     result tied to the `SessionUnitTripleT3.send_refines_discharged` postcondition.

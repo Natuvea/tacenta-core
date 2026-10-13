@@ -33,7 +33,9 @@ hypotheses about state and message (`UnitSatisfiabilityBraidStates.lean`).
 
 `twelve_states_of_laws` and `six_receive_witnesses_of_laws` are the state-level witnesses of
 `UnitSatisfiabilityBraidStates.lean` with `ErasureAgrees` supplied by the two laws, so the hypotheses
-of `Braid.receive_refines_of_laws` are satisfiable together under the agreements and the laws alone.
+of `Braid.receive_refines_of_laws` are satisfiable together under the agreements, the laws and
+`KemDrawsSucceed` (the real KEM's key generation and first half of encapsulation each succeed
+somewhere, which the two-sided `KemAgreesFor` no longer implies).
 -/
 
 open Aeneas Aeneas.Std Result
@@ -112,6 +114,7 @@ theorem Braid.send_refines_given_erasure
     tacenta_session_unit.tacenta_braid.Braid.send rc crc self rng ⦃ fun ((msg, i, out, next), _) =>
       ∃ rand, (∀ modelMsg, (Model.Braid.send K rand model).1 = some modelMsg →
           MsgRefines msg modelMsg) ∧
+        ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
         i.val = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
         OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
         StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄ := by
@@ -188,6 +191,7 @@ theorem Braid.send_refines_of_laws
     tacenta_session_unit.tacenta_braid.Braid.send rc crc self rng ⦃ fun ((msg, i, out, next), _) =>
       ∃ rand, (∀ modelMsg, (Model.Braid.send K rand model).1 = some modelMsg →
           MsgRefines msg modelMsg) ∧
+        ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
         i.val = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
         OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
         StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄ :=
@@ -201,6 +205,7 @@ real state and a model state satisfying the state-level hypotheses of the refine
 theorem twelve_states_of_laws {K : Model.Braid.Kem}
     (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (htr : TruncatePrefix)
     (hka : KemAgreesFor K) (hlens : KemLenAgrees K)
+    (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
     (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
     (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
@@ -208,20 +213,21 @@ theorem twelve_states_of_laws {K : Model.Braid.Kem}
       ∃ (s : tacenta_session_unit.tacenta_braid.State) (m : Model.Braid.BraidState),
         Good K s m ∧ stateTag s = t :=
   Tacenta.UnitSatisfiabilityBraidStates.twelve_states
-    (Tacenta.UnitErasureRs.Glue.erasureAgrees hdiv htr) hka hlens hdiv hek hct1 hct2
+    (Tacenta.UnitErasureRs.Glue.erasureAgrees hdiv htr) hka hlens hdiv hdraw hek hct1 hct2
 
 /-- **Under the two laws and the KEM agreements, each state and message pair in which a chunk
 reaches a decoder has a witness for the receive hypotheses.** -/
 theorem six_receive_witnesses_of_laws {K : Model.Braid.Kem}
     (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (htr : TruncatePrefix)
     (hka : KemAgreesFor K) (hlens : KemLenAgrees K)
+    (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
     (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
     (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
     RecvWitness K 2 .ct1 ∧ RecvWitness K 4 .ct2 ∧ RecvWitness K 5 .hdr ∧
     RecvWitness K 7 .ek ∧ RecvWitness K 7 .ekCt1Ack ∧ RecvWitness K 9 .ekCt1Ack :=
   Tacenta.UnitSatisfiabilityBraidStates.six_receive_witnesses
-    (Tacenta.UnitErasureRs.Glue.erasureAgrees hdiv htr) hka hlens hdiv hek hct1 hct2
+    (Tacenta.UnitErasureRs.Glue.erasureAgrees hdiv htr) hka hlens hdiv hdraw hek hct1 hct2
 
 end Tacenta.UnitBraidEntryPoints
 
@@ -367,9 +373,10 @@ info: Tacenta.UnitBraidEntryPoints.Braid.send_refines_given_erasure {K : Model.B
       ∃ rand,
         (∀ (modelMsg : Model.Braid.Msg),
             (Model.Braid.send K rand model).1 = some modelMsg → Tacenta.SessionUnitBraidT3.MsgRefines msg modelMsg) ∧
-          ↑i = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
-            Tacenta.SessionUnitBraidT3.OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
-              Tacenta.SessionUnitBraidT3.StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄
+          ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
+            ↑i = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
+              Tacenta.SessionUnitBraidT3.OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
+                Tacenta.SessionUnitBraidT3.StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄
 -/
 #guard_msgs in
 #check Tacenta.UnitBraidEntryPoints.Braid.send_refines_given_erasure
@@ -565,9 +572,10 @@ info: Tacenta.UnitBraidEntryPoints.Braid.send_refines_of_laws (hdiv : Tacenta.Se
       ∃ rand,
         (∀ (modelMsg : Model.Braid.Msg),
             (Model.Braid.send K rand model).1 = some modelMsg → Tacenta.SessionUnitBraidT3.MsgRefines msg modelMsg) ∧
-          ↑i = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
-            Tacenta.SessionUnitBraidT3.OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
-              Tacenta.SessionUnitBraidT3.StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄
+          ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
+            ↑i = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
+              Tacenta.SessionUnitBraidT3.OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
+                Tacenta.SessionUnitBraidT3.StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄
 -/
 #guard_msgs in
 #check Tacenta.UnitBraidEntryPoints.Braid.send_refines_of_laws
@@ -576,6 +584,7 @@ info: Tacenta.UnitBraidEntryPoints.Braid.send_refines_of_laws (hdiv : Tacenta.Se
 info: Tacenta.UnitBraidEntryPoints.twelve_states_of_laws {K : Model.Braid.Kem}
   (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (htr : Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefix)
   (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K)
+  (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
   (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal) (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
   (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) (t : ℕ) :
   t < 12 →
@@ -588,6 +597,7 @@ info: Tacenta.UnitBraidEntryPoints.twelve_states_of_laws {K : Model.Braid.Kem}
 info: Tacenta.UnitBraidEntryPoints.six_receive_witnesses_of_laws {K : Model.Braid.Kem}
   (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (htr : Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefix)
   (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K)
+  (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
   (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal) (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
   (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
   Tacenta.UnitSatisfiabilityBraidStates.RecvWitness K 2 Model.Braid.MsgType.ct1 ∧
