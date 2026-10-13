@@ -98,6 +98,23 @@ jobs:
       - id: rust_spqr_erasure
         name: SPQR erasure regression through Session
         run: cargo test --locked --features private-erasure-review --test spqr_erasure_public -- --test-threads=1
+      # libcrux picks its ML-KEM backend when it is compiled: AVX2 on x86_64,
+      # NEON on aarch64, and its portable arithmetic everywhere else and
+      # wherever these two variables are `1`. On an out-of-range coefficient
+      # the SIMD backends returned a ciphertext and the portable one can
+      # overflow and panic under this workspace's overflow checks. The KEM
+      # wrapper refuses a restored
+      # encapsulation state with such coefficients (`kem/src/lib.rs`,
+      # `encapsulate2`), and this step is the only run that exercises the
+      # backend where the refusal matters. A separate target directory, because
+      # libcrux's build script does not declare the variables, so the cached
+      # build would not notice them.
+      - id: rust_portable_kem
+        name: KEM and Braid tests on libcrux's portable backend
+        run: cargo test --locked -p tacenta-kem -p tacenta-braid --target-dir target/portable
+        env:
+          LIBCRUX_DISABLE_SIMD128: "1"
+          LIBCRUX_DISABLE_SIMD256: "1"
       # The two hand-written constant-time functions, read in the release
       # assembly for the runner's own x86_64 and for aarch64: any conditional
       # branch beyond `mac_eq`'s public length compare fails, as does a symbol
@@ -114,7 +131,7 @@ jobs:
           id: rust
           classification: required
           command: cargo-test-clippy-format-and-constant-time
-          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
+          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_portable_kem=${{ steps.rust_portable_kem.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
 
   # The minimum supported Rust version still compiles the workspace. A check,
   # not a test run: the tests run on stable above, and this exists so a use of
