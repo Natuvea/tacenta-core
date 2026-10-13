@@ -1193,7 +1193,13 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   `generate`/`encapsulate1` need, carried by `KeyPairGenerateTotal` and
   `Encapsulate1Total` and threaded through both theorems).
 - `Braid.step_receive_no_panic`, `Braid.receive_no_panic`: the receiving half
-  and its entry point cannot panic. This is the one an attacker's header,
+  and its entry point cannot panic, under the totality hypotheses they take.
+  One of those, `Encapsulate2Total`, was false of the shipped KEM wrapper for an
+  encapsulation state restored from a corrupted store on libcrux's portable
+  backend until the wrapper's coefficient bound; it now rests on libcrux's
+  stated precondition, which the wrapper keeps on the state side, and is
+  tested and not proved (`LIMITATIONS.md`, the Session unit's primitive
+  contracts). This is the one an attacker's header,
   chunk data, and claimed lengths drive directly, so this is what stands
   between a malformed message and a remote denial of service, for this leaf
   crate. One real precondition travels with these two: `State.ct1_bounded`, a

@@ -2112,6 +2112,41 @@ result has the right bytes. Those value-level agreements belong to the later
 refinement relation and its oracle; the totality layer alone cannot establish
 them.
 
+**One of them was false of the shipped code, and is now kept by it rather
+than proved.** `KemEncapsulateTotal` here and `Encapsulate2Total` in
+`BraidT1.lean` say that `encapsulate2` returns for every `EncapsState`. Before
+the coefficient bound in `kem/src/lib.rs` (`encapsulate2`), a state restored
+from persistence, which `EncapsState::from_bytes` accepts on its length alone,
+could carry `i16` ring-element coefficients outside `|c| <= 3328`, the bound
+libcrux-ml-kem 0.0.10 states as a hax precondition (`requires`) of its
+`ntt_multiply` and `add_message_error_reduce`; this project has not checked
+that the library discharges it, and `compute_ring_element_v` and
+`invert_ntt_montgomery` on that path are marked lax (the section above on
+libcrux). Outside the bound the library's behaviour is undocumented: on its
+portable backend an `error2` coefficient of magnitude about 31,626 or more
+overflowed `i16` (`vector/portable/arithmetic.rs`, the add in
+`add_message_error_reduce` and the Barrett multiply) and panicked, since this
+workspace keeps overflow checks on in release; smaller out-of-bound values and
+out-of-bound `r_as_ntt` returned a ciphertext; the NEON backend returned a
+ciphertext for every pattern tried; AVX2 was not run. `encapsulate2` now
+refuses any coefficient outside the bound before the library runs, so the two
+contracts hold of the wrapper as an assumption about libcrux inside its stated
+precondition, the state-side half of which the wrapper keeps (the `ek_vector`
+side rests on `validate_ek`, which the Braid runs on a received vector and
+which a tag 8 restore does not repeat). That is tested, not proved:
+`kem/tests/malformed_stored_state.rs` drives fixed patterns and every one of
+the 1,280 coefficient positions at the bound and one past it through
+`encapsulate2`, and fails on a panic, on a ciphertext from an out-of-bound
+state, or on a refusal of an in-bound one; its scan and random sweep are
+informational. It was run on this machine on the NEON and portable backends
+(the portable one by building with `LIBCRUX_DISABLE_SIMD128=1`); the `rust`
+job's `rust_portable_kem` step, added with this change, is the first hosted run
+of the portable backend, and until it has run the portable half is a local
+receipt. `IncrementalKeyPair::from_bytes` is also length-only; `decapsulate`
+on a key pair with out-of-range coefficients in its secret polynomials returned
+on every pattern and random key pair tried, and that it never panics is not
+checked.
+
 `DhCodecTotal` is one joint contract over both opaque DH key types and all six
 reachable construction, projection, derivation and equality operations. Its
 non-vacuity witness interprets those types together, so the operations cannot
