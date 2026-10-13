@@ -286,6 +286,19 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+
+- `protocol/mlkem-braid.md`, Failure: the second half of encapsulation also
+  fails, in this implementation, on an encapsulation state restored from
+  persistence whose stored coefficients lie outside the bound the KEM library
+  states as a precondition of its arithmetic; the Braid then takes the
+  `Failed` transition the list already names for that half. Before, the page
+  said the library fails only on wrong lengths, and the implementation let a
+  corrupted store's state reach the library outside its stated precondition,
+  where on its portable backend a large enough coefficient overflowed and
+  panicked. `protocol/session-persistence.md`, Braid: one sentence says that
+  what the KEM refuses in such a state at use is the KEM's rule. The reader
+  still checks the field's length alone; the refusal is at use, so no
+  persisted-state vector changes.
 - `protocol/session-establishment.md`, `protocol/session-persistence.md` and
   `CONSTANTS.md`: the last-resort replay record now uses an `SK`-bound replay
   identity (`tacenta last-resort handshake v2`). Stores written as v1-v4 with
