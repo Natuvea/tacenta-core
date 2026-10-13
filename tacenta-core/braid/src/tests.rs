@@ -1298,3 +1298,92 @@ fn to_bytes_writes_exactly_the_length_the_state_implies() {
     assert!(b.failed());
     assert_eq!(b.to_bytes().len(), 1 + 1);
 }
+
+/// A persisted encapsulation state is accepted on its length alone
+/// (session-persistence.md, Braid), so a corrupted store can hand the second
+/// half of encapsulation coefficients outside the bound the KEM library states
+/// for its arithmetic. The wrapper refuses them (`tacenta_kem::encapsulate2`),
+/// and the Braid takes the `Failed` transition mlkem-braid.md's Failure section
+/// names for that half. Before that refusal, with every coefficient of the
+/// state at `i16::MAX`, this test panicked inside libcrux on its portable
+/// backend (`LIBCRUX_DISABLE_SIMD128=1` on aarch64, the `error2` polynomial is
+/// what overflows) and on NEON ran to its round limit, because the corrupted
+/// side produced a ciphertext from the state and never failed.
+#[test]
+fn a_restored_encapsulation_state_with_out_of_bound_coefficients_fails_closed() {
+    let mut r = rng(21);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    // Drive until one side holds an encapsulation state: tags 7 to 9.
+    let mut rounds = 0;
+    while !(7..=9).contains(&p.a.state_tag()) && !(7..=9).contains(&p.b.state_tag()) {
+        p.round(&mut r);
+        rounds += 1;
+        assert!(rounds < 1000, "no side reached an encapsulating state");
+    }
+    let a_holds = (7..=9).contains(&p.a.state_tag());
+    let holder = if a_holds { &p.a } else { &p.b };
+    let tag = holder.state_tag();
+    let mut bytes = holder.to_bytes().to_vec();
+
+    // The encapsulation state is the one 2,592-byte field; it is written
+    // `len(4) || bytes`, so find its big-endian length prefix, and require that
+    // it occurs exactly once so the corruption lands on that field.
+    let needle = (tacenta_kem::ENCAPS_STATE_LEN as u32).to_be_bytes();
+    let mut matches = Vec::new();
+    let mut i = 0;
+    while i + 4 + tacenta_kem::ENCAPS_STATE_LEN <= bytes.len() {
+        if bytes[i..i + 4] == needle {
+            matches.push(i + 4);
+        }
+        i += 1;
+    }
+    assert_eq!(matches.len(), 1, "one encapsulation-state length prefix");
+    let pos = matches[0];
+    // Every coefficient of the five polynomials to i16::MAX: far outside
+    // |c| <= 3328, and in `error2` the magnitude that overflowed.
+    for pair in bytes[pos..pos + 2560].chunks_exact_mut(2) {
+        pair.copy_from_slice(&i16::MAX.to_le_bytes());
+    }
+
+    // The reader accepts it: it checks the field's length and nothing else.
+    let restored = Braid::from_bytes(&bytes).expect("length-valid state restored");
+    assert_eq!(restored.state_tag(), tag);
+    assert!(restored.invariant());
+    if a_holds {
+        p.a = restored;
+    } else {
+        p.b = restored;
+    }
+
+    // Keep the honest peer talking until the restored side completes the
+    // second half of encapsulation on the corrupted state. It must refuse and
+    // go `Failed`, never panic, and never emit a key for that epoch.
+    let outputs_before = if a_holds {
+        p.a_out.len()
+    } else {
+        p.b_out.len()
+    };
+    let mut rounds = 0;
+    while !(if a_holds { p.a.failed() } else { p.b.failed() }) {
+        p.round(&mut r);
+        rounds += 1;
+        assert!(
+            rounds < 1000,
+            "the corrupted side never reached the second half"
+        );
+    }
+    let outputs_after = if a_holds {
+        p.a_out.len()
+    } else {
+        p.b_out.len()
+    };
+    assert_eq!(
+        outputs_after, outputs_before,
+        "a refused encapsulation must not yield an epoch key"
+    );
+    assert_eq!(
+        (if a_holds { &p.a } else { &p.b }).state_tag(),
+        11,
+        "Failed is tag 11"
+    );
+}
