@@ -56,8 +56,18 @@ accepted=0
 mkdir -p "$tree" "$regen" "$work/bin" "$work/tmp"
 subset=(tacenta-proofs/scripts/regenerate-in-container.sh tacenta-proofs/scripts/run-aeneas.sh tacenta-proofs/REPRODUCING.md
   'tacenta-proofs/translation/Translation/Tacenta*.lean' tacenta-core/Cargo.lock tacenta-core/session-unit README.md)
-(cd "$root" && git ls-files -z -- "${subset[@]}" | tar --null -T - -cf -) | tar -xf - -C "$tree"
-(cd "$root" && git ls-files -z -- "${subset[@]}" | tar --null -T - -cf -) | tar -xf - -C "$regen"
+# Copy the tracked files git lists, with their modes, one by one: a `tar -cf - | tar -xf -` pipe did
+# this before and failed under macOS's BSD tar with "Write error" before any case ran, so the local
+# gate on a Mac could not run this control. Plain `cp -p` is portable; the local gate on macOS is
+# the regression check for it.
+copy_tracked() { # <source root> <destination> [pathspecs...]
+  local src="$1" dst="$2"; shift 2
+  (cd "$src" && git ls-files -z -- "$@") | while IFS= read -r -d '' f; do
+    mkdir -p "$dst/$(dirname "$f")" && cp -p "$src/$f" "$dst/$f"
+  done
+}
+copy_tracked "$root" "$tree" "${subset[@]}"
+copy_tracked "$root" "$regen" "${subset[@]}"
 git -C "$tree" init -q
 git -C "$tree" add -A
 git -C "$tree" -c user.name=control -c user.email=control@example.invalid commit -q -m tree
@@ -111,7 +121,7 @@ printf '#!/bin/sh\nexit 0\n' >"$work/py-empty/python3"
 printf '#!/bin/sh\nprintf "compared 3\\n" >"$5"\nexit 0\n' >"$work/py-short/python3"
 chmod +x "$work/py-crash/python3" "$work/py-empty/python3" "$work/py-short/python3"
 
-reset_regen() { rm -rf "$regen" && mkdir -p "$regen" && (cd "$tree" && git ls-files -z | tar --null -T - -cf -) | tar -xf - -C "$regen"; }
+reset_regen() { rm -rf "$regen" && mkdir -p "$regen" && copy_tracked "$tree" "$regen"; }
 
 # change_byte FILE: change one byte (the one at offset 200, or the last of a shorter file).
 change_byte() {

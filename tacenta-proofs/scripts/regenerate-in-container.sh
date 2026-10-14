@@ -289,7 +289,11 @@ fi
 # 2. The tracked files as they are on disk now, in a directory the container mounts read-only.
 mkdir -p "$work/src" "$work/out"
 git -C "$root" ls-files | LC_ALL=C sort >"$work/tracked.txt"
-(cd "$root" && git ls-files -z | tar --null -T - -cf -) | tar -xf - -C "$work/src"
+# Copied file by file with their modes: a `tar -cf - | tar -xf -` pipe did this before and failed
+# under macOS's BSD tar ("Write error") before anything ran. The tree holds no tracked symlink.
+(cd "$root" && git ls-files -z) | while IFS= read -r -d '' f; do
+  mkdir -p "$work/src/$(dirname "$f")" && cp -p "$root/$f" "$work/src/$f"
+done
 echo "regenerate-in-container: tree $(git -C "$root" rev-parse HEAD), $(wc -l <"$work/tracked.txt" | tr -d ' ') tracked files as they are on disk, $(dirty_count) tracked path(s) differ from HEAD"
 echo "regenerate-in-container: host $(uname -sm), docker $(docker version --format '{{.Server.Version}} {{.Server.Os}}/{{.Server.Arch}}' 2>/dev/null || echo unknown)"
 
