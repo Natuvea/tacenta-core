@@ -153,7 +153,17 @@ MUTANTS = [
      [(r'    ∃ modelReason, tripleReceiveRefusalOfReal realReason = some modelReason ∧\n',
        '    ∃ modelReason,\n'),
       (r'  exact hpost realReason rfl\n',
-       '  exact (hpost realReason rfl).imp fun _ h => h.2\n')], PROOF,
+       '  exact (hpost realReason rfl).imp fun _ h => h.2\n'),
+      # and the closure's proof is adjusted to the weaker bridge, so that the one thing left to show
+      # is the public mapping itself, which nothing now provides: Lean must refuse with an unsolved goal
+      # `tripleReceiveRefusalOfReal reason = some modelReason` in `openRefusal_closes`, not with a
+      # pattern that no longer fits.
+      (r'  obtain ⟨modelReason, hmap, hdet⟩ := concrete_receive_attempt_refusal_from_retry_bounds tc\n',
+       '  obtain ⟨modelReason, hdet⟩ := concrete_receive_attempt_refusal_from_retry_bounds tc\n'),
+      (r'    bounds reason hcall\n  subst hout\n',
+       '    bounds reason hcall\n  subst hout\n'
+       '  have hmap : Tacenta.UnitLifecycleT3.tripleReceiveRefusalOfReal reason = some modelReason := by\n'
+       '    simp_all\n')], r'unsolved goals',
      ['openRefusal_closes']),
     ('completepinned', 'complete-statement-with-the-open-disjunct-pinned',
      [(r'        StepRefines trace dh oracle\.braidKem output\n'

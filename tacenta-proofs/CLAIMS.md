@@ -3699,8 +3699,8 @@ adds a hypothesis to the result it extends. They are not results about `Session:
   So at those states the generated receive never refuses with the classical `NoSendingChain`, which has no receive
   counterpart, and every refusal it returns is the model's, the two full-store refusals included. Two of its
   hypotheses, `SessionUnitSpqrT1.ZeroizeTotal` and `VecRetainTotal`, are among the three contract fields stronger than
-  the crate supports ("What is not shown" below), so like the rest of this section it cannot be applied to the shipped
-  functions until those fields are restated.
+  the crate supports ("What is not shown" below), so like the other results here that take a contract record it cannot be applied to the
+  shipped functions until those fields are restated.
 - `ratchet_receive_refusal_refines`, `ratchet_receive_tail_refusal_refines`, `ratchet_skip_refusal_refines`: the same for the
   classical ratchet's receive, its shared suffix and its skip: `TooManySkipped` and `SkippedStoreFull` from either skip,
   then `OutOfOrder`, `NoReceivingChain` and `ChainExhausted`, each the model's detailed refusal, in the model's order.
