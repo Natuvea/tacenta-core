@@ -20,8 +20,8 @@ branch and describe that tree, not `dea57eaf`. The reads of those rows were made
 reviewer independent of the maintainer has read them. The rows `E2E-01` and `DISPATCH-EVIDENCE-VACUITY` gained, on
 2026-10-03, a statement of what package F (the `decrypt_ratchet` refinement) changes, made by its author with the same
 tool assistance as the reads above. Four readers with the same tool assistance read them the same day, none independent of
-the maintainer, and the author revised them after their findings. The rows `DISPATCH-EVIDENCE-VACUITY` and `E2E-04`
-were also extended on 2026-10-03 for the joint decision of the clauses of `OracleOf` (item (12) of the first); neither
+the maintainer, and the author revised them after their findings. The rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-04` and `SESSION-CONTRACT-VACUITY`
+were also extended on 2026-10-03 for the joint decision of the clauses of `OracleOf` (item (12) of the first); no
 class changed. Item (12) and the extension of `E2E-04` have been read by their writer and by tool-assisted readers
 working for the maintainer; no reviewer independent of the maintainer has read them.
 

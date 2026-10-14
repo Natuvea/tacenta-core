@@ -50,15 +50,16 @@ this section says in one place what is not proved.
   message can reach a refusal that no theorem here describes. Most of the encrypt and decrypt lemmas also take the oracle
   record `OracleOf`. Its KEM, signing and `random32` clauses are shown to hold of the shipped functions, under laws read
   from the source. Its other clauses (DH, AEAD, KEM decapsulation, signature verification, identity validity) and the
-  record as a whole are shown satisfiable at the real constants under seven totality assumptions of the contract records
-  and two assumptions that the byte views of the DH and KEM key types are injective, none of them proved of the
-  shipped functions (a test, `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions on sampled
-  inputs; the two view assumptions are read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)").
+  record as a whole are shown satisfiable at the real constants under eleven laws: seven totality assumptions of the
+  contract records, the two random-source laws `SignFillsOnce64` and `KemShape`, and two assumptions that the byte views
+  of the DH and KEM key types are injective, none of them proved of the shipped functions (a test,
+  `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions and the two random-source laws on
+  sampled inputs; the two view assumptions are conditions on the caller's views, read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
   success clause is met as well by an oracle that never encapsulates; a guarded record that is not met by it is new, and
-  no theorem takes it. One part of what they
+  no consumer takes it. One part of what they
   do is proved of the translated code alone, with no contract record, no headroom and no model: what a
   refused call leaves behind, and which fields a successful one writes (the
   section "Proved (what a refused lifecycle call leaves behind, on the translated code)"
@@ -3786,7 +3787,7 @@ which a change to it passed the build and every gate. These are text pins: they 
 met. `attest.py` requires all of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`) and requires the `#print` form for the 89
 definition pins (`REQUIRED_PRINT_FORM`), because `#check @name` holds the type of a definition and not its body; `takeDraws`
 is held by its equation pin and may take either form. `check-attest-negatives.sh` deletes each axiom pin, and each of the model
-and record definition pins, in turn, and plants the `#check` form for six of them. In the model package, examples in
+and record definition pins, in turn, and plants the `#check` form for eight of them. In the model package, examples in
 `Model/Lifecycle.lean` hold `braidSendDrawCount` to `mlkem-braid.md` at one state of each of the twelve kinds and check the draws
 an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one. They are
 anonymous, so no gate requires them; the pin on `braidSendDrawCount` is the part that is required.
@@ -3887,7 +3888,9 @@ constants would become one in the model is an argument about derivations, not a 
 source is covered: `OracleOf` reads the RNG through a trace, and no result here concerns another source. No consumer takes
 `OracleOfGuarded`; the dispatch theorems take `OracleOf`, and their other records (the per-run evidence, the counted Braid
 agreement) are not decided here, so no dispatch theorem is shown non-vacuous by these results alone. None depends on a
-compiler-trust axiom: the generic and model results list the three standard axioms and `rand_core_1.error.Error`, and the
+compiler-trust axiom: the generic and model results list the three standard axioms, most of them with
+`rand_core_1.error.Error` (`liftView_spec`, `kemClauses_of_guarded` and `never_encapsulating_fails_guarded` list the three
+alone), and the
 bridges and the results at the real constants also list the opaque constants they mention. No proof chooses a width of
 `usize` (`oracleOf_joint_model` records `Usize.bounds_eq`), so each holds at both widths. Each has an axiom pin and a
 statement pin. The ten clause and law definitions, `oracleOfLaws`, `KemGuardedClause`, `OracleOfGuarded`, `OracleLaws`,
