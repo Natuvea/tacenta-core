@@ -1316,6 +1316,51 @@ REQUIRED_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly, and the guarded KEM record
+    # (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+    )]
     # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
     # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
     # `UnitLifecycleDecryptRatchetScreen.lean`.
@@ -1364,6 +1409,43 @@ REQUIRED_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: `UnitLifecycleTripleRefusalT3.lean`,
+    # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`,
+    # and the split form added to `UnitLifecycleDecryptRatchetT3.lean`.
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1393,6 +1475,22 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
+        # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
+        # compiler-evaluated constants, and the results that compose them on those of the discharged
+        # Triple receive refinement, no others.
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_continuation_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.triple_receive_refusal_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.concrete_receive_attempt_refusal_from_retry_bounds",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.receive_with_eviction_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
     }
 )
 
@@ -1853,6 +1951,77 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly: the statement of each result and the body of each
+    # new clause, law, record and model definition (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
@@ -1979,6 +2148,50 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: the statements, and the bodies of the definitions they are
+    # written in (`#print`).
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+        "OpenRefusalCloses",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -1990,6 +2203,48 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    # The new clauses, laws, records and model of the joint `OracleOf` decision.
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
+    # The integration screen's clauses and laws that `OracleLaws` and `OracleOf` name; they were on the
+    # statement-pin floor already and are held to the `#print` form here.
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
+        "GenerateFillsOnce64Of", "GenerateFillsOnce64",
+        "Random32Clause", "SigSignClause", "KemClauses",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",
@@ -2037,6 +2292,22 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.SessionUnitSpqrT3." + n for n in (
         "VecRetainAgrees",
         "RemoveSkippedAtAgrees",
+    )]
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "OpenRefusalCloses",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
