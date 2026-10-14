@@ -6,6 +6,7 @@
 #   run-build-evidence-pack-build-cases.sh  the build direction of the evidence-pack builder
 #   run-install-script-cases.sh  the digest and revision checks of the elan, actionlint and Lake installers
 #   check-generation-negatives.sh  the --check mode of the eleven assemble and port scripts
+#   run-regenerate-in-container-cases.sh  the comparison and the --check verdict of regenerate-in-container.sh, with a stub docker
 #   run-attest-negatives-shard-cases.sh  the sharding of check-attest-negatives.sh: a slice that is skipped, run
 #                                  twice or lost, a shard that fails or is killed, and the seam that cannot reach CI
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
@@ -28,4 +29,5 @@ bash "$root/tacenta-proofs/scripts/check-generation-negatives.sh"
 bash "$here/run-attest-negatives-shard-cases.sh"
 bash "$here/run-gate-inventory-cases.sh"
 bash "$here/run-mutate-gates-cases.sh"
+bash "$here/run-regenerate-in-container-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check

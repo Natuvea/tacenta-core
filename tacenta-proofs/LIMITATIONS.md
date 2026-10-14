@@ -173,7 +173,10 @@ excludes it.
   or the crate. That the recorded generation was produced by the pinned
   toolchain, and honestly, is not something the public tree can check: it is
   what the private verification workflow's drift step checks by
-  regenerating, and what any linux-x86_64 reader can check the same way.
+  regenerating, and what any linux-x86_64 reader can check the same way
+  (`scripts/regenerate-in-container.sh` does so in a container, and
+  `REPRODUCING.md` records one run of it by the maintainer's tool-assisted
+  session, which was not independent).
 - A declaration added with `set_option debug.skipKernelTC true` is checked
   by the elaborator and not by the kernel, and nothing in the environment
   says so afterwards. `Model.AxiomAudit`, which every package's build runs,
