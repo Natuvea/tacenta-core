@@ -40,6 +40,12 @@ import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleIntegrationScreen
+import Translation.UnitOracleShape
+import Translation.UnitOracleModel
+import Translation.UnitOracleDh
+import Translation.UnitOracleAead
+import Translation.UnitOracleKemSig
+import Translation.UnitOracleJoint
 import Translation.UnitLifecycleRetryLoopT3
 import Translation.UnitLifecycleDecryptRatchetT3
 import Translation.UnitLifecycleDecryptRatchetScreen
@@ -61,6 +67,9 @@ false field until it was restated for bounded decoders (`SessionBraidReceiveVacu
 `UnitSatisfiabilityRecords.lean` shows that the four records follow from an axiom base, over the
 unit's opaque constants, that one interpretation satisfies (`UnitSatisfiabilityJoint.lean`); that
 is an argument about derivations and not a statement that the real primitives meet the records.
+`UnitOracleJoint.lean` and the five modules beneath it show that `OracleOf` is inhabited under
+eleven laws, with a model; that is an argument about derivations and not a statement that the
+real primitives meet the laws.
 `DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
 initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every
