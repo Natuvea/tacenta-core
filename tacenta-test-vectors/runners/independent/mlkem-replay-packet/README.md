@@ -67,9 +67,8 @@ byte repeated 32 or 64 times, chosen so a reader can reproduce the outputs.
 
 On 2026-10-03 the project ran an earlier form of this brief itself, with a
 program and not with a person who did not write the model. That dry run is project-controlled and is not
-independent evidence. It matched every vector value it computed and 80 of 80
-published NIST ML-KEM-1024 cases. Its record is held and will be published
-together with yours. You are asked not to look for it, and your record asks
+independent evidence. Its result is held, so that it cannot prime your
+reading, and will be published together with yours. You are asked not to look for it, and your record asks
 whether you did.
 
 ## Who may do this

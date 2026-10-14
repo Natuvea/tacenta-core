@@ -3,7 +3,8 @@
 //! X25519 agreement class of the stored `established_ephemeral` under the session's
 //! `ratchet_private`, with both agreements contributory and their outputs equal.
 //!
-//! Each test refuses one wrong form of that comparison, and together they hold all of it:
+//! Each test refuses one wrong form of that comparison; together they hold the four forms listed
+//! here, not every wrong form:
 //!
 //! - a comparison that accepts any two contributory agreements, whatever their outputs, accepts a
 //!   repeat that carries another initiator's ephemeral (`another_contributory_ephemeral_is_refused`);

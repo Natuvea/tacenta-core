@@ -1,5 +1,6 @@
-//! Nothing a stored session or a peer can supply makes the agreement's own
-//! send enter `Failed`.
+//! The facts these tests hold are the ones that keep the agreement's own send
+//! from entering `Failed`; the send-side commit itself is reached by no test
+//! (register row `E2E-07-UNTESTED-CASES`).
 //!
 //! `Session::encrypt` commits the agreement's next state when that state is
 //! `Failed` (`self.braid = braid_next` in the `braid_next.failed()` branch).
@@ -124,7 +125,7 @@ fn responder_holding_a_header() -> (Vec<u8>, usize) {
 }
 
 /// A stored session whose received header is not 64 bytes is refused at the
-/// door, so the encapsulation never sees one.
+/// door, so in these cases the encapsulation is never asked to read one.
 ///
 /// The control is the unaltered export, which imports. Each altered copy
 /// carries a header of another length, with the header's own length prefix and
