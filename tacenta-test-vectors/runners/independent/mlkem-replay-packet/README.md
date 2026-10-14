@@ -7,11 +7,14 @@ small and to say, before it starts, exactly what is asked.
 
 It answers one open item, `HL-IMP-01-READER` in `GAP-REGISTER.md`:
 
-> A reader that computes the ML-KEM and Braid key-generation values except the
-> delegated `key_pair` (11,872 bytes in two vectors, never checked by an
-> independent reader; ADR-0006 point 5), and the skipped identity vector, written
-> or run by a person who did not write the model, with the run recorded; needed
-> before the Gate 3 review.
+> A reader that computes the ML-KEM and Braid key-generation values and the
+> skipped identity vector, written or run by a person who did not write the
+> model, with the run recorded; needed before the gate 3 review.
+
+This brief leaves out the delegated `key_pair` (11,872 bytes in two vectors,
+never checked by an independent reader; ADR-0006 point 5). The item still
+includes it until a recorded decision narrows it, so the brief covers the item
+only in part.
 
 The packet does not do that work and does not close the item. A person doing the
 work, and the record they write at the end, are what the item asks for. The
@@ -183,8 +186,8 @@ between the text and the implementation in those places would go unseen.
    vector uses.
 
    The stored `key_pair` is outside the task. Its layout is delegated to the KEM
-   library (`session-persistence.md`, Braid; ADR-0006 point 5) and the item
-   excludes it.
+   library (`session-persistence.md`, Braid; ADR-0006 point 5); this brief leaves
+   it out, while the register item still includes it.
 4. **R: keep the reader's gates true.** When a skip or an unchecked region goes
    away, update what documents it: `EXPECTED_SKIPS` in `run.py`, the tally
    sentences in `reader/README.md`, and the lists in `session_e2e.py` and
