@@ -1091,6 +1091,7 @@ UnitLifecycleTripleRefusalT3 Tacenta.UnitLifecycleTripleRefusalT3 derive_chain_l
 UnitLifecycleDecryptRatchetCompleteT3 Tacenta.UnitLifecycleDecryptRatchetCompleteT3 concrete_receive_attempt_refusal_from_retry_bounds openRefusal_closes receive_with_eviction_refines_complete decrypt_ratchet_refines_complete decrypt_ratchet_refines_complete_statement decrypt_ratchet_refines_complete_implies_refines
 UnitLifecycleDecryptRatchetCompleteScreen Tacenta.UnitLifecycleDecryptRatchetCompleteScreen ref_model_triple_refuses ref_premises ref_triple_refuses ref_headroom ref_run_satisfiable ref_model_refuses hypotheses_meet_open_path decrypt_ratchet_refines_complete_at_refusal generated_reaches_open_path
 UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 decrypt_ratchet_refines_or_open or_unless_closed
+UnitLifecycleDecryptT3 Tacenta.UnitLifecycleDecryptT3 decrypt_refines_ratchet_frame decrypt_refines_ratchet_frame_statement decrypt_refines_ratchet_frame_of_invariant succMessage_not_initial sampleMessage_not_initial decrypt_refines_ratchet_frame_at_refusal refReal_fails_invariant inv_sessionRefines inv_retryRunBounds inv_run_satisfiable inv_model_refuses decrypt_refines_ratchet_frame_of_invariant_at_sample
 LIST
 
 # The joint decision of the clauses of `OracleOf` (UnitOracle*.lean): every axiom pin, every statement
@@ -1462,7 +1463,8 @@ expect_fail "definition-pin-check-form-StepRefines" "is \`#check @Tacenta.UnitLi
 
 # Package F, the refusal closure (`UnitLifecycleTripleRefusalT3.lean`,
 # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`, and the
-# split form in `UnitLifecycleDecryptRatchetT3.lean`): each statement pin and each definition pin,
+# split form in `UnitLifecycleDecryptRatchetT3.lean`), and the public `decrypt` on frames that are not
+# initial messages (`UnitLifecycleDecryptT3.lean`): each statement pin and each definition pin,
 # deleted in turn, is refused as a missing statement pin.
 while IFS=' ' read -r file ns names; do
   for n in $names; do
@@ -1487,15 +1489,20 @@ UnitLifecycleTripleRefusalT3 Tacenta.UnitLifecycleTripleRefusalT3 derive_chain_l
 UnitLifecycleDecryptRatchetCompleteT3 Tacenta.UnitLifecycleDecryptRatchetCompleteT3 concrete_receive_attempt_refusal_from_retry_bounds openRefusal_closes receive_with_eviction_refines_complete decrypt_ratchet_refines_complete decrypt_ratchet_refines_complete_statement decrypt_ratchet_refines_complete_implies_refines DecryptRatchetRefinesCompleteStatement
 UnitLifecycleDecryptRatchetCompleteScreen Tacenta.UnitLifecycleDecryptRatchetCompleteScreen ref_model_triple_refuses ref_premises ref_triple_refuses ref_headroom ref_run_satisfiable ref_model_refuses hypotheses_meet_open_path decrypt_ratchet_refines_complete_at_refusal generated_reaches_open_path refTriple refHeader refModelHeader refModel refReal
 UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 decrypt_ratchet_refines_or_open or_unless_closed OpenRefusalCloses
+UnitLifecycleDecryptT3 Tacenta.UnitLifecycleDecryptT3 decrypt_refines_ratchet_frame decrypt_refines_ratchet_frame_statement decrypt_refines_ratchet_frame_of_invariant succMessage_not_initial sampleMessage_not_initial decrypt_refines_ratchet_frame_at_refusal refReal_fails_invariant inv_sessionRefines inv_retryRunBounds inv_run_satisfiable inv_model_refuses decrypt_refines_ratchet_frame_of_invariant_at_sample DecryptRefinesRatchetFrameStatement invReal
 LIST
 
-# The closure's statement definitions are on REQUIRED_PRINT_FORM: a pin rewritten as `#check @` is refused.
+# The closure's statement definitions, and the statement definition of `UnitLifecycleDecryptT3.lean`, are
+# on REQUIRED_PRINT_FORM: a pin rewritten as `#check @` is refused.
 make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleTripleRefusalT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\n'
 expect_fail "definition-pin-check-form-TripleReceiveRefusalRefines" "is \`#check @Tacenta.UnitLifecycleTripleRefusalT3.TripleReceiveRefusalRefines\`, which prints the type and not the body" --check
 make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleDecryptRatchetT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\n'
 expect_fail "definition-pin-check-form-OpenRefusalCloses" "is \`#check @Tacenta.UnitLifecycleDecryptRatchetT3.OpenRefusalCloses\`, which prints the type and not the body" --check
+make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleDecryptT3.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleDecryptT3.DecryptRefinesRatchetFrameStatement\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleDecryptT3.DecryptRefinesRatchetFrameStatement\n'
+expect_fail "definition-pin-check-form-DecryptRefinesRatchetFrameStatement" "is \`#check @Tacenta.UnitLifecycleDecryptT3.DecryptRefinesRatchetFrameStatement\`, which prints the type and not the body" --check
 
 # A definition on REQUIRED_PRINT_FORM is held by `#print`: its pin rewritten as `#check @`, which
 # prints the type and not the body, is refused, for a model definition and for a record. A floor
