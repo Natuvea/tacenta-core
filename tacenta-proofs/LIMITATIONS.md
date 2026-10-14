@@ -2138,11 +2138,23 @@ which a tag 8 restore does not repeat). That is tested, not proved:
 the 1,280 coefficient positions at the bound and one past it through
 `encapsulate2`, and fails on a panic, on a ciphertext from an out-of-bound
 state, or on a refusal of an in-bound one; its scan and random sweep are
-informational. It was run on this machine on the NEON and portable backends
-(the portable one by building with `LIBCRUX_DISABLE_SIMD128=1`); the `rust`
-job's `rust_portable_kem` step, added with this change, is the first hosted run
-of the portable backend, and until it has run the portable half is a local
-receipt. `IncrementalKeyPair::from_bytes` is also length-only; `decapsulate`
+informational. At the public surface,
+`a_restored_session_with_an_out_of_bound_encapsulation_state_fails_closed`
+(`lifecycle/src/lifecycle.rs`) exports a session that holds an encapsulation
+state, overwrites that state's coefficients with `i16::MAX`, restores the bytes
+through `Session::import`, and drives the restored session through `decrypt`
+and `encrypt` until it refuses with `AgreementFailed`; the restored session's
+own `encrypt` and `decrypt` then refuse. It needs write access to the stored
+blob; with the bound disabled it fails. The session it restores holds the
+encapsulation state as the responder (Braid tag 7), as does the Braid-level
+test's; both reach the refusal from tag 9 through transition (11). No test
+restores an out-of-bound state at tag 8 or 9, or reaches the refusal through
+transitions (9) or (12). Both tests were run on this
+machine on the NEON and portable backends (the portable one by building with
+`LIBCRUX_DISABLE_SIMD128=1`), not on AVX2; the `rust` job's
+`rust_portable_kem` step, added with this change, runs the KEM, Braid and
+lifecycle tests on the portable backend and is the first hosted run of that
+backend, and until it has run the portable half is a local receipt. `IncrementalKeyPair::from_bytes` is also length-only; `decapsulate`
 on a key pair with out-of-range coefficients in its secret polynomials returned
 on every pattern and random key pair tried, and that it never panics is not
 checked.
