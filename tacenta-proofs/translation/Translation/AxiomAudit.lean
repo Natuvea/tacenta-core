@@ -50,4 +50,4 @@ The numeric-precondition modules of the standalone leaves are walked here: `Nume
 `NumericBoundaryLeaf`, `NumericShapeWitness`, `NumericWitnessLeaf` and `DecodedStateDischarge`.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

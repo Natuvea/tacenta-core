@@ -22,6 +22,8 @@ root="$(cd "$here/../.." && pwd)"
 
 bash "$here/run-source-gate-cases.sh"
 bash "$here/run-proof-script-cases.sh"
+bash "$here/run-lean-constructs-cases.sh"
+bash "$here/run-check-refuted-records-cases.sh"
 bash "$here/run-install-script-cases.sh"
 bash "$here/run-build-evidence-pack-build-cases.sh"
 bash "$root/tacenta-proofs/scripts/check-generation-negatives.sh"

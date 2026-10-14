@@ -61,11 +61,13 @@ if os.environ.get("STUB_FAIL") == name:
     sys.exit(1)
 STUB
 }
-sh_controls=(check-lifecycle-translation-coverage-negatives.sh check-session-satisfiability-negatives.sh
+sh_controls=(check-lifecycle-translation-coverage-negatives.sh check-refuted-records.sh check-refuted-records-negatives.sh
+  check-session-satisfiability-negatives.sh
   check-port-negatives.sh check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh
   check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh
   check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh)
-py_controls=(check-lifecycle-translation-coverage.py check-initial-dispatch-negatives.py check-atomicity-negatives.py
+py_controls=(check-lifecycle-translation-coverage.py
+  check-initial-dispatch-negatives.py check-atomicity-negatives.py
   check-repair-negatives.py check-send-refusal-negatives.py check-sparse-store-full-negatives.py
   check-decrypt-ratchet-negatives.py attest.py)
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
@@ -125,7 +127,9 @@ honest_logs
 run_nosorry honest 0 'no-sorry: the model and its property theorems is complete'
 # Every control the script owns is called, and the kernel replay reaches all three packages.
 for called in check-translation-coverage.sh check-lifecycle-translation-coverage.py \
-  check-lifecycle-translation-coverage-negatives.sh check-session-satisfiability-negatives.sh \
+  check-lifecycle-translation-coverage-negatives.sh \
+  check-refuted-records.sh check-refuted-records-negatives.sh \
+  check-session-satisfiability-negatives.sh \
   check-port-negatives.sh check-initial-dispatch-negatives.py 'attest.py --compare-audit' \
   check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh \
   check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh \

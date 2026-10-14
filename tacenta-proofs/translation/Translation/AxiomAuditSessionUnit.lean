@@ -265,4 +265,4 @@ info: Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bou
 #guard_msgs in
 #check @Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
