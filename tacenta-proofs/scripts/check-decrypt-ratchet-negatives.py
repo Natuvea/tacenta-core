@@ -145,10 +145,16 @@ MUTANTS = [
      [(r'\(output\.map Tacenta\.SessionUnitTripleT3\.spqrOutputOf\) = \.error modelReason ⦄',
        '(output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error (.classical .outOfOrder) ⦄')],
      PROOF, ['triple_receive_refusal_refines']),
+    # The bridge's conclusion loses the public mapping, and its own proof is repaired to the weaker
+    # statement (the mapping conjunct dropped from what `hpost` gives), so that the refusal has to come
+    # from the closure that needs the mapping, `openRefusal_closes`, and not from a proof script that
+    # no longer matches its statement.
     ('complete', 'bridge-without-the-public-mapping',
      [(r'    ∃ modelReason, tripleReceiveRefusalOfReal realReason = some modelReason ∧\n',
-       '    ∃ modelReason,\n')], PROOF,
-     ['concrete_receive_attempt_refusal_from_retry_bounds', 'openRefusal_closes']),
+       '    ∃ modelReason,\n'),
+      (r'  exact hpost realReason rfl\n',
+       '  exact (hpost realReason rfl).imp fun _ h => h.2\n')], PROOF,
+     ['openRefusal_closes']),
     ('completepinned', 'complete-statement-with-the-open-disjunct-pinned',
      [(r'        StepRefines trace dh oracle\.braidKem output\n'
        r'          \(Model\.Lifecycle\.decryptRatchet view oracle model \(sliceOf message\)\)\n\n',

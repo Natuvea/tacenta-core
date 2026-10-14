@@ -3697,7 +3697,10 @@ adds a hypothesis to the result it extends. They are not results about `Session:
   header relation and the eleven numeric and store premises), if the generated Triple receive refuses with a reason, the
   reason's public mapping `tripleReceiveRefusalOfReal` is defined and `Model.Triple.receiveDetailed` returns that refusal.
   So at those states the generated receive never refuses with the classical `NoSendingChain`, which has no receive
-  counterpart, and every refusal it returns is the model's, the two full-store refusals included.
+  counterpart, and every refusal it returns is the model's, the two full-store refusals included. Two of its
+  hypotheses, `SessionUnitSpqrT1.ZeroizeTotal` and `VecRetainTotal`, are among the three contract fields stronger than
+  the crate supports ("What is not shown" below), so like the rest of this section it cannot be applied to the shipped
+  functions until those fields are restated.
 - `ratchet_receive_refusal_refines`, `ratchet_receive_tail_refusal_refines`, `ratchet_skip_refusal_refines`: the same for the
   classical ratchet's receive, its shared suffix and its skip: `TooManySkipped` and `SkippedStoreFull` from either skip,
   then `OutOfOrder`, `NoReceivingChain` and `ChainExhausted`, each the model's detailed refusal, in the model's order.
@@ -3726,8 +3729,9 @@ adds a hypothesis to the result it extends. They are not results about `Session:
   the first attempt or a retry; the bounds exclude the sparse `ChainExhausted`), an AEAD refusal and a success, with or
   without eviction rounds. Because three fields of the contract record it takes are stronger than the crate supports, it
   cannot be applied to the shipped functions until those fields are restated.
-- `decrypt_ratchet_refines_complete_implies_refines`: the complete statement implies the first form's statement, so the two
-  take the same hypotheses by proof, not only by reading their pins side by side.
+- `decrypt_ratchet_refines_complete_implies_refines`: the complete statement implies the first form's statement, so the
+  complete form assumes no hypothesis beyond the first form's (by proof); that the hypotheses are identical, not only
+  included, is shown by the two forms' statement pins, which differ in the conclusion alone.
 - `ref_premises`, `ref_model_triple_refuses`, `ref_triple_refuses`: at a Triple state whose classical receiving chain is at
   message number 1, and a header for message number 0 on that chain, every premise of the refusal theorem holds, the model
   refuses with the classical `outOfOrder`, which is not a full store, and, under the boundary the theorem takes, the

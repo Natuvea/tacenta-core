@@ -218,9 +218,10 @@ theorem decrypt_ratchet_refines_complete_statement : DecryptRatchetRefinesComple
   exact decrypt_ratchet_refines_complete rngCore cryptoRng trace dh view oracle oracleOf codec
     contracts agreements real model message rng hrel headroom htrace run
 
-/-- **The complete statement implies the first form's**, so the two take the same hypotheses by proof
-and not only by reading their pins side by side: every hypothesis of `DecryptRatchetRefinesStatement`
-is passed unchanged to `DecryptRatchetRefinesCompleteStatement`. -/
+/-- **The complete statement implies the first form's**, so the complete form assumes no hypothesis
+beyond the first form's, by proof. That the hypotheses are identical, not only included, is shown by
+the two forms' statement pins, which differ in the conclusion alone: every hypothesis of
+`DecryptRatchetRefinesStatement` is passed unchanged to `DecryptRatchetRefinesCompleteStatement`. -/
 theorem decrypt_ratchet_refines_complete_implies_refines :
     DecryptRatchetRefinesCompleteStatement → DecryptRatchetRefinesStatement := by
   intro h R rngCore cryptoRng trace dh view oracle oracleOf codec contracts inst agreements real
