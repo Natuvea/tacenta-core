@@ -499,7 +499,7 @@ info: 'Proofs.Serialization.decode_encode_composite' depends on axioms: [propext
 
 end Proofs.TrustedBase
 
-/- The statements of the three send theorems the fallible KEM introduced or restated, pinned so
+/- The statements of the four send theorems the fallible KEM introduced or restated, pinned so
    that a weakened statement fails the build as well as a changed axiom base. They sit
    outside the namespace and use full names, as `attest.py` requires of a statement pin. -/
 
