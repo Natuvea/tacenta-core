@@ -8,6 +8,7 @@ import Model.GroupCommitment
 import Model.IdentityKey
 import Model.Kdf
 import Model.Lifecycle
+import Model.LifecycleFrame
 import Model.LifecycleTrace
 import Model.Messages
 import Model.MultiDevice
