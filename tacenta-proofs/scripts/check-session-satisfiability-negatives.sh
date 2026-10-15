@@ -2,10 +2,11 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Eleven modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# Twelve modules carry that evidence: the three below, the six of the joint decision of OracleOf
 # (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), UnitOracleDecrypt.lean with
 # the model frame lemma it pins (also in the oracle group), and
-# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group):
+# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group), and UnitLifecycleDecryptScreen.lean
+# (the decrypt-joint group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -49,6 +50,13 @@
 #                 bundle and each weakened where the derivation takes it, each refused; the shape the
 #                 two models satisfy, with a field dropped or the pop law weakened, refused by its
 #                 binding to the laws; the model witness removed, refused by its pins.
+#   decrypt joint the hypotheses of the complete `decrypt_ratchet` refinement together at one witness
+#                 (UnitLifecycleDecryptScreen.lean): each of the fifteen laws removed from the bundle,
+#                 refused by the witness theorem or the main theorem; the agreements moved to another
+#                 oracle's KEM model, refused by the link to the refinement and, with the link removed,
+#                 by the statement pin of the hypothesis set; the oracle built at `oracleOfLaws`'s own KEM
+#                 model, refused by the main theorem; the model witness removed, refused by its pins;
+#                 and every theorem of the module required to carry an axiom pin.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -891,6 +899,81 @@ t = once(sp, "theorem spqrSessionLaws_model :", "theorem spqrSessionLaws_model_r
          "sparse-laws-remove-model")
 if t is not None:
     refused("sparse-laws-remove-model-witness", t, "Unknown constant")
+
+# -------------------------------------------------------------- decrypt joint
+# `UnitLifecycleDecryptScreen.lean`: the hypotheses of `decrypt_ratchet_refines_complete`, with
+# `Session::invariant`, together at one witness under the law bundle `DecryptJointLawsShape`, and one
+# interpretation of the bundle. Each law is removed from the bundle in a copy that keeps only the two
+# results that consume the bundle (the witness theorem and the main theorem; the projection lemma
+# `decryptJointLaws_named` and everything after the main theorem are cut), so a refusal shows that
+# one of those two needs the law. The agreements are then moved to another oracle's KEM model in the
+# hypothesis set: with the link `DecryptHypotheses.refines` kept, the link refuses it; with the link and
+# its pins removed and the proof adjusted so that it builds, the statement pin of `DecryptHypotheses`
+# refuses it. The oracle built with `oracleOfLaws`'s own KEM model (`toyKem`) in place of the chosen one
+# is refused by the main theorem. The model witness renamed is refused by its pins.
+jd = module("UnitLifecycleDecryptScreen")
+passes("decrypt-joint-unmodified", jd)
+jd_code = re.sub(r"/-.*?-/", "", jd, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", jd_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitLifecycleDecryptScreen\.{re.escape(t)}\n", jd):
+        wrong.append(f"theorem {t} of UnitLifecycleDecryptScreen has no axiom pin")
+NAMED_START = "/-- **Where each named law sits in the bundle.**"
+NAMED_END = "/-! ## The statement -/"
+CUT = "/-! ## What the model does at the witness -/"
+jd_core = nopins(jd)
+if jd_core.count(NAMED_START) == 1 and jd_core.count(NAMED_END) == 1 and jd_core.count(CUT) == 1:
+    jd_core = (jd_core[: jd_core.index(NAMED_START)] + jd_core[jd_core.index(NAMED_END): jd_core.index(CUT)]
+               + "end Tacenta.UnitLifecycleDecryptScreen\n")
+    passes("decrypt-joint-core-unmodified", jd_core)
+    for field in ["dhCodec : DhCodecShape I", "dhAgree : DhAgreeShape I", "aeadOpen : AeadOpenShape I",
+                  "viewInjective : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey",
+                  "codec : DhCodecOfShape I dh", "braid : BraidReceiveAxiom I", "triple : TripleReceiveAxiom I",
+                  "messageKeyMaterial : MessageKeyMaterialRoundTripShape I", "laws : StdLaws I",
+                  "truncatePrefix : TruncatePrefixShape I",
+                  "derivedKeys : Nonempty (ZeroizingModelShape I DerivedZ)", "agreements : T3Agreements I K",
+                  "roundTrips : ZeroizeRoundTripShapes I", "validKey : ValidKeyShape I",
+                  "optionEq : OptionEqU64Shape oeq"]:
+        name = field.split(" ")[0]
+        t = once(jd_core, f"  {field}\n", "", f"decrypt-joint-drop-{name}")
+        if t is not None:
+            refused(f"decrypt-joint-bundle-without-{name}", t,
+                    f"so it is not possible to project the field `{name}`")
+else:
+    wrong.append("decrypt-joint: the cut markers do not occur once each")
+# the agreements at another oracle's KEM model, in the hypothesis set
+AGR = "  agreements : DecryptRatchetAgreements oracle.braidKem\n"
+AGR_OTHER = "  agreements : ∃ other : Model.Lifecycle.Oracle, DecryptRatchetAgreements other.braidKem\n"
+t = once(jd, AGR, AGR_OTHER, "decrypt-joint-agreements-elsewhere")
+if t is not None:
+    t = once(t, "      agreements := ?_\n", "      agreements := ⟨oracle, ?_⟩\n", "decrypt-joint-agreements-elsewhere")
+if t is not None:
+    refused("decrypt-joint-agreements-at-another-oracle-refused-by-the-link", t,
+            "DecryptRatchetAgreements other.braidKem")
+    REFINES = re.search(r"/-- The hypothesis set is the theorem's:.*?h\.trace_eq h\.run\n", t, re.S)
+    t2 = t.replace(REFINES.group(0), "") if REFINES else None
+    if t2 is not None:
+        for kind in ("#print axioms ", "#check @"):
+            m = re.search(r"/--\ninfo: [^\n]*DecryptHypotheses\.refines.*?-/\n#guard_msgs in\n"
+                          + re.escape(kind) + r"Tacenta\.UnitLifecycleDecryptScreen\.DecryptHypotheses\.refines\n",
+                          t2, re.S)
+            t2 = t2.replace(m.group(0), "") if m else None
+            if t2 is None:
+                break
+    if t2 is None:
+        wrong.append("decrypt-joint-agreements-elsewhere: the link or its pins were not found")
+    else:
+        refused("decrypt-joint-agreements-at-another-oracle-refused-by-the-statement-pin", t2,
+                "DecryptHypotheses.agreements : ∃ other")
+# the oracle with the KEM model `oracleOfLaws` gives it (`toyKem`), not the one the agreements are at
+t = once(jd, "      L.viewInjective (byteTrace sampleRng) K\n",
+         "      L.viewInjective (byteTrace sampleRng) Model.Braid.toyKem\n", "decrypt-joint-oracle-at-toyKem")
+if t is not None:
+    refused("decrypt-joint-oracle-at-oracleOfLaws-own-kem", nopins(t), "Application type mismatch")
+# the model witness renamed: its pins refuse it
+t = once(jd, "theorem decrypt_joint_laws_model :", "theorem decrypt_joint_laws_model_removed :",
+         "decrypt-joint-remove-model")
+if t is not None:
+    refused("decrypt-joint-remove-model-witness", t, "Unknown constant")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))

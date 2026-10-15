@@ -60,7 +60,11 @@ this section says in one place what is not proved.
   `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions and the two random-source laws on
   sampled inputs; the two view assumptions are conditions on the caller's views, read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)"). The four clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of those laws
   (`DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and the DH view assumption), without the KEM and signing laws, at the
-  same source ("Proved (`DecryptOracleOf` from four laws ...)").
+  same source ("Proved (`DecryptOracleOf` from four laws ...)"). The whole hypothesis set of
+  `decrypt_ratchet_refines_complete`, with `Session::invariant`, holds together at one witness built for it, under named
+  laws that one interpretation satisfies, with the Braid agreements at the same oracle's KEM model ("Proved (the
+  hypotheses of the `decrypt_ratchet` refinement together ...)"); the witness does not carry an agreement chunk and its
+  model step is not fixed by the laws.
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4252,9 +4256,10 @@ toy primitives or from refusals and say nothing about the real ones; `DecryptOra
 frame lemma, the model's `decrypt` does not read them. Every theorem that takes `OracleOf` (the lifecycle and dispatch
 theorems of `UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean`) still has only `oracleOf_of_laws` and its eleven
 laws. Only the byte-stream source is covered; a source with no state of its own, such as `OsRng`, is outside the `random32`
-clause (`LIMITATIONS.md`, "The random source"). Not checked: that the four laws, the contract records and
-`DecryptRatchetAgreements` at the oracle's `braidKem` hold together at one interpretation; the lemma lets the caller choose
-the KEM and shows nothing about which KEMs meet those agreements. The frame lemma is about the model; what the translated
+clause (`LIMITATIONS.md`, "The random source"). The lemma lets the caller choose the KEM and shows nothing about which
+KEMs meet those agreements; that the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's
+`braidKem` hold together, at one witness and under named laws with a model, is the next section's
+(`decrypt_hypotheses_jointly_satisfiable`). The frame lemma is about the model; what the translated
 `decrypt_ratchet` calls is what the refinement theorems state. No proof chooses a width of `usize` and none depends on a
 compiler-trust axiom, so each result holds at both widths. Each of the six theorems has an axiom pin and a statement pin,
 in `UnitOracleDecrypt.lean`, and `InterpO.decrypt` and `dhViewD` have `#print` pins; `attest.py` requires them all
@@ -4268,6 +4273,94 @@ unchanged, which only the axiom pin refuses (the signing constant among the adde
 `decryptRatchet_oracle_frame` for one about a field `decrypt` does not read, each refused because the proof then fails.
 That shows the proof uses each equality, not that the swapped statement is false; `decrypt_oracle_frame` fails with it only
 because it calls the helper, and `dispatchDecrypt_oracle_frame` is not mutated.
+
+## Proved (the hypotheses of the `decrypt_ratchet` refinement together at one witness, under named laws with a model)
+
+Location: `Translation/UnitLifecycleDecryptScreen.lean`.
+
+`decrypt_ratchet_refines_complete` takes `DecryptOracleOf`, `DhCodecOf`, `DecryptRatchetContracts`, the class
+`DerivedKeysModel`, `DecryptRatchetAgreements` at the oracle's Braid KEM model, `SessionRefines`, `DecryptRatchetHeadroom`,
+the trace equation and `DecryptRatchetRun`. Before these results, parts of that set were shown satisfiable in different
+places: the four oracle clauses with a toy oracle at `toyKem` (`decrypt_boundary_has_a_model`), the clauses with the code's
+oracle from laws (`oracleOf_of_laws`, `decryptOracleOf_of_laws`), and the per-run records at runs over sessions that fail
+`Session::invariant`. These results show the whole set, with `Session::invariant` added, at one oracle, one state pair, one
+message and one source, under named laws, and show the laws satisfiable together in one interpretation. They are about the
+hypotheses of the refinement, not about the product. Their writer, a tool-assisted agent working for the maintainer, has
+read them; no reviewer independent of the maintainer has.
+
+- `decrypt_hypotheses_jointly_satisfiable`, `decrypt_hypotheses_jointly_satisfiable_statement`: the second is the first
+  as the proposition `DecryptHypothesesJointlySatisfiableStatement`. For every Braid KEM model `K` and DH view `dh` that meet
+  `DecryptJointLaws K dh`, there are an oracle with `oracle.braidKem = K`, a translated session `real` with
+  `Session::invariant real = ok true`, a model session, a message that the translated and model decoders both accept and
+  that is a ratchet frame (`Model.Lifecycle.messageType` returns `ratchet`, so the model's dispatch passes it through), and
+  a byte-stream source, at which every field of `DecryptHypotheses` holds, for every codeword view, at `byteRng`, `byteCrc`
+  and `byteTrace`. `DecryptHypotheses` is the hypothesis list of `decrypt_ratchet_refines_complete` at one choice of every
+  binder, with `Session::invariant` added; its agreements field is at the same oracle's `braidKem`. The oracle is the one
+  `decryptOracleOf_of_laws` builds (`oracleOfLaws` over `InterpO.decrypt`, the code read through its byte views) with its
+  draws set to the source's and its `braidKem` set to `K`. Its axioms are the three standard axioms and the 52 opaque
+  constants of the unit its statement and proof name (the 49 interpreted constants of `Interp.real` with the error type
+  inside `RngCore`, `Option::eq` on `u64`, and `kem::ciphertext_len`, which `Session::invariant` calls); no compiler-trust
+  axiom.
+- `decrypt_hypotheses_at_invReal`, `invReal_sessionRefines`, `invReal_headroom`, `invReal_retryRunBounds`, `invReal_run`,
+  `sampleMessage_type`: the first is the same at the explicit witness, and the other five are its parts. The session is `invReal k pkb ad a`, which is
+  `UnitHeadroomSatisfiable.sessionOf` with one key `pkb` as both identities, `pkb = public_key(k)` with canonical
+  prime-order bytes `a`, `ad = identity_ad(pkb, pkb)` (66 bytes), no pending initial message, no established ephemeral
+  key, a Triple state over fresh chains and a Braid in `KeysUnsampled`. The model session is `modelOf dh` of it. The message
+  is `sampleMessage`, a composite whose ratchet key is 32 zero bytes, with no agreement chunk and an empty ciphertext. The
+  source is `sampleRng`, one 32-byte draw. `invReal_run` holds for every view and every oracle with that KEM model.
+- `DecryptHypotheses.refines`: `decrypt_ratchet_refines_complete` applies to every `DecryptHypotheses`, so the record is
+  the theorem's hypothesis list and a hypothesis added to the theorem and not to the record stops the module building. It
+  is compiler-trusted: it lists the nine per-declaration `native_decide` axioms the theorem rests on.
+- `decryptJointLaws_named`: the bundle at the real constants gives, by projection, `DhCodecTotal`, `DhAgreeTotal`,
+  `AeadOpenTotal` and the DH view law (the four laws of `decryptOracleOf_of_laws`); `SessionUnitBraidT1.ArrayZeroizeTotal`,
+  `SessionUnitSpqrT1.ZeroizeTotal` and `LawVecZeroize` (the three zeroize fields stated at the unit's instances);
+  `LawPop`, `LawAsMut`, `LawCapacity`, `LawVecZeroize` and `ZeroizeTotal` (the five laws the two sparse agreements are
+  derived from); and `KemAgreesFor K`.
+- `decrypt_joint_laws_model`, `decrypt_joint_laws_satisfiable`, `modelDecrypt_validKey`: one interpretation,
+  `Interp.modelDecrypt` (`UnitLifecycleDecryptRatchetScreen.lean`), with its view `viewDecrypt`, the KEM model `toyKem` and
+  `optionEqImpl` (the standard library's definition of `Option::eq`), satisfies every field of `DecryptJointLawsShape`
+  together. Their axioms are the three standard axioms and `rand_core_1.error.Error`.
+- `invReal_model_refuses_of_agreement`, `invReal_agreement_is_real`: at the witness, the model's step refuses at the first
+  agreement with `nonContributoryAgreement` if the oracle's agreement refuses the all-zero key; at an oracle meeting
+  `DecryptOracleOf`, with a view meeting `DhCodecOf`, that agreement is the real `agree` on the key
+  `PublicKeyBytes::from_bytes` returns for 32 zero bytes, read through the views.
+
+The laws, `DecryptJointLawsShape` at `Interp.real` (`DecryptJointLaws`), are fifteen fields, each assumed, none proved of
+the shipped functions: `dhCodec`, `dhAgree`, `aeadOpen`, `viewInjective` (the four laws of `decryptOracleOf_of_laws`);
+`codec` (`DhCodecOf`); `braid`, `triple`, `messageKeyMaterial` (the axiom-level parts of `DecryptRatchetContracts` other
+than its three primitive fields; they hold the three zeroize fields at the unit's instances, `LawCapacity` and
+`LawVecZeroize`); `laws` (`StdLaws`, with `LawPop` and `LawAsMut`); `truncatePrefix` (`TruncatePrefix`); `derivedKeys` (the
+class `DerivedKeysModel`); `agreements` (the Braid KEM agreements at `K` and the KDF agreements); `roundTrips` (the five
+`zeroize` round trips); `validKey` and `optionEq` (the two assumptions of `sessionOf_invariant`). The fifteen are
+sufficient and not shown necessary.
+
+The Braid KEM model. `decryptOracleOf_of_laws` lets the caller choose the oracle's `braidKem`; these results choose `K`, the
+model at which the agreements are assumed, so the agreements are at the same oracle's `braidKem`. Before that choice the
+oracle `oracleOfLaws` builds carries `toyKem` (from `Model.Lifecycle.Examples.toyOracle`), and the agreements are not shown
+there at the real constants: by reading they fail, since `KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64 and the
+crate's is 1408. The oracle's other KEM fields (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not
+related to `K`; the model's `decrypt` does not read them (`decrypt_oracle_frame`). That some `K` meets the agreements at the
+real constants is assumed; in the model it is `toyKem`.
+
+What these do not show. The state is built for the hypotheses: it is not shown to be produced by `establish_initiator`,
+`establish_responder` or `import`, and it has no pending initial message, no established ephemeral key and no receiving
+chain. The laws are assumed. The oracle is the code read through its byte views, not a specification of X25519 or the
+AEAD, and nothing is shown of the primitives. The run carries no agreement chunk, so the chunk and honest fields of
+`DecryptRatchetRun` hold by their arm for a message without one. Which way the model's step at the witness goes is not
+fixed by the laws: it refuses at the first agreement if the real agreement refuses the all-zero key, which no law states;
+by reading `tacenta-core/boundary/src/dh.rs` (`agree` returns `None` on a non-contributory result, which the all-zero key
+gives) it does, and in the model interpretation it does too. So the witness does not exercise the Triple receive, the
+AEAD, an eviction round or a success. The substitution step, from the model of the laws to the hypotheses at the real
+constants, is an argument about derivations and not a theorem inside Lean (`LIMITATIONS.md`). Only the byte-stream source is
+covered. No proof chooses a width of `usize` (the bounds used, `usize_max_ge` and `cMax_usize`, hold at both) and only
+`DecryptHypotheses.refines` depends on a compiler-trust axiom, so each result holds at both widths; no hypothesis of the
+set is width-dependent at this witness. Each of the fifteen theorems has an axiom pin and a statement pin, and `invReal`,
+`DecryptJointLawsShape`, `DecryptJointLaws`, `DecryptHypotheses` and `DecryptHypothesesJointlySatisfiableStatement` have
+`#print` pins; `attest.py` requires them all. `check-session-satisfiability-negatives.sh` removes each of the fifteen laws
+from the bundle, in a copy holding only the two theorems that consume it, each refused; moves the agreements of
+`DecryptHypotheses` to another oracle's KEM model, refused by `DecryptHypotheses.refines` and, with that link and its pins
+removed and the proof adjusted so that it builds, by the statement pin of `DecryptHypotheses` alone; builds the oracle at
+`toyKem` in place of `K`, refused by the main theorem; and renames the model witness, refused by its pins.
 
 ## Proved (bounded P6 session lifecycle observations)
 

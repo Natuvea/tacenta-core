@@ -53,6 +53,7 @@ import Translation.UnitLifecycleDecryptRatchetScreen
 import Translation.UnitLifecycleTripleRefusalT3
 import Translation.UnitLifecycleDecryptRatchetCompleteT3
 import Translation.UnitLifecycleDecryptRatchetCompleteScreen
+import Translation.UnitLifecycleDecryptScreen
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -76,6 +77,9 @@ eleven laws, with a model; that is an argument about derivations and not a state
 real primitives meet the laws.
 `UnitOracleDecrypt.lean` gives `DecryptOracleOf`, the four clauses the decrypt refinements take,
 from four of those laws, without the KEM and signing laws.
+`UnitLifecycleDecryptScreen.lean` shows the hypotheses of the complete `decrypt_ratchet` refinement,
+with `Session::invariant`, together at one witness under named laws that one interpretation satisfies,
+the agreements at the same oracle's KEM model; the witness state is built for the hypotheses.
 `DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
 initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every

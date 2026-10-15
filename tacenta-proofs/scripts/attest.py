@@ -1485,6 +1485,25 @@ REQUIRED_PINS = frozenset(
         "DecryptRatchetAgreements.vecRetainAgrees",
         "DecryptRatchetAgreements.removeSkippedAtAgrees",
     )]
+    # The hypotheses of the complete `decrypt_ratchet` refinement, with `Session::invariant`, together at
+    # one witness under named laws, and one interpretation of the laws (`UnitLifecycleDecryptScreen`).
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal_sessionRefines",
+        "invReal_headroom",
+        "invReal_retryRunBounds",
+        "invReal_run",
+        "sampleMessage_type",
+        "decryptJointLaws_named",
+        "DecryptHypotheses.refines",
+        "decrypt_hypotheses_at_invReal",
+        "decrypt_hypotheses_jointly_satisfiable",
+        "decrypt_hypotheses_jointly_satisfiable_statement",
+        "invReal_model_refuses_of_agreement",
+        "invReal_agreement_is_real",
+        "modelDecrypt_validKey",
+        "decrypt_joint_laws_model",
+        "decrypt_joint_laws_satisfiable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1530,6 +1549,8 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
+        # The joint hypothesis set applied to `decrypt_ratchet_refines_complete` inherits its constants.
+        "Tacenta.UnitLifecycleDecryptScreen.DecryptHypotheses.refines",
     }
 )
 
@@ -2282,6 +2303,30 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DecryptRatchetAgreements.vecRetainAgrees",
         "DecryptRatchetAgreements.removeSkippedAtAgrees",
     )]
+    # The joint hypothesis set: every result's statement, the witness session, the law bundle and its
+    # real form, the hypothesis set and the statement (`UnitLifecycleDecryptScreen`).
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal_sessionRefines",
+        "invReal_headroom",
+        "invReal_retryRunBounds",
+        "invReal_run",
+        "sampleMessage_type",
+        "decryptJointLaws_named",
+        "DecryptHypotheses.refines",
+        "decrypt_hypotheses_at_invReal",
+        "decrypt_hypotheses_jointly_satisfiable",
+        "decrypt_hypotheses_jointly_satisfiable_statement",
+        "invReal_model_refuses_of_agreement",
+        "invReal_agreement_is_real",
+        "modelDecrypt_validKey",
+        "decrypt_joint_laws_model",
+        "decrypt_joint_laws_satisfiable",
+        "invReal",
+        "DecryptJointLawsShape",
+        "DecryptJointLaws",
+        "DecryptHypotheses",
+        "DecryptHypothesesJointlySatisfiableStatement",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2414,6 +2459,13 @@ REQUIRED_PRINT_FORM = frozenset(
         "LawAsMut",
         "LawCapacity",
         "LawVecZeroize",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal",
+        "DecryptJointLawsShape",
+        "DecryptJointLaws",
+        "DecryptHypotheses",
+        "DecryptHypothesesJointlySatisfiableStatement",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

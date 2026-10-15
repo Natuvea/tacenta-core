@@ -2522,9 +2522,10 @@ lifecycle and dispatch theorem that takes `OracleOf`. The model frame lemma `dec
 (`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads only the oracle's `draws`,
 `braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the oracle fields this route takes from the model's toy primitives, or
 sets to refusals, are not read by the model's `decrypt`. The four laws keep the status the table gives them: assumed, not
-proved of the shipped functions. Not checked: that the four laws, the contract records and `DecryptRatchetAgreements` at
-the oracle's `braidKem` hold together at one interpretation; the lemma lets the caller choose the KEM and shows nothing
-about which KEMs meet those agreements.
+proved of the shipped functions. The lemma lets the caller choose the KEM and shows nothing about which KEMs meet those
+agreements; that the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's `braidKem` hold
+together is shown at one witness, under named laws with a model, in the `decrypt_ratchet` section below ("The hypotheses
+together, at one witness").
 
 The two view laws are conditions on the views a caller passes, not on the primitives. Each of the seven clauses the
 integration screen left open says that a primitive returns and that the view of its result depends only on the views of
@@ -2764,6 +2765,46 @@ which branch the shipped code takes; for the fourth, `generated_reaches_open_pat
 the boundary records. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
 store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
 invariant refuses.
+
+**The hypotheses together, at one witness.** `decrypt_hypotheses_jointly_satisfiable`
+(`Translation/UnitLifecycleDecryptScreen.lean`) shows every hypothesis of `decrypt_ratchet_refines_complete`, with
+`Session::invariant`, holding together at the real constants and the byte-stream source, at one oracle, one state pair,
+one message and one source, for every codeword view, under fifteen laws (`DecryptJointLaws K dh`, a bundle whose fields
+are listed in `CLAIMS.md`), and `decrypt_joint_laws_model` shows one interpretation satisfying all fifteen together. The
+oracle is the one `decryptOracleOf_of_laws` builds, with its `braidKem` set to the KEM model `K` at which the Braid
+agreements are assumed, so the agreements are at the same oracle's `braidKem`. That choice is what the result rests on:
+the oracle `oracleOfLaws` builds carries `toyKem` before it, and by reading the agreements fail there at the real
+constants (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; it is 1408). That some `K` meets the agreements at the
+real constants is assumed, together with `ValidateEkAgrees K` above; in the model it is `toyKem`. What the joint witness
+is not:
+
+- The state is built for the hypotheses. It is `UnitHeadroomSatisfiable.sessionOf` with one key as both identities, the
+  66-byte associated data `identity_ad` computes, no pending initial message, no established ephemeral key, no receiving
+  chain and a Braid in `KeysUnsampled`. It passes `Session::invariant` under `ValidKeyShape` and `OptionEqU64Shape`
+  (both laws of the bundle). It is not shown to be produced by `establish_initiator`, `establish_responder` or `import`.
+- The fifteen laws are assumed, not proved of the shipped functions; they are sufficient and not shown necessary. That
+  they hold together is shown in the substitution sense of the section on the four contract records, an argument about
+  derivations and not a theorem inside Lean.
+- The oracle is the code read through its byte views (`oracleOfLaws` over `InterpO.decrypt`); nothing is shown of X25519,
+  the AEAD, the KDFs, ML-KEM or `zeroize`.
+- The run carries no agreement chunk; the chunk and honest fields of `DecryptRatchetRun` hold by their arm for a message
+  without one. A run carrying a chunk into a decoder that already holds one is not reached.
+- The model's step at the witness is not fixed by the laws. The message's ratchet key is 32 zero bytes, and the step refuses
+  at the first agreement with `nonContributoryAgreement` if the oracle's agreement refuses that key
+  (`invReal_model_refuses_of_agreement`); at this oracle that agreement is the real `agree` on the key
+  `PublicKeyBytes::from_bytes` returns for 32 zero bytes (`invReal_agreement_is_real`), which no law states. By reading
+  `tacenta-core/boundary/src/dh.rs` it refuses (`agree` returns `None` on a non-contributory result, which the all-zero key
+  gives), and in the model interpretation it refuses. So the witness does not exercise the Triple receive, the AEAD, the
+  eviction loop or a success; the earlier runs above do, over sessions that fail `Session::invariant`.
+- Only the byte-stream source is covered (the paragraph on the random source above).
+- `check-hypothesis-witnesses.sh` does not read the `CLAIMS.md` section of these results (its heading names no tier). A
+  law added to the bundle, or a hypothesis added to `decrypt_ratchet_refines_complete`, is held by the `#print` pins of
+  `DecryptJointLawsShape` and `DecryptHypotheses`, by `DecryptHypotheses.refines` and by the build, and by no other gate.
+- These results have been read by their writer, a tool-assisted agent working for the maintainer; no reviewer independent
+  of the maintainer has read them.
+
+No proof here chooses a width of `usize`, and only `DecryptHypotheses.refines` depends on a compiler-trust axiom (the nine
+of the refinement), so each result holds at both widths; no hypothesis of the set is width-dependent at this witness.
 
 **The path the first form left open.** On a run whose output is a Triple refusal with a reason other than a full store,
 the first form says nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of
