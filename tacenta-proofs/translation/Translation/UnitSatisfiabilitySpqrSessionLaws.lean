@@ -13,7 +13,9 @@ that index erased.  A model of the opaque constants cannot change what they say,
 witness; the decrypt refinement took them as assumptions.
 
 This module proves both, by stepping through the translated code, from five laws about the opaque
-constants the bodies reach.  Each law is stated once, elsewhere, and named here:
+constants the bodies reach.  Each law is stated once as a named definition, elsewhere, and named
+here; the copies are bound to it by the kernel (`spqrSessionLaws_iff` by unfolding, and a contract
+conjunct or a `StdLaws` field passed where the named law is expected):
 
 * `UnitSatisfiabilityRatchet.LawPop`: `Vec::pop` of a non-empty vector returns the vector without its
   last element.

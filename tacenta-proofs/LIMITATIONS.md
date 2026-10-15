@@ -2708,8 +2708,8 @@ the two fields `pop` and `asMut` of `DecryptRatchetAgreements`; and three laws t
 `LawCapacity` (`Vec::capacity` returns) and `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
 skipped-key stores), the first two conjuncts of `SessionUnitSpqrT1.VecRetainTotal`, and `SessionUnitSpqrT1.ZeroizeTotal`
 (`Array::zeroize` returns at the blanket `u8` instance on a 32-byte array). `RemoveSkippedAtAgrees` uses the pop and
-array laws; `VecRetainAgrees` uses all five. None of the five is proved of the real functions; each is the documented
-behaviour, tested only by reading. What is shown of them is consistency: they hold in the joint model `Interp.model`, in
+array laws; `VecRetainAgrees` uses all five. None of the five is proved of the real functions or tested; each is assumed,
+and matches the documented behaviour by reading only. What is shown of them is consistency: they hold in the joint model `Interp.model`, in
 which every axiom-level field of the four contract records holds (`spqrSessionLaws_model`), and in the interpretation of
 `UnitSatisfiabilityZeroizeScope.lean` whose wipes propagate a failing element's failure (`faithful_SpqrSessionLaws`), in the
 substitution sense above; and an interpretation whose `Vec::pop` leaves a vector unchanged fails them

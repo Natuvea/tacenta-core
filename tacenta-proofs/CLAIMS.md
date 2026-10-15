@@ -3192,7 +3192,9 @@ constants, built on the removal and loop specifications of `UnitSatisfiabilityRa
 platform width. They are results about hypotheses and not about the product: each is conditional on exactly the laws its
 statement names.
 
-The five laws are assumed, each stated once, and none is proved of the real functions (`LIMITATIONS.md`, "The laws, as
+The five laws are assumed, each stated once as a named definition (the copies, in `StdLaws`, `SpqrSessionLawsShape` and
+the first two conjuncts of `VecRetainTotal`, are bound to it by the kernel: `spqrSessionLaws_iff` by unfolding,
+`triple.vecRetain.1` passed as `LawCapacity`, `hL.pop` as `LawPop`), and none is proved of the real functions (`LIMITATIONS.md`, "The laws, as
 assumptions about the real standard-library and `zeroize` functions"): `UnitSatisfiabilityRatchet.LawPop` (`Vec::pop` of a
 non-empty vector returns the vector without its last element), `LawAsMut` (`Option::as_mut` returns, at every type),
 `LawCapacity` (`Vec::capacity` returns), `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
@@ -3732,7 +3734,12 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
   proof of `decrypt_ratchet_refines` passes them to the loop theorem, so neither agreement, each a statement about
   translated functions, is a hypothesis of the decrypt theorems; the two laws are, and they are assumed
   (`UnitSatisfiabilitySpqrSessionLaws.lean`; the section on the Session unit's sparse agreements). Each rests on 31 of the
-  unit's axioms, the opaque constants the types of the record and of `TripleReceiveContracts` mention.
+  unit's axioms, the opaque constants the types of the record and of `TripleReceiveContracts` mention. Every theorem
+  that takes `DecryptRatchetAgreements` (`decrypt_ratchet_refines` and its `_statement`, `_or_open`, `_unless_open`,
+  `_at_sample` and `_at_eviction`, `decrypt_ratchet_refines_complete` and its `_complete_statement` and
+  `_complete_at_refusal`, and `generated_reaches_open_path`) therefore states a formally different proposition under
+  unchanged text, carried by the record's `#print` pin: `LawPop` and `LawAsMut` in place of the two agreements; with
+  `contracts.triple` the new hypotheses imply the old, and the converse is not shown (the laws quantify over every type).
 - `decrypt_ratchet_refines_unless_open`: under the same hypotheses, for every output that does not satisfy
   `TripleRefusalOpen`, `StepRefines` holds. A conclusion widened at the theorem level, with `TripleRefusalOpen` as it is,
   breaks this proof and not only a pin.
