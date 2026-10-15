@@ -266,14 +266,14 @@ axiom tacenta_kem.CT1_LEN : Result Std.Usize
 axiom tacenta_kem.CT2_LEN : Result Std.Usize
 
 /-- [tacenta_kem::IncrementalKeyPair]
-    Source: 'kem/src/lib.rs', lines 81:0-81:29
+    Source: 'kem/src/lib.rs', lines 85:0-85:29
     Name pattern: [tacenta_kem::IncrementalKeyPair]
     Visibility: public -/
 @[rust_type "tacenta_kem::IncrementalKeyPair"]
 axiom tacenta_kem.IncrementalKeyPair : Type
 
 /-- [tacenta_kem::{impl core::clone::Clone for tacenta_kem::IncrementalKeyPair}::clone]:
-    Source: 'kem/src/lib.rs', lines 80:9-80:14
+    Source: 'kem/src/lib.rs', lines 84:9-84:14
     Name pattern: [tacenta_kem::{core::clone::Clone<tacenta_kem::IncrementalKeyPair>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -282,7 +282,7 @@ axiom tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone
   : tacenta_kem.IncrementalKeyPair → Result tacenta_kem.IncrementalKeyPair
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::generate]:
-    Source: 'kem/src/lib.rs', lines 89:4-89:96
+    Source: 'kem/src/lib.rs', lines 93:4-93:96
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::generate]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::generate"]
@@ -293,7 +293,7 @@ axiom tacenta_kem.IncrementalKeyPair.generate
     tacenta_kem.KemError) × R)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header]:
-    Source: 'kem/src/lib.rs', lines 104:4-104:35
+    Source: 'kem/src/lib.rs', lines 108:4-108:35
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header"]
@@ -301,7 +301,7 @@ axiom tacenta_kem.IncrementalKeyPair.header
   : tacenta_kem.IncrementalKeyPair → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector]:
-    Source: 'kem/src/lib.rs', lines 109:4-109:38
+    Source: 'kem/src/lib.rs', lines 113:4-113:38
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector"]
@@ -309,7 +309,7 @@ axiom tacenta_kem.IncrementalKeyPair.ek_vector
   : tacenta_kem.IncrementalKeyPair → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate]:
-    Source: 'kem/src/lib.rs', lines 114:4-114:98
+    Source: 'kem/src/lib.rs', lines 118:4-118:98
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate"]
@@ -326,7 +326,7 @@ axiom tacenta_kem.IncrementalKeyPair.decapsulate
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes]:
-    Source: 'kem/src/lib.rs', lines 139:4-139:48
+    Source: 'kem/src/lib.rs', lines 143:4-143:48
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes"]
@@ -336,7 +336,7 @@ axiom tacenta_kem.IncrementalKeyPair.to_bytes
     Std.U8))
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes]:
-    Source: 'kem/src/lib.rs', lines 144:4-144:75
+    Source: 'kem/src/lib.rs', lines 148:4-148:75
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes"]
@@ -346,14 +346,14 @@ axiom tacenta_kem.IncrementalKeyPair.from_bytes
     tacenta_kem.KemError)
 
 /-- [tacenta_kem::EncapsState]
-    Source: 'kem/src/lib.rs', lines 162:0-162:22
+    Source: 'kem/src/lib.rs', lines 166:0-166:22
     Name pattern: [tacenta_kem::EncapsState]
     Visibility: public -/
 @[rust_type "tacenta_kem::EncapsState"]
 axiom tacenta_kem.EncapsState : Type
 
 /-- [tacenta_kem::{impl core::clone::Clone for tacenta_kem::EncapsState}::clone]:
-    Source: 'kem/src/lib.rs', lines 161:9-161:14
+    Source: 'kem/src/lib.rs', lines 165:9-165:14
     Name pattern: [tacenta_kem::{core::clone::Clone<tacenta_kem::EncapsState>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -362,7 +362,7 @@ axiom tacenta_kem.EncapsState.Insts.CoreCloneClone.clone
   : tacenta_kem.EncapsState → Result tacenta_kem.EncapsState
 
 /-- [tacenta_kem::{tacenta_kem::EncapsState}::to_bytes]:
-    Source: 'kem/src/lib.rs', lines 168:4-168:48
+    Source: 'kem/src/lib.rs', lines 172:4-172:48
     Name pattern: [tacenta_kem::{tacenta_kem::EncapsState}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::EncapsState}::to_bytes"]
@@ -371,7 +371,7 @@ axiom tacenta_kem.EncapsState.to_bytes
   tacenta_kem.EncapsState → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_kem::{tacenta_kem::EncapsState}::from_bytes]:
-    Source: 'kem/src/lib.rs', lines 173:4-173:68
+    Source: 'kem/src/lib.rs', lines 184:4-184:68
     Name pattern: [tacenta_kem::{tacenta_kem::EncapsState}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::EncapsState}::from_bytes"]
@@ -381,7 +381,7 @@ axiom tacenta_kem.EncapsState.from_bytes
     tacenta_kem.KemError)
 
 /-- [tacenta_kem::encapsulate1]:
-    Source: 'kem/src/lib.rs', lines 187:0-190:70
+    Source: 'kem/src/lib.rs', lines 235:0-238:70
     Name pattern: [tacenta_kem::encapsulate1]
     Visibility: public -/
 @[rust_fun "tacenta_kem::encapsulate1"]
@@ -393,7 +393,7 @@ axiom tacenta_kem.encapsulate1
     × R)
 
 /-- [tacenta_kem::encapsulate2]:
-    Source: 'kem/src/lib.rs', lines 218:0-218:87
+    Source: 'kem/src/lib.rs', lines 273:0-273:87
     Name pattern: [tacenta_kem::encapsulate2]
     Visibility: public -/
 @[rust_fun "tacenta_kem::encapsulate2"]
@@ -403,7 +403,7 @@ axiom tacenta_kem.encapsulate2
     (alloc.vec.Vec Std.U8) tacenta_kem.KemError)
 
 /-- [tacenta_kem::validate_ek]:
-    Source: 'kem/src/lib.rs', lines 233:0-233:59
+    Source: 'kem/src/lib.rs', lines 311:0-311:59
     Name pattern: [tacenta_kem::validate_ek]
     Visibility: public -/
 @[rust_fun "tacenta_kem::validate_ek"]

@@ -65,6 +65,10 @@ pub const CT1_LEN: usize = 1408;
 /// The remaining half, 160 bytes. `CT2_SIZE`.
 pub const CT2_LEN: usize = 160;
 
+/// The serialized encapsulation state's length, 2,592 bytes: the one length
+/// `EncapsState::from_bytes` accepts (session-persistence.md, Braid).
+pub const ENCAPS_STATE_LEN: usize = inc::encaps_state_len();
+
 /// The seed length incremental key generation needs.
 const KEY_GENERATION_SEED_LEN: usize = 64;
 
@@ -170,12 +174,56 @@ impl EncapsState {
     }
 
     /// Reconstruct a state from bytes produced by `to_bytes`.
+    ///
+    /// Checks the length and nothing else, as session-persistence.md (Braid)
+    /// says a reader does: the layout is the KEM library's and is delegated.
+    /// The bytes are not trusted beyond that: [`encapsulate2`] checks the
+    /// coefficients it is about to compute with against the bound the library
+    /// states for them, and refuses rather than hands the library an input
+    /// outside it.
     pub fn from_bytes(bytes: &[u8]) -> Result<EncapsState, KemError> {
-        if bytes.len() != inc::encaps_state_len() {
+        if bytes.len() != ENCAPS_STATE_LEN {
             return Err(KemError);
         }
         Ok(EncapsState(Zeroizing::new(bytes.to_vec())))
     }
+}
+
+/// The bytes of an encapsulation state that are `i16` coefficients: four
+/// `r_as_ntt` polynomials and one `error2` polynomial, 256 coefficients each
+/// (libcrux `ind_cca/incremental/types.rs`, `EncapsState::to_bytes`). The 32
+/// bytes after them are the encapsulation randomness, which is not a
+/// coefficient and is not checked.
+const ENCAPS_STATE_COEFFICIENT_BYTES: usize = 5 * 256 * 2;
+const _ENCAPS_STATE_LAYOUT_AGREES: () =
+    assert!(ENCAPS_STATE_COEFFICIENT_BYTES + 32 == inc::encaps_state_len());
+
+/// The bound libcrux states for a ring-element coefficient it computes with:
+/// `q - 1`.
+const COEFFICIENT_BOUND: i16 = 3328;
+
+/// Whether every little-endian `i16` in `bytes` has magnitude at most `bound`.
+///
+/// No early return and, at the source level, no data-dependent branch: the two
+/// sign bits are accumulated into one mask across the whole slice. The aarch64
+/// release assembly was read once at the commit that added this and had no
+/// data-dependent branch in the loop either; nothing gates that, and other
+/// targets were not read. `bytes.len()` must be even; the one caller passes a
+/// constant that is.
+fn coefficients_bounded(bytes: &[u8], bound: i16) -> bool {
+    let bound = bound as i32;
+    let mut out_of_range: u32 = 0;
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        let value = i16::from_le_bytes([bytes[i], bytes[i + 1]]) as i32;
+        // Sign bit of `bound - value`: set iff value > bound.
+        let above = ((bound - value) >> 31) as u32;
+        // Sign bit of `value + bound`: set iff value < -bound.
+        let below = ((value + bound) >> 31) as u32;
+        out_of_range |= above | below;
+        i += 2;
+    }
+    out_of_range == 0
 }
 
 /// The first half of an encapsulation, from the header alone.
@@ -215,11 +263,41 @@ pub fn encapsulate1<R: RngCore + CryptoRng>(
 /// [`validate_ek`] first. This function does not check it, because the Braid
 /// treats a mismatch as terminal for the session rather than as an error to
 /// recover from, and the two live at different layers.
+///
+/// Refuses a state whose ring-element coefficients lie outside the bound the
+/// KEM library states as a precondition of its arithmetic (the comment in the
+/// body says which), so that a corrupted persisted state is a refusal and not
+/// an input the library's annotations do not cover. The check reads secret
+/// coefficients, so it accumulates a mask over every coefficient rather than
+/// returning early.
 pub fn encapsulate2(state: &EncapsState, ek_vector: &[u8]) -> Result<Vec<u8>, KemError> {
     let s: &[u8; inc::encaps_state_len()] = match state.0.as_slice().try_into() {
         Ok(s) => s,
         Err(_) => return Err(KemError),
     };
+    // A state restored from persistence is any 2,592 bytes (`from_bytes`). Its
+    // first 2,560 bytes are five polynomials of 256 little-endian `i16`
+    // coefficients (`r_as_ntt`, four of them, then `error2`), which libcrux
+    // reads back without a range check. libcrux states `is_bounded_poly 3328`
+    // (magnitude at most `q - 1`) as the precondition of `ntt_multiply` and
+    // `add_message_error_reduce` in version 0.0.10; this crate has not checked
+    // that the library discharges it, and parts of the path are marked lax
+    // (LIMITATIONS.md). Outside it the library's behaviour is undocumented: on
+    // its portable backend an `error2` coefficient of magnitude about 31,626 or
+    // more overflowed `i16` and panicked, since this workspace keeps overflow
+    // checks on in release, and other out-of-bound values returned a
+    // ciphertext. Refuse such a state here, the way a wrong-sized `ek_vector`
+    // is refused, so that the Braid sees a KEM refusal and goes `Failed`
+    // (`finish_encaps`). This is the state-side half of the precondition; the
+    // `ek_vector` side rests on `validate_ek`, which the Braid runs before
+    // this on a received vector. A state `encapsulate1` produced is inside the
+    // bound: libcrux's own postconditions give `|c| <= 3328` for `r_as_ntt`
+    // and `|c| <= 7` for `error2`, and over 256 generated states the observed
+    // ranges were [-1664, 1664] and [-2, 2], so this refuses nothing the crate
+    // wrote.
+    if !coefficients_bounded(&s[..ENCAPS_STATE_COEFFICIENT_BYTES], COEFFICIENT_BOUND) {
+        return Err(KemError);
+    }
     let pk2: &[u8; EK_VECTOR_LEN] = match ek_vector.try_into() {
         Ok(p) => p,
         Err(_) => return Err(KemError),

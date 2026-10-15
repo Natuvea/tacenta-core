@@ -222,7 +222,9 @@ decoder always sees exactly the slice it produced and nothing else:
   is stated with it. It checks nothing in `encaps` beyond its length: an
   encapsulation state is derived from the encapsulation randomness and holds
   no hash, and no copy of another value the state carries, to check it
-  against.
+  against. What the KEM later refuses in such a state, when the second half of
+  encapsulation runs on it, is the KEM's own rule, and that refusal is a
+  `Failed` transition (mlkem-braid.md, Failure).
 - `hdr_enc`, `ek_enc`, `ct1_enc`, `ct2_enc` and `hdr_dec`, `ek_dec`, `ct1_dec`,
   `ct2_dec` are erasure encoders and decoders, in the formats below.
 

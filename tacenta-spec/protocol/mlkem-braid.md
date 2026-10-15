@@ -559,9 +559,17 @@ In `EkSentCt1Received` the length check comes first, then the ceiling, and
 both come before decapsulation.
 
 The KEM library fails only on inputs or buffers of the wrong length, which no
-reachable state holds, so the KEM failures above are defensive. The model
-expresses them: each of its four KEM operations may refuse, and a refusal takes
-the transition to `Failed` named above (`Model.Braid`, the `Kem` record).
+reachable state holds. The second half of encapsulation also fails, in this
+implementation, on an encapsulation state restored from persistence that the
+KEM refuses: a state whose stored coefficients lie outside the bound the
+library states as a precondition of its arithmetic. The state's layout is the
+library's and is delegated (session-persistence.md, Braid), so the rule is the
+KEM's to apply, and a reader checks nothing in that field beyond its length; a
+corrupted store can hold such a state, and no state the first half produced
+is one. So the KEM failures above are defensive for an honest store, and the
+one a corrupted store can reach is a refusal. The model expresses them: each
+of its four KEM operations may refuse, and a refusal takes the transition to
+`Failed` named above (`Model.Braid`, the `Kem` record).
 
 From `Failed`, a send or a receive yields no key, reports epoch 0, and leaves
 the Braid in `Failed`. The send or receive that moves the Braid into `Failed`

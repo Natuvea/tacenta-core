@@ -73,6 +73,14 @@
               "run": "cargo test --locked --features private-erasure-review --test spqr_erasure_public -- --test-threads=1"
             },
             {
+              "id": "rust_portable_kem",
+              "run": "cargo test --locked -p tacenta-kem -p tacenta-braid -p tacenta-lifecycle --target-dir target/portable",
+              "env": {
+                "LIBCRUX_DISABLE_SIMD128": "1",
+                "LIBCRUX_DISABLE_SIMD256": "1"
+              }
+            },
+            {
               "id": "rust_target",
               "run": "rustup target add aarch64-unknown-linux-gnu"
             },
@@ -86,7 +94,7 @@
                 "id": "rust",
                 "classification": "required",
                 "command": "cargo-test-clippy-format-and-constant-time",
-                "required-outcomes": "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
+                "required-outcomes": "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_portable_kem=${{ steps.rust_portable_kem.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
               }
             }
           ]

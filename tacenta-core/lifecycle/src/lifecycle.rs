@@ -4014,6 +4014,121 @@ mod tests {
         ));
     }
 
+    /// The public path of the stored-state finding (`tacenta-kem`,
+    /// `malformed_stored_state.rs`; the Braid test of the same name): a
+    /// persisted session whose Braid holds an encapsulation state is restored
+    /// with `Session::import` after the store was tampered so that the state's
+    /// coefficients leave libcrux's bound, and the next messages from the
+    /// honest peer drive the second half of encapsulation on it.
+    /// `encapsulate2` must refuse, the Braid must land in `Failed`, and the
+    /// session must say so in both directions; nothing may panic, on the
+    /// portable backend included (the CI step `rust_portable_kem` runs this
+    /// crate's tests there). Honest state never carries such coefficients
+    /// (`|c| <= 1664`), so the precondition is write access to the persisted
+    /// blob, not the wire; see `session-persistence.md`. Without the wrapper's
+    /// bound check this test fails either way: on the portable backend the
+    /// dependency panics; on the NEON backend (AVX2 has not been run) the tampered side does not
+    /// refuse, emits a ciphertext its peer cannot authenticate, and the honest
+    /// peer's agreement fails first, so its next `encrypt` is the refusal.
+    /// The holder found by the search below is the responder at Braid tag 7
+    /// (a seed sweep found no other), and so is the Braid-level test's; the
+    /// refusal is reached from tag 9 through transition (11). No test restores
+    /// an out-of-bound state at tag 8 or 9, or reaches the refusal through
+    /// transitions (9) or (12).
+    #[test]
+    fn a_restored_session_with_an_out_of_bound_encapsulation_state_fails_closed() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(23);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (mut bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        // Exchange messages until one side's Braid holds an encapsulation
+        // state (its state tags 7 to 9).
+        let holds = |s: &Session| (7..=9).contains(&s.braid.state_tag());
+        let mut rounds = 0;
+        while !holds(&alice) && !holds(&bob) {
+            let m = alice.encrypt(b"a", &mut r).unwrap();
+            bob.decrypt(&m, &mut r).unwrap();
+            let m = bob.encrypt(b"b", &mut r).unwrap();
+            alice.decrypt(&m, &mut r).unwrap();
+            rounds += 1;
+            assert!(rounds < 1000, "no side reached an encapsulating state");
+        }
+        let alice_holds = holds(&alice);
+        let (holder, mut honest) = if alice_holds {
+            (alice, bob)
+        } else {
+            (bob, alice)
+        };
+
+        // Persist the holder. The encapsulation state is the one 2,592-byte
+        // field (`tacenta_kem::ENCAPS_STATE_LEN`: five polynomials of 256
+        // little-endian i16 plus 32 bytes of randomness), written
+        // `len(4) || bytes`; find its length prefix, exactly once, and set
+        // every coefficient to i16::MAX, far outside |c| <= 3328.
+        const ENCAPS_STATE_LEN: usize = 5 * 256 * 2 + 32;
+        let mut bytes = holder.export().to_vec();
+        let needle = (ENCAPS_STATE_LEN as u32).to_be_bytes();
+        let mut matches = Vec::new();
+        let mut i = 0;
+        while i + 4 + ENCAPS_STATE_LEN <= bytes.len() {
+            if bytes[i..i + 4] == needle {
+                matches.push(i + 4);
+            }
+            i += 1;
+        }
+        assert_eq!(matches.len(), 1, "one encapsulation-state length prefix");
+        let pos = matches[0];
+        for pair in bytes[pos..pos + 5 * 256 * 2].chunks_exact_mut(2) {
+            pair.copy_from_slice(&i16::MAX.to_le_bytes());
+        }
+
+        // The public restore accepts it: the field is checked for length only.
+        let mut restored =
+            Session::import(&bytes).expect("a length-valid tampered session restores");
+        assert!(!restored.agreement_failed());
+
+        // The honest peer keeps talking until the restored side completes the
+        // second half of encapsulation on the tampered state. The first refusal
+        // must be `AgreementFailed`, from either direction, never a panic.
+        let mut rounds = 0;
+        loop {
+            let m = honest.encrypt(b"x", &mut r).unwrap();
+            match restored.decrypt(&m, &mut r) {
+                Ok(_) => {}
+                Err(Error::AgreementFailed) => break,
+                Err(other) => panic!("a refusal other than the failed agreement: {other:?}"),
+            }
+            match restored.encrypt(b"y", &mut r) {
+                Ok(m) => {
+                    honest.decrypt(&m, &mut r).unwrap();
+                }
+                Err(Error::AgreementFailed) => break,
+                Err(other) => panic!("a refusal other than the failed agreement: {other:?}"),
+            }
+            rounds += 1;
+            assert!(rounds < 1000, "no refusal within the round limit");
+        }
+        assert!(restored.agreement_failed());
+        // Terminal and loud in both directions.
+        assert!(matches!(
+            restored.encrypt(b"z", &mut r),
+            Err(Error::AgreementFailed)
+        ));
+        let m = honest.encrypt(b"w", &mut r).unwrap();
+        assert!(matches!(
+            restored.decrypt(&m, &mut r),
+            Err(Error::AgreementFailed)
+        ));
+    }
+
     /// A refused send changes nothing about the session.  The agreement runs
     /// first and hands the Triple Ratchet its epoch and output, and either
     /// half of the Triple can still refuse; a message that was never emitted
