@@ -3,13 +3,15 @@ import Translation.UnitLifecycleDecryptRatchetT3
 import Model.LifecycleFrame
 
 /-!
-# `DecryptOracleOf` from the four laws its clauses read
+# `DecryptOracleOf` from four laws
 
 `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`) is the part of `OracleOf` that the
 decrypt refinements take: the `dhPublic`, `dhAgree`, `aeadOpen` and `random32` clauses. The route
 from laws to it was `oracleOf_of_laws` (`UnitOracleJoint.lean`) and `DecryptOracleOf.of_oracleOf`,
-which takes all eleven `OracleLaws`, because the oracle it builds also reads the KEM and signing
-laws. This module gives the record from four of them.
+which takes all eleven `OracleLaws`, because `OracleOf` also has the identity, seal, KEM and
+signing clauses the other laws serve. This module shows that four of the laws suffice for the
+record. They are not shown necessary: of `DhCodecTotal` the proof uses only the `public_key`
+conjunct, and the view law is stronger than the clauses need.
 
 ## What is shown
 
@@ -29,8 +31,11 @@ laws. This module gives the record from four of them.
   and the three DH and AEAD clauses come from `dhPublicClause_of_laws`, `dhAgreeClause_of_laws`
   and `aeadOpenClause_of_laws` (`UnitOracleShape.lean`); `random32` is `byte_random32Clause`
   (`UnitLifecycleIntegrationScreen.lean`), which needs no law. It does not go through
-  `oracleOf_of_laws`, and its axiom pin below names no constant of the KEM, signing, identity-test
-  or AEAD-seal laws.
+  `oracleOf_of_laws`. Its statement takes only the four laws, which is what keeps the other seven
+  off this route (held by its statement pin). Its axiom pin shows in addition that the witness
+  oracle is built without the KEM, signing, identity-test, AEAD-seal and KDF constants; that is a
+  property of this proof, not of the statement, and a proof of the same statement over
+  `InterpO.real` mentions all of them.
 * `decrypt_oracle_frame` (`Model/LifecycleFrame.lean`, pinned here): `Model.Lifecycle.decrypt`
   reads only the oracle's `draws`, `braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`. So the
   fields of this oracle that `DecryptOracleOf` leaves free, other than `draws` and `braidKem`

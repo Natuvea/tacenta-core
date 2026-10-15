@@ -2501,15 +2501,18 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
 
-**Which laws `DecryptOracleOf` needs.** `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`), the four clauses of
+**Four laws suffice for `DecryptOracleOf`.** `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`), the four clauses of
 `OracleOf` that `decrypt_ratchet_refines` and `decrypt_ratchet_refines_complete` take (`dhPublic`, `dhAgree`, `aeadOpen`,
 `random32`), follows from four of the eleven: `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and `DhViewInjective`
-(`decryptOracleOf_of_laws`, `UnitOracleDecrypt.lean`); `random32` needs no law at the byte-stream source. The lemma builds
+(`decryptOracleOf_of_laws`, `UnitOracleDecrypt.lean`); `random32` needs no law at the byte-stream source. The four are
+sufficient and not shown necessary: of `DhCodecTotal` the proof uses only the `public_key` conjunct, and injectivity is
+more than the clauses need. The lemma builds
 its oracle from the per-clause lemmas over `InterpO.decrypt`, an interpretation whose DH and AEAD-open constants are the
-real ones (bound to the three totality predicates by `decryptInterp_laws_iff`), and does not go through `oracleOf_of_laws`;
-its axiom pin names no constant of the other laws. So the other seven, `DhIdentityTotal`, `AeadSealBounded`,
-`KemDecapsulateTotal`, `XeddsaVerifyTotal`, `SignFillsOnce64`, `KemShape` and `KemViewInjective`, are not on the route from
-laws to `DecryptOracleOf`. They remain assumed wherever `OracleOf` or `OracleOfGuarded` is used, which includes every
+real ones (bound to the three totality predicates by `decryptInterp_laws_iff`), and does not go through `oracleOf_of_laws`.
+Its statement takes only those four laws, so the other seven, `DhIdentityTotal`, `AeadSealBounded`, `KemDecapsulateTotal`,
+`XeddsaVerifyTotal`, `SignFillsOnce64`, `KemShape` and `KemViewInjective`, are not hypotheses of this route to
+`DecryptOracleOf`; that is held by its statement pin. Its axiom pin shows in addition that the witness oracle is built
+without the KEM, signing, identity-test, AEAD-seal and KDF constants, a property of the proof and not of the statement. They remain assumed wherever `OracleOf` or `OracleOfGuarded` is used, which includes every
 lifecycle and dispatch theorem that takes `OracleOf`. The model frame lemma `decrypt_oracle_frame`
 (`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads only the oracle's `draws`,
 `braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the oracle fields this route takes from the model's toy primitives, or
@@ -2574,8 +2577,9 @@ Whatever a dispatch theorem proves with it is a statement about the model run wi
 - The gate that looks for a hypothesis nothing satisfies (`check-hypothesis-witnesses.sh`) reads the sections of
   `CLAIMS.md` whose heading names a tier or a decoded state, and the section of these results is not one of them, so it
   does not read `oracleOf_of_laws`, `oracleOfGuarded_of_laws` or `decryptOracleOf_of_laws`. A hypothesis added to any of
-  them is held by the statement pin of the theorem and by no other gate. That their eleven hypotheses hold together is argued from `oracleOf_joint_model`,
-  a theorem about `OracleLaws` at a model, by the argument about derivations above.
+  them is held by the statement pin of the theorem and by no other gate. That the eleven hypotheses of the first two hold
+  together is argued from `oracleOf_joint_model`, a theorem about `OracleLaws` at a model, by the argument about
+  derivations above; the four of `decryptOracleOf_of_laws` are among them.
 - These results have been read by their writer and by tool-assisted readers working for the maintainer; no reviewer
   independent of the maintainer has read them.
 

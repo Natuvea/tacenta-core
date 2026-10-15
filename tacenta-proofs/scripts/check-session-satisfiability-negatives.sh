@@ -38,11 +38,12 @@
 #                 a time, each refused by the result, the lemma or the law of the model that needs
 #                 it, and a bridge or a record changed by one field, each refused.
 #                 And `DecryptOracleOf` from four laws (UnitOracleDecrypt.lean): its proof moved
-#                 onto the real constants, or routed through `oracleOf_of_laws`, each refused by its
-#                 axiom pin; two fields of its interpretation and its view law changed, each refused
-#                 by the lemma; and each of the five equalities of the model frame lemma
+#                 onto the real constants with the statement unchanged, refused by its axiom pin
+#                 alone; routed through `oracleOf_of_laws`, refused by both pins; two fields of its
+#                 interpretation and its view law changed, each refused by the lemma; and each of
+#                 the five equalities of the frame lemma's helper `decryptRatchet_oracle_frame`
 #                 (tacenta-model/Model/LifecycleFrame.lean) swapped for one about an unread field,
-#                 each refused by its proof.
+#                 each refused because the proof fails.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -726,13 +727,19 @@ for name, text, old, new, reason in [
     if t is not None:
         refused(name, t, reason)
 
-# `DecryptOracleOf` from the four laws its clauses read (`UnitOracleDecrypt.lean`) and the model
-# frame lemma that `decrypt` reads five oracle fields (`tacenta-model/Model/LifecycleFrame.lean`).
-# The narrowed lemma's statement mentions no KEM or signing law; what keeps its proof off them is its
-# axiom pin, so the two route changes below keep a statement that builds and must be refused by that
-# pin, with the signing constant among the added axioms. The interpretation and the lemma are then
-# changed with their pins removed, so that what refuses is the theorem; and each of the five equalities
-# the frame lemma takes is swapped, in turn, for one about a field `decrypt` does not read.
+# `DecryptOracleOf` from four laws (`UnitOracleDecrypt.lean`) and the model frame lemma that `decrypt`
+# reads five oracle fields (`tacenta-model/Model/LifecycleFrame.lean`). The narrowed lemma's statement
+# takes only the four laws; that is what keeps the other seven off the route, and its statement pin
+# holds it. Its axiom pin holds something else: that the witness oracle is built without the KEM,
+# signing, identity-test, AEAD-seal and KDF constants. The first route change below keeps the
+# statement and moves the proof onto the real constants, so only the axiom pin refuses it, with the
+# signing constant among the added axioms. The second routes the lemma through `oracleOf_of_laws`,
+# which needs the seven other laws as hypotheses, so it changes the statement and both pins refuse it
+# (the reason checked is the axiom pin's). The interpretation and the lemma are then changed with their
+# pins removed, so that what refuses is the theorem. Last, each of the five equalities of the helper
+# `decryptRatchet_oracle_frame` is swapped, in turn, for one about a field `decrypt` does not read; a
+# refusal shows that the proof uses that equality, not that the swapped statement is false
+# (`decrypt_oracle_frame` fails with it because it calls the helper).
 o_dec = module("UnitOracleDecrypt")
 frame = open(os.path.join("..", "tacenta-model", "Model", "LifecycleFrame.lean")).read()
 passes("oracle-decrypt-unmodified", o_dec)
@@ -767,7 +774,7 @@ REAL_PROOF = DEC_PROOF.replace("InterpO.decrypt (dhViewD dh)", "InterpO.real (dh
 t = once(o_dec, DEC_PROOF, REAL_PROOF, "decrypt oracle at the real constants")
 if t is not None:
     refused("oracle-decrypt-built-at-the-real-constants", t, "+  tacenta_boundary.xeddsa.sign")
-# the route the narrowed lemma replaces: all eleven laws, through `oracleOf_of_laws`
+# the route the narrowed lemma replaces: all eleven laws, through `oracleOf_of_laws` (a changed statement)
 ROUTED = """    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)
     (kem : KemView) (hid : Tacenta.UnitLifecycleT1.DhIdentityTotal)
     (hseal : Tacenta.UnitLifecycleT1.AeadSealBounded)

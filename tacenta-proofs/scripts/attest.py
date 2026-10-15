@@ -1368,7 +1368,7 @@ REQUIRED_PINS = frozenset(
         "oracleOf_joint_model",
         "oracleOf_inhabited_jointly",
     )]
-    # `DecryptOracleOf` from the four laws its clauses read, and the model frame lemma that `decrypt`
+    # `DecryptOracleOf` from four laws, and the model frame lemma that `decrypt`
     # reads five oracle fields (`UnitOracleDecrypt.lean`, `Model/LifecycleFrame.lean`).
     + ["Tacenta.UnitOracleDecrypt." + n for n in (
         "decryptOracleOf_of_laws",

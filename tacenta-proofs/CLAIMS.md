@@ -59,7 +59,7 @@ this section says in one place what is not proved.
   `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions and the two random-source laws on
   sampled inputs; the two view assumptions are conditions on the caller's views, read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)"). The four clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of those laws
   (`DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and the DH view assumption), without the KEM and signing laws, at the
-  same source ("Proved (`DecryptOracleOf` from the four laws its clauses read ...)").
+  same source ("Proved (`DecryptOracleOf` from four laws ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4110,15 +4110,16 @@ decapsulation, verification, signing and key generation), each refused by the re
 that needs it, and changes one field of a bridge or a record; the model's `to_bytes` of a private key and equality of
 public keys are not held, and no clause of `OracleOf` uses them.
 
-## Proved (`DecryptOracleOf` from the four laws its clauses read, and the oracle fields the model's `decrypt` reads)
+## Proved (`DecryptOracleOf` from four laws, and the oracle fields the model's `decrypt` reads)
 
 Location: `Translation/UnitOracleDecrypt.lean`, `tacenta-model/Model/LifecycleFrame.lean`.
 
 `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`) is the part of `OracleOf` that `decrypt_ratchet_refines` and
 `decrypt_ratchet_refines_complete` take: the `dhPublic`, `dhAgree`, `aeadOpen` and `random32` clauses. Before these results
 the only route from laws to it was `oracleOf_of_laws` and `DecryptOracleOf.of_oracleOf`, which takes all eleven laws of the
-section above, because the oracle `oracleOf_of_laws` builds also reads the KEM and signing laws. These results give the
-record from four of them, and show from the model's definitions which oracle fields `Model.Lifecycle.decrypt` reads. They
+section above, because `OracleOf` also has the identity, seal, KEM and signing clauses the other laws serve. These results
+show that four of the laws suffice for the record (they are not shown necessary: of `DhCodecTotal` the proof uses only the
+`public_key` conjunct, and the view law is stronger than the clauses need), and show from the model's definitions which oracle fields `Model.Lifecycle.decrypt` reads. They
 are about a hypothesis of the decrypt refinements, not about the product. No theorem takes the narrowed lemma yet: the
 refinements take `DecryptOracleOf` as a hypothesis. Its writer and tool-assisted readers working for the maintainer have read
 it; no reviewer independent of the maintainer has.
@@ -4132,7 +4133,10 @@ it; no reviewer independent of the maintainer has.
   `oracleOf_of_laws`. Its axioms are the three standard axioms, `rand_core_1.error.Error`, `zeroize.Zeroizing`,
   `tacenta_boundary.aead.decrypt`, the two DH types and the seven DH functions `DhCodecTotal` and `DhAgreeTotal` name
   (`PrivateKey::from_bytes`, `public_key`, `agree`, `to_bytes`, `PublicKeyBytes::from_bytes`, `as_bytes` and its equality);
-  the pin names no constant of the KEM, signing, identity-test, AEAD-seal or KDF laws.
+  the other five conjuncts of `DhCodecTotal` are in the list because the statement names it, not because a clause uses
+  them. The list names no KEM, signing, identity-test, AEAD-seal or KDF constant; that is a property of this proof, not of
+  the statement: a proof of the same statement over the real constants (`InterpO.real`) lists all of them and still takes
+  only the four laws.
 - `decryptInterp_laws_iff`, `dhViewInjective_real_iff`: `InterpO.decrypt` is the joint model's interpretation
   (`InterpO.model`) with the two DH types, `zeroize::Zeroizing`, the seven DH functions and `aead::decrypt` replaced by the
   real constants, and five fields whose types name those real types and which no clause of `DecryptOracleOf` reads
@@ -4164,12 +4168,16 @@ the KEM and shows nothing about which KEMs meet those agreements. The frame lemm
 `decrypt_ratchet` calls is what the refinement theorems state. No proof chooses a width of `usize` and none depends on a
 compiler-trust axiom, so each result holds at both widths. Each of the six theorems has an axiom pin and a statement pin,
 in `UnitOracleDecrypt.lean`, and `InterpO.decrypt` and `dhViewD` have `#print` pins; `attest.py` requires them all
-(`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`). A statement pin holds the statement only; what keeps
-the narrowed lemma off the KEM and signing laws is its axiom pin. `check-session-satisfiability-negatives.sh` moves its
-proof onto the real constants (`InterpO.real`) with the statement unchanged, and routes it through `oracleOf_of_laws`, and
-each is refused by that pin with the signing constant among the added axioms; it changes `aead::decrypt` and `agree` in
-`InterpO.decrypt` and halves the view law, each refused by the lemma; and it swaps each of the frame lemma's five
-equalities for one about a field `decrypt` does not read, each refused by the proof.
+(`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`). The statement takes only the four laws, so the other
+seven are not hypotheses of this route; that is held by its statement pin and the build. Its axiom pin holds only that the
+witness oracle is built without the KEM, signing, identity-test, AEAD-seal and KDF constants.
+`check-session-satisfiability-negatives.sh` moves the proof onto the real constants (`InterpO.real`) with the statement
+unchanged, which only the axiom pin refuses (the signing constant among the added axioms); routes it through
+`oracleOf_of_laws`, which needs seven more hypotheses and is refused by both pins; changes `aead::decrypt` and `agree` in
+`InterpO.decrypt` and halves the view law, each refused by the lemma; and swaps each of the five equalities of the helper
+`decryptRatchet_oracle_frame` for one about a field `decrypt` does not read, each refused because the proof then fails.
+That shows the proof uses each equality, not that the swapped statement is false; `decrypt_oracle_frame` fails with it only
+because it calls the helper, and `dispatchDecrypt_oracle_frame` is not mutated.
 
 ## Proved (bounded P6 session lifecycle observations)
 
