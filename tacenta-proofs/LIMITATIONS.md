@@ -1146,11 +1146,13 @@ draws 32 random bytes and returns a different `(ct1, ss)` pair under a
 different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
 (`encaps1 : Nat → Bytes → Bytes → …`), and `Model.Braid.send K rand` passes
 its `rand` to transition (7)'s encapsulation as it already did to transition (1)'s key
-generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
-… = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
-*some* model randomness makes the model's answer the real one, which is
-all a proof that does not control the RNG can say, and is what the
-key-generation clause (`∃ kp rng' rand`) always said. `step_send_refines`
+generation, and the clause reads `∃ rng' rand', (∃ es ct1raw ssraw, encapsulate1
+… = ok (Ok (es, ct1raw, ssraw), rng') ∧ … K.encaps1 rand' ekSeed hek = some …) ∨
+((∃ e, encapsulate1 … = ok (Err e, rng')) ∧ … K.encaps1 rand' ekSeed hek = none)`:
+for each RNG state, *some* model randomness makes the model's answer the real
+one, success or refusal, which is all a proof that does not control the RNG
+can say, and is what the key-generation clause (`∃ rng' rand`, with the same
+two arms inside) always said about the success side. `step_send_refines`
 and `Braid.send_refines` choose that `rand'` as the `rand` their conclusion
 binds. `Model.Braid.receive` needed no randomness argument: no receive
 transition encapsulates (transitions 9, 11 and 12 finish an encapsulation
@@ -1171,7 +1173,20 @@ pair of randomness values, while ML-KEM-1024 is δ-correct with the
 decapsulation-failure probability bounded by FIPS 203. Neither refinement
 proof used that conjunct: both destructured and discarded it. It is now
 removed from `KemAgreesFor`, so the four Braid refinement theorems no longer
-assume a property false of the shipped KEM. `Model.Braid.toyKem_correct`
+assume a property false of the shipped KEM. Since the model's KEM operations
+return `Option` (mlkem-braid.md, Failure), every clause of `KemAgreesFor`,
+`KeyPairRefines` and `EncapsRefines` is two-sided: the real call and the model
+answer alike, `Ok` with `some` of the same bytes or `Err` with `none`. The four
+real `Err` arms are refined against the model's `Failed` transitions, and no
+clause says the real KEM never refuses. The witnesses at `toyKem` take only the
+success arms, so no witness exercises a refusal arm, and no vector does either:
+the vector generator has only `toyKem`, which never refuses, and the vector
+format has no field that makes a call refuse, so the four arms are checked
+against the Rust by the refinement proofs, under `KemAgreesFor`, and against
+the model by nothing a vector carries. The independent reader drives its own KEM to refuse (its case
+BR-12) and tests the four arms against its reading of the specification, not
+against the model. That the real wrapper does refuse, and when, is not shown
+here. `Model.Braid.toyKem_correct`
 remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
@@ -1221,7 +1236,10 @@ Two more sit beside it in `BraidT3.lean`: `KemCloneAgrees` and
 `ErasureCloneAgrees` (a clone of an opaque KEM or erasure value behaves as,
 respectively is, the original), hypotheses of `Braid.receive_refines` and
 `State.clone_refines`. Each is the same shape of boundary fact as the KDF
-agreements.
+agreements. `KemCloneAgrees` covers the whole `Result` of `decapsulate` and
+`encapsulate2`: a clone refuses where its original refuses, which the
+two-sided `KeyPairRefines` and `EncapsRefines` need to carry a refusal across
+`State.clone`.
 
 **An assumption is per translated crate, not per operation.** An earlier revision
 listed `VecRemoveTotal` once below, and there were two: each translation unit declared its own
@@ -2521,9 +2539,19 @@ about each (`CLAIMS.md`, the section on the Braid refinement agreements).
 
 **Assumed, about opaque constants.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem` and
 `Model.Kdf`: `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
-`BraidHkdfAgrees` and `BraidHmacAgrees`. Nothing shows that the real ML-KEM wrapper, libcrux or the real
+`BraidHkdfAgrees` and `BraidHmacAgrees`. A seventh premise, `KemDrawsSucceed`
+(`UnitSatisfiabilityBraidAgreements.lean`), says the real key generation and `encapsulate1` each succeed for
+some RNG; the state witnesses take it because the two-sided `KemAgreesFor` admits a KEM that refuses every
+call. It holds in `Interp.modelT3` (`modelT3_kemDrawsSucceed`); of the real wrapper it is assumed, and
+every Braid test that completes an agreement exercises both calls, which is testing and not proof. With
+`KemDrawsSucceed`, the premises still admit a KEM whose decapsulation and second encapsulation half refuse
+every input, which is read off the clauses (each is two-sided and the premise speaks only of the two
+draws); the interpretation that shows it is not in the tree. Nothing assumed implies that transitions (5),
+(9), (11) or (12) can succeed, or that an honest run completes an epoch, and a claim that one does needs
+its own premise.
+Nothing shows that the real ML-KEM wrapper, libcrux or the real
 KDF satisfies them. What is shown is that they are consistent: one interpretation of the unit's opaque
-constants satisfies all six, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
+constants satisfies all six together with `KemDrawsSucceed`, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
 by the substitution argument above, which is an argument about derivations and not a theorem inside
 Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` says nothing about the real
 `K`. `ValidateEkAgrees K` holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the

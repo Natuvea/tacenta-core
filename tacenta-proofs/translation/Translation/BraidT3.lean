@@ -177,15 +177,31 @@ do carry is `BraidT1.RngTotal rc`: the real `generate` and `encapsulate1`
 fill their randomness from the caller's RNG, and return only if it does.
 
 Both randomness-drawing clauses bind the model's randomness existentially
-per RNG state: key generation as `∃ kp rng' rand`, and encapsulation as
-`∃ es ct1raw ssraw rng' rand'`, with `K.encaps1 rand' ekSeed hek` the
-model's answer. Real ML-KEM encapsulation samples a fresh 32-byte message,
+per RNG state: key generation as `∃ rng' rand`, and encapsulation as
+`∃ rng' rand'`, with `K.keyGen rand` and `K.encaps1 rand' ekSeed hek` the
+model's answers. Real ML-KEM encapsulation samples a fresh 32-byte message,
 so a different RNG state gives a different `(ct1, ss)` for the same header;
 an earlier revision's clause fixed one pair per header for every RNG state,
 which only a derandomised KEM satisfies (`LIMITATIONS.md` records that this
 was so and is closed). What `send_refines` says is then that *some* `rand`
 makes the model agree with what the real code did, which is all a proof
 that does not control the RNG can say.
+
+**Each operation is two-sided.** `Model.Braid.Kem`'s operations return
+`Option`, `none` being the KEM refusing (mlkem-braid.md, Failure), and each
+real call returns `Ok` or `Err`. Every clause says the two answer alike:
+either the real call returns `Ok` and the model returns `some` of the
+converted value, or the real call returns `Err` and the model returns
+`none`. That covers key generation, `encapsulate1`, `encapsulate2` (inside
+the encapsulation clause, against the model's `es` for that draw) and
+`decapsulate` (inside the key-generation clause, against the model's `dk`).
+So the four `Err` arms of `step_send`, `finish_encaps` and transition (5)
+are refined against the model's `Failed` transitions, not excluded by
+hypothesis. Nothing here says the real KEM never refuses: a KEM that
+refused every call, with a `K` that refused every call, satisfies the
+clauses. Where a proof needs a real key pair or encapsulation state to
+exist (`UnitSatisfiabilityBraidStates.ingredients`), that is a separate
+premise.
 
 Two clauses, not three. An earlier revision also quantified over *every*
 `IncrementalKeyPair`, asking that each decode as some `dk`, `ekSeed` and
@@ -206,32 +222,45 @@ via `KemAgreesFor`. -/
 def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
   (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
       Tacenta.BraidT1.RngTotal rc →
-      ∃ kp rng' rand,
-        tacenta_kem.IncrementalKeyPair.generate rc crc rng =
-          ok (core.result.Result.Ok kp, rng') ∧
-        (∃ h, tacenta_kem.IncrementalKeyPair.header kp = ok h ∧
-          vecOf h = (K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2) ∧
-        (∃ v, tacenta_kem.IncrementalKeyPair.ek_vector kp = ok v ∧
-          vecOf v = (K.keyGen rand).2.2) ∧
-        (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
-          ∃ raw : Array Std.U8 32#usize,
-            tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 =
-              ok (core.result.Result.Ok raw) ∧
-            keyOf raw = K.decaps (K.keyGen rand).1 (sliceOf ct1) (sliceOf ct2))) ∧
+      ∃ rng' rand,
+        (∃ kp dk ekSeed ekVector,
+          tacenta_kem.IncrementalKeyPair.generate rc crc rng =
+            ok (core.result.Result.Ok kp, rng') ∧
+          K.keyGen rand = some (dk, ekSeed, ekVector) ∧
+          (∃ h, tacenta_kem.IncrementalKeyPair.header kp = ok h ∧
+            vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ∧
+          (∃ v, tacenta_kem.IncrementalKeyPair.ek_vector kp = ok v ∧ vecOf v = ekVector) ∧
+          (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
+            (∃ raw : Array Std.U8 32#usize,
+              tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 =
+                ok (core.result.Result.Ok raw) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = some (keyOf raw)) ∨
+            ((∃ e, tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 =
+                ok (core.result.Result.Err e)) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = none))) ∨
+        ((∃ e, tacenta_kem.IncrementalKeyPair.generate rc crc rng =
+            ok (core.result.Result.Err e, rng')) ∧
+          K.keyGen rand = none)) ∧
     (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
         (header : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
       header.length = Model.Braid.headerSize →
-      ∃ es ct1raw ssraw rng' rand',
-        tacenta_kem.encapsulate1 rc crc header rng =
-          ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
-        (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
-          (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
-          (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw ∧
-          (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
-            ∃ ct2raw,
-              tacenta_kem.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
-              vecOf ct2raw =
-                K.encaps2 (K.encaps1 rand' ekSeed hek).1 ekSeed (sliceOf ekVector))))
+      ∃ rng' rand',
+        (∃ es ct1raw ssraw,
+          tacenta_kem.encapsulate1 rc crc header rng =
+            ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            ∃ es', K.encaps1 rand' ekSeed hek = some (es', vecOf ct1raw, keyOf ssraw) ∧
+              (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
+                (∃ ct2raw,
+                  tacenta_kem.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = some (vecOf ct2raw)) ∨
+                ((∃ e, tacenta_kem.encapsulate2 es ekVector =
+                    ok (core.result.Result.Err e)) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = none)))) ∨
+        ((∃ e, tacenta_kem.encapsulate1 rc crc header rng =
+            ok (core.result.Result.Err e, rng')) ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            K.encaps1 rand' ekSeed hek = none)))
 
 def KemAgrees : Prop := ∃ K, KemAgreesFor K
 
@@ -267,7 +296,10 @@ key pair, cloned or not, has *some* witness, not that a clone shares its
 original's witness. This is what closes that gap: a clone answers `header`/
 `ek_vector`/`decapsulate`/`encapsulate2` exactly as the original did, which
 is what "clone" means for any of this crate's own operations to still care
-about it afterward. -/
+about it afterward. For `decapsulate` and `encapsulate2` that is the whole
+`Result`: a clone refuses where the original refuses, as well as succeeding
+with the same value where it succeeds, because `KeyPairRefines` and
+`EncapsRefines` are two-sided and carry the refusing arm across the clone. -/
 def KemCloneAgrees : Prop :=
   (∀ kp kp' : tacenta_kem.IncrementalKeyPair,
     tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone kp = ok kp' →
@@ -275,16 +307,13 @@ def KemCloneAgrees : Prop :=
       tacenta_kem.IncrementalKeyPair.header kp' = ok h) ∧
     (∀ v, tacenta_kem.IncrementalKeyPair.ek_vector kp = ok v →
       tacenta_kem.IncrementalKeyPair.ek_vector kp' = ok v) ∧
-    (∀ (ct1 ct2 : Slice Std.U8) raw,
-      tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 =
-        ok (core.result.Result.Ok raw) →
-      tacenta_kem.IncrementalKeyPair.decapsulate kp' ct1 ct2 =
-        ok (core.result.Result.Ok raw))) ∧
+    (∀ (ct1 ct2 : Slice Std.U8) r,
+      tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 = ok r →
+      tacenta_kem.IncrementalKeyPair.decapsulate kp' ct1 ct2 = ok r)) ∧
   (∀ es es' : tacenta_kem.EncapsState,
     tacenta_kem.EncapsState.Insts.CoreCloneClone.clone es = ok es' →
-    ∀ (ekVector : Slice Std.U8) ct2, tacenta_kem.encapsulate2 es ekVector =
-      ok (core.result.Result.Ok ct2) →
-      tacenta_kem.encapsulate2 es' ekVector = ok (core.result.Result.Ok ct2))
+    ∀ (ekVector : Slice Std.U8) r, tacenta_kem.encapsulate2 es ekVector = ok r →
+      tacenta_kem.encapsulate2 es' ekVector = ok r)
 
 /-! ## The erasure boundary: a simulation relation, not a value equality
 
@@ -446,14 +475,20 @@ several real fields are *opaque* (`IncrementalKeyPair`, `EncapsState`,
 `Encoder`/`Decoder`. Three small relations carry that weight, each used
 across whichever constructors hold that piece:
 
-- `KeyPairRefines K ikp dk`: this key pair decapsulates like `K.decaps dk`.
+- `KeyPairRefines K ikp dk`: this key pair decapsulates like `K.decaps dk`,
+  refusing exactly where the model refuses.
   Every state past `KeysUnsampled` that still holds an `IncrementalKeyPair`
   needs exactly this and nothing more. `header`/`ek_vector` are only
   relevant once, right when the key pair is fresh.
 - `FreshKeyPairRefines K ikp dk ekVector` adds that one-time `header`/
   `ek_vector` correspondence, for `KeysSampled` alone.
 - `EncapsRefines K es ekSeed encapsSecret`: this encapsulation state
-  finishes like `K.encaps2 encapsSecret ekSeed`.
+  finishes like `K.encaps2 encapsSecret ekSeed`, refusing exactly where the
+  model refuses.
+
+Each is two-sided, as `KemAgreesFor`'s clauses are: for every input of the
+real lengths, either the real call returns `Ok` and the model `some` of the
+same bytes, or the real call returns `Err` and the model `none`.
 
 Two bytes fields the real states are seen to drop along the way have no
 real-side counterpart in those later constructors: `ekSeed`, once a header
@@ -467,8 +502,13 @@ def AuthOf (a : Auth) : Model.Braid.Auth := ⟨keyOf a.root_key, keyOf a.mac_key
 def KeyPairRefines (K : Model.Braid.Kem) (ikp : tacenta_kem.IncrementalKeyPair)
     (dk : Bytes) : Prop :=
   ∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
-    ∃ raw, tacenta_kem.IncrementalKeyPair.decapsulate ikp ct1 ct2 =
-      ok (core.result.Result.Ok raw) ∧ keyOf raw = K.decaps dk (sliceOf ct1) (sliceOf ct2)
+    (∃ raw : Array Std.U8 32#usize,
+      tacenta_kem.IncrementalKeyPair.decapsulate ikp ct1 ct2 =
+        ok (core.result.Result.Ok raw) ∧
+      K.decaps dk (sliceOf ct1) (sliceOf ct2) = some (keyOf raw)) ∨
+    ((∃ e, tacenta_kem.IncrementalKeyPair.decapsulate ikp ct1 ct2 =
+        ok (core.result.Result.Err e)) ∧
+      K.decaps dk (sliceOf ct1) (sliceOf ct2) = none)
 
 def FreshKeyPairRefines (K : Model.Braid.Kem) (ikp : tacenta_kem.IncrementalKeyPair)
     (dk ekVector : Bytes) : Prop :=
@@ -480,8 +520,11 @@ def FreshKeyPairRefines (K : Model.Braid.Kem) (ikp : tacenta_kem.IncrementalKeyP
 def EncapsRefines (K : Model.Braid.Kem) (es : tacenta_kem.EncapsState)
     (ekSeed encapsSecret : Bytes) : Prop :=
   ∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
-    ∃ ct2raw, tacenta_kem.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
-      vecOf ct2raw = K.encaps2 encapsSecret ekSeed (sliceOf ekVector)
+    (∃ ct2raw,
+      tacenta_kem.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
+      K.encaps2 encapsSecret ekSeed (sliceOf ekVector) = some (vecOf ct2raw)) ∨
+    ((∃ e, tacenta_kem.encapsulate2 es ekVector = ok (core.result.Result.Err e)) ∧
+      K.encaps2 encapsSecret ekSeed (sliceOf ekVector) = none)
 
 theorem Stepped.succ {k : Nat} {enc0 real real' : tacenta_erasure.Encoder}
     {c : tacenta_erasure.Chunk} (hs : Stepped k enc0 real)
@@ -608,8 +651,9 @@ theorem KeyPairRefines.clone (hcl : KemCloneAgrees) {K : Model.Braid.Kem}
     (h : tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone ikp = ok ikp')
     (hr : KeyPairRefines K ikp dk) : KeyPairRefines K ikp' dk := by
   intro ct1 ct2 h1 h2
-  obtain ⟨raw, hraw, hval⟩ := hr ct1 ct2 h1 h2
-  exact ⟨raw, (hcl.1 ikp ikp' h).2.2 ct1 ct2 raw hraw, hval⟩
+  rcases hr ct1 ct2 h1 h2 with ⟨raw, hraw, hval⟩ | ⟨⟨e, hraw⟩, hval⟩
+  · exact Or.inl ⟨raw, (hcl.1 ikp ikp' h).2.2 ct1 ct2 _ hraw, hval⟩
+  · exact Or.inr ⟨⟨e, (hcl.1 ikp ikp' h).2.2 ct1 ct2 _ hraw⟩, hval⟩
 
 theorem FreshKeyPairRefines.clone (hcl : KemCloneAgrees) {K : Model.Braid.Kem}
     {ikp ikp' : tacenta_kem.IncrementalKeyPair} {dk ekVector : Bytes}
@@ -627,8 +671,9 @@ theorem EncapsRefines.clone (hcl : KemCloneAgrees) {K : Model.Braid.Kem}
     (hr : EncapsRefines K es ekSeed encapsSecret) :
     EncapsRefines K es' ekSeed encapsSecret := by
   intro ekVector hlen
-  obtain ⟨ct2raw, hct2, hval⟩ := hr ekVector hlen
-  exact ⟨ct2raw, hcl.2 es es' h ekVector ct2raw hct2, hval⟩
+  rcases hr ekVector hlen with ⟨ct2raw, hct2, hval⟩ | ⟨⟨e, hct2⟩, hval⟩
+  · exact Or.inl ⟨ct2raw, hcl.2 es es' h ekVector _ hct2, hval⟩
+  · exact Or.inr ⟨⟨e, hcl.2 es es' h ekVector _ hct2⟩, hval⟩
 
 theorem EncoderRefines.clone (hcl : ErasureCloneAgrees) {real real' : tacenta_erasure.Encoder}
     {model : Model.Braid.Encoder}
@@ -1182,8 +1227,19 @@ agree, exactly the same shape `KemAgreesFor`'s own per-RNG existentials
 already use for the same reason. Two branches draw randomness --
 `KeysUnsampled` through `generate` and `HeaderReceived` through
 `encapsulate1` -- and each takes its `rand` from the corresponding clause;
-for the other nine the existential is trivially satisfied (`rand` is unused
-there), so it costs nothing where it isn't needed. -/
+for the other ten the existential is trivially satisfied (`rand` is unused
+there), so it costs nothing where it isn't needed.
+
+Both drawing branches have a refusing arm, transitions (1) and (7) failing
+(mlkem-braid.md, Failure). Where the real call returns `Err`, `step_send`
+answers an empty message and `Failed`, and the model, by the clause's other
+arm, answers no message, no output and `failed`. The first message conjunct
+constrains only a model message that exists, so it says nothing there; the
+second says what the real message is when the model has none: one carrying
+no chunk (`Msg::empty`), which is what the model's "no message" means on the
+wire, since a chunkless message feeds no decoder. The output conjunct relates
+`none` to `none`; the states are `Failed` and `failed`. The same second
+conjunct covers sending from `Failed`. -/
 
 set_option maxHeartbeats 1000000 in
 theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
@@ -1200,6 +1256,7 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     Braid.step_send rc crc self state rng ⦃ fun ((msg, out, next), _) =>
       ∃ rand, (∀ modelMsg, (Model.Braid.send K rand model).1 = some modelMsg →
           MsgRefines msg modelMsg) ∧
+        ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
         OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
         StateRefines K next (Model.Braid.send K rand model).2.2.2 ⦄ := by
   obtain ⟨hgen, hencaps⟩ := hka
@@ -1209,8 +1266,22 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
   case KeysUnsampled.keysUnsampled =>
     rename_i epoch auth epoch' auth'
     obtain ⟨he, ha⟩ := hrel
-    obtain ⟨kp, rng', rand, hgenkp, ⟨h, hh, hhval⟩, ⟨v, hv, hvval⟩, hdecap⟩ :=
-      hgen rc crc rng hrng
+    obtain ⟨rng', rand, hgenR⟩ := hgen rc crc rng hrng
+    rcases hgenR with
+      ⟨kp, dk, ekSeed, ekVector, hgenkp, hkg, ⟨h, hh, hhval⟩, ⟨v, hv, hvval⟩, hdecap⟩ |
+      ⟨⟨e, hgenerr⟩, hkg⟩
+    swap
+    · -- Key generation refused: the real code answers an empty message and
+      -- `Failed`, the model no message and `failed`.
+      unfold Braid.step_send
+      simp only [hgenerr]
+      unfold Msg.empty
+      step*
+      refine ⟨rand, ?_, ?_, ?_, ?_⟩
+      · intro modelMsg hm; simp [Model.Braid.send, hkg] at hm
+      · intro _; trivial
+      · simp only [Model.Braid.send, hkg]; trivial
+      · simp only [Model.Braid.send, hkg]; trivial
     obtain ⟨h', hh', hh'len⟩ := hhdr kp
     rw [hh] at hh'; injection hh' with hh'; subst hh'
     unfold Braid.step_send
@@ -1218,7 +1289,7 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     step*
     simp only [hh]
     step*
-    have hsliceh : sliceOf h.deref = (K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2 := by
+    have hsliceh : sliceOf h.deref = ekSeed ++ K.hashEk ekSeed ekVector := by
       simp [sliceOf, alloc.vec.Vec.deref, vecOf] at hhval ⊢; exact hhval
     step with Auth.mac_hdr_refines hmac auth epoch h.deref _ hsliceh (by simp [alloc.vec.Vec.deref]; scalar_tac)
     step*
@@ -1235,9 +1306,8 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     unfold Msg.with
     step*
     have hheader1val : sliceOf header1.deref =
-        ((K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2) ++
-          (AuthOf auth).macHdr epoch.val
-            ((K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2) := by
+        (ekSeed ++ K.hashEk ekSeed ekVector) ++
+          (AuthOf auth).macHdr epoch.val (ekSeed ++ K.hashEk ekSeed ekVector) := by
       simp only [sliceOf, alloc.vec.Vec.deref] at header1_post ⊢
       simp only [header1_post, s1_post, List.map_append]
       simp only [sliceOf, alloc.vec.Vec.deref] at hsliceh
@@ -1250,13 +1320,15 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         some ⟨epoch', Model.Braid.MsgType.hdr,
           some (Model.Braid.encode (sliceOf header1.deref)).nextChunk.1⟩ := by
       unfold Model.Braid.send
-      simp only []
+      simp only [hkg]
       rw [← hheader1val]
-    refine ⟨rand, ?_, ?_, ?_⟩
+    refine ⟨rand, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, hstep0.2.1⟩
-    · trivial
-    · exact ⟨he, ha, ⟨hdecap, ⟨v, hv, hvval⟩, ⟨h, _, hh, hhval⟩⟩,
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
+    · simp only [Model.Braid.send, hkg]; trivial
+    · simp only [Model.Braid.send, hkg]
+      exact ⟨he, ha, ⟨hdecap, ⟨v, hv, hvval⟩, ⟨h, _, hh, hhval⟩⟩,
         (EncoderRefines.step hencR hlt hnc_eq).2.2⟩
   case KeysSampled.keysSampled =>
     rename_i epoch auth kp hdr_enc epoch' auth' dk ekVector hdr_encM
@@ -1272,9 +1344,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.keysSampled epoch' auth' dk ekVector hdr_encM)).1 =
         some ⟨epoch', Model.Braid.MsgType.hdr, some hdr_encM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step hencr hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hfkp, (EncoderRefines.step hencr hlt hnc_eq).2.2⟩
   case HeaderSent.headerSent =>
@@ -1291,9 +1364,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.headerSent epoch' auth' dk ct1DecM ekEncM)).1 =
         some ⟨epoch', Model.Braid.MsgType.ek, some ekEncM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step her hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hkpr, hdr, hct1size, (EncoderRefines.step her hlt hnc_eq).2.2⟩
   case Ct1Received.ct1Received =>
@@ -1310,9 +1384,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.ct1Received epoch' auth' dk ct1M ekEncM)).1 =
         some ⟨epoch', Model.Braid.MsgType.ekCt1Ack, some ekEncM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step her hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hkpr, hct1, hct1len, (EncoderRefines.step her hlt hnc_eq).2.2⟩
   case EkSentCt1Received.ekSentCt1Received =>
@@ -1327,9 +1402,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.ekSentCt1Received epoch' auth' dk ct1M ct2DecM)).1 =
         some ⟨epoch', Model.Braid.MsgType.none, none⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, trivial⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hkpr, hct1, hct1len, hdr, hdsize⟩
   case NoHeaderReceived.noHeaderReceived =>
@@ -1344,9 +1420,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.noHeaderReceived epoch' auth' hdrDecM)).1 =
         some ⟨epoch', Model.Braid.MsgType.none, none⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, trivial⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hdr, hdsize⟩
   case HeaderReceived.headerReceived =>
@@ -1354,9 +1431,23 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     obtain ⟨he, ha, hhdreq, hlen32, hhek32, hdecr, heksize⟩ := hrel
     have hslicehdr : sliceOf header.deref = ekSeedM ++ hekM := by
       simp [sliceOf, alloc.vec.Vec.deref, vecOf] at hhdreq ⊢; exact hhdreq
-    obtain ⟨es, ct1raw, ssraw, rng'', rand', hep1, hep1'⟩ := hencaps rc crc header.deref rng hrng
+    obtain ⟨rng'', rand', hencR1⟩ := hencaps rc crc header.deref rng hrng
       (by rw [deref_length, hhdreq]; simp [hlen32, hhek32, Model.Braid.headerSize])
-    obtain ⟨hct1eq, hsseq, hencaps2⟩ := hep1' ekSeedM hekM hlen32 hslicehdr
+    rcases hencR1 with ⟨es, ct1raw, ssraw, hep1, hep1'⟩ | ⟨⟨e, hep1err⟩, hes1none⟩
+    swap
+    · -- The first half of encapsulation refused: the real code answers an empty
+      -- message and `Failed`, the model no message and `failed`.
+      have hes1 := hes1none ekSeedM hekM hlen32 hslicehdr
+      unfold Braid.step_send
+      simp only [hep1err]
+      unfold Msg.empty
+      step*
+      refine ⟨rand', ?_, ?_, ?_, ?_⟩
+      · intro modelMsg hm; simp [Model.Braid.send, hes1] at hm
+      · intro _; trivial
+      · simp only [Model.Braid.send, hes1]; trivial
+      · simp only [Model.Braid.send, hes1]; trivial
+    obtain ⟨es', hes1, hencaps2⟩ := hep1' ekSeedM hekM hlen32 hslicehdr
     unfold Braid.step_send
     simp only [hep1]
     step*
@@ -1388,16 +1479,14 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     simp only [hnc_eq]
     unfold Msg.with
     step*
-    have hkeyeq0 : keyOf a = Model.Braid.kdfOk (keyOf ssraw) epoch.val := a_post
-    have hkeyeq : keyOf a = Model.Braid.kdfOk ((K.encaps1 rand' ekSeedM hekM).2.2) epoch.val := by
-      rw [← hsseq] at hkeyeq0; exact hkeyeq0
+    have hkeyeq : keyOf a = Model.Braid.kdfOk (keyOf ssraw) epoch.val := a_post
     have hauth1eq0 : AuthOf auth1 =
         Model.Braid.Auth.update (AuthOf auth) epoch.val (Model.Braid.kdfOk (keyOf ssraw) epoch.val) := by
-      rw [hs2eq, hkeyeq0] at auth1_post; exact auth1_post
+      rw [hs2eq, hkeyeq] at auth1_post; exact auth1_post
     have hauth1eq : AuthOf auth1 =
         Model.Braid.Auth.update auth' epoch.val
-          (Model.Braid.kdfOk ((K.encaps1 rand' ekSeedM hekM).2.2) epoch.val) := by
-      rw [hsseq, ← ha]; exact hauth1eq0
+          (Model.Braid.kdfOk (keyOf ssraw) epoch.val) := by
+      rw [← ha]; exact hauth1eq0
     have hct1sliceeq : sliceOf ct1raw.deref = vecOf ct1raw := by
       simp [sliceOf, alloc.vec.Vec.deref, vecOf]
     have hmsg_ex : (Model.Braid.send K rand'
@@ -1405,14 +1494,17 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         some ⟨epoch', Model.Braid.MsgType.ct1,
           some (Model.Braid.encode (sliceOf ct1raw.deref)).nextChunk.1⟩ := by
       unfold Model.Braid.send
-      simp only []
-      rw [hct1sliceeq, ← hct1eq]
-    rw [hct1sliceeq, ← hct1eq] at hencR
-    refine ⟨rand', ?_, ?_, ?_⟩
+      simp only [hes1]
+      rw [hct1sliceeq]
+    rw [hct1sliceeq] at hencR
+    refine ⟨rand', ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, hstep0.2.1⟩
-    · refine ⟨he, ?_⟩; rw [a1_post, ← he]; exact hkeyeq
-    · refine ⟨he, ?_, hhdreq, hlen32, hhek32, hencaps2, hct1eq.symm,
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
+    · simp only [Model.Braid.send, hes1]
+      refine ⟨he, ?_⟩; rw [a1_post, ← he]; exact hkeyeq
+    · simp only [Model.Braid.send, hes1]
+      refine ⟨he, ?_, hhdreq, hlen32, hhek32, hencaps2, rfl,
         (EncoderRefines.step hencR hlt hnc_eq).2.2, hdecr, heksize⟩
       rw [← he]; exact hauth1eq
   case Ct1Sampled.ct1Sampled =>
@@ -1431,9 +1523,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           ct1EncM ekDecM)).1 =
         some ⟨epoch', Model.Braid.MsgType.ct1, some ct1EncM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step henr hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hekSeed, hlen32, hhek32, hencaps, hct1, (EncoderRefines.step henr hlt hnc_eq).2.2, hdr, heksize⟩
   case EkReceivedCt1Sampled.ekReceivedCt1Sampled =>
@@ -1452,9 +1545,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           ekVectorM ct1EncM)).1 =
         some ⟨epoch', Model.Braid.MsgType.ct1, some ct1EncM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step henr hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hencaps, hct1, hekVector, hekvlen, (EncoderRefines.step henr hlt hnc_eq).2.2⟩
   case Ct1Acknowledged.ct1Acknowledged =>
@@ -1469,9 +1563,10 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.ct1Acknowledged epoch' auth' ekSeedM hekM encapsSecretM ct1M
           ekDecM)).1 = some ⟨epoch', Model.Braid.MsgType.none, none⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, trivial⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, hekSeed, hlen32, hhek32, hencaps, hct1, hdr, heksize⟩
   case Ct2Sampled.ct2Sampled =>
@@ -1488,17 +1583,19 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         (Model.Braid.BraidState.ct2Sampled epoch' auth' ct2EncM)).1 =
         some ⟨epoch', Model.Braid.MsgType.ct2, some ct2EncM.nextChunk.1⟩ := by
       unfold Model.Braid.send; rfl
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, (EncoderRefines.step her hlt hnc_eq).2.1⟩
+    · intro hnone; rw [hmsg_ex] at hnone; cases hnone
     · trivial
     · exact ⟨he, ha, (EncoderRefines.step her hlt hnc_eq).2.2⟩
   case Failed.failed =>
     unfold Braid.step_send
     unfold Msg.empty
     step*
-    refine ⟨0, ?_, ?_, ?_⟩
+    refine ⟨0, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; simp [Model.Braid.send] at hm
+    · intro _; trivial
     · trivial
     · trivial
 
@@ -1523,45 +1620,54 @@ theorem Braid.send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     Braid.send rc crc self rng ⦃ fun ((msg, i, out, next), _) =>
       ∃ rand, (∀ modelMsg, (Model.Braid.send K rand model).1 = some modelMsg →
           MsgRefines msg modelMsg) ∧
+        ((Model.Braid.send K rand model).1 = none → msg.data = none) ∧
         i.val = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
         OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
         StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄ := by
   unfold Braid.send
   step with State.clone_refines hkcl hecl henc hdec hkp hes hrel
   step with step_send_refines hka hea hmac hkdf hhdr hekv hct1len hct2len hz hzz hrf rc crc hrng self s rng s_post hlive
-  obtain ⟨rand, hmsg, hout, hnext⟩ := ‹_›
+  obtain ⟨rand, hmsg, hempty, hout, hnext⟩ := ‹_›
   step with Braid.reported_refines K { state := next } (Model.Braid.send K rand model).2.2.2 hnext
-  exact ⟨rand, hmsg, i_post, hout, hnext⟩
+  exact ⟨rand, hmsg, hempty, i_post, hout, hnext⟩
 
 /-! ## `step_receive` refines `Model.Braid.receive` -/
 
 /-- Three real states (`Ct1Sampled`/`EkReceivedCt1Sampled`/`Ct1Acknowledged`)
 finish an encapsulation identically, matching `Model.Braid.finishEncaps`'s own
-role as the shared tail of transitions (9), (11), (12). `encapsulate2`'s
-success (not just totality) comes from `EncapsRefines`, which is exactly
-"encapsulate2 succeeds and agrees with `K.encaps2`," so the real `Err` arm
-never fires and needs no separate case. -/
+role as the shared tail of transitions (9), (11), (12). `EncapsRefines` is
+two-sided, so both arms of `encapsulate2` are refined: where it returns `Ok`
+the model's `encaps2` is `some` of the same bytes and the result is the
+`Ct2Sampled` state the model builds; where it returns `Err` the model's is
+`none` and both land in `Failed`. `hlen` bounds the framed ciphertext only on
+the arm that builds it. -/
 theorem finish_encaps_refines (hmac : BraidHmacAgrees) (hea : ErasureAgrees)
     {K : Model.Braid.Kem} (epoch : Std.U64) (auth : Auth) (encaps : tacenta_kem.EncapsState)
     (ct1 ek_vector : Slice Std.U8) {a : Model.Braid.Auth} {es ekSeed ct1M : Bytes}
     (ha : AuthOf auth = a) (hct1 : sliceOf ct1 = ct1M)
     (hencapsRel : EncapsRefines K encaps ekSeed es) (hekv : ek_vector.length = K.ekSize)
-    (hlen : ct1.length + (K.encaps2 es ekSeed (sliceOf ek_vector)).length + 96 ≤ Usize.max) :
+    (hlen : ∀ ct2, K.encaps2 es ekSeed (sliceOf ek_vector) = some ct2 →
+      ct1.length + ct2.length + 96 ≤ Usize.max) :
     finish_encaps epoch auth encaps ct1 ek_vector ⦃ fun r =>
-      StateRefines K r (Model.Braid.BraidState.ct2Sampled epoch.val a
-        (Model.Braid.encode (K.encaps2 es ekSeed (sliceOf ek_vector) ++
-          a.macCt epoch.val (ct1M ++ K.encaps2 es ekSeed (sliceOf ek_vector))))) ⦄ := by
+      StateRefines K r
+        (Model.Braid.finishEncaps K epoch.val a es ct1M ekSeed (sliceOf ek_vector)) ⦄ := by
   unfold finish_encaps
-  obtain ⟨ct2raw, hct2raw, hct2rawval⟩ := hencapsRel ek_vector hekv
+  rcases hencapsRel ek_vector hekv with ⟨ct2raw, hct2raw, hct2rawval⟩ | ⟨⟨e, hct2err⟩, hnone⟩
+  swap
+  · -- `encapsulate2` refused: the real code and the model both land in `Failed`.
+    simp only [hct2err]
+    step*
+    simp only [Model.Braid.finishEncaps, hnone]
+    trivial
   simp only [hct2raw]
-  have hs : sliceOf ct2raw.deref = K.encaps2 es ekSeed (sliceOf ek_vector) := by
-    simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct2rawval ⊢
-    exact hct2rawval
-  have hll : ct2raw.deref.length = (K.encaps2 es ekSeed (sliceOf ek_vector)).length := by
+  have hlen' := hlen (vecOf ct2raw) hct2rawval
+  have hs : sliceOf ct2raw.deref = vecOf ct2raw := by
+    simp only [sliceOf, alloc.vec.Vec.deref, vecOf]
+  have hll : ct2raw.deref.length = (vecOf ct2raw).length := by
     have := congrArg List.length hs
     simpa [sliceOf, alloc.vec.Vec.deref] using this
   step with Auth.mac_ct_refines hmac auth epoch ct1 ct2raw.deref ct1M
-    (K.encaps2 es ekSeed (sliceOf ek_vector)) hct1 hs (by scalar_tac)
+    (vecOf ct2raw) hct1 hs (by scalar_tac)
   step*
   have hlen2 : ct2raw.length + s1.length ≤ Usize.max := by
     have : ct2raw.length = ct2raw.deref.length := by simp [alloc.vec.Vec.deref]
@@ -1578,15 +1684,15 @@ theorem finish_encaps_refines (hmac : BraidHmacAgrees) (hea : ErasureAgrees)
     rw [c1_post, List.map_append]
     congr 1
   have hs2 : sliceOf c1.deref =
-      K.encaps2 es ekSeed (sliceOf ek_vector) ++
-        a.macCt epoch.val (ct1M ++ K.encaps2 es ekSeed (sliceOf ek_vector)) := by
+      vecOf ct2raw ++ a.macCt epoch.val (ct1M ++ vecOf ct2raw) := by
     have hsd : sliceOf c1.deref = vecOf c1 := by
       simp [sliceOf, alloc.vec.Vec.deref, vecOf]
-    have hmaceq : keyOf r = a.macCt epoch.val (ct1M ++ K.encaps2 es ekSeed (sliceOf ek_vector)) := by
+    have hmaceq : keyOf r = a.macCt epoch.val (ct1M ++ vecOf ct2raw) := by
       rw [r_post, ha]
-    rw [hsd, hc1, hct2rawval, hmaceq]
+    rw [hsd, hc1, hmaceq]
   obtain ⟨enc, hnewcall, hnewsim⟩ := hea.1 c1.deref
   simp only [hnewcall]
+  simp only [Model.Braid.finishEncaps, hct2rawval]
   refine ⟨rfl, ha, ?_⟩
   rw [hs2] at hnewsim
   exact hnewsim
@@ -1648,9 +1754,15 @@ private theorem model_ceiling {i : Std.U64} {e : Nat} (he : i.val = e)
   rw [← he, Model.Braid.u64Max_eq]
   scalar_tac
 
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 2000000 in
 /-- `step_receive` refines `Model.Braid.receive`. `self` is unused by the real
 function (it operates purely on the passed `state`), same as `step_send`.
+
+Every refusing arm of the KEM on the receive side is refined, not excluded:
+`finish_encaps_refines` covers `encapsulate2` refusing in transitions (9),
+(11) and (12), and transition (5)'s `decapsulate` refusing lands the real
+code and the model in `Failed`, with no output, before the authenticator
+ratchets.
 
 `hepoch` bounds the *successor* of the state's epoch, not the epoch itself.
 Transitions (5) and (13) advance an epoch, and both refuse the step that
@@ -2022,18 +2134,20 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
         have hekvL : ekVector.deref.length = K.ekSize := by
           rw [deref_length, hekVector]; exact hekvlen
-        have hlen : ct1.length +
-            (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVector.deref)).length + 96
-            ≤ Usize.max := by
-          obtain ⟨ct2raw, hct2raw, hct2rawval⟩ := hencaps ekVector.deref hekvL
+        have hlen : ∀ ct2, K.encaps2 encapsSecretM ekSeedM (sliceOf ekVector.deref) = some ct2 →
+            ct1.length + ct2.length + 96 ≤ Usize.max := by
+          intro ct2m hct2m
+          rcases hencaps ekVector.deref hekvL with ⟨ct2raw, hct2raw, hct2rawval⟩ | ⟨-, hnone⟩
+          swap
+          · rw [hnone] at hct2m; cases hct2m
           obtain ⟨r, hr, hrbound⟩ := hencaps2len es ekVector.deref
           rw [hct2raw] at hr
           injection hr with hr
           have hb := hrbound ct2raw hr.symm
-          have hlen2 :
-              (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVector.deref)).length = ct2raw.length := by
-            rw [← hct2rawval]
-            simp [vecOf]
+          have hlen2 : ct2m.length = ct2raw.length := by
+            rw [hct2rawval] at hct2m
+            injection hct2m with hct2m
+            rw [← hct2m]; simp [vecOf]
           rw [hlen2]
           have hct1bound : ct1.length ≤ 4096 := by
             simpa [Tacenta.BraidT1.State.ct1_bounded] using hct1b
@@ -2250,17 +2364,20 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   rw [← hekVecSlice]; exact hrbiff.mp hrbval
                 have hct1slice : sliceOf ct1.deref = ct1M := by
                   simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-                have hlen : ct1.length +
-                    (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
-                    ≤ Usize.max := by
-                  obtain ⟨ct2raw, hct2raw, hct2rawval⟩ := hencapsr ekVecRaw.deref hekvL
+                have hlen : ∀ ct2, K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref) = some ct2 →
+                    ct1.length + ct2.length + 96 ≤ Usize.max := by
+                  intro ct2m hct2m
+                  rcases hencapsr ekVecRaw.deref hekvL with ⟨ct2raw, hct2raw, hct2rawval⟩ | ⟨-, hnone⟩
+                  swap
+                  · rw [hnone] at hct2m; cases hct2m
                   obtain ⟨r, hr, hrbound⟩ := hencaps2len encaps ekVecRaw.deref
                   rw [hct2raw] at hr
                   injection hr with hr
                   have hb := hrbound ct2raw hr.symm
-                  have hlen2 : (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length
-                      = ct2raw.length := by
-                    rw [← hct2rawval]; simp [vecOf]
+                  have hlen2 : ct2m.length = ct2raw.length := by
+                    rw [hct2rawval] at hct2m
+                    injection hct2m with hct2m
+                    rw [← hct2m]; simp [vecOf]
                   rw [hlen2]
                   have hct1bound : ct1.length ≤ 4096 := by
                     simpa [Tacenta.BraidT1.State.ct1_bounded] using hct1b
@@ -2392,17 +2509,20 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 rw [← hekVecSlice]; exact hrbiff.mp hrbval
               have hct1slice : sliceOf ct1.deref = ct1M := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-              have hlen : ct1.length +
-                  (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
-                  ≤ Usize.max := by
-                obtain ⟨ct2raw, hct2raw, hct2rawval⟩ := hencapsr ekVecRaw.deref hekvL
+              have hlen : ∀ ct2, K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref) = some ct2 →
+                  ct1.length + ct2.length + 96 ≤ Usize.max := by
+                intro ct2m hct2m
+                rcases hencapsr ekVecRaw.deref hekvL with ⟨ct2raw, hct2raw, hct2rawval⟩ | ⟨-, hnone⟩
+                swap
+                · rw [hnone] at hct2m; cases hct2m
                 obtain ⟨r, hr, hrbound⟩ := hencaps2len encaps ekVecRaw.deref
                 rw [hct2raw] at hr
                 injection hr with hr
                 have hb := hrbound ct2raw hr.symm
-                have hlen2 : (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length
-                    = ct2raw.length := by
-                  rw [← hct2rawval]; simp [vecOf]
+                have hlen2 : ct2m.length = ct2raw.length := by
+                  rw [hct2rawval] at hct2m
+                  injection hct2m with hct2m
+                  rw [← hct2m]; simp [vecOf]
                 rw [hlen2]
                 have hct1bound : ct1.length ≤ 4096 := by
                   simpa [Tacenta.BraidT1.State.ct1_bounded] using hct1b
@@ -2578,13 +2698,30 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have h : sliceOf mac = List.drop lv.val (sliceOf framedRaw.deref) := by
                   simp only [sliceOf, ct2_post4, List.map_drop]
                 rw [h, hframedslice, hlveq]
-              obtain ⟨raw, hrawcall, hrawval⟩ := hkpr ct1.deref ct2
+              rcases hkpr ct1.deref ct2
                 (by rw [deref_length, hct1]; exact hct1len)
                 (by
                   have h := congrArg List.length hct2slice
                   simp only [sliceOf, List.length_map, List.length_take, hframedLen,
                     Model.Braid.macSize] at h
-                  simp only [Slice.length]; omega)
+                  simp only [Slice.length]; omega) with
+                ⟨raw, hrawcall, hrawval⟩ | ⟨⟨e, hrawerr⟩, hdecnone⟩
+              swap
+              · -- Decapsulation refused: the real code and the model both land in
+                -- `Failed`, with no output, before the authenticator ratchets.
+                have hdecM : K.decaps dk ct1M (framedM.take K.ct2Size) = none := by
+                  rw [← hct1slice, ← hct2slice]; exact hdecnone
+                simp only [hrawerr]
+                step*
+                have hceilM : epoch' + 1 < Model.Braid.u64Max :=
+                  model_ceiling he (by simpa [Tacenta.BraidT1.State.epoch_val] using hepoch)
+                unfold Model.Braid.receive
+                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM, hdecM]
+                split
+                · trivial
+                · rename_i hcond; exact absurd hcond (by simp)
+              have hdecM : K.decaps dk ct1M (framedM.take K.ct2Size) = some (keyOf raw) := by
+                rw [← hct1slice, ← hct2slice]; exact hrawval
               simp only [hrawcall]
               step*
               have hs2 : sliceOf s2 = keyOf raw := by
@@ -2614,11 +2751,9 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 simp only [sliceOf, Array.to_slice, keyOf] at s5_post ⊢
                 rw [s5_post]
               step with mac_eq_agrees s5 mac
-              have hkeyeq : keyOf a = Model.Braid.kdfOk
-                  (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val := by
-                rw [a_post, hrawval, hct1slice, hct2slice]
+              have hkeyeq : keyOf a = Model.Braid.kdfOk (keyOf raw) epoch1.val := a_post
               have hauth1eq : AuthOf auth1 = Model.Braid.Auth.update auth' epoch1.val
-                  (Model.Braid.kdfOk (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val) := by
+                  (Model.Braid.kdfOk (keyOf raw) epoch1.val) := by
                 rw [auth1_post, hs3, hkeyeq, ha]
               have haeq : keyOf a2 = Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
                   (ct1M ++ framedM.take K.ct2Size) := a2_post
@@ -2637,7 +2772,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have hceilM : epoch' + 1 < Model.Braid.u64Max :=
                   model_ceiling he (by simpa [Tacenta.BraidT1.State.epoch_val] using hepoch)
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM]
+                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM, hdecM]
                 split
                 · split
                   · refine ⟨⟨?_, ?_⟩, ?_, ?_, ?_, ?_⟩
@@ -2662,7 +2797,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have hceilM : epoch' + 1 < Model.Braid.u64Max :=
                   model_ceiling he (by simpa [Tacenta.BraidT1.State.epoch_val] using hepoch)
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM]
+                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM, hdecM]
                 split
                 · split
                   · rename_i hcond
