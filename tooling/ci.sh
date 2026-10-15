@@ -41,6 +41,11 @@ bash tooling/check-workflows.sh
 # loosened by mistake fails this gate rather than the next reader.
 bash tooling/tests/run-check-workflows-cases.sh
 
+# The regeneration script's comparison and --check verdict, held by their control with a stub
+# docker and no toolchain. Hosted CI runs it in the checks job through run-gate-controls.sh; it
+# runs here too so that a Mac, where its copy step once failed under BSD tar, is a regression check.
+bash tooling/tests/run-regenerate-in-container-cases.sh
+
 # YAML parsing and the repository-specific checks above deliberately do not
 # parse GitHub expressions. The pinned actionlint release covers that grammar
 # and workflow schema surface; its case runner proves this gate sees a malformed
