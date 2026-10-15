@@ -14,4 +14,4 @@ every first-party hand-written declaration remains subject to the ordinary
 no-axiom, no-opaque, no-unsafe and no-partial rule.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

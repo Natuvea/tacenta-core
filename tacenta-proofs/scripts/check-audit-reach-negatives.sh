@@ -102,9 +102,9 @@ git -C "$tree" rm -q "$t/AxiomAuditLifecycle.lean"
 refuse 'a deleted audit module' 'outside the import closure' 'Translation.TacentaLifecycle'
 
 # The audit's call.
-call='run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]'
+call='run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]'
 reset
-once "$t/AxiomAuditLifecycle.lean" "$call" 'run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs]'
+once "$t/AxiomAuditLifecycle.lean" "$call" 'run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs]'
 refuse 'an audit called with fewer prefixes' 'the audit runs with prefixes'
 reset
 once "$t/AxiomAuditLifecycle.lean" "$call" 'run_cmd (Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation])'
@@ -116,9 +116,9 @@ once "$t/AxiomAuditLifecycle.lean" "$call" "$call"$'\n''run_cmd (Model.AxiomAudi
 refuse 'an audit called once plainly and once in another form' 'mentions Model.AxiomAudit.run 2 time(s) but only 1 are a plain'
 reset
 once "$t/AxiomAuditLifecycle.lean" "$call" ''
-refuse 'an audit module that does not call the audit' 'expected exactly one `run_cmd Model.AxiomAudit.run` line, found 0'
+refuse 'an audit module that does not call the audit' 'expected exactly one `run_cmd _root_.Model.AxiomAudit.run` line, found 0'
 reset
 once "$t/AxiomAuditLifecycle.lean" "$call" "$call"$'\n'"$call"
-refuse 'an audit called twice' 'expected exactly one `run_cmd Model.AxiomAudit.run` line, found 2'
+refuse 'an audit called twice' 'expected exactly one `run_cmd _root_.Model.AxiomAudit.run` line, found 2'
 
 echo "audit-reach negatives: $cases cases (an orphan in each source directory, an import dropped, a deleted audit module, and five wrong audit calls) gave the expected result"
