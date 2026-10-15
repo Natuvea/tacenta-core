@@ -1434,6 +1434,11 @@ REQUIRED_PINS = frozenset(
         "inv_run_satisfiable",
         "inv_model_refuses",
         "decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "decrypt_refines_ratchet_frame_of_invariant_exists",
+        "pendReal_fails_invariant",
+        "decrypt_refines_ratchet_frame_at_pending_success",
+        "pend_model_clears",
+        "generated_clears_at_pending_success",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -1487,6 +1492,9 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant",
         "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_refusal",
         "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_exists",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_pending_success",
+        "Tacenta.UnitLifecycleDecryptT3.generated_clears_at_pending_success",
     }
 )
 
@@ -2203,8 +2211,14 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "inv_run_satisfiable",
         "inv_model_refuses",
         "decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "decrypt_refines_ratchet_frame_of_invariant_exists",
+        "pendReal_fails_invariant",
+        "decrypt_refines_ratchet_frame_at_pending_success",
+        "pend_model_clears",
+        "generated_clears_at_pending_success",
         "DecryptRefinesRatchetFrameStatement",
         "invReal",
+        "pendReal",
     )]
 )
 
@@ -2326,6 +2340,7 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
         "DecryptRefinesRatchetFrameStatement",
         "invReal",
+        "pendReal",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

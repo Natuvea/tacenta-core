@@ -2629,13 +2629,18 @@ initial message. It is a condition on the input bytes alone, decidable, and it s
 derives the generated message type from it. It is not assumed of any message; a caller who wants the theorem for a
 message must have it, and for an initial message the premise is false, so the theorem says nothing there.
 
-**Not shown.** The repeated-initial branch of `Session::decrypt`: no T3 theorem covers it, and the model's comparison on
+**Not shown.** The repeated-initial branch of `Session::decrypt`: no claimed T3 theorem covers it (conditional branch
+lemmas that take evidence records exist for its routes, in `Translation/UnitLifecycleT3.lean` and
+`Translation/UnitLifecycleInitialDispatch.lean`, and are not claims), and the model's comparison on
 that branch is the fault recorded in `GAP-REGISTER.md`, row `E2E-04-SAME-EPHEMERAL-MODEL`. That a session the shipped
 code produces meets the per-run hypotheses. One witness state passes `Session::invariant` (`invReal`, the session of
-`sessionOf_invariant`), under the two assumptions of "The headroom records" (`ValidKeyShape`, `OptionEqU64Shape`); it has
-no pending initial message, no receiving chain and no established ephemeral key, it is not shown to be produced by
+`sessionOf_invariant`, whose identity keys on both sides are the public key of its own ratchet key), under the two
+assumptions of "The headroom records" (`ValidKeyShape`, `OptionEqU64Shape`); it has no pending initial message, no receiving chain and no established ephemeral key, it is not shown to be produced by
 `establish_initiator_for` or `establish_responder`, its message carries no agreement chunk, and the boundary records are
-not discharged at it. The four runs of the earlier screens hold empty associated data; for the refusal run,
+not discharged at it. The one run that reaches a success and clears a pending initial message (`pendReal`) does so on
+the model side with the earlier screen's toy oracle, and on the generated side only under the boundary records at that
+oracle, at a state that fails `Session::invariant` (`pendReal_fails_invariant`). The four runs of the earlier screens hold
+empty associated data; for the refusal run,
 `refReal_fails_invariant` proves that this fails `Session::invariant`. That the model's step reads no oracle field beyond
 the four clauses of `DecryptOracleOf`, the KEM model and the draws: the theorem quantifies over the oracle, and no frame
 lemma for `Model.Lifecycle.decrypt` is proved.
