@@ -1453,6 +1453,26 @@ REQUIRED_PINS = frozenset(
         "decrypt_ratchet_refines_or_open",
         "or_unless_closed",
     )]
+    # The Session unit's two sparse agreements derived from five laws about opaque operations, the
+    # laws in two interpretations, and the record's two derivations (`UnitSatisfiabilitySpqrSessionLaws`).
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "removeSkippedAtAgrees_of_laws",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgrees_of_laws",
+        "sparse_agreements_of_laws",
+        "spqrSessionLaws_iff",
+        "spqrSessionLawsShape_of_parts",
+        "spqrSessionLaws_model",
+        "spqrSessionLawsShape_fails_of_noop_pop",
+    )]
+    + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
+        "faithful_SpqrSessionLaws",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptRatchetAgreements.vecRetainAgrees",
+        "DecryptRatchetAgreements.removeSkippedAtAgrees",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2208,6 +2228,34 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "or_unless_closed",
         "OpenRefusalCloses",
     )]
+    # The sparse agreements from laws: every result's statement, the bundle and its shape, and the four
+    # laws of `UnitSatisfiabilityRatchet` that `DecryptRatchetAgreements` and the derivation name.
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "removeSkippedAtAgrees_of_laws",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgrees_of_laws",
+        "sparse_agreements_of_laws",
+        "spqrSessionLaws_iff",
+        "spqrSessionLawsShape_of_parts",
+        "spqrSessionLaws_model",
+        "spqrSessionLawsShape_fails_of_noop_pop",
+        "SpqrSessionLaws",
+        "SpqrSessionLawsShape",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRatchet." + n for n in (
+        "LawPop",
+        "LawAsMut",
+        "LawCapacity",
+        "LawVecZeroize",
+    )]
+    + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
+        "faithful_SpqrSessionLaws",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptRatchetAgreements.vecRetainAgrees",
+        "DecryptRatchetAgreements.removeSkippedAtAgrees",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2326,6 +2374,16 @@ REQUIRED_PRINT_FORM = frozenset(
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
         "OpenRefusalCloses",
+    )]
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "SpqrSessionLaws",
+        "SpqrSessionLawsShape",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRatchet." + n for n in (
+        "LawPop",
+        "LawAsMut",
+        "LawCapacity",
+        "LawVecZeroize",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

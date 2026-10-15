@@ -2,8 +2,9 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Nine modules carry that evidence: the three below, and the six of the joint decision of OracleOf
-# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group):
+# Ten modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), and
+# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -36,6 +37,10 @@
 #                 in turn, nine primitives and the private-key view of the joint model changed one at
 #                 a time, each refused by the result, the lemma or the law of the model that needs
 #                 it, and a bridge or a record changed by one field, each refused.
+#   sparse laws   the Session unit's two sparse agreements from five laws: each law removed from the
+#                 bundle and each weakened where the derivation takes it, each refused; the shape the
+#                 two models satisfy, with a field dropped or the pop law weakened, refused by its
+#                 binding to the laws; the model witness removed, refused by its pins.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -718,6 +723,72 @@ for name, text, old, new, reason in [
     t = once(text, old, new, name)
     if t is not None:
         refused(name, t, reason)
+
+# -------------------------------------------------------------- sparse laws
+# `UnitSatisfiabilitySpqrSessionLaws.lean`: `VecRetainAgrees` and `RemoveSkippedAtAgrees` from five laws.
+sp = module("UnitSatisfiabilitySpqrSessionLaws")
+passes("sparse-laws-unmodified", sp)
+sp_body = nopins(sp)
+# each law removed from the bundle: the derivation of both agreements from it is refused
+for field in ["pop : LawPop", "asMut : LawAsMut", "capacity : LawCapacity",
+              "vecZeroize : LawVecZeroize", "arrayZeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal"]:
+    name = field.split(" ")[0]
+    t = once(sp_body, f"  {field}\n", "", f"sparse-laws-drop-{name}")
+    if t is not None:
+        refused(f"sparse-laws-bundle-without-{name}", t,
+                f"so it is not possible to project the field `{name}`")
+# each law weakened where `vecRetainAgrees_of_laws` takes it: the derivation is refused
+VR = """theorem vecRetainAgrees_of_laws (hCap : LawCapacity) (hVZ : LawVecZeroize)
+    (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hA : LawAsMut) (hP : LawPop) :"""
+for name, old, new, reason in [
+    # `Vec::pop` only returns, as `VecPopTotal` says, without shortening the vector
+    ("pop-only-returns", "(hP : LawPop)",
+     "(hP : ∀ (T : Type) (v : alloc.vec.Vec T), ∃ r, alloc.vec.Vec.pop Global v = ok r)",
+     "Application type mismatch"),
+    # `Option::as_mut` returns at one type only
+    ("as-mut-at-unit-only", "(hA : LawAsMut)",
+     "(hA : ∀ (o : Option Unit), ∃ r, core.option.Option.as_mut o = ok r)",
+     "Application type mismatch"),
+    # `Vec::capacity` returns at one element type only
+    ("capacity-at-bytes-only", "(hCap : LawCapacity)",
+     "(hCap : ∀ (A : Type) (v : alloc.vec.Vec U8), ∃ r, alloc.vec.Vec.capacity A v = ok r)",
+     "Type mismatch"),
+    # `Vec::zeroize` returns at the two skipped-key stores and not at the chain table
+    ("vec-zeroize-without-the-chain-table", "(hVZ : LawVecZeroize)",
+     "(hVZ : (∀ v : alloc.vec.Vec tacenta_spqr.Skipped,\n      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r) ∧\n    (∀ v : alloc.vec.Vec tacenta_ratchet.SkippedKey,\n      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize\n        tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v = ok r))",
+     "Application type mismatch"),
+    # `Array::zeroize` returns at 16-byte arrays, not at 32-byte ones
+    ("array-zeroize-at-16-bytes", "(hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)",
+     "(hZ : ∀ (a : Array U8 16#usize), ∃ r, Array.Insts.ZeroizeZeroize.zeroize\n      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r)",
+     "Application type mismatch"),
+]:
+    v = once(VR, old, new, f"sparse-laws-weaken-{name}")
+    if v is None:
+        continue
+    t = once(sp_body, VR, v, f"sparse-laws-weaken-{name}")
+    if t is not None:
+        refused(f"sparse-laws-derivation-with-{name}", t, reason)
+# the shape the models satisfy: a field dropped, or the pop law weakened, is refused by its binding
+# `spqrSessionLaws_iff` to the five laws
+for name, old, new, reason in [
+    ("drop-pop", "  pop : ∀ (T : Type) (v : alloc.vec.Vec T), v.val ≠ [] →\n    ∃ o w, I.vecPop Global v = ok (o, w) ∧ w.val = v.val.dropLast\n", "",
+     "Invalid `⟨...⟩` notation"),
+    ("drop-as-mut", "  asMut : ∀ (T : Type) (o : Option T), ∃ r, I.optionAsMut o = ok r\n", "",
+     "Invalid `⟨...⟩` notation"),
+    ("drop-retain-axiom", "  retainAxiom : VecRetainAxiomShape I\n", "", "Invalid `⟨...⟩` notation"),
+    ("drop-array-zeroize", "  arrayZeroize : SpqrZeroizeShape I\n\nopen", "\nopen",
+     "Invalid `⟨...⟩` notation"),
+    ("pop-only-returns", "∃ o w, I.vecPop Global v = ok (o, w) ∧ w.val = v.val.dropLast\n",
+     "∃ o w, I.vecPop Global v = ok (o, w)\n", "Application type mismatch"),
+]:
+    t = once(sp_body, old, new, f"sparse-laws-shape-{name}")
+    if t is not None:
+        refused(f"sparse-laws-shape-{name}", t, reason)
+# the model witness renamed: its pins, which `attest.py` requires, refuse it
+t = once(sp, "theorem spqrSessionLaws_model :", "theorem spqrSessionLaws_model_removed :",
+         "sparse-laws-remove-model")
+if t is not None:
+    refused("sparse-laws-remove-model-witness", t, "Unknown constant")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))
