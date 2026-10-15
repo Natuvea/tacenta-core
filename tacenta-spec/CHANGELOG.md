@@ -286,7 +286,6 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
-
 - `protocol/mlkem-braid.md`, Failure: one sentence says the model expresses the
   four KEM failures the section lists. `Model.Braid`'s `Kem` operations
   (`keyGen`, `encaps1`, `encaps2`, `decaps`) may now refuse, and each refusal

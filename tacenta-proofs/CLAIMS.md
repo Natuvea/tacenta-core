@@ -3130,7 +3130,7 @@ a peer sends (`MsgRefines` holds of a real chunk of any content when the decoder
 `Decoder::from_bytes` refines a model decoder (one that holds chunks of no common message refines none, so the
 refinement theorems apply to states reachable from a fresh Braid and to restored states equal to such a state);
 and that the witnesses reach a state with the relation hypotheses over values of a real ML-KEM key pair, because
-the key pairs are the ones the agreements provide.
+the key pairs are the ones the agreements provide, under `KemDrawsSucceed` (assumed of the real wrapper, not proved).
 
 ## Proved (evidence about three fields that quantify over every Zeroize record)
 
