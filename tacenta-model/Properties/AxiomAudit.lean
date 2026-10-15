@@ -45,4 +45,4 @@ header's round trips, the known-answer examples) pass under the compiler-trust a
 audit documents. The GF(2^16) field proofs need none: they are kernel proofs.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

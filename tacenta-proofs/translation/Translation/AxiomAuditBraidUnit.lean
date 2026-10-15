@@ -18,4 +18,4 @@ No theorem is stated about the unit yet. This module walks its translation so
 that the unit's axioms are audited from the commit that introduces it.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

@@ -154,7 +154,7 @@ to the recorded manifest and the allowlist from the text, and the audit prints e
 finds in them in the built environment (`audit-axiom:` lines, with the
 compiler-trust ones Aeneas's `toStr` introduces apart as `audit-native:`),
 which `no-sorry.sh` hands to `attest.py --compare-audit` to check against
-the same manifest and the allowlist, name for name and fully qualified. After the builds it runs four checks --
+the same manifest and the allowlist, name for name and fully qualified. After the builds it runs its checks, among them --
 `check-translation-coverage.sh`, that every `Translation/*.lean` produced an
 olean; that comparison; `check-lean-constructs.sh`, the textual second
 line of the audit, which strips comments and strings, refuses the keywords
@@ -164,8 +164,8 @@ is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
 outside `Model/AxiomAudit.lean`'s own implementation and the seven `run_cmd
-Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
-line content, because such code could plant an axiom in the one shape the
+_root_.Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
+line content, each standing alone, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
 `Tacenta*.lean` included) is outside the seven audit modules' import
@@ -194,17 +194,19 @@ runner; every count moves with the tree):
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 68 Translation/*.lean modules are in the build target and built
+translation-coverage: all 125 Translation/*.lean modules are in the build target and built
 lifecycle-translation-coverage: all 30 public operations generated
 lifecycle-translation-coverage-negatives: missing-root mutation refused
+refuted-records: the five evidence records DispatchEvidenceVacuity.lean refutes are taken by nothing but its 15 theorems, over the import closures of all 5 translation audit modules
+refuted-records-negatives: the walk called all 23 planted cases correctly (…)
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (346 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 106 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 116 first-party modules (tacenta-model 36, tacenta-proofs 11, tacenta-proofs/translation 69)
+check-lean-constructs: 164 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option and match their pins
+audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 174 first-party modules (tacenta-model 37, tacenta-proofs 12, tacenta-proofs/translation 125)
 audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (68 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (125 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
@@ -389,7 +391,8 @@ you do:
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
   the audit's own implementation and its seven invocations, by path and
-  exact line); and every first-party module is in an audit's import closure
+  exact line, each standing alone);
+  and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole
   in the rule, not something the audit would catch. A fourth check,

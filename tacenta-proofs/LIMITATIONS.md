@@ -207,9 +207,28 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
-  exact line content, so that an invocation written any other way fails
-  there and a second one in an audit module fails in the reach check below;
+  seven `run_cmd _root_.Model.AxiomAudit.run` lines, allow-listed by file path and
+  exact line content and each standing alone (at column 0, no wrapper
+  before, nothing after but another invocation, in a module of imports, pins
+  and the invocation), so that an invocation written any other way fails
+  there and a second one in an audit module fails in the reach check below
+  (the refuted-record walk of `CLAIMS.md`'s vacuity section runs as a
+  compiled executable over each closure, not from a module). The scan's
+  rules read text and are defence in depth around those seven lines, not a
+  tokenizer: eighteen hostile reads each found a new spelling of Lean's
+  surface syntax, and the last ones were closed by refusing whole classes
+  (every `ident!` macro followed by a string or bracket and every message
+  head outside the audit, any brace in a string literal inside it, any
+  lakefile change) rather than spellings, by making the stripper read a
+  top-level `/-…` and `λ` as Lean does, and by refusing any file in which
+  the stripper's reading of a char literal or raw string depends on the
+  character before it, or in which a literal or comment opener follows
+  anything but whitespace, an opening bracket or a comma (Lean reads those
+  only at a token boundary; the stripper reads them anywhere, and no honest
+  first-party file has one after anything else), or which holds a carriage
+  return or a NUL (Lean ends a line at a newline or at CRLF only; the
+  scan's reading would end one at a lone carriage return too, so both
+  stripper copies refuse such a file, CRLF included: the tree is LF-only);
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
   outside the seven audit modules' import closure, so that no module holds
   such a declaration unwalked, and fails if the seven do not all run with the

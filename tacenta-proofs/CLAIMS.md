@@ -3135,8 +3135,34 @@ added, seventeen theorem statements of the two modules took one of them. Since t
 records and the integration of the session contract branch, no theorem of the two modules takes any of
 the five, nor the old KEM field of the last bullet: each is kept unchanged, with a doc comment naming
 its replacement, so that these results still elaborate (`GAP-REGISTER.md`, row
-`DISPATCH-EVIDENCE-VACUITY`, says what replaced each and what is still open). The last bullet is a
-sixth point and not a refutation.
+`DISPATCH-EVIDENCE-VACUITY`, says what replaced each and what is still open). A gate holds the five
+records of the first four bullets untaken: `scripts/check-refuted-records.sh`, run by `no-sorry.sh`,
+runs the walk `Model.AxiomAudit.takersReport` as a compiled executable (`refuted-records`, the
+model package) once per translation audit module, loading that module and so its import closure at
+run time. The walk lists from the loaded environment every first-party declaration whose statement
+or value names one of the five, or a constant the `structure` command declared for it (constructor,
+recursor, `casesOn`, `recOn`, projections, flat constructor), and refuses unless the list is exactly
+the declarations it is given; the script then compares the printed lines with a recorded block
+(over the Session unit's closure: the five records' modules and fifteen theorems of this module;
+over the other four closures: every record absent). The executable's source is compiled once from
+`Model/AxiomAudit.lean`, so nothing a module of the tree declares is parsed where the walk is
+called; the modules it loads are data to it and their initializers are not run (`importModules`
+with its default `loadExts := false`); and the script reads the executable's output rather than a
+build log, so a line a module prints at build time is
+not read. Every translation module is in some audit module's closure (`check-audit-reach.sh`,
+whose lists of audit modules and of first-party roots the script holds itself to; the three
+lakefiles are pinned by content in `check-lean-constructs.sh`, so no library, glob or root is added
+without a reviewed diff), so the five runs walk
+them all, and a declaration that names a record or its machinery, or an alias of a record, fails
+the gate whatever its spelling. Adding a theorem of this module to the recorded block is a
+diff only review catches. What the walk does not see: a theorem that restates the body of the `def`
+record `InitialSameEphemeralEvidence` without naming it (it takes the proposition, not the record),
+a mention in a comment or a string (not a declaration), and an `example` (no constant; nothing can
+take an example). A declaration that takes an alias is not itself listed, the alias is. The
+refutations' statements are held by `attest.py`'s pins; the lemma `source_of_record`, listed with
+them, has no statement pin. The gate says nothing about the records that replaced the five, nor
+about the KEM field of the last bullet. The
+last bullet is a sixth point and not a refutation.
 
 - `same_ephemeral_agreement_empty`, `initialSameEphemeralEvidence_false`: the translated
   `same_ephemeral_agreement` returns `false` on two empty byte strings, because `decode_ec`
@@ -3150,9 +3176,10 @@ sixth point and not a refutation.
   index 0 and the `receive` clause asks the view to name the one source it came from. The first
   theorem takes the two returns; the second takes `EncoderNewTotal`, the field `encoderNew` of the
   encrypt contract records, which `UnitSatisfiabilityErasure.encoderNew_iff` shows equivalent to
-  the law that `usize::div_ceil` returns at divisor 32, and uses `n = 33`. Ten theorems take
-  `CodewordViewOf`, and none of them takes `EncoderNewTotal`, so for them the result rests on that
-  law, which no theorem proves of the opaque constant.
+  the law that `usize::div_ceil` returns at divisor 32, and uses `n = 33`. No theorem takes
+  `CodewordViewOf` now; the encrypt-side theorems take its send direction, `CodewordViewSendOf`
+  (`UnitLifecycleT3.lean`). When ten theorems took it, none of them took `EncoderNewTotal`, so
+  for them the result rested on that law, which no theorem proves of the opaque constant.
 - `record_empty_of_nonempty_decoder`, `record_empty_headerSent`, `record_empty_ekSentCt1Received`,
   `record_empty_noHeaderReceived`, `record_empty_ct1Sampled_ek`, `record_empty_ct1Sampled_ekCt1Ack`,
   `record_empty_ct1Acknowledged`: `InitialRatchetBraidEvidenceContracts` has no term when the model
@@ -4532,7 +4559,7 @@ line, in every hand-written module including the package roots and
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+seven `run_cmd _root_.Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
