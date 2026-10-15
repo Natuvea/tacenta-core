@@ -441,7 +441,10 @@ page asks of a reader outside the scope -- and therefore accepts key pairs
 - tags 1 to 4, which carry a `key_pair`, appear only in refusals, at a length
   both readers refuse;
 - tags 7 to 9, which carry an `encaps`, are pinned in full, because checking
-  `encaps`'s length and nothing else is the whole of the page's rule for it;
+  `encaps`'s length and nothing else is the whole of the page's rule for it (a stored
+  encapsulation state whose coefficients lie outside libcrux's bound is refused later,
+  at the next encapsulation, by `tacenta-kem`; no vector pins that, and the crate's tests
+  hold it);
 - tags 0, 5, 6, 10 and 11 carry neither and are pinned in full;
 - the state machine is reached only from `Ct2Sampled`, whose two transitions
   read the stored epoch and the message and nothing else. Those are the
@@ -966,9 +969,9 @@ machines**: no vector drives the Braid or the sparse ratchet through a
 scenario the way the Double Ratchet's vectors do. For the two ratchets and the
 Triple Ratchet that gap is now covered by the differential harness above as
 well as by proof, since it drives each through generated sequences and
-compares every step against the model; for all of the crates it is covered by
-proof (T1 and T3 on each), which the conformance manifest states in those
-terms.
+compares every step against the model; for the three state-machine crates (`tacenta-spqr`, `tacenta-braid`, `tacenta-triple`) it is covered by
+T1 and T3 theorems, under the hypotheses `tacenta-proofs/CLAIMS.md` lists, which the
+conformance manifest states in those terms.
 
 The Braid is the partial case, and the line is worth stating exactly. Its
 epoch ceiling, which `Model.Braid` states and `tacenta-braid` keeps, **is now
