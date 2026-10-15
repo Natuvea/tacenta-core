@@ -251,12 +251,12 @@ changes, with a stub docker; it starts no container. On an Apple-silicon Mac the
 container is emulated, and the script's header explains the one QEMU setting it
 needs.
 
-**The run recorded here** is of the committed script.
+**The run recorded here** is of the script as committed on 2026-10-03 (git blob `5d32f0c7…`); the committed script has since changed only in how the host copies the checkout into the container's input (see the Script row).
 
 | | |
 | --- | --- |
 | Run | 2026-10-03, 21:13Z to 21:37Z (24 min 1 s; `run-aeneas.sh` 19 min 33 s) |
-| Script | `tacenta-proofs/scripts/regenerate-in-container.sh`, git blob `5d32f0c72d7a252156fa8750f4fa6935cecbfbf5`. On 2026-10-15 the host-side copy of the checkout into the container's input directory (one `tar -cf - \| tar -xf -` pipe, which failed under macOS's BSD tar before anything ran) was replaced by a file-by-file copy; the container side, the comparison and the checks are unchanged, and the run was not repeated after that change. |
+| Script | `tacenta-proofs/scripts/regenerate-in-container.sh`, git blob `5d32f0c72d7a252156fa8750f4fa6935cecbfbf5`. On 2026-10-15 the host-side copy of the checkout into the container's input directory (one `tar -cf - \| tar -xf -` pipe, which the recorded run completed on this Mac and which later attempts on the same Mac could not: BSD tar reported "Write error" before anything ran) was replaced by a file-by-file copy; the container side, the comparison and the checks are unchanged, and the run was not repeated after that change. |
 | Tree | `6b6a48a1581d2db2b659c4902855eddfde7b95ae`, a clean tree (the run counted 0 tracked paths differing from HEAD): `1cabffba85219029cd85f129a81f627f911b06b5` (`main`, 5,132 tracked files) with this change's script and control added, 5,134 tracked files in all, and the documents of this change. After the run, this section and two register rows were changed (`HL-R1-SPARSE-TRANSLATION`, which names the run, and one sentence of `READER-OPEN-GAPS`), and the control `tooling/tests/run-regenerate-in-container-cases.sh`, which the run does not use, was extended; no other file differs, and the script is the blob above. No Rust, Lean, model, specification or vector file differed from `main`. |
 | Host | Apple-silicon Mac (Darwin arm64, macOS 26.5.1), Docker Desktop 4.78.0 on Apple's virtualization framework, engine 29.5.3. The `linux/amd64` container ran under QEMU user-mode emulation; the machine is not x86_64 and the run is not native. |
 | Image | `ubuntu@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60` (the `ubuntu:24.04` index; its `linux/amd64` manifest is `sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b`), Ubuntu 24.04.5 LTS, glibc 2.39 |
@@ -295,7 +295,7 @@ above used that.
 **What this is evidence of.** That `run-aeneas.sh`, with the release's
 linux-x86_64 binaries, produces from the tracked Rust the bytes that are
 committed for the files it rewrites, on the date and with the tools above. It
-is one run of the committed script by the maintainer's tool-assisted session in
+is one run of the script as then committed by the maintainer's tool-assisted session in
 an emulated container, repeatable with the script. It is not a hosted-CI job, it
 did not run on the project's runner, and it was not made by anyone independent
 of the maintainer. The logs of the run are not kept in this repository. It does

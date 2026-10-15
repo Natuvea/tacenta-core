@@ -289,8 +289,9 @@ fi
 # 2. The tracked files as they are on disk now, in a directory the container mounts read-only.
 mkdir -p "$work/src" "$work/out"
 git -C "$root" ls-files | LC_ALL=C sort >"$work/tracked.txt"
-# Copied file by file with their modes: a `tar -cf - | tar -xf -` pipe did this before and failed
-# under macOS's BSD tar ("Write error") before anything ran. The tree holds no tracked symlink.
+# Copied file by file with their modes: a `tar -cf - | tar -xf -` pipe did this before; the recorded
+# run completed with it, and later attempts on the same Mac did not (BSD tar: "Write error" before
+# anything ran). The tree holds no tracked symlink, which `cp -p` would follow.
 (cd "$root" && git ls-files -z) | while IFS= read -r -d '' f; do
   mkdir -p "$work/src/$(dirname "$f")" && cp -p "$root/$f" "$work/src/$f"
 done

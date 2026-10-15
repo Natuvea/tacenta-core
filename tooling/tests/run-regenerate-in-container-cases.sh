@@ -57,9 +57,9 @@ mkdir -p "$tree" "$regen" "$work/bin" "$work/tmp"
 subset=(tacenta-proofs/scripts/regenerate-in-container.sh tacenta-proofs/scripts/run-aeneas.sh tacenta-proofs/REPRODUCING.md
   'tacenta-proofs/translation/Translation/Tacenta*.lean' tacenta-core/Cargo.lock tacenta-core/session-unit README.md)
 # Copy the tracked files git lists, with their modes, one by one: a `tar -cf - | tar -xf -` pipe did
-# this before and failed under macOS's BSD tar with "Write error" before any case ran, so the local
-# gate on a Mac could not run this control. Plain `cp -p` is portable; the local gate on macOS is
-# the regression check for it.
+# this before, and on later attempts on the same Mac that had run it BSD tar reported "Write error"
+# before any case ran, so the local gate there could not run this control. Plain `cp -p` is portable;
+# the local gate on macOS is the regression check for it.
 copy_tracked() { # <source root> <destination> [pathspecs...]
   local src="$1" dst="$2"; shift 2
   (cd "$src" && git ls-files -z -- "$@") | while IFS= read -r -d '' f; do
