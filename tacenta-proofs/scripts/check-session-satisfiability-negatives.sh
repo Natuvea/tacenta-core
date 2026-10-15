@@ -38,8 +38,9 @@
 #                 it, and a bridge or a record changed by one field, each refused.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
-#                 field counts, and must fail on five mutations of the module and on the two
-#                 commands that take a structure given the wrong kind of structure.
+#                 field counts, and must fail on seven mutations of the module or of its
+#                 allow-list and on the two commands that take a structure given the wrong
+#                 kind of structure.
 #
 # The audit is text in this script and not a Lean module because
 # `check-lean-constructs.sh` refuses elaboration-time code in the translation
@@ -176,8 +177,28 @@ private def auditNumFields (env : Environment) (s : Name) : Nat :=
 
 private def errorAxiom : Name := `tacenta_session_unit.rand_core_1.error.Error
 
-private def allowedProjection (n : Name) : Bool :=
-  n == `tacenta_session_unit.rand_core_1.RngCore.fill_bytes
+/-- Structure accessors a shape may name.  The `RngCore` method is called on the supplied source.
+The others are the fields that the restated `Vec::zeroize` conjunct's instance records read when
+they are rebuilt over an interpretation (`Interp.chainZeroize`, `Interp.chainsZeroize`,
+`Interp.skippedInst`, `Interp.skippedKeyInst`): a field accessor of a translated structure, not a
+translated function, and it reaches no axiom.  A listed name counts only if the environment says it
+is a structure projection, so a translated function added to the list is still refused. -/
+private def allowedProjections : List Name := [
+  `tacenta_session_unit.rand_core_1.RngCore.fill_bytes,
+  `tacenta_session_unit.tacenta_spqr.Chain.ck,
+  `tacenta_session_unit.tacenta_spqr.Chain.n,
+  `tacenta_session_unit.tacenta_spqr.Chains.send,
+  `tacenta_session_unit.tacenta_spqr.Chains.receive,
+  `tacenta_session_unit.tacenta_spqr.Skipped.epoch,
+  `tacenta_session_unit.tacenta_spqr.Skipped.n,
+  `tacenta_session_unit.tacenta_spqr.Skipped.key,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.dh,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.n,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.stored_at,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key]
+
+private def allowedProjection (env : Environment) (n : Name) : Bool :=
+  allowedProjections.contains n && env.isProjectionFn n
 
 elab "#audit_interp_exact " i:ident : command => do
   let env ← getEnv
@@ -202,7 +223,7 @@ elab "#audit_axiom_part " ss:ident* : command => do
       let (axs, _) := auditReach env us
       let badAx := axs.toList.filter (· != errorAxiom)
       let badFn := us.toList.filter fun c =>
-        auditIsFunction env c && !allowedProjection c
+        auditIsFunction env c && !allowedProjection env c
       unless badAx.isEmpty && badFn.isEmpty do
         throwError "{sname}: a field mentions unit axioms {badAx} or translated functions {badFn}"
       total := total + 1
@@ -218,7 +239,7 @@ elab "#audit_defined_part " ss:ident* : command => do
     for t in ftys do
       let us := auditMentioned env t
       let fns := us.toList.filter fun c =>
-        auditIsFunction env c && !allowedProjection c
+        auditIsFunction env c && !allowedProjection env c
       if fns.isEmpty then
         throwError "{sname}: a field mentions no translated function"
       total := total + 1
@@ -451,7 +472,7 @@ for name, old, new, reason in [
 # -------------------------------------------------------------------- audit
 EXPECT = [
     "Interp: no uninterpreted unit axiom in any field type",
-    "Interp.real interprets exactly the 48 unit axioms reached by the records",
+    "Interp.real interprets exactly the 49 unit axioms reached by the records",
 ]
 for s, n in [("BraidSendAxiom", 11), ("TripleSendAxiom", 5), ("EncryptAxiom", 5),
              ("BraidReceiveAxiom", 16), ("TripleReceiveAxiom", 7), ("DecryptAxiom", 7),
@@ -518,6 +539,33 @@ for old, new in [
 if t:
     refused("audit-an-interp-field-names-a-real-type", t + "\n" + audit,
             "Interp mentions uninterpreted unit axioms")
+
+# 8. the restated `Vec::zeroize` conjunct written with the translated instance record in place of
+# the one rebuilt over the interpretation. `VecRetainTotal_is` accepts it by unfolding, so only the
+# audit refuses it.
+t = once(joint, "(∀ v : alloc.vec.Vec tacenta_spqr.Skipped, ∃ r, I.vecZeroize I.skippedInst v = ok r)",
+         "(∀ v : alloc.vec.Vec tacenta_spqr.Skipped, ∃ r, I.vecZeroize tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r)",
+         "translated instance record")
+if t:
+    refused("audit-a-restated-conjunct-names-the-translated-instance", t + "\n" + audit,
+            "a field mentions unit axioms")
+
+# 9. a name on the accessor allow-list counts only if it is a structure projection: a translated
+# function added to the list is still refused (the mutation of case 4, with its function listed)
+a = once(audit, "  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key]",
+         "  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key,\n"
+         "  `tacenta_session_unit.tacenta_spqr.Direction.Insts.CoreCloneClone.clone]",
+         "accessor allow-list")
+t = once(joint, "structure TripleSendAxiom (I : Interp) : Prop where",
+         "def AuditDummy (I : Interp) (_f : tacenta_spqr.Direction → Result tacenta_spqr.Direction) : Prop :=\n  SpqrZeroizeShape I\n\nstructure TripleSendAxiom (I : Interp) : Prop where",
+         "allow-listed function (1)")
+if t:
+    t = once(t, "  zeroize : SpqrZeroizeShape I\n  vecRetain : VecRetainAxiomShape I\n  optionClone : OptionCloneShape I\n\nstructure TripleSendDefined",
+             "  zeroize : AuditDummy I tacenta_spqr.Direction.Insts.CoreCloneClone.clone\n  vecRetain : VecRetainAxiomShape I\n  optionClone : OptionCloneShape I\n\nstructure TripleSendDefined",
+             "allow-listed function (2)")
+if t and a:
+    refused("audit-an-allow-listed-function-is-not-a-projection", t + "\n" + a,
+            "or translated functions")
 
 # 5 and 6. each command must refuse the wrong kind of structure
 a = once(audit, "#audit_defined_part Tacenta.UnitSatisfiabilityJoint.BraidSendDefined",

@@ -340,6 +340,7 @@ let __src := Tacenta.UnitSatisfiabilityJoint.Interp.model;
   blanketZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.blanketZeroize __src,
   arrayZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.arrayZeroize __src,
   tupleZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.tupleZeroize __src,
+  pairZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.pairZeroize __src,
   vecZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.vecZeroize __src,
   zNew := @Tacenta.UnitSatisfiabilityJoint.Interp.zNew __src,
   zDeref := @Tacenta.UnitSatisfiabilityJoint.Interp.zDeref __src,

@@ -13,7 +13,7 @@ then proves the four records from that base at the real constants.
 ## What is here
 
 * `Interp`: a structure with one field per interpreted axiom, at the exact type of the axiom,
-  the axiomatised types replaced by the earlier fields.  It has 48 fields: 6 types and 42
+  the axiomatised types replaced by the earlier fields.  It has 49 fields: 6 types and 43
   functions and constants.  `Interp.real` packs the real constants and elaborates only if every
   field type is exact.
 * One `*Shape` per axiom-level predicate, over the whole interpretation, and a theorem `*_is`
@@ -129,6 +129,7 @@ structure Interp where
     Array Z N → Result (Array Z N)
   tupleZeroize : {A B C : Type} → zeroize.Zeroize A → zeroize.Zeroize B →
     zeroize.Zeroize C → A × B × C → Result (A × B × C)
+  pairZeroize : {A B : Type} → zeroize.Zeroize A → zeroize.Zeroize B → A × B → Result (A × B)
   vecZeroize : {Z : Type} → zeroize.Zeroize Z → alloc.vec.Vec Z → Result (alloc.vec.Vec Z)
   zNew : {Z : Type} → zeroize.Zeroize Z → Z → Result (Zeroizing Z)
   zDeref : {Z : Type} → zeroize.Zeroize Z → Zeroizing Z → Result Z
@@ -183,6 +184,7 @@ noncomputable def Interp.real : Interp where
   blanketZeroize := @zeroize.Zeroize.Blanket.zeroize
   arrayZeroize := @Array.Insts.ZeroizeZeroize.zeroize
   tupleZeroize := @TupleABC.Insts.ZeroizeZeroize.zeroize
+  pairZeroize := @Pair.Insts.ZeroizeZeroize.zeroize
   vecZeroize := @alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
   zNew := @zeroize.Zeroizing.new
   zDeref := @zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
@@ -211,6 +213,54 @@ def Interp.arrayInst (I : Interp) {Z : Type} (N : Usize) (inst : zeroize.Zeroize
 def Interp.tupleInst (I : Interp) {A B C : Type} (a : zeroize.Zeroize A)
     (b : zeroize.Zeroize B) (c : zeroize.Zeroize C) :
     zeroize.Zeroize (A × B × C) := ⟨I.tupleZeroize a b c⟩
+
+def Interp.pairInst (I : Interp) {A B : Type} (a : zeroize.Zeroize A)
+    (b : zeroize.Zeroize B) : zeroize.Zeroize (A × B) := ⟨I.pairZeroize a b⟩
+
+/-! The restated `Vec::zeroize` conjunct of `VecRetainTotal` names three instance records whose
+`zeroize` is translated: the chain table's, the sparse skipped-key store's and the classical one's.
+Over an interpretation they are the translated bodies with the interpretation's functions in place
+of the axioms they call; `VecRetainTotal_is` checks, by unfolding, that at `Interp.real` each is the
+translated record. -/
+
+def Interp.chainZeroize (I : Interp) (self : tacenta_spqr.Chain) : Result tacenta_spqr.Chain := do
+  let ck ← I.arrayZeroize (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) self.ck
+  ok { self with ck }
+
+def Interp.chainsZeroize (I : Interp) (self : tacenta_spqr.Chains) :
+    Result tacenta_spqr.Chains := do
+  let (o, as_mut_back) ← I.optionAsMut self.send
+  let o1 ←
+    match o with
+    | none => ok (as_mut_back none)
+    | some chain =>
+      do
+      let chain1 ← I.chainZeroize chain
+      ok (as_mut_back (some chain1))
+  let (o2, as_mut_back1) ← I.optionAsMut self.receive
+  match o2 with
+  | none => let o3 := as_mut_back1 none
+            ok { send := o1, receive := o3 }
+  | some chain =>
+    let chain1 ← I.chainZeroize chain
+    let o3 := as_mut_back1 (some chain1)
+    ok { send := o1, receive := o3 }
+
+def Interp.chainTableInst (I : Interp) : zeroize.Zeroize (U64 × tacenta_spqr.Chains) :=
+  I.pairInst (I.blanket U64.Insts.ZeroizeDefaultIsZeroes) ⟨I.chainsZeroize⟩
+
+def Interp.skippedInst (I : Interp) : zeroize.Zeroize tacenta_spqr.Skipped :=
+  ⟨fun self => do
+    let key ← I.arrayZeroize (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) self.key
+    ok { self with key }⟩
+
+def Interp.skippedKeyInst (I : Interp) : zeroize.Zeroize tacenta_ratchet.SkippedKey :=
+  ⟨fun self => do
+    let dh ← I.arrayZeroize (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) self.dh
+    let n ← I.blanketZeroize U32.Insts.ZeroizeDefaultIsZeroes self.n
+    let stored_at ← I.blanketZeroize U32.Insts.ZeroizeDefaultIsZeroes self.stored_at
+    let key ← I.arrayZeroize (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) self.key
+    ok { dh, n, stored_at, key }⟩
 
 def Interp.mkmInst (I : Interp) :
     zeroize.Zeroize Tacenta.UnitLifecycleT1.MessageKeyMaterial :=
@@ -321,19 +371,23 @@ def ZeroizingTotalShape (I : Interp) : Prop :=
 theorem ZeroizingTotal_is :
     Tacenta.SessionUnitT1.ZeroizingTotal ↔ ZeroizingTotalShape Interp.real := Iff.rfl
 
+/-- `Array::zeroize` returns at the blanket `u8` instance on a 32-byte array, the one instance and
+width the unit passes to it. -/
 def SpqrZeroizeShape (I : Interp) : Prop :=
-  ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
-    ∃ r, I.arrayZeroize inst a = ok r
+  ∀ (a : Array U8 32#usize),
+    ∃ r, I.arrayZeroize (N := 32#usize) (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
 
 theorem SpqrZeroizeTotal_is :
     Tacenta.SessionUnitSpqrT1.ZeroizeTotal ↔ SpqrZeroizeShape Interp.real := Iff.rfl
 
-/-- The axiom-level half of `VecRetainTotal`: its first two conjuncts. The
-other three conjuncts mention translated loops and stay with the defined part. -/
+/-- The axiom-level half of `VecRetainTotal`: its first two conjuncts, `Vec::capacity` returning and
+`Vec::zeroize` returning at the three instances the unit passes to it, each rebuilt over the
+interpretation. The other three conjuncts mention translated loops and stay with the defined part. -/
 def VecRetainAxiomShape (I : Interp) : Prop :=
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T), ∃ r, I.vecCapacity A v = ok r) ∧
-  (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
-    ∃ r, I.vecZeroize inst v = ok r)
+  ((∀ v : alloc.vec.Vec (U64 × tacenta_spqr.Chains), ∃ r, I.vecZeroize I.chainTableInst v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_spqr.Skipped, ∃ r, I.vecZeroize I.skippedInst v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_ratchet.SkippedKey, ∃ r, I.vecZeroize I.skippedKeyInst v = ok r))
 
 def VecRetainLoops : Prop :=
   Tacenta.SessionUnitSpqrT1.SetChainsLoopTotal ∧
@@ -446,9 +500,10 @@ theorem ZeroizingArrayRoundTrip_is :
     Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip ↔
       ZeroizingArrayRoundTripShape Interp.real := Iff.rfl
 
+/-- The Braid's field, at the same instance and width as `SpqrZeroizeShape`. -/
 def ArrayZeroizeShape (I : Interp) : Prop :=
-  ∀ (N : Usize) (inst : zeroize.Zeroize U8) (a : Array U8 N),
-    ∃ r, I.arrayZeroize (N := N) inst a = ok r
+  ∀ (a : Array U8 32#usize),
+    ∃ r, I.arrayZeroize (N := 32#usize) (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
 
 theorem ArrayZeroizeTotal_is :
     Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal ↔ ArrayZeroizeShape Interp.real := Iff.rfl
@@ -957,6 +1012,7 @@ def Interp.model : Interp where
   blanketZeroize _ x := ok x
   arrayZeroize _ a := ok a
   tupleZeroize _ _ _ x := ok x
+  pairZeroize _ _ x := ok x
   vecZeroize _ v := ok v
   zNew _ z := ok z
   zDeref _ z := ok z
@@ -1003,10 +1059,10 @@ theorem model_Hmac : HmacShape Interp.model := fun _ _ => ⟨_, rfl⟩
 theorem model_ZeroizingTotal : ZeroizingTotalShape Interp.model :=
   fun _ => ⟨fun z => ⟨z, rfl⟩, fun z => ⟨z, rfl⟩⟩
 
-theorem model_SpqrZeroize : SpqrZeroizeShape Interp.model := fun _ _ => ⟨_, rfl⟩
+theorem model_SpqrZeroize : SpqrZeroizeShape Interp.model := fun _ => ⟨_, rfl⟩
 
 theorem model_VecRetainAxiom : VecRetainAxiomShape Interp.model :=
-  ⟨fun _ _ => ⟨_, rfl⟩, fun _ _ => ⟨_, rfl⟩⟩
+  ⟨fun _ _ => ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩, fun _ => ⟨_, rfl⟩⟩
 
 theorem model_OptionClone : OptionCloneShape Interp.model := by
   intro T inst o h
@@ -1052,7 +1108,7 @@ theorem model_Encapsulate2 : Encapsulate2Shape Interp.model := by
 theorem model_ZeroizingArrayRoundTrip : ZeroizingArrayRoundTripShape Interp.model :=
   fun _ _ a => ⟨a, rfl, rfl⟩
 
-theorem model_ArrayZeroize : ArrayZeroizeShape Interp.model := fun _ _ _ => ⟨_, rfl⟩
+theorem model_ArrayZeroize : ArrayZeroizeShape Interp.model := fun _ => ⟨_, rfl⟩
 theorem model_RangeFullIndex : RangeFullIndexShape Interp.model := fun _ => rfl
 
 theorem model_DivCeilValue : DivCeilValueShape Interp.model := by
@@ -1353,7 +1409,8 @@ Three kinds of control, all checked when the module builds.
 2. The fields that force a faithful model have teeth: a model that breaks one
    of them makes the corresponding shape false.
 3. The value law that the real `Array::zeroize` satisfies (a failing element makes
-   it fail) contradicts `ZeroizeTotal`; see `zeroize_failure_propagation_conflicts`. -/
+   it fail) contradicts the general form `ZeroizeTotal` had before it was stated at the
+   unit's instance; see `UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`. -/
 
 section NegativeControls
 
@@ -1453,7 +1510,7 @@ end Tacenta.UnitSatisfiabilityJoint
 The axiom bases of the results above, held by the build.  A list names the constants that occur
 in the statement of a result, not assumptions its proof makes.  The statements about
 `Interp.real` and the records (`all_shapes_are_predicates`, the `*_iff_parts` and `*_toParts_ofParts`
-results, `DecoderNewTotal_is`) mention the 48 interpreted real constants and the error type.  The
+results, `DecoderNewTotal_is`) mention the 49 interpreted real constants and the error type.  The
 statements that are about the model (`model_*`, the `*_axiom_part_satisfiable` results, the `bad*`
 controls) list the three standard axioms and `rand_core_1.error.Error`, the opaque error type inside
 `RngCore`, which occurs in the type of `Interp`; `badDeref_refutes_array` also lists `Array::zeroize`
@@ -1491,6 +1548,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.all_shapes_are_predicates' depends on axi
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
@@ -1584,6 +1642,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.encrypt_iff_parts' depends on axioms: [pr
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
@@ -1641,6 +1700,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.decrypt_iff_parts' depends on axioms: [pr
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
@@ -1698,6 +1758,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.initiator_toParts_ofParts' depends on axi
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
@@ -1755,6 +1816,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.responder_toParts_ofParts' depends on axi
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
@@ -1848,6 +1910,7 @@ info: 'Tacenta.UnitSatisfiabilityJoint.DecoderNewTotal_is' depends on axioms: [p
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,

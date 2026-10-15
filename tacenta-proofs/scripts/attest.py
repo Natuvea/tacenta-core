@@ -844,14 +844,16 @@ REQUIRED_PINS = frozenset(
     )]
     + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
         "zeroize_failure_propagation_conflicts",
+        "braid_zeroize_failure_propagation_conflicts",
+        "vec_zeroize_failure_propagation_conflicts",
         "faithful_propagates",
+        "faithful_vec_propagates",
         "faithful_refutes_unscoped",
-        "faithful_satisfies_rest",
-        "ArrayZeroizeU8Total_of_spqr",
-        "ArrayZeroizeU8Total_of_braid",
-        "VecZeroizeChainsTotal_of_vecRetain",
+        "faithful_satisfies_all_axiom_shapes",
+        "spqrZeroize_of_unscoped",
+        "arrayZeroize_of_unscoped",
+        "vecRetainAxiom_of_unscoped",
         "arrayZeroizeScoped_of_total",
-        "VecZeroizeSkippedTotal_of_vecRetain",
     )]
     # The refutations of the dispatch layer's evidence hypotheses (`DispatchEvidenceVacuity`):
     # every axiom pin of the module. A pin outside this list can be deleted with its claim and
@@ -1537,6 +1539,10 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "axiom_base_satisfiable_for_total_rng",
         "records_of_axiom_base",
     )]
+    # The three Session contract fields stated at the instances the unit passes to `Array::zeroize`
+    # and `Vec::zeroize`, printed in full in `UnitSatisfiabilityZeroizeScope.lean`.
+    + ["Tacenta.SessionUnitSpqrT1.ZeroizeTotal", "Tacenta.SessionUnitSpqrT1.VecRetainTotal",
+       "Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal"]
     + ["Tacenta.UnitSatisfiabilitySession." + n for n in (
         "vec_pop_satisfiable",
     )]
@@ -2207,7 +2213,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
 # not the body, so it would hold nothing of what these pins are for.
 REQUIRED_PRINT_FORM = frozenset(
-    ["Model.Lifecycle." + n for n in (
+    ["Tacenta.SessionUnitSpqrT1.ZeroizeTotal", "Tacenta.SessionUnitSpqrT1.VecRetainTotal",
+     "Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal"]
+    + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount", "sendAgreement", "braidSendNeedsDraw", "takeDraw", "braidRandomness",
     )]
     + ["Tacenta.UnitLifecycleT3." + n for n in (

@@ -2304,9 +2304,9 @@ hypotheses of the Session lifecycle theorems. A theorem whose hypothesis nothing
 satisfy is true and says nothing, and two of the four records contained such a
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 
-**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 48 of the opaque axioms of
-`TacentaSessionUnit.lean` (6 types, 4 constants, 38 functions; of the unit's other 40 axioms, 39 are reached
-by no field, and the 40th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
+**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 of the opaque axioms of
+`TacentaSessionUnit.lean` (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
+by no field, and the 39th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
 interpreted because no contract looks at it) in one structure, and shows that one
 interpretation satisfies every field of the four records that mentions only those constants,
 the two model classes and five laws about standard-library and `zeroize` operations. Each shape is bound to the
@@ -2318,9 +2318,9 @@ axiom parts of the four records, the class `SessionUnitT1.DerivedKeysModel` and 
 the four records, and that they have a model (`records_of_axiom_base`, `axiom_base_satisfiable`).
 
 **The sense of "inhabited".** Every axiom of the unit that a record reaches is an uninterpreted constant. The
-unit has 231 axioms in all: 88 uninterpreted constants (49 reached by the records, 39 not) and 143 compiler-trust
+unit has 231 axioms in all: 88 uninterpreted constants (50 reached by the records, 38 not) and 143 compiler-trust
 facts about the byte length of format strings, none of which mentions an interpreted constant, so replacing the
-48 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
+49 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
 constants; the second exhibits an assignment under which the base holds. So a derivation of `False` from a record at the real constants would, after the constants are replaced by
 the model's terms, become a derivation of `False` from facts that hold in the model. That last step is an
 argument about derivations and not a theorem inside Lean. Making it one needs a copy of every translated body
@@ -2345,7 +2345,7 @@ only one.
 statements than these (`pop` returns the last element, `truncate` is a prefix, `div_ceil` is ceiling division,
 `as_mut` is the identity borrow, `capacity` is at least the length: `FaithfulShape`), so the witness is the real
 operation on them and not a degenerate function with the weak property. The blanket `Zeroize` is modelled as the
-identity, which is not what it does; only its returning is used by a law (the array, vector and tuple `Zeroize` are the identity too). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, so no product
+identity, which is not what it does; only its returning is used by a law (the array, vector, pair and tuple `Zeroize` are the identity too; `UnitSatisfiabilityZeroizeScope.lean` gives a second interpretation in which the array, vector and pair ones zeroize element by element and propagate a failing element's failure, and which satisfies every shape as well). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, so no product
 theorem and no record changed for them; they are assumptions of the inhabitation result only. `DivCeilValue` is the
 field `divCeilValue` of `EstablishResponderContracts`, added by the repair of the receive decoder hypothesis and counted as
 the fourteenth session contract. `DecoderNewTotal` and
@@ -2441,27 +2441,48 @@ keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the
 - That the bounded `DecoderMessageTotal` is a statement about the real decoder. It is true of the translation:
   `Vec::with_capacity` never fails in the Aeneas model, and the real function panics for an absurd capacity,
   which `Decoder::invariant` excludes for a decoder a Braid holds.
-- The three fields that are stronger than the crate (next paragraph).
+- That the real `Array::zeroize` and `Vec::zeroize` return at the instances three fields are stated at (next paragraph).
 - The classification of the fields (which are about opaque constants, which about translated functions) is
   checked by the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`, which that script
   appends to a copy of the joint module and runs, and not by `lake build`.
 
-**Three fields are stronger than the crate supports.** `SessionUnitSpqrT1.ZeroizeTotal`,
-`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that
-`Array::zeroize` and `Vec::zeroize` return for every instance record `inst : Zeroize Z`, including one whose
-`zeroize` fails. They are consistent: the joint model satisfies them, so they do not make any record empty. The real functions call `inst.zeroize`
-on each element and so fail on a failing instance, so the statements are false of the crate for such an
-instance (`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`). The unit calls
-`Array::zeroize` at 34 sites, all at the instance `Blanket U8` on a 32-byte array, and `Vec::zeroize` at 5, at
-`Pair (Blanket U64) Chains` (2), `Skipped` (2) and `SkippedKey` (1). The records are not changed here. A trial on a copy of this tree
-replaced the fields by the scoped statements at those instances (`ArrayZeroizeU8Total`, and the `Vec::zeroize` statement
-at the chain table and the skipped-key store). It needed three definitions and 17 further edits in four generated
-files (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`, `SessionUnitTripleT1`, `SessionUnitBraidT1`: 11 applications `hz inst a` become
-`hz _ a`, 4 uses of the `Vec::zeroize` conjunct, one in `array_zeroize_spec`, and the generic stepping lemma
-`zeroize_step`), and three axiom pins in `SessionBraidReceiveVacuity.lean` stopped matching. Nothing in the lifecycle,
-dispatch and record files needed an edit. One failure was not mechanical: with the chain table alone,
-`skip_message_keys_no_panic` stopped building, because its proof applies the conjunct to the skipped-key store as well.
-The trial is not part of this change, and the numbers are from that one build.
+**Three fields are stated at the unit's instances.** `SessionUnitSpqrT1.ZeroizeTotal`,
+`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` used to say
+that `Array::zeroize` and `Vec::zeroize` return for every instance record `inst : Zeroize Z`, including one whose
+`zeroize` fails. The real functions call `inst.zeroize` on each element and so fail on a failing instance: the general
+forms were consistent (the joint model satisfied them) but stronger than the crate supports
+(`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts` and its two siblings, kept as the record). The
+fields are now stated at the instances the unit passes: `Array::zeroize` at the blanket `u8` instance on a 32-byte
+array, and `Vec::zeroize` at the chain table (`Vec<(u64, Chains)>`), the sparse skipped-key store (`Vec<Skipped>`) and
+the classical one (`Vec<SkippedKey>`). A walk of the elaborated definitions of `TacentaSessionUnit.lean` found 34 calls of
+`Array::zeroize`, all at that instance and width, and 5 of `Vec::zeroize`, at those three instances (2, 2 and 1). The walk
+was run once, when the fields were restated; no gate repeats it. A new call at another instance or width in a function a
+theorem steps through is expected to stop that proof, because the restated fields and their stepping rules apply at the
+stated instance only (not checked); a new call in a function no theorem covers, such as a `Drop` implementation, would
+go unnoticed. No proof uses the classical `Vec<SkippedKey>` conjunct; it is stated so that the field covers every
+instance the unit passes.
+
+What changed, and where. The Session copies are generated: the restated statements and the proof edits that use them
+are named, count-checked `unit_edit`s in `port-session-unit-proofs.sh` (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`,
+`SessionUnitTripleT1`, `SessionUnitTripleT3`) and `port-session-braid-proof.sh` (`SessionUnitBraidT1`): eleven
+applications of `ZeroizeTotal` drop the instance argument, three apply it without the width, four uses of the
+`Vec::zeroize` conjunct select the instance by projection, and `zeroize_step` and `array_zeroize_spec` are stated at the
+one instance. One non-generated proof file, `UnitLifecycleTripleRefusalT3.lean`, needed the same two kinds of edit.
+The standalone leaf files and the three-leaf unit keep the general forms, which are stronger than their crates in the
+same way (`CLAIMS.md`, the section on hypotheses about translated functions in the leaf crates and the three-leaf
+unit). The joint model gains one interpreted constant, the pair `Zeroize` (`Pair.Insts.ZeroizeZeroize.zeroize`), which
+the chain table's instance reaches, and rebuilds the three instance records over the interpretation; the classification
+audit allows the eleven structure accessors those records read, each only if the environment says it is a projection.
+The statements of the three fields are pinned by `#print` (`UnitSatisfiabilityZeroizeScope.lean`).
+
+What is assumed. That the real `Array::zeroize` returns at the blanket `u8` instance on a 32-byte array, and that the
+real `Vec::zeroize` returns at the three instances. By reading, the blanket `Zeroize` writes zeros through volatile
+stores, the element `zeroize` of the three instances reaches only that, `Array::zeroize` over it, the pair `Zeroize` and
+`Option::as_mut`, and `Vec::zeroize` zeroizes each
+element, clears the vector and zeroes its spare capacity; none of these returns an error or panics short of the memory
+faults no proof here covers. This is not checked by a proof or a test. Every axiom-level shape, the restated fields among them, holds in an interpretation whose
+`Array::zeroize`, `Vec::zeroize` and pair `Zeroize` work element by element and propagate a failure
+(`faithful_satisfies_all_axiom_shapes`); that is a model of the shapes and says nothing of the real functions.
 
 ### The clauses of `OracleOf`: inhabited under eleven laws, and what that means
 
@@ -2662,12 +2683,11 @@ public key, an agreement that returns the private key and refuses the all-zero p
 the empty plaintext and refuses the empty ciphertext. Neither model shows anything of the real X25519 or AEAD.
 
 **Assumed, about the session contract records.** The theorem takes `DecryptRatchetContracts` and the class
-`DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields
-are stronger than the crate supports: `SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the
-`Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize` return for every
-`Zeroize` record, including one whose `zeroize` fails, and the real functions do not (the paragraph "Three fields are
-stronger than the crate supports"). The unit calls them only at instances that return. The proof of this theorem uses all
-three, so it cannot be applied to the shipped functions until they are restated at those instances. The records also hold
+`DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields,
+`SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of
+`SessionUnitSpqrT1.VecRetainTotal`, say that `Array::zeroize` and `Vec::zeroize` return at the instances the unit passes to
+them; that the real functions do is assumed (the paragraph "Three fields are stated at the unit's instances"). Before they
+were restated they quantified over every `Zeroize` record, which the real functions do not support. The records also hold
 `Random32Total` and `MessageKeyMaterialRoundTrip`, a round trip of the `zeroize::Zeroizing` wrapper at a tuple of three
 arrays.
 

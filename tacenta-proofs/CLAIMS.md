@@ -34,9 +34,9 @@ this section says in one place what is not proved.
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
   return as a whole, on every branch, against the model. For the private `decrypt_ratchet` that `Session::decrypt` runs on a
   ratchet message (and that `establish_responder` also calls), `decrypt_ratchet_refines_complete` relates the generated
-  function's output to the model's step on every path of that function for a run that meets its hypotheses, and it cannot
-  be applied to the shipped functions as stated, because three fields of the contract record it takes are stronger than
-  the crate supports and hold only once they are restated at the instances the unit uses. The paths are the terminal
+  function's output to the model's step on every path of that function for a run that meets its hypotheses. Three fields
+  of the contract record it takes are stated at the instances the unit passes to `Array::zeroize` and `Vec::zeroize`;
+  that the real functions return there is assumed, not shown (`LIMITATIONS.md`). The paths are the terminal
   guard, a decode refusal, both Diffie-Hellman refusals, every Triple receive refusal the run's bounds admit (they exclude
   the sparse ratchet's `ChainExhausted`, which needs an epoch or a chain counter at `u64::MAX`), among them the refusal of
   a message whose key was already used (`OutOfOrder`), the skip-limit refusal (`TooManySkipped`) and a full store, after
@@ -2869,8 +2869,8 @@ recorded in `LIMITATIONS.md` ("The four contract records follow from an axiom ba
 - `setChainsLoopTotal`, `clearChainsLoop0Total`, `clearSkippedLoopTotal`: the three loop contracts
   inside `VecRetainTotal` follow from `ZeroizeTotal` and `LawPop`, and the first two also from
   `LawAsMut`. They terminate only because `Vec::pop` shortens the vector.
-- `vecRetainTotal`: `VecRetainTotal` follows from `Vec::capacity` and `Vec::zeroize` returning (its own
-  first two conjuncts), `ZeroizeTotal`, `LawAsMut` and `LawPop`.
+- `vecRetainTotal`: `VecRetainTotal` follows from `Vec::capacity` returning and `Vec::zeroize` returning at the
+  three instances the unit passes to it (its own first two conjuncts), `ZeroizeTotal`, `LawAsMut` and `LawPop`.
 - `defined_fields_hold`: the six fields (both removal helpers, the three key derivations and `VecRetainTotal`)
   together follow from the structure `Laws`.
   It has nine laws: four are fields of the records (`HkdfTotal`, the wrapper round trip at two lengths,
@@ -2889,7 +2889,7 @@ recorded in `LIMITATIONS.md` ("The four contract records follow from an axiom ba
 The pins of the `div_ceil` results list `usize::div_ceil` because it occurs in their statements; the pins of the
 ratchet results list the opaque constants their statements and
 their law hypotheses are about (`Array::zeroize`, `Vec::pop`, `Option::as_mut`, the blanket
-`Zeroize`, the HKDF, the `Zeroizing` wrapper). None depends on a compiler-trust axiom. The proofs are
+`Zeroize`, the pair `Zeroize` inside the chain table's instance, the HKDF, the `Zeroizing` wrapper). None depends on a compiler-trust axiom. The proofs are
 statements about the translation: `Vec::with_capacity` never fails in the Aeneas model, where the
 real function panics for an absurd capacity, so a result that reaches it (`Encoder::new`,
 `Decoder::message`) holds of the translated code and says nothing about a request for more memory
@@ -2899,8 +2899,8 @@ than the machine has.
 
 Location: `Translation/UnitSatisfiabilityJoint.lean`, `Translation/UnitSatisfiabilityRecords.lean`, `Translation/UnitSatisfiabilitySession.lean`.
 
-`UnitSatisfiabilityJoint.lean` interprets 48 of the opaque axioms of `TacentaSessionUnit.lean` that the
-four contract records reach (6 types, 4 constants, 38 functions; of the unit's other 40 axioms, 39 are reached
+`UnitSatisfiabilityJoint.lean` interprets 49 of the opaque axioms of `TacentaSessionUnit.lean` that the
+four contract records reach (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
 by no field and the error type inside `RngCore` is reached and not interpreted) in one structure `Interp`, and shows that one interpretation satisfies every field of the four
 records that mentions only those constants, both model classes and the five laws of `StdLaws`.
 `UnitSatisfiabilityRecords.lean` proves, at the real constants, that the four records follow from that
@@ -2932,8 +2932,10 @@ exact residual is in `LIMITATIONS.md`.
   `Zeroize` returns at `u32`). The empty-vector case of `pop`, the `capacity` bound and the `truncate` prefix are also
   held by statement (`model_pop_empty`, `model_capacity_ge`, `model_truncate_is_take`), so weakening the matching
   clause of `FaithfulShape` is refused. So the model is not a degenerate function with the weak property. The blanket
-  `Zeroize` and the array, vector and tuple `Zeroize` are modelled as the identity, which is not what they do; only the
-  returning of the blanket one is used by a law, and the array and vector ones are the three over-strong fields.
+  `Zeroize` and the array, vector, pair and tuple `Zeroize` are modelled as the identity, which is not what they do; only
+  the returning of the blanket one is used by a law. `UnitSatisfiabilityZeroizeScope.lean` gives a second interpretation
+  in which the array, vector and pair ones zeroize element by element and propagate a failing element's failure, and
+  which satisfies every shape too.
 - `encrypt_iff_parts`, `decrypt_iff_parts`, `initiator_toParts_ofParts`, `responder_toParts_ofParts`: each
   record is exactly an axiom part over `Interp` and a defined part over the translated functions
   (the `Iff` for the two `Prop` records, a round trip by `rfl` for the two that carry the model class's data).
@@ -2975,7 +2977,7 @@ exact residual is in `LIMITATIONS.md`.
   witnesses are separate, one for each contract of the first Session proof layer; that the contracts hold together is the joint model.
 
 Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
-deleting one fails it. The pins of the results about `Interp.real` and the records list the 48 interpreted
+deleting one fails it. The pins of the results about `Interp.real` and the records list the 49 interpreted
 constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
 axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
 The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng` and `records_of_axiom_base`
@@ -3138,31 +3140,38 @@ refinement theorems apply to states reachable from a fresh Braid and to restored
 and that the witnesses reach a state with the relation hypotheses over values of a real ML-KEM key pair, because
 the key pairs are the ones the agreements provide, under `KemDrawsSucceed` (assumed of the real wrapper, not proved).
 
-## Proved (evidence about three fields that quantify over every Zeroize record)
+## Proved (why three Session contract fields are stated at the unit's instances)
 
 Location: `Translation/UnitSatisfiabilityZeroizeScope.lean`.
 
 `SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of
-`SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize` return for every instance
-record `inst : Zeroize Z`, including one whose `zeroize` fails. The joint model satisfies them, so they do not make
-a record empty. The real functions call `inst.zeroize` on each element, so for a failing instance the statement is false of the
-crate: the fields are stronger than the code supports. This module changes no record and no theorem.
+`SessionUnitSpqrT1.VecRetainTotal` are stated at the instances the Session unit passes to `Array::zeroize` and
+`Vec::zeroize`: the blanket `u8` instance on a 32-byte array, and the chain table (`Vec<(u64, Chains)>`), the sparse
+skipped-key store (`Vec<Skipped>`) and the classical one (`Vec<SkippedKey>`). A walk of the elaborated definitions of
+`TacentaSessionUnit.lean` finds 34 calls of `Array::zeroize`, all at that instance and width, and 5 of `Vec::zeroize`,
+at those three instances (2, 2 and 1); the walk was run when the fields were restated and no gate repeats it. Before,
+the three said the operations return for every `Zeroize` record, including one whose `zeroize` fails, which the real
+functions, which call the record's `zeroize` on each element, do not support. That the real functions return at the
+unit's instances is assumed (`LIMITATIONS.md`). The statements of the three fields are pinned by `#print` in this module
+and `attest.py` requires the pins (`REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`).
 
-- `zeroize_failure_propagation_conflicts`: no interpretation satisfies `ZeroizeTotal` and also lets
-  `Array::zeroize` propagate the failure of a failing instance, which is what the real function does.
-- `faithful_propagates`, `faithful_refutes_unscoped`, `faithful_satisfies_rest`: a second interpretation
-  implements `Array::zeroize` and `Vec::zeroize` as the crate does (zeroize each element in order, fail if one
-  fails; `Vec::zeroize` leaves an empty vector). It propagates the failure, falsifies the unscoped field, and
-  satisfies the scoped replacements together with every other shape, both model classes and `StdLaws`.
-- `arrayZeroizeScoped_of_total`, `ArrayZeroizeU8Total_of_spqr`, `ArrayZeroizeU8Total_of_braid`: the scoped
-  statements (the same, with the premise that the instance's `zeroize` returns, and the form at the one
-  instance the code uses, `Blanket U8`) follow from the fields as they stand, so replacing the fields by them
-  weakens a hypothesis.
-- `VecZeroizeChainsTotal_of_vecRetain`, `VecZeroizeSkippedTotal_of_vecRetain`: the `Vec::zeroize` conjunct implies its
-  scoped forms at the two instances the proofs apply it at, the chain table and the skipped-key store. A
-  replacement needs both: with the chain table alone, `skip_message_keys_no_panic` stops building (measured
-  in a copy; `LIMITATIONS.md`). That the scoped forms hold in the second interpretation is not shown, because
-  they mention the translated `Chains::zeroize` and `Skipped::zeroize`, whose totality there is not proved.
+- `zeroize_failure_propagation_conflicts`, `braid_zeroize_failure_propagation_conflicts`,
+  `vec_zeroize_failure_propagation_conflicts`: no interpretation satisfies the general form a field had
+  (`SpqrZeroizeUnscopedShape`, `ArrayZeroizeUnscopedShape`, `VecZeroizeUnscopedShape`) and also lets the operation
+  propagate the failure of a failing instance, which is what the real function does. They are kept as the record of
+  why the fields were restated.
+- `spqrZeroize_of_unscoped`, `arrayZeroize_of_unscoped`, `vecRetainAxiom_of_unscoped`: over every interpretation,
+  each general form implies the field's shape as now stated, so the restatement weakens a hypothesis of every theorem
+  that takes the records and strengthens no result.
+- `arrayZeroizeScoped_of_total`: the general form of `ZeroizeTotal` implies the form with the premise that the
+  instance's `zeroize` returns on every element.
+- `faithful_propagates`, `faithful_vec_propagates`, `faithful_refutes_unscoped`, `faithful_satisfies_all_axiom_shapes`:
+  a second interpretation implements `Array::zeroize`, `Vec::zeroize` and the pair `Zeroize` as the crate does
+  (zeroize each element in order, fail if one fails; `Vec::zeroize` leaves an empty vector). It propagates a failing
+  element's failure through `Array::zeroize` and `Vec::zeroize`, falsifies the general form of `ZeroizeTotal`, and
+  satisfies every axiom-level shape of the joint model, the three restated fields among them, both model classes and
+  `StdLaws`. Like the joint model it is a model of the shapes: the blanket `Zeroize` is the identity, and nothing here
+  shows that the real functions satisfy any of it.
 
 ## Proved (a negative result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)
 
@@ -3376,7 +3385,7 @@ or that the real primitives satisfy the assumptions. The exact residual is in `L
   admits. The base gives `EncryptContracts` and `DecryptRatchetContracts` and `DhCodecTotal` with them. The joint model
   satisfies the base, `HeadroomInhabitants` and `ValidKeyShape` together, and `optionEqImpl` satisfies `OptionEqU64Shape`.
   The second conjunct of `invariant_hypotheses_satisfiable` is that existence alone. It does not mention the base, because no
-  record, and neither of the other two assumptions, reaches `Option::eq`, by reading: it is not among the 48 interpreted
+  record, and neither of the other two assumptions, reaches `Option::eq`, by reading: it is not among the 49 interpreted
   constants.
 
 Each result has an axiom pin under `#guard_msgs`, and `attest.py` requires every one of the 51 (`REQUIRED_PINS`), so
@@ -3611,9 +3620,9 @@ Location: `Translation/UnitLifecycleRetryLoopT3.lean`, `Translation/UnitLifecycl
 `Model.Lifecycle.decryptRatchet`, including the eviction retry loop of `receive_with_eviction`. Each is conditional on
 the hypotheses in its statement. The screen below shows the hypotheses this section introduces consistent with each other
 and with the session contract records, and meets the per-run ones at three runs. It does not show them true of the
-shipped code. It does not decide the two sparse agreements, a run that carries an agreement chunk, or the three fields
-of the contract records that are stronger than the crate supports (`LIMITATIONS.md`, the sections on the four contract
-records and on this refinement). No gate reads these hypotheses: `check-hypothesis-witnesses.sh` leaves out the sections
+shipped code. It does not decide the two sparse agreements or a run that carries an agreement chunk, and it does not
+show the real `zeroize` functions return at the instances three fields of the contract records are stated at
+(`LIMITATIONS.md`, the sections on the four contract records and on this refinement). No gate reads these hypotheses: `check-hypothesis-witnesses.sh` leaves out the sections
 whose heading names a session lifecycle, so what shows them satisfiable is `Translation/UnitLifecycleDecryptRatchetScreen.lean`
 alone, in the senses stated below. They are not results about `Session::decrypt` or `Session::encrypt`.
 
@@ -3728,8 +3737,8 @@ source's state (so a source with no state of its own, such as `OsRng`, is outsid
 skipped-key store by `2^32 - 1 - 2000` and the model state as `RetryReceiveBounds` does. The screen does not reach a run
 carrying a chunk. The theorem takes `DecryptRatchetContracts`, three of whose fields (`SessionUnitSpqrT1.ZeroizeTotal`,
 `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal`) say that
-`Array::zeroize` and `Vec::zeroize` return for every `Zeroize` record, which the real functions do not; the proof uses
-all three, so it cannot be applied to the shipped functions until they are restated at the instances the unit uses. The
+`Array::zeroize` and `Vec::zeroize` return at the instances the unit passes to them (the blanket `u8` instance on 32-byte
+arrays; the chain table and the two skipped-key stores); that the real functions do is assumed. The
 agreements include `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`, statements about
 translated functions the session unit assumes (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), which the screen does
 not decide. `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement", lists what is assumed.
@@ -3780,9 +3789,9 @@ adds a hypothesis to the result it extends. They are not results about `Session:
   reason's public mapping `tripleReceiveRefusalOfReal` is defined and `Model.Triple.receiveDetailed` returns that refusal.
   So at those states the generated receive never refuses with the classical `NoSendingChain`, which has no receive
   counterpart, and every refusal it returns is the model's, the two full-store refusals included. Two of its
-  hypotheses, `SessionUnitSpqrT1.ZeroizeTotal` and `VecRetainTotal`, are among the three contract fields stronger than
-  the crate supports ("What is not shown" below), so like the other results here that take a contract record it cannot be applied to the
-  shipped functions until those fields are restated.
+  hypotheses, `SessionUnitSpqrT1.ZeroizeTotal` and `VecRetainTotal`, are among the three contract fields stated at the
+  instances the unit passes to `Array::zeroize` and `Vec::zeroize`; that the real functions return there is assumed
+  ("What is not shown" below).
 - `ratchet_receive_refusal_refines`, `ratchet_receive_tail_refusal_refines`, `ratchet_skip_refusal_refines`: the same for the
   classical ratchet's receive, its shared suffix and its skip: `TooManySkipped` and `SkippedStoreFull` from either skip,
   then `OutOfOrder`, `NoReceivingChain` and `ChainExhausted`, each the model's detailed refusal, in the model's order.
@@ -3809,8 +3818,8 @@ adds a hypothesis to the result it extends. They are not results about `Session:
   `StepRefines` holds between its result, the session it leaves and the remaining trace and the model's step, on every
   path: the terminal guard, a decode refusal, both DH refusals, every Triple receive refusal the run's bounds admit (from
   the first attempt or a retry; the bounds exclude the sparse `ChainExhausted`), an AEAD refusal and a success, with or
-  without eviction rounds. Because three fields of the contract record it takes are stronger than the crate supports, it
-  cannot be applied to the shipped functions until those fields are restated.
+  without eviction rounds. Three fields of the contract record it takes are stated at the instances the unit passes to
+  `Array::zeroize` and `Vec::zeroize`, and that the real functions return there is assumed.
 - `decrypt_ratchet_refines_complete_implies_refines`: the complete statement implies the first form's statement, so the
   complete form assumes no hypothesis beyond the first form's (by proof); that the hypotheses are identical, not only
   included, is shown by the two forms' statement pins, which differ in the conclusion alone.
@@ -3833,8 +3842,8 @@ adds a hypothesis to the result it extends. They are not results about `Session:
 **What is not shown.** Which branch the shipped code takes at the screen's run with the real primitives: the oracle
 clauses hold of the model interpretation, not at the real constants. The hypotheses are those of the previous section,
 with the same limits: a spliced or inconsistent agreement chunk is not covered; the random source is read as a function of
-its state, so a source with no state of its own, such as `OsRng`, is outside the statement; three fields of the contract
-records are stronger than the crate supports; and the two agreements of row `SESSION-SPARSE-AGREEMENTS` are undecided
+its state, so a source with no state of its own, such as `OsRng`, is outside the statement; that the real `zeroize`
+functions return at the instances three fields of the contract records are stated at is assumed; and the two agreements of row `SESSION-SPARSE-AGREEMENTS` are undecided
 (`LIMITATIONS.md`, the section on the `decrypt_ratchet` refinement). The screen's run refuses on the classical side at the
 first attempt; no run here reaches a sparse refusal or a refusal returned by a retry inside the eviction loop, and unlike
 the first and third runs of the previous section this run is not composed with the boundary model inside Lean.
@@ -4473,9 +4482,9 @@ in the platform width.
   `UnitSatisfiabilityTriple.lean` for the unit's), and the proofs apply them only at the `Blanket U8`
   instance, whose element wipe returns, and, for the `Vec` conjunct, at the instances for
   `(u64, Chains)` and `Skipped`. They are **documented and unchanged here**: no theorem statement and no
-  hypothesis is altered by this section, and no result in it replaces any of them. The session unit's three
-  array fields and its `Vec` conjunct have the same result, with scoped replacements, in
-  `UnitSatisfiabilityZeroizeScope.lean`.
+  hypothesis is altered by this section, and no result in it replaces any of them. The session unit's
+  corresponding fields (its two array fields and its `Vec` conjunct) are stated at the instances that unit uses, and
+  the same result about their former general forms is in `UnitSatisfiabilityZeroizeScope.lean`.
 - `SpqrFromBytesWitness.spqr_from_bytes_accepts_witness`,
   `SpqrFromBytesWitness.spqr_from_bytes_establishes_inv_nonvacuous`: the translated
   `tacenta_spqr::State::from_bytes` accepts a concrete 140-byte string (version 1, an all-zero root key, epoch 0, one
@@ -4532,9 +4541,9 @@ values. That `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSk
 laws: this section covers the leaf crates and the three-leaf unit, `UnitSatisfiabilityRatchet.lean` covers
 the session unit's T1 fields only, and `check-hypothesis-witnesses.sh` does not read the Session unit; the
 session unit's refinement theorems, `SessionUnitTripleT3`'s discharged theorems and the lifecycle contract
-`TripleSendRefinementContracts` take those two. That any of the four over-strong zeroize hypotheses (the
-three array wipes and the `Vec::zeroize` conjunct) is replaced: the scoped replacements exist only for the
-session unit's fields.
+`TripleSendRefinementContracts` take those two. That any of the four over-strong zeroize hypotheses of the leaf
+crates and the three-leaf unit (the three array wipes and the `Vec::zeroize` conjunct) is replaced: only the
+session unit's fields are stated at the instances that unit uses.
 
 ## Evidence, not proof
 

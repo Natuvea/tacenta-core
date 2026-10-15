@@ -4,8 +4,10 @@
 -- port changes namespaces, pins aggregate tactic rules, audits the
 -- complete unit's concrete erasure dependencies and applies the named
 -- `unit_edit`s that restate `DecoderMessageTotal` for decoders with
--- `needed <= 65536` and add the hypothesis `hdb` (`State.decoders_bounded`)
--- to the receive theorems. The standalone file keeps its statements.
+-- `needed <= 65536`, restate `ArrayZeroizeTotal` at the blanket `u8`
+-- instance on 32-byte arrays, and add the hypothesis `hdb`
+-- (`State.decoders_bounded`) to the receive theorems. The standalone file
+-- keeps its statements.
 
 import Translation.TacentaSessionUnit
 import Translation.SessionUnitSessionT1
@@ -259,10 +261,17 @@ def ZeroizingArrayRoundTrip : Prop :=
 
 /-- Wiping a fixed-size byte array in place -- the raw KEM secret, once the
 epoch key has been derived from it -- returns. The source discards what it
-leaves behind, so nothing about the value is assumed. -/
+leaves behind, so nothing about the value is assumed.
+
+In this unit the statement is made at the one instance and width the translation passes to
+`Array::zeroize`: the blanket `Zeroize` for `u8`, on a 32-byte array, which makes it the same
+proposition as `SessionUnitSpqrT1.ZeroizeTotal`. The standalone `BraidT1.lean` states it for every
+width and every `Zeroize U8` record, including one whose `zeroize` fails, which the real function
+does not support. -/
 def ArrayZeroizeTotal : Prop :=
-  ∀ (N : Usize) (inst : tacenta_session_unit.zeroize.Zeroize U8) (a : Array U8 N),
-    ∃ r, tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize (N := N) inst a = ok r
+  ∀ (a : Array U8 32#usize),
+    ∃ r, tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize
+      (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
 
 /-- Indexing a slice by the full range `..` returns the slice. The Aeneas
 library models the bounded range shapes but not `RangeFull`, so the
@@ -294,10 +303,10 @@ theorem zeroizing_deref_spec {N : Usize} {z : tacenta_session_unit.zeroize.Zeroi
         (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes)) z ⦃ fun r => r = a ⦄ := by
   rw [h]; simp
 
-theorem array_zeroize_spec (hzz : ArrayZeroizeTotal) {N : Usize} (a : Array U8 N) :
-    tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize (N := N)
+theorem array_zeroize_spec (hzz : ArrayZeroizeTotal) (a : Array U8 32#usize) :
+    tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize
       (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
-  obtain ⟨r, hr⟩ := hzz N (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes) a
+  obtain ⟨r, hr⟩ := hzz a
   rw [hr]; simp
 
 theorem index_full_spec (hrf : RangeFullIndexTotal) {N : Usize} (a : Array U8 N) :
