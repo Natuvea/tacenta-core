@@ -3873,7 +3873,10 @@ about an initial message, so `Session::decrypt` is still not proved end to end.
   public key, an AEAD open that returns the empty plaintext and refuses the empty ciphertext), the model's step succeeds and clears the pending initial message the input holds
   (`pend_model_clears`); under the boundary records at that oracle, which are not discharged here, the generated
   `decrypt` succeeds and returns a session with no pending initial message (`generated_clears_at_pending_success`). This
-  is the generated side of the run, conditional on those records; it says nothing about the real primitives. The state
+  is the generated side of the run, conditional on those records, which hold together at that oracle only in the toy
+  interpretation `decrypt_boundary_has_a_model` gives (at exactly `oracleDecrypt (byteTrace sampleRng)` and `toyKem`) and
+  are not true of the real primitives (an agreement that returns the private key is not X25519); the run says nothing
+  about the shipped functions. The state
   fails `Session::invariant` (empty associated data), so it shows the hypotheses consistent at a success, not met by a
   state the crate admits.
 
