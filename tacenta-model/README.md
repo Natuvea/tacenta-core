@@ -42,7 +42,8 @@ Status: everything the engine runs is modelled. Beyond the Double Ratchet slice
 the model now carries PQXDH session establishment
 (`Model/SessionEstablishment.lean`), the sparse post-quantum ratchet
 (`Model/SparseRatchet.lean`), the ML-KEM Braid and the field and polynomial
-theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
+theory beneath it (`Model/Braid.lean`, whose KEM operations return `Option` so that the four KEM failures
+the specification lists are expressible; `Model/Gf65536.lean`,
 `Model/Polynomial.lean`), the erasure code's bytes and its coders' persisted
 formats (`Model/Erasure.lean`), six persisted states with their readers and
 the rules the readers enforce -- the classical ratchet's, the sparse
