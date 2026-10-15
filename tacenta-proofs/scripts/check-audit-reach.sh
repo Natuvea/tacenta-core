@@ -66,11 +66,18 @@ def module_of(path):
     return path[:-len(".lean")].replace("/", ".")
 
 def sources(pkg, subdirs, roots):
+    # Recursive: Lake's `Translation.*` glob builds a module in a subdirectory
+    # too, and a module that is built but reached by no audit is the gap this
+    # script exists to close.
     out = []
     for sub in subdirs:
-        for name in sorted(os.listdir(os.path.join(pkg, sub))):
-            if name.endswith(".lean"):
-                out.append(f"{sub}/{name}")
+        base = os.path.join(pkg, sub)
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames.sort()
+            rel = os.path.relpath(dirpath, pkg)
+            for name in sorted(filenames):
+                if name.endswith(".lean"):
+                    out.append(f"{rel}/{name}")
     out.extend(r for r in roots if os.path.exists(os.path.join(pkg, r)))
     return out
 
@@ -102,7 +109,7 @@ def direct_imports(pkg, files):
 fail = False
 total_reached = 0
 summary = []
-audit_call = re.compile(r"^run_cmd Model\.AxiomAudit\.run (.*)$", re.M)
+audit_call = re.compile(r"^run_cmd _root_\.Model\.AxiomAudit\.run (.*)$", re.M)
 n_calls = 0
 for pkg, audits, _, _ in PACKAGES:
     for a in audits:
@@ -116,20 +123,20 @@ for pkg, audits, _, _ in PACKAGES:
         # otherwise be invisible here. `check-lean-constructs.sh` refuses such
         # a line outright, and this counts it so that neither script is the
         # only thing standing between a second invocation and the tree.
-        mentions = text.count("Model.AxiomAudit.run")
+        mentions = text.count("Model.AxiomAudit.run")  # `_root_.` included
         if mentions != len(calls):
             fail = True
             sys.stderr.write(
                 f"::error::{path}: mentions Model.AxiomAudit.run {mentions} "
                 f"time(s) but only {len(calls)} are a plain `run_cmd "
-                f"Model.AxiomAudit.run ...` line. An invocation written any "
+                f"_root_.Model.AxiomAudit.run ...` line. An invocation written any "
                 f"other way is not checked here.\n")
             continue
         if len(calls) != 1:
             fail = True
             sys.stderr.write(
                 f"::error::{path}: expected exactly one `run_cmd "
-                f"Model.AxiomAudit.run` line, found {len(calls)}\n")
+                f"_root_.Model.AxiomAudit.run` line, found {len(calls)}\n")
             continue
         n_calls += 1
         if calls[0].strip() != PREFIXES:

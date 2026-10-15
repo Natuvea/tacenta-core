@@ -45,6 +45,9 @@ argument about derivations and not a theorem inside Lean.
 * It does not show that the real ML-KEM wrapper, libcrux or the real KDF satisfies the six
   agreements.  They are assumed and recorded in `LIMITATIONS.md`.  The model's `K` is `toyKem`,
   because `K` is existentially quantified in `KemAgreesFor K`.
+* `KemAgreesFor K` is two-sided: each real KEM call and the model's operation succeed together or
+  refuse together.  `toyKem` never refuses and neither does the model's KEM family, so the model
+  satisfies every clause through its success arm; it exercises none of the refusing arms.
 * `ValidateEkAgrees K` holds of the real call only for a `K` whose `hashEk` also folds in the
   coefficient check that `validate_ek` makes after the hash; such a `K` exists because `K` is
   existential.
@@ -71,29 +74,39 @@ def KemLenShape (I : Interp) (K : Model.Braid.Kem) : Prop :=
 def KemAgreesShape (I : Interp) (K : Model.Braid.Kem) : Prop :=
   (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
       Tacenta.SessionUnitBraidT1.RngTotal rc →
-      ∃ kp rng' rand,
-        I.ikpGenerate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
-        (∃ h, I.ikpHeader kp = ok h ∧
-          vecOf h = (K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2) ∧
-        (∃ v, I.ikpEkVector kp = ok v ∧ vecOf v = (K.keyGen rand).2.2) ∧
-        (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
-          ∃ raw : Array Std.U8 32#usize,
-            I.ikpDecapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
-            keyOf raw = K.decaps (K.keyGen rand).1 (sliceOf ct1) (sliceOf ct2))) ∧
+      ∃ rng' rand,
+        (∃ kp dk ekSeed ekVector,
+          I.ikpGenerate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
+          K.keyGen rand = some (dk, ekSeed, ekVector) ∧
+          (∃ h, I.ikpHeader kp = ok h ∧
+            vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ∧
+          (∃ v, I.ikpEkVector kp = ok v ∧ vecOf v = ekVector) ∧
+          (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
+            (∃ raw : Array Std.U8 32#usize,
+              I.ikpDecapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = some (keyOf raw)) ∨
+            ((∃ e, I.ikpDecapsulate kp ct1 ct2 = ok (core.result.Result.Err e)) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = none))) ∨
+        ((∃ e, I.ikpGenerate rc crc rng = ok (core.result.Result.Err e, rng')) ∧
+          K.keyGen rand = none)) ∧
     (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
         (header : Slice Std.U8) (rng : R), Tacenta.SessionUnitBraidT1.RngTotal rc →
       header.length = Model.Braid.headerSize →
-      ∃ es ct1raw ssraw rng' rand',
-        I.encapsulate1 rc crc header rng =
-          ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
-        (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
-          (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
-          (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw ∧
-          (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
-            ∃ ct2raw,
-              I.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
-              vecOf ct2raw =
-                K.encaps2 (K.encaps1 rand' ekSeed hek).1 ekSeed (sliceOf ekVector))))
+      ∃ rng' rand',
+        (∃ es ct1raw ssraw,
+          I.encapsulate1 rc crc header rng =
+            ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            ∃ es', K.encaps1 rand' ekSeed hek = some (es', vecOf ct1raw, keyOf ssraw) ∧
+              (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
+                (∃ ct2raw,
+                  I.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = some (vecOf ct2raw)) ∨
+                ((∃ e, I.encapsulate2 es ekVector = ok (core.result.Result.Err e)) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = none)))) ∨
+        ((∃ e, I.encapsulate1 rc crc header rng = ok (core.result.Result.Err e, rng')) ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            K.encaps1 rand' ekSeed hek = none)))
 
 def ValidateEkAgreesShape (I : Interp) (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
@@ -107,14 +120,12 @@ def KemCloneAgreesShape (I : Interp) : Prop :=
     I.ikpClone kp = ok kp' →
     (∀ h, I.ikpHeader kp = ok h → I.ikpHeader kp' = ok h) ∧
     (∀ v, I.ikpEkVector kp = ok v → I.ikpEkVector kp' = ok v) ∧
-    (∀ (ct1 ct2 : Slice Std.U8) raw,
-      I.ikpDecapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) →
-      I.ikpDecapsulate kp' ct1 ct2 = ok (core.result.Result.Ok raw))) ∧
+    (∀ (ct1 ct2 : Slice Std.U8) r,
+      I.ikpDecapsulate kp ct1 ct2 = ok r → I.ikpDecapsulate kp' ct1 ct2 = ok r)) ∧
   (∀ es es' : I.EncapsState,
     I.esClone es = ok es' →
-    ∀ (ekVector : Slice Std.U8) ct2, I.encapsulate2 es ekVector =
-      ok (core.result.Result.Ok ct2) →
-      I.encapsulate2 es' ekVector = ok (core.result.Result.Ok ct2))
+    ∀ (ekVector : Slice Std.U8) r, I.encapsulate2 es ekVector = ok r →
+      I.encapsulate2 es' ekVector = ok r)
 
 def HkdfAgreesShape (I : Interp) : Prop :=
   ∀ (N : Usize) (salt ikm info : Slice Std.U8), N.val ≤ 8160 →
@@ -250,20 +261,20 @@ theorem modelT3_kemLen : KemLenShape Interp.modelT3 Model.Braid.toyKem := by
 theorem modelT3_kemAgrees : KemAgreesShape Interp.modelT3 Model.Braid.toyKem := by
   refine ⟨?_, ?_⟩
   · intro R rc crc rng _
-    refine ⟨(0 : ℕ), rng, 0, rfl, ⟨_, rfl, ?_⟩, ⟨_, rfl, ?_⟩, ?_⟩
-    · rw [vecOf_vecOfBytes]; rfl
-    · rw [vecOf_vecOfBytes]; rfl
+    refine ⟨rng, 0, Or.inl ⟨(0 : ℕ), seedOf 0, seedOf 0, ekVecOf 0, rfl, rfl, ⟨_, rfl, ?_⟩,
+      ⟨_, rfl, ?_⟩, ?_⟩⟩
+    · rw [vecOf_vecOfBytes]
+    · rw [vecOf_vecOfBytes]
     · intro ct1 ct2 _ _
-      refine ⟨arr32 (seedOf 0), rfl, ?_⟩
+      refine Or.inl ⟨arr32 (seedOf 0), rfl, ?_⟩
       rw [keyOf_arr32 _ (by simp [seedOf])]; rfl
   · intro R rc crc header rng _ _
-    refine ⟨(), _, arr32 ((sliceOf header).take 32), rng, 0, rfl, ?_⟩
+    refine ⟨rng, 0, Or.inl ⟨(), _, arr32 ((sliceOf header).take 32), rfl, ?_⟩⟩
     intro ekSeed hek hlen hsplit
-    refine ⟨?_, ?_, ?_⟩
-    · rw [vecOf_vecOfBytes]; rfl
-    · rw [hsplit, List.take_left' hlen, keyOf_arr32 _ hlen]; rfl
+    refine ⟨ekSeed, ?_, ?_⟩
+    · rw [vecOf_vecOfBytes, hsplit, List.take_left' hlen, keyOf_arr32 _ hlen]; rfl
     · intro ekVector _
-      refine ⟨_, rfl, ?_⟩
+      refine Or.inl ⟨_, rfl, ?_⟩
       rw [vecOf_vecOfBytes]; rfl
 
 theorem modelT3_validateEk : ValidateEkAgreesShape Interp.modelT3 Model.Braid.toyKem := by
@@ -472,8 +483,60 @@ theorem TruncatePrefix.total (h : TruncatePrefix) :
     ∀ (v : alloc.vec.Vec Std.U8) (n : Usize), ∃ r, alloc.vec.Vec.truncate Global v n = ok r :=
   fun v n => let ⟨r, hr, _⟩ := h v n; ⟨r, hr⟩
 
-/-- The six agreements and the law `TruncatePrefix`, each bound to the shape this module proves
-satisfiable.  Each bridge is proved by `Iff.rfl`, so the kernel checks that the shape unfolds to the
+/-! ## `KemDrawsSucceed`: the real KEM's drawing operations each succeed somewhere
+
+`KemAgreesFor` is two-sided, so it does not give a real key pair or encapsulation state by itself.
+The state witnesses of `UnitSatisfiabilityBraidStates.lean` take this premise for that, and the
+headline below carries its shape, so the one model satisfies it with the agreements. -/
+
+/-- A 64-byte all-zero header, the length `Model.Braid.headerSize` fixes. -/
+def zeroHeader : Slice Std.U8 := ⟨bytesOf (List.replicate 64 0), by simp [bytesOf]; exact le64⟩
+
+/-- **The real KEM's two drawing operations each succeed somewhere**: key generation from some
+RNG that answers, and the first half of encapsulation on some header of the real length from some
+RNG that answers.
+
+`KemAgreesFor K` is two-sided (each real call returns `Ok` and the model `some`, or the real call
+returns `Err` and the model `none`), so it no longer yields a real key pair or encapsulation state
+by itself: a KEM that refused every call, with a `K` that refused every call, satisfies it, and
+then nothing below would build the states that hold a key pair or an encapsulation state.  This is
+the premise that excludes that case.  It is a statement about the real `tacenta_kem` wrapper and is
+assumed, not proved: `IncrementalKeyPair::generate` refuses only if libcrux's key generation does,
+and `encapsulate1` refuses a header of the wrong length or what libcrux refuses
+(`tacenta-core/kem/src/lib.rs`).  `modelT3_kemDrawsSucceed` shows it holds, with the agreements, in
+`Interp.modelT3`, and `braid_agreements_have_a_model` carries it. -/
+def KemDrawsSucceed : Prop :=
+  (∃ (R : Type) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
+    Tacenta.SessionUnitBraidT1.RngTotal rc ∧
+    ∃ kp rng', tacenta_kem.IncrementalKeyPair.generate rc crc rng =
+      ok (core.result.Result.Ok kp, rng')) ∧
+  (∃ (R : Type) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+      (header : Slice Std.U8) (rng : R),
+    Tacenta.SessionUnitBraidT1.RngTotal rc ∧ header.length = Model.Braid.headerSize ∧
+    ∃ r rng', tacenta_kem.encapsulate1 rc crc header rng = ok (core.result.Result.Ok r, rng'))
+
+/-- `KemDrawsSucceed` over an interpretation. -/
+def KemDrawsSucceedShape (I : Interp) : Prop :=
+  (∃ (R : Type) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
+    Tacenta.SessionUnitBraidT1.RngTotal rc ∧
+    ∃ kp rng', I.ikpGenerate rc crc rng = ok (core.result.Result.Ok kp, rng')) ∧
+  (∃ (R : Type) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+      (header : Slice Std.U8) (rng : R),
+    Tacenta.SessionUnitBraidT1.RngTotal rc ∧ header.length = Model.Braid.headerSize ∧
+    ∃ r rng', I.encapsulate1 rc crc header rng = ok (core.result.Result.Ok r, rng'))
+
+/-- The shape, at the real constants, is `KemDrawsSucceed`. -/
+theorem KemDrawsSucceed_is : KemDrawsSucceed ↔ KemDrawsSucceedShape Interp.real := Iff.rfl
+
+/-- `KemDrawsSucceed` holds in the interpretation that satisfies every agreement
+(`modelT3_t3`), so it is consistent with them. -/
+theorem modelT3_kemDrawsSucceed : KemDrawsSucceedShape Interp.modelT3 :=
+  ⟨⟨Unit, totalRngCore, ⟨⟩, (), fun _ _ => ⟨_, rfl⟩, _, _, rfl⟩,
+    ⟨Unit, totalRngCore, ⟨⟩, zeroHeader, (), fun _ _ => ⟨_, rfl⟩,
+      by simp [zeroHeader, bytesOf, Model.Braid.headerSize], _, _, rfl⟩⟩
+
+/-- The six agreements, the law `TruncatePrefix` and the premise `KemDrawsSucceed`, each bound to
+the shape this module proves satisfiable.  Each bridge is proved by `Iff.rfl`, so the kernel checks that the shape unfolds to the
 very proposition `SessionUnitBraidT3.lean` takes (the bridge of `DivCeilValue` is
 `UnitSatisfiabilityJoint.all_shapes_are_predicates`'s last conjunct).  They are collected so that one
 pin holds all of them, and `check-braid-agreement-negatives.sh` requires this theorem to name
@@ -485,21 +548,23 @@ theorem braid_agreement_shapes_are_predicates :
     (Tacenta.SessionUnitBraidT3.KemCloneAgrees ↔ KemCloneAgreesShape Interp.real) ∧
     (Tacenta.SessionUnitBraidT3.BraidHkdfAgrees ↔ HkdfAgreesShape Interp.real) ∧
     (Tacenta.SessionUnitBraidT3.BraidHmacAgrees ↔ HmacAgreesShape Interp.real) ∧
-    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) :=
+    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) ∧
+    (KemDrawsSucceed ↔ KemDrawsSucceedShape Interp.real) :=
   ⟨KemLenAgrees_is, KemAgreesFor_is, ValidateEkAgrees_is, KemCloneAgrees_is, BraidHkdfAgrees_is,
-    BraidHmacAgrees_is, TruncatePrefix_is⟩
+    BraidHmacAgrees_is, TruncatePrefix_is, KemDrawsSucceed_is⟩
 
 /-- **The six Braid refinement agreements about opaque constants of the complete Session unit, the
-33 axiom-level shapes of the session contract records, `StdLaws` and the law `TruncatePrefix` hold
-in one interpretation of the unit's opaque constants** (`DivCeilValueShape` is among the 33
-shapes).  The agreements are stated over `Interp`; `braid_agreement_shapes_are_predicates` binds each
+33 axiom-level shapes of the session contract records, `StdLaws`, the law `TruncatePrefix` and the
+premise `KemDrawsSucceed` of the state witnesses hold in one interpretation of the unit's opaque
+constants** (`DivCeilValueShape` is among the 33 shapes).  The agreements are stated over `Interp`; `braid_agreement_shapes_are_predicates` binds each
 to the real predicate.  The substitution argument transfers a derivation of `False` from the
 real statements to this model.  It does not show that the real KEM or KDF meets the agreements. -/
 theorem braid_agreements_have_a_model :
     ∃ (I : Interp) (K : Model.Braid.Kem),
-      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I :=
+      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I ∧
+        KemDrawsSucceedShape I :=
   ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,
-    modelT3_truncatePrefix⟩
+    modelT3_truncatePrefix, modelT3_kemDrawsSucceed⟩
 
 end Tacenta.UnitSatisfiabilityBraidAgreements
 
@@ -570,6 +635,15 @@ info: 'Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreements_have_a_model' 
 #print axioms Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreements_have_a_model
 
 /--
+info: 'Tacenta.UnitSatisfiabilityBraidAgreements.modelT3_kemDrawsSucceed' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityBraidAgreements.modelT3_kemDrawsSucceed
+
+/--
 info: Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreement_shapes_are_predicates :
   (∀ (K : Model.Braid.Kem),
       Tacenta.SessionUnitBraidT3.KemLenAgrees K ↔
@@ -588,8 +662,11 @@ info: Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreement_shapes_are_predi
             (Tacenta.SessionUnitBraidT3.BraidHmacAgrees ↔
                 Tacenta.UnitSatisfiabilityBraidAgreements.HmacAgreesShape Tacenta.UnitSatisfiabilityJoint.Interp.real) ∧
               (Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefix ↔
-                Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefixShape
-                  Tacenta.UnitSatisfiabilityJoint.Interp.real)
+                  Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefixShape
+                    Tacenta.UnitSatisfiabilityJoint.Interp.real) ∧
+                (Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed ↔
+                  Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceedShape
+                    Tacenta.UnitSatisfiabilityJoint.Interp.real)
 -/
 #guard_msgs in
 #check Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreement_shapes_are_predicates
@@ -599,7 +676,17 @@ info: Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreements_have_a_model :
   ∃ I K,
     Tacenta.UnitSatisfiabilityBraidAgreements.T3Agreements I K ∧
       Tacenta.UnitSatisfiabilityBraidAgreements.AllT1Shapes I ∧
-        Tacenta.UnitSatisfiabilityJoint.StdLaws I ∧ Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefixShape I
+        Tacenta.UnitSatisfiabilityJoint.StdLaws I ∧
+          Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefixShape I ∧
+            Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceedShape I
 -/
 #guard_msgs in
 #check Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreements_have_a_model
+
+/--
+info: Tacenta.UnitSatisfiabilityBraidAgreements.modelT3_kemDrawsSucceed :
+  Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceedShape
+    Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3
+-/
+#guard_msgs in
+#check Tacenta.UnitSatisfiabilityBraidAgreements.modelT3_kemDrawsSucceed

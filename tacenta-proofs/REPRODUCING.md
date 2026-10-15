@@ -154,7 +154,7 @@ to the recorded manifest and the allowlist from the text, and the audit prints e
 finds in them in the built environment (`audit-axiom:` lines, with the
 compiler-trust ones Aeneas's `toStr` introduces apart as `audit-native:`),
 which `no-sorry.sh` hands to `attest.py --compare-audit` to check against
-the same manifest and the allowlist, name for name and fully qualified. After the builds it runs four checks --
+the same manifest and the allowlist, name for name and fully qualified. After the builds it runs its checks, among them --
 `check-translation-coverage.sh`, that every `Translation/*.lean` produced an
 olean; that comparison; `check-lean-constructs.sh`, the textual second
 line of the audit, which strips comments and strings, refuses the keywords
@@ -164,8 +164,8 @@ is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
 outside `Model/AxiomAudit.lean`'s own implementation and the seven `run_cmd
-Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
-line content, because such code could plant an axiom in the one shape the
+_root_.Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
+line content, each standing alone, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
 `Tacenta*.lean` included) is outside the seven audit modules' import
@@ -194,17 +194,19 @@ runner; every count moves with the tree):
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 68 Translation/*.lean modules are in the build target and built
+translation-coverage: all 125 Translation/*.lean modules are in the build target and built
 lifecycle-translation-coverage: all 30 public operations generated
 lifecycle-translation-coverage-negatives: missing-root mutation refused
+refuted-records: the five evidence records DispatchEvidenceVacuity.lean refutes are taken by nothing but its 15 theorems, over the import closures of all 5 translation audit modules
+refuted-records-negatives: the walk called all 23 planted cases correctly (…)
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (346 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 106 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 116 first-party modules (tacenta-model 36, tacenta-proofs 11, tacenta-proofs/translation 69)
+check-lean-constructs: 164 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option and match their pins
+audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 174 first-party modules (tacenta-model 37, tacenta-proofs 12, tacenta-proofs/translation 125)
 audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (68 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (125 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
@@ -251,12 +253,12 @@ changes, with a stub docker; it starts no container. On an Apple-silicon Mac the
 container is emulated, and the script's header explains the one QEMU setting it
 needs.
 
-**The run recorded here** is of the committed script.
+**The run recorded here** is of the script as committed on 2026-10-03 (git blob `5d32f0c7…`); the committed script has since changed only in how the host copies the checkout into the container's input (see the Script row).
 
 | | |
 | --- | --- |
 | Run | 2026-10-03, 21:13Z to 21:37Z (24 min 1 s; `run-aeneas.sh` 19 min 33 s) |
-| Script | `tacenta-proofs/scripts/regenerate-in-container.sh`, git blob `5d32f0c72d7a252156fa8750f4fa6935cecbfbf5` |
+| Script | `tacenta-proofs/scripts/regenerate-in-container.sh`, git blob `5d32f0c72d7a252156fa8750f4fa6935cecbfbf5`. On 2026-10-15 the host-side copy of the checkout into the container's input directory (one `tar -cf - \| tar -xf -` pipe, which the recorded run completed on this Mac and which later attempts on the same Mac could not: BSD tar reported "Write error" before anything ran) was replaced by a file-by-file copy; the container side, the comparison and the checks are unchanged, and the run was not repeated after that change. |
 | Tree | `6b6a48a1581d2db2b659c4902855eddfde7b95ae`, a clean tree (the run counted 0 tracked paths differing from HEAD): `1cabffba85219029cd85f129a81f627f911b06b5` (`main`, 5,132 tracked files) with this change's script and control added, 5,134 tracked files in all, and the documents of this change. After the run, this section and two register rows were changed (`HL-R1-SPARSE-TRANSLATION`, which names the run, and one sentence of `READER-OPEN-GAPS`), and the control `tooling/tests/run-regenerate-in-container-cases.sh`, which the run does not use, was extended; no other file differs, and the script is the blob above. No Rust, Lean, model, specification or vector file differed from `main`. |
 | Host | Apple-silicon Mac (Darwin arm64, macOS 26.5.1), Docker Desktop 4.78.0 on Apple's virtualization framework, engine 29.5.3. The `linux/amd64` container ran under QEMU user-mode emulation; the machine is not x86_64 and the run is not native. |
 | Image | `ubuntu@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60` (the `ubuntu:24.04` index; its `linux/amd64` manifest is `sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b`), Ubuntu 24.04.5 LTS, glibc 2.39 |
@@ -295,7 +297,7 @@ above used that.
 **What this is evidence of.** That `run-aeneas.sh`, with the release's
 linux-x86_64 binaries, produces from the tracked Rust the bytes that are
 committed for the files it rewrites, on the date and with the tools above. It
-is one run of the committed script by the maintainer's tool-assisted session in
+is one run of the script as then committed by the maintainer's tool-assisted session in
 an emulated container, repeatable with the script. It is not a hosted-CI job, it
 did not run on the project's runner, and it was not made by anyone independent
 of the maintainer. The logs of the run are not kept in this repository. It does
@@ -389,7 +391,8 @@ you do:
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
   the audit's own implementation and its seven invocations, by path and
-  exact line); and every first-party module is in an audit's import closure
+  exact line, each standing alone);
+  and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole
   in the rule, not something the audit would catch. A fourth check,

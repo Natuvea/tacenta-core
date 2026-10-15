@@ -207,9 +207,28 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
-  exact line content, so that an invocation written any other way fails
-  there and a second one in an audit module fails in the reach check below;
+  seven `run_cmd _root_.Model.AxiomAudit.run` lines, allow-listed by file path and
+  exact line content and each standing alone (at column 0, no wrapper
+  before, nothing after but another invocation, in a module of imports, pins
+  and the invocation), so that an invocation written any other way fails
+  there and a second one in an audit module fails in the reach check below
+  (the refuted-record walk of `CLAIMS.md`'s vacuity section runs as a
+  compiled executable over each closure, not from a module). The scan's
+  rules read text and are defence in depth around those seven lines, not a
+  tokenizer: eighteen hostile reads each found a new spelling of Lean's
+  surface syntax, and the last ones were closed by refusing whole classes
+  (every `ident!` macro followed by a string or bracket and every message
+  head outside the audit, any brace in a string literal inside it, any
+  lakefile change) rather than spellings, by making the stripper read a
+  top-level `/-…` and `λ` as Lean does, and by refusing any file in which
+  the stripper's reading of a char literal or raw string depends on the
+  character before it, or in which a literal or comment opener follows
+  anything but whitespace, an opening bracket or a comma (Lean reads those
+  only at a token boundary; the stripper reads them anywhere, and no honest
+  first-party file has one after anything else), or which holds a carriage
+  return or a NUL (Lean ends a line at a newline or at CRLF only; the
+  scan's reading would end one at a lone carriage return too, so both
+  stripper copies refuse such a file, CRLF included: the tree is LF-only);
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
   outside the seven audit modules' import closure, so that no module holds
   such a declaration unwalked, and fails if the seven do not all run with the
@@ -1127,11 +1146,13 @@ draws 32 random bytes and returns a different `(ct1, ss)` pair under a
 different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
 (`encaps1 : Nat → Bytes → Bytes → …`), and `Model.Braid.send K rand` passes
 its `rand` to transition (7)'s encapsulation as it already did to transition (1)'s key
-generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
-… = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
-*some* model randomness makes the model's answer the real one, which is
-all a proof that does not control the RNG can say, and is what the
-key-generation clause (`∃ kp rng' rand`) always said. `step_send_refines`
+generation, and the clause reads `∃ rng' rand', (∃ es ct1raw ssraw, encapsulate1
+… = ok (Ok (es, ct1raw, ssraw), rng') ∧ … K.encaps1 rand' ekSeed hek = some …) ∨
+((∃ e, encapsulate1 … = ok (Err e, rng')) ∧ … K.encaps1 rand' ekSeed hek = none)`:
+for each RNG state, *some* model randomness makes the model's answer the real
+one, success or refusal, which is all a proof that does not control the RNG
+can say, and is what the key-generation clause (`∃ rng' rand`, with the same
+two arms inside) always said about the success side. `step_send_refines`
 and `Braid.send_refines` choose that `rand'` as the `rand` their conclusion
 binds. `Model.Braid.receive` needed no randomness argument: no receive
 transition encapsulates (transitions 9, 11 and 12 finish an encapsulation
@@ -1152,7 +1173,28 @@ pair of randomness values, while ML-KEM-1024 is δ-correct with the
 decapsulation-failure probability bounded by FIPS 203. Neither refinement
 proof used that conjunct: both destructured and discarded it. It is now
 removed from `KemAgreesFor`, so the four Braid refinement theorems no longer
-assume a property false of the shipped KEM. `Model.Braid.toyKem_correct`
+assume a property false of the shipped KEM. Since the model's KEM operations
+return `Option` (mlkem-braid.md, Failure), every clause of `KemAgreesFor`,
+`KeyPairRefines` and `EncapsRefines` is two-sided: the real call and the model
+answer alike, `Ok` with `some` of the same bytes or `Err` with `none`. The four
+real `Err` arms are refined against the model's `Failed` transitions, and no
+clause says the real KEM never refuses. The witnesses at `toyKem` take only the
+success arms, so no witness exercises a refusal arm, and no vector does either:
+the vector generator has only `toyKem`, which never refuses, and the vector
+format has no field that makes a call refuse, so the four arms are checked
+against the Rust by the refinement proofs, under `KemAgreesFor`, and against
+the model by nothing a vector carries. The independent reader drives its own KEM to refuse (its case
+BR-12) and tests the four arms against its reading of the specification, not
+against the model. That the real wrapper does refuse, and when, is not shown
+here in Lean. By test it refuses one known class of input: a restored
+encapsulation state with an out-of-bound coefficient (the section on the
+Session unit's primitive contracts below, and `KEM-STORED-STATE-TOTALITY` in
+the gap register). The model can express that refusal as `encaps2` returning
+`none` at that state, and `finish_encaps_refines` refines the real `Err` arm
+under `EncapsRefines` for the state; no theorem relates a restored Braid to a
+model state, so nothing supplies that hypothesis for a tampered store, no `K`
+in the tree refuses, and the coefficient rule is not modelled.
+`Model.Braid.toyKem_correct`
 remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
@@ -1202,7 +1244,10 @@ Two more sit beside it in `BraidT3.lean`: `KemCloneAgrees` and
 `ErasureCloneAgrees` (a clone of an opaque KEM or erasure value behaves as,
 respectively is, the original), hypotheses of `Braid.receive_refines` and
 `State.clone_refines`. Each is the same shape of boundary fact as the KDF
-agreements.
+agreements. `KemCloneAgrees` covers the whole `Result` of `decapsulate` and
+`encapsulate2`: a clone refuses where its original refuses, which the
+two-sided `KeyPairRefines` and `EncapsRefines` need to carry a refusal across
+`State.clone`.
 
 **An assumption is per translated crate, not per operation.** An earlier revision
 listed `VecRemoveTotal` once below, and there were two: each translation unit declared its own
@@ -2115,6 +2160,53 @@ result has the right bytes. Those value-level agreements belong to the later
 refinement relation and its oracle; the totality layer alone cannot establish
 them.
 
+**One of them was false of the shipped code, and is now kept by it rather
+than proved.** `KemEncapsulateTotal` here and `Encapsulate2Total` in
+`BraidT1.lean` say that `encapsulate2` returns for every `EncapsState`. Before
+the coefficient bound in `kem/src/lib.rs` (`encapsulate2`), a state restored
+from persistence, which `EncapsState::from_bytes` accepts on its length alone,
+could carry `i16` ring-element coefficients outside `|c| <= 3328`, the bound
+libcrux-ml-kem 0.0.10 states as a hax precondition (`requires`) of its
+`ntt_multiply` and `add_message_error_reduce`; this project has not checked
+that the library discharges it, and `compute_ring_element_v` and
+`invert_ntt_montgomery` on that path are marked lax (the section above on
+libcrux). Outside the bound the library's behaviour is undocumented: on its
+portable backend an `error2` coefficient of magnitude about 31,626 or more
+overflowed `i16` (`vector/portable/arithmetic.rs`, the add in
+`add_message_error_reduce` and the Barrett multiply) and panicked, since this
+workspace keeps overflow checks on in release; smaller out-of-bound values and
+out-of-bound `r_as_ntt` returned a ciphertext; the NEON backend returned a
+ciphertext for every pattern tried; AVX2 was not run. `encapsulate2` now
+refuses any coefficient outside the bound before the library runs, so the two
+contracts hold of the wrapper as an assumption about libcrux inside its stated
+precondition, the state-side half of which the wrapper keeps (the `ek_vector`
+side rests on `validate_ek`, which the Braid runs on a received vector and
+which a tag 8 restore does not repeat). That is tested, not proved:
+`kem/tests/malformed_stored_state.rs` drives fixed patterns and every one of
+the 1,280 coefficient positions at the bound and one past it through
+`encapsulate2`, and fails on a panic, on a ciphertext from an out-of-bound
+state, or on a refusal of an in-bound one; its scan and random sweep are
+informational. At the public surface,
+`a_restored_session_with_an_out_of_bound_encapsulation_state_fails_closed`
+(`lifecycle/src/lifecycle.rs`) exports a session that holds an encapsulation
+state, overwrites that state's coefficients with `i16::MAX`, restores the bytes
+through `Session::import`, and drives the restored session through `decrypt`
+and `encrypt` until it refuses with `AgreementFailed`; the restored session's
+own `encrypt` and `decrypt` then refuse. It needs write access to the stored
+blob; with the bound disabled it fails. The session it restores holds the
+encapsulation state as the responder (Braid tag 7), as does the Braid-level
+test's; both reach the refusal from tag 9 through transition (11). No test
+restores an out-of-bound state at tag 8 or 9, or reaches the refusal through
+transitions (9) or (12). Both tests were run on this
+machine on the NEON and portable backends (the portable one by building with
+`LIBCRUX_DISABLE_SIMD128=1`), not on AVX2; the `rust` job's
+`rust_portable_kem` step, added with this change, runs the KEM, Braid and
+lifecycle tests on the portable backend and is the first hosted run of that
+backend, and until it has run the portable half is a local receipt. `IncrementalKeyPair::from_bytes` is also length-only; `decapsulate`
+on a key pair with out-of-range coefficients in its secret polynomials returned
+on every pattern and random key pair tried, and that it never panics is not
+checked.
+
 `DhCodecTotal` is one joint contract over both opaque DH key types and all six
 reachable construction, projection, derivation and equality operations. Its
 non-vacuity witness interprets those types together, so the operations cannot
@@ -2502,9 +2594,19 @@ about each (`CLAIMS.md`, the section on the Braid refinement agreements).
 
 **Assumed, about opaque constants.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem` and
 `Model.Kdf`: `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
-`BraidHkdfAgrees` and `BraidHmacAgrees`. Nothing shows that the real ML-KEM wrapper, libcrux or the real
+`BraidHkdfAgrees` and `BraidHmacAgrees`. A seventh premise, `KemDrawsSucceed`
+(`UnitSatisfiabilityBraidAgreements.lean`), says the real key generation and `encapsulate1` each succeed for
+some RNG; the state witnesses take it because the two-sided `KemAgreesFor` admits a KEM that refuses every
+call. It holds in `Interp.modelT3` (`modelT3_kemDrawsSucceed`); of the real wrapper it is assumed, and
+every Braid test that completes an agreement exercises both calls, which is testing and not proof. With
+`KemDrawsSucceed`, the premises still admit a KEM whose decapsulation and second encapsulation half refuse
+every input, which is read off the clauses (each is two-sided and the premise speaks only of the two
+draws); the interpretation that shows it is not in the tree. Nothing assumed implies that transitions (5),
+(9), (11) or (12) can succeed, or that an honest run completes an epoch, and a claim that one does needs
+its own premise.
+Nothing shows that the real ML-KEM wrapper, libcrux or the real
 KDF satisfies them. What is shown is that they are consistent: one interpretation of the unit's opaque
-constants satisfies all six, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
+constants satisfies all six together with `KemDrawsSucceed`, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
 by the substitution argument above, which is an argument about derivations and not a theorem inside
 Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` says nothing about the real
 `K`. `ValidateEkAgrees K` holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the

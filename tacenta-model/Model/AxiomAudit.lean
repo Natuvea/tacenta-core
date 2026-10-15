@@ -84,9 +84,9 @@ from a real one on shape alone.** What excludes them is textual:
 in hand-written first-party Lean -- `run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl` and its kin, and any reference to the
 `Lean` namespace at all -- outside this module's own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
+seven `run_cmd _root_.Model.AxiomAudit.run` lines, which it allow-lists by file path
 and exact line content; and `scripts/check-audit-reach.sh` fails if any
-first-party module is outside the four audit modules' import closure, so no
+first-party module is outside the seven audit modules' import closure, so no
 module escapes the walk. The division of labour: this module recognises the
 declaration kinds a grep cannot, and the grep refuses the code that could
 forge what this module accepts.
@@ -106,6 +106,12 @@ audit nothing runs, which `scripts/check-translation-coverage.sh` guards
 against for the translation package, and a module outside every audit's
 imports would be a module nothing walks, which `check-audit-reach.sh` guards
 against for all three.
+
+A second command, `takers`, uses the same walk for a narrower question: which first-party
+declarations mention one of the evidence records `Translation/DispatchEvidenceVacuity.lean` shows
+false or empty. `scripts/check-refuted-records.sh` runs it as the executable `refuted-records`; its
+section below says why that is asked of the environment and not of the text, and why from an
+executable rather than a command in a module.
 -/
 
 namespace Model.AxiomAudit
@@ -412,34 +418,241 @@ def run (prefixes : Array Name) : Elab.Command.CommandElabM Unit := do
   let env ← getEnv
   let { offences, seen, generated, generatedNative } := audit env prefixes
   if seen == 0 then
-    throwError "axiom audit: no first-party declaration found under {prefixes}; \
-      the audit module imports nothing it should"
+    throwError ("axiom audit: no first-party declaration found under " ++ toString prefixes.toList ++
+      "; the audit module imports nothing it should" : String)
   if !offences.isEmpty then
-    let lines := offences.map fun o => s!"  {o.decl} ({o.module}): {o.kind}"
-    throwError "axiom audit: {offences.size} first-party declaration(s) widen the \
-      trust base without a compiler warning:\n{String.intercalate "\n" lines.toList}\n\
+    let lines := offences.map fun o =>
+      "  " ++ toString o.decl ++ " (" ++ toString o.module ++ "): " ++ o.kind
+    let body := String.intercalate "\n" lines.toList
+    throwError ("axiom audit: " ++ toString offences.size ++ " first-party declaration(s) widen the \
+      trust base without a compiler warning:\n" ++ body ++ "\n\
       An axiom, an opaque or partial definition, an unsafe declaration, an \
       implemented_by/extern attribute, a declaration using `sorryAx`, or a declaration named into the compiler's \
       `_native`/`_unsafe_rec` namespace outside the shape the compiler produces, in \
       hand-written Lean is refused. If one is genuinely needed, record it in \
-      LIMITATIONS.md and extend `Model.AxiomAudit` with the reason."
+      LIMITATIONS.md and extend `Model.AxiomAudit` with the reason." : String)
   -- One line per generated axiom, fully qualified, as plain text so the build
   -- log carries it verbatim for `scripts/no-sorry.sh` to compare against
   -- `manifests/translation-attestation.json`; the compiler-trust ones apart.
   let perModule (tag : String) (found : Array (Name × Name)) : Elab.Command.CommandElabM Unit := do
     for m in (found.map (·.1)).toList.eraseDups do
-      let lines := found.filter (·.1 == m) |>.map fun (_, n) => s!"{tag}: {m} {n}"
+      let lines := found.filter (·.1 == m) |>.map fun (_, n) =>
+        tag ++ ": " ++ toString m ++ " " ++ toString n
       logInfo (String.intercalate "\n" lines.toList)
   perModule "audit-axiom" generated
   perModule "audit-native" generatedNative
   let generatedNote :=
     if generated.isEmpty && generatedNative.isEmpty then ""
-    else s!"; {generated.size} opaque externals declared by the generated translation, \
-      listed above and held to manifests/translation-attestation.json by attest.py, and \
-      {generatedNative.size} compiler-trust axioms in it (Aeneas's `toStr` bound, \
+    else "; " ++ toString generated.size ++ " opaque externals declared by the generated translation, \
+      listed above and held to manifests/translation-attestation.json by attest.py, and " ++
+      toString generatedNative.size ++ " compiler-trust axioms in it (Aeneas's `toStr` bound, \
       `by decide +native`)"
-  logInfo m!"axiom audit: {seen} first-party declarations under {prefixes}; none is an \
+  logInfo ("axiom audit: " ++ toString seen ++ " first-party declarations under " ++
+    toString prefixes.toList ++ "; none is an \
     axiom, opaque, unsafe or partial, or carries implemented_by/extern, outside the \
-    native_decide/bv_decide allowance{generatedNote}"
+    native_decide/bv_decide allowance" ++ generatedNote : String)
+
+/-! ## Takers of a refuted record
+
+`Translation/DispatchEvidenceVacuity.lean` shows five evidence records of the lifecycle dispatch
+layer to be false, or to have no term, under stated conditions. Each record is kept, defined once,
+so that those results still elaborate. A theorem that took one of them again would be true and say
+nothing, and `#print axioms` would not show it (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`).
+
+`takers` asks the elaborated environment which first-party declarations mention a record, in their
+statement or in their value, directly or through a constant the `structure` command declared for
+it (its constructor, recursor, `casesOn`, `recOn`, projections and flat constructor, by which a
+term of the record can be built or taken apart without naming it). It is given the declarations
+that may, and refuses if any other does, or if one it is given does not, so the list it holds is
+exact and a declaration cannot be added to it silently: adding one means editing the list, which is
+a diff a reviewer reads, not something a gate decides. It also prints what it found, one line per
+record and per taker. A text scan was tried first and could not police this: it saw line starts,
+and Lean has too many ways to write a declaration.
+
+It is not invoked from a module of the tree. `scripts/check-refuted-records.sh` runs the executable
+`refuted-records` (`refutedRecordsMain` below) once per translation audit module: the executable
+loads that module, and so its whole import closure, at run time, walks it with the records and the
+allowed list, and the script compares the printed lines with a recorded block;
+`check-audit-reach.sh` holds that every translation module is in some audit module's closure, so
+the runs between them walk every translation module. An invocation that lived in a module, or in
+a probe that imported one, was parsed under everything the tree declares: a wrapper that consumed
+the error, a `namespace` that redirected the name, and finally a `notation` on the walk's whole
+name, hidden from the text scan, that redirected a `_root_` call in a probe. The executable's
+source is this file, compiled once; the modules it loads are data to it, their initializers are
+not run (`importModules` is called with its default `loadExts := false` and no
+`enableInitializersExecution`; a future default that ran them would need this file to say so), and
+the script reads its output alone.
+What an environment walk cannot see is a module it does not import; what a name walk cannot see is
+a theorem that restates a `def` record's body instead of naming the record, which takes the
+proposition and not the record. An `example` leaves no constant and is not seen; nothing can take
+an example either. A declaration that takes an alias of a record is not listed; the alias is.
+
+The constants the `structure` or `inductive` command declares beside a record are set aside, each
+named from the record's own inductive and structure information rather than by a naming pattern
+(`recordMachinery`): a `def` record has none, and a hand-written declaration cannot take one of
+their names, because the constant already exists. A theorem or definition declared under the
+record's namespace is reported like any other. -/
+
+/-- One first-party declaration that mentions a refuted record. -/
+structure Taker where
+  module : Name
+  decl : Name
+  kind : String
+  record : Name
+
+/-- The constant's kind, for the printed line. -/
+def kindOf : ConstantInfo → String
+  | .thmInfo _ => "theorem"
+  | .defnInfo _ => "def"
+  | .axiomInfo _ => "axiom"
+  | .opaqueInfo _ => "opaque"
+  | .inductInfo _ => "inductive"
+  | .ctorInfo _ => "constructor"
+  | .recInfo _ => "recursor"
+  | .quotInfo _ => "quot"
+
+/-- The constants the `structure` or `inductive` command declared for the record `r`: its
+constructors, its recursor, `casesOn` and `recOn`, and, for a structure, one projection per field
+and the flat constructor `<ctor>._flat_ctor` the elaborator adds. Empty when `r` is not an
+inductive type (a `def` record has no machinery and nothing is set aside for it). The names come
+from `r`'s own inductive and structure information, so they are constants that exist (the flat
+constructor only if the elaborator made one); a hand-written declaration cannot take one of these
+names. A `Type`-valued record would have further
+auxiliaries (`noConfusion`, `below`, …) that are not listed here and would be reported as takers,
+which fails closed. -/
+def recordMachinery (env : Environment) (r : Name) : NameSet := Id.run do
+  let mut s : NameSet := {}
+  match env.find? r with
+  | some (.inductInfo ind) =>
+    for ctor in ind.ctors do
+      s := s.insert ctor
+    s := s.insert (mkRecName r)
+    s := s.insert (r ++ `casesOn)
+    s := s.insert (r ++ `recOn)
+    if let some info := getStructureInfo? env r then
+      for ctor in ind.ctors do
+        if env.contains (ctor ++ `_flat_ctor) then
+          s := s.insert (ctor ++ `_flat_ctor)
+      for f in info.fieldNames do
+        s := s.insert (r ++ f)
+  | _ => pure ()
+  return s
+
+/-- What the walk found: the lines it prints (one `audit-record:` per record, then one
+`audit-taker:` per taker, sorted by declaration then record) and its refusal, if any. -/
+structure TakersReport where
+  lines : Array String
+  refusal : Option String
+
+/-- Every first-party declaration (module under one of `prefixes`) whose statement or value
+mentions one of `records`, by its name or by one of its machinery's names, as a report: one
+`audit-taker: <module> <decl> (<kind>) <record>` line each, after one `audit-record:` line per
+record saying where it is declared and what it is, or that it is absent from this environment;
+and a refusal if a declaration outside `expected` takes a record, if a name in `expected` takes
+none, if no record is named, or if a record is declared outside the first-party prefixes. A
+record's own machinery, in the record's module, is not a taker. Pure in the environment, so the
+executable below and the command `takers` report the same thing. What a name walk cannot see: a
+theorem that restates a `def` record's body instead of naming the record takes the proposition,
+not the record, and is not reported; the gate holds names, not meanings. -/
+def takersReport (env : Environment) (prefixes records expected : Array Name) : TakersReport :=
+  Id.run do
+    if records.isEmpty then
+      return { lines := #[], refusal := some "refuted-record audit: no record named" }
+    let mut lines : Array String := #[]
+    -- Each present record with its module and its machinery.
+    let mut present : Array (Name × Name × NameSet) := #[]
+    for r in records do
+      match env.find? r with
+      | none => lines := lines.push ("audit-record: " ++ toString r ++ " absent")
+      | some c =>
+        let m := moduleOf env r
+        if !isFirstParty prefixes m then
+          return { lines, refusal := some ("refuted-record audit: " ++ toString r ++ " is declared in " ++
+            toString m ++ ", outside the first-party prefixes " ++ toString prefixes.toList) }
+        lines := lines.push ("audit-record: " ++ toString m ++ " " ++ toString r ++ " (" ++ kindOf c ++ ")")
+        present := present.push (r, m, recordMachinery env r)
+    let mut found : Array Taker := #[]
+    if !present.isEmpty then
+      for (n, c) in env.constants.toList do
+        let m := moduleOf env n
+        if !isFirstParty prefixes m then continue
+        let used := c.type.getUsedConstants ++
+          (((c.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[])
+        for (r, rm, machinery) in present do
+          if m == rm && machinery.contains n then continue
+          if used.any (fun u => u == r || machinery.contains u) then
+            found := found.push { module := m, decl := n, kind := kindOf c, record := r }
+    let sorted := found.qsort fun a b =>
+      a.decl.toString < b.decl.toString ||
+        (a.decl.toString == b.decl.toString && a.record.toString < b.record.toString)
+    lines := lines ++ sorted.map fun t =>
+      "audit-taker: " ++ toString t.module ++ " " ++ toString t.decl ++ " (" ++ t.kind ++ ") " ++
+        toString t.record
+    let unexpected := sorted.filter fun t => !expected.contains t.decl
+    let unfound := expected.filter fun e => !sorted.any (·.decl == e)
+    if unexpected.isEmpty && unfound.isEmpty then
+      return { lines, refusal := none }
+    let a := unexpected.map fun t =>
+      "  " ++ toString t.decl ++ " (" ++ toString t.module ++ ") takes " ++ toString t.record
+    let b := unfound.map fun e => "  " ++ toString e ++ " is named as a taker and takes no record here"
+    let body := String.intercalate "\n" (a ++ b).toList
+    return { lines, refusal := some ("refuted-record audit: the takers of " ++ toString records.size ++
+      " refuted record(s) are not the " ++ toString expected.size ++ " declaration(s) named:\n" ++ body ++ "\n\
+      A declaration that takes a record DispatchEvidenceVacuity.lean shows false or empty is true \
+      and says nothing (GAP-REGISTER.md, DISPATCH-EVIDENCE-VACUITY); restate it on the record's \
+      replacement, or, for a new refutation, name it in the gate's recorded block, for review.") }
+
+/-- `takersReport` as a command, for `scripts/check-refuted-records-negatives.sh`, whose probes
+plant takers and run it where they are declared: it prints the lines and throws the refusal. -/
+def takers (prefixes records expected : Array Name) : Elab.Command.CommandElabM Unit := do
+  let r := takersReport (← getEnv) prefixes records expected
+  if !r.lines.isEmpty then
+    logInfo (String.intercalate "\n" r.lines.toList)
+  if let some e := r.refusal then
+    throwError e
+
+/-- `takersReport` as the executable `refuted-records` (the model package's lakefile), which
+`scripts/check-refuted-records.sh` runs once per translation audit module: it loads that module
+and its import closure at run time with `importModules`, runs the walk over the loaded
+environment, prints the lines and exits 1 with the refusal on standard error. Its own source is
+this file, compiled once; nothing a loaded module declares (a notation on the walk's name, a
+`namespace`, a macro on `run_cmd`) is parsed anywhere the walk is called, which is why the gate
+runs from here and not from a `run_cmd` in a module of the tree.
+
+Arguments: `<module> --prefixes <name>… --records <name>… --expected <name>…`; the prefixes are
+the first-party module roots, given by the script from the list `check-audit-reach.sh` holds every
+audit to, so that a narrowed list here would be a diff in two places. -/
+def refutedRecordsMain (args : List String) : IO UInt32 := do
+  let usage := "usage: refuted-records <module> --prefixes <name>... --records <name>... --expected <name>..."
+  let mut module : Option String := none
+  let mut prefixes : Array Name := #[]
+  let mut records : Array Name := #[]
+  let mut expected : Array Name := #[]
+  let mut mode := 0
+  for a in args do
+    if a == "--prefixes" then mode := 1
+    else if a == "--records" then mode := 2
+    else if a == "--expected" then mode := 3
+    else if mode == 0 then
+      if module.isSome then IO.eprintln usage; return 2
+      module := some a
+    else if mode == 1 then prefixes := prefixes.push a.toName
+    else if mode == 2 then records := records.push a.toName
+    else expected := expected.push a.toName
+  let some m := module | IO.eprintln usage; return 2
+  if prefixes.isEmpty || records.isEmpty then IO.eprintln usage; return 2
+  initSearchPath (← findSysroot)
+  let env ← importModules #[{ module := m.toName }] {} (trustLevel := 0)
+  let r := takersReport env prefixes records expected
+  for l in r.lines do IO.println l
+  match r.refusal with
+  | some e => IO.eprintln e; return 1
+  | none => return 0
 
 end Model.AxiomAudit
+
+/-- The entry point of the `refuted-records` executable; see `Model.AxiomAudit.refutedRecordsMain`.
+It is declared in this library module, so no module that imports it may declare a `main` of its
+own; the model package's other executables (`Vectors.lean`, `Difftest.lean`) do not import it. -/
+def main (args : List String) : IO UInt32 :=
+  Model.AxiomAudit.refutedRecordsMain args

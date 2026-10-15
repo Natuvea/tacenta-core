@@ -122,11 +122,14 @@ structure Ingredients (K : Model.Braid.Kem) where
 
 def totalRng_crc : rand_core_1.CryptoRng Unit := ⟨⟩
 
-/-- Every ingredient exists, from the hypotheses the theorems already take plus the value law of
-`div_ceil`.  The key pair comes from the `generate` clause of `KemAgreesFor` with an RNG that
-answers; the encapsulation state from its `encapsulate1` clause with a 64-byte header. -/
+/-- Every ingredient exists, from the hypotheses the theorems already take, the value law of
+`div_ceil`, and `KemDrawsSucceed`.  The key pair comes from the `generate` clause of
+`KemAgreesFor` at an RNG where the real call succeeds, whose refusing arm that success
+contradicts; the encapsulation state from its `encapsulate1` clause, likewise, at a header of the
+real length split at 32 bytes. -/
 theorem ingredients (K : Model.Braid.Kem) (hea : ErasureAgrees) (hka : KemAgreesFor K)
-    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) : Nonempty (Ingredients K) := by
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (hdraw : KemDrawsSucceed) :
+    Nonempty (Ingredients K) := by
   -- the encoder: ErasureAgrees, first clause, at the empty slice
   obtain ⟨enc, -, henc⟩ := hea.1 (Slice.new Std.U8)
   have henc' : EncoderRefines enc (Model.Braid.encode []) := by
@@ -143,25 +146,27 @@ theorem ingredients (K : Model.Braid.Kem) (hea : ErasureAgrees) (hka : KemAgrees
     refine ⟨d, ?_, hneed⟩
     rw [hv] at hdr
     exact hdr
-  -- the key pair
-  obtain ⟨kp, rng', rand, hgen, ⟨h, hh, hhv⟩, ⟨v, hv, hvv⟩, hdec'⟩ :=
-    hka.1 totalRngCore totalRng_crc () (fun _ _ => ⟨_, rfl⟩)
-  have hfresh : FreshKeyPairRefines K kp (K.keyGen rand).1 (K.keyGen rand).2.2 :=
-    ⟨hdec', ⟨v, hv, hvv⟩, ⟨h, (K.keyGen rand).2.1, hh, hhv⟩⟩
-  -- the encapsulation state, from the header of that key pair if it has the right length, and
-  -- otherwise from the all-zero 64-byte header
-  obtain ⟨es, ct1raw, ssraw, rng'', rand', -, hes⟩ :=
-    hka.2 totalRngCore totalRng_crc
-      (sliceOfBytes (List.replicate 64 0) (by simp; exact le64)) ()
-      (fun _ _ => ⟨_, rfl⟩) (by simp [sliceOfBytes, bytesOf, Model.Braid.headerSize])
-  have hsl : sliceOf (sliceOfBytes (List.replicate 64 0) (by simp; exact le64)) =
-      List.replicate 32 0 ++ List.replicate 32 0 := by
-    rw [sliceOf_sliceOfBytes]
-    simp
-  obtain ⟨-, -, hct2⟩ := hes (List.replicate 32 0) (List.replicate 32 0) (by simp) hsl
-  exact ⟨Ingredients.mk enc henc' hdec kp _ _ hfresh es (List.replicate 32 0)
-    ((K.encaps1 rand' (List.replicate 32 0) (List.replicate 32 0)).1)
-    (fun ekVector hl => hct2 ekVector hl) (by simp)⟩
+  obtain ⟨⟨R, rc, crc, rng, hrng, kp0, rngA, hgen0⟩,
+    ⟨R2, rc2, crc2, hdr, rng2, hrng2, hhdrlen, r0, rngB, henc0⟩⟩ := hdraw
+  -- the key pair: the refusing arm of the `generate` clause contradicts the success
+  obtain ⟨kp, dk, ekVector, hfresh⟩ : ∃ kp dk ekVector, FreshKeyPairRefines K kp dk ekVector := by
+    obtain ⟨_, _, hgenR⟩ := hka.1 rc crc rng hrng
+    rcases hgenR with
+      ⟨kp, dk, ekSeed, ekVector, -, -, ⟨h, hh, hhv⟩, ⟨v, hv, hvv⟩, hdec'⟩ | ⟨⟨e, herr⟩, -⟩
+    · exact ⟨kp, dk, ekVector, hdec', ⟨v, hv, hvv⟩, ⟨h, ekSeed, hh, hhv⟩⟩
+    · rw [hgen0] at herr; simp at herr
+  -- the encapsulation state: likewise, at the header split as 32 bytes and the rest
+  have hlen : ((sliceOf hdr).take 32).length = 32 := by
+    have h64 : (sliceOf hdr).length = 64 := by
+      simp only [sliceOf, List.length_map]; exact hhdrlen
+    simp [h64]
+  obtain ⟨es, secret, hes⟩ : ∃ es secret, EncapsRefines K es ((sliceOf hdr).take 32) secret := by
+    obtain ⟨_, _, hencR⟩ := hka.2 rc2 crc2 hdr rng2 hrng2 hhdrlen
+    rcases hencR with ⟨es, ct1raw, ssraw, -, hes⟩ | ⟨⟨e, herr⟩, -⟩
+    · obtain ⟨es', -, hct2⟩ := hes _ _ hlen (List.take_append_drop 32 (sliceOf hdr)).symm
+      exact ⟨es, es', hct2⟩
+    · rw [henc0] at herr; simp at herr
+  exact ⟨Ingredients.mk enc henc' hdec kp dk ekVector hfresh es _ secret hes hlen⟩
 
 
 /-! ## Sizes -/
@@ -663,15 +668,16 @@ theorem recv_ct1Acknowledged (hea : ErasureAgrees) (I : Ingredients K) (hlens : 
 /-- **Every one of the twelve state constructors has a real state and a model state satisfying
 `StateRefines`, `ct1_bounded`, `decoders_bounded`, the epoch headroom `hepoch` and `EncodersLive`
 at once**, built from the agreements the theorems take (`ErasureAgrees`, `KemAgreesFor K`,
-`KemLenAgrees K`), the value law of `div_ceil`, and the three size bounds the receive records
-carry (`EkVectorLenTotal`, `Ct1LenTotal`, `Ct2LenTotal`). -/
+`KemLenAgrees K`), the value law of `div_ceil`, `KemDrawsSucceed` (the real KEM's key generation
+and first half of encapsulation each succeed somewhere), and the three size bounds the receive
+records carry (`EkVectorLenTotal`, `Ct1LenTotal`, `Ct2LenTotal`). -/
 theorem twelve_states (hea : ErasureAgrees) (hka : KemAgreesFor K) (hlens : KemLenAgrees K)
-    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (hdraw : KemDrawsSucceed)
     (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
     (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
     ∀ t : ℕ, t < 12 → ∃ (s : State) (m : Model.Braid.BraidState), Good K s m ∧ stateTag s = t := by
-  obtain ⟨I⟩ := ingredients K hea hka hdiv
+  obtain ⟨I⟩ := ingredients K hea hka hdiv hdraw
   intro t ht
   have : t = 0 ∨ t = 1 ∨ t = 2 ∨ t = 3 ∨ t = 4 ∨ t = 5 ∨ t = 6 ∨ t = 7 ∨ t = 8 ∨ t = 9 ∨
       t = 10 ∨ t = 11 := by omega
@@ -693,13 +699,13 @@ theorem twelve_states (hea : ErasureAgrees) (hka : KemAgreesFor K) (hlens : KemL
 for the receive theorems' hypotheses**, in the state's epoch, with data, and not through the
 vacuous arm of `HonestChunk`. -/
 theorem six_receive_witnesses (hea : ErasureAgrees) (hka : KemAgreesFor K) (hlens : KemLenAgrees K)
-    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (hdraw : KemDrawsSucceed)
     (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal)
     (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
     (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
     RecvWitness K 2 .ct1 ∧ RecvWitness K 4 .ct2 ∧ RecvWitness K 5 .hdr ∧
     RecvWitness K 7 .ek ∧ RecvWitness K 7 .ekCt1Ack ∧ RecvWitness K 9 .ekCt1Ack := by
-  obtain ⟨I⟩ := ingredients K hea hka hdiv
+  obtain ⟨I⟩ := ingredients K hea hka hdiv hdraw
   exact ⟨recv_headerSent hea I hlens hek hct1 hct2, recv_ekSentCt1Received hea I hlens hek hct1 hct2,
     recv_noHeaderReceived hea I,
     recv_ct1Sampled hea I hlens hek hct1 hct2 .Ek .ek trivial (Or.inl rfl),
@@ -896,7 +902,8 @@ info: 'Tacenta.UnitSatisfiabilityBraidStates.responder_refines' depends on axiom
 
 /--
 info: Tacenta.UnitSatisfiabilityBraidStates.ingredients (K : Model.Braid.Kem) (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees)
-  (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) :
+  (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+  (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed) :
   Nonempty (Tacenta.UnitSatisfiabilityBraidStates.Ingredients K)
 -/
 #guard_msgs in
@@ -906,6 +913,7 @@ info: Tacenta.UnitSatisfiabilityBraidStates.ingredients (K : Model.Braid.Kem) (h
 info: Tacenta.UnitSatisfiabilityBraidStates.twelve_states {K : Model.Braid.Kem}
   (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
   (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+  (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
   (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal) (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
   (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) (t : ℕ) :
   t < 12 →
@@ -918,6 +926,7 @@ info: Tacenta.UnitSatisfiabilityBraidStates.twelve_states {K : Model.Braid.Kem}
 info: Tacenta.UnitSatisfiabilityBraidStates.six_receive_witnesses {K : Model.Braid.Kem}
   (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
   (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+  (hdraw : Tacenta.UnitSatisfiabilityBraidAgreements.KemDrawsSucceed)
   (hek : Tacenta.SessionUnitBraidT1.EkVectorLenTotal) (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
   (hct2 : Tacenta.SessionUnitBraidT1.Ct2LenTotal) :
   Tacenta.UnitSatisfiabilityBraidStates.RecvWitness K 2 Model.Braid.MsgType.ct1 ∧

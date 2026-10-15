@@ -55,7 +55,7 @@
 # before it. That puts the check inside the counting: the per-case lists and the
 # totals cover it, and a shard that skips it is refused. It does not make the
 # check required: deleting one of the two calls lowers the count of a full run
-# by one (684 to 683) and passes, as deleting any case does, because the count
+# by one and passes, as deleting any case does, because the count
 # is not pinned (see below). The script before the sharding was the same.
 #
 # A case may read what the case before it wrote into the worktree: a `--check`
@@ -1205,6 +1205,23 @@ assert n == 1, n
 path.write_text(new)
 PY
 expect_fail "required-pin-commented-out" "sit inside a comment or a string" --check
+
+# A lone carriage return inside a line comment, with every line of a pin joined
+# by one: Python's default reading ends a line at each, Lean does not, so the pin
+# was a live, counted axiom pin to a reader that translated newlines and one
+# comment line to Lean (the eighteenth hostile read's H2). attest reads without
+# translation and refuses the file outright.
+make_case
+python3 - "$work/$session_pins" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+forged = ("-- c\r/-- info: 'Tacenta.Forged.pin' depends on axioms: [propext]\r-/\r"
+          "#guard_msgs in\r#print axioms Tacenta.Forged.pin\n")
+with path.open("w", newline="") as fh:
+    fh.write(text + forged)
+PY
+expect_fail "pin-after-carriage-return" "carriage return" --check
 
 make_case
 python3 - "$work/$session_pins" <<'PY'

@@ -469,9 +469,11 @@ A send returns its message, a *sending epoch* and an optional output. A
 receive returns a *receiving epoch* and an optional output. An output is an
 epoch and a 32-byte key. Only (7) and (5) produce one.
 
-- **A send's epoch** is the state's epoch less one: the latest epoch whose key
-  the peer is sure to hold once it has this message. A send never changes the
-  epoch. The value is 0 at epoch 1, and 0 from `Failed`.
+- **A send's epoch** is the epoch of the state the send leaves the Braid in,
+  less one: the latest epoch whose key the peer is sure to hold once it has
+  this message. A send never raises the epoch, and leaves it unchanged unless
+  the send fails (Failure), which leaves the Braid in `Failed` and reports 0.
+  The value is 0 at epoch 1, and 0 from `Failed`.
 - **A receive's epoch** is the epoch of the state the receive leaves the Braid
   in, less one. It is 0 when that state is `Failed`.
 
@@ -557,10 +559,22 @@ In `EkSentCt1Received` the length check comes first, then the ceiling, and
 both come before decapsulation.
 
 The KEM library fails only on inputs or buffers of the wrong length, which no
-reachable state holds, so the KEM failures above are defensive.
+reachable state holds. The second half of encapsulation also fails, in this
+implementation, on an encapsulation state restored from persistence that the
+KEM refuses: a state whose stored coefficients lie outside the bound the
+library states as a precondition of its arithmetic. The state's layout is the
+library's and is delegated (session-persistence.md, Braid), so the rule is the
+KEM's to apply, and a reader checks nothing in that field beyond its length; a
+corrupted store can hold such a state, and no state the first half produced
+is one. So the KEM failures above are defensive for an honest store, and the
+one a corrupted store can reach is a refusal. The model expresses them: each
+of its four KEM operations may refuse, and a refusal takes the transition to
+`Failed` named above (`Model.Braid`, the `Kem` record).
 
 From `Failed`, a send or a receive yields no key, reports epoch 0, and leaves
-the Braid in `Failed`. `Session` puts nothing from a failed Braid on the
+the Braid in `Failed`. The send or receive that moves the Braid into `Failed`
+yields no key either and reports epoch 0, the report being read off the state
+it lands in. `Session` puts nothing from a failed Braid on the
 wire: it refuses `encrypt` and `decrypt` with `AgreementFailed` once the Braid
 has failed, and when a send is what fails, it keeps the failed state and
 refuses that send too. A receive's move to `Failed`, like any other

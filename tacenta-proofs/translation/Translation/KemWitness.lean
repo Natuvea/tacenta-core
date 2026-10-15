@@ -20,9 +20,12 @@ since `toyKem.encaps2` ignores it. `toyKem.encaps1` ignores its randomness
 argument too, which is a legitimate model of the encapsulation clause now
 that the clause binds the model's randomness existentially per RNG state (a
 KEM that draws no randomness satisfies "some randomness makes the model
-agree" with any value at all; here it is `0`). Consistency is all this
-establishes: the real `tacenta_kem` is ML-KEM-1024, not `toyKem`, and the
-hypotheses about it stay assumed.
+agree" with any value at all; here it is `0`). `KemAgreesFor` is two-sided
+(each real call and the model succeed together or refuse together); `toyKem`
+never refuses and neither does this implementation, so every clause holds
+through its success arm and the refusing arms are not exercised here.
+Consistency is all this establishes: the real `tacenta_kem` is ML-KEM-1024,
+not `toyKem`, and the hypotheses about it stay assumed.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -67,29 +70,39 @@ def KemLenAgrees (K : Model.Braid.Kem) : Prop :=
 def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
   (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
       Tacenta.BraidT1.RngTotal rc →
-      ∃ kp rng' rand,
-        A.generate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
-        (∃ h, A.header kp = ok h ∧
-          vecOf h = (K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2) ∧
-        (∃ v, A.ekVector kp = ok v ∧ vecOf v = (K.keyGen rand).2.2) ∧
-        (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
-          ∃ raw : Array Std.U8 32#usize,
-            A.decapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
-            keyOf raw = K.decaps (K.keyGen rand).1 (sliceOf ct1) (sliceOf ct2))) ∧
+      ∃ rng' rand,
+        (∃ kp dk ekSeed ekVector,
+          A.generate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
+          K.keyGen rand = some (dk, ekSeed, ekVector) ∧
+          (∃ h, A.header kp = ok h ∧
+            vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ∧
+          (∃ v, A.ekVector kp = ok v ∧ vecOf v = ekVector) ∧
+          (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
+            (∃ raw : Array Std.U8 32#usize,
+              A.decapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = some (keyOf raw)) ∨
+            ((∃ e, A.decapsulate kp ct1 ct2 = ok (core.result.Result.Err e)) ∧
+              K.decaps dk (sliceOf ct1) (sliceOf ct2) = none))) ∨
+        ((∃ e, A.generate rc crc rng = ok (core.result.Result.Err e, rng')) ∧
+          K.keyGen rand = none)) ∧
     (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
         (header : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
       header.length = Model.Braid.headerSize →
-      ∃ es ct1raw ssraw rng' rand',
-        A.encapsulate1 rc crc header rng =
-          ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
-        (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
-          (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
-          (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw ∧
-          (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
-            ∃ ct2raw,
-              A.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
-              vecOf ct2raw =
-                K.encaps2 (K.encaps1 rand' ekSeed hek).1 ekSeed (sliceOf ekVector))))
+      ∃ rng' rand',
+        (∃ es ct1raw ssraw,
+          A.encapsulate1 rc crc header rng =
+            ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            ∃ es', K.encaps1 rand' ekSeed hek = some (es', vecOf ct1raw, keyOf ssraw) ∧
+              (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
+                (∃ ct2raw,
+                  A.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = some (vecOf ct2raw)) ∨
+                ((∃ e, A.encapsulate2 es ekVector = ok (core.result.Result.Err e)) ∧
+                  K.encaps2 es' ekSeed (sliceOf ekVector) = none)))) ∨
+        ((∃ e, A.encapsulate1 rc crc header rng = ok (core.result.Result.Err e, rng')) ∧
+          (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+            K.encaps1 rand' ekSeed hek = none)))
 
 def ValidateEkAgrees (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
@@ -103,14 +116,12 @@ def KemCloneAgrees : Prop :=
     A.cloneKp kp = ok kp' →
     (∀ h, A.header kp = ok h → A.header kp' = ok h) ∧
     (∀ v, A.ekVector kp = ok v → A.ekVector kp' = ok v) ∧
-    (∀ (ct1 ct2 : Slice Std.U8) raw,
-      A.decapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) →
-      A.decapsulate kp' ct1 ct2 = ok (core.result.Result.Ok raw))) ∧
+    (∀ (ct1 ct2 : Slice Std.U8) r,
+      A.decapsulate kp ct1 ct2 = ok r → A.decapsulate kp' ct1 ct2 = ok r)) ∧
   (∀ es es' : ES,
     A.cloneEs es = ok es' →
-    ∀ (ekVector : Slice Std.U8) ct2, A.encapsulate2 es ekVector =
-      ok (core.result.Result.Ok ct2) →
-      A.encapsulate2 es' ekVector = ok (core.result.Result.Ok ct2))
+    ∀ (ekVector : Slice Std.U8) r, A.encapsulate2 es ekVector = ok r →
+      A.encapsulate2 es' ekVector = ok r)
 
 /-- `BraidT1.lean`'s totality and size-bound assumptions on the same operations. -/
 def Totals : Prop :=
@@ -248,20 +259,20 @@ theorem api_lenAgrees : KemLenAgrees api Model.Braid.toyKem := by
 theorem api_agreesFor : KemAgreesFor api Model.Braid.toyKem := by
   refine ⟨?_, ?_⟩
   · intro R rc crc rng _
-    refine ⟨0, rng, 0, rfl, ⟨_, rfl, ?_⟩, ⟨_, rfl, ?_⟩, ?_⟩
-    · rw [vecOf_vecOfBytes]; rfl
-    · rw [vecOf_vecOfBytes]; rfl
+    refine ⟨rng, 0, Or.inl ⟨0, seedOf 0, seedOf 0, ekVecOf 0, rfl, rfl, ⟨_, rfl, ?_⟩,
+      ⟨_, rfl, ?_⟩, ?_⟩⟩
+    · rw [vecOf_vecOfBytes]
+    · rw [vecOf_vecOfBytes]
     · intro ct1 ct2 _ _
-      refine ⟨arr32 (seedOf 0), rfl, ?_⟩
+      refine Or.inl ⟨arr32 (seedOf 0), rfl, ?_⟩
       rw [keyOf_arr32 _ (by simp [seedOf])]; rfl
   · intro R rc crc header rng _ _
-    refine ⟨(), _, arr32 ((sliceOf header).take 32), rng, 0, rfl, ?_⟩
+    refine ⟨rng, 0, Or.inl ⟨(), _, arr32 ((sliceOf header).take 32), rfl, ?_⟩⟩
     intro ekSeed hek hlen hsplit
-    refine ⟨?_, ?_, ?_⟩
-    · rw [vecOf_vecOfBytes]; rfl
-    · rw [hsplit, List.take_left' hlen, keyOf_arr32 _ hlen]; rfl
+    refine ⟨ekSeed, ?_, ?_⟩
+    · rw [vecOf_vecOfBytes, hsplit, List.take_left' hlen, keyOf_arr32 _ hlen]; rfl
     · intro ekVector _
-      refine ⟨_, rfl, ?_⟩
+      refine Or.inl ⟨_, rfl, ?_⟩
       rw [vecOf_vecOfBytes]; rfl
 
 theorem api_validateEk : ValidateEkAgrees api Model.Braid.toyKem := by

@@ -542,26 +542,36 @@ def dummyCryptoRng : rand_core_1.CryptoRng Unit := {}
 theorem dummyRng_total : Tacenta.BraidT1.RngTotal dummyRng :=
   fun r buf => ⟨(r, buf), rfl⟩
 
-/-- The over-strong `encaps1` clause of `KemAgreesFor`: every split of the header. -/
+/-- The over-strong `encaps1` clause of `KemAgreesFor`: every split of the header,
+on both arms. -/
 def KemEncaps1AgreesUnsplit (K : Model.Braid.Kem) : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
       (header : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
-    ∃ es ct1raw ssraw rng' rand',
-      tacenta_kem.encapsulate1 rc crc header rng =
-        ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
-      (∀ ekSeed hek : Bytes, sliceOf header = ekSeed ++ hek →
-        (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
-        (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw)
+    ∃ rng' rand',
+      (∃ es ct1raw ssraw,
+        tacenta_kem.encapsulate1 rc crc header rng =
+          ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
+        (∀ ekSeed hek : Bytes, sliceOf header = ekSeed ++ hek →
+          ∃ es', K.encaps1 rand' ekSeed hek = some (es', vecOf ct1raw, keyOf ssraw))) ∨
+      ((∃ e, tacenta_kem.encapsulate1 rc crc header rng =
+          ok (core.result.Result.Err e, rng')) ∧
+        (∀ ekSeed hek : Bytes, sliceOf header = ekSeed ++ hek →
+          K.encaps1 rand' ekSeed hek = none))
 
 /-- At the model's toy KEM: the empty header has one split, `[] ++ []`,
-under which the shared secret is `[]`, against a 32-byte `Array`. -/
+under which the shared secret is `[]`, against a 32-byte `Array`; and the toy
+KEM never refuses, so the refusing arm fails at the same split. -/
 theorem kemEncaps1_unsplit_toyKem_refutable : ¬ KemEncaps1AgreesUnsplit Model.Braid.toyKem := by
   intro henc
-  obtain ⟨es, ct1, ss, rng', rand', -, hsplit⟩ :=
+  obtain ⟨rng', rand', hcase⟩ :=
     henc dummyRng dummyCryptoRng ⟨[], by simp⟩ () dummyRng_total
-  obtain ⟨-, hss⟩ := hsplit [] [] rfl
-  have := congrArg List.length hss
-  simp [keyOf, Model.Braid.toyKem, ss.property] at this
+  rcases hcase with ⟨es, ct1, ss, -, hsplit⟩ | ⟨-, hnone⟩
+  · obtain ⟨es', hss⟩ := hsplit [] [] rfl
+    simp only [Model.Braid.toyKem, Option.some.injEq, Prod.mk.injEq] at hss
+    have := congrArg List.length hss.2.2
+    simp [keyOf, ss.property] at this
+  · have := hnone [] [] rfl
+    simp [Model.Braid.toyKem] at this
 
 /-- The over-strong `ValidateEkAgrees`: every split of the header. -/
 def ValidateEkAgreesUnsplit (K : Model.Braid.Kem) : Prop :=

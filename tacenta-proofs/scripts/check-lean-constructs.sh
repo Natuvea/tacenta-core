@@ -69,14 +69,37 @@
 #
 # The one legitimate elaboration-time code is the audit itself:
 # `Model/AxiomAudit.lean` imports `Lean` and is meta code by nature, and each
-# package invokes it with one `run_cmd Model.AxiomAudit.run …` line. Those
+# package invokes it with one `run_cmd _root_.Model.AxiomAudit.run …` line. Those
 # are allow-listed below by file path AND exact line content, so a second
 # `run_cmd` in an audit module, a `run_cmd` in any other file, or an audit
-# module invoking something other than `Model.AxiomAudit.run` fails. The
-# allow-list entries must also all be present, so an audit invocation that
-# is deleted fails here as well; `check-audit-reach.sh` checks that the seven
-# modules carrying them reach every first-party module, and that all seven
-# name the same first-party prefixes.
+# module invoking something other than `Model.AxiomAudit.run` fails. An
+# allowed invocation must also stand alone: at column 0, not the body of a
+# `… in` wrapper on the line before, and followed by nothing but another
+# allowed invocation or the end of the file, since a wrapper or a
+# continuation could consume its refusal or skip it, and a declaration after
+# it is outside its walk. The allow-list entries must also all be present,
+# so an audit invocation that is deleted fails here as well;
+# `check-audit-reach.sh` checks that the seven modules carrying them reach
+# every first-party module, and that all seven name the same first-party
+# prefixes. Around the invocations, further text is refused: a notation
+# (`notation "Model.AxiomAudit.run" => …` would rebind the name as a token),
+# anything but imports, pins and the invocation in the seven invoking
+# modules, one per line (a `namespace` or `open` could make the name resolve
+# to a shadow), the audit's log tags in any other file's code or strings,
+# `#reduce`, `#print "…"` and `dbg_trace` (which print into the build log
+# `no-sorry.sh` reads the audit's lines from), every interpolating message
+# head and `ident!` macro outside the audit, in the audit any string literal
+# that holds a brace (the audit builds its messages by concatenation and
+# interpolates nowhere: an interpolation can hold a quote, a char literal or a
+# comment, which no brace count reads and which desynchronise the stripper),
+# and any change to the three lakefiles, pinned by content. These textual rules
+# are defence in depth around the invocations, not a tokenizer: the stripper
+# does not parse interpolations, and a hostile reading of Lean's surface
+# syntax has found a new shape at each review. The refuted-record walk
+# (`Model.AxiomAudit.takers`) does not rest on them: `check-refuted-records.sh`
+# runs it as a compiled executable that loads each closure at run time, so
+# nothing a module declares is parsed where the walk is called. `tooling/tests/run-lean-constructs-cases.sh` plants
+# each of the shapes above in a copy of the audit modules.
 #
 # Earlier versions of this script required the keyword at the start of a line,
 # after at most a run of attributes and modifiers, and so missed `set_option
@@ -109,7 +132,8 @@ lean_files=$(
       -name '*.lean' 2>/dev/null
     find tacenta-proofs/translation/Translation -name '*.lean' \
       -not -name 'Tacenta*.lean' 2>/dev/null
-    ls tacenta-model/Vectors.lean tacenta-proofs/translation/Translation.lean \
+    ls tacenta-model/Vectors.lean tacenta-model/Difftest.lean \
+      tacenta-proofs/translation/Translation.lean \
       tacenta-model/Model.lean tacenta-model/Properties.lean \
       tacenta-proofs/Proofs.lean 2>/dev/null || true
   } | sort
@@ -149,7 +173,7 @@ fi
 program="$(mktemp)"
 trap 'rm -f "$program"' EXIT
 cat > "$program" <<'PY'
-import os, re, sys
+import hashlib, os, re, sys
 
 # A reserved word as a token: not glued to an identifier character or a dot
 # (`Foo.axiom` would be a name, not the keyword, though no such name exists
@@ -190,8 +214,56 @@ ELAB_RULES = [
      ident(r"(?:addDecl\w*|addAndCompile\w*|modifyEnv|setEnv|compileDecl\w*|"
            r"evalDecl|evalExpr|evalTerm|ofReduceBool|ofReduceNat)")),
     # `import Lean`, `open Lean`, `namespace Lean`, `export Lean`, `Lean.X`,
-    # and a bare `Lean` anywhere else.
-    ("lean-namespace",     ident("Lean")),
+    # `_root_.Lean.X`, `«Lean».X`, and a bare `Lean` anywhere else.
+    ("lean-namespace",     re.compile(r"(?<![\w.«])(?:_root_\.)?«?Lean»?(?![\w'«])")),
+    # The notation family: `notation "Model.AxiomAudit.takers" => …` rebinds
+    # the audit's name as a token in every module that imports it, and no
+    # hand-written first-party module defines a notation. (`macro`, `syntax`
+    # and `macro_rules` are refused above.)
+    ("notation-family",
+     keyword(r"(?:notation|infix|infixl|infixr|prefix|postfix)")),
+    # `#reduce`, and `#print` of a string: either prints what it is given into
+    # the build log, where `no-sorry.sh` reads the audit's lines.
+    ("print-to-log",       keyword(r"(?:#reduce|dbg_trace|println!|dbg_trace!|dbgTrace)")),
+    # The message heads that interpolate a plain string literal: none is used
+    # outside `Model/AxiomAudit.lean`, and inside an interpolation a quote
+    # desynchronises the stripper (see the brace-in-string rule below).
+    # The rule is waived for `Model/AxiomAudit.lean`, which reports through
+    # them; `trace` alone is an ordinary identifier (a variable name in the
+    # translation), so only its bracketed message form is named.
+    ("interpolating-head",
+     re.compile(r"(?<![\w.«])(?:throwError|throwErrorAt|throwNamedError|throwNamedErrorAt|logInfo|"
+                r"logInfoAt|logWarning|logWarningAt|logError|logErrorAt|logNamedInfo|logNamedWarning|"
+                r"logNamedError|logNamedInfoAt|logNamedWarningAt|logNamedErrorAt|logAt|logNamedAt|"
+                r"withTraceNode)(?![\w.'])|[\w.]*trace(?:_goal)?!?\[")),
+]
+
+
+# Rules on the raw text, strings and comments included.
+#   - The audit's log lines may be produced by nothing but the audit: the
+#     tags `no-sorry.sh` reads and compares appear in no other hand-written
+#     file, in a string, a comment or anywhere else.
+#   - An interpolated string (`s!"…{…}…"`) is refused outside the audit's
+#     implementation, and inside it no string literal may hold a brace:
+#     `s!"{"--"}"` reads to the stripper as a string followed by a comment and
+#     hides the rest of the line from every rule here, and no brace count can
+#     read what an interpolation holds, so the audit interpolates nowhere.
+#   - `#print "…"` prints its string into the build log.
+AUDIT_LINE_TAGS = re.compile(r"audit-(?:record|taker|axiom|native):")
+PRINT_STRING = re.compile(r"#print\s+\"")
+GUILLEMET_LEAN = re.compile(r"«(?:_root_\.)?Lean(?:\.|»)")
+AUDIT_IMPLEMENTATION = "tacenta-model/Model/AxiomAudit.lean"
+
+# The seven modules that invoke the audit hold nothing but imports, the
+# invocations and the `#guard_msgs`, `#print` and `#check` pins of the Session
+# unit: a `namespace` or `open` there could make the invocation resolve to a
+# shadow, and a declaration there would be outside the walk or could redefine
+# what the invocation calls.
+AUDIT_MODULE_LINES = [
+    re.compile(r"^import [\w.]+$"),
+    re.compile(r"^#guard_msgs in$"),
+    re.compile(r"^#print axioms [\w.'«»]+$"),
+    re.compile(r"^#check @?[\w.'«»]+$"),
 ]
 
 # The allow-list: file path -> the exact source lines (whitespace collapsed)
@@ -209,8 +281,15 @@ BT = "\x60"
 # asks whether any first-party declaration mentions it, and a narrower list at
 # one site would make a real use invisible there.
 # `check-audit-reach.sh` checks the same thing from the other side.
-AUDIT_CALL = ("run_cmd Model.AxiomAudit.run #[" + BT + "Model, " + BT
+# By its `_root_` name, so that no `namespace` or `open` in scope can make
+# it resolve to a shadow.
+AUDIT_CALL = ("run_cmd _root_.Model.AxiomAudit.run #[" + BT + "Model, " + BT
               + "Properties, " + BT + "Proofs, " + BT + "Translation]")
+# An allow-list entry is an exact collapsed line.
+def allowed_entry(source, allowed):
+    return source if source in allowed else None
+def entry_text(entry):
+    return entry
 ALLOW = {
     "tacenta-model/Properties/AxiomAudit.lean": [AUDIT_CALL],
     "tacenta-proofs/Proofs/AxiomAudit.lean": [AUDIT_CALL],
@@ -235,6 +314,17 @@ ALLOW = {
 # A lakefile that sets any Lean option, or names the option, is refused: none
 # of the three sets any today, and the one option that matters here is the
 # one the environment cannot record.
+# The three lakefiles are pinned by content: what they build (libraries,
+# their globs and roots, executables, requires) decides what the audits walk,
+# the reach check requires and this scan reads, and a rule that read the
+# library names alone missed a widened glob, a second library under an allowed
+# name and three TOML spellings of a name. A lakefile change is a diff for
+# review that updates its pin here.
+LAKEFILE_SHA256 = {
+    "tacenta-model/lakefile.lean": "b6fd4613b1f9965137ccb2e874e0ec6add5e90f9ec3c0b4c04cadd9c621b0868",
+    "tacenta-proofs/lakefile.lean": "65d875dfd50cf217f84792ca0da1144ebc971fad4fa4290f79a12efb4eff0732",
+    "tacenta-proofs/translation/lakefile.toml": "926a7a7bbd8649a0843a603cee690f61bb8dbad4bba0f5704b707440fd480bfd",
+}
 LAKEFILE_RULES = [
     ("skipKernelTC", re.compile(r"skipKernelTC")),
     ("lean-options", re.compile(
@@ -243,32 +333,67 @@ LAKEFILE_RULES = [
         r"serverOptions)\b")),
 ]
 
-CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^\\'\n])'")
-IDENT_CHARS = re.compile(r"[\w'!?\u00ab\u00bb]")
+CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|.)|[^\\'])'")  # Lean accepts a raw newline here
+# Lean's identifier characters, near enough: Python's `\w` less the Greek
+# letters Lean reserves as tokens (`λ` is `fun`; `Π` and `Σ` are binders), so
+# `λ'"'` is a `fun` followed by a char literal, as Lean reads it, and not an
+# identifier swallowing a quote. Other characters `\w` accepts and Lean reads
+# as the end of a token (`#check'"'`, Mathlib's `×ˢ`, superscripts) are caught
+# by the ambiguity check in the main loop, which refuses a file whose stripped
+# text depends on this rule at all.
+IDENT_CHARS = re.compile(r"(?![\u03bb\u03a0\u03a3])[\w'!?\u00ab\u00bb]")
 
-def strip_lean(text):
+def strip_lean(text, keep_strings=False, spans=None, ident_rule=True, starts=None):
     """Remove line comments, block comments (docstrings included, and nested
     blocks), string literals (plain and raw) and character literals, replacing
     them with spaces so that line numbers survive. An identifier written in
     guillemets is one token whatever it contains: its contents become
     underscores, so a keyword or a comment opener inside it is not read.
-    Kept in step with lean_code in attest.py, which is a separate copy."""
+    With keep_strings, string literals stay (comments still go), for the rules
+    that look inside strings; with spans (a list), the (start, end) offsets of
+    every string and raw-string literal are appended to it, so a rule can look
+    at exactly the literals this stripper saw. With ident_rule=False, a `'` or
+    `r"` is read as a literal start wherever it occurs, without asking whether
+    the character before continues an identifier; a file whose stripped text
+    differs between the two readings is refused by the caller, since the
+    stripper decides from the previous character where Lean decides from the
+    previous token (`#check'"'`, `×ˢ'"'`), and no honest first-party file
+    depends on the difference.
+    With starts (a list), the offset of every literal the stripper opened (string,
+    raw string, char literal) and of every top-level `--` or `/-` is appended,
+    for the adjacency rule in the caller. Kept in step with lean_code in
+    attest.py, which is a separate copy."""
     out = []
     i, n, depth = 0, len(text), 0
     while i < n:
         ch = text[i]
         two = text[i:i+2]
         if depth == 0 and two == "--":
+            if starts is not None:
+                starts.append(i)
             j = text.find("\n", i)
             j = n if j < 0 else j
             out.append(" " * (j - i)); i = j; continue
         if two == "/-":
-            depth += 1; out.append("  "); i += 2; continue
+            # At the top level Lean consumes the character after `/-` without
+            # reading it (`/--` and `/-!` are one token, and `/-/- -/` is one
+            # comment, not two), so three characters are taken at depth 0;
+            # inside a comment Lean reads `/-` then whatever follows.
+            if depth == 0 and starts is not None:
+                starts.append(i)
+            k = 3 if depth == 0 and i + 2 < n else 2
+            depth += 1
+            out.append("".join("\n" if c == "\n" else " " for c in text[i:i+k])); i += k; continue
         if depth > 0 and two == "-/":
             depth -= 1; out.append("  "); i += 2; continue
         if depth > 0:
             out.append("\n" if ch == "\n" else " "); i += 1; continue
         prev = text[i-1] if i else " "
+        # Does the character before `i` continue an identifier? A `!` or `?`
+        # does only when it ends one (`get!`); alone it is an operator, and a
+        # char literal or raw string may follow it (`!'"'.isAlpha`).
+        in_ident = ident_rule and bool(IDENT_CHARS.match(prev)) and (
+            prev not in "!?" or (i >= 2 and bool(IDENT_CHARS.match(text[i-2])) and text[i-2] not in "!?"))
         if ch == "\u00ab":
             j = text.find("\u00bb", i)
             j = n if j < 0 else j + 1
@@ -278,20 +403,30 @@ def strip_lean(text):
             while j < n and text[j] != "\"":
                 j += 2 if text[j] == "\\" else 1
             j = min(j + 1, n)
-            out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+            if spans is not None:
+                spans.append((i, j))
+            if starts is not None:
+                starts.append(i)
+            out.append(text[i:j] if keep_strings else "".join("\n" if c == "\n" else " " for c in text[i:j]))
             i = j; continue
-        if ch == "r" and not IDENT_CHARS.match(prev):
+        if ch == "r" and not in_ident:
             raw = re.compile(r'r(#*)"').match(text, i)
             if raw:
                 close = '"' + raw.group(1)
                 j = text.find(close, raw.end())
                 j = n if j < 0 else j + len(close)
-                out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+                if spans is not None:
+                    spans.append((i, j))
+                if starts is not None:
+                    starts.append(i)
+                out.append(text[i:j] if keep_strings else "".join("\n" if c == "\n" else " " for c in text[i:j]))
                 i = j; continue
-        if ch == "'" and not IDENT_CHARS.match(prev):
+        if ch == "'" and not in_ident:
             lit = CHAR_LITERAL.match(text, i)
             if lit:
-                out.append(" " * (lit.end() - i)); i = lit.end(); continue
+                if starts is not None:
+                    starts.append(i)
+                out.append("".join("\n" if c == "\n" else " " for c in text[i:lit.end()])); i = lit.end(); continue
         out.append(ch); i += 1
     return "".join(out)
 
@@ -321,22 +456,143 @@ def collapse(line):
 lean_paths, all_lean_paths = os.environ["LEAN_FILES"], os.environ["ALL_LEAN_FILES"]
 lake_paths = os.environ["LAKEFILES"]
 hits = []
+# Lean ends a line at a newline or at CRLF and nowhere else; Python's default
+# reading, used below, also ends one at a lone carriage return, so a file that
+# holds one would be read differently here and by Lean (a line comment would end
+# early for this scan and run on for Lean, and a quote after the return would
+# open a string for the scan only). No honest first-party file holds a carriage
+# return or a NUL, so any is refused before the rules below read the file.
+for path in sorted(set(lean_paths.split()) | set(all_lean_paths.split()) | set(lake_paths.split())):
+    with open(path, encoding="utf-8", newline="") as fh:
+        exact = fh.read()
+    if "\r" in exact or "\x00" in exact:
+        hits.append(f"{path}: control-character: the file holds a carriage return or a NUL, which "
+                    "Lean and this scan read differently; use plain newlines")
 present = {path: set() for path in ALLOW}
 for path in lean_paths.split():
     raw = open(path, encoding="utf-8").read()
     raw_lines = raw.split("\n")
-    text = strip_lean(raw)
+    opened = []
+    text = strip_lean(raw, starts=opened)
+    # The stripper reads a `'` or `r"` as a literal start by the character
+    # before it; Lean by the token before it. Where the two readings of a
+    # file differ, the file is refused rather than guessed about.
+    if strip_lean(raw, ident_rule=False) != text:
+        hits.append(f"{path}: ambiguous-literal: a char literal or raw string in this file is read "
+                    f"differently with and without the identifier rule; rewrite it with a space before the quote")
+    # And every literal or comment the stripper opens must follow whitespace,
+    # the start of the file, or an opening bracket or comma, each a complete
+    # token of its own. Lean reads a literal or a comment opener only at a
+    # token boundary; the stripper reads it anywhere. A token that ends in `'`
+    # (`×'`), a comment opener inside a token (`//-`, `<--`) or an identifier
+    # character Python's `\w` lacks (`℃`) would otherwise make the stripper open
+    # a literal or comment where Lean reads code, and hide what follows. No
+    # honest first-party file has one of these after anything else.
+    for s in opened:
+        if s > 0 and not raw[s - 1].isspace() and raw[s - 1] not in "([{,⟨":
+            lineno = raw.count("\n", 0, s) + 1
+            hits.append(f"{path}:{lineno}: adjacent-literal: a literal or comment opener follows "
+                        f"{raw[s-1]!r}; put a space before it")
     allowed = ALLOW.get(path, [])
+    # Code with its strings but without its comments: a tag or a string in a
+    # comment is prose, in a string it is output.
+    spans = []
+    code_with_strings = strip_lean(raw, keep_strings=True, spans=spans)
+    starts = {s for s, _ in spans}
+    if path != AUDIT_IMPLEMENTATION:
+        # An identifier ending in `!` and followed by a string literal (its
+        # opening quote, as the stripper found it, so `"Done!"` is not one) or a
+        # bracket, on the line or on the next: the interpolating and tracing
+        # macros (`s!`, `m!`, `aesop_trace![`). The partial-function spelling
+        # (`w.set! i`, `l.head!`, `(f x).get!`) is followed by neither and stays.
+        # Read on the string-aware text, so a `!` inside a comment is blank.
+        for m in re.finditer(r"(?<=\w)!\s*(?:\"|\[)", code_with_strings):
+            if m.group(0).endswith("\"") and m.end() - 1 not in starts:
+                continue
+            lineno = code_with_strings.count("\n", 0, m.start()) + 1
+            hits.append(f"{path}:{lineno}: bang-identifier: a `!` macro with a string or bracket")
+    else:
+        # In the audit's implementation, the one file that may call the
+        # message heads: no string literal holds a brace at all. The stripper
+        # cannot read an interpolation (`{…}` may hold a quote, a char literal,
+        # a comment, anything), so the file builds its messages by
+        # concatenation and interpolates nowhere; a brace in a literal is then
+        # never honest. A plain string cannot hold an unescaped quote, so with
+        # no interpolation anywhere the stripper's string boundaries are Lean's,
+        # as far as eighteen hostile reads could tell (the eighteenth found a
+        # lone carriage return ending a line for this scan and not for Lean;
+        # the pre-pass above refuses such a file, and the rules below still run
+        # over it, the refusal standing): the stripper is a scanner,
+        # not Lean's lexer, and each spelling a read found is a case in
+        # tooling/tests/run-lean-constructs-cases.sh.
+        for s, e in spans:
+            body = raw[s:e]
+            if "{" in body or "}" in body:
+                lineno = raw.count("\n", 0, s) + 1
+                hits.append(f"{path}:{lineno}: brace-in-string: a string literal in the audit holds a "
+                            f"brace: {body[:60]!r}")
+    for lineno, codeline in enumerate(code_with_strings.split("\n"), 1):
+        if path != AUDIT_IMPLEMENTATION and AUDIT_LINE_TAGS.search(codeline):
+            hits.append(f"{path}:{lineno}: audit-line-literal: {codeline.strip()}")
+        if PRINT_STRING.search(codeline):
+            hits.append(f"{path}:{lineno}: print-to-log: {codeline.strip()}")
+        # The stripper turns a guillemet identifier's contents into underscores
+        # before the rules see it, so `«Lean».X` is read on the raw line.
+        if GUILLEMET_LEAN.search(raw_lines[lineno - 1]):
+            hits.append(f"{path}:{lineno}: lean-namespace: {raw_lines[lineno - 1].strip()}")
+    if path in ALLOW and path != AUDIT_IMPLEMENTATION:
+        for lineno, line in enumerate(text.split("\n"), 1):
+            # Whole lines: Lean allows several commands on one line, so a
+            # line is one import, one pin or one invocation, and nothing more.
+            if line.strip() and not any(r.match(collapse(line)) for r in AUDIT_MODULE_LINES) \
+                    and allowed_entry(collapse(raw_lines[lineno - 1]), allowed) is None:
+                hits.append(f"{path}:{lineno}: audit-module-shape: an audit module holds only "
+                            f"imports, pins and the audit invocations, one per line: {line.strip()}")
     for lineno, line in enumerate(text.split("\n"), 1):
         for kind, rule in LEAN_RULES:
             if rule.search(line):
                 hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
         for kind, rule in ELAB_RULES:
+            if kind == "interpolating-head" and path == AUDIT_IMPLEMENTATION:
+                continue
             if rule.search(line):
                 source = collapse(raw_lines[lineno - 1])
-                if source in allowed:
-                    present[path].add(source)
-                else:
+                entry = allowed_entry(source, allowed)
+                if entry is not None:
+                    present[path].add(entry)
+                if entry == AUDIT_CALL:
+                    # At column 0: an indented invocation is the argument of
+                    # something on the line before (`with_weak_namespace`
+                    # takes a command with no `in`).
+                    if not raw_lines[lineno - 1].startswith("run_cmd"):
+                        hits.append(f"{path}:{lineno}: indented-invocation: the audit invocation "
+                                    f"does not start at column 0")
+                    # An allowed invocation must stand on its own: a `… in`
+                    # before it (`#guard_msgs (drop all) in`, `set_option … in`)
+                    # would make it the body of another command, which could
+                    # consume its refusal. The previous non-blank line of the
+                    # stripped text (comments and strings blanked) must not
+                    # end in `in`.
+                    stripped = text.split("\n")
+                    before = [l for l in stripped[:lineno - 1] if l.strip()]
+                    if before and re.search(r"(?<![\w.'])in$", collapse(before[-1])):
+                        hits.append(f"{path}:{lineno}: wrapped-invocation: the audit "
+                                    f"invocation is the body of `{collapse(before[-1])}`")
+                    # And nothing may follow it but another allowed invocation:
+                    # a continuation line (`<|> pure ()`, `|> fun _ => pure ()`)
+                    # would swallow its refusal or skip the walk, and a
+                    # declaration after it would be outside the walk. So the
+                    # next non-blank stripped line is the end of the file or
+                    # an allowed invocation.
+                    after = [(n, l) for n, l in enumerate(stripped[lineno:], lineno + 1) if l.strip()]
+                    if after:
+                        n_after, l_after = after[0]
+                        if allowed_entry(collapse(raw_lines[n_after - 1]), allowed) is None:
+                            hits.append(f"{path}:{lineno}: followed-invocation: the audit "
+                                        f"invocation is followed at line {n_after} by "
+                                        f"`{collapse(l_after)}`; only another audit invocation "
+                                        f"or the end of the file may follow it")
+                if entry is None:
                     hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
 # Lean only emits the diagnostic the no-sorry gate scans when this option is
 # enabled. It must remain enabled in generated translation as well as the
@@ -355,7 +611,7 @@ for path, lines in ALLOW.items():
     for source in lines:
         if source not in present[path]:
             hits.append(f"{path}: allow-listed line missing (the audit is not invoked, "
-                        f"or its implementation changed): {source}")
+                        f"or its implementation changed): {entry_text(source)}")
 for path in lake_paths.split():
     raw = open(path, encoding="utf-8").read()
     text = strip_toml(raw) if path.endswith(".toml") else strip_lean(raw)
@@ -363,6 +619,14 @@ for path in lake_paths.split():
         for kind, rule in LAKEFILE_RULES:
             if rule.search(line):
                 hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
+    with open(path, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
+    if LAKEFILE_SHA256.get(path) != digest:
+        hits.append(f"{path}: lakefile-pinned: the lakefile's content ({digest[:12]}…) is not the pinned one; "
+                    f"a change to what it builds is a diff for review that updates LAKEFILE_SHA256 here")
+for path in LAKEFILE_SHA256:
+    if path not in lake_paths.split():
+        hits.append(f"{path}: lakefile-pinned: the pinned lakefile is missing")
 print("\n".join(hits))
 PY
 found=$(LEAN_FILES="$lean_files" ALL_LEAN_FILES="$all_lean_files" LAKEFILES="$lakefiles" python3 "$program")
@@ -387,6 +651,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option and match their pins"
 fi
 exit "$status"

@@ -232,11 +232,29 @@ def compiler_axiom(name):
 GENERATED = ROOT / "tacenta-proofs" / "translation" / "Translation"
 
 
-# A Lean character literal: `'a'`, `'"'`, `'\n'`, `'\x41'`, `'\u{1F600}'`.
-_CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^\\'\n])'")
+# A Lean character literal: `'a'`, `'"'`, `'\n'`, `'\x41'`, `'\u0041'`; a raw newline is allowed.
+
+def _lean_text(path):
+    """The text of a first-party Lean file, read without newline translation.
+
+    Lean ends a line at a newline or at CRLF only; Python's default reading also
+    ends one at a lone carriage return, so the two would disagree about where a
+    line comment ends. No first-party file holds a carriage return or a NUL, and
+    one that does is refused here rather than read."""
+    with path.open(encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    if "\r" in text or "\x00" in text:
+        raise SystemExit(
+            f"{path}: holds a carriage return or a NUL; Lean ends a line only at a "
+            "newline, so this reading would not match Lean's. Use plain newlines"
+        )
+    return text
+
+
+_CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|.)|[^\\'])'")  # Lean accepts a raw newline here
 # The characters that can continue an identifier, for telling `r"..."`, `'a'`
 # and `«...»` at the start of a token from the same characters inside one.
-_IDENT_CHARS = re.compile(r"[\w'!?«»]")
+_IDENT_CHARS = re.compile(r"(?![\u03bb\u03a0\u03a3])[\w'!?«»]")  # `λ`, `Π`, `Σ` are tokens, not identifier characters
 
 
 def lean_code(text, keep_names=False):
@@ -268,9 +286,13 @@ def lean_code(text, keep_names=False):
             i = j
             continue
         if two == "/-":
+            # At the top level Lean consumes the character after `/-` without
+            # reading it (see check-lean-constructs.sh); inside a comment it
+            # reads `/-` then whatever follows.
+            k = 3 if depth == 0 and i + 2 < n else 2
             depth += 1
-            out.append("  ")
-            i += 2
+            out.append("".join("\n" if c == "\n" else " " for c in text[i:i + k]))
+            i += k
             continue
         if depth > 0 and two == "-/":
             depth -= 1
@@ -282,6 +304,10 @@ def lean_code(text, keep_names=False):
             i += 1
             continue
         prev = text[i - 1] if i else " "
+        # A `!` or `?` continues an identifier only when it ends one; alone it
+        # is an operator and a char literal or raw string may follow it.
+        in_ident = bool(_IDENT_CHARS.match(prev)) and (
+            prev not in "!?" or (i >= 2 and bool(_IDENT_CHARS.match(text[i - 2])) and text[i - 2] not in "!?"))
         if ch == "«":
             j = text.find("»", i)
             j = n if j < 0 else j + 1
@@ -298,7 +324,7 @@ def lean_code(text, keep_names=False):
             out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
             i = j
             continue
-        if ch == "r" and not _IDENT_CHARS.match(prev):
+        if ch == "r" and not in_ident:
             raw = re.compile(r'r(#*)"').match(text, i)
             if raw:
                 close = '"' + raw.group(1)
@@ -307,10 +333,10 @@ def lean_code(text, keep_names=False):
                 out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
                 i = j
                 continue
-        if ch == "'" and not _IDENT_CHARS.match(prev):
+        if ch == "'" and not in_ident:
             lit = _CHAR_LITERAL.match(text, i)
             if lit:
-                out.append(" " * (lit.end() - i))
+                out.append("".join("\n" if c == "\n" else " " for c in text[i:lit.end()]))
                 i = lit.end()
                 continue
         out.append(ch)
@@ -351,7 +377,7 @@ def axiom_declarations(path):
     name starts with `<unreadable:`, which no record or allowlist contains, so
     the file fails the comparison rather than passing on what was understood.
     """
-    text = path.read_text()
+    text = _lean_text(path)
     words = lean_code(text)
     names = lean_code(text, keep_names=True)
     tokens = list(_SCOPE_TOKEN.finditer(words))
@@ -689,6 +715,7 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
         "erasureCloneAgrees",
@@ -734,6 +761,10 @@ REQUIRED_PINS = frozenset(
     # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
     # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
     + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    # The Braid's send epoch accounting (Proofs/TrustedBase.lean), kernel-only: the pins that hold
+    # it, so that deleting one is refused.
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Polynomial.interp_eq", "Tacenta.ErasureT3.mul_refines"]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
@@ -1888,6 +1919,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
         "FeedsDecoder",
@@ -2026,6 +2058,10 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
         "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
     )]
+    # The statements of the Braid's send epoch theorems the fallible KEM introduced or restated
+    # (Proofs/TrustedBase.lean).
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
@@ -2384,7 +2420,7 @@ def axiom_pins():
     pins = []
     externals = opaque_externals()
     for p in proof_files():
-        text = p.read_text()
+        text = _lean_text(p)
         # Every `#guard_msgs in` / `#print axioms` pair in the file must be
         # a match, or this stops: a pin whose docstring has a shape the
         # regex does not recognise would otherwise drop out of the count.
@@ -2470,7 +2506,7 @@ def axiom_pins():
 #     build is claimed to compare. An option this reading does not know is refused,
 #     so a new Lean option fails closed;
 #   * the pin's module must be reachable by imports from an audit module (a file
-#     named `AxiomAudit*.lean` that holds a `run_cmd Model.AxiomAudit.run` line), which
+#     named `AxiomAudit*.lean` that holds a `run_cmd _root_.Model.AxiomAudit.run` line), which
 #     is `check-audit-reach.sh`'s rule read from the header text instead of
 #     `lean --deps`. Lake builds every file under a library's globs whether or not
 #     anything imports it, so a pin file outside the import closure is built; what
@@ -2503,7 +2539,7 @@ _COMMAND_END = re.compile(r"[ \t]*(?:\Z|\n(?:[ \t]*\n)*(?:[ \t]*\Z|\S))")
 _SPEC_KIND = re.compile(r"(?:(drop|check|pass)\s+)?(info|warning|error|all)")
 _SPEC_WHITESPACE = re.compile(r"whitespace\s*:=\s*(exact|normalized|lax)")
 _SPEC_ORDERING = re.compile(r"ordering\s*:=\s*(exact|sorted)")
-_AUDIT_CALL = re.compile(r"^run_cmd Model\.AxiomAudit\.run\b", re.M)
+_AUDIT_CALL = re.compile(r"^run_cmd _root_\.Model\.AxiomAudit\.run\b", re.M)
 
 
 def _skip_space(text, i):
@@ -2619,7 +2655,7 @@ def statement_pin_survey():
     and line; and `guards`, the count of every live `#guard_msgs ... in` command."""
     survey = {"live": [], "raw_only": [], "unguarded": [], "guards": 0}
     for p in proof_files():
-        text = p.read_text()
+        text = _lean_text(p)
         if "#guard_msgs" not in text and "#check" not in text:
             continue
         rel = str(p.relative_to(ROOT))
@@ -2668,8 +2704,7 @@ def _module_path(module):
 
 def lean_imports(path):
     """The modules a file's header imports, read from its first 20,000 characters."""
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        head = lean_code(handle.read(20000))
+    head = lean_code(_lean_text(Path(path))[:20000])
     pos = 0
     keyword = re.compile(r"\s*(?:module|prelude)(?![\w.'])").match(head)
     if keyword:
@@ -2686,11 +2721,11 @@ def lean_imports(path):
 
 def audit_reach():
     """The first-party modules the audit modules import, directly or not: a file
-    named `AxiomAudit*.lean` holding a `run_cmd Model.AxiomAudit.run` line is an
+    named `AxiomAudit*.lean` holding a `run_cmd _root_.Model.AxiomAudit.run` line is an
     audit module. The Lean-backed `check-audit-reach.sh` fixes the audit modules by
     name and asks Lean for the imports; this reads the same graph from the header."""
     todo = [module_name(str(p.relative_to(ROOT))) for p in proof_files()
-            if p.name.startswith("AxiomAudit") and _AUDIT_CALL.search(lean_code(p.read_text()))]
+            if p.name.startswith("AxiomAudit") and _AUDIT_CALL.search(lean_code(_lean_text(p)))]
     reached = set()
     while todo:
         module = todo.pop()
@@ -2969,7 +3004,7 @@ def declared_theorems():
     by the `namespace` blocks around it, with the file it is in."""
     found = []
     for p in proof_files():
-        text = lean_code(p.read_text())
+        text = lean_code(_lean_text(p))
         events = []
         for m in NAMESPACE.finditer(text):
             events.append((m.start(), "ns", m.group(1), m.group(2)))
