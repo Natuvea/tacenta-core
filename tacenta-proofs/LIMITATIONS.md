@@ -2465,7 +2465,7 @@ instance the unit passes.
 What changed, and where. The Session copies are generated: the restated statements and the proof edits that use them
 are named, count-checked `unit_edit`s in `port-session-unit-proofs.sh` (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`,
 `SessionUnitTripleT1`, `SessionUnitTripleT3`) and `port-session-braid-proof.sh` (`SessionUnitBraidT1`): eleven
-applications of `ZeroizeTotal` drop the instance argument, three apply it without the width, four uses of the
+applications of `ZeroizeTotal` drop the instance argument, three drop the instance placeholder (`hzs _ a` becomes `hzs a`), four uses of the
 `Vec::zeroize` conjunct select the instance by projection, and `zeroize_step` and `array_zeroize_spec` are stated at the
 one instance. One non-generated proof file, `UnitLifecycleTripleRefusalT3.lean`, needed the same two kinds of edit.
 The standalone leaf files and the three-leaf unit keep the general forms, which are stronger than their crates in the
@@ -2479,7 +2479,8 @@ What is assumed. That the real `Array::zeroize` returns at the blanket `u8` inst
 real `Vec::zeroize` returns at the three instances. By reading, the blanket `Zeroize` writes zeros through volatile
 stores, the element `zeroize` of the three instances reaches only that, `Array::zeroize` over it, the pair `Zeroize` and
 `Option::as_mut`, and `Vec::zeroize` zeroizes each
-element, clears the vector and zeroes its spare capacity; none of these returns an error or panics short of the memory
+element, clears the vector, which drops each element (`SkippedKey`, `Skipped`, `Chain` and `Chains` derive `ZeroizeOnDrop`, so each drop zeroizes
+again), and zeroes its spare capacity; none of these returns an error or panics short of the memory
 faults no proof here covers. This is not checked by a proof or a test. Every axiom-level shape, the restated fields among them, holds in an interpretation whose
 `Array::zeroize`, `Vec::zeroize` and pair `Zeroize` work element by element and propagate a failure
 (`faithful_satisfies_all_axiom_shapes`); that is a model of the shapes and says nothing of the real functions.

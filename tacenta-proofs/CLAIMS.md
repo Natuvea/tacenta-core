@@ -3149,7 +3149,8 @@ Location: `Translation/UnitSatisfiabilityZeroizeScope.lean`.
 `Vec::zeroize`: the blanket `u8` instance on a 32-byte array, and the chain table (`Vec<(u64, Chains)>`), the sparse
 skipped-key store (`Vec<Skipped>`) and the classical one (`Vec<SkippedKey>`). A walk of the elaborated definitions of
 `TacentaSessionUnit.lean` finds 34 calls of `Array::zeroize`, all at that instance and width, and 5 of `Vec::zeroize`,
-at those three instances (2, 2 and 1); the walk was run when the fields were restated and no gate repeats it. Before,
+at those three instances (2, 2 and 1); the walk is kept outside this tree, was run when the fields were restated, and no gate
+repeats it, so the count is a reading, not a check. Before,
 the three said the operations return for every `Zeroize` record, including one whose `zeroize` fails, which the real
 functions, which call the record's `zeroize` on each element, do not support. That the real functions return at the
 unit's instances is assumed (`LIMITATIONS.md`). The statements of the three fields are pinned by `#print` in this module
