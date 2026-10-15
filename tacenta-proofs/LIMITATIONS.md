@@ -1186,7 +1186,15 @@ against the Rust by the refinement proofs, under `KemAgreesFor`, and against
 the model by nothing a vector carries. The independent reader drives its own KEM to refuse (its case
 BR-12) and tests the four arms against its reading of the specification, not
 against the model. That the real wrapper does refuse, and when, is not shown
-here. `Model.Braid.toyKem_correct`
+here in Lean. By test it refuses one known class of input: a restored
+encapsulation state with an out-of-bound coefficient (the section on the
+Session unit's primitive contracts below, and `KEM-STORED-STATE-TOTALITY` in
+the gap register). The model can express that refusal as `encaps2` returning
+`none` at that state, and `finish_encaps_refines` refines the real `Err` arm
+under `EncapsRefines` for the state; no theorem relates a restored Braid to a
+model state, so nothing supplies that hypothesis for a tampered store, no `K`
+in the tree refuses, and the coefficient rule is not modelled.
+`Model.Braid.toyKem_correct`
 remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++

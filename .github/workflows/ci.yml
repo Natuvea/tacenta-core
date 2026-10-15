@@ -101,7 +101,8 @@ jobs:
       # libcrux picks its ML-KEM backend when it is compiled: AVX2 on x86_64,
       # NEON on aarch64, and its portable arithmetic everywhere else and
       # wherever these two variables are `1`. On an out-of-range coefficient
-      # the SIMD backends returned a ciphertext and the portable one can
+      # the NEON backend returned a ciphertext (AVX2 not run) and the
+      # portable one can
       # overflow and panic under this workspace's overflow checks. The KEM
       # wrapper refuses a restored
       # encapsulation state with such coefficients (`kem/src/lib.rs`,
