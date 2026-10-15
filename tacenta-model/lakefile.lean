@@ -24,3 +24,14 @@ lean_exe genvectors where
 @[default_target]
 lean_exe difftest where
   root := `Difftest
+
+-- The refuted-record walk as an executable (`Model/AxiomAudit.lean`'s `main`):
+-- `tacenta-proofs/scripts/check-refuted-records.sh` runs it once per
+-- translation audit module, loading the module's import closure at run time
+-- with `importModules`, so that nothing a module of the tree declares is
+-- parsed where the walk is called. Not a default target: it is built by that
+-- script, and the model's own build has no use for it.
+lean_exe «refuted-records» where
+  root := `Model.AxiomAudit
+  -- `importModules` needs the interpreter's symbols linked in.
+  supportInterpreter := true

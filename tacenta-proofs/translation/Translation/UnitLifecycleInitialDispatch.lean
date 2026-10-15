@@ -14262,11 +14262,17 @@ structure BraidSendTraceAgreementCounted
       Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
         (Model.Braid.send K rand model.braid).2.2.2
 
+/-- A Braid send whose successor is not `failed` has a message.  The premise is on the
+successor, not on the state: since the model's KEM may refuse (mlkem-braid.md, Failure), a send
+from `keysUnsampled` or `headerReceived` can land in `failed` with no message although the state
+it started from had not failed. -/
 theorem braid_send_message_some_of_ready
     (K : Model.Braid.Kem) (rand : Nat) (state : Model.Braid.BraidState)
-    (hready : Model.Lifecycle.braidFailed state = false) :
+    (hready : Model.Lifecycle.braidFailed (Model.Braid.send K rand state).2.2.2 = false) :
     ∃ message, (Model.Braid.send K rand state).1 = some message := by
-  cases state <;> simp [Model.Lifecycle.braidFailed, Model.Braid.send] at hready ⊢
+  revert hready
+  cases state <;> simp only [Model.Braid.send]
+  all_goals (try split) <;> simp [Model.Lifecycle.braidFailed]
 
 /-! A nonterminal generated Braid send has one concrete model successor and
     one concrete trace successor.  Packaging them here lets the Triple branch
@@ -14317,9 +14323,6 @@ theorem braid_success_evidence_of_generated
     (hnextReal : tacenta_braid.Braid.failed realBraidNext = ok false) :
     Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
       realMessage realEpoch realOutput realBraidNext rngNext) := by
-  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
-    cases hb : model.braid <;>
-      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
   cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
   | false =>
       have hpost := braid_send_post_of_contracts contracts real.braid rng hrel.braid
@@ -14328,19 +14331,24 @@ theorem braid_success_evidence_of_generated
           hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
         braid_send_model_result_of_no_draw (R := R) oracle model.braid agreement.braidKem
           realMessage realEpoch realOutput realBraidNext hdraw hpost
-      obtain ⟨modelMessage, hmessageSome⟩ :=
-        braid_send_message_some_of_ready oracle.braidKem 0 model.braid hmodelReady
       have hpairs :
           (Model.Braid.send oracle.braidKem 0 model.braid, oracle) =
             ((modelMessageOpt, modelEpoch, modelOutput, modelBraidNext), oracle) := by
         exact Option.some.inj
           ((Model.Lifecycle.sendAgreement_no_draw oracle model.braid hdraw).symm.trans
             hsendModel)
+      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
+      rw [hnextReal] at hfailed
+      have hsentReady :
+          Model.Lifecycle.braidFailed (Model.Braid.send oracle.braidKem 0 model.braid).2.2.2 =
+            false := by
+        rw [congrArg (fun value => value.1.2.2.2) hpairs]
+        exact (Result.ok.inj hfailed).symm
+      obtain ⟨modelMessage, hmessageSome⟩ :=
+        braid_send_message_some_of_ready oracle.braidKem 0 model.braid hsentReady
       have hmessageOpt : modelMessageOpt = some modelMessage := by
         exact (congrArg (fun value => value.1.1) hpairs).symm.trans hmessageSome
       subst modelMessageOpt
-      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
-      rw [hnextReal] at hfailed
       exact ⟨{
         oracleNext := oracle
         modelMessage := modelMessage
@@ -14366,8 +14374,6 @@ theorem braid_success_evidence_of_generated
           (agreement.drawTrace _ _ _ _ _ hsend hdraw) hdraw
           (agreement.drawPost _ _ _ _ _ hsend hdraw)
       have horacle : oracle.draws = draws ++ rest := htrace.symm.trans hhead
-      obtain ⟨modelMessage, hmessageSome⟩ := braid_send_message_some_of_ready
-        oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten) model.braid hmodelReady
       have hpairs :
           (Model.Braid.send oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten)
               model.braid, { oracle with draws := rest }) =
@@ -14376,11 +14382,18 @@ theorem braid_success_evidence_of_generated
         exact Option.some.inj
           ((Model.Lifecycle.sendAgreement_draws oracle model.braid draws rest hdraw hcount
             horacle).symm.trans hsendModel)
+      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
+      rw [hnextReal] at hfailed
+      have hsentReady :
+          Model.Lifecycle.braidFailed (Model.Braid.send oracle.braidKem
+            (Model.Lifecycle.braidRandomness draws.flatten) model.braid).2.2.2 = false := by
+        rw [congrArg (fun value => value.1.2.2.2) hpairs]
+        exact (Result.ok.inj hfailed).symm
+      obtain ⟨modelMessage, hmessageSome⟩ := braid_send_message_some_of_ready
+        oracle.braidKem (Model.Lifecycle.braidRandomness draws.flatten) model.braid hsentReady
       have hmessageOpt : modelMessageOpt = some modelMessage := by
         exact (congrArg (fun value => value.1.1) hpairs).symm.trans hmessageSome
       subst modelMessageOpt
-      have hfailed := braid_failed_refines K realBraidNext modelBraidNext hnext
-      rw [hnextReal] at hfailed
       exact ⟨{
         oracleNext := { oracle with draws := rest }
         modelMessage := modelMessage

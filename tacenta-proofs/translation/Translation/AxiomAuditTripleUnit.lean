@@ -35,4 +35,4 @@ recorded manifest, and a module nothing imports would be built, scanned and
 never audited.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
+run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Hold the evidence about the Braid refinement agreements of the Session unit to mutations.
 #
-# Four modules carry that evidence:
+# These modules carry that evidence:
 #
-#   UnitSatisfiabilityBraidAgreements.lean  the six KEM and KDF agreements and the law `TruncatePrefix` as
-#                                           shapes over an interpretation, each bound to the real predicate
-#                                           by `Iff.rfl`, and one interpretation that satisfies all of them
-#                                           with the axiom-level shapes of the session records.
+#   UnitSatisfiabilityBraidAgreements.lean  the six KEM and KDF agreements, the law `TruncatePrefix` and the
+#                                           premise `KemDrawsSucceed` of the state witnesses as shapes over an
+#                                           interpretation, each bound to the real predicate by `Iff.rfl`, and
+#                                           one interpretation that satisfies all of them with the axiom-level
+#                                           shapes of the session records.
+#   SessionUnitBraidT3.lean                 the refinement proofs, for the one case that weakens a clone law
+#                                           where the proofs need its refusing arm.
 #   UnitSatisfiabilityErasureAgrees.lean    `ErasureCloneAgrees` and the encoder clause of `ErasureAgrees`.
 #   UnitSatisfiabilityBraidStates.lean      witnesses for the state-level hypotheses of the four refinement
 #                                           theorems, at all twelve state constructors and at the states the
@@ -57,6 +60,7 @@ def read(name):
 agree = read("UnitSatisfiabilityBraidAgreements")
 erasure = read("UnitSatisfiabilityErasureAgrees")
 states = read("UnitSatisfiabilityBraidStates")
+braid_t3 = read("SessionUnitBraidT3")
 entry = read("UnitBraidEntryPoints")
 rs_defs = read("UnitErasureRsDefs")
 rs_kernel = read("UnitErasureRsKernel")
@@ -234,8 +238,8 @@ agg = re.search(r"theorem braid_agreement_shapes_are_predicates :.*?:=\s*⟨(.*?
 named = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", agg.group(1))) if agg else set()
 for b in sorted(bridges - named):
     wrong.append(f"bridge {b} is declared but braid_agreement_shapes_are_predicates does not name it")
-if len(bridges) != 7:
-    wrong.append(f"the module declares {len(bridges)} `_is` bridges, expected 7: {sorted(bridges)}")
+if len(bridges) != 8:
+    wrong.append(f"the module declares {len(bridges)} `_is` bridges, expected 8: {sorted(bridges)}")
 
 controls = [
     # bridges: one constant, premise or conjunct changed, so the shape is not the predicate
@@ -243,11 +247,17 @@ controls = [
      "(∃ v, I.CT1_LEN = ok v ∧ v.val = K.ct1Size)", "(∃ v, I.CT1_LEN = ok v ∧ v.val = K.ct2Size)",
      "KemLenAgrees_is"),
     ("bridge-kemagrees-drops-the-rngtotal-premise",
-     "      Tacenta.SessionUnitBraidT1.RngTotal rc →\n      ∃ kp rng' rand,", "      ∃ kp rng' rand,",
+     "      Tacenta.SessionUnitBraidT1.RngTotal rc →\n      ∃ rng' rand,", "      ∃ rng' rand,",
      "KemAgreesFor_is"),
     ("bridge-kemagrees-header-loses-the-hash",
-     "vecOf h = (K.keyGen rand).2.1 ++ K.hashEk (K.keyGen rand).2.1 (K.keyGen rand).2.2)",
-     "vecOf h = (K.keyGen rand).2.1)", "KemAgreesFor_is"),
+     "vecOf h = ekSeed ++ K.hashEk ekSeed ekVector)",
+     "vecOf h = ekSeed)", "KemAgreesFor_is"),
+    ("bridge-kemagrees-refusal-arm-claims-success",
+     "          K.keyGen rand = none)) ∧", "          K.keyGen rand = some ([], [], []))) ∧",
+     "KemAgreesFor_is"),
+    ("bridge-kemdraws-drops-the-header-length",
+     "    Tacenta.SessionUnitBraidT1.RngTotal rc ∧ header.length = Model.Braid.headerSize ∧\n    ∃ r rng', I.encapsulate1",
+     "    Tacenta.SessionUnitBraidT1.RngTotal rc ∧\n    ∃ r rng', I.encapsulate1", "KemDrawsSucceed_is"),
     ("bridge-validateek-flips-the-verdict",
      "(r = true ↔ K.hashEk ekSeed (sliceOf ekVector) = hek)", "(r = false ↔ K.hashEk ekSeed (sliceOf ekVector) = hek)",
      "ValidateEkAgrees_is"),
@@ -282,6 +292,9 @@ controls = [
      "ok (core.result.Result.Ok (vecOfBytes (List.replicate 32 9) (by simp; exact le32)))",
      "ok (core.result.Result.Ok (vecOfBytes (List.replicate 40 9) (by simp; exact usize_max_ge 40 (by norm_num))))",
      "modelT3_kemAgrees"),
+    ("model-key-generation-refuses",
+     "    ikpGenerate := fun _ _ rng => ok (core.result.Result.Ok 0, rng)",
+     "    ikpGenerate := fun _ _ rng => ok (core.result.Result.Err (), rng)", "modelT3_kemDrawsSucceed"),
     # the width fact every witness rests on, made false at 32 bits
     ("width-fact-claims-2-to-the-33", "theorem usize_max_ge (n : ℕ) (h : n ≤ 2 ^ 32 - 1) : n ≤ Usize.max := by",
      "theorem usize_max_ge (n : ℕ) (h : n ≤ 2 ^ 33 - 1) : n ≤ Usize.max := by", "usize_max_ge"),
@@ -297,19 +310,34 @@ for name, old, new, where in controls:
 # the statement pins refuse a weaker statement that keeps its proof
 stmt = [
     ("statement-headline-drops-the-truncate-law",
-     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix⟩",
-     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws⟩"),
+     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I ∧\n        KemDrawsSucceedShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix, modelT3_kemDrawsSucceed⟩",
+     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧\n        KemDrawsSucceedShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_kemDrawsSucceed⟩"),
     ("statement-headline-drops-the-agreements",
-     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix⟩",
-     "      AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix⟩"),
+     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I ∧\n        KemDrawsSucceedShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix, modelT3_kemDrawsSucceed⟩",
+     "      AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I ∧\n        KemDrawsSucceedShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix, modelT3_kemDrawsSucceed⟩"),
+    ("statement-headline-drops-the-kem-draws-premise",
+     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I ∧\n        KemDrawsSucceedShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix, modelT3_kemDrawsSucceed⟩",
+     "      T3Agreements I K ∧ AllT1Shapes I ∧ StdLaws I ∧ TruncatePrefixShape I :=\n  ⟨Interp.modelT3, Model.Braid.toyKem, modelT3_t3, modelT3_allT1, modelT3_stdLaws,\n    modelT3_truncatePrefix⟩"),
     ("statement-aggregate-drops-the-hmac-bridge",
-     "    (Tacenta.SessionUnitBraidT3.BraidHmacAgrees ↔ HmacAgreesShape Interp.real) ∧\n    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) :=\n  ⟨KemLenAgrees_is, KemAgreesFor_is, ValidateEkAgrees_is, KemCloneAgrees_is, BraidHkdfAgrees_is,\n    BraidHmacAgrees_is, TruncatePrefix_is⟩",
-     "    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) :=\n  ⟨KemLenAgrees_is, KemAgreesFor_is, ValidateEkAgrees_is, KemCloneAgrees_is, BraidHkdfAgrees_is,\n    TruncatePrefix_is⟩"),
+     "    (Tacenta.SessionUnitBraidT3.BraidHmacAgrees ↔ HmacAgreesShape Interp.real) ∧\n    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) ∧\n    (KemDrawsSucceed ↔ KemDrawsSucceedShape Interp.real) :=\n  ⟨KemLenAgrees_is, KemAgreesFor_is, ValidateEkAgrees_is, KemCloneAgrees_is, BraidHkdfAgrees_is,\n    BraidHmacAgrees_is, TruncatePrefix_is, KemDrawsSucceed_is⟩",
+     "    (TruncatePrefix ↔ TruncatePrefixShape Interp.real) ∧\n    (KemDrawsSucceed ↔ KemDrawsSucceedShape Interp.real) :=\n  ⟨KemLenAgrees_is, KemAgreesFor_is, ValidateEkAgrees_is, KemCloneAgrees_is, BraidHkdfAgrees_is,\n    TruncatePrefix_is, KemDrawsSucceed_is⟩"),
 ]
 for name, old, new in stmt:
     t = once(agree, old, new, name)
     if t is not None:
         refused(name, t, PIN_MISMATCH)
+
+# ------------------------------------------------- the refinement proof's clone law
+# `KemCloneAgrees` carries the whole `Result` of `decapsulate` across a clone because the two-sided
+# `KeyPairRefines` has a refusing arm; with only the `Ok` result carried, `KeyPairRefines.clone`
+# cannot carry that arm and must be refused.
+passes("clone-law-unmodified-proof", braid_t3)
+t = once(braid_t3,
+         "    (∀ (ct1 ct2 : Slice Std.U8) r,\n      tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 = ok r →\n      tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate kp' ct1 ct2 = ok r)) ∧",
+         "    (∀ (ct1 ct2 : Slice Std.U8) raw,\n      tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate kp ct1 ct2 =\n        ok (core.result.Result.Ok raw) →\n      tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate kp' ct1 ct2 =\n        ok (core.result.Result.Ok raw))) ∧",
+         "clone-law-carries-only-the-ok-result")
+if t is not None:
+    refused("clone-law-carries-only-the-ok-result", t, "KeyPairRefines.clone")
 
 # ------------------------------------------------------------- the erasure module
 passes("erasure-unmodified", erasure)

@@ -86,7 +86,7 @@ run() {
   {
     echo "import Model.AxiomAudit"
     cat
-    echo 'run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]'
+    echo 'run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]'
   } > "$probe"
 
   set +e

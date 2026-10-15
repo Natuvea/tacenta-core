@@ -112,8 +112,14 @@ theorem Decoder.message_length (d : Decoder) (bytes : Bytes)
 /-! ## The KEM boundary -/
 
 structure Kem where
-  /-- Randomness in, `(dk, ek_seed, ek_vector)` out. -/
-  keyGen  : Nat → Bytes × Bytes × Bytes
+  /-- Randomness in, `(dk, ek_seed, ek_vector)` out, or `none` when the KEM
+      refuses. `keyGen`, `encaps1`, `encaps2` and `decaps` may each refuse this
+      way, and mlkem-braid.md, Failure, names the transition to `Failed` each
+      refusal takes. When the real library refuses is not modelled here; the
+      refinement (`BraidT3.lean`, `KemAgreesFor`) relates a real `Err` to
+      `none` and a real `Ok` to `some` on the inputs its clauses quantify over
+      (the model's sizes, and the drawing calls under `RngTotal`). -/
+  keyGen  : Nat → Option (Bytes × Bytes × Bytes)
   /-- The header hash: FIPS 203 `H(ek)`, which is `SHA3-256(ek_vector || ek_seed)`,
       taken here as `hashEk ek_seed ek_vector`. The published Braid document writes
       its input as `ek_seed || ek_vector` (mlkem-braid.md, The KEM split). -/
@@ -123,23 +129,26 @@ structure Kem where
       randomness, as key generation does (ML-KEM's encapsulation samples a
       32-byte message), so it is a function of that randomness and the header,
       not of the header alone. -/
-  encaps1 : Nat → Bytes → Bytes → Bytes × Bytes × Bytes
+  encaps1 : Nat → Bytes → Bytes → Option (Bytes × Bytes × Bytes)
   /-- From the rest of the key: `ct2`. -/
-  encaps2 : Bytes → Bytes → Bytes → Bytes
-  decaps  : Bytes → Bytes → Bytes → Bytes
+  encaps2 : Bytes → Bytes → Bytes → Option Bytes
+  decaps  : Bytes → Bytes → Bytes → Option Bytes
   ekSize  : Nat
   ct1Size : Nat
   ct2Size : Nat
 
 /-- The one law the state machine rests on, for every choice of the two
-    parties' randomness. Everything else about ML-KEM is the KEM's business,
+    parties' randomness on which both draws succeed: when key generation and
+    the first half of encapsulation return, the second half returns and
+    decapsulation recovers the shared secret. It says nothing about whether
+    any call succeeds, so a KEM that always refuses satisfies it; whether the
+    real KEM completes an epoch is not this law's business and no proof uses
+    the law. Everything else about ML-KEM is the KEM's business,
     not this protocol's. -/
 def Kem.Correct (K : Kem) : Prop :=
-  ∀ r r' : Nat,
-    let (dk, seed, vec) := K.keyGen r
-    let hek := K.hashEk seed vec
-    let (es, ct1, ss) := K.encaps1 r' seed hek
-    K.decaps dk ct1 (K.encaps2 es seed vec) = ss
+  ∀ (r r' : Nat) (dk seed vec : Bytes), K.keyGen r = some (dk, seed, vec) →
+    ∀ (es ct1 ss : Bytes), K.encaps1 r' seed (K.hashEk seed vec) = some (es, ct1, ss) →
+      ∃ ct2, K.encaps2 es seed vec = some ct2 ∧ K.decaps dk ct1 ct2 = some ss
 
 def headerSize : Nat := 64
 def macSize : Nat := 32
@@ -280,15 +289,19 @@ saturates, and epochs start at 1, so before the first agreement it is 0. -/
 
 def send (K : Kem) (rand : Nat) : BraidState → Option Msg × Nat × Option Output × BraidState
   | .keysUnsampled epoch auth =>
-    -- Transition (1)
-    let (dk, ekSeed, ekVector) := K.keyGen rand
-    let hek := K.hashEk ekSeed ekVector
-    let header := ekSeed ++ hek
-    let mac := auth.macHdr epoch header
-    let enc := encode (header ++ mac)
-    let (chunk, enc') := enc.nextChunk
-    let st := BraidState.keysSampled epoch auth dk ekVector enc'
-    (some ⟨epoch, .hdr, some chunk⟩, st.epoch - 1, none, st)
+    -- Transition (1). Key generation refusing is terminal (mlkem-braid.md,
+    -- Failure); the implementation then builds an empty message that `Session`
+    -- never puts on the wire, as from `Failed` below.
+    match K.keyGen rand with
+    | Option.none => (none, 0, none, .failed)
+    | some (dk, ekSeed, ekVector) =>
+      let hek := K.hashEk ekSeed ekVector
+      let header := ekSeed ++ hek
+      let mac := auth.macHdr epoch header
+      let enc := encode (header ++ mac)
+      let (chunk, enc') := enc.nextChunk
+      let st := BraidState.keysSampled epoch auth dk ekVector enc'
+      (some ⟨epoch, .hdr, some chunk⟩, st.epoch - 1, none, st)
   | .keysSampled epoch auth dk ekVector enc =>
     let (chunk, enc') := enc.nextChunk
     let st := BraidState.keysSampled epoch auth dk ekVector enc'
@@ -310,13 +323,17 @@ def send (K : Kem) (rand : Nat) : BraidState → Option Msg × Nat × Option Out
     -- initiator does. That gap is what `sending_epoch` exists to report. This
     -- is the second of the two transitions that draw randomness (the first
     -- is transition (1)), and `rand` is that randomness.
-    let (encapsSecret, ct1, ssRaw) := K.encaps1 rand ekSeed hek
-    let ss := kdfOk ssRaw epoch
-    let auth' := auth.update epoch ss
-    let enc := encode ct1
-    let (chunk, enc') := enc.nextChunk
-    let st := BraidState.ct1Sampled epoch auth' ekSeed hek encapsSecret ct1 enc' ekDec
-    (some ⟨epoch, .ct1, some chunk⟩, st.epoch - 1, some ⟨epoch, ss⟩, st)
+    -- The first half of encapsulation refusing is terminal (mlkem-braid.md,
+    -- Failure), and nothing is derived or reported.
+    match K.encaps1 rand ekSeed hek with
+    | Option.none => (none, 0, none, .failed)
+    | some (encapsSecret, ct1, ssRaw) =>
+      let ss := kdfOk ssRaw epoch
+      let auth' := auth.update epoch ss
+      let enc := encode ct1
+      let (chunk, enc') := enc.nextChunk
+      let st := BraidState.ct1Sampled epoch auth' ekSeed hek encapsSecret ct1 enc' ekDec
+      (some ⟨epoch, .ct1, some chunk⟩, st.epoch - 1, some ⟨epoch, ss⟩, st)
   | .ct1Sampled epoch auth ekSeed hek es ct1 enc ekDec =>
     let (chunk, enc') := enc.nextChunk
     let st := BraidState.ct1Sampled epoch auth ekSeed hek es ct1 enc' ekDec
@@ -337,12 +354,18 @@ def send (K : Kem) (rand : Nat) : BraidState → Option Msg × Nat × Option Out
 
 /-! ## Receiving -/
 
-/-- Completing an encapsulation, which three states do identically. -/
-private def finishEncaps (K : Kem) (epoch : Nat) (auth : Auth)
+/-- Completing an encapsulation, which three states do identically. Public so
+the refinement can name the model's result of transitions (9), (11) and (12),
+including its `Failed` arm. -/
+def finishEncaps (K : Kem) (epoch : Nat) (auth : Auth)
     (es ct1 ekSeed ekVector : Bytes) : BraidState :=
-  let ct2 := K.encaps2 es ekSeed ekVector
-  let mac := auth.macCt epoch (ct1 ++ ct2)
-  BraidState.ct2Sampled epoch auth (encode (ct2 ++ mac))
+  -- The second half refusing is terminal in each of transitions (9), (11) and
+  -- (12) (mlkem-braid.md, Failure).
+  match K.encaps2 es ekSeed ekVector with
+  | Option.none => .failed
+  | some ct2 =>
+    let mac := auth.macCt epoch (ct1 ++ ct2)
+    BraidState.ct2Sampled epoch auth (encode (ct2 ++ mac))
 
 def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × BraidState :=
   let stay := fun (s : BraidState) => (s.epoch - 1, (none : Option Output), s)
@@ -390,18 +413,24 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
           if epoch + 1 < u64Max then
             let ct2 := ct2WithMac.take K.ct2Size
             let mac := ct2WithMac.drop K.ct2Size
-            let ss := kdfOk (K.decaps dk ct1 ct2) epoch
-            -- The authenticator ratchets before the MAC is checked, because the
-            -- MAC key is what the ratchet produces. A failure is terminal.
-            let auth' := auth.update epoch ss
-            if auth'.macCt epoch (ct1 ++ ct2) == mac then
-              -- Transition (5)
-              let st' := BraidState.noHeaderReceived (epoch + 1) auth'
-                (Decoder.new (headerSize + macSize))
-              (st'.epoch - 1, some ⟨st'.epoch - 1, ss⟩, st')
-            -- A receive that fails reports epoch 0, as every receive from `Failed`
-            -- does (mlkem-braid.md "Failure"), not the epoch it failed at.
-            else (0, none, .failed)
+            -- Decapsulation refusing is terminal (mlkem-braid.md, Failure), and
+            -- comes before the authenticator ratchets.
+            match K.decaps dk ct1 ct2 with
+            | Option.none => (0, none, .failed)
+            | some ssRaw =>
+              let ss := kdfOk ssRaw epoch
+              -- The authenticator ratchets before the MAC is checked, because
+              -- the MAC key is what the ratchet produces. A failure is terminal.
+              let auth' := auth.update epoch ss
+              if auth'.macCt epoch (ct1 ++ ct2) == mac then
+                -- Transition (5)
+                let st' := BraidState.noHeaderReceived (epoch + 1) auth'
+                  (Decoder.new (headerSize + macSize))
+                (st'.epoch - 1, some ⟨st'.epoch - 1, ss⟩, st')
+              -- A receive that fails reports epoch 0, as every receive from
+              -- `Failed` does (mlkem-braid.md "Failure"), not the epoch it
+              -- failed at.
+              else (0, none, .failed)
           else (0, none, .failed)
         | Option.none => stay (.ekSentCt1Received epoch auth dk ct1 d)
       | Option.none => stay st
@@ -494,35 +523,55 @@ ratchet above would read one key as two.
 These say it is right. -/
 
 /-- Sending never advances the epoch. Only receiving does, at transitions 5 and
-13, and both are the moment the other side is known to have caught up. -/
+13, and both are the moment the other side is known to have caught up. A send
+whose KEM call refuses lands in `Failed`, whose epoch is 0, so the epoch can
+only fall. -/
 theorem send_epoch (K : Kem) (r : Nat) (st : BraidState) :
-    (send K r st).2.2.2.epoch = st.epoch := by
-  cases st <;> simp [send, BraidState.epoch]
+    (send K r st).2.2.2.epoch ≤ st.epoch := by
+  cases st <;> simp only [send] <;> repeat' split
+  all_goals simp [BraidState.epoch]
 
-/-- The epoch a `Send` reports is the one before the state's: the last epoch both
-parties are known to hold, not the one being negotiated. -/
+/-- And a send that does not fail keeps the epoch exactly. -/
+theorem send_epoch_of_ne_failed (K : Kem) (r : Nat) (st : BraidState)
+    (h : (send K r st).2.2.2 ≠ .failed) : (send K r st).2.2.2.epoch = st.epoch := by
+  revert h
+  cases st <;> simp only [send] <;> repeat' split
+  all_goals simp [BraidState.epoch]
+
+/-- The epoch a `Send` reports is the one before the state it lands in: the last
+epoch both parties are known to hold, not the one being negotiated. A send that
+fails lands in `Failed`, whose epoch is 0, and reports 0, as the implementation
+reads the report off the candidate state (mlkem-braid.md "Failure"). -/
 theorem send_reports (K : Kem) (r : Nat) (st : BraidState) :
-    (send K r st).2.1 = st.epoch - 1 := by
-  cases st <;> simp [send, BraidState.epoch]
+    (send K r st).2.1 = (send K r st).2.2.2.epoch - 1 := by
+  cases st <;> simp only [send] <;> repeat' split
+  all_goals simp [BraidState.epoch]
+
+/-- From a state the send does not fail in, that is the state's own epoch less
+one. -/
+theorem send_reports_of_ne_failed (K : Kem) (r : Nat) (st : BraidState)
+    (h : (send K r st).2.2.2 ≠ .failed) : (send K r st).2.1 = st.epoch - 1 := by
+  rw [send_reports, send_epoch_of_ne_failed K r st h]
 
 /-- Receiving advances the epoch by at most one. -/
 theorem receive_epoch_le (K : Kem) (st : BraidState) (msg : Msg) :
     (receive K st msg).2.2.epoch ≤ st.epoch + 1 := by
-  cases st <;> simp only [receive] <;> repeat' split
-  all_goals (simp [BraidState.epoch, finishEncaps]; try omega)
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
+  all_goals (simp [BraidState.epoch]; try omega)
 
 /-- **A key is labelled with the epoch it was negotiated in, on the sending
 side.** The responder emits at transition 7, when it samples `ct1`. -/
 theorem send_output_epoch (K : Kem) (r : Nat) (st : BraidState) (o : Output) :
     (send K r st).2.2.1 = some o → o.keyEpoch = st.epoch := by
-  cases st <;> simp +zetaDelta [send, BraidState.epoch] <;> rintro rfl <;> rfl
+  cases st <;> simp only [send] <;> repeat' split
+  all_goals (simp +zetaDelta [BraidState.epoch]; try (rintro rfl; rfl))
 
 /-- **And with the same epoch on the receiving side.** The initiator emits at
 transition 5, after advancing, and reads the label back off the advanced state.
 That the two agree is what makes the epoch a shared name for a shared key. -/
 theorem receive_output_epoch (K : Kem) (st : BraidState) (msg : Msg) (o : Output) :
     (receive K st msg).2.1 = some o → o.keyEpoch = st.epoch := by
-  cases st <;> simp only [receive] <;> repeat' split
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
   all_goals (simp +zetaDelta [BraidState.epoch]; try omega)
   all_goals (rintro rfl; rfl)
 
@@ -531,26 +580,26 @@ every branch. A receive that fails lands in `Failed`, whose epoch is 0, and
 reports 0 (mlkem-braid.md "Failure"). -/
 theorem receive_reports (K : Kem) (st : BraidState) (msg : Msg) :
     (receive K st msg).1 = (receive K st msg).2.2.epoch - 1 := by
-  cases st <;> simp only [receive] <;> repeat' split
-  all_goals (simp [BraidState.epoch, finishEncaps])
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
+  all_goals (simp [BraidState.epoch])
 
 /-- The epoch a `Receive` reports is never one the state has not reached. -/
 theorem receive_reports_le (K : Kem) (st : BraidState) (msg : Msg) :
     (receive K st msg).1 ≤ st.epoch := by
-  cases st <;> simp only [receive] <;> repeat' split
-  all_goals (simp [BraidState.epoch, finishEncaps]; try omega)
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
+  all_goals (simp [BraidState.epoch]; try omega)
 
 /-! ### The reserved epoch
 
-What stopping at `u64Max` buys, stated as ranges. A send never changes the
+What stopping at `u64Max` buys, stated as ranges. A send never raises the
 epoch (`send_epoch`), so these are about receives. -/
 
 /-- A receive from a state below the reserved epoch leaves the Braid below it.
 With `send_epoch`, no run from a state below `u64::MAX` reaches it. -/
 theorem receive_epoch_lt (K : Kem) (st : BraidState) (msg : Msg)
     (h : st.epoch < u64Max) : (receive K st msg).2.2.epoch < u64Max := by
-  cases st <;> simp only [receive] <;> repeat' split
-  all_goals (simp only [BraidState.epoch, finishEncaps] at h ⊢; try omega)
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
+  all_goals (simp only [BraidState.epoch] at h ⊢; try omega)
   all_goals (simp only [u64Max]; omega)
 
 /-- A receive that advances the epoch leaves it below `u64::MAX`, from any
@@ -559,8 +608,8 @@ theorem receive_advance_lt (K : Kem) (st : BraidState) (msg : Msg)
     (h : (receive K st msg).2.2.epoch = st.epoch + 1) :
     (receive K st msg).2.2.epoch < u64Max := by
   revert h
-  cases st <;> simp only [receive] <;> repeat' split
-  all_goals (simp only [BraidState.epoch, finishEncaps]; omega)
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
+  all_goals (simp only [BraidState.epoch]; omega)
 
 /-- An epoch whose key a receive outputs is at most `u64::MAX - 2`. The
 receive that outputs it, transition (5), is also the one that advances, so
@@ -569,7 +618,7 @@ decapsulates (mlkem-braid.md, Failure; session-persistence.md, Principles). -/
 theorem receive_output_epoch_lt (K : Kem) (st : BraidState) (msg : Msg) (o : Output)
     (h : (receive K st msg).2.1 = some o) : o.keyEpoch + 1 < u64Max := by
   revert h
-  cases st <;> simp only [receive] <;> repeat' split
+  cases st <;> simp only [receive, finishEncaps] <;> repeat' split
   all_goals (simp only [BraidState.epoch, reduceCtorEq, false_imp_iff,
     Option.some.injEq]; try omega)
   all_goals (rintro rfl; first | omega | (dsimp only; omega))
@@ -635,19 +684,25 @@ order, and any one of them misdirected stalls the exchange forever. -/
 /-- A KEM that satisfies the one law and nothing else. Its sizes are shrunk so a
 value needs two or three codewords rather than fifty. -/
 def toyKem : Kem where
-  keyGen r  := (List.replicate 32 (UInt8.ofNat r),
-                List.replicate 32 (UInt8.ofNat r),
-                List.replicate 64 (UInt8.ofNat r))
+  keyGen r  := some (List.replicate 32 (UInt8.ofNat r),
+                     List.replicate 32 (UInt8.ofNat r),
+                     List.replicate 64 (UInt8.ofNat r))
   hashEk s v := List.replicate 32 (v.foldl (· + ·) (s.foldl (· + ·) 0))
-  encaps1 _ seed _ := (seed, List.replicate 64 7, seed)
-  encaps2 _ _ _  := List.replicate 32 9
-  decaps dk _ _  := dk
+  encaps1 _ seed _ := some (seed, List.replicate 64 7, seed)
+  encaps2 _ _ _  := some (List.replicate 32 9)
+  decaps dk _ _  := some dk
   ekSize  := 64
   ct1Size := 64
   ct2Size := 32
 
+/-- The toy KEM never refuses, so the law's two premises always hold and its
+conclusion is read off the definitions. -/
 theorem toyKem_correct : toyKem.Correct := by
-  intro r r'; rfl
+  intro r r' dk seed vec hk es ct1 ss he
+  simp only [toyKem, Option.some.injEq, Prod.mk.injEq] at hk he
+  obtain ⟨rfl, rfl, rfl⟩ := hk
+  obtain ⟨rfl, rfl, rfl⟩ := he
+  exact ⟨_, rfl, rfl⟩
 
 structure Sim where
   alice : BraidState
