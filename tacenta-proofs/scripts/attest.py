@@ -1368,6 +1368,18 @@ REQUIRED_PINS = frozenset(
         "oracleOf_joint_model",
         "oracleOf_inhabited_jointly",
     )]
+    # `DecryptOracleOf` from the four laws its clauses read, and the model frame lemma that `decrypt`
+    # reads five oracle fields (`UnitOracleDecrypt.lean`, `Model/LifecycleFrame.lean`).
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "decryptOracleOf_of_laws",
+        "decryptInterp_laws_iff",
+        "dhViewInjective_real_iff",
+    )]
+    + ["Model.Lifecycle." + n for n in (
+        "decrypt_oracle_frame",
+        "decryptRatchet_oracle_frame",
+        "dispatchDecrypt_oracle_frame",
+    )]
     # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
     # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
     # `UnitLifecycleDecryptRatchetScreen.lean`.
@@ -2024,6 +2036,20 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "oracleOf_inhabited_jointly",
         "OracleLaws",
     )]
+    # `DecryptOracleOf` from four laws, the interpretation and view it is built over, and the model
+    # frame lemmas (`UnitOracleDecrypt.lean`, `Model/LifecycleFrame.lean`).
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "decryptOracleOf_of_laws",
+        "decryptInterp_laws_iff",
+        "dhViewInjective_real_iff",
+        "InterpO.decrypt",
+        "dhViewD",
+    )]
+    + ["Model.Lifecycle." + n for n in (
+        "decrypt_oracle_frame",
+        "decryptRatchet_oracle_frame",
+        "dispatchDecrypt_oracle_frame",
+    )]
     # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
     # records, their seven shapes over an interpretation, and the two abbreviations they print through.
     + ["Tacenta.UnitLifecycleT1." + n for n in (
@@ -2246,6 +2272,10 @@ REQUIRED_PRINT_FORM = frozenset(
     )]
     + ["Tacenta.UnitOracleJoint." + n for n in (
         "OracleLaws",
+    )]
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "InterpO.decrypt",
+        "dhViewD",
     )]
     # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
     # records, their seven shapes over an interpretation, and the two abbreviations they print through.

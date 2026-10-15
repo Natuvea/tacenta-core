@@ -2245,7 +2245,8 @@ whose agreement chunk is consistent and not for a run whose chunk is not, refuse
 record only the two chunk fields are decided. The oracle's restated KEM and signing clauses follow from laws read
 from the source and have a model with a refused key. The restated KEM success clause binds the code only where the
 model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses, and
-the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below). The
+the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below); the four
+clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of them. The
 per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
 model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
@@ -2500,6 +2501,23 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
 
+**Which laws `DecryptOracleOf` needs.** `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`), the four clauses of
+`OracleOf` that `decrypt_ratchet_refines` and `decrypt_ratchet_refines_complete` take (`dhPublic`, `dhAgree`, `aeadOpen`,
+`random32`), follows from four of the eleven: `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and `DhViewInjective`
+(`decryptOracleOf_of_laws`, `UnitOracleDecrypt.lean`); `random32` needs no law at the byte-stream source. The lemma builds
+its oracle from the per-clause lemmas over `InterpO.decrypt`, an interpretation whose DH and AEAD-open constants are the
+real ones (bound to the three totality predicates by `decryptInterp_laws_iff`), and does not go through `oracleOf_of_laws`;
+its axiom pin names no constant of the other laws. So the other seven, `DhIdentityTotal`, `AeadSealBounded`,
+`KemDecapsulateTotal`, `XeddsaVerifyTotal`, `SignFillsOnce64`, `KemShape` and `KemViewInjective`, are not on the route from
+laws to `DecryptOracleOf`. They remain assumed wherever `OracleOf` or `OracleOfGuarded` is used, which includes every
+lifecycle and dispatch theorem that takes `OracleOf`. The model frame lemma `decrypt_oracle_frame`
+(`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads only the oracle's `draws`,
+`braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the oracle fields this route takes from the model's toy primitives, or
+sets to refusals, are not read by the model's `decrypt`. The four laws keep the status the table gives them: assumed, not
+proved of the shipped functions. Not checked: that the four laws, the contract records and `DecryptRatchetAgreements` at
+the oracle's `braidKem` hold together at one interpretation; the lemma lets the caller choose the KEM and shows nothing
+about which KEMs meet those agreements.
+
 The two view laws are conditions on the views a caller passes, not on the primitives. Each of the seven clauses the
 integration screen left open says that a primitive returns and that the view of its result depends only on the views of
 its arguments (the other five also count random draws); without an injective view a primitive could give two keys with
@@ -2555,8 +2573,8 @@ Whatever a dispatch theorem proves with it is a statement about the model run wi
   clauses does not change that.
 - The gate that looks for a hypothesis nothing satisfies (`check-hypothesis-witnesses.sh`) reads the sections of
   `CLAIMS.md` whose heading names a tier or a decoded state, and the section of these results is not one of them, so it
-  does not read `oracleOf_of_laws` or `oracleOfGuarded_of_laws`. A hypothesis added to either is held by the statement pin
-  of the theorem and by no other gate. That their eleven hypotheses hold together is argued from `oracleOf_joint_model`,
+  does not read `oracleOf_of_laws`, `oracleOfGuarded_of_laws` or `decryptOracleOf_of_laws`. A hypothesis added to any of
+  them is held by the statement pin of the theorem and by no other gate. That their eleven hypotheses hold together is argued from `oracleOf_joint_model`,
   a theorem about `OracleLaws` at a model, by the argument about derivations above.
 - These results have been read by their writer and by tool-assisted readers working for the maintainer; no reviewer
   independent of the maintainer has read them.
