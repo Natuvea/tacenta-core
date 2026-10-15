@@ -232,11 +232,29 @@ def compiler_axiom(name):
 GENERATED = ROOT / "tacenta-proofs" / "translation" / "Translation"
 
 
-# A Lean character literal: `'a'`, `'"'`, `'\n'`, `'\x41'`, `'\u{1F600}'`.
-_CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]+\}|.)|[^\\'\n])'")
+# A Lean character literal: `'a'`, `'"'`, `'\n'`, `'\x41'`, `'\u0041'`; a raw newline is allowed.
+
+def _lean_text(path):
+    """The text of a first-party Lean file, read without newline translation.
+
+    Lean ends a line at a newline or at CRLF only; Python's default reading also
+    ends one at a lone carriage return, so the two would disagree about where a
+    line comment ends. No first-party file holds a carriage return or a NUL, and
+    one that does is refused here rather than read."""
+    with path.open(encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    if "\r" in text or "\x00" in text:
+        raise SystemExit(
+            f"{path}: holds a carriage return or a NUL; Lean ends a line only at a "
+            "newline, so this reading would not match Lean's. Use plain newlines"
+        )
+    return text
+
+
+_CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|.)|[^\\'])'")  # Lean accepts a raw newline here
 # The characters that can continue an identifier, for telling `r"..."`, `'a'`
 # and `«...»` at the start of a token from the same characters inside one.
-_IDENT_CHARS = re.compile(r"[\w'!?«»]")
+_IDENT_CHARS = re.compile(r"(?![\u03bb\u03a0\u03a3])[\w'!?«»]")  # `λ`, `Π`, `Σ` are tokens, not identifier characters
 
 
 def lean_code(text, keep_names=False):
@@ -268,9 +286,13 @@ def lean_code(text, keep_names=False):
             i = j
             continue
         if two == "/-":
+            # At the top level Lean consumes the character after `/-` without
+            # reading it (see check-lean-constructs.sh); inside a comment it
+            # reads `/-` then whatever follows.
+            k = 3 if depth == 0 and i + 2 < n else 2
             depth += 1
-            out.append("  ")
-            i += 2
+            out.append("".join("\n" if c == "\n" else " " for c in text[i:i + k]))
+            i += k
             continue
         if depth > 0 and two == "-/":
             depth -= 1
@@ -282,6 +304,10 @@ def lean_code(text, keep_names=False):
             i += 1
             continue
         prev = text[i - 1] if i else " "
+        # A `!` or `?` continues an identifier only when it ends one; alone it
+        # is an operator and a char literal or raw string may follow it.
+        in_ident = bool(_IDENT_CHARS.match(prev)) and (
+            prev not in "!?" or (i >= 2 and bool(_IDENT_CHARS.match(text[i - 2])) and text[i - 2] not in "!?"))
         if ch == "«":
             j = text.find("»", i)
             j = n if j < 0 else j + 1
@@ -298,7 +324,7 @@ def lean_code(text, keep_names=False):
             out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
             i = j
             continue
-        if ch == "r" and not _IDENT_CHARS.match(prev):
+        if ch == "r" and not in_ident:
             raw = re.compile(r'r(#*)"').match(text, i)
             if raw:
                 close = '"' + raw.group(1)
@@ -307,10 +333,10 @@ def lean_code(text, keep_names=False):
                 out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
                 i = j
                 continue
-        if ch == "'" and not _IDENT_CHARS.match(prev):
+        if ch == "'" and not in_ident:
             lit = _CHAR_LITERAL.match(text, i)
             if lit:
-                out.append(" " * (lit.end() - i))
+                out.append("".join("\n" if c == "\n" else " " for c in text[i:lit.end()]))
                 i = lit.end()
                 continue
         out.append(ch)
@@ -351,7 +377,7 @@ def axiom_declarations(path):
     name starts with `<unreadable:`, which no record or allowlist contains, so
     the file fails the comparison rather than passing on what was understood.
     """
-    text = path.read_text()
+    text = _lean_text(path)
     words = lean_code(text)
     names = lean_code(text, keep_names=True)
     tokens = list(_SCOPE_TOKEN.finditer(words))
@@ -689,6 +715,7 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityErasureAgrees." + n for n in (
         "erasureCloneAgrees",
@@ -734,6 +761,10 @@ REQUIRED_PINS = frozenset(
     # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
     # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
     + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    # The Braid's send epoch accounting (Proofs/TrustedBase.lean), kernel-only: the pins that hold
+    # it, so that deleting one is refused.
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Polynomial.interp_eq", "Tacenta.ErasureT3.mul_refines"]
     # The inhabitation results: every axiom pin of the six UnitSatisfiability modules. They
     # are the four records from an axiom base, the base's model, the erasure and ratchet fields
@@ -1290,6 +1321,51 @@ REQUIRED_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly, and the guarded KEM record
+    # (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+    )]
     # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
     # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
     # `UnitLifecycleDecryptRatchetScreen.lean`.
@@ -1338,6 +1414,43 @@ REQUIRED_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: `UnitLifecycleTripleRefusalT3.lean`,
+    # `UnitLifecycleDecryptRatchetCompleteT3.lean`, `UnitLifecycleDecryptRatchetCompleteScreen.lean`,
+    # and the split form added to `UnitLifecycleDecryptRatchetT3.lean`.
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1367,6 +1480,22 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
         "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
+        # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
+        # compiler-evaluated constants, and the results that compose them on those of the discharged
+        # Triple receive refinement, no others.
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_continuation_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_refusal_refines",
+        "Tacenta.UnitLifecycleTripleRefusalT3.triple_receive_refusal_refines",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.concrete_receive_attempt_refusal_from_retry_bounds",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.receive_with_eviction_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
+        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
+        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
     }
 )
 
@@ -1760,6 +1889,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
+        "modelT3_kemDrawsSucceed",
     )]
     + ["Tacenta.UnitSatisfiabilityBraidStates." + n for n in (
         "FeedsDecoder",
@@ -1827,6 +1957,81 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The clauses of `OracleOf` decided jointly: the statement of each result and the body of each
+    # new clause, law, record and model definition (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "isValidIdentityKey_is",
+        "oracleOf_iff_shape",
+        "oracleOfShape_iff_clauses",
+        "dhCodecOf_iff_shape",
+        "generateFillsOnce64_iff_shape",
+        "liftView_spec",
+        "dhPublicClause_of_laws",
+        "dhAgreeClause_of_laws",
+        "identityValidClause_of_laws",
+        "aeadSealClause_of_laws",
+        "aeadOpenClause_of_laws",
+        "kemDecapsulateClause_of_laws",
+        "sigVerifyClause_of_laws",
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "modelO_axiomBase",
+        "modelO_laws",
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleDh." + n for n in (
+        "dh_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleAead." + n for n in (
+        "aead_clauses_in_model",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "oracleOfGuarded_iff_shape",
+        "kemGuardedClause_of_law",
+        "kemClauses_of_guarded",
+        "never_encapsulating_meets_kemClauses",
+        "never_encapsulating_fails_guarded",
+        "guarded_separates_never_encapsulating",
+        "kem_sig_clauses_in_model",
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "oracleLaws_real_iff",
+        "oracleOfShape_of_oracleLaws",
+        "oracleOfGuarded_of_laws",
+        "oracleOf_of_laws",
+        "oracleLaws_hold_jointly",
+        "oracleOf_joint_model",
+        "oracleOf_inhabited_jointly",
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
+    # The statements of the Braid's send epoch theorems the fallible KEM introduced or restated
+    # (Proofs/TrustedBase.lean).
+    + ["Model.Braid." + n for n in (
+        "send_reports", "send_epoch", "send_epoch_of_ne_failed", "send_reports_of_ne_failed")]
     + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount",
         "sendAgreement",
@@ -1953,6 +2158,50 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "evict_loop_first_round",
         "decrypt_ratchet_refines_from_shapes_at_eviction",
     )]
+    # Package F, the refusal closure: the statements, and the bodies of the definitions they are
+    # written in (`#print`).
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "derive_chain_loop_ok",
+        "derive_chain_refines_far",
+        "ratchet_skip_refusal_refines",
+        "ratchet_receive_tail_refusal_refines",
+        "ratchet_receive_refusal_refines",
+        "spqr_skip_refusal_refines",
+        "spqr_receive_continuation_refusal_refines",
+        "spqr_receive_refusal_refines",
+        "triple_receive_refusal_refines",
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "concrete_receive_attempt_refusal_from_retry_bounds",
+        "openRefusal_closes",
+        "receive_with_eviction_refines_complete",
+        "decrypt_ratchet_refines_complete",
+        "decrypt_ratchet_refines_complete_statement",
+        "decrypt_ratchet_refines_complete_implies_refines",
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "ref_model_triple_refuses",
+        "ref_premises",
+        "ref_triple_refuses",
+        "ref_headroom",
+        "ref_run_satisfiable",
+        "ref_model_refuses",
+        "hypotheses_meet_open_path",
+        "decrypt_ratchet_refines_complete_at_refusal",
+        "generated_reaches_open_path",
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "decrypt_ratchet_refines_or_open",
+        "or_unless_closed",
+        "OpenRefusalCloses",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -1964,6 +2213,48 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    # The new clauses, laws, records and model of the joint `OracleOf` decision.
+    + ["Tacenta.UnitOracleShape." + n for n in (
+        "DhViewInjective",
+        "KemViewInjective",
+        "GenerateFillsOnce64Shape",
+        "oracleOfLaws",
+        "DhPublicClause",
+        "DhAgreeClause",
+        "IdentityValidClause",
+        "AeadSealClause",
+        "AeadOpenClause",
+        "KemDecapsulateClause",
+        "SigVerifyClause",
+    )]
+    + ["Tacenta.UnitOracleModel." + n for n in (
+        "InterpO.model",
+        "oracleM",
+    )]
+    + ["Tacenta.UnitOracleKemSig." + n for n in (
+        "KemGuardedClause",
+        "OracleOfGuarded",
+    )]
+    + ["Tacenta.UnitOracleJoint." + n for n in (
+        "OracleLaws",
+    )]
+    # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
+    # records, their seven shapes over an interpretation, and the two abbreviations they print through.
+    + ["Tacenta.UnitLifecycleT1." + n for n in (
+        "DhCodecTotal", "DhAgreeTotal", "DhIdentityTotal", "AeadSealBounded", "AeadOpenTotal",
+        "KemDecapsulateTotal", "XeddsaVerifyTotal", "NoPanic",
+    )]
+    + ["Tacenta.UnitSatisfiabilityJoint." + n for n in (
+        "DhCodecShape", "DhAgreeShape", "DhIdentityShape", "AeadSealBoundedShape", "AeadOpenShape",
+        "KemDecapsulateShape", "XeddsaVerifyShape", "Np",
+    )]
+    # The integration screen's clauses and laws that `OracleLaws` and `OracleOf` name; they were on the
+    # statement-pin floor already and are held to the `#print` form here.
+    + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
+        "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
+        "GenerateFillsOnce64Of", "GenerateFillsOnce64",
+        "Random32Clause", "SigSignClause", "KemClauses",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",
@@ -2012,6 +2303,22 @@ REQUIRED_PRINT_FORM = frozenset(
         "VecRetainAgrees",
         "RemoveSkippedAtAgrees",
     )]
+    + ["Tacenta.UnitLifecycleTripleRefusalT3." + n for n in (
+        "TripleReceiveRefusalRefines",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteT3." + n for n in (
+        "DecryptRatchetRefinesCompleteStatement",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetCompleteScreen." + n for n in (
+        "refTriple",
+        "refHeader",
+        "refModelHeader",
+        "refModel",
+        "refReal",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "OpenRefusalCloses",
+    )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
 
@@ -2054,7 +2361,7 @@ def axiom_pins():
     pins = []
     externals = opaque_externals()
     for p in proof_files():
-        text = p.read_text()
+        text = _lean_text(p)
         # Every `#guard_msgs in` / `#print axioms` pair in the file must be
         # a match, or this stops: a pin whose docstring has a shape the
         # regex does not recognise would otherwise drop out of the count.
@@ -2140,7 +2447,7 @@ def axiom_pins():
 #     build is claimed to compare. An option this reading does not know is refused,
 #     so a new Lean option fails closed;
 #   * the pin's module must be reachable by imports from an audit module (a file
-#     named `AxiomAudit*.lean` that holds a `run_cmd Model.AxiomAudit.run` line), which
+#     named `AxiomAudit*.lean` that holds a `run_cmd _root_.Model.AxiomAudit.run` line), which
 #     is `check-audit-reach.sh`'s rule read from the header text instead of
 #     `lean --deps`. Lake builds every file under a library's globs whether or not
 #     anything imports it, so a pin file outside the import closure is built; what
@@ -2173,7 +2480,7 @@ _COMMAND_END = re.compile(r"[ \t]*(?:\Z|\n(?:[ \t]*\n)*(?:[ \t]*\Z|\S))")
 _SPEC_KIND = re.compile(r"(?:(drop|check|pass)\s+)?(info|warning|error|all)")
 _SPEC_WHITESPACE = re.compile(r"whitespace\s*:=\s*(exact|normalized|lax)")
 _SPEC_ORDERING = re.compile(r"ordering\s*:=\s*(exact|sorted)")
-_AUDIT_CALL = re.compile(r"^run_cmd Model\.AxiomAudit\.run\b", re.M)
+_AUDIT_CALL = re.compile(r"^run_cmd _root_\.Model\.AxiomAudit\.run\b", re.M)
 
 
 def _skip_space(text, i):
@@ -2289,7 +2596,7 @@ def statement_pin_survey():
     and line; and `guards`, the count of every live `#guard_msgs ... in` command."""
     survey = {"live": [], "raw_only": [], "unguarded": [], "guards": 0}
     for p in proof_files():
-        text = p.read_text()
+        text = _lean_text(p)
         if "#guard_msgs" not in text and "#check" not in text:
             continue
         rel = str(p.relative_to(ROOT))
@@ -2338,8 +2645,7 @@ def _module_path(module):
 
 def lean_imports(path):
     """The modules a file's header imports, read from its first 20,000 characters."""
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        head = lean_code(handle.read(20000))
+    head = lean_code(_lean_text(Path(path))[:20000])
     pos = 0
     keyword = re.compile(r"\s*(?:module|prelude)(?![\w.'])").match(head)
     if keyword:
@@ -2356,11 +2662,11 @@ def lean_imports(path):
 
 def audit_reach():
     """The first-party modules the audit modules import, directly or not: a file
-    named `AxiomAudit*.lean` holding a `run_cmd Model.AxiomAudit.run` line is an
+    named `AxiomAudit*.lean` holding a `run_cmd _root_.Model.AxiomAudit.run` line is an
     audit module. The Lean-backed `check-audit-reach.sh` fixes the audit modules by
     name and asks Lean for the imports; this reads the same graph from the header."""
     todo = [module_name(str(p.relative_to(ROOT))) for p in proof_files()
-            if p.name.startswith("AxiomAudit") and _AUDIT_CALL.search(lean_code(p.read_text()))]
+            if p.name.startswith("AxiomAudit") and _AUDIT_CALL.search(lean_code(_lean_text(p)))]
     reached = set()
     while todo:
         module = todo.pop()
@@ -2639,7 +2945,7 @@ def declared_theorems():
     by the `namespace` blocks around it, with the file it is in."""
     found = []
     for p in proof_files():
-        text = lean_code(p.read_text())
+        text = lean_code(_lean_text(p))
         events = []
         for m in NAMESPACE.finditer(text):
             events.append((m.start(), "ns", m.group(1), m.group(2)))

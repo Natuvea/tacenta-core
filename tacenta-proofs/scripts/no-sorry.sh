@@ -84,6 +84,18 @@ python3 scripts/check-lifecycle-translation-coverage.py \
 bash scripts/check-lifecycle-translation-coverage-negatives.sh || fail=1
 report_time "lifecycle public-root coverage" "$t"
 
+# No first-party declaration takes an evidence record that `DispatchEvidenceVacuity.lean`
+# shows false or empty: such a theorem would be true and say nothing, and `#print axioms`
+# would not show it (`GAP-REGISTER.md`, `DISPATCH-EVIDENCE-VACUITY`). The gate runs the
+# walk as the compiled `refuted-records` executable over each translation audit module's
+# closure and holds its printed block to the vacuity module's theorems; its control plants
+# takers under the spellings and routes a text scan missed and checks each is reported and
+# refused.
+t=$SECONDS
+bash scripts/check-refuted-records.sh || fail=1
+bash scripts/check-refuted-records-negatives.sh || fail=1
+report_time "refuted evidence records untaken" "$t"
+
 # Each new Session primitive contract of the first proof layer has a non-vacuity witness,
 # and one theorem depends on all thirteen names.  The fourteenth, `DivCeilValue`, is held by
 # the required pins in attest.py.  Mutation-test that coverage so deleting a witness cannot
@@ -145,9 +157,12 @@ report_time "send refusal proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-sparse-store-full-negatives.py || fail=1
 report_time "sparse store-full proof-dependency control" "$t"
-# The decrypt_ratchet refinement and its retry-loop induction (`UnitLifecycleRetryLoopT3.lean`,
-# `UnitLifecycleDecryptRatchetT3.lean`): a copy with the fact a proof rests on removed, and a copy whose
-# open disjunct grows, must each be refused, after the unmodified copies are accepted.
+# The decrypt_ratchet refinement, its retry-loop induction and its refusal closure
+# (`UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`, `UnitLifecycleDecryptRatchetScreen.lean`,
+# `UnitLifecycleTripleRefusalT3.lean`, `UnitLifecycleDecryptRatchetCompleteT3.lean`,
+# `UnitLifecycleDecryptRatchetCompleteScreen.lean`): a copy with the fact a proof rests on removed, a copy
+# whose open disjunct grows and a copy of the complete statement that regains it must each be refused at a
+# named declaration or pin, after the unmodified copies are accepted.
 t=$SECONDS
 python3 scripts/check-decrypt-ratchet-negatives.py || fail=1
 report_time "decrypt_ratchet refinement proof-dependency control" "$t"
@@ -201,7 +216,7 @@ report_time "construct check" "$t"
 # audited. This asks Lean for each module's imports and fails if any
 # first-party module (the generated `Tacenta*.lean` included, since the
 # `audit-axiom:` comparison above sees only the generated modules the audit
-# reached) is outside the six audit modules' import closure.
+# reached) is outside the seven audit modules' import closure.
 t=$SECONDS
 bash scripts/check-audit-reach.sh || fail=1
 report_time "audit reach" "$t"

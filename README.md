@@ -282,7 +282,9 @@ pretending to run them. **Regenerating the Rust-to-Lean translation** needs
 the pinned Charon and Aeneas release, which is a linux-x86_64 binary that
 runs on a dedicated runner; the committed translation is what the public
 `translation` job checks, and `tacenta-proofs/CLAIMS.md` records the release
-and its digest so the regeneration can be reproduced elsewhere.
+and its digest so the regeneration can be reproduced elsewhere;
+`tacenta-proofs/scripts/regenerate-in-container.sh` repeats it by hand in a
+container and compares the result with the committed files.
 **Coverage-guided fuzzing** needs `cargo-fuzz` and a nightly toolchain and
 runs for hours, so the search is a nightly job on private infrastructure;
 `tooling/fuzz-smoke.sh` replays the committed corpus when the tooling is

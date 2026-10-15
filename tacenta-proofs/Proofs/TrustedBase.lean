@@ -91,6 +91,24 @@ info: 'Model.Braid.send_reports' depends on axioms: [propext, Quot.sound]
 #print axioms Model.Braid.send_reports
 
 /--
+info: 'Model.Braid.send_epoch' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.send_epoch
+
+/--
+info: 'Model.Braid.send_epoch_of_ne_failed' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.send_epoch_of_ne_failed
+
+/--
+info: 'Model.Braid.send_reports_of_ne_failed' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.send_reports_of_ne_failed
+
+/--
 info: 'Model.Braid.receive_reports' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
@@ -480,3 +498,37 @@ info: 'Proofs.Serialization.decode_encode_composite' depends on axioms: [propext
 #print axioms Proofs.Serialization.decode_encode_composite
 
 end Proofs.TrustedBase
+
+/- The statements of the four send theorems the fallible KEM introduced or restated, pinned so
+   that a weakened statement fails the build as well as a changed axiom base. They sit
+   outside the namespace and use full names, as `attest.py` requires of a statement pin. -/
+
+/--
+info: Model.Braid.send_epoch (K : Model.Braid.Kem) (r : Nat) (st : Model.Braid.BraidState) :
+  (Model.Braid.send K r st).snd.snd.snd.epoch ≤ st.epoch
+-/
+#guard_msgs in
+#check Model.Braid.send_epoch
+
+/--
+info: Model.Braid.send_epoch_of_ne_failed (K : Model.Braid.Kem) (r : Nat) (st : Model.Braid.BraidState)
+  (h : (Model.Braid.send K r st).snd.snd.snd ≠ Model.Braid.BraidState.failed) :
+  (Model.Braid.send K r st).snd.snd.snd.epoch = st.epoch
+-/
+#guard_msgs in
+#check Model.Braid.send_epoch_of_ne_failed
+
+/--
+info: Model.Braid.send_reports_of_ne_failed (K : Model.Braid.Kem) (r : Nat) (st : Model.Braid.BraidState)
+  (h : (Model.Braid.send K r st).snd.snd.snd ≠ Model.Braid.BraidState.failed) :
+  (Model.Braid.send K r st).snd.fst = st.epoch - 1
+-/
+#guard_msgs in
+#check Model.Braid.send_reports_of_ne_failed
+
+/--
+info: Model.Braid.send_reports (K : Model.Braid.Kem) (r : Nat) (st : Model.Braid.BraidState) :
+  (Model.Braid.send K r st).snd.fst = (Model.Braid.send K r st).snd.snd.snd.epoch - 1
+-/
+#guard_msgs in
+#check Model.Braid.send_reports

@@ -286,7 +286,18 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
-
+- `protocol/mlkem-braid.md`, Failure: one sentence says the model expresses the
+  four KEM failures the section lists. `Model.Braid`'s `Kem` operations
+  (`keyGen`, `encaps1`, `encaps2`, `decaps`) may now refuse, and each refusal
+  takes the `Failed` transition the section names; before, they were total
+  functions and the model could not express any of the four. The correctness
+  law is conditional on the two draws succeeding. The toy KEM never refuses, so
+  the generated vectors do not change. One more sentence says that the send or
+  receive that moves the Braid into `Failed` yields no key and reports epoch 0,
+  which the page said only of a send or receive from `Failed`; the "A send's
+  epoch" bullet of Sending now reads the report off the state the send leaves
+  the Braid in and says a send never raises the epoch, where it said a send
+  never changes it.
 - `protocol/mlkem-braid.md`, Failure: the second half of encapsulation also
   fails, in this implementation, on an encapsulation state restored from
   persistence whose stored coefficients lie outside the bound the KEM library
@@ -334,7 +345,9 @@ is SemVer against the specified protocol (not the implementation).
   ratchet as taking it too. An earlier entry here recorded that the sparse
   implementation and model counted the store before the deletion and that the
   change was an open follow-up (`HL-R1-SPARSE-TRANSLATION` in
-  `GAP-REGISTER.md`, which stays open for the translation evidence). That
+  `GAP-REGISTER.md`; its translation evidence was recorded on 2026-10-03 on one
+  Linux x86_64 regeneration that was not independent, and the reader finding G12-05
+  stays open as `HL-R1-SPARSE-READER`). That
   entry, which stands in the tags `tacenta-assurance-v0.3.0` to
   `tacenta-assurance-v0.4.5`, is superseded by this one, and the page states
   the rule as normative. The independent reader, which is project-controlled

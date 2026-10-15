@@ -173,7 +173,10 @@ excludes it.
   or the crate. That the recorded generation was produced by the pinned
   toolchain, and honestly, is not something the public tree can check: it is
   what the private verification workflow's drift step checks by
-  regenerating, and what any linux-x86_64 reader can check the same way.
+  regenerating, and what any linux-x86_64 reader can check the same way
+  (`scripts/regenerate-in-container.sh` does so in a container, and
+  `REPRODUCING.md` records one run of it by the maintainer's tool-assisted
+  session, which was not independent).
 - A declaration added with `set_option debug.skipKernelTC true` is checked
   by the elaborator and not by the kernel, and nothing in the environment
   says so afterwards. `Model.AxiomAudit`, which every package's build runs,
@@ -204,9 +207,28 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
-  exact line content, so that an invocation written any other way fails
-  there and a second one in an audit module fails in the reach check below;
+  seven `run_cmd _root_.Model.AxiomAudit.run` lines, allow-listed by file path and
+  exact line content and each standing alone (at column 0, no wrapper
+  before, nothing after but another invocation, in a module of imports, pins
+  and the invocation), so that an invocation written any other way fails
+  there and a second one in an audit module fails in the reach check below
+  (the refuted-record walk of `CLAIMS.md`'s vacuity section runs as a
+  compiled executable over each closure, not from a module). The scan's
+  rules read text and are defence in depth around those seven lines, not a
+  tokenizer: eighteen hostile reads each found a new spelling of Lean's
+  surface syntax, and the last ones were closed by refusing whole classes
+  (every `ident!` macro followed by a string or bracket and every message
+  head outside the audit, any brace in a string literal inside it, any
+  lakefile change) rather than spellings, by making the stripper read a
+  top-level `/-…` and `λ` as Lean does, and by refusing any file in which
+  the stripper's reading of a char literal or raw string depends on the
+  character before it, or in which a literal or comment opener follows
+  anything but whitespace, an opening bracket or a comma (Lean reads those
+  only at a token boundary; the stripper reads them anywhere, and no honest
+  first-party file has one after anything else), or which holds a carriage
+  return or a NUL (Lean ends a line at a newline or at CRLF only; the
+  scan's reading would end one at a lone carriage return too, so both
+  stripper copies refuse such a file, CRLF included: the tree is LF-only);
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
   outside the seven audit modules' import closure, so that no module holds
   such a declaration unwalked, and fails if the seven do not all run with the
@@ -1124,11 +1146,13 @@ draws 32 random bytes and returns a different `(ct1, ss)` pair under a
 different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
 (`encaps1 : Nat → Bytes → Bytes → …`), and `Model.Braid.send K rand` passes
 its `rand` to transition (7)'s encapsulation as it already did to transition (1)'s key
-generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
-… = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
-*some* model randomness makes the model's answer the real one, which is
-all a proof that does not control the RNG can say, and is what the
-key-generation clause (`∃ kp rng' rand`) always said. `step_send_refines`
+generation, and the clause reads `∃ rng' rand', (∃ es ct1raw ssraw, encapsulate1
+… = ok (Ok (es, ct1raw, ssraw), rng') ∧ … K.encaps1 rand' ekSeed hek = some …) ∨
+((∃ e, encapsulate1 … = ok (Err e, rng')) ∧ … K.encaps1 rand' ekSeed hek = none)`:
+for each RNG state, *some* model randomness makes the model's answer the real
+one, success or refusal, which is all a proof that does not control the RNG
+can say, and is what the key-generation clause (`∃ rng' rand`, with the same
+two arms inside) always said about the success side. `step_send_refines`
 and `Braid.send_refines` choose that `rand'` as the `rand` their conclusion
 binds. `Model.Braid.receive` needed no randomness argument: no receive
 transition encapsulates (transitions 9, 11 and 12 finish an encapsulation
@@ -1149,7 +1173,20 @@ pair of randomness values, while ML-KEM-1024 is δ-correct with the
 decapsulation-failure probability bounded by FIPS 203. Neither refinement
 proof used that conjunct: both destructured and discarded it. It is now
 removed from `KemAgreesFor`, so the four Braid refinement theorems no longer
-assume a property false of the shipped KEM. `Model.Braid.toyKem_correct`
+assume a property false of the shipped KEM. Since the model's KEM operations
+return `Option` (mlkem-braid.md, Failure), every clause of `KemAgreesFor`,
+`KeyPairRefines` and `EncapsRefines` is two-sided: the real call and the model
+answer alike, `Ok` with `some` of the same bytes or `Err` with `none`. The four
+real `Err` arms are refined against the model's `Failed` transitions, and no
+clause says the real KEM never refuses. The witnesses at `toyKem` take only the
+success arms, so no witness exercises a refusal arm, and no vector does either:
+the vector generator has only `toyKem`, which never refuses, and the vector
+format has no field that makes a call refuse, so the four arms are checked
+against the Rust by the refinement proofs, under `KemAgreesFor`, and against
+the model by nothing a vector carries. The independent reader drives its own KEM to refuse (its case
+BR-12) and tests the four arms against its reading of the specification, not
+against the model. That the real wrapper does refuse, and when, is not shown
+here. `Model.Braid.toyKem_correct`
 remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
@@ -1199,7 +1236,10 @@ Two more sit beside it in `BraidT3.lean`: `KemCloneAgrees` and
 `ErasureCloneAgrees` (a clone of an opaque KEM or erasure value behaves as,
 respectively is, the original), hypotheses of `Braid.receive_refines` and
 `State.clone_refines`. Each is the same shape of boundary fact as the KDF
-agreements.
+agreements. `KemCloneAgrees` covers the whole `Result` of `decapsulate` and
+`encapsulate2`: a clone refuses where its original refuses, which the
+two-sided `KeyPairRefines` and `EncapsRefines` need to carry a refusal across
+`State.clone`.
 
 **An assumption is per translated crate, not per operation.** An earlier revision
 listed `VecRemoveTotal` once below, and there were two: each translation unit declared its own
@@ -2196,8 +2236,9 @@ contradictory, or the old KEM field. The dispatch theorems take per-run evidence
 whose agreement chunk is consistent and not for a run whose chunk is not, refused or accepted; of its scoped Braid
 record only the two chunk fields are decided. The oracle's restated KEM and signing clauses follow from laws read
 from the source and have a model with a refused key. The restated KEM success clause binds the code only where the
-model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses are not
-shown to hold, and the per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
+model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses, and
+the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below). The
+per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
 model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
 lemmas cover a refused message only if the agreement chunk it carries is a codeword of one source that fits the
@@ -2223,7 +2264,8 @@ The lifecycle model draws randomness as 32-byte entries of one ordered trace, an
 consecutive entries. `RngCore` does not promise that one 64-byte fill equals two 32-byte fills; the model assumes
 it. The proofs assume three laws about the shipped functions:
 `SignFillsOnce64`, `GenerateFillsOnce64` and `KemShape` (`UnitLifecycleIntegrationScreen.lean`). They are read from the
-source and are not proved. No vector is generated by `Model.Lifecycle.encrypt`. The session end-to-end vector
+source and are not proved; `tacenta-core/tests/rng_fill_counts.rs` tests them on the shipped source with a counting
+random source. No vector is generated by `Model.Lifecycle.encrypt`. The session end-to-end vector
 (`session-e2e.json`, produced by the project runner and not by the model) runs the shipped `Session::encrypt` against
 a random source that allows exactly one 64-byte fill for the first send and none for the second
 (`tacenta-test-vectors/runners/rust/src/session_e2e.rs`), so it pins the 64-byte draw of the first send. No check
@@ -2413,6 +2455,82 @@ dispatch and record files needed an edit. One failure was not mechanical: with t
 `skip_message_keys_no_panic` stopped building, because its proof applies the conjunct to the skipped-key store as well.
 The trial is not part of this change, and the numbers are from that one build.
 
+### The clauses of `OracleOf`: inhabited under eleven laws, and what that means
+
+`OracleOf` (`UnitLifecycleT3.lean`) is the record the dispatch theorems take to tie the model's lifecycle oracle to the
+translated primitives. `UnitOracleJoint.lean` shows it inhabited as a whole (`oracleOf_of_laws`) and adds a stronger
+record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `kemValid` and not by its prediction
+(`oracleOfGuarded_of_laws`). Both are theorems at the real constants under eleven laws, `OracleLaws`
+(`oracleLaws_real_iff`), which are sufficient and not shown necessary:
+
+| Law | Statement | Status |
+|---|---|---|
+| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input a Rust program can supply and memory allows; the Lean slice type admits lengths up to `Usize.max`, which no Rust slice has, and the real `aead::encrypt` panics on a `Vec` capacity overflow just below `isize::MAX` bytes, so these fields are false of the real functions at the top of that range and under memory exhaustion (by reading); the AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
+| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the top of the length range that the totality row excludes. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target), so that it does not depend on the width of `usize` is by reading only |
+| `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
+| `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
+
+The two view laws are conditions on the views a caller passes, not on the primitives. Each of the seven clauses the
+integration screen left open says that a primitive returns and that the view of its result depends only on the views of
+its arguments (the other five also count random draws); without an injective view a primitive could give two keys with
+the same bytes different answers, and no oracle could match it. Lean cannot show that an injective view of an opaque
+type exists at the real constants; the joint model has one. The laws are stronger than the clauses need: functionality
+on views would do, and `DhCodecTotal` includes the totality of operations no clause mentions.
+
+**What is shown about the laws.** `oracleLaws_hold_jointly` and `oracleOf_joint_model` exhibit one interpretation of the
+opaque constants (`InterpO.model`, `UnitOracleModel.lean`) that meets the eleven laws, the axiom base of the four
+records (`AxiomBase`), the DH codec and `GenerateFillsOnce64` together, and in which the twelve clauses and the guarded
+clause hold for an oracle that refuses an input of each primitive that can refuse and whose KEM encapsulates at an
+accepted key. The interpretation extends the joint one of the previous subsection by `xeddsa::sign`, which no record
+reached before, and changes the DH and KEM key types from `Unit` to 32-byte arrays so that the DH codec can hold. Its
+primitives are toys: agreement is an exclusive or, sealing puts a zero byte in front, the KEM secret is its random
+input, a signature is the secret followed by zeros, and the KDFs, which it keeps from the joint interpretation, return
+zero bytes (`hkdf_sha256` an array of zeros of the requested length, `hmac_sha256` 32 zero bytes), so every key it
+derives is zero. Each refuses some inputs and accepts others, and each round trips:
+it opens what it seals, decapsulates what it encapsulates and verifies what it signs. They ignore inputs the real
+primitives depend on: opening ignores the keys and the associated data, verification ignores the message, and
+decapsulation ignores the key pair. They do not refuse the inputs the real primitives refuse: the real agreement refuses
+a low-order peer key and agrees a key with its own public key, and the model's witnesses `zero32` and `one32` are
+low-order points that the real agreement and identity test both refuse. They are not secure.
+
+**The sense.** The same as for the records: `oracleOf_of_laws` holds under the laws for every assignment of the opaque
+constants, and the laws hold under one, so a derivation of `False` from them at the real constants would become a
+derivation of `False` from facts true in the model once the constants are replaced. That step is an argument about
+derivations and not a theorem inside Lean. No compiler-trust fact in the import closure mentions an interpreted constant,
+directly or through a definition: that covers the unit's 143 and the 11 in `SessionUnitSpqrT3.lean` and
+`SessionUnitTripleT3.lean`. `xeddsa::sign`, which `InterpO` adds, is one of the uninterpreted constants of the unit. The
+classification audit of `check-session-satisfiability-negatives.sh` covers `Interp.real` and the four records; it is not
+run for `InterpO.real` and `OracleOf`. It does not say that the real primitives meet the laws or that the oracle computes
+X25519, the identity-key rule, the AEAD, ML-KEM or XEdDSA.
+
+The oracle that inhabits the record is the code read through the byte views (`oracleOfLaws`): each primitive's verdict is
+the code's answer on arguments with those bytes. So `OracleOf` asks of the code only that each primitive returns, that its
+result depends only on the bytes of its arguments, and that it reads the random source in the stated order. It ties the
+dispatch theorems to the code's own primitives and to no specification of X25519, the AEAD, ML-KEM or XEdDSA. The oracle
+`oracleOf_of_laws` supplies is defined from the real primitives, so the record carries no content beyond the laws above.
+Whatever a dispatch theorem proves with it is a statement about the model run with those primitives' own answers.
+
+**What is not covered.**
+
+- Only the byte-stream source (`byteRng`, `byteTrace`, from the integration screen). `OracleOf` reads the RNG through a
+  trace of 32-byte draws, and nothing here concerns another source, the operating system's generator included.
+- No consumer takes `OracleOfGuarded`. The dispatch theorems take `OracleOf`, whose KEM success clause binds the code only
+  where the model predicts a success. The recommended migration is to move `OracleOfGuarded` next to `OracleOf` and have
+  the consumers take it, using `.toOracleOf` where they need the old record; `kemClauses_of_guarded` shows the old clause
+  follows. Not done here.
+- The other records the dispatch theorems take (the per-run evidence, the counted Braid agreement) are not decided here,
+  so these results alone do not make any dispatch theorem non-vacuous (`GAP-REGISTER.md`, row
+  `DISPATCH-EVIDENCE-VACUITY`).
+- `OracleOf` still leaves the oracle's `dhAgree` free off 32-byte arguments (`E2E-04-SAME-EPHEMERAL-MODEL`); deciding its
+  clauses does not change that.
+- The gate that looks for a hypothesis nothing satisfies (`check-hypothesis-witnesses.sh`) reads the sections of
+  `CLAIMS.md` whose heading names a tier or a decoded state, and the section of these results is not one of them, so it
+  does not read `oracleOf_of_laws` or `oracleOfGuarded_of_laws`. A hypothesis added to either is held by the statement pin
+  of the theorem and by no other gate. That their eleven hypotheses hold together is argued from `oracleOf_joint_model`,
+  a theorem about `OracleLaws` at a model, by the argument about derivations above.
+- These results have been read by their writer and by tool-assisted readers working for the maintainer; no reviewer
+  independent of the maintainer has read them.
+
 ### The Braid's preservation theorems: one new law on each translation, and what they do not cover
 
 `BraidPreserve.lean` and its session-unit port show that every successful `send`, `receive` and
@@ -2468,9 +2586,19 @@ about each (`CLAIMS.md`, the section on the Braid refinement agreements).
 
 **Assumed, about opaque constants.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem` and
 `Model.Kdf`: `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
-`BraidHkdfAgrees` and `BraidHmacAgrees`. Nothing shows that the real ML-KEM wrapper, libcrux or the real
+`BraidHkdfAgrees` and `BraidHmacAgrees`. A seventh premise, `KemDrawsSucceed`
+(`UnitSatisfiabilityBraidAgreements.lean`), says the real key generation and `encapsulate1` each succeed for
+some RNG; the state witnesses take it because the two-sided `KemAgreesFor` admits a KEM that refuses every
+call. It holds in `Interp.modelT3` (`modelT3_kemDrawsSucceed`); of the real wrapper it is assumed, and
+every Braid test that completes an agreement exercises both calls, which is testing and not proof. With
+`KemDrawsSucceed`, the premises still admit a KEM whose decapsulation and second encapsulation half refuse
+every input, which is read off the clauses (each is two-sided and the premise speaks only of the two
+draws); the interpretation that shows it is not in the tree. Nothing assumed implies that transitions (5),
+(9), (11) or (12) can succeed, or that an honest run completes an epoch, and a claim that one does needs
+its own premise.
+Nothing shows that the real ML-KEM wrapper, libcrux or the real
 KDF satisfies them. What is shown is that they are consistent: one interpretation of the unit's opaque
-constants satisfies all six, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
+constants satisfies all six together with `KemDrawsSucceed`, at `Model.Braid.toyKem`, together with the axiom-level fields of the session records,
 by the substitution argument above, which is an argument about derivations and not a theorem inside
 Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` says nothing about the real
 `K`. `ValidateEkAgrees K` holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
@@ -2494,11 +2622,14 @@ sends: `MsgRefines` holds of a real chunk of any content when the decoder needs 
 so the refinement theorems apply to states reachable from a fresh Braid and to restored states equal to
 such a state.
 
-### The `decrypt_ratchet` refinement: what it assumes, and the one path it leaves open
+### The `decrypt_ratchet` refinement: what it assumes, and the path its first form left open
 
-`decrypt_ratchet_refines` (`Translation/UnitLifecycleDecryptRatchetT3.lean`; `CLAIMS.md`, the section on `decrypt_ratchet`
-with the eviction retry loop) relates the private transaction behind `Session::decrypt` to `Model.Lifecycle.decryptRatchet`
-under the hypotheses in its statement. This section lists what they assume.
+`decrypt_ratchet_refines` (`Translation/UnitLifecycleDecryptRatchetT3.lean`; `CLAIMS.md`, the section on
+`decrypt_ratchet` with the eviction retry loop) relates the private transaction behind `Session::decrypt` to
+`Model.Lifecycle.decryptRatchet` under the hypotheses in its statement, and its complete form
+`decrypt_ratchet_refines_complete` (`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`) takes the same hypotheses
+(`decrypt_ratchet_refines_complete_implies_refines`) and closes the one path the first form left open. This section
+lists what they assume; it holds for both forms.
 
 **Assumed, about opaque operations.** `DecryptOracleOf` is the four clauses of `OracleOf` the transaction uses: the DH
 public key and the DH agreement of `tacenta_boundary::dh`, the AEAD open of `tacenta_boundary::aead`, and the 32-byte draw
@@ -2516,7 +2647,11 @@ together with the axiom-level fields of the session records and the laws above, 
 all-zero key and an AEAD that refuses the empty ciphertext. That is the substitution argument above, about derivations
 and not inside Lean; `decrypt_ratchet_refines_from_shapes` composes the shapes with the run inside Lean, so the
 substitution step itself is the only part outside it. `DhCodecOf` and the DH and AEAD clauses had no model before this
-result.
+result. The joint decision of the clauses of `OracleOf` ("The clauses of `OracleOf`", above) gives a second, separate one,
+`InterpO.model`, in which `DhCodecOf` and all twelve clauses of `OracleOf` hold together; there the oracle is read off
+the interpretation's primitives through the byte views, while here it is a fixed toy, `oracleDecrypt`, with the identity
+public key, an agreement that returns the private key and refuses the all-zero public key, and an AEAD open that returns
+the empty plaintext and refuses the empty ciphertext. Neither model shows anything of the real X25519 or AEAD.
 
 **Assumed, about the session contract records.** The theorem takes `DecryptRatchetContracts` and the class
 `DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields
@@ -2548,25 +2683,34 @@ store matches the header (`Ratchet::invariant` and `State::invariant` supply the
 the invariant's). Three runs meet all of these at both platform widths: one whose model step refuses at the first agreement,
 one whose model step succeeds without an eviction round, and one whose stores are non-empty and whose model step enters the
 eviction retry loop, evicts one key and retries (the outcome of the retry is not stated, and no run reaches an empty
-eviction, a second round or a switch between the stores). Each shows the model side of the run, not which branch the
-shipped code takes. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
-store repeats one key, and the second and third runs hold a receiving chain without a sending chain, which the invariant
-refuses.
+eviction, a second round or a switch between the stores). A fourth (`UnitLifecycleDecryptRatchetCompleteScreen.lean`) meets
+them at both widths too and is one whose model step is a Triple refusal that is not a full store, returned by the first
+attempt; no run reaches such a refusal in a retry round, or a sparse refusal. Each shows the model side of the run, not
+which branch the shipped code takes; for the fourth, `generated_reaches_open_path` also gives the generated output under
+the boundary records. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
+store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
+invariant refuses.
 
-**The open path.** On a run whose output is a Triple refusal with a reason other than a full store, the theorem says
-nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of no other output). The
-predicate constrains only the generated output, so it can hold where the model's step succeeds. A refusal refinement of
-one Triple receive at related states would close it.
+**The path the first form left open.** On a run whose output is a Triple refusal with a reason other than a full store,
+the first form says nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of
+no other output). The predicate constrains only the generated output, so it can hold where the model's step succeeds.
+`triple_receive_refusal_refines` (`Translation/UnitLifecycleTripleRefusalT3.lean`) is the refusal refinement of one
+Triple receive at related states, and `decrypt_ratchet_refines_complete`
+(`Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`) closes the path with it, under the same hypotheses and the
+same compiler-trusted constants; nothing is assumed beyond what this section lists. The screen's run on that path
+(`hypotheses_meet_open_path`) shows the model side only, as above.
 
 **How the proof reaches the model loop.** `Model/Lifecycle.lean` keeps the fuel-indexed retry loop private. One lemma,
 `receiveWithEvictionLoopResult_stop`, names it through Batteries' `open private` to prove that a retry refused for a reason
 `fullStore` does not classify ends the loop; no model definition changes, and a public lemma in `Model/Lifecycle.lean`
 would replace it under rule 7.
 
-**Compiler trust.** The theorem and the loop theorems rest on the nine compiler-evaluated constants of the Session unit's
-discharged Triple receive refinement, and on no others (`CLAIMS.md`). The count of compiler-trusted pinned results rises
-from 13 to 22 because each of the nine new results that compose that refinement inherits its constants; one of the nine
-constants, `chain_start_agrees`, was on no earlier pinned result of the Session unit.
+**Compiler trust.** The theorem, its complete form and the loop theorems rest on the nine compiler-evaluated constants of
+the Session unit's discharged Triple receive refinement, and on no others (`CLAIMS.md`); one of the nine,
+`chain_start_agrees`, was on no earlier pinned result of the Session unit. Every new result that composes that refinement,
+or the sparse ratchet's own refinement, inherits some or all of them and is therefore compiler-trusted. The number of such
+results is the one `attest.py` reports (`counts.compiler_trusted`), not repeated here; `CLAIMS.md` gives it for the two
+sections. It is expected to change if the nine constants are settled by the kernel rather than by the compiler.
 
 ## The erasure coding's field is proved
 
