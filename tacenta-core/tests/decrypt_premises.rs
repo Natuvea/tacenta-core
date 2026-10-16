@@ -3,13 +3,14 @@
 //!
 //! The Lean refinement of the private `decrypt_ratchet`, which `Session::decrypt` calls for a
 //! ratchet frame (`decrypt_ratchet_refines_complete` in
-//! `Translation/UnitLifecycleDecryptRatchetT3.lean`, restated as
+//! `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`, restated as
 //! `decrypt_ratchet_refines_of_invariant` in `Translation/UnitLifecycleDecryptRunBounds.lean`),
 //! takes, for each call, a per-run record: `RetryRunBounds` (bounds on the Triple state and its
 //! skipped-key stores, and at most one skipped key matching the header), the Braid epoch's room,
 //! and one 32-byte draw in the random source. The theorem says nothing of a run that falls
-//! outside them, and it is not a result about `Session::decrypt` as a whole. The proofs assume
-//! only the four ceilings of `CounterHeadroom` (the clock, `events + 1 < u32::MAX`; the sparse
+//! outside them, and it is not a result about `Session::decrypt` as a whole. Of these bounds,
+//! the restated theorem assumes only the four ceilings of `CounterHeadroom` (the clock,
+//! `events + 1 < u32::MAX`; the sparse
 //! epoch, `+ 1 < u64::MAX`; the chain counters, `< u64::MAX`; the Braid epoch, `+ 1 < u64::MAX`).
 //! This file checks all eleven bounds of `RetryRunBounds` and the Braid epoch: five of the
 //! eleven follow from `Session::invariant` (checked here too), two more with the sparse epoch
