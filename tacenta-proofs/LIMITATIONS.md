@@ -2829,12 +2829,16 @@ a changed or low-order ephemeral, of a replay, of a frame beyond `MAX_SKIP`, of 
 version byte, of a truncated frame, of an initial message sent to an initiator, of a low-order ratchet key and of a failed
 agreement, and a full skipped-key store with an eviction. That is evidence about those runs, on the inputs tried; it is
 not proof, and it discharges no premise for any other run. It runs at the width of the machine that runs it, and the
-`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); the 32-bit run has not been made locally. It does
-not reach `IncomingChunkRefines` and `HonestChunk` (a chunk carries no source to read), a counter or epoch near its
-ceiling or a store near `2^32 - 1` (no run builds one; a mutated copy of an observed state shows only that each check can
-fail), a second eviction round, a switch between the stores, a sparse refusal, or a frame naming an epoch the state holds
-no chain for. `Session::invariant` accepts a state with `events = u32::MAX - 1`, which is outside `classicalEvents`; the
-test imports such a state and shows the check rejects it.
+`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); its ceiling checks are written to the 32-bit bound
+at every width, so the 32-bit run adds the shipped library's behaviour at that width, and it has not been made locally.
+It does not reach `IncomingChunkRefines` and `HonestChunk` (a chunk carries no source to read), a counter or epoch near
+its ceiling or a store near `2^32 - 1` (no run builds one), a second eviction round, a switch between the stores, a
+sparse refusal other than an out-of-order key after an eviction, or a frame naming an epoch the state holds no chain for.
+Each ceiling check has a control that calls it outside any run: eight on a mutated copy of an observed state, three
+(`classicalStore`, `sparseStore`, `sparseChainsRoom`) on the length arithmetic alone, with lengths no session holds, and
+`sparseOutputEpoch`, whose bound is the Braid epoch's, through the `braidEpoch` check. Those controls show the checks can
+fail; they show nothing of the runs. `Session::invariant` accepts a state with `events = u32::MAX - 1`, which is outside
+`classicalEvents`; the test imports such a state and shows the check rejects it.
 
 **The hypotheses together, at one witness.** `decrypt_hypotheses_jointly_satisfiable`
 (`Translation/UnitLifecycleDecryptScreen.lean`) shows every hypothesis of `decrypt_ratchet_refines_complete`, with
