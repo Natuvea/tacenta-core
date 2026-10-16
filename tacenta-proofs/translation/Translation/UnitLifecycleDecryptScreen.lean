@@ -91,7 +91,8 @@ witness the coupling holds by construction: `K` enters the hypotheses only throu
 (fields of the bundle), `related` (which holds for every `K`, because the Braid is in `KeysUnsampled`)
 and `run` (which does not depend on `K`, because the run carries no chunk).  Nothing in Lean tells
 `toyKem` apart from any other `K` here: the theorem holds at `K := toyKem` under `DecryptJointLaws toyKem
-dh`.  The coupling is not tested until a state holds KEM values.  The oracle's other KEM fields
+dh`.  The coupling is not tested at this witness; `UnitHeldKemWitness` tests it at a Braid that holds a
+key pair.  The oracle's other KEM fields
 (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not related to `K`; the model's
 `decrypt` reads none of them (`Model.Lifecycle.decrypt_oracle_frame`).  Not checked: that some `K`
 meets the agreements at the real constants; it is assumed.  In the models it is `toyKem` and

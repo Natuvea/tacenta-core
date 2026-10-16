@@ -2705,7 +2705,10 @@ takes (`decrypt_wrapper_laws_model`), in the substitution sense of the section o
 generation and encapsulation ignore the source and return constant bytes and nothing refuses, so it shows the laws
 consistent, not that the wrapper meets them, and it exercises no refusing arm of `wrapperKem`. Not shown: a key pair or
 state restored by `from_bytes` has no model value at `wrapperKem`, so the refinement relations at it are shown only for
-values `generate` and `encapsulate1` produce; `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at it.
+values `generate` and `encapsulate1` produce; `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at it. One
+further law about the wrapper, `LawGenerateSucceeds` (`generate` returns `Ok` from some 64-byte stream), is taken only by
+the witness whose Braid holds a key pair ("The hypotheses together, at a Braid that holds a key pair", below), where it is
+recorded.
 So the KEM side of the decrypt joint statement at `wrapperKem` does not rest on the eight laws alone. The corollary also takes, through the bundle's `braid` field (`BraidReceiveAxiom`), `SessionUnitBraidT1.KeyPairDecapsulateTotal`, `Encapsulate2Total` and `ValidateEkTotal`, which say that `decapsulate`, `encapsulate2` and `validate_ek` return on every value, restored key pairs and states and inputs of any length included; the eight laws do not narrow them, and those three imply the totality parts of `LawGeneratedKeyPair`, `LawEncapsulate2Fresh` and `LawValidateEkTotal`. They were in the bundle before these results and are not shown false; the first is the statement `GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, records as sampled and not shown total.
 
 **Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
@@ -2826,7 +2829,8 @@ that the real ML-KEM wrapper meets the agreements at some `K` is shown by neithe
 off the wrapper, the KEM agreements follow from the eight laws of the section on the Braid refinement agreements, which are
 assumed; `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem` is the joint statement at `wrapperKem` with those laws in
 place of the agreements field, and `decrypt_wrapper_laws_model` satisfies its bundle in `Interp.modelShipped`. The witness's
-Braid holds no KEM value, so that coupling is still not exercised.
+Braid holds no KEM value, so that coupling is not exercised there; the second witness below exercises it at a held key
+pair.
 
 The proof restates, from the bundle, `DhCodecOf`, `DerivedKeysModel`, the axiom-level contract fields and thirteen of the
 fourteen fields of `DecryptRatchetAgreements`; it derives the contract record's defined fields and `ErasureAgrees`, and
@@ -2837,8 +2841,8 @@ stated at the same oracle's `braidKem`. The oracle `oracleOfLaws` builds carries
 reading the agreements fail there for the real KEM (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; it is 1408).
 At this witness the coupling holds by construction: `K` enters only through the agreements (fields of the bundle),
 `SessionRefines` (which holds for every `K`, the Braid being in `KeysUnsampled`) and the run (which does not depend on `K`,
-carrying no chunk); the theorem holds equally at `K := toyKem`. The coupling is not tested until a state holds KEM values
-(a Braid state with a decoder or key material, related by `SessionRefines`). What the joint witness is not:
+carrying no chunk); the theorem holds equally at `K := toyKem`. At this witness the coupling is not tested; the second
+witness below tests it at a Braid that holds a key pair. What the joint witness is not:
 
 - The state is built for the hypotheses. It is `UnitHeadroomSatisfiable.sessionOf` with one key as both identities, the
   66-byte associated data `identity_ad` computes, no pending initial message, no established ephemeral key, no receiving
@@ -2868,6 +2872,49 @@ carrying no chunk); the theorem holds equally at `K := toyKem`. The coupling is 
 
 No proof here chooses a width of `usize`, and only `DecryptHypotheses.refines` depends on a compiler-trust axiom (the nine
 of the refinement), so each result holds at both widths; no hypothesis of the set is width-dependent at this witness.
+
+**The hypotheses together, at a Braid that holds a key pair.** `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held`
+(`Translation/UnitHeldKemWitness.lean`) shows the same hypothesis set at a second witness: the first witness's session
+with its Braid in `KeysSampled` at epoch 1, holding a key pair `IncrementalKeyPair::generate` returned from a 64-byte stream
+and the header encoder after one chunk, and a model session whose Braid holds the 64 bytes as its private part and the
+bytes of the pair's `ek_vector` as its vector (`HeldKemAt`; the model Braid is the model's own transition (1) at that
+randomness). There `SessionRefines` at `wrapperKem` compares the model's values with the real key pair's: it fixes the
+model's vector to the real vector's bytes at every KEM model (`held_relation_pins_vector`) and is false at `toyKem`
+(`held_not_refines_toyKem`), and its key-generation, hash, length and decapsulation parts at the held key are proved from
+`wrapperKem`'s definition and the laws (`held_key_agreements`). `Session::invariant` passes under the first witness's
+assumptions, `LawKemConstants` and the encoder facts that `DivCeilValue` and `ErasureAgrees` give.
+`decrypt_hypotheses_with_chunk_at_wrapperKem_held` is the same at a message carrying a `ct1` agreement chunk that the real
+encoder makes a codeword of a 1408-byte message, for a codeword view the theorem chooses.
+
+*Assumed, beyond `DecryptWrapperLaws`:* `LawGenerateSucceeds`, that `generate` returns `Ok` from the byte stream of some
+64 bytes. It is a statement about one opaque `tacenta_kem` function and the Lean byte-stream source; none of the eight
+wrapper laws gives it. Read from the source: `generate` draws one 64-byte seed and passes it to libcrux's key generation,
+which does not refuse at that length (`tacenta-core/kem/src/lib.rs`); no test in the tree checks it. It follows from the
+key-generation half of `KemDrawsSucceed` with `LawGenerateSeeded` (`lawGenerateSucceeds_of_kemDrawsSucceed`), and
+`Interp.modelShipped` satisfies it with the wrapper bundle (`held_laws_satisfiable`), in the substitution sense.
+
+What the second witness is not:
+
+- The state is built for the hypotheses. It is not shown to be produced by `establish_initiator`, `establish_responder`,
+  `import` or the real `Braid::send`: its header message carries the model's MAC under the zero authenticator, where
+  `send` computes the MAC with the opaque HMAC under the session's authenticator, and the authenticator is the zero
+  keys of the first witness, not one `Auth::init` derives.
+- The chunk starts a fresh decoder (transition (2)), where `HonestChunk` asks nothing. A run into a decoder that already
+  holds a chunk is still not reached: `Session::invariant` at such a state (`HeaderSent` and the others holding a decoder)
+  calls `Decoder::invariant`, a loop over the held chunks, and no result evaluates it on a decoder holding chunks. Not
+  checked: whether that evaluation needs more than the erasure laws already assumed.
+- No encapsulation state is held, so `EncapsRefines` is not asked at a held value; a responder state at `Ct1Sampled` is
+  not built.
+- The model's step is not fixed by the laws: both messages carry the all-zero ratchet key, and the step refuses at the
+  first agreement if the real agreement refuses it (`held_model_refuses_of_agreement`, with `invReal_agreement_is_real`
+  unchanged). The Braid step the model computes at the chunk message is discarded by that refusal. No Triple receive,
+  AEAD open or success is reached.
+- The oracle's other KEM fields are not related to `wrapperKem`; nothing is shown of ML-KEM; a key pair restored by
+  `from_bytes` has no model value at `wrapperKem`.
+- These results have been read by their writer, a tool-assisted agent working for the maintainer; no other reader has.
+
+No proof here chooses a width of `usize`, and no result depends on a compiler-trust axiom (the pins), so each holds at
+both widths.
 
 **The path the first form left open.** On a run whose output is a Triple refusal with a reason other than a full store,
 the first form says nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of

@@ -71,7 +71,8 @@ laws do not narrow them.
   covered.  `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at `wrapperKem`.
 * At the witness of `decrypt_hypotheses_jointly_satisfiable` the Braid is in `KeysUnsampled`, so no
   state there holds a key pair or an encapsulation state and the relation of `wrapperKem` to a held
-  value is not exercised.
+  value is not exercised there; `UnitHeldKemWitness` exercises it at a second witness whose Braid holds
+  a generated key pair.
 * The model `Interp.modelShipped` is not the wrapper: its key generation and encapsulation ignore the
   source and return constant bytes, and it never refuses.  It shows the laws consistent with each
   other and with the joint bundle at the crate's sizes, by the substitution argument of
