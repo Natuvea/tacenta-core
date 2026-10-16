@@ -4001,7 +4001,7 @@ Location: `Translation/SessionUnitDecodeEc.lean`, `Translation/UnitLifecycleInit
 each decoded key, and compares the two outputs, `false` when either decode or either agreement fails. The model's
 `Model.Lifecycle.sameEphemeralAgreement` now states the same rule, from session-establishment.md, Receiving the initial
 message, through the model's `DecodeEC`, `Model.Lifecycle.decodeEc` (33 bytes, the curve type byte, a canonical key, by the
-initial-message decoder's own `checkCurve` and `checkKey`). Until this change the model handed the two 33-byte strings to the
+initial-message decoder's own `checkCurve` and `checkKey`). Before the decode was added the model handed the two 33-byte strings to the
 agreement without decoding them, and no theorem could relate it to the code (`GAP-REGISTER.md`, row
 `E2E-04-SAME-EPHEMERAL-MODEL`). This section was made by its author with tool assistance and has not been read by anyone else.
 
@@ -4040,7 +4040,7 @@ agreement without decoding them, and no theorem could relate it to the code (`GA
   two 32-byte agreement outputs is the model's `==` on their bytes. The three standard axioms or fewer.
 - `encoded_comparison_does_not_refine`: a control, not a claim. For every oracle that meets `OracleOf`, given `DhCodecOf`, and
   every two byte strings neither of which is 32 bytes long, some oracle that also meets `OracleOf` makes the comparison the
-  model made before this change (`UnitLifecycleIntegrationScreen.encodedEphemeralAgreement`, on the two encodings) disagree
+  model made before the decode was added (`UnitLifecycleIntegrationScreen.encodedEphemeralAgreement`, on the two encodings) disagree
   with the translated one, so no refinement of the shape above holds of it. It says nothing about whether an oracle meeting
   `OracleOf` exists.
 
@@ -4055,8 +4055,11 @@ comparison are reached only on other states; this is read from the code and not 
 `Model.Lifecycle.decodeEc` and `Model.Lifecycle.sameEphemeralAgreement` have `#print` pins, so a model that compared the
 encodings again fails the build at the pin; `attest.py` requires them all. `check-initial-dispatch-negatives.py` restates the
 refinement of a model comparison that leaves the incoming string undecoded, the established one undecoded, or agrees on the two
-encodings, and each is refused because the proof fails inside its body; that shows the proof uses each decode, and
-`encoded_comparison_does_not_refine` shows the third statement false at some oracle meeting `OracleOf`.
+encodings, and each is refused because the existing proof script fails inside its body (in each case at its first rewrite by
+a model decode); that shows the script reads each decode, not that the restated statement is unprovable. For the third,
+`encoded_comparison_does_not_refine` shows the statement false at some oracle meeting `OracleOf`, if some oracle meeting
+`OracleOf` exists; for the two one-sided restatements nothing shows the statement false. Nothing in this section is a claim
+that `Session::decrypt` refines the model on an initial frame.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 

@@ -2972,6 +2972,19 @@ decode-refusal arms are reached only on states the shipped readers do not produc
 re-spelled `ephemeral`, and clause (f) of `Session::invariant` refuses a session whose `established_ephemeral` does not
 decode. That is read from the code; no theorem here states it.
 
+**A disagreement with the page, recorded and not resolved.** `tacenta-spec/protocol/session-persistence.md` (Session,
+Semantic rules, the optional fields' shape) says of `established_ephemeral` and the pending KEM ciphertext "Neither is
+checked where it is used". For `established_ephemeral` that does not match the Rust, whose `same_ephemeral_agreement`
+decodes it where it is used and returns `false` when it does not decode, or the model, which now does the same; the
+page's "otherwise unavailable ... fails closed" supports the `false`. A spec sentence is the maintainer's decision, and
+the page is unchanged (`GAP-REGISTER.md`, row `E2E-04-SAME-EPHEMERAL-MODEL`).
+
+**The restated record field.** With the decode in the model, the inequality of `oracle.dhAgree` at the two 33-byte
+strings that the `hagreementMismatch` field of `InitialDispatchBranchEvidence.ephemeralMismatch` and
+`SessionDecryptEvidence.initialEphemeralMismatch` (and of `decrypt_initial_ephemeral_mismatch_refines`) asked for no
+longer decides the model's verdict, so the field now states the verdict, `false`. No pin holds that field, and no
+positive claim rests on it or on the records that carry it.
+
 **Not proved.** The composition of `Session::decrypt` on an initial frame. The dispatch theorems of
 `UnitLifecycleInitialDispatch.lean` still take caller-selected branch evidence (`InitialDispatchBranchEvidence`,
 `SessionDecryptEvidence`), whose repeat premises `hmodelSame` and `hagreementMismatch` state the model's verdict on the

@@ -298,8 +298,9 @@ is SemVer against the specified protocol (not the implementation).
   were, which the page does not describe and which no theorem could relate to
   `tacenta-core`'s `same_ephemeral_agreement`, which decodes both first. Both
   strings decode on every session a reader accepts and in every message the
-  initial-message decoder accepts, so the two decode-failure arms are reached
-  only on states no reader produces. The page is unchanged, and the generated
+  initial-message decoder accepts, by reading of the code, so the two
+  decode-failure arms are reached only on states no reader produces; that is
+  not proved. The page is unchanged, and the generated
   vectors do not reach this function and do not change.
 - `protocol/mlkem-braid.md`, Failure: one sentence says the model expresses the
   four KEM failures the section lists. `Model.Braid`'s `Kem` operations
