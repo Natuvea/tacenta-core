@@ -57,8 +57,9 @@ copy of a module and requires Lean to refuse it, at a named place:
     under the same header, with the stored key ahead of the clock, and with the sparse stored key at an epoch
     the chain table does not hold (each refused in `storedTriple_invariant`),
     with the stored-key state's clock at the park `u32::MAX - 1` (refused in `storedSession_counterHeadroom`:
-    the invariant still accepts it, the ceilings do not), with its Braid at an even epoch (refused in
-    `structural_storedSession`, clause (b)), with the responder's sparse direction the initiator's (refused in
+    the invariant still accepts it, the ceilings do not), with its sparse epoch one below the Braid's
+    relation (clause (b) alone) and with its Braid at an even epoch with the sparse epoch moved to keep (b)
+    (clause (d) alone; each refused in `structural_storedSession`), with the responder's sparse direction the initiator's (refused in
     `structural_responderSession` or `responderTriple_invariant`), with the pending ciphertext one byte longer
     than `kem::ciphertext_len` (refused in `structural_pendingSession`), and with the established ephemeral's
     curve byte wrong (refused in `session_decode_ec_ephemeral`).
@@ -237,9 +238,27 @@ MUTANTS = [
      [(r'        events := 5#u32, labels := tacenta_ratchet\.LabelSet\.Tacenta \},\n',
        '        events := 4294967294#u32, labels := tacenta_ratchet.LabelSet.Tacenta },\n')], PROOF,
      ['storedSession_counterHeadroom']),
-    ('states', 'stored-braid-at-an-even-epoch',
+    # Clause (b) alone: the sparse epoch one below where the Braid at epoch 3 needs it; (d) still holds
+    # at the odd epoch.
+    ('states', 'stored-sparse-epoch-off-the-braid',
+     [(r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 1#u64, braid := storedBraid }'),
+      # the proof's arithmetic step moved with the state, so the refusal is the clause's and not a
+      # rewrite that no longer matches
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 1#u64 1#u64 = some 2#u64 := by decide')], PROOF,
+     ['structural_storedSession']),
+    # Clause (d) alone: the Braid at the even epoch 4 and the sparse epoch at 3, so (b) still holds, but
+    # at an even epoch the header-sending Braid reports the responder's role.
+    ('states', 'stored-braid-on-the-responder-side',
      [(r'  ⟨tacenta_braid\.State\.KeysUnsampled 3#u64 ⟨zeros, zeros⟩⟩\n',
-       '  ⟨tacenta_braid.State.KeysUnsampled 4#u64 ⟨zeros, zeros⟩⟩\n')], PROOF,
+       '  ⟨tacenta_braid.State.KeysUnsampled 4#u64 ⟨zeros, zeros⟩⟩\n'),
+      (r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 3#u64, braid := storedBraid }'),
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 3#u64 1#u64 = some 4#u64 := by decide'),
+      (r'have h32 : \(3#u64 % 2#u64 : Result U64\) = ok 1#u64 := by rfl',
+       'have h32 : (4#u64 % 2#u64 : Result U64) = ok 0#u64 := by rfl')], PROOF,
      ['structural_storedSession']),
     ('states', 'responder-direction-of-the-initiator',
      [(r'skipped := vecOf \[\] \(by simp\), direction := tacenta_spqr\.Direction\.B2a \} \}',
