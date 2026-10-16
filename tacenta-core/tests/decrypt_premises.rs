@@ -7,8 +7,8 @@
 //! and one 32-byte draw in the random source. The theorem says nothing of a run that falls
 //! outside them. This file drives a real establishment (the inputs of
 //! `session-e2e.json`, `one-time-prekeys-first-message`, drawn through a stated-then-stream
-//! random source) and a schedule of `decrypt` calls that reaches each outcome the model has, and
-//! at every call asserts the runtime form of what the record asks, read from the state the call
+//! random source) and a schedule of `decrypt` calls that reaches the outcomes listed below (and
+//! not those listed as not reached), and at every call asserts the runtime form of what the record asks, read from the state the call
 //! starts in. Those runs are the only evidence this file gives; no theorem is applied to them.
 //!
 //! # What is checked at every `decrypt` call
@@ -40,7 +40,7 @@
 //! | `sparseChainsRoom` | `chains + 2 < usize::MAX` (and below `2^32 - 1`) | sparse state `chains_count` |
 //! | `sparseChainEpochs` | each chain epoch `+ 2 <= u64::MAX` | sparse state `chains` |
 //! | `sparseSkippedEpochs` | each skipped epoch `+ 2 <= u64::MAX` | sparse state `skipped` |
-//! | `sparseOutputEpoch` | `output.keyEpoch + 2 <= u64::MAX`; the output is not observable, but the Braid emits `key_epoch` equal to its own epoch before the call (`tacenta-core/braid/src/lib.rs`, the two `Output { key_epoch: epoch, .. }`), so the check is on the Braid epoch | Braid blob epoch |
+//! | `sparseOutputEpoch` | `output.keyEpoch + 2 <= u64::MAX`; the output is not observable, but `step_receive` in `tacenta-core/braid/src/lib.rs` emits `Output { key_epoch: epoch, .. }` with the epoch the state held before the call. The bound is the same as `braidEpoch`'s (`epoch + 1 < u64::MAX` is `epoch <= u64::MAX - 2`), so it is checked by that row and has no check of its own | Braid blob epoch |
 //! | `sparseMatch` | skipped entries equal to `(pq_epoch, pq_n)` of the header: at most 1 | sparse state `skipped` |
 //! | `sparseCounters` | every present chain's `n < u64::MAX` | sparse state `chains` |
 //! | `classicalStore` | `skipped + 2000 <= usize::MAX`, and `<= 2^32 - 1` whatever the width | ratchet state `skipped_count` |
@@ -59,11 +59,14 @@
 //! # Negative controls
 //!
 //! `the_premise_checks_fail_on_states_outside_the_ceilings` mutates an observed state, one field
-//! at a time, and shows that each of the eight checks it covers fails with the Lean field's name
+//! at a time, and shows that each of eight checks fails with the Lean field's name
 //! (`classicalEvents`, `sparseEpoch`, `sparseChainEpochs`, `sparseCounters`,
-//! `sparseSkippedEpochs`, `braidEpoch`, `classicalMatch`, `sparseMatch`). The two store ceilings
-//! and `sparseChainsRoom` are not exercised the same way: they fail only at billions of stored
-//! entries, which no test can build. `a_session_the_invariant_accepts_can_fall_outside_the_event_ceiling`
+//! `sparseSkippedEpochs`, `braidEpoch`, `classicalMatch`, `sparseMatch`; `braidEpoch` is also
+//! the check of `sparseOutputEpoch`, which has the same bound). `the_room_checks_fail_at_their_boundaries`
+//! calls the three length checks (`classicalStore`, `sparseStore`, `sparseChainsRoom`) with
+//! lengths no session holds, at the boundary of `2^32 - 1` and of the machine's `usize::MAX`,
+//! through the same function the call-time checks use; it tests the arithmetic, not a state
+//! with billions of entries. `a_session_the_invariant_accepts_can_fall_outside_the_event_ceiling`
 //! shows the one gap between `Session::invariant` and the premises that the documentation already
 //! names: `events = u32::MAX - 1` imports, and is outside `classicalEvents`.
 //!
@@ -92,18 +95,22 @@
 //!
 //! # Outcomes not reached
 //!
-//! * (l) a responder with no established ephemeral: `Session::import` refuses it
-//!   (`Inconsistent`, the identity-ad orientation of `Session::invariant`), so no session that
-//!   meets the invariant is a responder without one; the session with none is an initiator, which
-//!   is (j). `a_responder_without_an_established_ephemeral_cannot_be_imported` holds the import
-//!   refusal.
+//! * (l) a responder with no established ephemeral. The model does not separate (l) from (j):
+//!   `Model.Lifecycle.repeatedInitial` reads only `establishedEphemeral`, so both are the same
+//!   branch, and (j) reaches it. In the Rust `is_responder()` is defined as
+//!   `established_ephemeral.is_some()`, so a responder without one does not exist by definition;
+//!   `Session::import` refuses a hand-built one as `Inconsistent` (invariant clauses c and d), and
+//!   `a_responder_without_an_established_ephemeral_cannot_be_imported` holds that refusal. That
+//!   test shows one state is refused; the argument is the definition.
 //! * the second agreement refusing (`candidate_key.agree(peer)` after the first succeeded): both
 //!   agreements are against the same `peer`, and a clamped scalar yields all zero for a
 //!   low-order point whichever the scalar is, so the first refusal is the only reachable one.
 //! * the model's ceiling refusal for an exhausted source: it has no counterpart in Rust, and the
 //!   source here is a stream.
-//! * a sparse-only `TooManySkipped`, a switch between the two stores in the eviction loop, and a
-//!   run whose frame names an epoch the state holds no chain for: not built here.
+//! * a sparse-only `TooManySkipped`, a switch between the two stores in the eviction loop, a
+//!   second eviction round, a run whose frame names an epoch the state holds no chain for, and a
+//!   sparse refusal other than the out-of-order key after an eviction (step "k: an evicted key"):
+//!   not built here.
 //!
 //! The `ExactRng` shape (a stated draw schedule, with the length of each draw checked) is copied
 //! from `tacenta-test-vectors/runners/rust/src/session_e2e.rs` rather than imported, with a log
@@ -126,6 +133,7 @@ use tacenta_core::serialization::{
 use tacenta_core::sessions::{
     Identity, LifecycleError, Session, SessionDecodeError, establish_initiator, establish_responder,
 };
+use tacenta_spqr::SpqrError;
 use tacenta_triple::TripleError;
 
 // ---------------------------------------------------------------------------------------------
@@ -253,7 +261,6 @@ struct Observed {
     pq_epoch: u64,
     pq_chains: Vec<PqChain>,
     pq_skipped: Vec<(u64, u64)>,
-    braid_tag: u8,
     braid_epoch: Option<u64>,
 }
 
@@ -339,7 +346,6 @@ fn observe(session: &Session) -> Observed {
         pq_epoch: be64(pq, 33),
         pq_chains,
         pq_skipped,
-        braid_tag,
         braid_epoch,
     };
     // The reader against the public counters, so a layout drift cannot pass silently.
@@ -428,11 +434,11 @@ fn check_premises(label: &str, o: &Observed, header: Option<&Header>) -> Premise
         "{label}: sparseEpoch: epoch {}",
         o.pq_epoch
     );
-    assert!(
-        (o.pq_chains.len() as u64) + 2 < usize::MAX as u64
-            && (o.pq_chains.len() as u64) + 2 < CMAX32,
-        "{label}: sparseChainsRoom: {} chains",
-        o.pq_chains.len()
+    check_room(
+        label,
+        o.classical_skipped.len(),
+        o.pq_skipped.len(),
+        o.pq_chains.len(),
     );
     for c in &o.pq_chains {
         assert!(
@@ -450,36 +456,43 @@ fn check_premises(label: &str, o: &Observed, header: Option<&Header>) -> Premise
             "{label}: sparseSkippedEpochs: skipped epoch {e}"
         );
     }
-    let store = |len: usize, cap: usize, what: &str| {
-        assert!(
-            (len as u64) + (cap as u64) <= usize::MAX as u64
-                && (len as u64) + (cap as u64) <= CMAX32,
-            "{label}: {what}: {len} stored keys"
-        );
-    };
-    store(
-        o.classical_skipped.len(),
-        MAX_SKIPPED_STORE,
-        "classicalStore",
-    );
-    store(
-        o.pq_skipped.len(),
-        tacenta_spqr::MAX_SKIPPED_STORE,
-        "sparseStore",
-    );
+    // `sparseOutputEpoch` is this same bound (the Braid's `step_receive` emits the epoch it held),
+    // so this assertion is its check as well; a failed Braid has no epoch and no output.
     if let Some(epoch) = o.braid_epoch {
         assert!(
             epoch + 1 < u64::MAX,
-            "{label}: braidEpoch: Braid epoch {epoch}"
+            "{label}: braidEpoch (and sparseOutputEpoch): Braid epoch {epoch}"
         );
-        assert!(
-            epoch <= u64::MAX - EPOCHS_KEPT,
-            "{label}: sparseOutputEpoch (through the Braid epoch): {epoch}"
-        );
-    } else {
-        assert_eq!(o.braid_tag, BRAID_FAILED_TAG);
     }
     p
+}
+
+/// `store + cap <= cMax Usize`, for `cMax Usize` at the width of the machine and at 32 bits.
+fn store_room(len: usize, cap: usize) -> bool {
+    (len as u128) + (cap as u128) <= usize::MAX as u128
+        && (len as u128) + (cap as u128) <= CMAX32 as u128
+}
+
+/// `chains + 2 < Usize.max`, at the width of the machine and at 32 bits.
+fn chains_room(len: usize) -> bool {
+    (len as u128) + 2 < usize::MAX as u128 && (len as u128) + 2 < CMAX32 as u128
+}
+
+/// The three ceilings that depend only on a length, so a control can call them with a length no
+/// session holds.
+fn check_room(label: &str, classical_store: usize, sparse_store: usize, chains: usize) {
+    assert!(
+        chains_room(chains),
+        "{label}: sparseChainsRoom: {chains} chains"
+    );
+    assert!(
+        store_room(classical_store, MAX_SKIPPED_STORE),
+        "{label}: classicalStore: {classical_store} stored keys"
+    );
+    assert!(
+        store_room(sparse_store, tacenta_spqr::MAX_SKIPPED_STORE),
+        "{label}: sparseStore: {sparse_store} stored keys"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -534,11 +547,23 @@ fn is_not_a_repeat(e: &LifecycleError) -> bool {
 fn is_aead(e: &LifecycleError) -> bool {
     matches!(e, LifecycleError::Aead)
 }
-fn is_triple(e: &LifecycleError) -> bool {
-    matches!(e, LifecycleError::Triple(_))
+/// A replay is refused by the classical half, as an out-of-order message. Neither full-store
+/// refusal may reach the caller (the eviction loop makes room or reports the other reason), so
+/// the reason is pinned and not only the variant.
+fn is_classical_out_of_order(e: &LifecycleError) -> bool {
+    matches!(
+        e,
+        LifecycleError::Triple(TripleError::Classical(RatchetError::OutOfOrder))
+    )
 }
-fn is_decode(e: &LifecycleError) -> bool {
-    matches!(e, LifecycleError::Decode(_))
+fn is_sparse_out_of_order(e: &LifecycleError) -> bool {
+    matches!(
+        e,
+        LifecycleError::Triple(TripleError::PostQuantum(SpqrError::OutOfOrder))
+    )
+}
+fn is_too_short(e: &LifecycleError) -> bool {
+    matches!(e, LifecycleError::Decode(DecodeError::TooShort))
 }
 
 /// `Session::decrypt` with every check of the module documentation around it.
@@ -571,7 +596,6 @@ fn checked(
         "{label}: the model reads {} draw(s) on this branch, the run read {fills}",
         step.draws
     );
-    assert!(fills <= 1, "{label}: more than the one draw of the run");
     assert_eq!(
         rng.unused(),
         stated.saturating_sub(fills),
@@ -682,7 +706,7 @@ struct Established {
     initial: Vec<u8>,
     repeat: Vec<u8>,
     repeat_plaintext: Vec<u8>,
-    /// Bob's session as `establish_responder` returned it, and the vector's two fixed answers.
+    /// The loaded vector, for the draws and recorded bytes later steps state.
     vector: Vector,
 }
 
@@ -844,7 +868,10 @@ fn every_outcome_of_the_schedule_meets_the_premises() {
     let (r, _) = checked(
         &mut bob,
         &initial,
-        Step::refused_after_draw("e: replay inside a recognised wrapper", is_triple),
+        Step::refused_after_draw(
+            "e: replay inside a recognised wrapper",
+            is_classical_out_of_order,
+        ),
     );
     assert!(r.is_err());
 
@@ -901,7 +928,7 @@ fn every_outcome_of_the_schedule_meets_the_premises() {
         );
         assert!(r.is_ok());
     }
-    // A message that skips one: a4 before a3 and a2. Two keys are stored in each store.
+    // A message that skips two: a4 before a3 and a2. Two keys are stored in each store.
     let (r, _) = checked(&mut bob, &sent[4], Step::ok("d: skip two", b"a4"));
     assert!(r.is_ok());
     assert_eq!(observe(&bob).classical_skipped.len(), 2);
@@ -921,7 +948,7 @@ fn every_outcome_of_the_schedule_meets_the_premises() {
         let (r, premises) = checked(
             &mut bob,
             &sent[i],
-            Step::refused_after_draw(label, is_triple),
+            Step::refused_after_draw(label, is_classical_out_of_order),
         );
         assert!(r.is_err());
         assert_eq!(premises.classical_matches, 0);
@@ -977,19 +1004,19 @@ fn every_outcome_of_the_schedule_meets_the_premises() {
     let (r, _) = checked(
         &mut bob,
         &sent[3][..40],
-        Step::refused_before_draw("i: truncated inside the header", is_decode),
+        Step::refused_before_draw("i: truncated inside the header", is_too_short),
     );
     assert!(r.is_err());
     let (r, _) = checked(
         &mut bob,
         &[],
-        Step::refused_before_draw("i: empty frame", is_decode),
+        Step::refused_before_draw("i: empty frame", is_too_short),
     );
     assert!(r.is_err());
     let (r, _) = checked(
         &mut bob,
         &repeat[..60],
-        Step::refused_before_draw("i: truncated initial wrapper", is_decode),
+        Step::refused_before_draw("i: truncated initial wrapper", is_too_short),
     );
     assert!(r.is_err());
 
@@ -1144,9 +1171,9 @@ fn a_full_skipped_key_store_makes_room_and_a_forgery_evicts_nothing() {
         Step::ok("k: store eviction", format!("three {MAX_SKIP}").as_bytes()),
     );
     assert!(r.is_ok());
-    // The call needed room: the keys held plus the keys the frame skips pass the cap, so the
-    // retry loop ran (the library test `store_eviction.rs` pins what it evicts).
-    assert!(premises.classical_skipped + MAX_SKIP as usize > MAX_SKIPPED_STORE);
+    // That the eviction loop ran is shown by the evicted-key refusal below (`store_eviction.rs`
+    // pins what it evicts); the premises of this call are those of a store at its cap.
+    assert_eq!(premises.classical_skipped, MAX_SKIPPED_STORE - 1);
     let after = observe(&bob);
     assert!(after.classical_skipped.len() <= MAX_SKIPPED_STORE);
     assert!(after.pq_skipped.len() <= tacenta_spqr::MAX_SKIPPED_STORE);
@@ -1161,7 +1188,7 @@ fn a_full_skipped_key_store_makes_room_and_a_forgery_evicts_nothing() {
     let (r, _) = checked(
         &mut bob,
         &first[MAX_SKIP as usize / 2],
-        Step::refused_after_draw("k: an evicted key", is_triple),
+        Step::refused_after_draw("k: an evicted key", is_sparse_out_of_order),
     );
     assert!(r.is_err());
 }
@@ -1207,14 +1234,20 @@ fn a_session_with_a_failed_braid_refuses_before_the_draw() {
     let frame = alice
         .encrypt(b"into the void", &mut plain("failed:send"))
         .unwrap();
-    let (r, _) = checked(
-        &mut failed,
-        &frame,
-        Step::refused_before_draw("terminal agreement guard", |e| {
-            matches!(e, LifecycleError::AgreementFailed)
-        }),
-    );
-    assert!(r.is_err());
+    // The guard comes before the decoder (`Model.Lifecycle.decryptRatchet`): a frame that would
+    // not decode is refused as a failed agreement too, so swapping the two is caught here.
+    for (label, message) in [
+        ("terminal agreement guard", &frame[..]),
+        ("terminal agreement guard, truncated frame", &frame[..40]),
+        ("terminal agreement guard, empty frame", &[][..]),
+    ] {
+        let (r, _) = checked(
+            &mut failed,
+            message,
+            Step::refused_before_draw(label, |e| matches!(e, LifecycleError::AgreementFailed)),
+        );
+        assert!(r.is_err());
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1279,6 +1312,31 @@ fn the_premise_checks_fail_on_states_outside_the_ceilings() {
         "sparseMatch",
         refusal_of(|o, h| o.pq_skipped = vec![(h.pq_epoch, h.pq_n); 2]),
     );
+}
+
+#[test]
+fn the_room_checks_fail_at_their_boundaries() {
+    let cap = MAX_SKIPPED_STORE;
+    let sparse_cap = tacenta_spqr::MAX_SKIPPED_STORE;
+    let top = CMAX32 as usize;
+    // The last length that fits, and one more, at the 32-bit ceiling (which is the machine's
+    // `usize::MAX` on a 32-bit target, and tighter than it on a 64-bit one).
+    assert!(store_room(top - cap, cap) && !store_room(top - cap + 1, cap));
+    assert!(chains_room(top - 3) && !chains_room(top - 2));
+    // And the checks the call-time function makes, by name.
+    let fails = |f: &dyn Fn()| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+            .err()
+            .and_then(|p| p.downcast_ref::<String>().cloned())
+            .unwrap_or_default()
+    };
+    assert!(fails(&|| check_room("neg", top - 1999, 0, 0)).contains("classicalStore"));
+    assert!(fails(&|| check_room("neg", 0, top - 1999, 0)).contains("sparseStore"));
+    assert!(fails(&|| check_room("neg", 0, 0, top - 2)).contains("sparseChainsRoom"));
+    check_room("neg", top - cap, top - sparse_cap, top - 3);
+    // `usize::MAX` itself, where it is wider than 32 bits.
+    assert!(!store_room(usize::MAX - cap + 1, cap));
+    assert!(!chains_room(usize::MAX - 1));
 }
 
 /// The event bound is one stricter than the invariant's: a state with `events = u32::MAX - 1`
