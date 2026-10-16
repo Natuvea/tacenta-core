@@ -54,6 +54,7 @@ import Translation.UnitLifecycleTripleRefusalT3
 import Translation.UnitLifecycleDecryptRatchetCompleteT3
 import Translation.UnitLifecycleDecryptRatchetCompleteScreen
 import Translation.UnitLifecycleDecryptScreen
+import Translation.UnitLifecycleDecryptRunBounds
 import Translation.UnitKemWrapperModel
 import Translation.UnitHeldKemWitness
 import Translation.SessionUnitDecodeEc
@@ -84,6 +85,8 @@ from four of those laws, without the KEM and signing laws.
 `UnitLifecycleDecryptScreen.lean` shows the hypotheses of the complete `decrypt_ratchet` refinement,
 with `Session::invariant`, together at one witness under named laws that one interpretation satisfies,
 the agreements at the same oracle's KEM model; the witness state is built for the hypotheses.
+`UnitLifecycleDecryptRunBounds.lean` derives that refinement's per-run receive bounds from
+`Session::invariant` and four counter ceilings, which stay assumed, and restates it with them.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
