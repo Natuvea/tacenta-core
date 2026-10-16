@@ -2663,6 +2663,45 @@ Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` 
 coefficient check the real function makes after the hash; such a `K` exists, but the check is read from the
 source (`kem/src/lib.rs`) and no test runs a vector that matches the hash and fails the check.
 
+**A KEM model read off the wrapper, and the laws it rests on.** `Translation/UnitKemWrapperModel.lean` builds one `K`,
+`wrapperKem`, whose operations call the wrapper's opaque functions on byte views of their arguments (the model's randomness
+read as the byte-stream source `byteRng`; the private part the 64 key-generation bytes; the encapsulation secret the 32
+encapsulation bytes followed by the header; `hashEk` the hash `validate_ek` accepts, or the empty string where it accepts
+none, so the coefficient check after the hash is folded in), and proves `KemLenAgrees`, `KemAgreesFor` and
+`ValidateEkAgrees` at it from eight laws (`CLAIMS.md`, the section on that model). `KemCloneAgrees` mentions no `K` and is
+one of the laws. Each law is a statement about opaque `tacenta_kem` constants, and each is assumed:
+
+- `LawKemConstants`: `HEADER_LEN`, `EK_VECTOR_LEN`, `CT1_LEN` and `CT2_LEN` are 64, 1536, 1408 and 160. Read from the source
+  (`kem/src/lib.rs`; `HEADER_LEN` and `EK_VECTOR_LEN` are libcrux's `pk1_len()` and `pk2_len()`), and exercised by the
+  crate's test `the_sizes_are_the_specifications_sizes`.
+- `LawGenerateSeeded`: from any source that answers, `generate` returns what it returns from the byte stream of some 64
+  bytes. Read from the source (`generate` draws one 64-byte seed and hands it to libcrux); that libcrux's key generation
+  is a function of the seed is not checked.
+- `LawGeneratedKeyPair`: a key pair generated from 64 bytes has a 64-byte header and a 1536-byte vector that `validate_ek`
+  accepts together, and `decapsulate` returns on it for any ciphertext halves of 1408 and 160 bytes, including halves no
+  encapsulation produced. The lengths and the acceptance are exercised by the crate's tests
+  (`the_sizes_are_the_specifications_sizes`, `validate_ek_accepts_the_real_key_and_rejects_a_substitute`); that
+  `decapsulate` returns on every such input is not checked.
+- `LawEncapsulate1Seeded`: from any source that answers and a 64-byte header, `encapsulate1` returns what it returns from
+  the byte stream of some 32 bytes. Read from the source; that libcrux's first half is a function of the header and the 32
+  bytes is not checked.
+- `LawEncapsulate2Fresh`: `encapsulate2` returns, `Ok` or `Err`, on a state `encapsulate1` produced and any 1536-byte
+  vector, including a vector that `validate_ek` refuses, which the Braid never passes it. libcrux deserializes such a
+  vector's coefficients without reduction; that its arithmetic does not panic on them is not checked. The coefficient-bound
+  refusal of `encapsulate2` is inside this opaque function, so it enters only here, and the law says nothing of whether it
+  refuses a fresh state.
+- `LawValidateEkTotal`: `validate_ek` returns on a 64-byte header and a 1536-byte vector.
+- `LawValidateEkUnique`: two 64-byte headers with the same first 32 bytes that `validate_ek` accepts with one vector are the
+  same bytes. Read from the source: libcrux compares the last 32 bytes with a hash of the vector and the seed.
+- `LawKemClone`: `KemCloneAgrees`, as stated above.
+
+One interpretation, `Interp.modelShipped`, satisfies the eight together with every other law the decrypt joint statement
+takes (`decrypt_wrapper_laws_model`), in the substitution sense of the section on the four contract records. In it key
+generation and encapsulation ignore the source and return constant bytes and nothing refuses, so it shows the laws
+consistent, not that the wrapper meets them, and it exercises no refusing arm of `wrapperKem`. Not shown: a key pair or
+state restored by `from_bytes` has no model value at `wrapperKem`, so the refinement relations at it are shown only for
+values `generate` and `encapsulate1` produce; `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at it.
+
 **Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
 theorem about the translated coder under two laws, because the translation leaves two library functions
 opaque: `usize::div_ceil` at divisor 32 returns `(a + 31) / 32` (`DivCeilValue`, already a field of
@@ -2777,8 +2816,11 @@ model in the substitution sense of the section on the four contract records: `de
 `shippedSizeKem`), whose four are the crate's (1408, 160, 64, 1536, `tacenta-core/kem/src/lib.rs`), with a model KEM of
 those sizes. In both the KEM is a model that never refuses and returns constant bytes, not ML-KEM, and the X25519 agreement,
 the AEAD open and the KDFs are toys or the model's own bytes. So the laws are shown consistent with the shipped KEM sizes;
-that the real ML-KEM wrapper meets the agreements at some `K` is shown by neither model and is assumed, together with
-`ValidateEkAgrees K` above.
+that the real ML-KEM wrapper meets the agreements at some `K` is shown by neither model. At `wrapperKem`, the KEM model read
+off the wrapper, the KEM agreements follow from the eight laws of the section on the Braid refinement agreements, which are
+assumed; `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem` is the joint statement at `wrapperKem` with those laws in
+place of the agreements field, and `decrypt_wrapper_laws_model` satisfies its bundle in `Interp.modelShipped`. The witness's
+Braid holds no KEM value, so that coupling is still not exercised.
 
 The proof restates, from the bundle, `DhCodecOf`, `DerivedKeysModel`, the axiom-level contract fields and thirteen of the
 fourteen fields of `DecryptRatchetAgreements`; it derives the contract record's defined fields and `ErasureAgrees`, and

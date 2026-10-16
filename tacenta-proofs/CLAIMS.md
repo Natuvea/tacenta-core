@@ -65,7 +65,9 @@ this section says in one place what is not proved.
   laws that one interpretation satisfies, with the Braid agreements at the same oracle's KEM model ("Proved (the
   hypotheses of the `decrypt_ratchet` refinement together ...)"); the witness does not carry an agreement chunk, its
   model step is not fixed by the laws, the KEM agreements are fields of the laws, and the laws' models use toy primitives
-  (one at the shipped KEM sizes).
+  (one at the shipped KEM sizes). At a KEM model read off the shipped wrapper, `wrapperKem`, the KEM agreements follow
+  from eight laws about the wrapper's opaque functions, assumed and not proved of them ("Proved (a Braid KEM model read off
+  the `tacenta_kem` wrapper ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4334,7 +4336,7 @@ independent of the maintainer has.
   second states the sizes of the interpretation and the KEM in its statement. The KEM is not ML-KEM: it never refuses and
   its outputs are constant bytes. The X25519 agreement, the AEAD open and the KDFs are `Interp.modelDecrypt`'s toys and
   model bytes. So the laws are shown consistent with the shipped KEM sizes; that the real ML-KEM wrapper meets the
-  agreements at some `K` is shown by neither model and is assumed. Their axioms are the three standard axioms and
+  agreements at some `K` is shown by neither model; at `wrapperKem` it follows from eight assumed laws (the next section). Their axioms are the three standard axioms and
   `rand_core_1.error.Error`.
 - `invReal_model_refuses_of_agreement`, `invReal_agreement_is_real`: at the witness, the model's step refuses at the first
   agreement with `nonContributoryAgreement` if the oracle's agreement refuses the all-zero key; at an oracle meeting
@@ -4366,8 +4368,9 @@ the coupling holds by construction: `K` enters the hypotheses only through `agre
 run carries no chunk). Nothing in Lean tells `toyKem` apart from any other `K` here; the theorem holds at `K := toyKem`
 under `DecryptJointLaws toyKem dh`. The coupling is not tested until a state holds KEM values. The oracle's other KEM fields
 (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not related to `K`; the model's `decrypt` does not read
-them (`decrypt_oracle_frame`). Not checked: that some `K` meets the agreements at the real constants; it is assumed. In the
-two models it is `toyKem` and `shippedSizeKem`.
+them (`decrypt_oracle_frame`). Not checked here: that some `K` meets the agreements at the real constants; it is assumed. In
+the two models it is `toyKem` and `shippedSizeKem`. The next section gives one such `K`, `wrapperKem`, read off the wrapper,
+at which the KEM agreements follow from eight laws about the wrapper's functions, themselves assumed.
 
 What these do not show. The state is built for the hypotheses: it is not shown to be produced by `establish_initiator`,
 `establish_responder` or `import`, and it has no pending initial message, no established ephemeral key and no receiving
@@ -4391,6 +4394,95 @@ removed and the proof adjusted so that it builds, by the statement pin of `Decry
 `toyKem` in place of `K`, refused by the main theorem; renames the model witness, refused by its pins; and sets the
 shipped-size model's `CT1_LEN`, and its KEM's first-ciphertext size, to the toy size, refused by `modelShipped_sizes` and
 by `modelShipped_kemLen`.
+
+## Proved (a Braid KEM model read off the `tacenta_kem` wrapper, and the KEM agreements at it, under eight laws with a model)
+
+Location: `Translation/UnitKemWrapperModel.lean`.
+
+The Braid refinement agreements `KemLenAgrees K`, `KemAgreesFor K` and `ValidateEkAgrees K` relate the unit's opaque
+`tacenta_kem` functions to a Braid KEM model `K`. The section above takes them as a field of its law bundle at a free `K`,
+and before these results no `K` in the tree was related to the shipped wrapper (`toyKem` and `shippedSizeKem` never refuse
+and return constant bytes). These results build one `K` from the wrapper's functions and prove the agreements of it from
+eight laws about those functions, assumed. They are about opaque constants read through byte views, not about ML-KEM.
+Their writer, a tool-assisted agent working for the maintainer, has read them; no other reader has.
+
+- `wrapperKemOf` (a definition, `#print`-pinned) and `wrapperKem`, which is `wrapperKemOf Interp.real`: a
+  `Model.Braid.Kem` whose four operations call the wrapper's functions on byte views of their arguments. The model's
+  randomness `n` is read as the byte-stream source `byteRng` holding the little-endian digits of `n` (64 bytes for key
+  generation, 32 for encapsulation). The private part is the 64 key-generation bytes, from which `decaps` calls `generate`
+  again and then `decapsulate`; the encapsulation secret is the 32 encapsulation bytes followed by the header, from which
+  `encaps2` calls `encapsulate1` again and then `encapsulate2`. Each operation returns `none` exactly where the call it
+  makes returns `Err` or does not return. `hashEk` (`hashEkOf`) is read off `validate_ek`: the 32-byte `hek` it accepts
+  after the seed, where there is one, and the empty string where there is none. The sizes are the crate's: 1536, 1408 and
+  160.
+- `kemLenAgrees_wrapperKem`, `kemAgreesFor_wrapperKem`, `validateEkAgrees_wrapperKem`, `kemCloneAgrees_wrapperKem`,
+  `t3Agreements_wrapperKem`: under `WrapperKemLaws`, `KemLenAgrees`, `KemAgreesFor` (both clauses, two-sided: the model
+  answers `none` exactly where the wrapper's call returns `Err`) and `ValidateEkAgrees` hold at `wrapperKem`, by proof from
+  the laws; `KemCloneAgrees` mentions no KEM model and is the law `LawKemClone` restated; the last gives the record
+  `T3Agreements Interp.real wrapperKem` with the two KDF agreements taken as given. The axioms of each are the three
+  standard axioms and the 49 constants `Interp.real` interprets with the error type inside `RngCore`; no compiler-trust
+  axiom.
+- `kemLen_wrapperKemOf`, `kemAgrees_wrapperKemOf`, `validateEkAgrees_wrapperKemOf`, `t3Agreements_wrapperKemOf`,
+  `hashEkOf_eq`, `validate_of_hashEkOf`, `decaps_clause`, `encaps2_clause`: the first four are the same over any
+  interpretation of the unit's opaque constants and its `WrapperKemLawsShape`, and the last four are their steps: where
+  `validate_ek` accepts a 32-byte hash the model's hash is it, and conversely; the decapsulation clause for a key pair
+  generated from 64 bytes; the second-half clause for a state the first half produced. Their axioms are the three standard
+  axioms and `rand_core_1.error.Error`.
+- `keyPairRefines_wrapperKem`, `encapsRefines_wrapperKem`: under the laws, a key pair `generate` returns from any source
+  that answers, and an encapsulation state `encapsulate1` returns from any source that answers on a 64-byte header
+  `ekSeed ++ hek`, refine at `wrapperKem` some private part or secret (`KeyPairRefines`, `EncapsRefines`), refusing exactly
+  where the model refuses.
+- `LawKemConstants_is`, `LawGenerateSeeded_is`, `LawGeneratedKeyPair_is`, `LawEncapsulate1Seeded_is`,
+  `LawEncapsulate2Fresh_is`, `LawValidateEkTotal_is`, `LawValidateEkUnique_is`, `LawKemClone_is`, `wrapperKemLaws_iff`:
+  each law at the real constants is its shape at `Interp.real` (`Iff.rfl`), and `WrapperKemLaws` is the eight together.
+- `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem`, `decryptWrapperLaws_joint`, `DecryptWrapperLawsShape.toJoint`:
+  `decrypt_hypotheses_jointly_satisfiable` at `K := wrapperKem`, with the joint bundle's `agreements` field (the KEM
+  agreements at a free `K` and the KDF agreements) replaced by the eight laws and the two KDF agreements
+  (`DecryptWrapperLaws dh`); its other fourteen fields are the joint bundle's. Under `DecryptWrapperLaws dh` there are an
+  oracle with `oracle.braidKem = wrapperKem` and the rest of the section above's conclusion. Its axioms are the three
+  standard axioms and the same 52 opaque constants as `decrypt_hypotheses_jointly_satisfiable`'s; no compiler-trust axiom.
+- `decrypt_wrapper_laws_model`, `decrypt_joint_laws_model_at_wrapperKemOf`, `decrypt_wrapper_laws_satisfiable`,
+  `modelShipped_wrapperKemLaws`: one interpretation, `Interp.modelShipped` (the section above), whose four KEM length
+  constants are the crate's, with its view and `optionEqImpl`, satisfies the wrapper bundle, and so the joint bundle at
+  `wrapperKemOf Interp.modelShipped`, whose agreements come from the same proof as at `wrapperKem`. Its key generation and
+  encapsulation ignore the source and return constant bytes and it never refuses, so it is not ML-KEM and exercises no
+  refusing arm. Their axioms are the three standard axioms and `rand_core_1.error.Error`.
+- `toU8_u8`, `bytesOf_sliceOf`, `bytesOf_map_u8`, `length_bytesOf_le`, `length_nil_le`, `bytesSlice_sliceOf`,
+  `length_bytesSlice_of`, `sliceOf_bytesSlice`, `sliceOf_vecSlice`, `append_le_usize`, `length_leBytes`, `leBytes_leNat`,
+  `streamOf_leNat`: the byte views. A slice read as bytes and back is itself; every byte stream of length `k` is the stream
+  of some number's `k` digits, so the model's randomness reaches every seed.
+
+The eight laws (`WrapperKemLaws`, each `#print`-pinned), each a statement about opaque `tacenta_kem` constants of the unit
+and the Lean byte-stream source `byteRng`, none about translated code, each assumed and none proved of the shipped wrapper:
+`LawKemConstants` (the four length constants are 64, 1536, 1408 and 160); `LawGenerateSeeded` (from any source that
+answers, `generate` returns what it returns from the byte stream of some 64 bytes); `LawGeneratedKeyPair` (a key pair
+generated from 64 bytes has a 64-byte header and a 1536-byte vector that `validate_ek` accepts together, and `decapsulate`
+returns on it for any two ciphertext halves of 1408 and 160 bytes); `LawEncapsulate1Seeded` (from any source that answers
+and a 64-byte header, `encapsulate1` returns what it returns from the byte stream of some 32 bytes);
+`LawEncapsulate2Fresh` (`encapsulate2` returns on a state `encapsulate1` produced and any 1536-byte vector);
+`LawValidateEkTotal` (`validate_ek` returns on a 64-byte header and a 1536-byte vector); `LawValidateEkUnique` (two
+64-byte headers with the same first 32 bytes that `validate_ek` accepts with one vector are the same bytes); and
+`LawKemClone` (`KemCloneAgrees`). "Returns" means the call is `ok`, whether its value is `Ok` or `Err`. The
+coefficient-bound refusal of `encapsulate2` is inside that opaque function, so it enters only through
+`LawEncapsulate2Fresh`, which says nothing of whether `encapsulate2` refuses a fresh state.
+
+What these do not show. Nothing about ML-KEM: the operations are whatever the wrapper's functions are. A key pair or
+state restored by `IncrementalKeyPair::from_bytes` or `EncapsState::from_bytes` has no model value at `wrapperKem`, so the
+two refinement relations are shown for values `generate` and `encapsulate1` produce, not for imported ones.
+`KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at `wrapperKem`. At the witness of the corollary the Braid is in
+`KeysUnsampled`, so no state there holds a key pair or an encapsulation state and the relation of `wrapperKem` to a held
+value is not exercised; the corollary holds at `toyKem` under the joint bundle at `toyKem` as well. The KDF agreements stay
+assumed. The interpretation is a model in the substitution sense (`LIMITATIONS.md`), an argument about derivations and
+not a theorem inside Lean. No proof chooses a width of `usize` (`le64`, `usize_max_ge`), and no result depends on a
+compiler-trust axiom. Each of the forty-four theorems has an axiom pin and a statement pin; `wrapperKemOf`, `wrapperKem`,
+`hashEkOf`, the eight laws, `WrapperKemLawsShape`, `WrapperKemLaws`, `DecryptWrapperLawsShape`, `DecryptWrapperLaws`,
+`bytesSlice`, `vecSlice`, `leBytes`, `leNat` and `streamOf` have `#print` pins; `attest.py` requires them all.
+`check-session-satisfiability-negatives.sh` removes each of the eight laws, and each of the three fields that replace the
+joint bundle's agreements, in a copy without the pins, `wrapperKemLaws_iff` and the model, each refused by a proof that
+projects it; makes each refusing arm of the model (key generation, the second half of encapsulation, decapsulation) answer
+`some`, gives the hash a 32-byte fallback and sets the first-ciphertext size to the toy size, each refused by the agreement
+proofs; restates the corollary at `toyKem` under the joint bundle at `toyKem`, refused by its statement pin alone; and
+renames the model witness, refused by its pins.
 
 ## Proved (bounded P6 session lifecycle observations)
 
