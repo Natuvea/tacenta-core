@@ -4002,11 +4002,12 @@ Location: `Translation/UnitLifecycleDecryptRunBounds.lean`.
 relation and four counter ceilings, `CounterHeadroom`, which stay assumed, and restate the complete theorem with them. The
 complete theorem and `RetryRunBounds` are unchanged. They are not results about `Session::decrypt` or `Session::encrypt`.
 
-Which field comes from where. Of the eleven fields of `RetryRunBounds`, seven follow from the invariant: `classicalMatch` and
-`sparseMatch` (each store's clause that no two keys share a header), `sparseChainsRoom` (at most two chain-table entries),
-`classicalStore` and `sparseStore` (each store holds at most 2000 keys, and `2000 + 2000 <= 2^32 - 1`, at both widths), and
-`sparseChainEpochs` and `sparseSkippedEpochs` (the epoch window and the chained-key clause, together with the sparse epoch
-ceiling). One, `sparseOutputEpoch`, follows from the model alone: a key `Model.Braid.receive` outputs is labelled with an epoch
+Which field comes from where. Of the eleven fields of `RetryRunBounds`, five follow from the invariant alone: `classicalMatch`
+and `sparseMatch` (each store's clause that no two keys share a header), `sparseChainsRoom` (at most two chain-table entries),
+and `classicalStore` and `sparseStore` (each store holds at most 2000 keys, and `2000 + 2000 <= 2^32 - 1`, at both widths).
+Two more, `sparseChainEpochs` and `sparseSkippedEpochs`, follow from the invariant (the epoch window and the chained-key clause)
+together with the assumed sparse epoch ceiling; the invariant alone gives `epoch < u64::MAX`, which does not give them. One,
+`sparseOutputEpoch`, follows from the model alone: a key `Model.Braid.receive` outputs is labelled with an epoch
 of at most `u64::MAX - 2` for every state and message (`Model.Braid.receive_output_epoch_lt`). Three are fields of
 `CounterHeadroom`: `classicalEvents` (`events + 1 < u32::MAX`; the invariant gives `events < u32::MAX`), `sparseEpoch`
 (`epoch + 1 < u64::MAX`; the invariant gives `epoch < u64::MAX`) and `sparseCounters` (each chain counter below `u64::MAX`; no
@@ -4015,8 +4016,15 @@ invariant clause bounds it). The fourth field of `CounterHeadroom`, `braidEpoch`
 
 The record `CounterHeadroom` holds the four ceilings, stated of the translated session, and is assumed. Each ceiling excludes a
 state `Session::invariant` accepts: a classical clock at `u32::MAX - 1`, where the crate's clamp holds it (`MAX_EVENTS`); a
-sparse epoch at `u64::MAX - 1`; a sparse chain counter at `u64::MAX`; a Braid epoch at `u64::MAX - 1`. They are counter
-ceilings, not capacity bounds.
+sparse epoch at `u64::MAX - 1`; a sparse chain counter at `u64::MAX`; a Braid epoch at `u64::MAX - 1`. The clock case is shown
+in Lean (`invariant_does_not_give_counterHeadroom`, below); the other three are by reading of the Rust, not checked in Lean.
+They are counter ceilings, not capacity bounds, and an exclusion is permanent for a session: once the clock parks it stays, so
+every later `decrypt_ratchet` of that session is outside the theorem, and one exhausted chain counter, a send chain's included,
+excludes every receive until its epoch retires. By reading only, not proved: under clause (b) of `Session::invariant`
+(`tacenta-core/lifecycle/src/lifecycle.rs`, the Braid-epoch relation) the sparse epoch equals the Braid epoch or is one below
+it while the Braid has not failed, and `decrypt_ratchet` refuses a failed Braid before the Triple step, so wherever the run
+bounds are used the Braid epoch ceiling covers the sparse one; the field is kept because `DecryptRatchetRun.retry` asks
+`RetryRunBounds` of every run.
 
 - `retryRunBounds_of_triple_invariant`: if `Triple::invariant` returns `true` of a translated Triple state related to a model
   state, and the clock, sparse epoch and chain-counter ceilings hold of it, then `RetryRunBounds` holds of the model state for
@@ -4037,11 +4045,14 @@ ceilings, not capacity bounds.
   result and the model's step. `DecryptRatchetHeadroom` is not a hypothesis: it is `decryptHeadroom_of_invariant`, from two
   fields of the contract record.
 - `counterHeadroom_sessionOf`: `CounterHeadroom` holds at every session over fresh states (clock 0, sparse epoch 0, no chain
-  counter, Braid epoch 1).
+  counter, Braid epoch 1). It exercises no ceiling away from zero, and `sparseCounters` holds vacuously there, the one
+  chain-table entry holding no chain.
 - `decrypt_inputs_at_invReal`, `DecryptOfInvariantHypotheses.refines`, `decrypt_of_invariant_hypotheses_jointly_satisfiable`:
   under the laws `DecryptJointLaws K dh` of `UnitLifecycleDecryptScreen`, every hypothesis of the restated theorem holds
   together at that module's witness session, for every codeword view; `DecryptOfInvariantHypotheses` is the hypothesis list,
   and the restated theorem applies to it. The witness state is built for the hypotheses, and the laws are assumed, as there.
+  The witness is that fresh session, so no ceiling is exercised away from zero; no witness with a stored key, an open chain or
+  the held-KEM state is given.
 - `parkedTriple_invariant`, `structural_parkedSession`, `parkedSession_invariant`, `parkedSession_not_counterHeadroom`,
   `invariant_does_not_give_counterHeadroom`: a session over fresh states with the classical clock at `u32::MAX - 1` passes
   `Session::invariant` (under `ValidKeyShape`, `OptionEqU64Shape` and `DhCodecTotal`, as `sessionOf_invariant`) and fails
@@ -4050,7 +4061,8 @@ ceilings, not capacity bounds.
 **What is not shown.** That `CounterHeadroom` holds of any session a caller holds: it is a per-run hypothesis. That the
 crate's operations produce the parked session: that the clamp parks the clock at `u32::MAX - 1` is the Rust's documented
 behaviour, not a theorem here. That the other three ceilings exclude states the invariant accepts is by reading the sparse
-ratchet's and the Braid's `invariant` documentation, not checked in Lean. Whether any of the four ceilings could be dropped
+ratchet's and the Braid's `invariant` documentation, not checked in Lean. That the Braid epoch ceiling covers the sparse one
+where the bounds are used is by reading only. Whether any of the four ceilings could be dropped
 from the refinement theorems that take them is not checked. The chunk, `HonestChunk` and draw conditions stay the caller's,
 with the limits of the previous two sections. No proof here chooses a width of `usize`. As for the previous section, no gate
 reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a session lifecycle out.
@@ -4064,10 +4076,11 @@ rest on no compiler-evaluated constant: `classicalMatch_of_inv`, `sparseMatch_of
 `store_room` and `sparseOutputOf_epoch` on `propext` and `Quot.sound`, and the other nine on those three and between 4 and
 52 opaque constants of the unit, which the types and definitions they mention refer to. Each result carries an axiom pin and a statement pin, and each definition the section adds
 a `#print` pin (`CounterHeadroom`, `DecryptRatchetRunInputs`, `DecryptRatchetRefinesOfInvariantStatement`,
-`DecryptOfInvariantHypotheses`, `parkedTriple`, `parkedSession`). `check-decrypt-ratchet-negatives.py` plants five faults in a
+`DecryptOfInvariantHypotheses`, `parkedTriple`, `parkedSession`). `check-decrypt-ratchet-negatives.py` plants six faults in a
 copy of the module (the sparse epoch ceiling dropped, the clock ceiling weakened to the invariant's, the output label dropped
-from the Triple derivation, the parked clock moved one below the park, and, with the pins kept, the Braid ceiling weakened to
-the decoder's) and requires Lean to refuse each at a named declaration or at the pin of `CounterHeadroom`.
+from the Triple derivation, the parked clock moved one below the park, and the Braid ceiling weakened to the decoder's, once
+without the pins, refused in `decryptRatchetRun_of_invariant`, and once with them, refused at the pin of `CounterHeadroom`) and
+requires Lean to refuse each at a named declaration or at that pin.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

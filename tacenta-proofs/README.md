@@ -28,7 +28,10 @@ the unit discharges (they are argued from the sizes involved, not proved) and
 the boundary assumptions. The lifecycle crate is translated into the eight-leaf session
 unit, where it has conditional T1 theorems and a conditional T3 refinement of its private
 `decrypt_ratchet` on every path (`decrypt_ratchet_refines_complete`, and a restated form that takes
-`Session::invariant` in place of most of the run's bounds and four counter ceilings, assumed, for the rest); that theorem is
+`Session::invariant` in place of the run's bounds, five of whose eleven fields the invariant gives alone and two more with an
+assumed sparse epoch ceiling, one the model, and four counter ceilings, assumed, the remaining three and a Braid epoch bound;
+each ceiling excludes a state the invariant accepts, the clock case shown in Lean and the other three by reading of the Rust,
+not checked in Lean); `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than

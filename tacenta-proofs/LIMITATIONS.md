@@ -2429,7 +2429,16 @@ session reaches: the clock parked at `MAX_EVENTS = u32::MAX - 1`, a sparse epoch
 counter at `u64::MAX`. The first is proved (`invariant_does_not_give_counterHeadroom`, at a session over fresh states with the
 parked clock, under `ValidKeyShape` and `OptionEqU64Shape` of the table above and `DhCodecTotal`); the other three are by reading the sparse ratchet's and the
 Braid's `invariant` documentation and are not checked. That the crate's operations reach the parked clock is the clamp's
-documented behaviour and is not checked either. These are the successor-headroom premises that
+documented behaviour and is not checked either. An exclusion is permanent for a session: once the clock parks it stays, so
+every later `decrypt_ratchet` of that session is outside the theorem, and one exhausted chain counter, a send chain's included,
+excludes every receive until its epoch retires. By reading only, not proved: by clause (b) of `Session::invariant`
+(`tacenta-core/lifecycle/src/lifecycle.rs`, the Braid-epoch relation in `structural_invariant`) the sparse epoch equals the
+Braid epoch or is one below it while the Braid has not failed, and a failed Braid is refused before the Triple step (the
+terminal guard at the top of `decrypt_ratchet`), so wherever the run bounds are used the Braid epoch ceiling covers the sparse
+one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The satisfiability witness
+(`counterHeadroom_sessionOf`, and the joint witness `invReal`) is a session over fresh states and exercises no ceiling away from
+zero (`sparseCounters` holds vacuously there); no witness with a stored key, an open chain or the held-KEM state is given.
+These are the successor-headroom premises that
 [PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
 `PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
 
@@ -2831,9 +2840,9 @@ invariant refuses.
 
 **The per-run bounds, from `Session::invariant`.** `decrypt_ratchet_refines_of_invariant`
 (`Translation/UnitLifecycleDecryptRunBounds.lean`) restates the complete form with `Session::invariant` in place of
-`DecryptRatchetHeadroom` and of the run's receive bounds. Of the eleven fields of `RetryRunBounds`, the invariant gives seven
-(the two match bounds, the chain-table room, the two store bounds, and, with the sparse epoch ceiling, the two kept-epoch
-bounds), the model gives one (the epoch label of a Braid receive's output, `Model.Braid.receive_output_epoch_lt`), and three
+`DecryptRatchetHeadroom` and of the run's receive bounds. Of the eleven fields of `RetryRunBounds`, the invariant alone gives
+five (the two match bounds, the chain-table room, the two store bounds), the invariant with the assumed sparse epoch ceiling
+two more (the two kept-epoch bounds), the model gives one (the epoch label of a Braid receive's output, `Model.Braid.receive_output_epoch_lt`), and three
 are fields of `CounterHeadroom`, which also holds the run's Braid epoch ceiling; `CounterHeadroom` is assumed ("The headroom
 records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw conditions stay hypotheses
 (`DecryptRatchetRunInputs`). Its hypotheses hold together at the joint witness below under the same laws
