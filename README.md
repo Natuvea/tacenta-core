@@ -121,7 +121,7 @@ flowchart TD
     subgraph RECORD["Recorded and held"]
         CLAIMS["CLAIMS.md and LIMITATIONS.md<br/>each theorem claimed with the hypotheses<br/>it takes; what the proofs trust"]
         MANIFEST["manifests (attest.py)<br/>axiom pins, claim ledger, checksums"]
-        CI["CI<br/>Lean build, sorry and axiom audit, kernel replay,<br/>vectors current, Rust, 32-bit and constant-time checks"]
+        CI["CI<br/>Lean build, sorry, axiom and refuted-record audit, kernel replay,<br/>vectors current, Rust, 32-bit and constant-time checks"]
         ASSURE["ASSURANCE.md and GAP-REGISTER.md<br/>level per component, open gaps, readiness gates"]
     end
 
@@ -189,9 +189,20 @@ translated Rust: `tacenta-wire` (the decoders), `tacenta-ratchet`,
 for the field arithmetic only). A ninth, `tacenta-lifecycle`, has conditional
 panic-freedom theorems on the eight-leaf session unit, three of which took a record with a false
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`; the records are shown inhabited only in the sense
-and under the laws recorded in `tacenta-proofs/LIMITATIONS.md`; their headroom records are shown satisfiable in the same sense, with further assumptions recorded there), and no
-refinement theorem.
-The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`).
+and under the laws recorded in `tacenta-proofs/LIMITATIONS.md`; their headroom records are shown satisfiable in the same sense, with further assumptions recorded there), and, for
+its private `decrypt_ratchet`, a conditional refinement of the model's step on every path
+(`decrypt_ratchet_refines_complete`: every Triple receive refusal that the run's bounds admit is shown to be the
+model's refusal, with no case left open). A restated form, `decrypt_ratchet_refines_of_invariant`, takes
+`Session::invariant` in place of `DecryptRatchetHeadroom` and of the run's bounds: of their eleven fields the invariant gives
+five alone and two more with an assumed sparse epoch ceiling, and the model one; four counter ceilings, assumed, give the
+remaining three and a Braid epoch bound. Each ceiling excludes a state the invariant accepts (the clock case shown in Lean, the
+other three by reading of the Rust, not checked in Lean). `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
+two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
+contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
+row `SESSION-SPARSE-AGREEMENTS`); the three fields of the contract record it takes that were stronger than the crate
+are now stated at the instances the unit passes, and that the real `zeroize` functions return there is assumed; not
+checked against the real functions.
+The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`). The Braid's four KEM refusals (key generation, both halves of encapsulation, decapsulation) are refined against the model's `Failed` transitions under agreements about the KEM wrapper that are assumed, not proved, and the state witnesses for those theorems additionally assume `KemDrawsSucceed` (the real key generation and first encapsulation each succeed for some random draw), which is tested only, by every Braid test that completes an agreement. The KEM wrapper refuses a restored encapsulation state whose coefficients lie outside the bound libcrux states, so the Braid fails closed; that is tested only (`GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, open), and no theorem relates a restored Braid state to the model.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
@@ -226,12 +237,16 @@ or pull request adds on top of main (CONTRIBUTING.md); the Lean
 model build and the model-layer proofs with
 their `sorry` scan; the attestation check; the committed vectors regenerated
 from the model and compared; the Rust crates (format, lint, tests,
-property-based decoder tests) with a dependency advisory audit, a compile
-check on the minimum supported Rust version, a 32-bit compile check, and the
+property-based decoder tests, and the KEM, Braid and lifecycle tests again on
+libcrux's portable ML-KEM backend) with a dependency advisory audit, a compile
+check on the minimum supported Rust version, a 32-bit compile check and one 32-bit test run, and the
 constant-time disassembly gate (the release assembly of the two hand-written
 constant-time functions, read for conditional branches); and the committed
-Rust-to-Lean translation with its T1/T3 proofs, built and scanned for
-`sorry`. In the workflow a pull request reuses the Lean build outputs of the
+Rust-to-Lean translation with its T1/T3 proofs, built, scanned for
+`sorry`, and checked for any theorem that takes one of the five evidence records
+of the lifecycle dispatch layer that are recorded as false or empty (this does not
+show the remaining records satisfiable: `GAP-REGISTER.md`, row
+`DISPATCH-EVIDENCE-VACUITY`, stays open). In the workflow a pull request reuses the Lean build outputs of the
 newest successful push to main with the same toolchain and dependency pins, and
 rebuilds only what its changes invalidate. A module that did not change is not
 re-elaborated on the pull request: the messages main's build logged for it, which
@@ -253,8 +268,11 @@ the heavy one). In the other direction
 the script runs two steps the workflow does not: the interoperability
 harness, which is not in this public tree and skips here, and the fuzz smoke
 run, which needs `cargo-fuzz` and a nightly toolchain. The workflow also runs steps the
-script does not: the SPQR erasure regression (`rust_spqr_erasure`), the receipt
-writers and the aggregation job. So a green local run is the gate above less the
+script does not: the SPQR erasure regression (`rust_spqr_erasure`), the KEM, Braid and
+lifecycle tests on libcrux's portable backend (`rust_portable_kem`), the 32-bit run of
+`tacenta-core/tests/decrypt_premises.rs` on `i686-unknown-linux-gnu` (`i686_premises`, in the
+`armv7` job), the receipt writers and the aggregation job, which downloads the evidence pack it uploaded and
+verifies that copy against the commit. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 

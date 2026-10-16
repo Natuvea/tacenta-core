@@ -23,10 +23,15 @@ Triple Ratchet, the wire and storage formats, and a protobuf profile. Eight
 crates carry T1 panic-freedom and T3 refinement proofs (the erasure crate's T3
 covers its field arithmetic only, not the encoder or decoder; the Braid's T3
 takes a liveness and an unspliced-stream precondition and, for the receive, the bound
-`ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`), besides its boundary assumptions; the Triple's T1 holds on the three-leaf unit under four size
+`ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`), besides its boundary assumptions, and its four KEM refusals are refined against the model's `Failed` transitions under assumed KEM agreements; the Triple's T1 holds on the three-leaf unit under four size
 preconditions that nothing on the unit discharges, and the boundary assumptions); see
 `../tacenta-proofs/CLAIMS.md` for the ledger and `../tacenta-proofs/LIMITATIONS.md`
-for what is not covered.
+for what is not covered. The lifecycle crate has conditional T1 theorems and a
+conditional refinement of its private `decrypt_ratchet` (under, among other hypotheses,
+two assumed laws about `Vec::pop` and `Option::as_mut`), neither of which makes
+`Session::encrypt` or `Session::decrypt` proved end to end. The KEM wrapper refuses a
+restored encapsulation state whose coefficients lie outside the bound libcrux states,
+so the Braid fails closed: tested only, not proved.
 
 Not built: group messaging and sender keys (not yet scheduled), and a storage
 layer, each recorded where it matters rather than only here. Signed-prekey

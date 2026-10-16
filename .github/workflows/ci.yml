@@ -165,8 +165,18 @@ jobs:
 
   # The decoders cast attacker-controlled lengths to `usize`, which is a
   # different width on a phone; the overflow guards are written for 32 bits
-  # and this keeps that target compiling. A compile check, not a run: see the
-  # note in `tooling/ci.sh`.
+  # and this keeps that target compiling: a compile check for armv7, not a
+  # run (see the note in `tooling/ci.sh`). The job also runs one test on
+  # `i686-unknown-linux-gnu`, which a hosted runner can execute:
+  # `decrypt_premises`. Its ceiling checks are written to the 32-bit bound at
+  # every width, so what the 32-bit run adds is the shipped library's
+  # behaviour at that width: the establishment bytes of `session-e2e.json`,
+  # the outcome and the random-source draws of each `decrypt` call. It is a
+  # test of those runs, not a proof, and a step of this job rather than a
+  # step of `tooling/ci.sh`, which has no 32-bit host to run it. The
+  # `gcc-multilib` install is not pinned: apt takes the package from the
+  # runner image's Ubuntu archive, and no other step of this workflow
+  # installs from apt.
   armv7:
     runs-on: ubuntu-latest
     defaults:
@@ -180,18 +190,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
-          targets: armv7-linux-androideabi
+          targets: armv7-linux-androideabi, i686-unknown-linux-gnu
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: tacenta-core
       - id: armv7_check
         run: cargo check --locked --workspace --target armv7-linux-androideabi
+      - id: i686_install
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends gcc-multilib
+      - id: i686_premises
+        run: cargo test --locked -p tacenta-core --target i686-unknown-linux-gnu --test decrypt_premises
       - uses: ./.github/actions/assurance-receipt
         with:
           id: armv7
           classification: required
-          command: cargo-check-armv7
-          required-outcomes: "armv7_check=${{ steps.armv7_check.outcome }}"
+          command: cargo-check-armv7-and-test-i686
+          required-outcomes: "armv7_check=${{ steps.armv7_check.outcome }},i686_install=${{ steps.i686_install.outcome }},i686_premises=${{ steps.i686_premises.outcome }}"
 
   # The Rust conformance runner: the committed vectors under
   # `tacenta-test-vectors/vectors` against tacenta-core. Whether those vectors

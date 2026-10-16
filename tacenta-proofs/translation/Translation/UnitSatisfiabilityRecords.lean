@@ -28,12 +28,12 @@ nothing.  This module shows the four records are not that, in the sense below.
 ## The sense of "inhabited"
 
 Every axiom of the unit that a record reaches is an uninterpreted constant.  The unit has 231 axioms
-in all: 88 uninterpreted constants (49 reached by the records, 39 not) and 143 compiler-trust facts
+in all: 88 uninterpreted constants (50 reached by the records, 38 not) and 143 compiler-trust facts
 about the byte length of format strings, none of which mentions an interpreted constant, so replacing
-the 48 interpreted constants leaves them true.  The 49th reached axiom is the error type inside
+the 49 interpreted constants leaves them true.  The 50th reached axiom is the error type inside
 `RngCore`, which no contract looks at and which is not interpreted.  `records_of_axiom_base` is a
 theorem in the real environment, so, under the base, it holds for every assignment of the constants.
-`axiom_base_satisfiable` exhibits an assignment, `Interp.model`, of the 48 interpreted constants,
+`axiom_base_satisfiable` exhibits an assignment, `Interp.model`, of the 49 interpreted constants,
 under which the base holds.  So a derivation of `False` from a record at the real constants would, after the constants
 are replaced by the model's terms, become a derivation of `False` from facts that hold in the
 model.  That last step is an argument about derivations and not a theorem inside Lean.  Stating it
@@ -48,9 +48,12 @@ by `Iff.rfl` (`UnitSatisfiabilityJoint.decoderNewI` does this for one function).
 * It does not cover the headroom records (`EncryptHeadroom`, `DecryptRatchetHeadroom`,
   `EstablishInitiatorHeadroom`, `EstablishResponderHeadroom`): a theorem is also vacuous if no input
   meets them.
-* It does not change any record, and three of their fields (`SessionUnitSpqrT1.ZeroizeTotal`,
-  `SessionUnitBraidT1.ArrayZeroizeTotal`, the `Vec::zeroize` conjunct of `VecRetainTotal`) stay
-  stronger than the crate supports (`UnitSatisfiabilityZeroizeScope.lean`).
+* It does not change any record.  Three fields (`SessionUnitSpqrT1.ZeroizeTotal`,
+  `SessionUnitBraidT1.ArrayZeroizeTotal`, the `Vec::zeroize` conjunct of `VecRetainTotal`) are stated
+  at the instances the unit passes to `Array::zeroize` and `Vec::zeroize`; the general forms they
+  replaced, which no interpretation that propagates a failing instance's failure satisfies, are kept
+  in `UnitSatisfiabilityZeroizeScope.lean`.  That the real functions return at those instances is
+  assumed, not shown (the first bullet).
 * `State.decoders_bounded` and `State.ct1_bounded` are not shown to be kept by a send or a receive.
 -/
 
@@ -229,7 +232,7 @@ end Tacenta.UnitSatisfiabilityRecords
 /-! ## Axiom pins
 
 The axiom bases of the results above, held by the build.  A list names the constants that occur in
-the statement of a result, and these are the 48 interpreted constants the records reach, plus the error
+the statement of a result, and these are the 49 interpreted constants the records reach, plus the error
 type inside `RngCore`; the proofs assume about them exactly the hypotheses in the statements
 (`EncryptAxiom`, `StdLaws` and so on).  `axiom_base_satisfiable` and
 `axiom_base_satisfiable_for_total_rng` are statements about an interpretation and list the standard
@@ -267,6 +270,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.stdLaws_real_iff' depends on axioms: [p
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -324,6 +328,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.ratchetLaws_of_base' depends on axioms:
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -381,6 +386,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.encrypt_contracts_of_axiom_base' depend
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -438,6 +444,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.decrypt_contracts_of_axiom_base' depend
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -495,6 +502,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.initiator_contracts_of_axiom_base' depe
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -552,6 +560,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.responder_contracts_of_axiom_base' depe
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -609,6 +618,7 @@ info: 'Tacenta.UnitSatisfiabilityRecords.records_of_axiom_base' depends on axiom
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,

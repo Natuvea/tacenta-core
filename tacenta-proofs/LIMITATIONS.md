@@ -2245,9 +2245,12 @@ whose agreement chunk is consistent and not for a run whose chunk is not, refuse
 record only the two chunk fields are decided. The oracle's restated KEM and signing clauses follow from laws read
 from the source and have a model with a refused key. The restated KEM success clause binds the code only where the
 model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets it. The oracle's other clauses, and
-the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below). The
+the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below); the four
+clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of them. The
 per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
-model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
+model's comparison of a repeated initial ephemeral was not constrained by `OracleOf` until the model decoded both strings
+before agreeing; the corrected comparison is, and the code's refines it ("The repeated-initial comparison", below), but no
+dispatch theorem takes that yet. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
 lemmas cover a refused message only if the agreement chunk it carries is a codeword of one source that fits the
 decoder it is fed to. When the receiving decoder already holds a chunk, a message an attacker sends with an altered
@@ -2304,9 +2307,9 @@ hypotheses of the Session lifecycle theorems. A theorem whose hypothesis nothing
 satisfy is true and says nothing, and two of the four records contained such a
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 
-**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 48 of the opaque axioms of
-`TacentaSessionUnit.lean` (6 types, 4 constants, 38 functions; of the unit's other 40 axioms, 39 are reached
-by no field, and the 40th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
+**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 of the opaque axioms of
+`TacentaSessionUnit.lean` (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
+by no field, and the 39th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
 interpreted because no contract looks at it) in one structure, and shows that one
 interpretation satisfies every field of the four records that mentions only those constants,
 the two model classes and five laws about standard-library and `zeroize` operations. Each shape is bound to the
@@ -2318,9 +2321,9 @@ axiom parts of the four records, the class `SessionUnitT1.DerivedKeysModel` and 
 the four records, and that they have a model (`records_of_axiom_base`, `axiom_base_satisfiable`).
 
 **The sense of "inhabited".** Every axiom of the unit that a record reaches is an uninterpreted constant. The
-unit has 231 axioms in all: 88 uninterpreted constants (49 reached by the records, 39 not) and 143 compiler-trust
+unit has 231 axioms in all: 88 uninterpreted constants (50 reached by the records, 38 not) and 143 compiler-trust
 facts about the byte length of format strings, none of which mentions an interpreted constant, so replacing the
-48 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
+49 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
 constants; the second exhibits an assignment under which the base holds. So a derivation of `False` from a record at the real constants would, after the constants are replaced by
 the model's terms, become a derivation of `False` from facts that hold in the model. That last step is an
 argument about derivations and not a theorem inside Lean. Making it one needs a copy of every translated body
@@ -2335,8 +2338,8 @@ only one.
 
 | Law | Statement | Used by | Needed? |
 |---|---|---|---|
-| `LawPop` (`UnitSatisfiabilityRatchet.lean`) | `Vec::pop` of a non-empty vector returns the vector without its last element. `VecPopTotal` says only that it returns. | `SessionUnitT1.RemoveSkippedAtTotal`, `SessionUnitSpqrT1.RemoveSkippedAtTotal` (the sparse field's length claim, the classical field's key and value claims) and the three loop contracts inside `VecRetainTotal` (they terminate only because `pop` shortens), so by `EncryptContracts`, `DecryptRatchetContracts` and `EstablishResponderContracts` | A `pop` that returns `(none, v)` for every vector falsifies both removal fields, given `ZeroizeTotal` and, for the classical one, `LawBlanketU32` (`..._false_of_noop_pop`); whether every `pop` that does not shorten does is not checked. Not shown to be exactly implied by a field. |
-| `LawAsMut` | `Option::as_mut` returns, at every type (the proofs use it at `Option<Chain>` only) | `SetChainsLoopTotal`, `ClearChainsLoop0Total`, through `Chains::zeroize` (same three records) | Forced at `Option<Chain>` by `SetChainsLoopTotal` (`setChainsLoopTotal_forces_asMut`) |
+| `LawPop` (`UnitSatisfiabilityRatchet.lean`) | `Vec::pop` of a non-empty vector returns the vector without its last element. `VecPopTotal` says only that it returns. | `SessionUnitT1.RemoveSkippedAtTotal`, `SessionUnitSpqrT1.RemoveSkippedAtTotal` (the sparse field's length claim, the classical field's key and value claims) and the three loop contracts inside `VecRetainTotal` (they terminate only because `pop` shortens), so by `EncryptContracts`, `DecryptRatchetContracts` and `EstablishResponderContracts`; and, as the field `pop` of `DecryptRatchetAgreements`, the derivation of `SessionUnitSpqrT3.VecRetainAgrees` and `RemoveSkippedAtAgrees` (`UnitSatisfiabilitySpqrSessionLaws.lean`) | A `pop` that returns `(none, v)` for every vector falsifies both removal fields, given `ZeroizeTotal` and, for the classical one, `LawBlanketU32` (`..._false_of_noop_pop`); whether every `pop` that does not shorten does is not checked. Not shown to be exactly implied by a field. |
+| `LawAsMut` | `Option::as_mut` returns, at every type (the proofs use it at `Option<Chain>` only) | `SetChainsLoopTotal`, `ClearChainsLoop0Total`, through `Chains::zeroize` (same three records); and, as the field `asMut` of `DecryptRatchetAgreements`, the derivation of `SessionUnitSpqrT3.VecRetainAgrees` | Forced at `Option<Chain>` by `SetChainsLoopTotal` (`setChainsLoopTotal_forces_asMut`) |
 | `LawBlanketU32` | the blanket `Zeroize` returns at `u32` | the classical `SessionUnitT1.RemoveSkippedAtTotal`, through `SkippedKey::zeroize` (`DecryptRatchetContracts`, `EstablishResponderContracts`) | Forced by that field with `ZeroizeTotal` (`ratchetRemoveSkippedAtTotal_forces_blanketU32`) |
 | `TruncateTotal` (`SessionUnitErasureT1.lean`, already the hypothesis of `message_no_panic`) | `Vec::truncate` returns at `Vec<u8>` | the bounded `DecoderMessageTotal`, so `DecryptRatchetContracts`, `EstablishResponderContracts` | Not checked whether the field forces it |
 | `DivCeilValue` (`SessionUnitDecoderBound.lean`) | `usize::div_ceil a 32` returns `(a + 31) / 32` | `DecoderNewTotal` and `EncoderNewTotal`, each exactly equivalent to "`div_ceil` returns at divisor 32" (`decoderNew_iff`, `encoderNew_iff`), so by `EncryptContracts` (through `EncoderNewTotal`), `DecryptRatchetContracts` and `EstablishResponderContracts` (`EstablishInitiatorContracts` has no erasure field and takes none of the five laws); stated by `EstablishResponderContracts` as `divCeilValue` and by no other | The two fields are equivalent to the weaker law, which is implied by this one |
@@ -2345,8 +2348,12 @@ only one.
 statements than these (`pop` returns the last element, `truncate` is a prefix, `div_ceil` is ceiling division,
 `as_mut` is the identity borrow, `capacity` is at least the length: `FaithfulShape`), so the witness is the real
 operation on them and not a degenerate function with the weak property. The blanket `Zeroize` is modelled as the
-identity, which is not what it does; only its returning is used by a law (the array, vector and tuple `Zeroize` are the identity too). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, so no product
-theorem and no record changed for them; they are assumptions of the inhabitation result only. `DivCeilValue` is the
+identity, which is not what it does; only its returning is used by a law (the array, vector, pair and tuple `Zeroize` are the identity too; `UnitSatisfiabilityZeroizeScope.lean` gives a second interpretation in which the array, vector and pair ones zeroize element by element and propagate a failing element's failure, and which satisfies every shape as well). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, and no contract
+record changed for them. `LawPop` and `LawAsMut` are, however, fields of `DecryptRatchetAgreements`, so the
+`decrypt_ratchet` theorems take them as hypotheses: with the contract fields `ZeroizeTotal` and the first two conjuncts of
+`VecRetainTotal` they derive the two sparse agreements about translated functions (the section on the
+`decrypt_ratchet` refinement below). `LawBlanketU32` and `TruncateTotal` remain assumptions of the inhabitation result
+only. `DivCeilValue` is the
 field `divCeilValue` of `EstablishResponderContracts`, added by the repair of the receive decoder hypothesis and counted as
 the fourteenth session contract. `DecoderNewTotal` and
 `EncoderNewTotal` stay fields of the records although `DivCeilValue` implies both; whether they can be removed
@@ -2413,6 +2420,28 @@ and the wrapper around the one-time prekey vector inhabited by the contract reco
 derivations and not a theorem inside Lean, and not a statement that the real `PrivateKey` has a value, that the real primitives
 satisfy `ValidKeyShape`, or that the real `Option::eq` behaves.
 
+*Counter ceilings, assumed.* `DecryptRatchetHeadroom` is a size record; the `decrypt_ratchet` refinement also takes counter
+ceilings, which no record above holds. `UnitLifecycleDecryptRunBounds.lean` derives the run's receive bounds from
+`Session::invariant` and collects the ceilings the invariant does not give in one record, `CounterHeadroom`, which is ASSUMED
+per run: `events + 1 < u32::MAX` for the classical clock, `epoch + 1 < u64::MAX` for the sparse epoch, every sparse chain
+counter below `u64::MAX`, and `epoch + 1 < u64::MAX` for the Braid. Each excludes a state the invariant accepts and a long
+session reaches: the clock parked at `MAX_EVENTS = u32::MAX - 1`, a sparse epoch or a Braid epoch at `u64::MAX - 1`, a chain
+counter at `u64::MAX`. The first is proved (`invariant_does_not_give_counterHeadroom`, at a session over fresh states with the
+parked clock, under `ValidKeyShape` and `OptionEqU64Shape` of the table above and `DhCodecTotal`); the other three are by reading the sparse ratchet's and the
+Braid's `invariant` documentation and are not checked. That the crate's operations reach the parked clock is the clamp's
+documented behaviour and is not checked either. An exclusion is permanent for a session: once the clock parks it stays, so
+every later `decrypt_ratchet` of that session is outside the theorem, and one exhausted chain counter, a send chain's included,
+excludes every receive until its epoch retires. By reading only, not proved: by clause (b) of `Session::invariant`
+(`tacenta-core/lifecycle/src/lifecycle.rs`, the Braid-epoch relation in `structural_invariant`) the sparse epoch equals the
+Braid epoch or is one below it while the Braid has not failed, and a failed Braid is refused before the Triple step (the
+terminal guard at the top of `decrypt_ratchet`), so wherever the run bounds are used the Braid epoch ceiling covers the sparse
+one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The satisfiability witness
+(`counterHeadroom_sessionOf`, and the joint witness `invReal`) is a session over fresh states and exercises no ceiling away from
+zero (`sparseCounters` holds vacuously there); no witness with a stored key, an open chain or the held-KEM state is given.
+These are the successor-headroom premises that
+[PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
+`PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
+
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
 it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
@@ -2441,27 +2470,50 @@ keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the
 - That the bounded `DecoderMessageTotal` is a statement about the real decoder. It is true of the translation:
   `Vec::with_capacity` never fails in the Aeneas model, and the real function panics for an absurd capacity,
   which `Decoder::invariant` excludes for a decoder a Braid holds.
-- The three fields that are stronger than the crate (next paragraph).
+- That the real `Array::zeroize` and `Vec::zeroize` return at the instances three fields are stated at (next paragraph).
 - The classification of the fields (which are about opaque constants, which about translated functions) is
   checked by the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`, which that script
   appends to a copy of the joint module and runs, and not by `lake build`.
 
-**Three fields are stronger than the crate supports.** `SessionUnitSpqrT1.ZeroizeTotal`,
-`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that
-`Array::zeroize` and `Vec::zeroize` return for every instance record `inst : Zeroize Z`, including one whose
-`zeroize` fails. They are consistent: the joint model satisfies them, so they do not make any record empty. The real functions call `inst.zeroize`
-on each element and so fail on a failing instance, so the statements are false of the crate for such an
-instance (`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`). The unit calls
-`Array::zeroize` at 34 sites, all at the instance `Blanket U8` on a 32-byte array, and `Vec::zeroize` at 5, at
-`Pair (Blanket U64) Chains` (2), `Skipped` (2) and `SkippedKey` (1). The records are not changed here. A trial on a copy of this tree
-replaced the fields by the scoped statements at those instances (`ArrayZeroizeU8Total`, and the `Vec::zeroize` statement
-at the chain table and the skipped-key store). It needed three definitions and 17 further edits in four generated
-files (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`, `SessionUnitTripleT1`, `SessionUnitBraidT1`: 11 applications `hz inst a` become
-`hz _ a`, 4 uses of the `Vec::zeroize` conjunct, one in `array_zeroize_spec`, and the generic stepping lemma
-`zeroize_step`), and three axiom pins in `SessionBraidReceiveVacuity.lean` stopped matching. Nothing in the lifecycle,
-dispatch and record files needed an edit. One failure was not mechanical: with the chain table alone,
-`skip_message_keys_no_panic` stopped building, because its proof applies the conjunct to the skipped-key store as well.
-The trial is not part of this change, and the numbers are from that one build.
+**Three fields are stated at the unit's instances.** `SessionUnitSpqrT1.ZeroizeTotal`,
+`SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` used to say
+that `Array::zeroize` and `Vec::zeroize` return for every instance record `inst : Zeroize Z`, including one whose
+`zeroize` fails. The real functions call `inst.zeroize` on each element and so fail on a failing instance: the general
+forms were consistent (the joint model satisfied them) but stronger than the crate supports
+(`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts` and its two siblings, kept as the record). The
+fields are now stated at the instances the unit passes: `Array::zeroize` at the blanket `u8` instance on a 32-byte
+array, and `Vec::zeroize` at the chain table (`Vec<(u64, Chains)>`), the sparse skipped-key store (`Vec<Skipped>`) and
+the classical one (`Vec<SkippedKey>`). A walk of the elaborated definitions of `TacentaSessionUnit.lean` found 34 calls of
+`Array::zeroize`, all at that instance and width, and 5 of `Vec::zeroize`, at those three instances (2, 2 and 1). The walk
+was run once, when the fields were restated; no gate repeats it. A new call at another instance or width in a function a
+theorem steps through is expected to stop that proof, because the restated fields and their stepping rules apply at the
+stated instance only (not checked); a new call in a function no theorem covers, such as a `Drop` implementation, would
+go unnoticed. No proof steps through a call at the classical `Vec<SkippedKey>` instance; the conjunct is stated so that
+the field covers every instance the unit passes, and the derivation of the sparse agreements passes it on only to build
+`VecRetainTotal`.
+
+What changed, and where. The Session copies are generated: the restated statements and the proof edits that use them
+are named, count-checked `unit_edit`s in `port-session-unit-proofs.sh` (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`,
+`SessionUnitTripleT1`, `SessionUnitTripleT3`) and `port-session-braid-proof.sh` (`SessionUnitBraidT1`): eleven
+applications of `ZeroizeTotal` drop the instance argument, three drop the instance placeholder (`hzs _ a` becomes `hzs a`), four uses of the
+`Vec::zeroize` conjunct select the instance by projection, and `zeroize_step` and `array_zeroize_spec` are stated at the
+one instance. One non-generated proof file, `UnitLifecycleTripleRefusalT3.lean`, needed the same two kinds of edit.
+The standalone leaf files and the three-leaf unit keep the general forms, which are stronger than their crates in the
+same way (`CLAIMS.md`, the section on hypotheses about translated functions in the leaf crates and the three-leaf
+unit). The joint model gains one interpreted constant, the pair `Zeroize` (`Pair.Insts.ZeroizeZeroize.zeroize`), which
+the chain table's instance reaches, and rebuilds the three instance records over the interpretation; the classification
+audit allows the eleven structure accessors those records read, each only if the environment says it is a projection.
+The statements of the three fields are pinned by `#print` (`UnitSatisfiabilityZeroizeScope.lean`).
+
+What is assumed. That the real `Array::zeroize` returns at the blanket `u8` instance on a 32-byte array, and that the
+real `Vec::zeroize` returns at the three instances. By reading, the blanket `Zeroize` writes zeros through volatile
+stores, the element `zeroize` of the three instances reaches only that, `Array::zeroize` over it, the pair `Zeroize` and
+`Option::as_mut`, and `Vec::zeroize` zeroizes each
+element, clears the vector, which drops each element (`SkippedKey`, `Skipped`, `Chain` and `Chains` derive `ZeroizeOnDrop`, so each drop zeroizes
+again), and zeroes its spare capacity; none of these returns an error or panics short of the memory
+faults no proof here covers. This is not checked by a proof or a test. Every axiom-level shape, the restated fields among them, holds in an interpretation whose
+`Array::zeroize`, `Vec::zeroize` and pair `Zeroize` work element by element and propagate a failure
+(`faithful_satisfies_all_axiom_shapes`); that is a model of the shapes and says nothing of the real functions.
 
 ### The clauses of `OracleOf`: inhabited under eleven laws, and what that means
 
@@ -2474,9 +2526,30 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 | Law | Statement | Status |
 |---|---|---|
 | `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input a Rust program can supply and memory allows; the Lean slice type admits lengths up to `Usize.max`, which no Rust slice has, and the real `aead::encrypt` panics on a `Vec` capacity overflow just below `isize::MAX` bytes, so these fields are false of the real functions at the top of that range and under memory exhaustion (by reading); the AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
-| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the top of the length range that the totality row excludes. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target), so that it does not depend on the width of `usize` is by reading only |
+| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the top of the length range that the totality row excludes. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target; its `i686` step runs `decrypt_premises` alone), so that it does not depend on the width of `usize` is by reading only |
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
+
+**Four laws suffice for `DecryptOracleOf`.** `DecryptOracleOf` (`UnitLifecycleDecryptRatchetT3.lean`), the four clauses of
+`OracleOf` that `decrypt_ratchet_refines` and `decrypt_ratchet_refines_complete` take (`dhPublic`, `dhAgree`, `aeadOpen`,
+`random32`), follows from four of the eleven: `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and `DhViewInjective`
+(`decryptOracleOf_of_laws`, `UnitOracleDecrypt.lean`); `random32` needs no law at the byte-stream source. The four are
+sufficient and not shown necessary: of `DhCodecTotal` the proof uses only the `public_key` conjunct, and injectivity is
+more than the clauses need. The lemma builds
+its oracle from the per-clause lemmas over `InterpO.decrypt`, an interpretation whose DH and AEAD-open constants are the
+real ones (bound to the three totality predicates by `decryptInterp_laws_iff`), and does not go through `oracleOf_of_laws`.
+Its statement takes only those four laws, so the other seven, `DhIdentityTotal`, `AeadSealBounded`, `KemDecapsulateTotal`,
+`XeddsaVerifyTotal`, `SignFillsOnce64`, `KemShape` and `KemViewInjective`, are not hypotheses of this route to
+`DecryptOracleOf`; that is held by its statement pin. Its axiom pin shows in addition that the witness oracle is built
+without the KEM, signing, identity-test, AEAD-seal and KDF constants, a property of the proof and not of the statement. They remain assumed wherever `OracleOf` or `OracleOfGuarded` is used, which includes every
+lifecycle and dispatch theorem that takes `OracleOf`. The model frame lemma `decrypt_oracle_frame`
+(`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads only the oracle's `draws`,
+`braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the oracle fields this route takes from the model's toy primitives, or
+sets to refusals, are not read by the model's `decrypt`. The four laws keep the status the table gives them: assumed, not
+proved of the shipped functions. Not checked: which KEMs meet those agreements; the lemma lets the caller choose the KEM
+and shows nothing about it. That the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's `braidKem` hold
+together is shown at one witness, under named laws with a model, in the `decrypt_ratchet` section below ("The hypotheses
+together, at one witness").
 
 The two view laws are conditions on the views a caller passes, not on the primitives. Each of the seven clauses the
 integration screen left open says that a primitive returns and that the view of its result depends only on the views of
@@ -2533,9 +2606,10 @@ Whatever a dispatch theorem proves with it is a statement about the model run wi
   clauses does not change that.
 - The gate that looks for a hypothesis nothing satisfies (`check-hypothesis-witnesses.sh`) reads the sections of
   `CLAIMS.md` whose heading names a tier or a decoded state, and the section of these results is not one of them, so it
-  does not read `oracleOf_of_laws` or `oracleOfGuarded_of_laws`. A hypothesis added to either is held by the statement pin
-  of the theorem and by no other gate. That their eleven hypotheses hold together is argued from `oracleOf_joint_model`,
-  a theorem about `OracleLaws` at a model, by the argument about derivations above.
+  does not read `oracleOf_of_laws`, `oracleOfGuarded_of_laws` or `decryptOracleOf_of_laws`. A hypothesis added to any of
+  them is held by the statement pin of the theorem and by no other gate. That the eleven hypotheses of the first two hold
+  together is argued from `oracleOf_joint_model`, a theorem about `OracleLaws` at a model, by the argument about
+  derivations above; the four of `decryptOracleOf_of_laws` are among them.
 - These results have been read by their writer and by tool-assisted readers working for the maintainer; no reviewer
   independent of the maintainer has read them.
 
@@ -2613,6 +2687,54 @@ Lean. `K` is existential in `KemAgreesFor K`, so the model's choice of `toyKem` 
 coefficient check the real function makes after the hash; such a `K` exists, but the check is read from the
 source (`kem/src/lib.rs`) and no test runs a vector that matches the hash and fails the check.
 
+**A KEM model read off the wrapper, and the laws it rests on.** `Translation/UnitKemWrapperModel.lean` builds one `K`,
+`wrapperKem`, whose operations call the wrapper's opaque functions on byte views of their arguments (the model's randomness
+read as the byte-stream source `byteRng`; the private part the 64 key-generation bytes; the encapsulation secret the 32
+encapsulation bytes followed by the header; `hashEk` the hash `validate_ek` accepts, or the empty string where it accepts
+none, so the coefficient check after the hash is folded in), and proves `KemLenAgrees`, `KemAgreesFor` and
+`ValidateEkAgrees` at it from eight laws (`CLAIMS.md`, the section on that model). `KemCloneAgrees` mentions no `K` and is
+one of the laws. Each law is a statement about opaque `tacenta_kem` constants, and each is assumed:
+
+- `LawKemConstants`: `HEADER_LEN`, `EK_VECTOR_LEN`, `CT1_LEN` and `CT2_LEN` are 64, 1536, 1408 and 160. Read from the source
+  (`kem/src/lib.rs`; `HEADER_LEN` and `EK_VECTOR_LEN` are libcrux's `pk1_len()` and `pk2_len()`), and exercised by the
+  crate's test `the_sizes_are_the_specifications_sizes`.
+- `LawGenerateSeeded`: from any source that answers, `generate` returns what it returns from the byte stream of some 64
+  bytes. Read from the source (`generate` draws one 64-byte seed and hands it to libcrux); that libcrux's key generation
+  is a function of the seed is not checked.
+- `LawGeneratedKeyPair`: a key pair generated from 64 bytes has a 64-byte header and a 1536-byte vector that `validate_ek`
+  accepts together, and `decapsulate` returns on it for any ciphertext halves of 1408 and 160 bytes, including halves no
+  encapsulation produced. The lengths and the acceptance are exercised by the crate's tests
+  (`the_sizes_are_the_specifications_sizes`, `validate_ek_accepts_the_real_key_and_rejects_a_substitute`); that
+  `decapsulate` returns on every such input is not checked.
+- `LawEncapsulate1Seeded`: from any source that answers and a 64-byte header, `encapsulate1` returns what it returns from
+  the byte stream of some 32 bytes. Read from the source; that libcrux's first half is a function of the header and the 32
+  bytes is not checked.
+- `LawEncapsulate2Fresh`: `encapsulate2` returns, `Ok` or `Err`, on a state `encapsulate1` produced and any 1536-byte
+  vector, including a vector that `validate_ek` refuses. So the law assumes that libcrux returns on inputs outside its
+  stated precondition: libcrux deserializes the vector's 12-bit coefficients without reduction, so they reach 4095, and it
+  states `|c| <= 3328` for the arithmetic; the wrapper leaves that side of the precondition to `validate_ek`
+  (`kem/src/lib.rs`, the comment in `encapsulate2`). The Braid never calls `encapsulate2` there, because it validates the
+  vector first. The proofs need the law in this form: `EncapsRefines` quantifies over every 1536-byte vector. A probe by a
+  reader of these results, outside the tree, made 12,000 such calls on the NEON and portable backends, every coefficient
+  at 4095 among them, and each returned `Ok`; the AVX2 backend was not run. That is testing, not proof, and no test in the
+  tree makes such a call. The coefficient-bound refusal of `encapsulate2` is inside this opaque function, so it enters only
+  here, and the law says nothing of whether it refuses a fresh state.
+- `LawValidateEkTotal`: `validate_ek` returns on a 64-byte header and a 1536-byte vector.
+- `LawValidateEkUnique`: two 64-byte headers with the same first 32 bytes that `validate_ek` accepts with one vector are the
+  same bytes. Read from the source: libcrux compares the last 32 bytes with a hash of the vector and the seed.
+- `LawKemClone`: `KemCloneAgrees`, as stated above.
+
+One interpretation, `Interp.modelShipped`, satisfies the eight together with every other law the decrypt joint statement
+takes (`decrypt_wrapper_laws_model`), in the substitution sense of the section on the four contract records. In it key
+generation and encapsulation ignore the source and return constant bytes and nothing refuses, so it shows the laws
+consistent, not that the wrapper meets them, and it exercises no refusing arm of `wrapperKem`. Not shown: a key pair or
+state restored by `from_bytes` has no model value at `wrapperKem`, so the refinement relations at it are shown only for
+values `generate` and `encapsulate1` produce; `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at it. One
+further law about the wrapper, `LawGenerateSucceeds` (`generate` returns `Ok` from some 64-byte stream), is taken only by
+the witness whose Braid holds a key pair ("The hypotheses together, at a Braid that holds a key pair", below), where it is
+recorded.
+So the KEM side of the decrypt joint statement at `wrapperKem` does not rest on the eight laws alone. The corollary also takes, through the bundle's `braid` field (`BraidReceiveAxiom`), `SessionUnitBraidT1.KeyPairDecapsulateTotal`, `Encapsulate2Total` and `ValidateEkTotal`, which say that `decapsulate`, `encapsulate2` and `validate_ek` return on every value, restored key pairs and states and inputs of any length included; the eight laws do not narrow them, and those three imply the totality parts of `LawGeneratedKeyPair`, `LawEncapsulate2Fresh` and `LawValidateEkTotal`. They were in the bundle before these results and are not shown false; the first is the statement `GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, records as sampled and not shown total.
+
 **Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
 theorem about the translated coder under two laws, because the translation leaves two library functions
 opaque: `usize::div_ceil` at divisor 32 returns `(a + 31) / 32` (`DivCeilValue`, already a field of
@@ -2646,7 +2768,8 @@ of `random_secret` from the caller's random source. `DhCodecOf` says the byte vi
 injective on bytes, which holds of the locked `x25519-dalek 2.0.1` because `StaticSecret::from` stores the bytes unchanged
 and clamps at use, and would stop holding of a release that clamps at construction. `DecryptRatchetAgreements` assumes
 round trips of the opaque `zeroize::Zeroizing` wrapper at 32, 64, 80 and 96 bytes, the HMAC and HKDF agreements with
-`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), and the KEM agreements of the Braid section above. Those
+`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), the KEM agreements of the Braid section above, and two
+laws about `Vec::pop` and `Option::as_mut` (the paragraph on the sparse store below). Those
 include `ValidateEkAgrees K`, which holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
 coefficient check, so the model step this theorem relates to is the model run with that `K`. None is shown of the real
 X25519, AEAD, KDF, ML-KEM or `zeroize` code. What is shown is that they are consistent: one interpretation of the unit's
@@ -2662,18 +2785,34 @@ public key, an agreement that returns the private key and refuses the all-zero p
 the empty plaintext and refuses the empty ciphertext. Neither model shows anything of the real X25519 or AEAD.
 
 **Assumed, about the session contract records.** The theorem takes `DecryptRatchetContracts` and the class
-`DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields
-are stronger than the crate supports: `SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the
-`Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize` return for every
-`Zeroize` record, including one whose `zeroize` fails, and the real functions do not (the paragraph "Three fields are
-stronger than the crate supports"). The unit calls them only at instances that return. The proof of this theorem uses all
-three, so it cannot be applied to the shipped functions until they are restated at those instances. The records also hold
+`DerivedKeysModel`. The records are described in the section on the four contract records above. Three of their fields,
+`SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of
+`SessionUnitSpqrT1.VecRetainTotal`, say that `Array::zeroize` and `Vec::zeroize` return at the instances the unit passes to
+them; that the real functions do is assumed (the paragraph "Three fields are stated at the unit's instances"). Before they
+were restated they quantified over every `Zeroize` record, which the real functions do not support. The records also hold
 `Random32Total` and `MessageKeyMaterialRoundTrip`, a round trip of the `zeroize::Zeroizing` wrapper at a tuple of three
 arrays.
 
-**Assumed, about translated functions.** `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`
-are statements about the session unit's sparse ratchet that it takes as assumptions (`GAP-REGISTER.md`, row
-`SESSION-SPARSE-AGREEMENTS`); the screen does not decide them. `ErasureAgrees` follows from the two laws above.
+**The sparse store: laws about opaque operations, in place of two agreements about translated functions.**
+`SessionUnitSpqrT3.VecRetainAgrees` (the chain-table and skipped-key scans of `set_chains` and `clear_old_epochs` keep
+what the model keeps) and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` (the removal helper returns the key at the index it
+removes and the vector with that index erased) are statements about translated functions. The theorems do not take
+them: the proof derives them (`DecryptRatchetAgreements.vecRetainAgrees`, `.removeSkippedAtAgrees`, through
+`UnitSatisfiabilitySpqrSessionLaws.lean`) from five laws about opaque operations, all assumed: `LawPop` (`Vec::pop` of a
+non-empty vector returns the vector without its last element) and `LawAsMut` (`Option::as_mut` returns, at every type),
+the two fields `pop` and `asMut` of `DecryptRatchetAgreements`; and three laws the contract record already states,
+`LawCapacity` (`Vec::capacity` returns) and `UnitSatisfiabilityRatchet.LawVecZeroize` (`Vec::zeroize` returns at the
+chain table and the two skipped-key stores), the first two conjuncts of `SessionUnitSpqrT1.VecRetainTotal`, and `SessionUnitSpqrT1.ZeroizeTotal`
+(`Array::zeroize` returns at the blanket `u8` instance on a 32-byte array). `RemoveSkippedAtAgrees` uses the pop and
+array laws; `VecRetainAgrees` uses all five. None of the five is proved of the real functions or tested; each is assumed,
+and matches the documented behaviour by reading only. What is shown of them is consistency: they hold in the joint model `Interp.model`, in
+which every axiom-level field of the four contract records holds (`spqrSessionLaws_model`), and in the interpretation of
+`UnitSatisfiabilityZeroizeScope.lean` whose wipes propagate a failing element's failure (`faithful_SpqrSessionLaws`), in the
+substitution sense above; and an interpretation whose `Vec::pop` leaves a vector unchanged fails them
+(`spqrSessionLawsShape_fails_of_noop_pop`). The loop theorems `receive_with_eviction_loop_refines` and
+`receive_with_eviction_refines`, the refusal theorems of the complete form and the session unit's sparse and Triple
+refinement theorems still take the two agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`).
+`ErasureAgrees` follows from the two laws about `usize::div_ceil` and `Vec::truncate` above.
 
 **The random source.** The random source holds at least one draw; the model's ceiling refusal for an exhausted source has
 no Rust counterpart. The source is read through a function `trace` that gives the draws left in its value, so the theorem
@@ -2699,6 +2838,154 @@ the boundary records. The witness states meet these hypotheses and not `Ratchet:
 store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
 invariant refuses.
 
+**The per-run bounds, from `Session::invariant`.** `decrypt_ratchet_refines_of_invariant`
+(`Translation/UnitLifecycleDecryptRunBounds.lean`) restates the complete form with `Session::invariant` in place of
+`DecryptRatchetHeadroom` and of the run's receive bounds. Of the eleven fields of `RetryRunBounds`, the invariant alone gives
+five (the two match bounds, the chain-table room, the two store bounds), the invariant with the assumed sparse epoch ceiling
+two more (the two kept-epoch bounds), the model gives one (the epoch label of a Braid receive's output, `Model.Braid.receive_output_epoch_lt`), and three
+are fields of `CounterHeadroom`, which also holds the run's Braid epoch ceiling; `CounterHeadroom` is assumed ("The headroom
+records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw conditions stay hypotheses
+(`DecryptRatchetRunInputs`). Its hypotheses hold together at the joint witness below under the same laws
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable`).
+
+**Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
+sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the bounds of `RetryRunBounds` above and the four ceilings of `CounterHeadroom`:
+the event counter, the sparse epoch, the chain and skipped-key epochs, the chain counters, the room in the chain table and
+in both stores, at most one stored key matching the header in each store, and the Braid epoch (the output's key epoch only
+through the Braid's own, which `step_receive` never lets it exceed). It also asserts, at each call, that the random source is
+read as `Model.Lifecycle.decryptRatchet` reads it (no draw when the dispatch, the terminal guard, the decoder or the
+incoming agreement refuses; one 32-byte draw from the first agreement on, kept on a later refusal), that a refusal leaves
+the exported bytes unchanged, that a success changes them, and that `Session::invariant` holds before and after. The runs
+start from the establishment of `session-e2e.json` and reach an accepted repeat, a pass-through success, the refusals of
+a changed or low-order ephemeral, of a replay, of a frame beyond `MAX_SKIP`, of a forged tag, of an unknown type or
+version byte, of a truncated frame, of an initial message sent to an initiator, of a low-order ratchet key and of a failed
+agreement, and a full skipped-key store with an eviction. That is evidence about those runs, on the inputs tried; it is
+not proof, and it discharges no premise for any other run. It runs at the width of the machine that runs it, and the
+`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); its bound checks are written to the 32-bit bound
+at every width, so the 32-bit run adds the shipped library's behaviour at that width, and it has not been made locally.
+It does not reach `IncomingChunkRefines` and `HonestChunk` (a chunk carries no source to read), a counter or epoch near
+its ceiling or a store near `2^32 - 1` (no run builds one), a second eviction round, a switch between the stores, a
+sparse refusal other than an out-of-order key after an eviction, or a frame naming an epoch the state holds no chain for.
+Each premise check has a control that calls it outside any run: eight on a mutated copy of an observed state, three
+(`classicalStore`, `sparseStore`, `sparseChainsRoom`) on the length arithmetic alone, with lengths no session holds, and
+`sparseOutputEpoch`, whose bound is the Braid epoch's, through the `braidEpoch` check. Those controls show the checks can
+fail; they show nothing of the runs. `Session::invariant` accepts a state with `events = u32::MAX - 1`, which is outside
+`classicalEvents`; the test imports such a state and shows the check rejects it.
+
+**The hypotheses together, at one witness.** `decrypt_hypotheses_jointly_satisfiable`
+(`Translation/UnitLifecycleDecryptScreen.lean`) shows every hypothesis of `decrypt_ratchet_refines_complete`, with
+`Session::invariant`, holding together at the real constants and the byte-stream source, at one oracle, one state pair,
+one message and one source, for every codeword view, under a bundle of fifteen fields (`DecryptJointLaws K dh`, listed
+in `CLAIMS.md`; fifteen counts fields, not distinct statements). Two interpretations satisfy all fifteen together, each a
+model in the substitution sense of the section on the four contract records: `decrypt_joint_laws_model`
+(`Interp.modelDecrypt` with `toyKem`), whose four KEM length constants are `toyKem`'s sizes (`CT1_LEN` 64, `CT2_LEN` 32,
+`HEADER_LEN` 64, `EK_VECTOR_LEN` 64), and `decrypt_joint_laws_model_at_shipped_sizes` (`Interp.modelShipped` with
+`shippedSizeKem`), whose four are the crate's (1408, 160, 64, 1536, `tacenta-core/kem/src/lib.rs`), with a model KEM of
+those sizes. In both the KEM is a model that never refuses and returns constant bytes, not ML-KEM, and the X25519 agreement,
+the AEAD open and the KDFs are toys or the model's own bytes. So the laws are shown consistent with the shipped KEM sizes;
+that the real ML-KEM wrapper meets the agreements at some `K` is shown by neither model. At `wrapperKem`, the KEM model read
+off the wrapper, the KEM agreements follow from the eight laws of the section on the Braid refinement agreements, which are
+assumed; `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem` is the joint statement at `wrapperKem` with those laws in
+place of the agreements field, and `decrypt_wrapper_laws_model` satisfies its bundle in `Interp.modelShipped`. The witness's
+Braid holds no KEM value, so that coupling is not exercised there; the second witness below exercises it at a held key
+pair.
+
+The proof restates, from the bundle, `DhCodecOf`, `DerivedKeysModel`, the axiom-level contract fields and thirteen of the
+fourteen fields of `DecryptRatchetAgreements`; it derives the contract record's defined fields and `ErasureAgrees`, and
+establishes `DecryptOracleOf` (from the four laws) and, at the witness, `Session::invariant`, `SessionRefines`,
+`DecryptRatchetHeadroom`, the trace equation and `DecryptRatchetRun`. The oracle is the one `decryptOracleOf_of_laws`
+builds, with its `braidKem` set to the KEM model `K` at which the Braid agreements are assumed, so the agreements are
+stated at the same oracle's `braidKem`. The oracle `oracleOfLaws` builds carries `toyKem` before that choice, and by
+reading the agreements fail there for the real KEM (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; it is 1408).
+At this witness the coupling holds by construction: `K` enters only through the agreements (fields of the bundle),
+`SessionRefines` (which holds for every `K`, the Braid being in `KeysUnsampled`) and the run (which does not depend on `K`,
+carrying no chunk); the theorem holds equally at `K := toyKem`. At this witness the coupling is not tested; the second
+witness below tests it at a Braid that holds a key pair. What the joint witness is not:
+
+- The state is built for the hypotheses. It is `UnitHeadroomSatisfiable.sessionOf` with one key as both identities, the
+  66-byte associated data `identity_ad` computes, no pending initial message, no established ephemeral key, no receiving
+  chain and a Braid in `KeysUnsampled`. It passes `Session::invariant` under `ValidKeyShape` and `OptionEqU64Shape`
+  (both laws of the bundle). It is not shown to be produced by `establish_initiator`, `establish_responder` or `import`.
+- The laws are assumed, not proved of the shipped functions; they are sufficient and not shown necessary. That they hold
+  together is shown in the substitution sense of the section on the four contract records, an argument about derivations
+  and not a theorem inside Lean, in two models whose primitives are toys (one of them at the shipped KEM sizes).
+- The oracle is the code read through its byte views (`oracleOfLaws` over `InterpO.decrypt`); nothing is shown of X25519,
+  the AEAD, the KDFs, ML-KEM or `zeroize`.
+- The run carries no agreement chunk; the chunk and honest fields of `DecryptRatchetRun` hold by their arm for a message
+  without one. A run carrying a chunk into a decoder that already holds one is not reached.
+- The model's step at the witness is not fixed by the laws. The message's ratchet key is 32 zero bytes, and the step refuses
+  at the first agreement with `nonContributoryAgreement` if the oracle's agreement refuses that key
+  (`invReal_model_refuses_of_agreement`); at this oracle that agreement is the real `agree` on the key
+  `PublicKeyBytes::from_bytes` returns for 32 zero bytes (`invReal_agreement_is_real`), which no law states. By reading
+  `tacenta-core/boundary/src/dh.rs` it refuses (`agree` returns `None` on a non-contributory result, which the all-zero key
+  gives), and in the model interpretation it refuses. So the witness does not exercise the Triple receive, the AEAD, the
+  eviction loop or a success; the earlier runs above do, over sessions that fail `Session::invariant`.
+- Only the byte-stream source is covered (the paragraph on the random source above).
+- `check-hypothesis-witnesses.sh` does not read the `CLAIMS.md` section of these results (its heading names no tier). A
+  law added to the bundle, or a hypothesis added to `decrypt_ratchet_refines_complete`, is held by the `#print` pins of
+  `DecryptJointLawsShape` and `DecryptHypotheses`, by `DecryptHypotheses.refines` and by the build, and by no other gate.
+- These results have been read by their writer, a tool-assisted agent working for the maintainer, and by one
+  tool-assisted reader working for the maintainer, whose findings were applied; no reviewer independent of the maintainer
+  has read them.
+
+No proof here chooses a width of `usize`, and only `DecryptHypotheses.refines` depends on a compiler-trust axiom (the nine
+of the refinement), so each result holds at both widths; no hypothesis of the set is width-dependent at this witness.
+
+**The hypotheses together, at a Braid that holds a key pair.** `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held`
+(`Translation/UnitHeldKemWitness.lean`) shows the same hypothesis set at a second witness: the first witness's session
+with its Braid in `KeysSampled` at epoch 1, holding a key pair `IncrementalKeyPair::generate` returned from a 64-byte stream
+and the header encoder after one chunk, and a model session whose Braid holds the 64 bytes as its private part and the
+bytes of the pair's `ek_vector` as its vector (`HeldKemAt`; the model Braid is the model's own transition (1) at that
+randomness). There `SessionRefines` at `wrapperKem` is asked of a held value. What it compares by value: the model's
+vector with the real vector's bytes, at every KEM model (`held_relation_pins_vector`), and the header hash, through
+`hashEkOf`, `LawValidateEkUnique` and `validate_ek` accepting the generated pair (`held_key_agreements`), with the
+lengths. What holds by definition: `wrapperKem`'s operations call the real `generate` and `decapsulate` on the held
+bytes, so its key-generation part and its decapsulation clause (the real `decapsulate kp` compared with itself) hold by
+unfolding `wrapperKem`, with only the totality of `decapsulate` on generated pairs from `LawGeneratedKeyPair`, and so
+does `HeldKemAt`'s conjunct that the model Braid is the model's transition (1). The relation is false at `toyKem`
+(`held_not_refines_toyKem`), a length mismatch (any private part not of 32 bytes), not a comparison of held bytes.
+`Session::invariant` passes under the first witness's assumptions (`ValidKeyShape`, `OptionEqU64Shape`, `DhCodecTotal`),
+`LawKemConstants` (`HEADER_LEN`), `DivCeilValue` (the encoder's size), `LawGeneratedKeyPair` (`key_pair_valid`) and
+`LawGenerateSucceeds` (the key pair itself). `decrypt_hypotheses_with_chunk_at_wrapperKem_held` is pinned but not a
+claim: a caller-selected run whose chunk (index 0, 32 zero bytes, a codeword of 1408 zero bytes by the real encoder) and
+codeword view (a constant reading every chunk as that codeword) are chosen together; 1408 zero bytes is not a
+ciphertext `encapsulate1` produces, `HonestChunk` asks nothing at that state, and the model's refusal discards the Braid
+step. It is not a non-vacuity statement for chunks, which would take every chunk that fits the real decoder.
+
+*Assumed, beyond `DecryptWrapperLaws`:* `LawGenerateSucceeds`, that `generate` returns `Ok` from the byte stream of some
+64 bytes. It is a statement about one opaque `tacenta_kem` function and the Lean byte-stream source; none of the eight
+wrapper laws gives it. Read from the source: `generate` draws one 64-byte seed and passes it to libcrux's key generation,
+which does not refuse at that length (`tacenta-core/kem/src/lib.rs`); no test in the tree checks it. It follows from the
+key-generation half of `KemDrawsSucceed` with `LawGenerateSeeded` (`lawGenerateSucceeds_of_kemDrawsSucceed`), and
+`Interp.modelShipped` satisfies it with the wrapper bundle (`held_laws_satisfiable`), in the substitution sense.
+
+What the second witness is not:
+
+- The state is built for the hypotheses; the shipped code does not produce this combination of Triple and Braid states;
+  the invariant admits it. `Session::encrypt` commits the Triple and the Braid together
+  (`tacenta-core/session-unit/src/lifecycle.rs`, `self.triple = candidate; self.braid = braid_next`), so no session
+  holds a Braid in `KeysSampled` beside a Triple that has sent nothing, as this one does. `Session::invariant` reads
+  neither the Braid's authenticator (the zero keys here; `Auth::init` derives them by HKDF) nor the header its encoder
+  carries, and `SessionRefines` does not relate that header to the key pair; only `HeldKemAt` does. The header message
+  carries the model's MAC under the zero authenticator, where `Braid::send` computes it with the opaque HMAC. That the
+  real `Braid::send` from `KeysUnsampled` under the zero authenticator lands on this Braid state was not attempted.
+- No run carrying an honest chunk is shown: the chunk run is caller-selected (above). A run into a decoder that already
+  holds a chunk is still not reached: `Session::invariant` at such a state (`HeaderSent` and the others holding a decoder)
+  calls `Decoder::invariant`, a loop over the held chunks, and no result evaluates it on a decoder holding chunks. Not
+  checked: whether that evaluation needs more than the erasure laws already assumed.
+- No encapsulation state is held, so `EncapsRefines` is not asked at a held value; a responder state at `Ct1Sampled` is
+  not built.
+- The model's step is not fixed by the laws: both messages carry the all-zero ratchet key, and the step refuses at the
+  first agreement if the real agreement refuses it (`held_model_refuses_of_agreement`, with `invReal_agreement_is_real`
+  unchanged). The Braid step the model computes at the chunk message is discarded by that refusal. No Triple receive,
+  AEAD open or success is reached.
+- The oracle's other KEM fields are not related to `wrapperKem`; nothing is shown of ML-KEM; a key pair restored by
+  `from_bytes` has no model value at `wrapperKem`.
+- These results have been read by their writer, a tool-assisted agent working for the maintainer; no other reader has.
+
+No proof here chooses a width of `usize`, and no result depends on a compiler-trust axiom (the pins), so each holds at
+both widths.
+
 **The path the first form left open.** On a run whose output is a Triple refusal with a reason other than a full store,
 the first form says nothing about the model's step (`TripleRefusalOpen`; `tripleRefusalOpen_exactly` shows it holds of
 no other output). The predicate constrains only the generated output, so it can hold where the model's step succeeds.
@@ -2719,6 +3006,48 @@ the Session unit's discharged Triple receive refinement, and on no others (`CLAI
 or the sparse ratchet's own refinement, inherits some or all of them and is therefore compiler-trusted. The number of such
 results is the one `attest.py` reports (`counts.compiler_trusted`), not repeated here; `CLAIMS.md` gives it for the two
 sections. It is expected to change if the nine constants are settled by the kernel rather than by the compiler.
+
+### The repeated-initial comparison: what it assumes, and what it leaves to the dispatch
+
+`same_ephemeral_agreement_refines` (`Translation/UnitLifecycleInitialAgreementT3.lean`) says that the comparison
+`Session::decrypt` makes between a repeated initial message's `ephemeral` and the session's `established_ephemeral` returns
+the model's `sameEphemeralAgreement`, on every private key and every two byte strings.
+
+**Assumed, about opaque operations.** Two records, neither proved of the real code. The agreement clause of the oracle,
+`OracleOf.dhAgree` (the `dhAgree` field of `DecryptOracleOf`, the only field the theorem reads), says `PrivateKey::agree`
+returns, at every key pair, the model oracle's `dhAgree` read through the byte views; nothing ties that oracle to X25519.
+`DhCodecOf` says the byte views of the two opaque key types agree with `PrivateKey::from_bytes`,
+`PublicKeyBytes::from_bytes` and `PublicKeyBytes::as_bytes` (as in "The `decrypt_ratchet` refinement", above). The translated
+`decode_ec` needs neither: `session_decode_ec_refines` and `session_decode_ec_characterization`
+(`Translation/SessionUnitDecodeEc.lean`) rest on the generated code and the model alone.
+
+**What the model now says, and why it changed.** The model's comparison decodes both 33-byte strings with `DecodeEC`
+(`Model.Lifecycle.decodeEc`) before agreeing, as session-establishment.md, Receiving the initial message, and the Rust do;
+before, it agreed on the encodings, which `OracleOf` does not constrain (`encodedEphemeralAgreement_unconstrained`). The
+decode-refusal arms are reached only on states the shipped readers do not produce: the initial-message decoder refuses a
+re-spelled `ephemeral`, and clause (f) of `Session::invariant` refuses a session whose `established_ephemeral` does not
+decode. That is read from the code; no theorem here states it.
+
+**A disagreement with the page, recorded and not resolved.** `tacenta-spec/protocol/session-persistence.md` (Session,
+Semantic rules, the optional fields' shape) says of `established_ephemeral` and the pending KEM ciphertext "Neither is
+checked where it is used". For `established_ephemeral` that does not match the Rust, whose `same_ephemeral_agreement`
+decodes it where it is used and returns `false` when it does not decode, or the model, which now does the same; the
+page's "otherwise unavailable ... fails closed" supports the `false`. A spec sentence is the maintainer's decision, and
+the page is unchanged (`GAP-REGISTER.md`, row `E2E-04-SAME-EPHEMERAL-MODEL`).
+
+**The restated record field.** With the decode in the model, the inequality of `oracle.dhAgree` at the two 33-byte
+strings that the `hagreementMismatch` field of `InitialDispatchBranchEvidence.ephemeralMismatch` and
+`SessionDecryptEvidence.initialEphemeralMismatch` (and of `decrypt_initial_ephemeral_mismatch_refines`) asked for no
+longer decides the model's verdict, so the field now states the verdict, `false`. No pin holds that field, and no
+positive claim rests on it or on the records that carry it.
+
+**Not proved.** The composition of `Session::decrypt` on an initial frame. The dispatch theorems of
+`UnitLifecycleInitialDispatch.lean` still take caller-selected branch evidence (`InitialDispatchBranchEvidence`,
+`SessionDecryptEvidence`), whose repeat premises `hmodelSame` and `hagreementMismatch` state the model's verdict on the
+branch. `repeated_initial_agreement_true_iff` and `repeated_initial_agreement_false_iff` give each from the code's verdict,
+but no theorem uses them in place of the premises, and `InitialDispatchBranchEvidence` still splits the route on byte
+equality of the two ephemerals rather than on this verdict. Whether a state with an established ephemeral meets the other hypotheses of the
+dispatch theorems is not checked here.
 
 ## The erasure coding's field is proved
 

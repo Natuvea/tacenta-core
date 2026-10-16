@@ -6,8 +6,8 @@
 # The public workflow, `.github/workflows/ci.yml`, runs these same steps on
 # every push and pull request, split into jobs so a failure names its cause;
 # this script is the one-command form for a developer's machine. The two are
-# meant to agree, and a step added here belongs there too, with one stated
-# asymmetry in each direction.
+# meant to agree, and a step added here belongs there too, with every
+# asymmetry stated below.
 #
 # Steps the workflow always runs and this script skips, printing a line that
 # says so, when the tooling is absent from the machine: the advisory audit
@@ -20,9 +20,15 @@
 # cannot report green on a check it did not run. Steps this script runs and
 # the workflow does not: the interoperability harness, which is not in this
 # public tree and skips here, and the fuzz smoke run, which needs
-# `cargo-fuzz` and a nightly toolchain. The README's "Building and checking"
-# section lists the same five and two, and says what runs outside this
-# repository altogether and why.
+# `cargo-fuzz` and a nightly toolchain. The workflow also runs steps this
+# script does not: the SPQR erasure regression, the portable-backend KEM
+# tests, the 32-bit run of `tacenta-core/tests/decrypt_premises.rs`
+# (`i686_premises` in the `armv7` job, which needs a 32-bit Linux host), the
+# receipt writers in the jobs, and the `assurance-receipts` aggregation job,
+# which downloads the evidence pack it uploaded and verifies that copy against
+# the commit. The
+# README's "Building and checking" section lists the same five and two and
+# those steps, and says what runs outside this repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
 # stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and

@@ -1,28 +1,41 @@
 import Translation.UnitSatisfiabilityJoint
+import Translation.UnitSatisfiabilitySpqrSessionLaws
 
 /-!
-# Three fields that quantify over every `Zeroize` record
+# Why three contract fields are stated at the unit's instances
 
 `SessionUnitSpqrT1.ZeroizeTotal`, `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize`
-conjunct of `SessionUnitSpqrT1.VecRetainTotal` say that `Array::zeroize` and `Vec::zeroize`
-return for **every** instance record `inst : Zeroize Z`.  The real functions call `inst.zeroize`
-on each element, and a `Zeroize` record whose field fails (a panicking implementation) is a legal
-Lean term.  The Lean constants are opaque, so nothing in Lean refutes the three fields, and the
-joint model of `UnitSatisfiabilityJoint.lean` satisfies them: they are consistent.  The point is
-what the crate does: the real functions satisfy them only for instances whose `zeroize` returns, so
-the fields are stronger than the code supports.  `Zeroizing::new` and `deref` never call
-`inst.zeroize`, so the `Zeroizing` fields do not have this problem.
+conjunct of `SessionUnitSpqrT1.VecRetainTotal` used to say that `Array::zeroize` and `Vec::zeroize`
+return for **every** instance record `inst : Zeroize Z`.  The real functions call `inst.zeroize` on
+each element, and a `Zeroize` record whose field fails (a panicking implementation) is a legal Lean
+term.  The Lean constants are opaque, so nothing in Lean refuted those general forms, and the joint
+model satisfied them; but the real functions satisfy them only for instances whose `zeroize`
+returns, so they were stronger than the code supports.  The fields are now stated at the instances
+the unit passes: `Array::zeroize` at the blanket `u8` instance on 32-byte arrays, and
+`Vec::zeroize` at the chain table, the sparse skipped-key store and the classical one
+(`UnitSatisfiabilityJoint.SpqrZeroizeShape`, `ArrayZeroizeShape`, `VecRetainAxiomShape`).
 
-`zeroize_failure_propagation_conflicts` proves the clash: no interpretation can satisfy
-`ZeroizeTotal` and also have `Array::zeroize` propagate the failure of a failing instance, which
-is what the real function does.  The scoped statements below are the ones the real functions
-satisfy.  The second model, `Interp.faithful`, implements `Array::zeroize` and `Vec::zeroize` as
-the crate does (zeroize each element in order, fail if an element fails; `Vec::zeroize` leaves an
-empty vector), and satisfies the scoped statements together with every other shape.
+This module keeps the general forms (`*UnscopedShape`) as the record of why the fields moved:
 
-This module changes no record and no theorem.  It is the evidence for the recommendation in
-`LIMITATIONS.md`, and no proof module imports it; `AxiomAuditSessionUnit.lean` imports it so that
-the environment audit covers it.
+* `zeroize_failure_propagation_conflicts`, `braid_zeroize_failure_propagation_conflicts` and
+  `vec_zeroize_failure_propagation_conflicts`: no interpretation satisfies a general form and also
+  has the operation propagate the failure of a failing instance, which is what the real function
+  does.
+* `spqrZeroize_of_unscoped`, `arrayZeroize_of_unscoped`, `vecRetainAxiom_of_unscoped`: each general
+  form implies the field as now stated, over every interpretation, so the restatement only weakens
+  what the records assume.
+* `Interp.faithful` implements `Array::zeroize`, `Vec::zeroize` and the pair `Zeroize` as the crate
+  does (zeroize each element in order, fail if an element fails; `Vec::zeroize` leaves an empty
+  vector).  `faithful_propagates` and `faithful_vec_propagates` show it propagates failures,
+  `faithful_refutes_unscoped` that it refutes the general form, and
+  `faithful_satisfies_all_axiom_shapes` that it satisfies every axiom-level shape of the joint
+  model, the three restated fields among them.  `faithful_SpqrSessionLaws` shows that it also
+  satisfies the five laws the sparse store's two agreements are derived from
+  (`UnitSatisfiabilitySpqrSessionLaws.lean`).
+
+None of this shows that the real functions return at the unit's instances; that stays an
+assumption (`LIMITATIONS.md`).  No proof module imports this one; `AxiomAuditSessionUnit.lean`
+imports it so that the environment audit covers it.
 -/
 
 namespace Tacenta.UnitSatisfiabilityZeroizeScope
@@ -85,24 +98,60 @@ def vecZeroizeImpl {Z : Type} (inst : zeroize.Zeroize Z) (v : alloc.vec.Vec Z) :
   | fail e => fail e
   | div => div
 
-def Interp.faithful : Interp :=
-  { Interp.model with arrayZeroize := @arrayZeroizeImpl, vecZeroize := @vecZeroizeImpl }
+/-- The pair `Zeroize` as the crate implements it: zeroize the two components in order. -/
+def pairZeroizeImpl {A B : Type} (a : zeroize.Zeroize A) (b : zeroize.Zeroize B) (x : A × B) :
+    Result (A × B) := do
+  let y ← a.zeroize x.1
+  let z ← b.zeroize x.2
+  ok (y, z)
 
-/-- Proposed replacement for `SessionUnitSpqrT1.ZeroizeTotal` and
-`SessionUnitBraidT1.ArrayZeroizeTotal`. -/
+def Interp.faithful : Interp :=
+  { Interp.model with
+    arrayZeroize := @arrayZeroizeImpl
+    vecZeroize := @vecZeroizeImpl
+    pairZeroize := @pairZeroizeImpl }
+
+/-! ### The general forms the fields had -/
+
+/-- The general form of `SessionUnitSpqrT1.ZeroizeTotal` before it was restated. -/
+def SpqrZeroizeUnscopedShape (I : Interp) : Prop :=
+  ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
+    ∃ r, I.arrayZeroize inst a = ok r
+
+/-- The general form of `SessionUnitBraidT1.ArrayZeroizeTotal` before it was restated. -/
+def ArrayZeroizeUnscopedShape (I : Interp) : Prop :=
+  ∀ (N : Usize) (inst : zeroize.Zeroize U8) (a : Array U8 N),
+    ∃ r, I.arrayZeroize (N := N) inst a = ok r
+
+/-- The general form of the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal` before
+it was restated. -/
+def VecZeroizeUnscopedShape (I : Interp) : Prop :=
+  ∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T), ∃ r, I.vecZeroize inst v = ok r
+
+/-- The general forms imply the restated fields: the restatement weakens the records. -/
+theorem spqrZeroize_of_unscoped (I : Interp) (h : SpqrZeroizeUnscopedShape I) :
+    SpqrZeroizeShape I := fun a => h _ a
+
+theorem arrayZeroize_of_unscoped (I : Interp) (h : ArrayZeroizeUnscopedShape I) :
+    ArrayZeroizeShape I := fun a => h _ _ a
+
+theorem vecRetainAxiom_of_unscoped (I : Interp)
+    (hc : ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T), ∃ r, I.vecCapacity A v = ok r)
+    (h : VecZeroizeUnscopedShape I) : VecRetainAxiomShape I :=
+  ⟨hc, fun v => h _ v, fun v => h _ v, fun v => h _ v⟩
+
+/-- The statements with a premise: the operation returns at an instance whose `zeroize` returns on
+every element.  The faithful interpretation satisfies them. -/
 def ArrayZeroizeScopedShape (I : Interp) : Prop :=
   ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z),
     (∀ x, ∃ y, inst.zeroize x = ok y) → ∀ a : Array Z N, ∃ r, I.arrayZeroize inst a = ok r
 
-/-- Proposed replacement for the `Vec::zeroize` conjunct of
-`SessionUnitSpqrT1.VecRetainTotal`. -/
 def VecZeroizeScopedShape (I : Interp) : Prop :=
   ∀ {Z : Type} (inst : zeroize.Zeroize Z),
     (∀ x, ∃ y, inst.zeroize x = ok y) → ∀ v : alloc.vec.Vec Z, ∃ r, I.vecZeroize inst v = ok r
 
-/-- The one new field the scoped statements need: the blanket `Zeroize` impl
-(`*self = Default::default()`) returns, at the three scalar types the code
-instantiates it at. -/
+/-- The blanket `Zeroize` impl (`*self = Default::default()`) returns, at the three scalar types the
+code instantiates it at. -/
 def BlanketZeroizeTotalShape (I : Interp) : Prop :=
   (∀ x : U8, ∃ y, I.blanketZeroize U8.Insts.ZeroizeDefaultIsZeroes x = ok y) ∧
   (∀ x : U32, ∃ y, I.blanketZeroize U32.Insts.ZeroizeDefaultIsZeroes x = ok y) ∧
@@ -114,43 +163,21 @@ def ArrayZeroizePropagatesFailure (I : Interp) : Prop :=
     a.val = [x] → inst.zeroize x = fail Error.panic →
     I.arrayZeroize inst a = fail Error.panic
 
-/-- The unscoped field implies the scoped one. -/
-theorem arrayZeroizeScoped_of_total (I : Interp) (h : SpqrZeroizeShape I) :
+/-- What the real `Vec::zeroize` does with a failing element. -/
+def VecZeroizePropagatesFailure (I : Interp) : Prop :=
+  ∀ {Z : Type} (inst : zeroize.Zeroize Z) (v : alloc.vec.Vec Z) (x : Z),
+    v.val = [x] → inst.zeroize x = fail Error.panic →
+    I.vecZeroize inst v = fail Error.panic
+
+/-- The general `Array::zeroize` form implies the scoped one. -/
+theorem arrayZeroizeScoped_of_total (I : Interp) (h : SpqrZeroizeUnscopedShape I) :
     ArrayZeroizeScopedShape I := fun inst _ a => h inst a
 
+/-! ### The clashes -/
 
-/-- The minimal replacement, stated at the one instance the translated code
-passes to `Array::zeroize`.  No quantification over instance records, no new
-premise beyond the operation itself. -/
-def ArrayZeroizeBlanketU8Shape (I : Interp) : Prop :=
-  ∀ (N : Usize) (a : Array U8 N),
-    ∃ r, I.arrayZeroize (N := N) (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
-
-theorem ArrayZeroizeBlanketU8_is :
-    (∀ (N : Usize) (a : Array U8 N),
-      ∃ r, Array.Insts.ZeroizeZeroize.zeroize (N := N)
-        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r) ↔
-      ArrayZeroizeBlanketU8Shape Interp.real := Iff.rfl
-
-theorem ArrayZeroizeScoped_is :
-    (∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z),
-      (∀ x, ∃ y, inst.zeroize x = ok y) →
-      ∀ a : Array Z N, ∃ r, Array.Insts.ZeroizeZeroize.zeroize inst a = ok r) ↔
-      ArrayZeroizeScopedShape Interp.real := Iff.rfl
-
-theorem VecZeroizeScoped_is :
-    (∀ {Z : Type} (inst : zeroize.Zeroize Z),
-      (∀ x, ∃ y, inst.zeroize x = ok y) →
-      ∀ v : alloc.vec.Vec Z, ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r) ↔
-      VecZeroizeScopedShape Interp.real := Iff.rfl
-
-/-- The unscoped field implies the minimal one. -/
-theorem arrayZeroizeBlanketU8_of_total (I : Interp) (h : ArrayZeroizeShape I) :
-    ArrayZeroizeBlanketU8Shape I := fun N a => h N (I.blanket U8.Insts.ZeroizeDefaultIsZeroes) a
-
-/-- The clash: `ZeroizeTotal` cannot hold in an interpretation that propagates
-the failure of a failing instance, which is what the real function does. -/
-theorem zeroize_failure_propagation_conflicts (I : Interp) (h : SpqrZeroizeShape I)
+/-- The general form of `ZeroizeTotal` cannot hold in an interpretation that propagates the
+failure of a failing instance, which is what the real function does. -/
+theorem zeroize_failure_propagation_conflicts (I : Interp) (h : SpqrZeroizeUnscopedShape I)
     (law : ArrayZeroizePropagatesFailure I) : False := by
   let inst : zeroize.Zeroize Unit := ⟨fun _ => fail Error.panic⟩
   let a : Array Unit 1#usize := Array.repeat 1#usize ()
@@ -159,6 +186,29 @@ theorem zeroize_failure_propagation_conflicts (I : Interp) (h : SpqrZeroizeShape
   have := law inst a () ha rfl
   rw [hr] at this
   cases this
+
+/-- The same for the general form of the Braid's `ArrayZeroizeTotal`, with a failing `Zeroize U8`. -/
+theorem braid_zeroize_failure_propagation_conflicts (I : Interp) (h : ArrayZeroizeUnscopedShape I)
+    (law : ArrayZeroizePropagatesFailure I) : False := by
+  let inst : zeroize.Zeroize U8 := ⟨fun _ => fail Error.panic⟩
+  let a : Array U8 1#usize := Array.repeat 1#usize 0#u8
+  have ha : a.val = [0#u8] := by simp [a]
+  obtain ⟨r, hr⟩ := h 1#usize inst a
+  have := law inst a 0#u8 ha rfl
+  rw [hr] at this
+  cases this
+
+/-- The same for the general form of the `Vec::zeroize` conjunct. -/
+theorem vec_zeroize_failure_propagation_conflicts (I : Interp) (h : VecZeroizeUnscopedShape I)
+    (law : VecZeroizePropagatesFailure I) : False := by
+  let inst : zeroize.Zeroize Unit := ⟨fun _ => fail Error.panic⟩
+  let v : alloc.vec.Vec Unit := ⟨[()], by scalar_tac⟩
+  obtain ⟨r, hr⟩ := h inst v
+  have := law inst v () rfl rfl
+  rw [hr] at this
+  cases this
+
+/-! ### The faithful interpretation -/
 
 theorem faithful_arrayZeroizeScoped : ArrayZeroizeScopedShape Interp.faithful := by
   intro Z N inst htot a
@@ -198,63 +248,82 @@ theorem faithful_propagates : ArrayZeroizePropagatesFailure Interp.faithful := b
     rw [ha] at h'
     simp [mapZ, hf] at h'
 
+theorem faithful_vec_propagates : VecZeroizePropagatesFailure Interp.faithful := by
+  intro Z inst v x hv hf
+  show vecZeroizeImpl inst v = _
+  unfold vecZeroizeImpl
+  rw [hv]
+  simp [mapZ, hf]
+
 theorem faithful_blanketTotal : BlanketZeroizeTotalShape Interp.faithful :=
   ⟨fun x => ⟨x, rfl⟩, fun x => ⟨x, rfl⟩, fun x => ⟨x, rfl⟩⟩
 
-/-- Proposed replacement for `SessionUnitSpqrT1.ZeroizeTotal` and
-`SessionUnitBraidT1.ArrayZeroizeTotal`, over the real constants. -/
-def ArrayZeroizeU8Total : Prop :=
-  ∀ (N : Usize) (a : Array U8 N),
-    ∃ r, Array.Insts.ZeroizeZeroize.zeroize (N := N)
-      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
-
-theorem ArrayZeroizeU8Total_is :
-    ArrayZeroizeU8Total ↔ ArrayZeroizeBlanketU8Shape Interp.real := Iff.rfl
-
-theorem ArrayZeroizeU8Total_of_spqr (h : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) :
-    ArrayZeroizeU8Total := fun _ a => h (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a
-
-theorem ArrayZeroizeU8Total_of_braid (h : Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal) :
-    ArrayZeroizeU8Total := fun N a => h N (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a
-
-/-- One of the two instances at which the proofs apply the `Vec::zeroize` conjunct of
-`SessionUnitSpqrT1.VecRetainTotal`: the chain table, `Vec<(u64, Chains)>`.  It mentions the
-translated `Chains::zeroize`, whose totality is then a fact to prove about the translation
-rather than a premise about every instance record.  A replacement for the conjunct needs this
-statement and `VecZeroizeSkippedTotal`: the conjunct is also applied to the skipped-key store,
-and a replacement with the chain table alone makes `skip_message_keys_no_panic` stop building
-(measured, see `LIMITATIONS.md`). -/
-def VecZeroizeChainsTotal : Prop :=
-  ∀ v : alloc.vec.Vec (U64 × tacenta_spqr.Chains),
-    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
-      (Pair.Insts.ZeroizeZeroize
-        (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
-        tacenta_spqr.Chains.Insts.ZeroizeZeroize) v = ok r
-
-theorem VecZeroizeChainsTotal_of_vecRetain (h : Tacenta.SessionUnitSpqrT1.VecRetainTotal) :
-    VecZeroizeChainsTotal := fun v => h.2.1 _ v
-
-/-- The other instance: the sparse ratchet's skipped-key store, `Vec<Skipped>`.  It mentions the
-translated `Skipped::zeroize`, which wipes the key with `Array::zeroize` at `Blanket U8`. -/
-def VecZeroizeSkippedTotal : Prop :=
-  ∀ v : alloc.vec.Vec tacenta_spqr.Skipped,
-    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
-      tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r
-
-theorem VecZeroizeSkippedTotal_of_vecRetain (h : Tacenta.SessionUnitSpqrT1.VecRetainTotal) :
-    VecZeroizeSkippedTotal := fun v => h.2.1 _ v
-
-theorem model_ArrayZeroizeBlanketU8 : ArrayZeroizeBlanketU8Shape Interp.model :=
-  fun _ _ => ⟨_, rfl⟩
-
-theorem faithful_ArrayZeroizeBlanketU8 : ArrayZeroizeBlanketU8Shape Interp.faithful := by
-  intro N a
-  exact faithful_arrayZeroizeScoped _ (fun x => ⟨x, rfl⟩) a
-
-/-- The unscoped field does not hold in the faithful interpretation. -/
-theorem faithful_refutes_unscoped : ¬ SpqrZeroizeShape Interp.faithful := fun h =>
+/-- The general form does not hold in the faithful interpretation. -/
+theorem faithful_refutes_unscoped : ¬ SpqrZeroizeUnscopedShape Interp.faithful := fun h =>
   zeroize_failure_propagation_conflicts _ h faithful_propagates
 
+theorem faithful_array_u8_total {N : Usize} (a : Array U8 N) :
+    ∃ r, Interp.faithful.arrayZeroize (Interp.faithful.blanket U8.Insts.ZeroizeDefaultIsZeroes) a
+      = ok r :=
+  faithful_arrayZeroizeScoped _ (fun x => ⟨x, rfl⟩) a
+
+theorem faithful_SpqrZeroize : SpqrZeroizeShape Interp.faithful :=
+  fun a => faithful_array_u8_total a
+
+theorem faithful_ArrayZeroize : ArrayZeroizeShape Interp.faithful :=
+  fun a => faithful_array_u8_total a
+
+theorem faithful_chainZeroize_total (c : tacenta_spqr.Chain) :
+    ∃ r, Interp.faithful.chainZeroize c = ok r := by
+  obtain ⟨r, hr⟩ := faithful_array_u8_total c.ck
+  exact ⟨_, by unfold Interp.chainZeroize; rw [hr]; rfl⟩
+
+theorem faithful_chainsZeroize_total (c : tacenta_spqr.Chains) :
+    ∃ r, Interp.faithful.chainsZeroize c = ok r := by
+  rcases c with ⟨send, receive⟩
+  unfold Interp.chainsZeroize
+  have hA : ∀ {T : Type} (o : Option T),
+      Interp.faithful.optionAsMut o = ok (o, fun x => x) := fun _ => rfl
+  simp only [hA, bind_tc_ok]
+  cases send with
+  | none =>
+    cases receive with
+    | none => exact ⟨_, rfl⟩
+    | some ch =>
+      obtain ⟨r, hr⟩ := faithful_chainZeroize_total ch
+      exact ⟨_, by simp [hr]; rfl⟩
+  | some ch =>
+    obtain ⟨r, hr⟩ := faithful_chainZeroize_total ch
+    cases receive with
+    | none => exact ⟨_, by simp [hr]; rfl⟩
+    | some ch' =>
+      obtain ⟨r', hr'⟩ := faithful_chainZeroize_total ch'
+      exact ⟨_, by simp [hr, hr']; rfl⟩
+
+theorem faithful_VecRetainAxiom : VecRetainAxiomShape Interp.faithful := by
+  have hB32 : ∀ x : U32, Interp.faithful.blanketZeroize U32.Insts.ZeroizeDefaultIsZeroes x = ok x :=
+    fun _ => rfl
+  have hB64 : ∀ x : U64, Interp.faithful.blanketZeroize U64.Insts.ZeroizeDefaultIsZeroes x = ok x :=
+    fun _ => rfl
+  refine ⟨model_VecRetainAxiom.1, ?_, ?_, ?_⟩
+  · refine faithful_vecZeroizeScoped _ ?_
+    rintro ⟨e, c⟩
+    obtain ⟨r, hr⟩ := faithful_chainsZeroize_total c
+    refine ⟨(e, r), ?_⟩
+    simp only [Interp.chainTableInst, Interp.pairInst, Interp.blanket]
+    show pairZeroizeImpl _ _ (e, c) = _
+    simp only [pairZeroizeImpl, hB64, hr, bind_tc_ok]
+  · refine faithful_vecZeroizeScoped _ ?_
+    intro x
+    obtain ⟨r, hr⟩ := faithful_array_u8_total x.key
+    refine ⟨{ x with key := r }, ?_⟩
+    simp only [Interp.skippedInst, hr, bind_tc_ok]
+  · refine faithful_vecZeroizeScoped _ ?_
+    intro x
+    obtain ⟨r1, hr1⟩ := faithful_array_u8_total x.dh
+    obtain ⟨r2, hr2⟩ := faithful_array_u8_total x.key
+    refine ⟨{ dh := r1, n := x.n, stored_at := x.stored_at, key := r2 }, ?_⟩
+    simp only [Interp.skippedKeyInst, hr1, hr2, hB32, bind_tc_ok]
 
 def faithful_ZeroizingModel (Z : Type) : ZeroizingModelShape Interp.faithful Z where
   contents z := z
@@ -270,9 +339,10 @@ theorem faithful_Faithful : FaithfulShape Interp.faithful :=
 theorem faithful_StdLaws : StdLaws Interp.faithful :=
   stdLaws_of_faithful Interp.faithful faithful_Faithful (fun x => ⟨x, rfl⟩)
 
-/-- Everything except the three over-strong fields holds in the faithful
-interpretation too; the scoped statements take their place. -/
-theorem faithful_satisfies_rest :
+/-- Every axiom-level shape of the joint model holds in the faithful interpretation, the three
+restated fields among them, together with the propagation of a failing element by `Array::zeroize`
+and `Vec::zeroize`. -/
+theorem faithful_satisfies_all_axiom_shapes :
     DhCodecShape Interp.faithful ∧
     DhIdentityShape Interp.faithful ∧
     DhAgreeShape Interp.faithful ∧
@@ -286,6 +356,8 @@ theorem faithful_satisfies_rest :
     HkdfShape Interp.faithful ∧
     HmacShape Interp.faithful ∧
     ZeroizingTotalShape Interp.faithful ∧
+    SpqrZeroizeShape Interp.faithful ∧
+    VecRetainAxiomShape Interp.faithful ∧
     OptionCloneShape Interp.faithful ∧
     Ct1LenShape Interp.faithful ∧
     Ct2LenShape Interp.faithful ∧
@@ -301,18 +373,33 @@ theorem faithful_satisfies_rest :
     Encapsulate1Shape Interp.faithful ∧
     Encapsulate2Shape Interp.faithful ∧
     ZeroizingArrayRoundTripShape Interp.faithful ∧
+    ArrayZeroizeShape Interp.faithful ∧
     RangeFullIndexShape Interp.faithful ∧
-    (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T), ∃ r, Interp.faithful.vecCapacity A v = ok r) ∧
-    ArrayZeroizeScopedShape Interp.faithful ∧ VecZeroizeScopedShape Interp.faithful ∧
-    BlanketZeroizeTotalShape Interp.faithful ∧ ArrayZeroizeBlanketU8Shape Interp.faithful ∧
-    ArrayZeroizePropagatesFailure Interp.faithful ∧
     Nonempty (ZeroizingModelShape Interp.faithful SessionZ) ∧
     Nonempty (ZeroizingModelShape Interp.faithful DerivedZ) ∧
-    DivCeilValueShape Interp.faithful ∧ FaithfulShape Interp.faithful ∧ StdLaws Interp.faithful :=
-  ⟨model_DhCodec, model_DhIdentity, model_DhAgree, model_KemEncapsulate, model_KemDecapsulate, model_XeddsaVerify, model_AeadOpen, model_AeadSealBounded, model_MessageKeyMaterialRoundTrip, model_VecPop, model_Hkdf, model_Hmac, model_ZeroizingTotal, model_OptionClone, model_Ct1Len, model_Ct2Len, model_HeaderLen, model_EkVectorLen, model_KeyPairEkVector, model_KeyPairHeader, model_KeyPairDecapsulate, model_KeyPairClone, model_EncapsStateClone, model_ValidateEk, model_KeyPairGenerate, model_Encapsulate1, model_Encapsulate2, model_ZeroizingArrayRoundTrip, model_RangeFullIndex,
-    model_VecRetainAxiom.1, faithful_arrayZeroizeScoped, faithful_vecZeroizeScoped,
-    faithful_blanketTotal, faithful_ArrayZeroizeBlanketU8, faithful_propagates,
-    ⟨faithful_ZeroizingModel SessionZ⟩, ⟨faithful_ZeroizingModel DerivedZ⟩, model_DivCeilValue, faithful_Faithful, faithful_StdLaws⟩
+    DivCeilValueShape Interp.faithful ∧ FaithfulShape Interp.faithful ∧ StdLaws Interp.faithful ∧
+    ArrayZeroizeScopedShape Interp.faithful ∧ VecZeroizeScopedShape Interp.faithful ∧
+    BlanketZeroizeTotalShape Interp.faithful ∧
+    ArrayZeroizePropagatesFailure Interp.faithful ∧ VecZeroizePropagatesFailure Interp.faithful :=
+  ⟨model_DhCodec, model_DhIdentity, model_DhAgree, model_KemEncapsulate, model_KemDecapsulate,
+    model_XeddsaVerify, model_AeadOpen, model_AeadSealBounded, model_MessageKeyMaterialRoundTrip,
+    model_VecPop, model_Hkdf, model_Hmac, model_ZeroizingTotal, faithful_SpqrZeroize,
+    faithful_VecRetainAxiom, model_OptionClone, model_Ct1Len, model_Ct2Len, model_HeaderLen,
+    model_EkVectorLen, model_KeyPairEkVector, model_KeyPairHeader, model_KeyPairDecapsulate,
+    model_KeyPairClone, model_EncapsStateClone, model_ValidateEk, model_KeyPairGenerate,
+    model_Encapsulate1, model_Encapsulate2, model_ZeroizingArrayRoundTrip, faithful_ArrayZeroize,
+    model_RangeFullIndex, ⟨faithful_ZeroizingModel SessionZ⟩, ⟨faithful_ZeroizingModel DerivedZ⟩,
+    model_DivCeilValue, faithful_Faithful, faithful_StdLaws, faithful_arrayZeroizeScoped,
+    faithful_vecZeroizeScoped, faithful_blanketTotal, faithful_propagates, faithful_vec_propagates⟩
+
+/-- The five laws the sparse store's two agreements are derived from
+(`UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape`) hold in the faithful interpretation, whose
+`Array::zeroize` and `Vec::zeroize` propagate a failing element's failure.  So the laws are not
+satisfied only because a model's wipe ignores its instance record. -/
+theorem faithful_SpqrSessionLaws :
+    Tacenta.UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape Interp.faithful :=
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.spqrSessionLawsShape_of_parts Interp.faithful
+    faithful_StdLaws faithful_VecRetainAxiom faithful_SpqrZeroize
 
 end ScopedZeroize
 
@@ -334,6 +421,24 @@ info: 'Tacenta.UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_confli
 #print axioms Tacenta.UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts
 
 /--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.braid_zeroize_failure_propagation_conflicts' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.braid_zeroize_failure_propagation_conflicts
+
+/--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.vec_zeroize_failure_propagation_conflicts' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.vec_zeroize_failure_propagation_conflicts
+
+/--
 info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_propagates' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -341,6 +446,15 @@ info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_propagates' depends on ax
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_propagates
+
+/--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_vec_propagates' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_vec_propagates
 
 /--
 info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_refutes_unscoped' depends on axioms: [propext,
@@ -352,44 +466,40 @@ info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_refutes_unscoped' depends
 #print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_refutes_unscoped
 
 /--
-info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_satisfies_rest' depends on axioms: [propext,
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_satisfies_all_axiom_shapes' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_session_unit.rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_satisfies_rest
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_satisfies_all_axiom_shapes
 
 /--
-info: 'Tacenta.UnitSatisfiabilityZeroizeScope.ArrayZeroizeU8Total_of_spqr' depends on axioms: [propext,
- tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.ArrayZeroizeU8Total_of_spqr
-
-/--
-info: 'Tacenta.UnitSatisfiabilityZeroizeScope.ArrayZeroizeU8Total_of_braid' depends on axioms: [propext,
- tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.ArrayZeroizeU8Total_of_braid
-
-/--
-info: 'Tacenta.UnitSatisfiabilityZeroizeScope.VecZeroizeChainsTotal_of_vecRetain' depends on axioms: [propext,
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.spqrZeroize_of_unscoped' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.alloc.vec.Vec.capacity,
- tacenta_session_unit.alloc.vec.Vec.pop,
- tacenta_session_unit.core.option.Option.as_mut,
- tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+ tacenta_session_unit.rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.VecZeroizeChainsTotal_of_vecRetain
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.spqrZeroize_of_unscoped
+
+/--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroize_of_unscoped' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroize_of_unscoped
+
+/--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.vecRetainAxiom_of_unscoped' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.vecRetainAxiom_of_unscoped
 
 /--
 info: 'Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroizeScoped_of_total' depends on axioms: [propext,
@@ -401,15 +511,72 @@ info: 'Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroizeScoped_of_total' depen
 #print axioms Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroizeScoped_of_total
 
 /--
-info: 'Tacenta.UnitSatisfiabilityZeroizeScope.VecZeroizeSkippedTotal_of_vecRetain' depends on axioms: [propext,
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.alloc.vec.Vec.capacity,
- tacenta_session_unit.alloc.vec.Vec.pop,
- tacenta_session_unit.core.option.Option.as_mut,
- tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+ tacenta_session_unit.rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.VecZeroizeSkippedTotal_of_vecRetain
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws
+
+/--
+info: Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws :
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape Tacenta.UnitSatisfiabilityZeroizeScope.Interp.faithful
+-/
+#guard_msgs in
+#check Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws
+
+/-! ## Statement pins
+
+The three contract fields as now stated, printed in full, so that a change to the instance, the width
+or the conjuncts fails the build here. -/
+
+/--
+info: def Tacenta.SessionUnitSpqrT1.ZeroizeTotal : Prop :=
+∀ (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  ∃ r,
+    tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize
+        (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes) a =
+      Aeneas.Std.Result.ok r
+-/
+#guard_msgs in
+#print Tacenta.SessionUnitSpqrT1.ZeroizeTotal
+
+/--
+info: def Tacenta.SessionUnitSpqrT1.VecRetainTotal : Prop :=
+(∀ {T : Type} (A : Type) (v : Aeneas.Std.alloc.vec.Vec T),
+    ∃ r, tacenta_session_unit.alloc.vec.Vec.capacity A v = Aeneas.Std.Result.ok r) ∧
+  ((∀ (v : Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U64 × tacenta_session_unit.tacenta_spqr.Chains)),
+        ∃ r,
+          tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+              (tacenta_session_unit.Pair.Insts.ZeroizeZeroize
+                (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U64.Insts.ZeroizeDefaultIsZeroes)
+                tacenta_session_unit.tacenta_spqr.Chains.Insts.ZeroizeZeroize)
+              v =
+            Aeneas.Std.Result.ok r) ∧
+      (∀ (v : Aeneas.Std.alloc.vec.Vec tacenta_session_unit.tacenta_spqr.Skipped),
+          ∃ r,
+            tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+                tacenta_session_unit.tacenta_spqr.Skipped.Insts.ZeroizeZeroize v =
+              Aeneas.Std.Result.ok r) ∧
+        ∀ (v : Aeneas.Std.alloc.vec.Vec tacenta_session_unit.tacenta_ratchet.SkippedKey),
+          ∃ r,
+            tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+                tacenta_session_unit.tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v =
+              Aeneas.Std.Result.ok r) ∧
+    Tacenta.SessionUnitSpqrT1.SetChainsLoopTotal ∧
+      Tacenta.SessionUnitSpqrT1.ClearChainsLoop0Total ∧ Tacenta.SessionUnitSpqrT1.ClearSkippedLoopTotal
+-/
+#guard_msgs in
+#print Tacenta.SessionUnitSpqrT1.VecRetainTotal
+
+/--
+info: def Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal : Prop :=
+∀ (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  ∃ r,
+    tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize
+        (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes) a =
+      Aeneas.Std.Result.ok r
+-/
+#guard_msgs in
+#print Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal

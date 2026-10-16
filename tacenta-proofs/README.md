@@ -9,7 +9,7 @@ plus the pinned toolchain (Lean +
 Charon/Aeneas) to reproduce them.
 
 Status: live. A script checks that every theorem the ledger names exists in the
-file it names and that every axiom-pinned theorem (717 at this commit) is named in
+file it names and that every axiom-pinned theorem (the count is `counts.pinned_theorems` in `manifests/verification-manifest.json`, printed by `attest.py --check`) is named in
 the ledger. Whether a pin is current is checked by the Lean build, which fails on a
 wrong pin; the script does not check it. The other 83 claimed theorems carry no pin. No recorded review of the theorem
 statements by a reader who did not write the ledger exists in this repository.
@@ -20,12 +20,25 @@ wire, ratchet, session, erasure, protobuf, sparse ratchet, Braid, and triple cra
 with two caveats worth stating here: the erasure crate's T3 covers its field
 arithmetic only, not the encoder or decoder, whose entry points have T1 and no
 refinement; the Braid's T3 theorems carry two preconditions (a live encoder,
-an unspliced chunk stream) and, for the receive, the bound `ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`; `CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`)), on top of the boundary agreements and totality
+an unspliced chunk stream) and, for the receive, the bound `ct1_bounded` (on the eight-leaf session unit also `decoders_bounded`; `CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`)), and the four KEM refusals are refined against the model's `Failed` transitions (the state witnesses assume `KemDrawsSucceed`), on top of the boundary agreements and totality
 constants they take -- `CLAIMS.md` lists every hypothesis and records why; and the
 Triple's T1 holds on the three-leaf unit, where the inner ratchets' totality is
 proved from the leaf theorems, under four size preconditions that nothing on
 the unit discharges (they are argued from the sizes involved, not proved) and
-the boundary assumptions. `Proofs/` carries the model-layer work.
+the boundary assumptions. The lifecycle crate is translated into the eight-leaf session
+unit, where it has conditional T1 theorems and a conditional T3 refinement of its private
+`decrypt_ratchet` on every path (`decrypt_ratchet_refines_complete`, and a restated form that takes
+`Session::invariant` in place of the run's bounds, five of whose eleven fields the invariant gives alone and two more with an
+assumed sparse epoch ceiling, one the model, and four counter ceilings, assumed, the remaining three and a Braid epoch bound;
+each ceiling excludes a state the invariant accepts, the clock case shown in Lean and the other three by reading of the Rust,
+not checked in Lean); `decrypt_ratchet_refines_complete` is
+compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
+checked against the real functions) from which its proof derives the sparse ratchet's two
+agreements, the three fields of the contract record it takes that were stronger than
+the crate are now stated at the instances the unit passes (that the real `zeroize`
+functions return there is assumed; not checked against the real functions), and nothing
+here proves `Session::encrypt` or `Session::decrypt` end to end. `Proofs/` carries the
+model-layer work.
 
 Read [CLAIMS.md](CLAIMS.md) for what is established and
 [LIMITATIONS.md](LIMITATIONS.md) for what is not. `scripts/attest.py --check`

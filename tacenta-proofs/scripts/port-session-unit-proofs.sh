@@ -4,8 +4,17 @@
 #
 # The source files are themselves deterministic copies made by
 # port-unit-proofs.sh.  That gate is run first, so this second port remains a
-# checked composition of the leaf proof and two explicit namespace rewrites.
-# No theorem statement or proof body is otherwise edited.
+# checked composition of the leaf proof and two explicit namespace rewrites,
+# plus the named `unit_edit`s below.  Those restate two contract fields at the
+# instances this unit uses, where the sources quantify over every `Zeroize`
+# record: `SessionUnitSpqrT1.ZeroizeTotal` at `Array::zeroize` on 32-byte
+# arrays with the blanket `u8` instance, and the `Vec::zeroize` conjunct of
+# `SessionUnitSpqrT1.VecRetainTotal` at the chain table, the sparse skipped-key
+# store and the classical skipped-key store; and they apply the restated fields
+# where the proofs used the general ones.  Each edit names the text it changes
+# and fails if the source no longer has exactly that text.  No other theorem
+# statement or proof body is edited.  The three-leaf files keep their
+# statements.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -58,6 +67,152 @@ jobs = [
     }),
 ]
 
+# The general `ZeroizeTotal` and `Vec::zeroize` conjunct of the sources say the two operations
+# return for every `Zeroize` record, including one whose `zeroize` fails.  The real functions call
+# the record's `zeroize` on each element and propagate its failure, so in this unit the fields are
+# stated at the instances the translation passes (`UnitSatisfiabilityZeroizeScope.lean`).
+BLANKET_U8 = "(zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) "
+PAIR_CHAINS = ("(Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)\n"
+               "      Chains.Insts.ZeroizeZeroize)")
+UNIT_EDITS = {
+    "SessionUnitSpqrT1.lean": [
+        ("ZeroizeTotal at the unit's instance",
+         """under secret deletion. -/
+def ZeroizeTotal : Prop :=
+  ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
+    ∃ r, Array.Insts.ZeroizeZeroize.zeroize inst a = ok r
+""",
+         """under secret deletion.
+
+In this unit the statement is made at the one instance and width the translation passes to
+`Array::zeroize`: the blanket `Zeroize` for `u8`, on a 32-byte array.  The source of this file,
+`UnitSpqrT1.lean`, states it for every element type, width and `Zeroize` record, including a record
+whose `zeroize` fails; the real function propagates that failure, so the general form is stronger
+than the crate supports (`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`). -/
+def ZeroizeTotal : Prop :=
+  ∀ (a : Array U8 32#usize),
+    ∃ r, Array.Insts.ZeroizeZeroize.zeroize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
+""", 1),
+        ("VecRetainTotal's Vec::zeroize conjunct at the unit's instances",
+         """def VecRetainTotal : Prop :=
+  (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
+  (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r) ∧
+""",
+         """/-- `Vec::capacity` returns, `Vec::zeroize` returns at the instances the unit passes to it, and the
+three loop contracts above.  In this unit the second conjunct is stated at the three instances the
+translation passes to `Vec::zeroize`: the chain table (`Vec<(u64, Chains)>`), the sparse ratchet's
+skipped-key store (`Vec<Skipped>`) and the classical ratchet's (`Vec<SkippedKey>`), in that order.
+The source of this file, `UnitSpqrT1.lean`, states it for every `Zeroize` record, including one
+whose `zeroize` fails, which the real function does not support. -/
+def VecRetainTotal : Prop :=
+  (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
+  ((∀ v : alloc.vec.Vec (U64 × Chains),
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
+          Chains.Insts.ZeroizeZeroize) v = ok r) ∧
+    (∀ v : alloc.vec.Vec Skipped,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize Skipped.Insts.ZeroizeZeroize v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_session_unit.tacenta_ratchet.SkippedKey,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        tacenta_session_unit.tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v = ok r)) ∧
+""", 1),
+        ("ZeroizeTotal applied at its one instance", "hz " + BLANKET_U8, "hz ", 3),
+        ("the chain-table conjunct", "hcap.2.1\n    " + PAIR_CHAINS + " st.chains",
+         "hcap.2.1.1 st.chains", 1),
+        ("the skipped-store conjunct", "hret.2.1 Skipped.Insts.ZeroizeZeroize st.skipped",
+         "hret.2.1.2.1 st.skipped", 1),
+    ],
+    "SessionUnitSpqrT3.lean": [
+        ("ZeroizeTotal applied at its one instance", "hz " + BLANKET_U8, "hz ", 4),
+        ("the chain-table conjunct", "hcap.2.1\n    " + PAIR_CHAINS + " s.chains",
+         "hcap.2.1.1 s.chains", 1),
+        ("the skipped-store conjunct", "hret_total.2.1 Skipped.Insts.ZeroizeZeroize s.skipped",
+         "hret_total.2.1.2.1 s.skipped", 1),
+        ("the reused assumptions",
+         "outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`).**",
+         "outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`; in this "
+         "unit `SessionUnitSpqrT1.lean` states the first two at the instances the unit uses).**", 1),
+    ],
+    "SessionUnitTripleT1.lean": [
+        ("ZeroizeTotal applied at its one instance", "hz " + BLANKET_U8, "hz ", 4),
+        ("the collapse of TripleT1's ZeroizeTotal",
+         """its `ZeroizeTotal` is a narrowing of
+  `SessionUnitSpqrT1.ZeroizeTotal` at one instance, which has to be written out at
+  every use), and its two `@[step]` `zeroize.Zeroizing` helpers are duplicates
+  of `SessionUnitT1`'s, so none of the five is redeclared. Two of the three collapses
+  are exact and the third is not: the two constructor theorems below take
+  `SessionUnitSpqrT1.ZeroizeTotal`, which quantifies over the element type, the width
+  and the instance, where `TripleT1.ZeroizeTotal` fixed all three at
+  `Array U8 32`. They assume strictly more than their twins did, which makes
+  them strictly weaker theorems. The narrow form is what the two constructors
+  need -- each wipes two 32-byte arrays and nothing else -- so the generality
+  is a convenience of reusing the leaf's constant, not a requirement;
+""",
+         """its `ZeroizeTotal` is
+  `SessionUnitSpqrT1.ZeroizeTotal`), and its two `@[step]` `zeroize.Zeroizing` helpers
+  are duplicates of `SessionUnitT1`'s, so none of the five is redeclared. In this
+  unit all three collapses are exact: `SessionUnitSpqrT1.ZeroizeTotal` is stated at
+  `Array U8 32` and the blanket `u8` instance, as `TripleT1.ZeroizeTotal` was. The
+  source of this file, `UnitTripleT1.lean`, takes the three-leaf unit's general
+  form, which quantifies over the element type, the width and the instance;
+""", 1),
+        ("zeroize_step at the unit's instance",
+         """/-- Wiping a byte buffer returns, as a stepping rule. Written out with the
+instance argument because `SessionUnitSpqrT1.ZeroizeTotal` quantifies over it and the
+stepping tactic has nothing to infer it from. -/
+@[step]
+theorem zeroize_step (hz : SessionUnitSpqrT1.ZeroizeTotal) {Z : Type} {N : Usize}
+    (inst : zeroize.Zeroize Z) (a : Array Z N) :
+    Array.Insts.ZeroizeZeroize.zeroize inst a ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hz inst a; simp [hr]
+""",
+         """/-- Wiping a 32-byte buffer returns, as a stepping rule, at the one instance
+`SessionUnitSpqrT1.ZeroizeTotal` is stated at in this unit: the blanket `u8` one. -/
+@[step]
+theorem zeroize_step (hz : SessionUnitSpqrT1.ZeroizeTotal) (a : Array U8 32#usize) :
+    Array.Insts.ZeroizeZeroize.zeroize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hz a; simp [hr]
+""", 1),
+    ],
+    "SessionUnitTripleT3.lean": [
+        ("ZeroizeTotal applied at its one instance", "hzs _ a", "hzs a", 3),
+        ("the boundary the bundles take",
+         "`DerivedKeysModel`, `OptionCloneTotal` and the general `ZeroizeTotal`.",
+         "`DerivedKeysModel`, `OptionCloneTotal` and `ZeroizeTotal` (in this unit\n"
+         "`SessionUnitSpqrT1.ZeroizeTotal` is stated at the one instance the unit uses).", 1),
+        ("the ZeroizeTotal collapse",
+         """accepts one for all three. And the general `UnitSpqrT1.ZeroizeTotal` the sparse
+ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance.
+""",
+         """accepts one for all three. And the general `UnitSpqrT1.ZeroizeTotal` the sparse
+ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance. In this
+unit `SessionUnitSpqrT1.ZeroizeTotal` is stated at that instance, so the two are
+the same proposition.
+""", 1),
+    ],
+}
+
+
+def unit_edit(text, dest, label, old, new, expected):
+    found = text.count(old)
+    if found != expected:
+        raise SystemExit(
+            f"port-session-unit-proofs: {dest}: unit edit {label!r}: text occurs {found} "
+            f"time(s), expected {expected}; inspect the source before changing this edit")
+    return text.replace(old, new)
+
+
+def apply_unit_edits(text, dest):
+    for label, old, new, expected in UNIT_EDITS.get(dest, []):
+        text = unit_edit(text, dest, label, old, new, expected)
+    return text
+
+
 def replace_exact(text, old, new, expected, origin):
     found = text.count(old)
     if found != expected:
@@ -83,12 +238,18 @@ for origin, dest, substitutions in jobs:
     text = text.replace("three-leaf translation unit", "eight-leaf Session translation unit")
     for old, (new, expected) in substitutions.items():
         text = replace_exact(text, old, new, expected, origin)
+    text = apply_unit_edits(text, dest)
+    edits = UNIT_EDITS.get(dest, [])
+    changes = ("-- changes only imports and the generated unit/proof namespaces.\n" if not edits else
+               "-- changes imports and the generated unit/proof namespaces, and applies\n"
+               f"-- {len(edits)} named unit edits that restate the general zeroize fields at\n"
+               "-- the instances this unit uses (see the script).\n")
     note = (
         "-- Generated by tacenta-proofs/scripts/port-session-unit-proofs.sh from\n"
         f"-- Translation/{origin}. Do not edit: `port-session-unit-proofs.sh --check`\n"
         "-- regenerates this file and fails on any difference. The source is itself\n"
         "-- held byte-for-byte to its leaf proof by port-unit-proofs.sh. This port\n"
-        "-- changes only imports and the generated unit/proof namespaces.\n"
+        + changes +
         f"-- Reworded {three_leaf} explanatory reference(s) to name this unit.\n\n"
     )
     (out / dest).write_text(note + text)
@@ -112,11 +273,14 @@ for old, new, expected in [
     ("tacenta-core/triple-unit", "tacenta-core/session-unit", 1),
 ]:
     text = replace_exact(text, old, new, expected, origin)
+text = apply_unit_edits(text, dest)
 note = (
     "-- Generated by tacenta-proofs/scripts/port-session-unit-proofs.sh from\n"
     f"-- Translation/{origin}. Do not edit: `port-session-unit-proofs.sh --check`\n"
     "-- regenerates this file and fails on any difference. This port changes\n"
-    "-- only the generated unit and proof namespaces.\n\n"
+    "-- the generated unit and proof namespaces, and applies\n"
+    f"-- {len(UNIT_EDITS[dest])} named unit edits that restate the general zeroize fields at\n"
+    "-- the instances this unit uses (see the script).\n\n"
 )
 (out / dest).write_text(note + text)
 print(f"port-session-unit-proofs: {dest} (from {origin})")
@@ -142,11 +306,14 @@ for old, new, expected in [
     ("three-leaf translation unit", "eight-leaf Session translation unit", 1),
 ]:
     text = replace_exact(text, old, new, expected, origin)
+text = apply_unit_edits(text, dest)
 note = (
     "-- Generated by tacenta-proofs/scripts/port-session-unit-proofs.sh from\n"
     f"-- Translation/{origin}. Do not edit: `port-session-unit-proofs.sh --check`\n"
     "-- regenerates this file and fails on any difference. This port changes\n"
-    "-- only the generated unit and proof namespaces.\n\n"
+    "-- the generated unit and proof namespaces, and applies\n"
+    f"-- {len(UNIT_EDITS[dest])} named unit edits that restate the general zeroize fields at\n"
+    "-- the instances this unit uses (see the script).\n\n"
 )
 (out / dest).write_text(note + text)
 print(f"port-session-unit-proofs: {dest} (from {origin})")

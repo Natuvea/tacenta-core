@@ -46,12 +46,19 @@ import Translation.UnitOracleDh
 import Translation.UnitOracleAead
 import Translation.UnitOracleKemSig
 import Translation.UnitOracleJoint
+import Translation.UnitOracleDecrypt
 import Translation.UnitLifecycleRetryLoopT3
 import Translation.UnitLifecycleDecryptRatchetT3
 import Translation.UnitLifecycleDecryptRatchetScreen
 import Translation.UnitLifecycleTripleRefusalT3
 import Translation.UnitLifecycleDecryptRatchetCompleteT3
 import Translation.UnitLifecycleDecryptRatchetCompleteScreen
+import Translation.UnitLifecycleDecryptScreen
+import Translation.UnitLifecycleDecryptRunBounds
+import Translation.UnitKemWrapperModel
+import Translation.UnitHeldKemWitness
+import Translation.SessionUnitDecodeEc
+import Translation.UnitLifecycleInitialAgreementT3
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -73,6 +80,23 @@ is an argument about derivations and not a statement that the real primitives me
 `UnitOracleJoint.lean` and the five modules beneath it show that `OracleOf` is inhabited under
 eleven laws, with a model; that is an argument about derivations and not a statement that the
 real primitives meet the laws.
+`UnitOracleDecrypt.lean` gives `DecryptOracleOf`, the four clauses the decrypt refinements take,
+from four of those laws, without the KEM and signing laws.
+`UnitLifecycleDecryptScreen.lean` shows the hypotheses of the complete `decrypt_ratchet` refinement,
+with `Session::invariant`, together at one witness under named laws that one interpretation satisfies,
+the agreements at the same oracle's KEM model; the witness state is built for the hypotheses.
+`UnitLifecycleDecryptRunBounds.lean` derives that refinement's per-run receive bounds from
+`Session::invariant` and four counter ceilings, which stay assumed, and restates it with them.
+`UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
+read through byte views and proves the KEM agreements of it from eight laws about those functions,
+with a model; that is not a statement that the real wrapper meets the laws.
+`UnitHeldKemWitness.lean` shows the same hypotheses together at a second witness whose Braid holds a
+generated key pair, so that the relation compares that KEM model's values with the real key pair's; that
+witness state is built for the hypotheses too.
+`SessionUnitDecodeEc.lean` states the translated `decode_ec` on every input, refusals included, as
+the model's `DecodeEC`. `UnitLifecycleInitialAgreementT3.lean` proves the repeated-initial
+ephemeral comparison of `Session::decrypt` refines the model's, under the agreement clause of the
+oracle and `DhCodecOf`; the initial-frame composition of `decrypt` is not there.
 `DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
 initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every

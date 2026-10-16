@@ -2,7 +2,9 @@
 -- Translation/UnitSpqrT3.lean. Do not edit: `port-session-unit-proofs.sh --check`
 -- regenerates this file and fails on any difference. The source is itself
 -- held byte-for-byte to its leaf proof by port-unit-proofs.sh. This port
--- changes only imports and the generated unit/proof namespaces.
+-- changes imports and the generated unit/proof namespaces, and applies
+-- 4 named unit edits that restate the general zeroize fields at
+-- the instances this unit uses (see the script).
 -- Reworded 0 explanatory reference(s) to name this unit.
 
 import Translation.TacentaSessionUnit
@@ -594,7 +596,7 @@ theorem evict_oldest_loop_refines
         obtain ⟨discarded, v, hcall, href⟩ :=
           remove_skipped_at_zero_state_refines_tail hrm hinv.2.2 hpos
         simp only [hcall]
-        obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) discarded
+        obtain ⟨_, hzr⟩ := hz discarded
         simp [hzr]
         step*
         all_goals
@@ -1017,9 +1019,7 @@ theorem prepare_chains_capacity_copies (s : State) (additional : Usize)
   unfold State.prepare_chains_capacity
   simp only [lift]
   obtain ⟨i1, hi1⟩ := hcap.1 Global s.chains
-  obtain ⟨z, hz⟩ := hcap.2.1
-    (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
-      Chains.Insts.ZeroizeZeroize) s.chains
+  obtain ⟨z, hz⟩ := hcap.2.1.1 s.chains
   simp only [hi1, hz]
   step*
   have hreq : s.chains.val.length ≤
@@ -1184,7 +1184,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
           { m with rk := (Model.SparseRatchet.kdfRk m.rk (keyOf out.key)).1, epoch := out.key_epoch.val } :=
         ⟨hrk, rfl, hrel.chains, hrel.skipped, hmdir'.symm⟩
       have hroom' : s.chains.val.length < Usize.max := by omega
-      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.rk
+      obtain ⟨_, hzr⟩ := hz s.rk
       simp only [hzr]
       step*
       step with set_chains_refines hret hret_total hrel1 out.key_epoch
@@ -1227,7 +1227,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
           { m with rk := (Model.SparseRatchet.kdfRk m.rk (keyOf out.key)).1, epoch := out.key_epoch.val } :=
         ⟨hrk, rfl, hrel.chains, hrel.skipped, hmdir'.symm⟩
       have hroom' : s.chains.val.length < Usize.max := by omega
-      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.rk
+      obtain ⟨_, hzr⟩ := hz s.rk
       simp only [hzr]
       step*
       step with set_chains_refines hret hret_total hrel1 out.key_epoch
@@ -1689,7 +1689,7 @@ theorem skip_message_keys_loop1_derive_refines (hkr : SpqrHkdfAgrees) (hz64 : Ze
     by_cases hlt : numA.val < upto.val <;> step*
     · -- One more turn: step the chain key, zeroize the old one, store the
       -- message key passed.
-      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
+      obtain ⟨_, hzr⟩ := hz ckA
       simp only [hzr]
       step with kdf_ck_refines hkr hz64 ckA num1
       have hroom' : derivedA.val.length < Usize.max := by omega
@@ -1975,7 +1975,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               have := max_skip_agrees
               scalar_tac
             omega)
-        obtain ⟨_, hskipped_zeroize⟩ := hret_total.2.1 Skipped.Insts.ZeroizeZeroize s.skipped
+        obtain ⟨_, hskipped_zeroize⟩ := hret_total.2.1.2.1 s.skipped
         simp only [hskipped_zeroize]
         have hcsend :
             core.option.Option.Insts.CoreCloneClone.clone Chain.Insts.CoreCloneClone cs.send
@@ -2420,7 +2420,7 @@ and the generic `List.filter_filter_length_le`. None claims more than the
 specific bound its call site needed.
 
 **Eight assumptions back this file, five of them new constants and three reused
-outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`).** `SpqrHkdfAgrees` states agreement one level
+outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`; in this unit `SessionUnitSpqrT1.lean` states the first two at the instances the unit uses).** `SpqrHkdfAgrees` states agreement one level
 below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
 `hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes

@@ -86,9 +86,14 @@ Published so a reporter does not spend time rediscovering them:
 - **XEdDSA has no published known-answer vectors.**
 - **The composite decoder is canonical by construction and by test, not by
   proof**.
-- **The decoders have no 32-bit runtime regression test**; `tooling/ci.sh`
+- **The decoders have no 32-bit runtime regression suite**; `tooling/ci.sh`
   cross-compiles for `armv7-linux-androideabi` when that target is installed
-  and executes no 32-bit code.
+  and executes no 32-bit code. The workflow runs one 32-bit test once,
+  `tacenta-core/tests/decrypt_premises.rs` on `i686-unknown-linux-gnu` (the
+  `i686_premises` step of the `armv7` job). It reaches the decoders only
+  through `Session::decrypt`, on the few malformed frames it tries (truncated,
+  empty, unknown type and version bytes), so it is one 32-bit run of one test
+  and not a decoder regression suite.
 
 ## Third-party material boundary
 

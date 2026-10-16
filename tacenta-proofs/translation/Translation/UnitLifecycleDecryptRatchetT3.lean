@@ -1,6 +1,7 @@
 import Translation.UnitLifecycleInitialDispatch
 import Translation.UnitLifecycleRetryLoopT3
 import Translation.UnitSatisfiabilityErasureAgrees
+import Translation.UnitSatisfiabilitySpqrSessionLaws
 
 /-!
 # `decrypt_ratchet` refines the model's decrypt step, with the eviction retry loop
@@ -21,10 +22,11 @@ This module states the refinement and its hypotheses (section "Statement"), and 
   of `OracleOf` this transaction uses (the public key and the agreement of the DH boundary, the
   AEAD open, the 32-byte draw); `DhCodecOf`, the byte views of the two opaque key types; the
   axiom-level fields of `DecryptRatchetContracts`; and the agreements of `DecryptRatchetAgreements`
-  about the KDFs, the zeroizing wrappers and the KEM.  `SessionUnitSpqrT3.VecRetainAgrees` and
-  `SessionUnitSpqrT3.RemoveSkippedAtAgrees` in that record are statements about translated
-  functions that the session unit takes as assumptions (`GAP-REGISTER.md`, row
-  `SESSION-SPARSE-AGREEMENTS`).
+  about the KDFs, the zeroizing wrappers and the KEM, and two laws about opaque standard-library
+  operations in that record (`Vec::pop` shortens a non-empty vector, `Option::as_mut` returns).
+  The sparse store's `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`,
+  statements about translated functions, are not hypotheses: the proof derives them from those two
+  laws and three axiom-level contract fields (`UnitSatisfiabilitySpqrSessionLaws.lean`).
 * **About the run (per run).**  `SessionRefines`, `DecryptRatchetHeadroom`, the trace equation, and
   `DecryptRatchetRun`, whose fields are asked of the composite the run's message decodes to (the
   model's decoder is a function, so each field speaks about one value): the Braid chunk relation
@@ -33,8 +35,7 @@ This module states the refinement and its hypotheses (section "Statement"), and 
 
 `UnitLifecycleDecryptRatchetScreen.lean` shows the hypotheses this module introduces consistent with
 each other and meets the per-run ones at runs that reach a refusal, a success and an eviction round
-(the model side of each).  It does not show them true of the shipped code, and it does not decide
-`SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`.
+(the model side of each).  It does not show them true of the shipped code.
 
 ## The conclusion
 
@@ -132,9 +133,14 @@ structure RetryRunBounds (state : Model.Triple.State) (header : Model.Triple.Hea
   sparseStore : state.postQuantum.skipped.length + Model.SparseRatchet.maxSkippedStore ≤
     UScalar.cMax UScalarTy.Usize
 
-/-- The agreements `decrypt_ratchet`'s refinement takes beyond the T1 contract record: the KDF,
-zeroizing-wrapper and sparse-store agreements of the Triple receive and the message keys, the KEM
-and erasure agreements of the Braid receive, and the 32-byte wrapper round trip of the lifecycle.
+/-- The agreements `decrypt_ratchet`'s refinement takes beyond the T1 contract record: the KDF and
+zeroizing-wrapper agreements of the Triple receive and the message keys, the two laws about opaque
+standard-library operations the sparse store's scans and removal need (`Vec::pop` of a non-empty
+vector drops its last element, `Option::as_mut` returns), the KEM and erasure agreements of the
+Braid receive, and the 32-byte wrapper round trip of the lifecycle.  The sparse store's two
+agreements about translated functions, `SessionUnitSpqrT3.VecRetainAgrees` and
+`SessionUnitSpqrT3.RemoveSkippedAtAgrees`, are derived from the two laws here and three
+axiom-level fields of `DecryptRatchetContracts` (`vecRetainAgrees`, `removeSkippedAtAgrees` below).
 `ErasureCloneAgrees` is not here: it is a theorem of the unit
 (`UnitSatisfiabilityErasureAgrees.erasureCloneAgrees`). -/
 structure DecryptRatchetAgreements (K : Model.Braid.Kem) : Prop where
@@ -144,14 +150,32 @@ structure DecryptRatchetAgreements (K : Model.Braid.Kem) : Prop where
   zeroizing80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80
   zeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96
   zeroizingSparse64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64
-  vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
-  removeSkipped : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
+  pop : Tacenta.UnitSatisfiabilityRatchet.LawPop
+  asMut : Tacenta.UnitSatisfiabilityRatchet.LawAsMut
   kem : Tacenta.SessionUnitBraidT3.KemAgreesFor K
   erasure : Tacenta.SessionUnitBraidT3.ErasureAgrees
   kemLen : Tacenta.SessionUnitBraidT3.KemLenAgrees K
   validateEk : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K
   kemClone : Tacenta.SessionUnitBraidT3.KemCloneAgrees
   zeroizing32 : ZeroizingRoundTrips (Array Std.U8 32#usize)
+
+/-- `VecRetainAgrees`, from the two laws of the record and the contract fields `ZeroizeTotal` and
+`VecRetainTotal`, of which only the first two conjuncts (`Vec::capacity` returns, `Vec::zeroize`
+returns at the unit's three instances) are used. -/
+theorem DecryptRatchetAgreements.vecRetainAgrees {K : Model.Braid.Kem}
+    (agreements : DecryptRatchetAgreements K)
+    (triple : Tacenta.UnitLifecycleT1.TripleReceiveContracts) :
+    Tacenta.SessionUnitSpqrT3.VecRetainAgrees :=
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.vecRetainAgrees_of_laws triple.vecRetain.1
+    triple.vecRetain.2.1 triple.spqrZeroize agreements.asMut agreements.pop
+
+/-- `RemoveSkippedAtAgrees`, from the pop law of the record and the contract field `ZeroizeTotal`. -/
+theorem DecryptRatchetAgreements.removeSkippedAtAgrees {K : Model.Braid.Kem}
+    (agreements : DecryptRatchetAgreements K)
+    (triple : Tacenta.UnitLifecycleT1.TripleReceiveContracts) :
+    Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees :=
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.removeSkippedAtAgrees_of_laws triple.spqrZeroize
+    agreements.pop
 
 /-- The per-run conditions of one `decrypt_ratchet` call.  Every field that mentions a composite
 is asked of the composite `message` decodes to, and `Model.CompositeHeader.decodeDetailed` is a
@@ -654,7 +678,8 @@ theorem decrypt_ratchet_refines_or_open {R : Type}
   obtain ⟨tripleOut, htripleCall, htripleRel⟩ :=
     Tacenta.UnitLifecycleRetryLoopT3.receive_with_eviction_refines contracts.triple
       agreements.hmac agreements.hkdf agreements.zeroizing64 agreements.zeroizing96
-      agreements.zeroizingSparse64 agreements.vecRetain agreements.removeSkipped decoded.header mc
+      agreements.zeroizingSparse64 (agreements.vecRetainAgrees contracts.triple)
+      (agreements.removeSkippedAtAgrees contracts.triple) decoded.header mc
       hcomp header (Model.Lifecycle.tripleHeaderOf mc).dr hheaderRel.dr recvSecret sendSecret newPub
       sparse real.triple model.triple hrel.triple
       (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.triple headroom) hbounds hstores.classicalStore
@@ -1043,8 +1068,8 @@ fields:
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.zeroizing80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.zeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.zeroizingSparse64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64
-  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
-  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.removeSkipped : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.pop : Tacenta.UnitSatisfiabilityRatchet.LawPop
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.asMut : Tacenta.UnitSatisfiabilityRatchet.LawAsMut
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.kem : Tacenta.SessionUnitBraidT3.KemAgreesFor K
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.erasure : Tacenta.SessionUnitBraidT3.ErasureAgrees
   Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.kemLen : Tacenta.SessionUnitBraidT3.KemLenAgrees K
@@ -1060,15 +1085,109 @@ constructor:
     (zeroizing80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (zeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
     (zeroizingSparse64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
-    (vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (removeSkipped : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees) (kem : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
-    (erasure : Tacenta.SessionUnitBraidT3.ErasureAgrees) (kemLen : Tacenta.SessionUnitBraidT3.KemLenAgrees K)
-    (validateEk : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K) (kemClone : Tacenta.SessionUnitBraidT3.KemCloneAgrees)
+    (pop : Tacenta.UnitSatisfiabilityRatchet.LawPop) (asMut : Tacenta.UnitSatisfiabilityRatchet.LawAsMut)
+    (kem : Tacenta.SessionUnitBraidT3.KemAgreesFor K) (erasure : Tacenta.SessionUnitBraidT3.ErasureAgrees)
+    (kemLen : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (validateEk : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K)
+    (kemClone : Tacenta.SessionUnitBraidT3.KemCloneAgrees)
     (zeroizing32 : Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Aeneas.Std.Array Aeneas.Std.U8 32#usize)) :
     Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements K
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.vecRetainAgrees' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.vecRetainAgrees
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.vecRetainAgrees {K : Model.Braid.Kem}
+  (agreements : Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements K)
+  (triple : Tacenta.UnitLifecycleT1.TripleReceiveContracts) : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
+-/
+#guard_msgs in
+#check Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.vecRetainAgrees
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.removeSkippedAtAgrees' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.removeSkippedAtAgrees
+
+/--
+info: Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.removeSkippedAtAgrees {K : Model.Braid.Kem}
+  (agreements : Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements K)
+  (triple : Tacenta.UnitLifecycleT1.TripleReceiveContracts) : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
+-/
+#guard_msgs in
+#check Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements.removeSkippedAtAgrees
 
 /--
 info: structure Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetRun {R : Type} (view : Model.Lifecycle.CodewordView)
