@@ -160,7 +160,7 @@
               "uses": "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772",
               "with": {
                 "toolchain": "stable",
-                "targets": "armv7-linux-androideabi"
+                "targets": "armv7-linux-androideabi, i686-unknown-linux-gnu"
               }
             },
             {
@@ -174,12 +174,20 @@
               "run": "cargo check --locked --workspace --target armv7-linux-androideabi"
             },
             {
+              "id": "i686_install",
+              "run": "sudo apt-get update && sudo apt-get install --yes --no-install-recommends gcc-multilib"
+            },
+            {
+              "id": "i686_premises",
+              "run": "cargo test --locked -p tacenta-core --target i686-unknown-linux-gnu --test decrypt_premises"
+            },
+            {
               "uses": "./.github/actions/assurance-receipt",
               "with": {
                 "id": "armv7",
                 "classification": "required",
                 "command": "cargo-check-armv7",
-                "required-outcomes": "armv7_check=${{ steps.armv7_check.outcome }}"
+                "required-outcomes": "armv7_check=${{ steps.armv7_check.outcome }},i686_install=${{ steps.i686_install.outcome }},i686_premises=${{ steps.i686_premises.outcome }}"
               }
             }
           ]
