@@ -6,8 +6,8 @@
 # The public workflow, `.github/workflows/ci.yml`, runs these same steps on
 # every push and pull request, split into jobs so a failure names its cause;
 # this script is the one-command form for a developer's machine. The two are
-# meant to agree, and a step added here belongs there too, with one stated
-# asymmetry in each direction.
+# meant to agree, and a step added here belongs there too, with every
+# asymmetry stated below.
 #
 # Steps the workflow always runs and this script skips, printing a line that
 # says so, when the tooling is absent from the machine: the advisory audit
