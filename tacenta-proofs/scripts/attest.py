@@ -1565,6 +1565,46 @@ REQUIRED_PINS = frozenset(
         "decrypt_joint_laws_model_at_wrapperKemOf",
         "decrypt_wrapper_laws_satisfiable",
     )]
+    # The decrypt refinement's hypotheses at a session whose Braid holds a key pair, with the
+    # wrapper's KEM model, and a run carrying an agreement chunk (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds_is",
+        "lawGenerateSucceeds_of_kemDrawsSucceed",
+        "modelShipped_generateSucceeds",
+        "held_laws_satisfiable",
+        "hdrMsgOf_length",
+        "hdrMsgOf_le",
+        "chunks_length",
+        "held_encoder",
+        "held_key_agreements",
+        "structural_held",
+        "heldBraid_invariant",
+        "held_invariant",
+        "held_sessionRefines",
+        "held_braid_output",
+        "held_run",
+        "decrypt_hypotheses_at_held_of_run",
+        "decrypt_hypotheses_at_held",
+        "heldModelBraid_is_send",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held",
+        "ct1Zeros_length",
+        "ct1Zeros_le",
+        "codeword_zero",
+        "ct1Zeros_codeword0",
+        "u8_map_inj",
+        "zero_chunk_codeword",
+        "chunkBytes_le",
+        "sliceOf_chunkMessage",
+        "chunk_decode_model",
+        "chunk_decode_real",
+        "chunkMessage_type",
+        "chunk_braid_step",
+        "held_chunk_run",
+        "decrypt_hypotheses_with_chunk_at_wrapperKem_held",
+        "held_relation_pins_vector",
+        "held_not_refines_toyKem",
+        "held_model_refuses_of_agreement",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2475,6 +2515,58 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "leNat",
         "streamOf",
     )]
+    # The held-KEM witness: every result's statement, and the bodies of the added law, the held
+    # states, the held-value predicate and the chunk message (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds_is",
+        "lawGenerateSucceeds_of_kemDrawsSucceed",
+        "modelShipped_generateSucceeds",
+        "held_laws_satisfiable",
+        "hdrMsgOf_length",
+        "hdrMsgOf_le",
+        "chunks_length",
+        "held_encoder",
+        "held_key_agreements",
+        "structural_held",
+        "heldBraid_invariant",
+        "held_invariant",
+        "held_sessionRefines",
+        "held_braid_output",
+        "held_run",
+        "decrypt_hypotheses_at_held_of_run",
+        "decrypt_hypotheses_at_held",
+        "heldModelBraid_is_send",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held",
+        "ct1Zeros_length",
+        "ct1Zeros_le",
+        "codeword_zero",
+        "ct1Zeros_codeword0",
+        "u8_map_inj",
+        "zero_chunk_codeword",
+        "chunkBytes_le",
+        "sliceOf_chunkMessage",
+        "chunk_decode_model",
+        "chunk_decode_real",
+        "chunkMessage_type",
+        "chunk_braid_step",
+        "held_chunk_run",
+        "decrypt_hypotheses_with_chunk_at_wrapperKem_held",
+        "held_relation_pins_vector",
+        "held_not_refines_toyKem",
+        "held_model_refuses_of_agreement",
+        "LawGenerateSucceeds",
+        "LawGenerateSucceedsShape",
+        "hdrMsgOf",
+        "heldModelBraid",
+        "heldBraid",
+        "heldReal",
+        "heldModel",
+        "HeldKemAt",
+        "ct1Zeros",
+        "chunkComposite",
+        "chunkMessage",
+        "chunkView",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2642,6 +2734,22 @@ REQUIRED_PRINT_FORM = frozenset(
         "leBytes",
         "leNat",
         "streamOf",
+    )]
+    # The held-KEM witness: the added law, the held states, the held-value predicate and the
+    # chunk message (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds",
+        "LawGenerateSucceedsShape",
+        "hdrMsgOf",
+        "heldModelBraid",
+        "heldBraid",
+        "heldReal",
+        "heldModel",
+        "HeldKemAt",
+        "ct1Zeros",
+        "chunkComposite",
+        "chunkMessage",
+        "chunkView",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

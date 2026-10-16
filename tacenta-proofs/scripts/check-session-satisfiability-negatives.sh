@@ -2,11 +2,12 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Thirteen modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# Fourteen modules carry that evidence: the three below, the six of the joint decision of OracleOf
 # (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), UnitOracleDecrypt.lean with
 # the model frame lemma it pins (also in the oracle group), and
 # UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group), UnitLifecycleDecryptScreen.lean
-# (the decrypt-joint group) and UnitKemWrapperModel.lean (the kem-wrapper group):
+# (the decrypt-joint group), UnitKemWrapperModel.lean (the kem-wrapper group) and
+# UnitHeldKemWitness.lean (the held-kem group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -65,6 +66,15 @@
 #                 first-ciphertext size set to the toy size, each refused by the agreement proofs; the
 #                 corollary restated at `toyKem`, refused by its statement pin alone; the model witness
 #                 removed, refused by its pins; and every theorem of the module required to carry an axiom pin.
+#   held kem      the decrypt hypotheses at a session whose Braid holds a generated key pair
+#                 (UnitHeldKemWitness.lean): the held vector, private part and header hash each altered in one
+#                 byte where the agreements at the held key are stated, each refused by the proof; the joint
+#                 statement moved to `toyKem`, refused because the relation at the held state is proved at
+#                 `wrapperKem`, and the refutation at `toyKem` moved to `wrapperKem`, refused by its proof; the
+#                 added law removed from the statement, refused; the chunk of the chunk run altered in one byte
+#                 and given another index, each refused by the run's codeword proof; the held-value predicate
+#                 without its conjunct that the model holds the real bytes, with the proofs adjusted, refused by
+#                 its `#print` pin alone; and every theorem of the module required to carry an axiom pin.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -1070,6 +1080,68 @@ t = once(kw, "theorem decrypt_wrapper_laws_model :", "theorem decrypt_wrapper_la
          "kem-wrapper-remove-model")
 if t is not None:
     refused("kem-wrapper-remove-model-witness", t, "Unknown constant")
+
+# -------------------------------------------------------------- held kem
+# `UnitHeldKemWitness.lean`: the decrypt hypotheses at a session whose Braid holds a generated key pair, with
+# the KEM model read off the wrapper, and at a run carrying an agreement chunk. The held bytes are altered
+# in one byte where the agreements at the held key are stated (the vector, the private part, the header's
+# hash), each refused by the proof; the joint statement is moved to `toyKem`, refused because the relation
+# at the held state needs `wrapperKem`, and the refutation at `toyKem` is moved to `wrapperKem`, refused by
+# its proof; the added law is removed from the statement, refused; the chunk is altered in one byte and
+# given another index, each refused by the run's codeword proof; the held-value predicate loses its
+# conjunct that the model holds the real bytes, refused by its `#print` pin; and every theorem of the module
+# must carry an axiom pin.
+hk = module("UnitHeldKemWitness")
+passes("held-kem-unmodified", hk)
+hk_code = re.sub(r"/-.*?-/", "", hk, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", hk_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitHeldKemWitness\.{re.escape(t)}\n", hk):
+        wrong.append(f"theorem {t} of UnitHeldKemWitness has no axiom pin")
+HK_FRESH = "      FreshKeyPairRefines wrapperKem kp (seed.map u8) (vecOf v) := by\n"
+for nm, new, reason in [
+        ("vector", "      FreshKeyPairRefines wrapperKem kp (seed.map u8) ((vecOf v).modifyHead (· + 1)) := by\n",
+         "Application type mismatch"),
+        ("private-part", "      FreshKeyPairRefines wrapperKem kp ((seed.map u8).modifyHead (· + 1)) (vecOf v) := by\n",
+         "Application type mismatch")]:
+    t = once(nopins(hk), HK_FRESH, new, f"held-kem-{nm}-byte")
+    if t is not None:
+        refused(f"held-kem-{nm}-altered-in-one-byte", t, reason)
+t = once(nopins(hk), "      wrapperKem.hashEk ((vecOf h).take 32) (vecOf v) = (vecOf h).drop 32 ∧\n",
+         "      wrapperKem.hashEk ((vecOf h).take 32) (vecOf v) = ((vecOf h).drop 32).modifyHead (· + 1) ∧\n",
+         "held-kem-hash-byte")
+if t is not None:
+    refused("held-kem-header-hash-altered-in-one-byte", t, "Application type mismatch")
+t = nopins(hk)
+for old, new in [("(rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt real model ∧\n",
+                  "(rng : List Std.U8),\n      oracle.braidKem = Model.Braid.toyKem ∧\n      HeldKemAt real model ∧\n"),
+                 ("      L.viewInjective (byteTrace sampleRng) wrapperKem\n  obtain ⟨k, pkb, a, hpub, hbytes, hcan, hprime⟩ := L.validKey\n  obtain ⟨ad, had, hlen⟩ :=\n    Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.identity_ad_length L.dhCodec pkb pkb)\n  obtain ⟨decoded, hdec, -⟩ := sample_decode_real",
+                  "      L.viewInjective (byteTrace sampleRng) Model.Braid.toyKem\n  obtain ⟨k, pkb, a, hpub, hbytes, hcan, hprime⟩ := L.validKey\n  obtain ⟨ad, had, hlen⟩ :=\n    Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.identity_ad_length L.dhCodec pkb pkb)\n  obtain ⟨decoded, hdec, -⟩ := sample_decode_real")]:
+    t = once(t, old, new, "held-kem-at-toyKem") if t is not None else None
+if t is not None:
+    refused("held-kem-joint-statement-at-toyKem", t, "but is expected to have type\n  oracle.braidKem = wrapperKem")
+t = once(nopins(hk), "    ¬ SessionRefines dh Model.Braid.toyKem (heldReal k pkb ad a kp enc)\n",
+         "    ¬ SessionRefines dh wrapperKem (heldReal k pkb ad a kp enc)\n", "held-kem-refutation-at-wrapperKem")
+if t is not None:
+    refused("held-kem-refutation-moved-to-wrapperKem", t, "Application type mismatch")
+t = once(nopins(hk), "    (L : DecryptWrapperLaws dh) (G : LawGenerateSucceeds) :\n    ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)\n      (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt",
+         "    (L : DecryptWrapperLaws dh) :\n    ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)\n      (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt",
+         "held-kem-without-law")
+if t is not None:
+    refused("held-kem-joint-statement-without-LawGenerateSucceeds", t, "Unknown identifier `G`")
+for nm, new in [("data", "    agType := .ct1, agChunk := some ⟨0, List.replicate 31 0 ++ [1]⟩ }\n"),
+                ("index", "    agType := .ct1, agChunk := some ⟨1, List.replicate 32 0⟩ }\n")]:
+    t = once(nopins(hk), "    agType := .ct1, agChunk := some ⟨0, List.replicate 32 0⟩ }\n", new, f"held-kem-chunk-{nm}")
+    if t is not None:
+        refused(f"held-kem-chunk-{nm}-altered", t, "Type mismatch: After simplification")
+t = once(hk, "    model.braid = .keysSampled 1 modelAuth0 (seed.map u8) (vecOf v)\n      ⟨vecOf h ++ modelAuth0.macHdr 1 (vecOf h), 1⟩ ∧\n",
+         "", "held-kem-predicate-weakened")
+if t is not None and t.count("hh, hv, rfl, rfl, hsend.symm⟩") == 2:
+    t = t.replace("hh, hv, rfl, rfl, hsend.symm⟩", "hh, hv, rfl, hsend.symm⟩")
+else:
+    wrong.append("held-kem-predicate-weakened: the proof text to adjust does not occur twice")
+    t = None
+if t is not None:
+    refused("held-kem-predicate-without-the-held-bytes", t, "#guard_msgs")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))
