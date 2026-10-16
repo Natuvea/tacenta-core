@@ -186,7 +186,7 @@
               "with": {
                 "id": "armv7",
                 "classification": "required",
-                "command": "cargo-check-armv7",
+                "command": "cargo-check-armv7-and-test-i686",
                 "required-outcomes": "armv7_check=${{ steps.armv7_check.outcome }},i686_install=${{ steps.i686_install.outcome }},i686_premises=${{ steps.i686_premises.outcome }}"
               }
             }

@@ -235,7 +235,7 @@ their `sorry` scan; the attestation check; the committed vectors regenerated
 from the model and compared; the Rust crates (format, lint, tests,
 property-based decoder tests, and the KEM, Braid and lifecycle tests again on
 libcrux's portable ML-KEM backend) with a dependency advisory audit, a compile
-check on the minimum supported Rust version, a 32-bit compile check, and the
+check on the minimum supported Rust version, a 32-bit compile check and one 32-bit test run, and the
 constant-time disassembly gate (the release assembly of the two hand-written
 constant-time functions, read for conditional branches); and the committed
 Rust-to-Lean translation with its T1/T3 proofs, built, scanned for
@@ -265,8 +265,9 @@ the script runs two steps the workflow does not: the interoperability
 harness, which is not in this public tree and skips here, and the fuzz smoke
 run, which needs `cargo-fuzz` and a nightly toolchain. The workflow also runs steps the
 script does not: the SPQR erasure regression (`rust_spqr_erasure`), the KEM, Braid and
-lifecycle tests on libcrux's portable backend (`rust_portable_kem`), the receipt
-writers and the aggregation job, which downloads the evidence pack it uploaded and
+lifecycle tests on libcrux's portable backend (`rust_portable_kem`), the 32-bit run of
+`tacenta-core/tests/decrypt_premises.rs` on `i686-unknown-linux-gnu` (`i686_premises`, in the
+`armv7` job), the receipt writers and the aggregation job, which downloads the evidence pack it uploaded and
 verifies that copy against the commit. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
