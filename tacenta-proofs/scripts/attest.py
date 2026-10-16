@@ -1654,6 +1654,41 @@ REQUIRED_PINS = frozenset(
         "parkedSession_not_counterHeadroom",
         "invariant_does_not_give_counterHeadroom",
     )]
+    # Invariant-passing session states that are not fresh, and the restated refinement's hypotheses
+    # together at the stored-key state (`UnitLifecycleDecryptStates`).
+    + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
+        "canonicalKey_ephemeral",
+        "session_decode_ec_ephemeral",
+        "decode_ec_ephemeral",
+        "structural_responderSession",
+        "responderTriple_invariant",
+        "responderSession_invariant",
+        "structural_pendingSession",
+        "pendingSession_invariant",
+        "window_of",
+        "storedTriple_invariant",
+        "structural_storedSession",
+        "storedSession_invariant",
+        "responder_state_exists",
+        "pending_state_exists",
+        "storedSession_sessionRefines",
+        "storedSession_counterHeadroom",
+        "storedSession_retryRunBounds",
+        "stored_classicalMatch_tight",
+        "stored_sparseMatch_tight",
+        "storedSession_runInputs",
+        "storedSession_shape",
+        "stored_state_exists",
+        "decrypt_of_invariant_hypotheses_at_stored",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys",
+        "structural_heldStoredSession",
+        "heldStoredSession_invariant",
+        "heldStoredSession_sessionRefines",
+        "heldStoredSession_counterHeadroom",
+        "heldStoredSession_shape",
+        "heldStoredSession_runInputs",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys_held",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2685,6 +2720,55 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "parkedTriple",
         "parkedSession",
     )]
+    # The non-fresh states, their results and the joint statements at them
+    # (`UnitLifecycleDecryptStates`).
+    + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
+        "canonicalKey_ephemeral",
+        "session_decode_ec_ephemeral",
+        "decode_ec_ephemeral",
+        "structural_responderSession",
+        "responderTriple_invariant",
+        "responderSession_invariant",
+        "structural_pendingSession",
+        "pendingSession_invariant",
+        "window_of",
+        "storedTriple_invariant",
+        "structural_storedSession",
+        "storedSession_invariant",
+        "responder_state_exists",
+        "pending_state_exists",
+        "storedSession_sessionRefines",
+        "storedSession_counterHeadroom",
+        "storedSession_retryRunBounds",
+        "stored_classicalMatch_tight",
+        "stored_sparseMatch_tight",
+        "storedSession_runInputs",
+        "storedSession_shape",
+        "stored_state_exists",
+        "decrypt_of_invariant_hypotheses_at_stored",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys",
+        "structural_heldStoredSession",
+        "heldStoredSession_invariant",
+        "heldStoredSession_sessionRefines",
+        "heldStoredSession_counterHeadroom",
+        "heldStoredSession_shape",
+        "heldStoredSession_runInputs",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys_held",
+        "zeros",
+        "ephemeralOf",
+        "responderTriple",
+        "responderBraid",
+        "responderSession",
+        "ctOf",
+        "pendingSession",
+        "chainAt",
+        "storedTriple",
+        "storedBraid",
+        "storedSession",
+        "storedModel",
+        "StoredKeysShape",
+        "heldStoredSession",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2887,6 +2971,23 @@ REQUIRED_PRINT_FORM = frozenset(
         "DecryptOfInvariantHypotheses",
         "parkedTriple",
         "parkedSession",
+    )]
+    # The non-fresh states, the stored-key model and its shape (`UnitLifecycleDecryptStates`).
+    + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
+        "zeros",
+        "ephemeralOf",
+        "responderTriple",
+        "responderBraid",
+        "responderSession",
+        "ctOf",
+        "pendingSession",
+        "chainAt",
+        "storedTriple",
+        "storedBraid",
+        "storedSession",
+        "storedModel",
+        "StoredKeysShape",
+        "heldStoredSession",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
