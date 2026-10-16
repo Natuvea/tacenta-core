@@ -186,7 +186,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Spec section | Model definition | File |
 |---|---|---|
 | Primitive calls delegated by the session algorithms; ordered caller randomness, including the Braid's draws (`mlkem-braid.md`, The KEM split and Sending) | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `braidSendDrawCount`, `takeDraws`, `sendAgreement` | `Model/Lifecycle.lean` |
-| Receiving the initial message; successful-agreement-class repeated-initial recognition and ignored wrapper fields | `sameEphemeralAgreement`, `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
+| Receiving the initial message; repeated-initial recognition by the successful agreement class of the two `DecodeEC`-decoded ephemerals, and ignored wrapper fields | `decodeEc`, `sameEphemeralAgreement`, `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
 | Ratchet send and receive refusal kinds retained through composition | `Ratchet.sendDetailed`, `SparseRatchet.sendDetailed`, `Triple.sendDetailed`, `Ratchet.receiveDetailed`, `SparseRatchet.receiveDetailed`, `Triple.receiveDetailed` and their refusal types | `Model/Ratchet.lean`, `Model/SparseRatchet.lean`, `Model/Triple.lean` |
