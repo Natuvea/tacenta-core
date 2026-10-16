@@ -2,8 +2,12 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Nine modules carry that evidence: the three below, and the six of the joint decision of OracleOf
-# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group):
+# Fourteen modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), UnitOracleDecrypt.lean with
+# the model frame lemma it pins (also in the oracle group), and
+# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group), UnitLifecycleDecryptScreen.lean
+# (the decrypt-joint group), UnitKemWrapperModel.lean (the kem-wrapper group) and
+# UnitHeldKemWitness.lean (the held-kem group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -36,10 +40,46 @@
 #                 in turn, nine primitives and the private-key view of the joint model changed one at
 #                 a time, each refused by the result, the lemma or the law of the model that needs
 #                 it, and a bridge or a record changed by one field, each refused.
+#                 And `DecryptOracleOf` from four laws (UnitOracleDecrypt.lean): its proof moved
+#                 onto the real constants with the statement unchanged, refused by its axiom pin
+#                 alone; routed through `oracleOf_of_laws`, refused by both pins; two fields of its
+#                 interpretation and its view law changed, each refused by the lemma; and each of
+#                 the five equalities of the frame lemma's helper `decryptRatchet_oracle_frame`
+#                 (tacenta-model/Model/LifecycleFrame.lean) swapped for one about an unread field,
+#                 each refused because the proof fails.
+#   sparse laws   the Session unit's two sparse agreements from five laws: each law removed from the
+#                 bundle and each weakened where the derivation takes it, each refused; the shape the
+#                 two models satisfy, with a field dropped or the pop law weakened, refused by its
+#                 binding to the laws; the model witness removed, refused by its pins.
+#   decrypt joint the hypotheses of the complete `decrypt_ratchet` refinement together at one witness
+#                 (UnitLifecycleDecryptScreen.lean): each of the fifteen laws removed from the bundle,
+#                 refused by the witness theorem or the main theorem; the agreements moved to another
+#                 oracle's KEM model, refused by the link to the refinement and, with the link removed,
+#                 by the statement pin of the hypothesis set; the oracle built at `oracleOfLaws`'s own KEM
+#                 model, refused by the main theorem; the model witness removed, refused by its pins;
+#                 the shipped-size model's CT1_LEN, and its KEM's first-ciphertext size, set to the toy
+#                 size, each refused; and every theorem of the module required to carry an axiom pin.
+#   kem wrapper   a Braid KEM model read off the `tacenta_kem` wrapper (UnitKemWrapperModel.lean): each of
+#                 the eight laws, and each of the three fields the wrapper bundle puts in place of the joint
+#                 bundle's agreements, removed, refused by a proof that projects it; each refusing arm of
+#                 the model made to answer `some`, the model's hash given a 32-byte fallback, and its
+#                 first-ciphertext size set to the toy size, each refused by the agreement proofs; the
+#                 corollary restated at `toyKem`, refused by its statement pin alone; the model witness
+#                 removed, refused by its pins; and every theorem of the module required to carry an axiom pin.
+#   held kem      the decrypt hypotheses at a session whose Braid holds a generated key pair
+#                 (UnitHeldKemWitness.lean): the held vector, private part and header hash each altered in one
+#                 byte where the agreements at the held key are stated, each refused by the proof; the joint
+#                 statement moved to `toyKem`, refused because the relation at the held state is proved at
+#                 `wrapperKem`, and the refutation at `toyKem` moved to `wrapperKem`, refused by its proof; the
+#                 added law removed from the statement, refused; the chunk of the chunk run altered in one byte
+#                 and given another index, each refused by the run's codeword proof; the held-value predicate
+#                 without its conjunct that the model holds the real bytes, with the proofs adjusted, refused by
+#                 its `#print` pin alone; and every theorem of the module required to carry an axiom pin.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
-#                 field counts, and must fail on five mutations of the module and on the two
-#                 commands that take a structure given the wrong kind of structure.
+#                 field counts, and must fail on seven mutations of the module or of its
+#                 allow-list and on the two commands that take a structure given the wrong
+#                 kind of structure.
 #
 # The audit is text in this script and not a Lean module because
 # `check-lean-constructs.sh` refuses elaboration-time code in the translation
@@ -176,8 +216,28 @@ private def auditNumFields (env : Environment) (s : Name) : Nat :=
 
 private def errorAxiom : Name := `tacenta_session_unit.rand_core_1.error.Error
 
-private def allowedProjection (n : Name) : Bool :=
-  n == `tacenta_session_unit.rand_core_1.RngCore.fill_bytes
+/-- Structure accessors a shape may name.  The `RngCore` method is called on the supplied source.
+The others are the fields that the restated `Vec::zeroize` conjunct's instance records read when
+they are rebuilt over an interpretation (`Interp.chainZeroize`, `Interp.chainsZeroize`,
+`Interp.skippedInst`, `Interp.skippedKeyInst`): a field accessor of a translated structure, not a
+translated function, and it reaches no axiom.  A listed name counts only if the environment says it
+is a structure projection, so a translated function added to the list is still refused. -/
+private def allowedProjections : List Name := [
+  `tacenta_session_unit.rand_core_1.RngCore.fill_bytes,
+  `tacenta_session_unit.tacenta_spqr.Chain.ck,
+  `tacenta_session_unit.tacenta_spqr.Chain.n,
+  `tacenta_session_unit.tacenta_spqr.Chains.send,
+  `tacenta_session_unit.tacenta_spqr.Chains.receive,
+  `tacenta_session_unit.tacenta_spqr.Skipped.epoch,
+  `tacenta_session_unit.tacenta_spqr.Skipped.n,
+  `tacenta_session_unit.tacenta_spqr.Skipped.key,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.dh,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.n,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.stored_at,
+  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key]
+
+private def allowedProjection (env : Environment) (n : Name) : Bool :=
+  allowedProjections.contains n && env.isProjectionFn n
 
 elab "#audit_interp_exact " i:ident : command => do
   let env ← getEnv
@@ -202,7 +262,7 @@ elab "#audit_axiom_part " ss:ident* : command => do
       let (axs, _) := auditReach env us
       let badAx := axs.toList.filter (· != errorAxiom)
       let badFn := us.toList.filter fun c =>
-        auditIsFunction env c && !allowedProjection c
+        auditIsFunction env c && !allowedProjection env c
       unless badAx.isEmpty && badFn.isEmpty do
         throwError "{sname}: a field mentions unit axioms {badAx} or translated functions {badFn}"
       total := total + 1
@@ -218,7 +278,7 @@ elab "#audit_defined_part " ss:ident* : command => do
     for t in ftys do
       let us := auditMentioned env t
       let fns := us.toList.filter fun c =>
-        auditIsFunction env c && !allowedProjection c
+        auditIsFunction env c && !allowedProjection env c
       if fns.isEmpty then
         throwError "{sname}: a field mentions no translated function"
       total := total + 1
@@ -451,7 +511,7 @@ for name, old, new, reason in [
 # -------------------------------------------------------------------- audit
 EXPECT = [
     "Interp: no uninterpreted unit axiom in any field type",
-    "Interp.real interprets exactly the 48 unit axioms reached by the records",
+    "Interp.real interprets exactly the 49 unit axioms reached by the records",
 ]
 for s, n in [("BraidSendAxiom", 11), ("TripleSendAxiom", 5), ("EncryptAxiom", 5),
              ("BraidReceiveAxiom", 16), ("TripleReceiveAxiom", 7), ("DecryptAxiom", 7),
@@ -518,6 +578,33 @@ for old, new in [
 if t:
     refused("audit-an-interp-field-names-a-real-type", t + "\n" + audit,
             "Interp mentions uninterpreted unit axioms")
+
+# 8. the restated `Vec::zeroize` conjunct written with the translated instance record in place of
+# the one rebuilt over the interpretation. `VecRetainTotal_is` accepts it by unfolding, so only the
+# audit refuses it.
+t = once(joint, "(∀ v : alloc.vec.Vec tacenta_spqr.Skipped, ∃ r, I.vecZeroize I.skippedInst v = ok r)",
+         "(∀ v : alloc.vec.Vec tacenta_spqr.Skipped, ∃ r, I.vecZeroize tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r)",
+         "translated instance record")
+if t:
+    refused("audit-a-restated-conjunct-names-the-translated-instance", t + "\n" + audit,
+            "a field mentions unit axioms")
+
+# 9. a name on the accessor allow-list counts only if it is a structure projection: a translated
+# function added to the list is still refused (the mutation of case 4, with its function listed)
+a = once(audit, "  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key]",
+         "  `tacenta_session_unit.tacenta_ratchet.SkippedKey.key,\n"
+         "  `tacenta_session_unit.tacenta_spqr.Direction.Insts.CoreCloneClone.clone]",
+         "accessor allow-list")
+t = once(joint, "structure TripleSendAxiom (I : Interp) : Prop where",
+         "def AuditDummy (I : Interp) (_f : tacenta_spqr.Direction → Result tacenta_spqr.Direction) : Prop :=\n  SpqrZeroizeShape I\n\nstructure TripleSendAxiom (I : Interp) : Prop where",
+         "allow-listed function (1)")
+if t:
+    t = once(t, "  zeroize : SpqrZeroizeShape I\n  vecRetain : VecRetainAxiomShape I\n  optionClone : OptionCloneShape I\n\nstructure TripleSendDefined",
+             "  zeroize : AuditDummy I tacenta_spqr.Direction.Insts.CoreCloneClone.clone\n  vecRetain : VecRetainAxiomShape I\n  optionClone : OptionCloneShape I\n\nstructure TripleSendDefined",
+             "allow-listed function (2)")
+if t and a:
+    refused("audit-an-allow-listed-function-is-not-a-projection", t + "\n" + a,
+            "or translated functions")
 
 # 5 and 6. each command must refuse the wrong kind of structure
 a = once(audit, "#audit_defined_part Tacenta.UnitSatisfiabilityJoint.BraidSendDefined",
@@ -670,6 +757,391 @@ for name, text, old, new, reason in [
     t = once(text, old, new, name)
     if t is not None:
         refused(name, t, reason)
+
+# `DecryptOracleOf` from four laws (`UnitOracleDecrypt.lean`) and the model frame lemma that `decrypt`
+# reads five oracle fields (`tacenta-model/Model/LifecycleFrame.lean`). The narrowed lemma's statement
+# takes only the four laws; that is what keeps the other seven off the route, and its statement pin
+# holds it. Its axiom pin holds something else: that the witness oracle is built without the KEM,
+# signing, identity-test, AEAD-seal and KDF constants. The first route change below keeps the
+# statement and moves the proof onto the real constants, so only the axiom pin refuses it, with the
+# signing constant among the added axioms. The second routes the lemma through `oracleOf_of_laws`,
+# which needs the seven other laws as hypotheses, so it changes the statement and both pins refuse it
+# (the reason checked is the axiom pin's). The interpretation and the lemma are then changed with their
+# pins removed, so that what refuses is the theorem. Last, each of the five equalities of the helper
+# `decryptRatchet_oracle_frame` is swapped, in turn, for one about a field `decrypt` does not read; a
+# refusal shows that the proof uses that equality, not that the swapped statement is false
+# (`decrypt_oracle_frame` fails with it because it calls the helper).
+o_dec = module("UnitOracleDecrypt")
+frame = open(os.path.join("..", "tacenta-model", "Model", "LifecycleFrame.lean")).read()
+passes("oracle-decrypt-unmodified", o_dec)
+passes("oracle-decrypt-frame-unmodified", frame)
+for text, nm in [(o_dec, "UnitOracleDecrypt"), (frame, "LifecycleFrame")]:
+    code = re.sub(r"/-.*?-/", "", text, flags=re.S)
+    pinned = o_dec if nm == "LifecycleFrame" else text
+    for t in re.findall(r"^theorem (\w+)", code, re.M):
+        if not re.search(rf"#print axioms \S+\.{t}\n", pinned):
+            wrong.append(f"theorem {t} of {nm} has no axiom pin in UnitOracleDecrypt.lean")
+
+DEC_PROOF = """  let kem : KemViewOf InterpO.decrypt.toInterp := ⟨arrayOf (n := 32#usize)⟩
+  let S : Array Std.U8 32#usize → Slice Std.U8 → Slice Std.U8 → Array Std.U8 64#usize :=
+    Tacenta.UnitOracleModel.signS
+  let base := oracleOfLaws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S
+  refine ⟨{ base with draws := draws, braidKem := braidKem }, rfl, rfl, ?_⟩
+  exact ⟨dhPublicClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hcodec
+      hdh.1,
+    dhAgreeClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hagree hdh,
+    aeadOpenClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hopen,
+    byte_random32Clause⟩
+"""
+DEC_STMT = """    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)
+    (draws : List Model.Lifecycle.Key) (braidKem : Model.Braid.Kem) :
+    ∃ oracle : Model.Lifecycle.Oracle, oracle.draws = draws ∧ oracle.braidKem = braidKem ∧
+      DecryptOracleOf byteRng byteCrc dh byteTrace oracle := by
+"""
+# the same proof over the real constants: the statement and its pin are unchanged
+REAL_PROOF = DEC_PROOF.replace("InterpO.decrypt (dhViewD dh)", "InterpO.real (dhViewOf dh)").replace(
+    "let kem : KemViewOf InterpO.decrypt.toInterp := ⟨arrayOf (n := 32#usize)⟩",
+    "let kem : KemViewOf InterpO.real.toInterp := ⟨fun _ => []⟩")
+t = once(o_dec, DEC_PROOF, REAL_PROOF, "decrypt oracle at the real constants")
+if t is not None:
+    refused("oracle-decrypt-built-at-the-real-constants", t, "+  tacenta_boundary.xeddsa.sign")
+# the route the narrowed lemma replaces: all eleven laws, through `oracleOf_of_laws` (a changed statement)
+ROUTED = """    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)
+    (kem : KemView) (hid : Tacenta.UnitLifecycleT1.DhIdentityTotal)
+    (hseal : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (hdecaps : Tacenta.UnitLifecycleT1.KemDecapsulateTotal)
+    (hverify : Tacenta.UnitLifecycleT1.XeddsaVerifyTotal)
+    (hsign : Tacenta.UnitLifecycleIntegrationScreen.SignFillsOnce64)
+    (hkem : Tacenta.UnitLifecycleIntegrationScreen.KemShape)
+    (hkv : Function.Injective kem.keyPair) :
+    ∃ oracle : Model.Lifecycle.Oracle, DecryptOracleOf byteRng byteCrc dh byteTrace oracle :=
+  (Tacenta.UnitOracleJoint.oracleOf_of_laws dh kem hcodec hagree hid hseal hopen hdecaps hverify hsign
+    hkem hdh hkv).elim fun oracle h => ⟨oracle, DecryptOracleOf.of_oracleOf h⟩
+"""
+t = once(o_dec, DEC_STMT + DEC_PROOF, ROUTED, "decrypt oracle through oracleOf_of_laws")
+if t is not None:
+    t = once(t, "import Translation.UnitOracleModel\n",
+             "import Translation.UnitOracleModel\nimport Translation.UnitOracleJoint\n", "import the joint module")
+if t is not None:
+    refused("oracle-decrypt-routed-through-oracleOf_of_laws", t, "+  tacenta_boundary.xeddsa.sign")
+for name, old, new, reason in [
+    ("oracle-decrypt-interp-open-is-the-models", "    aeadDecrypt := tacenta_boundary.aead.decrypt\n", "",
+     "aeadOpenClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hopen"),
+    ("oracle-decrypt-interp-agree-refuses", "    dhPrivAgree := tacenta_boundary.dh.PrivateKey.agree\n",
+     "    dhPrivAgree := fun _ _ => ok none\n",
+     "dhAgreeClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hagree"),
+    ("oracle-decrypt-lemma-keeps-half-the-view-law",
+     "    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)\n    (draws",
+     "    (hdh : Function.Injective dh.privateKey)\n    (draws", "Invalid projection"),
+]:
+    t = once(nopins(o_dec), old, new, name)
+    if t is not None:
+        refused(name, t, reason)
+FRAME_HYPS = """    (hdraws : oracle'.draws = oracle.draws) (hkem : oracle'.braidKem = oracle.braidKem)
+    (hpublic : oracle'.dhPublic = oracle.dhPublic) (hagree : oracle'.dhAgree = oracle.dhAgree)
+    (hopen : oracle'.aeadOpen = oracle.aeadOpen) :
+    decryptRatchet view"""
+for name, field, other, reason in [
+    ("oracle-decrypt-frame-without-draws", "draws", "kemDecaps", "unsolved goals"),
+    ("oracle-decrypt-frame-without-braidKem", "braidKem", "kemValid", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-dhPublic", "dhPublic", "identityValid", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-dhAgree", "dhAgree", "sigVerify", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-aeadOpen", "aeadOpen", "aeadSeal", "Tactic `rfl` failed"),
+]:
+    t = once(frame, FRAME_HYPS, FRAME_HYPS.replace(f"oracle'.{field} = oracle.{field}",
+                                                   f"oracle'.{other} = oracle.{other}"), name)
+    if t is not None:
+        refused(name, t, reason)
+# -------------------------------------------------------------- sparse laws
+# `UnitSatisfiabilitySpqrSessionLaws.lean`: `VecRetainAgrees` and `RemoveSkippedAtAgrees` from five laws.
+sp = module("UnitSatisfiabilitySpqrSessionLaws")
+passes("sparse-laws-unmodified", sp)
+sp_body = nopins(sp)
+# each law removed from the bundle: the derivation of both agreements from it is refused
+for field in ["pop : LawPop", "asMut : LawAsMut", "capacity : LawCapacity",
+              "vecZeroize : LawVecZeroize", "arrayZeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal"]:
+    name = field.split(" ")[0]
+    t = once(sp_body, f"  {field}\n", "", f"sparse-laws-drop-{name}")
+    if t is not None:
+        refused(f"sparse-laws-bundle-without-{name}", t,
+                f"so it is not possible to project the field `{name}`")
+# each law weakened where `vecRetainAgrees_of_laws` takes it: the derivation is refused
+VR = """theorem vecRetainAgrees_of_laws (hCap : LawCapacity) (hVZ : LawVecZeroize)
+    (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hA : LawAsMut) (hP : LawPop) :"""
+for name, old, new, reason in [
+    # `Vec::pop` only returns, as `VecPopTotal` says, without shortening the vector
+    ("pop-only-returns", "(hP : LawPop)",
+     "(hP : ∀ (T : Type) (v : alloc.vec.Vec T), ∃ r, alloc.vec.Vec.pop Global v = ok r)",
+     "Application type mismatch"),
+    # `Option::as_mut` returns at one type only
+    ("as-mut-at-unit-only", "(hA : LawAsMut)",
+     "(hA : ∀ (o : Option Unit), ∃ r, core.option.Option.as_mut o = ok r)",
+     "Application type mismatch"),
+    # `Vec::capacity` returns at one element type only
+    ("capacity-at-bytes-only", "(hCap : LawCapacity)",
+     "(hCap : ∀ (A : Type) (v : alloc.vec.Vec U8), ∃ r, alloc.vec.Vec.capacity A v = ok r)",
+     "Type mismatch"),
+    # `Vec::zeroize` returns at the two skipped-key stores and not at the chain table
+    ("vec-zeroize-without-the-chain-table", "(hVZ : LawVecZeroize)",
+     "(hVZ : (∀ v : alloc.vec.Vec tacenta_spqr.Skipped,\n      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r) ∧\n    (∀ v : alloc.vec.Vec tacenta_ratchet.SkippedKey,\n      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize\n        tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v = ok r))",
+     "Application type mismatch"),
+    # `Array::zeroize` returns at 16-byte arrays, not at 32-byte ones
+    ("array-zeroize-at-16-bytes", "(hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)",
+     "(hZ : ∀ (a : Array U8 16#usize), ∃ r, Array.Insts.ZeroizeZeroize.zeroize\n      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r)",
+     "Application type mismatch"),
+]:
+    v = once(VR, old, new, f"sparse-laws-weaken-{name}")
+    if v is None:
+        continue
+    t = once(sp_body, VR, v, f"sparse-laws-weaken-{name}")
+    if t is not None:
+        refused(f"sparse-laws-derivation-with-{name}", t, reason)
+# the shape the models satisfy: a field dropped, or the pop law weakened, is refused by its binding
+# `spqrSessionLaws_iff` to the five laws
+for name, old, new, reason in [
+    ("drop-pop", "  pop : ∀ (T : Type) (v : alloc.vec.Vec T), v.val ≠ [] →\n    ∃ o w, I.vecPop Global v = ok (o, w) ∧ w.val = v.val.dropLast\n", "",
+     "Invalid `⟨...⟩` notation"),
+    ("drop-as-mut", "  asMut : ∀ (T : Type) (o : Option T), ∃ r, I.optionAsMut o = ok r\n", "",
+     "Invalid `⟨...⟩` notation"),
+    ("drop-retain-axiom", "  retainAxiom : VecRetainAxiomShape I\n", "", "Invalid `⟨...⟩` notation"),
+    ("drop-array-zeroize", "  arrayZeroize : SpqrZeroizeShape I\n\nopen", "\nopen",
+     "Invalid `⟨...⟩` notation"),
+    ("pop-only-returns", "∃ o w, I.vecPop Global v = ok (o, w) ∧ w.val = v.val.dropLast\n",
+     "∃ o w, I.vecPop Global v = ok (o, w)\n", "Application type mismatch"),
+]:
+    t = once(sp_body, old, new, f"sparse-laws-shape-{name}")
+    if t is not None:
+        refused(f"sparse-laws-shape-{name}", t, reason)
+# the model witness renamed: its pins, which `attest.py` requires, refuse it
+t = once(sp, "theorem spqrSessionLaws_model :", "theorem spqrSessionLaws_model_removed :",
+         "sparse-laws-remove-model")
+if t is not None:
+    refused("sparse-laws-remove-model-witness", t, "Unknown constant")
+
+# -------------------------------------------------------------- decrypt joint
+# `UnitLifecycleDecryptScreen.lean`: the hypotheses of `decrypt_ratchet_refines_complete`, with
+# `Session::invariant`, together at one witness under the law bundle `DecryptJointLawsShape`, and one
+# interpretation of the bundle. Each law is removed from the bundle in a copy that keeps only the two
+# results that consume the bundle (the witness theorem and the main theorem; the projection lemma
+# `decryptJointLaws_named` and everything after the main theorem are cut), so a refusal shows that
+# one of those two needs the law. The agreements are then moved to another oracle's KEM model in the
+# hypothesis set: with the link `DecryptHypotheses.refines` kept, the link refuses it; with the link and
+# its pins removed and the proof adjusted so that it builds, the statement pin of `DecryptHypotheses`
+# refuses it. The oracle built with `oracleOfLaws`'s own KEM model (`toyKem`) in place of the chosen one
+# is refused by the main theorem. The model witness renamed is refused by its pins. The second model,
+# at the shipped KEM sizes, is refused with its `CT1_LEN` or its KEM's `ct1Size` set to the toy size.
+jd = module("UnitLifecycleDecryptScreen")
+passes("decrypt-joint-unmodified", jd)
+jd_code = re.sub(r"/-.*?-/", "", jd, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", jd_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitLifecycleDecryptScreen\.{re.escape(t)}\n", jd):
+        wrong.append(f"theorem {t} of UnitLifecycleDecryptScreen has no axiom pin")
+NAMED_START = "/-- **Where each named law sits in the bundle.**"
+NAMED_END = "/-! ## The statement -/"
+CUT = "/-! ## What the model does at the witness -/"
+jd_core = nopins(jd)
+if jd_core.count(NAMED_START) == 1 and jd_core.count(NAMED_END) == 1 and jd_core.count(CUT) == 1:
+    jd_core = (jd_core[: jd_core.index(NAMED_START)] + jd_core[jd_core.index(NAMED_END): jd_core.index(CUT)]
+               + "end Tacenta.UnitLifecycleDecryptScreen\n")
+    passes("decrypt-joint-core-unmodified", jd_core)
+    for field in ["dhCodec : DhCodecShape I", "dhAgree : DhAgreeShape I", "aeadOpen : AeadOpenShape I",
+                  "viewInjective : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey",
+                  "codec : DhCodecOfShape I dh", "braid : BraidReceiveAxiom I", "triple : TripleReceiveAxiom I",
+                  "messageKeyMaterial : MessageKeyMaterialRoundTripShape I", "laws : StdLaws I",
+                  "truncatePrefix : TruncatePrefixShape I",
+                  "derivedKeys : Nonempty (ZeroizingModelShape I DerivedZ)", "agreements : T3Agreements I K",
+                  "roundTrips : ZeroizeRoundTripShapes I", "validKey : ValidKeyShape I",
+                  "optionEq : OptionEqU64Shape oeq"]:
+        name = field.split(" ")[0]
+        t = once(jd_core, f"  {field}\n", "", f"decrypt-joint-drop-{name}")
+        if t is not None:
+            refused(f"decrypt-joint-bundle-without-{name}", t,
+                    f"so it is not possible to project the field `{name}`")
+else:
+    wrong.append("decrypt-joint: the cut markers do not occur once each")
+# the agreements at another oracle's KEM model, in the hypothesis set
+AGR = "  agreements : DecryptRatchetAgreements oracle.braidKem\n"
+AGR_OTHER = "  agreements : ∃ other : Model.Lifecycle.Oracle, DecryptRatchetAgreements other.braidKem\n"
+t = once(jd, AGR, AGR_OTHER, "decrypt-joint-agreements-elsewhere")
+if t is not None:
+    t = once(t, "      agreements := ?_\n", "      agreements := ⟨oracle, ?_⟩\n", "decrypt-joint-agreements-elsewhere")
+if t is not None:
+    refused("decrypt-joint-agreements-at-another-oracle-refused-by-the-link", t,
+            "DecryptRatchetAgreements other.braidKem")
+    REFINES = re.search(r"/-- The hypothesis set is the theorem's:.*?h\.trace_eq h\.run\n", t, re.S)
+    t2 = t.replace(REFINES.group(0), "") if REFINES else None
+    if t2 is not None:
+        for kind in ("#print axioms ", "#check @"):
+            m = re.search(r"/--\ninfo: [^\n]*DecryptHypotheses\.refines.*?-/\n#guard_msgs in\n"
+                          + re.escape(kind) + r"Tacenta\.UnitLifecycleDecryptScreen\.DecryptHypotheses\.refines\n",
+                          t2, re.S)
+            t2 = t2.replace(m.group(0), "") if m else None
+            if t2 is None:
+                break
+    if t2 is None:
+        wrong.append("decrypt-joint-agreements-elsewhere: the link or its pins were not found")
+    else:
+        refused("decrypt-joint-agreements-at-another-oracle-refused-by-the-statement-pin", t2,
+                "DecryptHypotheses.agreements : ∃ other")
+# the oracle with the KEM model `oracleOfLaws` gives it (`toyKem`), not the one the agreements are at
+t = once(jd, "      L.viewInjective (byteTrace sampleRng) K\n",
+         "      L.viewInjective (byteTrace sampleRng) Model.Braid.toyKem\n", "decrypt-joint-oracle-at-toyKem")
+if t is not None:
+    refused("decrypt-joint-oracle-at-oracleOfLaws-own-kem", nopins(t), "Application type mismatch")
+# the model witness renamed: its pins refuse it
+t = once(jd, "theorem decrypt_joint_laws_model :", "theorem decrypt_joint_laws_model_removed :",
+         "decrypt-joint-remove-model")
+if t is not None:
+    refused("decrypt-joint-remove-model-witness", t, "Unknown constant")
+# the shipped-size model: its `CT1_LEN` set back to the toy size is refused by the statement that names
+# the shipped sizes (`modelShipped_sizes`), and its KEM's first-ciphertext size set to the toy size by
+# the length agreement (`modelShipped_kemLen`)
+t = once(nopins(jd), "    CT1_LEN := ok 1408#usize\n", "    CT1_LEN := ok 64#usize\n",
+         "decrypt-joint-shipped-ct1-at-toy-size")
+if t is not None:
+    refused("decrypt-joint-shipped-interp-ct1-at-toy-size", t, "Interp.modelShipped.CT1_LEN = ok 1408#usize")
+t = once(nopins(jd), "  ct1Size := 1408\n", "  ct1Size := 64\n", "decrypt-joint-shipped-kem-ct1-at-toy-size")
+if t is not None:
+    refused("decrypt-joint-shipped-kem-ct1-at-toy-size", t, "Application type mismatch")
+
+# -------------------------------------------------------------- kem wrapper
+# `UnitKemWrapperModel.lean`: a Braid KEM model read off the `tacenta_kem` wrapper's opaque functions
+# through byte views (`wrapperKemOf`), the KEM agreements at it from eight laws, the decrypt joint
+# statement at it, and one interpretation of the laws. Each law is removed from the law bundle in a
+# copy without the pins, the bundle's restatement `wrapperKemLaws_iff` and the model section, so a
+# refusal shows that an agreement proof needs the law; the three fields the wrapper bundle puts in
+# place of the joint bundle's `agreements` are removed the same way. Each refusing arm of the model
+# (key generation, the second half of encapsulation, decapsulation) is made to answer `some`, and the
+# model's hash is given a 32-byte fallback, each refused by the agreement proof; the model's
+# first-ciphertext size is set to the toy size, refused by the agreement proofs. The corollary is
+# restated at `toyKem` under the joint bundle at `toyKem`, with its proof adjusted so that it builds,
+# and is refused by its statement pin alone. The model witness renamed is refused by its pins, and
+# every theorem of the module must carry an axiom pin.
+kw = module("UnitKemWrapperModel")
+passes("kem-wrapper-unmodified", kw)
+kw_code = re.sub(r"/-.*?-/", "", kw, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", kw_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitKemWrapperModel\.{re.escape(t)}\n", kw):
+        wrong.append(f"theorem {t} of UnitKemWrapperModel has no axiom pin")
+KW_IFF_START = "/-- The eight laws, each at the real constants, are the bundle `WrapperKemLaws`. -/"
+KW_IFF_END = "/-! ## The agreements at `wrapperKemOf I`, from the laws -/"
+KW_CUT = "/-! ## One interpretation satisfies the wrapper bundle"
+kw_core = nopins(kw)
+if kw_core.count(KW_IFF_START) == 1 and kw_core.count(KW_IFF_END) == 1 and kw_core.count(KW_CUT) == 1:
+    kw_core = (kw_core[: kw_core.index(KW_IFF_START)] + kw_core[kw_core.index(KW_IFF_END): kw_core.index(KW_CUT)]
+               + "end Tacenta.UnitKemWrapperModel\n")
+    passes("kem-wrapper-core-unmodified", kw_core)
+    for field in ["constants : LawKemConstantsShape I", "generateSeeded : LawGenerateSeededShape I",
+                  "generatedKeyPair : LawGeneratedKeyPairShape I",
+                  "encapsulate1Seeded : LawEncapsulate1SeededShape I",
+                  "encapsulate2Fresh : LawEncapsulate2FreshShape I",
+                  "validateEkTotal : LawValidateEkTotalShape I", "validateEkUnique : LawValidateEkUniqueShape I",
+                  "clone : KemCloneAgreesShape I", "hkdf : HkdfAgreesShape I", "hmac : HmacAgreesShape I",
+                  "kem : WrapperKemLawsShape I"]:
+        name = field.split(" ")[0]
+        t = once(kw_core, f"  {field}\n", "", f"kem-wrapper-drop-{name}")
+        if t is not None:
+            refused(f"kem-wrapper-bundle-without-{name}", t,
+                    f"so it is not possible to project the field `{name}`")
+else:
+    wrong.append("kem-wrapper: the cut markers do not occur once each")
+# a refusing arm of the model answered `some`: the two-sided agreement refuses it
+for nm, old, new, goal in [
+        ("decaps", "      | ok (.Ok raw) => some (keyOf raw)\n      | _ => none\n",
+         "      | ok (.Ok raw) => some (keyOf raw)\n      | _ => some []\n", "⊢ some [] = none"),
+        ("keygen", "      | _, _ => none\n    | _ => none\n  hashEk",
+         "      | _, _ => none\n    | _ => some ([], [], [])\n  hashEk", "⊢ some ([], [], []) = none"),
+        ("encaps2", "      | ok (.Ok ct2) => some (vecOf ct2)\n      | _ => none\n",
+         "      | ok (.Ok ct2) => some (vecOf ct2)\n      | _ => some []\n", "⊢ some [] = none")]:
+    t = once(nopins(kw), old, new, f"kem-wrapper-{nm}-refusal-answers-some")
+    if t is not None:
+        refused(f"kem-wrapper-{nm}-refusal-answers-some", t, goal)
+# the model's hash given a 32-byte fallback: `ValidateEkAgrees` refuses it where `validate_ek` accepts none
+t = once(nopins(kw), "  then Classical.choose h else []\n", "  then Classical.choose h else List.replicate 32 0\n",
+         "kem-wrapper-hash-fallback")
+if t is not None:
+    refused("kem-wrapper-hash-fallback-32-bytes", t, "bytesSlice (ekSeed ++ List.replicate 32 0)")
+# the model's first-ciphertext size at the toy size
+t = once(nopins(kw), "  ct1Size := 1408\n", "  ct1Size := 64\n", "kem-wrapper-ct1-at-toy-size")
+if t is not None:
+    refused("kem-wrapper-ct1-at-toy-size", t, "Application type mismatch")
+# the corollary at `toyKem`, under the joint bundle at `toyKem`, proof adjusted: the statement pin refuses it
+t = kw
+for old, new in [("      oracle.braidKem = wrapperKem ∧\n", "      oracle.braidKem = Model.Braid.toyKem ∧\n"),
+                 ("    (L : DecryptWrapperLaws dh) :\n    ∃ (oracle",
+                  "    (L : DecryptJointLaws Model.Braid.toyKem dh) :\n    ∃ (oracle"),
+                 ("  decrypt_hypotheses_jointly_satisfiable wrapperKem dh (decryptWrapperLaws_joint dh L)\n",
+                  "  decrypt_hypotheses_jointly_satisfiable Model.Braid.toyKem dh L\n")]:
+    t = once(t, old, new, "kem-wrapper-corollary-at-toyKem") if t is not None else None
+if t is not None:
+    refused("kem-wrapper-corollary-at-toyKem-refused-by-the-statement-pin", t, "Model.Braid.toyKem ∧")
+# the model witness renamed: its pins refuse it
+t = once(kw, "theorem decrypt_wrapper_laws_model :", "theorem decrypt_wrapper_laws_model_removed :",
+         "kem-wrapper-remove-model")
+if t is not None:
+    refused("kem-wrapper-remove-model-witness", t, "Unknown constant")
+
+# -------------------------------------------------------------- held kem
+# `UnitHeldKemWitness.lean`: the decrypt hypotheses at a session whose Braid holds a generated key pair, with
+# the KEM model read off the wrapper, and at a run carrying an agreement chunk. The held bytes are altered
+# in one byte where the agreements at the held key are stated (the vector, the private part, the header's
+# hash), each refused by the proof; the joint statement is moved to `toyKem`, refused because the relation
+# at the held state needs `wrapperKem`, and the refutation at `toyKem` is moved to `wrapperKem`, refused by
+# its proof; the added law is removed from the statement, refused; the chunk is altered in one byte and
+# given another index, each refused by the run's codeword proof; the held-value predicate loses its
+# conjunct that the model holds the real bytes, refused by its `#print` pin; and every theorem of the module
+# must carry an axiom pin.
+hk = module("UnitHeldKemWitness")
+passes("held-kem-unmodified", hk)
+hk_code = re.sub(r"/-.*?-/", "", hk, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", hk_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitHeldKemWitness\.{re.escape(t)}\n", hk):
+        wrong.append(f"theorem {t} of UnitHeldKemWitness has no axiom pin")
+HK_FRESH = "      FreshKeyPairRefines wrapperKem kp (seed.map u8) (vecOf v) := by\n"
+for nm, new, reason in [
+        ("vector", "      FreshKeyPairRefines wrapperKem kp (seed.map u8) ((vecOf v).modifyHead (· + 1)) := by\n",
+         "Application type mismatch"),
+        ("private-part", "      FreshKeyPairRefines wrapperKem kp ((seed.map u8).modifyHead (· + 1)) (vecOf v) := by\n",
+         "Application type mismatch")]:
+    t = once(nopins(hk), HK_FRESH, new, f"held-kem-{nm}-byte")
+    if t is not None:
+        refused(f"held-kem-{nm}-altered-in-one-byte", t, reason)
+t = once(nopins(hk), "      wrapperKem.hashEk ((vecOf h).take 32) (vecOf v) = (vecOf h).drop 32 ∧\n",
+         "      wrapperKem.hashEk ((vecOf h).take 32) (vecOf v) = ((vecOf h).drop 32).modifyHead (· + 1) ∧\n",
+         "held-kem-hash-byte")
+if t is not None:
+    refused("held-kem-header-hash-altered-in-one-byte", t, "Application type mismatch")
+t = nopins(hk)
+for old, new in [("(rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt real model ∧\n",
+                  "(rng : List Std.U8),\n      oracle.braidKem = Model.Braid.toyKem ∧\n      HeldKemAt real model ∧\n"),
+                 ("      L.viewInjective (byteTrace sampleRng) wrapperKem\n  obtain ⟨k, pkb, a, hpub, hbytes, hcan, hprime⟩ := L.validKey\n  obtain ⟨ad, had, hlen⟩ :=\n    Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.identity_ad_length L.dhCodec pkb pkb)\n  obtain ⟨decoded, hdec, -⟩ := sample_decode_real",
+                  "      L.viewInjective (byteTrace sampleRng) Model.Braid.toyKem\n  obtain ⟨k, pkb, a, hpub, hbytes, hcan, hprime⟩ := L.validKey\n  obtain ⟨ad, had, hlen⟩ :=\n    Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.identity_ad_length L.dhCodec pkb pkb)\n  obtain ⟨decoded, hdec, -⟩ := sample_decode_real")]:
+    t = once(t, old, new, "held-kem-at-toyKem") if t is not None else None
+if t is not None:
+    refused("held-kem-joint-statement-at-toyKem", t, "but is expected to have type\n  oracle.braidKem = wrapperKem")
+t = once(nopins(hk), "    ¬ SessionRefines dh Model.Braid.toyKem (heldReal k pkb ad a kp enc)\n",
+         "    ¬ SessionRefines dh wrapperKem (heldReal k pkb ad a kp enc)\n", "held-kem-refutation-at-wrapperKem")
+if t is not None:
+    refused("held-kem-refutation-moved-to-wrapperKem", t, "Application type mismatch")
+t = once(nopins(hk), "    (L : DecryptWrapperLaws dh) (G : LawGenerateSucceeds) :\n    ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)\n      (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt",
+         "    (L : DecryptWrapperLaws dh) :\n    ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)\n      (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : List Std.U8),\n      oracle.braidKem = wrapperKem ∧\n      HeldKemAt",
+         "held-kem-without-law")
+if t is not None:
+    refused("held-kem-joint-statement-without-LawGenerateSucceeds", t, "Unknown identifier `G`")
+for nm, new in [("data", "    agType := .ct1, agChunk := some ⟨0, List.replicate 31 0 ++ [1]⟩ }\n"),
+                ("index", "    agType := .ct1, agChunk := some ⟨1, List.replicate 32 0⟩ }\n")]:
+    t = once(nopins(hk), "    agType := .ct1, agChunk := some ⟨0, List.replicate 32 0⟩ }\n", new, f"held-kem-chunk-{nm}")
+    if t is not None:
+        refused(f"held-kem-chunk-{nm}-altered", t, "Type mismatch: After simplification")
+t = once(hk, "    model.braid = .keysSampled 1 modelAuth0 (seed.map u8) (vecOf v)\n      ⟨vecOf h ++ modelAuth0.macHdr 1 (vecOf h), 1⟩ ∧\n",
+         "", "held-kem-predicate-weakened")
+if t is not None and t.count("hh, hv, rfl, rfl, hsend.symm⟩") == 2:
+    t = t.replace("hh, hv, rfl, rfl, hsend.symm⟩", "hh, hv, rfl, hsend.symm⟩")
+else:
+    wrong.append("held-kem-predicate-weakened: the proof text to adjust does not occur twice")
+    t = None
+if t is not None:
+    refused("held-kem-predicate-without-the-held-bytes", t, "#guard_msgs")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))

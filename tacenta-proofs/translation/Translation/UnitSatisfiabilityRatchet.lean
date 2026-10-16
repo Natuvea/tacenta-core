@@ -12,7 +12,8 @@ they say.  This module proves each from a small set of laws about the opaque con
 bodies reach (`defined_fields_hold`), by stepping through the translated code.
 
 The laws are `Laws`: `Vec::pop`, `Option::as_mut`, the blanket `Zeroize` implementation at `u32`,
-`Vec::capacity` and `Vec::zeroize` return, `Array::zeroize` returns (the existing field
+`Vec::capacity` returns, `Vec::zeroize` returns at the three instances the unit passes to it,
+`Array::zeroize` returns at the blanket `u8` instance on a 32-byte array (the existing field
 `SessionUnitSpqrT1.ZeroizeTotal`), the HKDF returns for output lengths up to 8160 bytes, and the
 `Zeroizing` wrapper reads back what it wraps at 96 and 64 bytes.  Four of them are fields of the
 records, two are conjuncts of the field `VecRetainTotal`, and three are not: `LawPop` (`Vec::pop` of a non-empty vector returns the vector
@@ -340,7 +341,7 @@ def LawPop : Prop :=
 theorem skipped_zeroize_spec (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (s : tacenta_spqr.Skipped) :
     tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize s ⦃ fun r => r.epoch = s.epoch ∧ r.n = s.n ⦄ := by
   unfold tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize
-  obtain ⟨r, hr⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.key
+  obtain ⟨r, hr⟩ := hZ s.key
   simp [hr]
 
 /-- The sparse ratchet's `remove_skipped_at`, at an in-range index: returns the key at that index
@@ -399,10 +400,10 @@ theorem skippedKey_zeroize_spec (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (h
     (s : tacenta_ratchet.SkippedKey) :
     tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize.zeroize s ⦃ fun _ => True ⦄ := by
   unfold tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize.zeroize
-  obtain ⟨r1, h1⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.dh
+  obtain ⟨r1, h1⟩ := hZ s.dh
   obtain ⟨r2, h2⟩ := hB s.n
   obtain ⟨r3, h3⟩ := hB s.stored_at
-  obtain ⟨r4, h4⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.key
+  obtain ⟨r4, h4⟩ := hZ s.key
   simp [h1, h2, h3, h4]
 
 /-- The classical ratchet's `remove_skipped_at`, at an in-range index. -/
@@ -458,7 +459,7 @@ def LawAsMut : Prop :=
 theorem chain_zeroize_spec (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (c : tacenta_spqr.Chain) :
     tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize c ⦃ fun _ => True ⦄ := by
   unfold tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize
-  obtain ⟨r, hr⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) c.ck
+  obtain ⟨r, hr⟩ := hZ c.ck
   simp [hr]
 
 theorem as_mut_step (hA : LawAsMut) {T : Type} (o : Option T) :
@@ -614,7 +615,7 @@ theorem clear_chains_loop0_spec (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (h
 theorem array_zeroize_step (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (a : Array U8 32#usize) :
     Array.Insts.ZeroizeZeroize.zeroize
       (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
-  obtain ⟨r, hr⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a
+  obtain ⟨r, hr⟩ := hZ a
   simp [hr]
 
 theorem clear_skipped_loop1_spec (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
@@ -683,10 +684,19 @@ theorem clearSkippedLoopTotal (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
 def LawCapacity : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T), ∃ r, alloc.vec.Vec.capacity A v = ok r
 
-/-- The `Zeroize` implementation for `Vec` returns.  The second conjunct of `VecRetainTotal`. -/
+/-- The `Zeroize` implementation for `Vec` returns at the three instances the unit passes to it:
+the chain table, the sparse skipped-key store and the classical one.  The second conjunct of
+`VecRetainTotal`. -/
 def LawVecZeroize : Prop :=
-  ∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
-    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r
+  (∀ v : alloc.vec.Vec (U64 × tacenta_spqr.Chains),
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
+          tacenta_spqr.Chains.Insts.ZeroizeZeroize) v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_spqr.Skipped,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize tacenta_spqr.Skipped.Insts.ZeroizeZeroize v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_ratchet.SkippedKey,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v = ok r)
 
 theorem vecRetainTotal (hCap : LawCapacity) (hVZ : LawVecZeroize)
     (hZ : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hA : LawAsMut) (hP : LawPop) :
@@ -827,7 +837,7 @@ theorem ratchetRemoveSkippedAtTotal_forces_blanketU32 (hZ : Tacenta.SessionUnitS
       ok (x1.key, skipped3)) = ok r := hr'
   clear hr'
   unfold tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize.zeroize at hr2
-  obtain ⟨d, hd⟩ := hZ (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) s.dh
+  obtain ⟨d, hd⟩ := hZ s.dh
   rw [hd] at hr2
   simp only [bind_tc_ok] at hr2
   cases hB : zeroize.Zeroize.Blanket.zeroize U32.Insts.ZeroizeDefaultIsZeroes s.n with
@@ -1070,6 +1080,7 @@ info: 'Tacenta.UnitSatisfiabilityRatchet.vecRetainTotal' depends on axioms: [pro
  Classical.choice,
  Quot.sound,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
  core.option.Option.as_mut,
@@ -1087,6 +1098,7 @@ info: 'Tacenta.UnitSatisfiabilityRatchet.defined_fields_hold' depends on axioms:
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
  core.option.Option.as_mut,

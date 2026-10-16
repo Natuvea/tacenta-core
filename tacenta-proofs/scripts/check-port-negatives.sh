@@ -39,6 +39,33 @@ expect_refused refinement-clone-step port-session-braid-refinement.sh "$t/BraidT
   "State.clone_bounds_refines hrel s_post" "State.clone_bounds_refines hrel s_post2"
 expect_refused import-inv-field port-session-braid-import-proof.sh "$t/ImportInv.lean" \
   "  ct1_bounded : Tacenta.BraidT1.State.ct1_bounded b.state" "  ct1b : Tacenta.BraidT1.State.ct1_bounded b.state"
+# The zeroize fields stated at the Session unit's instances: an anchor of each port's restatement,
+# broken in its source, is refused by name.
+expect_refused braid-array-zeroize port-session-braid-proof.sh "$t/BraidT1.lean" \
+  "  ∀ (N : Usize) (inst : zeroize.Zeroize U8) (a : Array U8 N)," \
+  "  ∀ (M : Usize) (inst : zeroize.Zeroize U8) (a : Array U8 M),"
+expect_refused triple-zeroize-step port-session-unit-proofs.sh "$t/UnitTripleT1.lean" \
+  "theorem zeroize_step (hz : UnitSpqrT1.ZeroizeTotal) {Z : Type} {N : Usize}" \
+  "theorem zeroize_step (hz : UnitSpqrT1.ZeroizeTotal) {Z : Type} {M : Usize}"
+# The sparse ratchet's restatement reads `UnitSpqrT1.lean`, which `port-unit-proofs.sh` generates from
+# `SpqrT1.lean`: break the leaf, regenerate the three-leaf copy, and require the Session port to refuse.
+git -C "$work" checkout -q --force HEAD -- .
+python3 - "$work/$t/SpqrT1.lean" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1]); text = path.read_text()
+old = "hret.2.1 Skipped.Insts.ZeroizeZeroize st.skipped"
+if text.count(old) != 1:
+    raise SystemExit(f"port negative: anchor occurs {text.count(old)} times: {old!r}")
+path.write_text(text.replace(old, "hret.2.1 Skipped.Insts.ZeroizeZeroize (st.skipped)"))
+PY
+(cd "$work" && bash tacenta-proofs/scripts/port-unit-proofs.sh >/dev/null)
+if out="$(cd "$work" && bash tacenta-proofs/scripts/port-session-unit-proofs.sh --check 2>&1)"; then
+  echo "port negative spqr-skipped-conjunct: the script accepted the broken source" >&2; exit 1
+fi
+case "$out" in
+  *"unit edit 'the skipped-store conjunct'"*) ;;
+  *) echo "port negative spqr-skipped-conjunct: refused, but not by the unit edit: $out" >&2; exit 1 ;;
+esac
 # The preservation port makes no unit edit: it is a count-checked substitution plus the unit's own
 # pins, so its anchors are the substitution counts, the marker of the pin section and a declaration after
 # the pins, which would be dropped from the unit.

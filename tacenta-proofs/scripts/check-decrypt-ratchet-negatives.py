@@ -44,6 +44,15 @@ copy of a module and requires Lean to refuse it, at a named place:
     at the pin of `DecryptRatchetRefinesCompleteStatement`);
   * the closure's screen with the model's refusal at its state named as a missing chain (refused in
     `ref_model_triple_refuses`);
+  * the per-run bounds derivation (`Translation/UnitLifecycleDecryptRunBounds.lean`) with the sparse epoch
+    ceiling dropped from `CounterHeadroom`, and with its clock ceiling weakened to the invariant's own
+    `events < u32::MAX` (each refused in `retryRunBounds_of_invariant`), with the Triple-level derivation
+    no longer told the sparse output's epoch label (refused in `retryRunBounds_of_triple_invariant`), and
+    with the excluded state's clock one below the park (refused in `parkedSession_not_counterHeadroom`), and
+    with the Braid epoch ceiling of `CounterHeadroom` weakened to the decoder's `epoch < u64::MAX` (refused in
+    `decryptRatchetRun_of_invariant`, where the proof first uses it);
+  * the per-run bounds derivation with the Braid epoch ceiling of `CounterHeadroom` weakened to the
+    decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`);
   * the public `decrypt` on frames that are not initial messages
     (`Translation/UnitLifecycleDecryptT3.lean`, `decrypt_refines_ratchet_frame`).  A copy of the generated
     `lifecycle.Session.decrypt` is renamed and compiled together with copies of
@@ -63,13 +72,13 @@ copy of a module and requires Lean to refuse it, at a named place:
     `decrypt_refines_ratchet_frame_statement` adjusted to it (refused at the statement's pin).
 
 The changes are checked on copies without the module's pins, so that the refusal comes from a proof and
-not from a pin, except the two kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
+not from a pin, except the four kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
 that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place
 never count. These are proof-dependency controls on copies of the Lean; no source, olean or git state
 changes.
 
-Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen
-Translation.UnitLifecycleDecryptT3`).
+Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen`,
+`lake build Translation.UnitLifecycleDecryptRunBounds` and `lake build Translation.UnitLifecycleDecryptT3`).
 """
 from pathlib import Path
 import argparse
@@ -89,6 +98,7 @@ SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetScreen.lean'
 REFUSAL = ROOT / 'translation/Translation/UnitLifecycleTripleRefusalT3.lean'
 COMPLETE = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteT3.lean'
 COMPLETE_SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean'
+RUN_BOUNDS = ROOT / 'translation/Translation/UnitLifecycleDecryptRunBounds.lean'
 GENERATED = ROOT / 'translation/Translation/TacentaSessionUnit.lean'
 LIFECYCLE_T3 = ROOT / 'translation/Translation/UnitLifecycleT3.lean'
 DECRYPT = ROOT / 'translation/Translation/UnitLifecycleDecryptT3.lean'
@@ -198,6 +208,28 @@ MUTANTS = [
      [(r'      \.error \(\.classical \.outOfOrder\) ∧\n    Model\.Lifecycle\.fullStore',
        '      .error (.classical .noReceivingChain) ∧\n    Model.Lifecycle.fullStore')], PROOF,
      ['ref_model_triple_refuses']),
+    ('runbounds', 'counter-headroom-without-the-sparse-epoch-ceiling',
+     [(r'  sparseEpoch : real\.triple\.post_quantum\.epoch\.val \+ 1 < Std\.U64\.max\n',
+       '  sparseEpoch : True\n')], PROOF, ['retryRunBounds_of_invariant']),
+    ('runbounds', 'counter-headroom-clock-at-the-invariant-bound',
+     [(r'  classicalEvents : real\.triple\.classical\.events\.val \+ 1 < Std\.U32\.max\n',
+       '  classicalEvents : real.triple.classical.events.val < Std.U32.max\n')], PROOF,
+     ['retryRunBounds_of_invariant']),
+    ('runbounds', 'triple-derivation-without-the-output-label',
+     [(r'    \(houtput : ∀ o, output = some o → o\.keyEpoch \+ 1 < Model\.Braid\.u64Max\) :\n',
+       '    (houtput : True) :\n')], PROOF, ['retryRunBounds_of_triple_invariant']),
+    ('runbounds', 'parked-clock-one-below-the-park',
+     [(r'      events := 4294967294#u32 \} \}\n', '      events := 4294967293#u32 } }\n')], PROOF,
+     ['parkedSession_not_counterHeadroom']),
+    ('runbounds', 'counter-headroom-braid-ceiling-at-the-decoder-bound',
+     [(r'  braidEpoch : \(Tacenta\.SessionUnitBraidT1\.State\.epoch_val real\.braid\.state\)\.val \+ 1 <\n',
+       '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')], PROOF,
+     ['decryptRatchetRun_of_invariant']),
+    ('runboundspinned', 'counter-headroom-braid-ceiling-at-the-decoder-bound-pinned',
+     [(r'  braidEpoch : \(Tacenta\.SessionUnitBraidT1\.State\.epoch_val real\.braid\.state\)\.val \+ 1 <\n',
+       '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')],
+     r'Docstring on `#guard_msgs` does not match generated message',
+     ('pin', 'Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom')),
     # The public `decrypt` on frames that are not initial messages.  Plants in the renamed copy of the
     # generated body; each refused in the copied step lemma that unfolds it.
     ('decryptcopy', 'passthrough-success-keeps-pending-initial',
@@ -467,6 +499,7 @@ def main():
     loop, t3, screen = LOOP.read_text(), T3.read_text(), SCREEN.read_text()
     refusal, complete = REFUSAL.read_text(), COMPLETE.read_text()
     complete_screen = COMPLETE_SCREEN.read_text()
+    run_bounds = RUN_BOUNDS.read_text()
     generated, lifecycle_t3, decrypt = GENERATED.read_text(), LIFECYCLE_T3.read_text(), DECRYPT.read_text()
     sources = {
         'loop': without_pins(loop, LOOP),
@@ -477,6 +510,8 @@ def main():
         'complete': without_pins(complete, COMPLETE),
         'completepinned': complete,
         'completescreen': without_pins(complete_screen, COMPLETE_SCREEN),
+        'runbounds': without_pins(run_bounds, RUN_BOUNDS),
+        'runboundspinned': run_bounds,
         'decryptcopy': decrypt_copy(generated, lifecycle_t3, decrypt),
         'decrypt': without_pins(decrypt, DECRYPT),
         'decryptpinned': decrypt,
@@ -488,6 +523,7 @@ def main():
         'refusal_sha256': hashlib.sha256(refusal.encode()).hexdigest(),
         'complete_sha256': hashlib.sha256(complete.encode()).hexdigest(),
         'complete_screen_sha256': hashlib.sha256(complete_screen.encode()).hexdigest(),
+        'run_bounds_sha256': hashlib.sha256(run_bounds.encode()).hexdigest(),
         'generated_sha256': hashlib.sha256(generated.encode()).hexdigest(),
         'lifecycle_t3_sha256': hashlib.sha256(lifecycle_t3.encode()).hexdigest(),
         'decrypt_sha256': hashlib.sha256(decrypt.encode()).hexdigest(),

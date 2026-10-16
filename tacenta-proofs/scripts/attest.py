@@ -844,14 +844,16 @@ REQUIRED_PINS = frozenset(
     )]
     + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
         "zeroize_failure_propagation_conflicts",
+        "braid_zeroize_failure_propagation_conflicts",
+        "vec_zeroize_failure_propagation_conflicts",
         "faithful_propagates",
+        "faithful_vec_propagates",
         "faithful_refutes_unscoped",
-        "faithful_satisfies_rest",
-        "ArrayZeroizeU8Total_of_spqr",
-        "ArrayZeroizeU8Total_of_braid",
-        "VecZeroizeChainsTotal_of_vecRetain",
+        "faithful_satisfies_all_axiom_shapes",
+        "spqrZeroize_of_unscoped",
+        "arrayZeroize_of_unscoped",
+        "vecRetainAxiom_of_unscoped",
         "arrayZeroizeScoped_of_total",
-        "VecZeroizeSkippedTotal_of_vecRetain",
     )]
     # The refutations of the dispatch layer's evidence hypotheses (`DispatchEvidenceVacuity`):
     # every axiom pin of the module. A pin outside this list can be deleted with its claim and
@@ -1315,7 +1317,8 @@ REQUIRED_PINS = frozenset(
         "generatedTripleRefusalConditions_initAlice",
         "generatedTripleSuccessConditions_initAlice",
         "oracleOf_dhAgree_off_view",
-        "sameEphemeralAgreement_unconstrained",
+        "encodedEphemeralAgreement_unconstrained",
+        "sameEphemeralAgreement_of_view_agree",
         "concreteBranchEvidenceRun_of_run_parts",
         "runRandomDraw_byte",
         "braid_send_keysUnsampled_byte_trace",
@@ -1365,6 +1368,18 @@ REQUIRED_PINS = frozenset(
         "oracleLaws_hold_jointly",
         "oracleOf_joint_model",
         "oracleOf_inhabited_jointly",
+    )]
+    # `DecryptOracleOf` from four laws, and the model frame lemma that `decrypt`
+    # reads five oracle fields (`UnitOracleDecrypt.lean`, `Model/LifecycleFrame.lean`).
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "decryptOracleOf_of_laws",
+        "decryptInterp_laws_iff",
+        "dhViewInjective_real_iff",
+    )]
+    + ["Model.Lifecycle." + n for n in (
+        "decrypt_oracle_frame",
+        "decryptRatchet_oracle_frame",
+        "dispatchDecrypt_oracle_frame",
     )]
     # The decrypt_ratchet refinement with the eviction retry loop (package F of the end-to-end plan):
     # `UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`,
@@ -1451,6 +1466,194 @@ REQUIRED_PINS = frozenset(
         "decrypt_ratchet_refines_or_open",
         "or_unless_closed",
     )]
+    # The Session unit's two sparse agreements derived from five laws about opaque operations, the
+    # laws in two interpretations, and the record's two derivations (`UnitSatisfiabilitySpqrSessionLaws`).
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "removeSkippedAtAgrees_of_laws",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgrees_of_laws",
+        "sparse_agreements_of_laws",
+        "spqrSessionLaws_iff",
+        "spqrSessionLawsShape_of_parts",
+        "spqrSessionLaws_model",
+        "spqrSessionLawsShape_fails_of_noop_pop",
+    )]
+    + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
+        "faithful_SpqrSessionLaws",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptRatchetAgreements.vecRetainAgrees",
+        "DecryptRatchetAgreements.removeSkippedAtAgrees",
+    )]
+    # The hypotheses of the complete `decrypt_ratchet` refinement, with `Session::invariant`, together at
+    # one witness under named laws, and one interpretation of the laws (`UnitLifecycleDecryptScreen`).
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal_sessionRefines",
+        "invReal_headroom",
+        "invReal_retryRunBounds",
+        "invReal_run",
+        "sampleMessage_type",
+        "decryptJointLaws_named",
+        "DecryptHypotheses.refines",
+        "decrypt_hypotheses_at_invReal",
+        "decrypt_hypotheses_jointly_satisfiable",
+        "decrypt_hypotheses_jointly_satisfiable_statement",
+        "invReal_model_refuses_of_agreement",
+        "invReal_agreement_is_real",
+        "modelDecrypt_validKey",
+        "decrypt_joint_laws_model",
+        "decrypt_joint_laws_satisfiable",
+        "modelShipped_sizes",
+        "modelShipped_kemLen",
+        "modelShipped_kemAgrees",
+        "modelShipped_kemClone",
+        "modelShipped_validateEk",
+        "modelShipped_t3",
+        "modelShipped_validKey",
+        "decrypt_joint_laws_model_at_shipped_sizes",
+        "decrypt_joint_laws_satisfiable_at_shipped_sizes",
+        "shippedHeader_le",
+        "ekVecShipped_le",
+        "ct1Shipped_le",
+        "ct2Shipped_le",
+    )]
+    # The Braid KEM model read off the `tacenta_kem` wrapper through byte views, the agreements at it
+    # from eight laws, the decrypt joint statement at it, and one interpretation (`UnitKemWrapperModel`).
+    + ["Tacenta.UnitKemWrapperModel." + n for n in (
+        "toU8_u8",
+        "bytesOf_sliceOf",
+        "length_bytesOf_le",
+        "length_nil_le",
+        "bytesSlice_sliceOf",
+        "length_bytesSlice_of",
+        "sliceOf_bytesSlice",
+        "sliceOf_vecSlice",
+        "length_leBytes",
+        "leBytes_leNat",
+        "streamOf_leNat",
+        "LawKemConstants_is",
+        "LawGenerateSeeded_is",
+        "LawGeneratedKeyPair_is",
+        "LawEncapsulate1Seeded_is",
+        "LawEncapsulate2Fresh_is",
+        "LawValidateEkTotal_is",
+        "LawValidateEkUnique_is",
+        "LawKemClone_is",
+        "wrapperKemLaws_iff",
+        "bytesOf_map_u8",
+        "append_le_usize",
+        "hashEkOf_eq",
+        "validate_of_hashEkOf",
+        "decaps_clause",
+        "encaps2_clause",
+        "kemLen_wrapperKemOf",
+        "kemAgrees_wrapperKemOf",
+        "validateEkAgrees_wrapperKemOf",
+        "t3Agreements_wrapperKemOf",
+        "kemLenAgrees_wrapperKem",
+        "kemAgreesFor_wrapperKem",
+        "validateEkAgrees_wrapperKem",
+        "kemCloneAgrees_wrapperKem",
+        "keyPairRefines_wrapperKem",
+        "encapsRefines_wrapperKem",
+        "t3Agreements_wrapperKem",
+        "DecryptWrapperLawsShape.toJoint",
+        "decryptWrapperLaws_joint",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem",
+        "modelShipped_wrapperKemLaws",
+        "decrypt_wrapper_laws_model",
+        "decrypt_joint_laws_model_at_wrapperKemOf",
+        "decrypt_wrapper_laws_satisfiable",
+    )]
+    # The decrypt refinement's hypotheses at a session whose Braid holds a key pair, with the
+    # wrapper's KEM model, and a run carrying an agreement chunk (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds_is",
+        "lawGenerateSucceeds_of_kemDrawsSucceed",
+        "modelShipped_generateSucceeds",
+        "held_laws_satisfiable",
+        "hdrMsgOf_length",
+        "hdrMsgOf_le",
+        "chunks_length",
+        "held_encoder",
+        "held_key_agreements",
+        "structural_held",
+        "heldBraid_invariant",
+        "held_invariant",
+        "held_sessionRefines",
+        "held_braid_output",
+        "held_run",
+        "decrypt_hypotheses_at_held_of_run",
+        "decrypt_hypotheses_at_held",
+        "heldModelBraid_is_send",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held",
+        "ct1Zeros_length",
+        "ct1Zeros_le",
+        "codeword_zero",
+        "ct1Zeros_codeword0",
+        "u8_map_inj",
+        "zero_chunk_codeword",
+        "chunkBytes_le",
+        "sliceOf_chunkMessage",
+        "chunk_decode_model",
+        "chunk_decode_real",
+        "chunkMessage_type",
+        "chunk_braid_step",
+        "held_chunk_run",
+        "decrypt_hypotheses_with_chunk_at_wrapperKem_held",
+        "held_relation_pins_vector",
+        "held_not_refines_toyKem",
+        "held_model_refuses_of_agreement",
+    )]
+    # The repeated-initial ephemeral comparison refines the model's (`UnitLifecycleInitialAgreementT3`).
+    + ["Tacenta.UnitLifecycleInitialAgreementT3." + n for n in (
+        "arrayOf_injective",
+        "agreement_eq_refines",
+        "same_ephemeral_agreement_refines_of_dhAgree",
+        "same_ephemeral_agreement_refines",
+        "repeated_initial_agreement_refines",
+        "repeated_initial_agreement_true_iff",
+        "repeated_initial_agreement_false_iff",
+        "encoded_comparison_does_not_refine",
+    )]
+    # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
+    + ["Tacenta.SessionUnitDecodeEc." + n for n in (
+        "decodeEc_eq_some_iff",
+        "decodeEc_eq_none_iff",
+        "decodeEc_length",
+        "canonicalX25519_session_eq_wire",
+        "key_eq_drop",
+        "arrayOf_eq_drop",
+        "head_sliceOf",
+        "u8_eq_curve_iff",
+        "session_decode_ec_refines",
+        "session_decode_ec_characterization",
+        "decode_ec_refines",
+    )]
+    # The per-run receive bounds of `decrypt_ratchet` from `Session::invariant` and the counter ceilings
+    # (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "classicalMatch_of_inv",
+        "sparseMatch_of_inv",
+        "sparseCounters_transport",
+        "store_room",
+        "retryRunBounds_of_triple_invariant",
+        "sparseOutputOf_epoch",
+        "retryRunBounds_of_invariant",
+        "decryptRatchetRun_of_invariant",
+        "decrypt_ratchet_refines_of_invariant",
+        "decrypt_ratchet_refines_of_invariant_statement",
+        "counterHeadroom_sessionOf",
+        "decrypt_inputs_at_invReal",
+        "DecryptOfInvariantHypotheses.refines",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable",
+        "parkedTriple_invariant",
+        "structural_parkedSession",
+        "parkedSession_invariant",
+        "parkedSession_not_counterHeadroom",
+        "invariant_does_not_give_counterHeadroom",
+    )]
     # The public `decrypt` on frames that are not initial messages: `UnitLifecycleDecryptT3.lean`.
     + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
         "decrypt_refines_ratchet_frame",
@@ -1516,6 +1719,13 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
         "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
+        # The joint hypothesis set applied to `decrypt_ratchet_refines_complete` inherits its constants.
+        "Tacenta.UnitLifecycleDecryptScreen.DecryptHypotheses.refines",
+        # The restated refinement and its hypothesis record apply `decrypt_ratchet_refines_complete`
+        # and inherit its constants (`UnitLifecycleDecryptRunBounds`).
+        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
+        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
+        "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
         # The public `decrypt` on frames that are not initial messages: the join composes
         # `decrypt_ratchet_refines_complete` and rests on its compiler-evaluated constants, no others.
         "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame",
@@ -1567,6 +1777,10 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "axiom_base_satisfiable_for_total_rng",
         "records_of_axiom_base",
     )]
+    # The three Session contract fields stated at the instances the unit passes to `Array::zeroize`
+    # and `Vec::zeroize`, printed in full in `UnitSatisfiabilityZeroizeScope.lean`.
+    + ["Tacenta.SessionUnitSpqrT1.ZeroizeTotal", "Tacenta.SessionUnitSpqrT1.VecRetainTotal",
+       "Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal"]
     + ["Tacenta.UnitSatisfiabilitySession." + n for n in (
         "vec_pop_satisfiable",
     )]
@@ -1979,7 +2193,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "random32Clause_of_oracleOf",
         "retryReceiveBounds_initAlice",
         "retryReceiveBounds_not_trivial",
-        "sameEphemeralAgreement_unconstrained",
+        "encodedEphemeralAgreement",
+        "encodedEphemeralAgreement_unconstrained",
+        "sameEphemeralAgreement_of_view_agree",
         "sigSignClause_of_law",
         "sigSignClause_of_oracleOf",
         "concreteBranchEvidenceRun_of_run_parts",
@@ -2047,6 +2263,20 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "oracleOf_joint_model",
         "oracleOf_inhabited_jointly",
         "OracleLaws",
+    )]
+    # `DecryptOracleOf` from four laws, the interpretation and view it is built over, and the model
+    # frame lemmas (`UnitOracleDecrypt.lean`, `Model/LifecycleFrame.lean`).
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "decryptOracleOf_of_laws",
+        "decryptInterp_laws_iff",
+        "dhViewInjective_real_iff",
+        "InterpO.decrypt",
+        "dhViewD",
+    )]
+    + ["Model.Lifecycle." + n for n in (
+        "decrypt_oracle_frame",
+        "decryptRatchet_oracle_frame",
+        "dispatchDecrypt_oracle_frame",
     )]
     # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
     # records, their seven shapes over an interpretation, and the two abbreviations they print through.
@@ -2232,6 +2462,259 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "or_unless_closed",
         "OpenRefusalCloses",
     )]
+    # The sparse agreements from laws: every result's statement, the bundle and its shape, and the four
+    # laws of `UnitSatisfiabilityRatchet` that `DecryptRatchetAgreements` and the derivation name.
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "removeSkippedAtAgrees_of_laws",
+        "setChainsAgrees",
+        "clearOldEpochsAgrees",
+        "vecRetainAgrees_of_laws",
+        "sparse_agreements_of_laws",
+        "spqrSessionLaws_iff",
+        "spqrSessionLawsShape_of_parts",
+        "spqrSessionLaws_model",
+        "spqrSessionLawsShape_fails_of_noop_pop",
+        "SpqrSessionLaws",
+        "SpqrSessionLawsShape",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRatchet." + n for n in (
+        "LawPop",
+        "LawAsMut",
+        "LawCapacity",
+        "LawVecZeroize",
+    )]
+    + ["Tacenta.UnitSatisfiabilityZeroizeScope." + n for n in (
+        "faithful_SpqrSessionLaws",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
+        "DecryptRatchetAgreements.vecRetainAgrees",
+        "DecryptRatchetAgreements.removeSkippedAtAgrees",
+    )]
+    # The joint hypothesis set: every result's statement, the witness session, the law bundle and its
+    # real form, the hypothesis set and the statement (`UnitLifecycleDecryptScreen`).
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal_sessionRefines",
+        "invReal_headroom",
+        "invReal_retryRunBounds",
+        "invReal_run",
+        "sampleMessage_type",
+        "decryptJointLaws_named",
+        "DecryptHypotheses.refines",
+        "decrypt_hypotheses_at_invReal",
+        "decrypt_hypotheses_jointly_satisfiable",
+        "decrypt_hypotheses_jointly_satisfiable_statement",
+        "invReal_model_refuses_of_agreement",
+        "invReal_agreement_is_real",
+        "modelDecrypt_validKey",
+        "decrypt_joint_laws_model",
+        "decrypt_joint_laws_satisfiable",
+        "invReal",
+        "DecryptJointLawsShape",
+        "DecryptJointLaws",
+        "DecryptHypotheses",
+        "DecryptHypothesesJointlySatisfiableStatement",
+        "modelShipped_sizes",
+        "modelShipped_kemLen",
+        "modelShipped_kemAgrees",
+        "modelShipped_kemClone",
+        "modelShipped_validateEk",
+        "modelShipped_t3",
+        "modelShipped_validKey",
+        "decrypt_joint_laws_model_at_shipped_sizes",
+        "decrypt_joint_laws_satisfiable_at_shipped_sizes",
+        "ekVecShipped",
+        "ct1Shipped",
+        "ct2Shipped",
+        "shippedSizeKem",
+        "Interp.modelShipped",
+        "viewShipped",
+        "shippedHeader_le",
+        "ekVecShipped_le",
+        "ct1Shipped_le",
+        "ct2Shipped_le",
+    )]
+    # The wrapper KEM model: every result's statement, the model KEM, its hash, the eight laws, the two
+    # law bundles and the byte views (`UnitKemWrapperModel`).
+    + ["Tacenta.UnitKemWrapperModel." + n for n in (
+        "toU8_u8",
+        "bytesOf_sliceOf",
+        "length_bytesOf_le",
+        "length_nil_le",
+        "bytesSlice_sliceOf",
+        "length_bytesSlice_of",
+        "sliceOf_bytesSlice",
+        "sliceOf_vecSlice",
+        "length_leBytes",
+        "leBytes_leNat",
+        "streamOf_leNat",
+        "LawKemConstants_is",
+        "LawGenerateSeeded_is",
+        "LawGeneratedKeyPair_is",
+        "LawEncapsulate1Seeded_is",
+        "LawEncapsulate2Fresh_is",
+        "LawValidateEkTotal_is",
+        "LawValidateEkUnique_is",
+        "LawKemClone_is",
+        "wrapperKemLaws_iff",
+        "bytesOf_map_u8",
+        "append_le_usize",
+        "hashEkOf_eq",
+        "validate_of_hashEkOf",
+        "decaps_clause",
+        "encaps2_clause",
+        "kemLen_wrapperKemOf",
+        "kemAgrees_wrapperKemOf",
+        "validateEkAgrees_wrapperKemOf",
+        "t3Agreements_wrapperKemOf",
+        "kemLenAgrees_wrapperKem",
+        "kemAgreesFor_wrapperKem",
+        "validateEkAgrees_wrapperKem",
+        "kemCloneAgrees_wrapperKem",
+        "keyPairRefines_wrapperKem",
+        "encapsRefines_wrapperKem",
+        "t3Agreements_wrapperKem",
+        "DecryptWrapperLawsShape.toJoint",
+        "decryptWrapperLaws_joint",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem",
+        "modelShipped_wrapperKemLaws",
+        "decrypt_wrapper_laws_model",
+        "decrypt_joint_laws_model_at_wrapperKemOf",
+        "decrypt_wrapper_laws_satisfiable",
+        "wrapperKemOf",
+        "wrapperKem",
+        "hashEkOf",
+        "LawKemConstants",
+        "LawGenerateSeeded",
+        "LawGeneratedKeyPair",
+        "LawEncapsulate1Seeded",
+        "LawEncapsulate2Fresh",
+        "LawValidateEkTotal",
+        "LawValidateEkUnique",
+        "LawKemClone",
+        "WrapperKemLawsShape",
+        "WrapperKemLaws",
+        "DecryptWrapperLawsShape",
+        "DecryptWrapperLaws",
+        "bytesSlice",
+        "vecSlice",
+        "leBytes",
+        "leNat",
+        "streamOf",
+    )]
+    # The held-KEM witness: every result's statement, and the bodies of the added law, the held
+    # states, the held-value predicate and the chunk message (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds_is",
+        "lawGenerateSucceeds_of_kemDrawsSucceed",
+        "modelShipped_generateSucceeds",
+        "held_laws_satisfiable",
+        "hdrMsgOf_length",
+        "hdrMsgOf_le",
+        "chunks_length",
+        "held_encoder",
+        "held_key_agreements",
+        "structural_held",
+        "heldBraid_invariant",
+        "held_invariant",
+        "held_sessionRefines",
+        "held_braid_output",
+        "held_run",
+        "decrypt_hypotheses_at_held_of_run",
+        "decrypt_hypotheses_at_held",
+        "heldModelBraid_is_send",
+        "decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held",
+        "ct1Zeros_length",
+        "ct1Zeros_le",
+        "codeword_zero",
+        "ct1Zeros_codeword0",
+        "u8_map_inj",
+        "zero_chunk_codeword",
+        "chunkBytes_le",
+        "sliceOf_chunkMessage",
+        "chunk_decode_model",
+        "chunk_decode_real",
+        "chunkMessage_type",
+        "chunk_braid_step",
+        "held_chunk_run",
+        "decrypt_hypotheses_with_chunk_at_wrapperKem_held",
+        "held_relation_pins_vector",
+        "held_not_refines_toyKem",
+        "held_model_refuses_of_agreement",
+        "LawGenerateSucceeds",
+        "LawGenerateSucceedsShape",
+        "hdrMsgOf",
+        "heldModelBraid",
+        "heldBraid",
+        "heldReal",
+        "heldModel",
+        "HeldKemAt",
+        "ct1Zeros",
+        "chunkComposite",
+        "chunkMessage",
+        "chunkView",
+    )]
+    # The repeated-initial comparison's refinement: every result's statement (`UnitLifecycleInitialAgreementT3`).
+    + ["Tacenta.UnitLifecycleInitialAgreementT3." + n for n in (
+        "arrayOf_injective",
+        "agreement_eq_refines",
+        "same_ephemeral_agreement_refines_of_dhAgree",
+        "same_ephemeral_agreement_refines",
+        "repeated_initial_agreement_refines",
+        "repeated_initial_agreement_true_iff",
+        "repeated_initial_agreement_false_iff",
+        "encoded_comparison_does_not_refine",
+    )]
+    # The model's repeat comparison, whose body the refinement states (`UnitLifecycleInitialAgreementT3`).
+    + ["Model.Lifecycle." + n for n in (
+        "sameEphemeralAgreement",
+    )]
+    # The curve-key decoder's characterization: every result's statement (`SessionUnitDecodeEc`).
+    + ["Tacenta.SessionUnitDecodeEc." + n for n in (
+        "decodeEc_eq_some_iff",
+        "decodeEc_eq_none_iff",
+        "decodeEc_length",
+        "canonicalX25519_session_eq_wire",
+        "key_eq_drop",
+        "arrayOf_eq_drop",
+        "head_sliceOf",
+        "u8_eq_curve_iff",
+        "session_decode_ec_refines",
+        "session_decode_ec_characterization",
+        "decode_ec_refines",
+    )]
+    # The model's `DecodeEC`, whose body the characterization states (`SessionUnitDecodeEc`).
+    + ["Model.Lifecycle." + n for n in (
+        "decodeEc",
+    )]
+    # The per-run receive bounds of `decrypt_ratchet`, the restated refinement, its records and the
+    # state the ceilings exclude (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "classicalMatch_of_inv",
+        "sparseMatch_of_inv",
+        "sparseCounters_transport",
+        "store_room",
+        "retryRunBounds_of_triple_invariant",
+        "sparseOutputOf_epoch",
+        "retryRunBounds_of_invariant",
+        "decryptRatchetRun_of_invariant",
+        "decrypt_ratchet_refines_of_invariant",
+        "decrypt_ratchet_refines_of_invariant_statement",
+        "counterHeadroom_sessionOf",
+        "decrypt_inputs_at_invReal",
+        "DecryptOfInvariantHypotheses.refines",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable",
+        "parkedTriple_invariant",
+        "structural_parkedSession",
+        "parkedSession_invariant",
+        "parkedSession_not_counterHeadroom",
+        "invariant_does_not_give_counterHeadroom",
+        "CounterHeadroom",
+        "DecryptRatchetRunInputs",
+        "DecryptRatchetRefinesOfInvariantStatement",
+        "DecryptOfInvariantHypotheses",
+        "parkedTriple",
+        "parkedSession",
+    )]
     # The public `decrypt` on frames that are not initial messages: the statements, and the bodies of
     # the definitions they are written in (`#print`).
     + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
@@ -2261,7 +2744,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
 # not the body, so it would hold nothing of what these pins are for.
 REQUIRED_PRINT_FORM = frozenset(
-    ["Model.Lifecycle." + n for n in (
+    ["Tacenta.SessionUnitSpqrT1.ZeroizeTotal", "Tacenta.SessionUnitSpqrT1.VecRetainTotal",
+     "Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal"]
+    + ["Model.Lifecycle." + n for n in (
         "braidSendDrawCount", "sendAgreement", "braidSendNeedsDraw", "takeDraw", "braidRandomness",
     )]
     + ["Tacenta.UnitLifecycleT3." + n for n in (
@@ -2293,6 +2778,10 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitOracleJoint." + n for n in (
         "OracleLaws",
     )]
+    + ["Tacenta.UnitOracleDecrypt." + n for n in (
+        "InterpO.decrypt",
+        "dhViewD",
+    )]
     # The definitions the laws of the joint decision rest on: the seven totality predicates of the contract
     # records, their seven shapes over an interpretation, and the two abbreviations they print through.
     + ["Tacenta.UnitLifecycleT1." + n for n in (
@@ -2309,6 +2798,7 @@ REQUIRED_PRINT_FORM = frozenset(
         "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
         "GenerateFillsOnce64Of", "GenerateFillsOnce64",
         "Random32Clause", "SigSignClause", "KemClauses",
+        "encodedEphemeralAgreement",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",
@@ -2372,6 +2862,85 @@ REQUIRED_PRINT_FORM = frozenset(
     )]
     + ["Tacenta.UnitLifecycleDecryptRatchetT3." + n for n in (
         "OpenRefusalCloses",
+    )]
+    + ["Tacenta.UnitSatisfiabilitySpqrSessionLaws." + n for n in (
+        "SpqrSessionLaws",
+        "SpqrSessionLawsShape",
+    )]
+    + ["Tacenta.UnitSatisfiabilityRatchet." + n for n in (
+        "LawPop",
+        "LawAsMut",
+        "LawCapacity",
+        "LawVecZeroize",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptScreen." + n for n in (
+        "invReal",
+        "DecryptJointLawsShape",
+        "DecryptJointLaws",
+        "DecryptHypotheses",
+        "DecryptHypothesesJointlySatisfiableStatement",
+        "ekVecShipped",
+        "ct1Shipped",
+        "ct2Shipped",
+        "shippedSizeKem",
+        "Interp.modelShipped",
+        "viewShipped",
+    )]
+    + ["Tacenta.UnitKemWrapperModel." + n for n in (
+        "wrapperKemOf",
+        "wrapperKem",
+        "hashEkOf",
+        "LawKemConstants",
+        "LawGenerateSeeded",
+        "LawGeneratedKeyPair",
+        "LawEncapsulate1Seeded",
+        "LawEncapsulate2Fresh",
+        "LawValidateEkTotal",
+        "LawValidateEkUnique",
+        "LawKemClone",
+        "WrapperKemLawsShape",
+        "WrapperKemLaws",
+        "DecryptWrapperLawsShape",
+        "DecryptWrapperLaws",
+        "bytesSlice",
+        "vecSlice",
+        "leBytes",
+        "leNat",
+        "streamOf",
+    )]
+    # The held-KEM witness: the added law, the held states, the held-value predicate and the
+    # chunk message (`UnitHeldKemWitness`).
+    + ["Tacenta.UnitHeldKemWitness." + n for n in (
+        "LawGenerateSucceeds",
+        "LawGenerateSucceedsShape",
+        "hdrMsgOf",
+        "heldModelBraid",
+        "heldBraid",
+        "heldReal",
+        "heldModel",
+        "HeldKemAt",
+        "ct1Zeros",
+        "chunkComposite",
+        "chunkMessage",
+        "chunkView",
+    )]
+    # The model's repeat comparison (`UnitLifecycleInitialAgreementT3`).
+    + ["Model.Lifecycle." + n for n in (
+        "sameEphemeralAgreement",
+    )]
+    # The model's `DecodeEC` (`SessionUnitDecodeEc`).
+    + ["Model.Lifecycle." + n for n in (
+        "decodeEc",
+    )]
+    # The counter ceilings, the run conditions left to the caller, the restated statement, its
+    # hypothesis record and the parked state (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "CounterHeadroom",
+        "DecryptRatchetRunInputs",
+        "DecryptRatchetRefinesOfInvariantStatement",
+        "DecryptOfInvariantHypotheses",
+        "parkedTriple",
+        "parkedSession",
     )]
     + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
         "DecryptRefinesRatchetFrameStatement",

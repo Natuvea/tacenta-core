@@ -1050,6 +1050,7 @@ info: 'Tacenta.UnitLifecycleRetryLoopT3.evict_for_retry_covers' depends on axiom
  tacenta_session_unit.zeroize.Zeroizing,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
  tacenta_session_unit.alloc.vec.Vec.capacity,
  tacenta_session_unit.alloc.vec.Vec.pop,
  tacenta_session_unit.core.option.Option.as_mut,

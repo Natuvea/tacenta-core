@@ -286,6 +286,22 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `tacenta-model`, `Model.Lifecycle.sameEphemeralAgreement`: the model's
+  repeated-initial comparison now does what `protocol/session-establishment.md`,
+  Receiving the initial message, says. It decodes the message's `ephemeral` and
+  `established_ephemeral` with `DecodeEC` (`Model.Lifecycle.decodeEc`: 33 bytes,
+  the curve type byte, a canonical key, through the initial-message decoder's
+  own `checkCurve` and `checkKey`), takes X25519 of the session's
+  `ratchet_private` with each of the two decoded 32-byte keys, and compares the
+  two outputs. It is `false` when either decode or either agreement fails. Before,
+  the model handed the two 33-byte `EncodeEC` strings to the agreement as they
+  were, which the page does not describe and which no theorem could relate to
+  `tacenta-core`'s `same_ephemeral_agreement`, which decodes both first. Both
+  strings decode on every session a reader accepts and in every message the
+  initial-message decoder accepts, by reading of the code, so the two
+  decode-failure arms are reached only on states no reader produces; that is
+  not proved. The page is unchanged, and the generated
+  vectors do not reach this function and do not change.
 - `protocol/mlkem-braid.md`, Failure: one sentence says the model expresses the
   four KEM failures the section lists. `Model.Braid`'s `Kem` operations
   (`keyGen`, `encaps1`, `encaps2`, `decaps`) may now refuse, and each refusal

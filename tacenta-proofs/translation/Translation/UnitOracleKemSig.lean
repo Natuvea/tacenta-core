@@ -389,6 +389,7 @@ info: 'Tacenta.UnitOracleKemSig.oracleOfGuarded_iff_shape' depends on axioms: [p
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,

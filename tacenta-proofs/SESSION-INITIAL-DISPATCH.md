@@ -15,8 +15,9 @@ and under the assumptions of `LIMITATIONS.md` ("The headroom records").
 No theorem on this page takes `InitialSameEphemeralEvidence`, `InitialMismatchedEphemeralEvidence`,
 `InitialRatchetBraidEvidenceContracts`, the earlier Triple and AEAD concrete evidence, `CodewordViewOf`
 or the earlier concrete branch and end-to-end records. The dispatch theorems take the per-branch
-`InitialDispatchBranchEvidence`, whose repeated-initial premises about the model are a choice of oracle
-(`sameEphemeralAgreement_unconstrained`), and the per-run records `InitialRatchetEndToEndEvidenceRun` and
+`InitialDispatchBranchEvidence`, whose repeated-initial premises state the model's verdict on the branch
+(the code's verdict gives each, `repeated_initial_agreement_true_iff` and `repeated_initial_agreement_false_iff`
+in `Translation/UnitLifecycleInitialAgreementT3.lean`, and no theorem on this page uses that yet), and the per-run records `InitialRatchetEndToEndEvidenceRun` and
 `InitialAgreementRatchetEndToEndEvidenceRun`, which are not shown satisfiable as a whole and do not
 cover a run whose agreement chunk is inconsistent, refused or accepted. An intermediate form on the
 integrated branch asked every RNG state for a draw and is empty (`concreteBranchEvidence_empty`,

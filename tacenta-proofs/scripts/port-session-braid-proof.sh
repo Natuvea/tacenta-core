@@ -102,6 +102,42 @@ def DecoderMessageTotalUnbounded : Prop :=
   ∀ (d : {E}Decoder), ∃ r, {E}Decoder.message d = ok r
 """)
 
+# `ArrayZeroizeTotal` in the standalone file is stated for every width and every `Zeroize U8`
+# record, including one whose `zeroize` fails; the real function propagates that failure. In the
+# unit it is stated at the one instance and width the translation passes to `Array::zeroize`, the
+# blanket `u8` instance on a 32-byte array (`UnitSatisfiabilityZeroizeScope.lean`).
+Z = "tacenta_session_unit."
+text = unit_edit(text, "ArrayZeroizeTotal at the unit's instance",
+    f"""leaves behind, so nothing about the value is assumed. -/
+def ArrayZeroizeTotal : Prop :=
+  ∀ (N : Usize) (inst : {Z}zeroize.Zeroize U8) (a : Array U8 N),
+    ∃ r, {Z}Array.Insts.ZeroizeZeroize.zeroize (N := N) inst a = ok r
+""",
+    f"""leaves behind, so nothing about the value is assumed.
+
+In this unit the statement is made at the one instance and width the translation passes to
+`Array::zeroize`: the blanket `Zeroize` for `u8`, on a 32-byte array, which makes it the same
+proposition as `SessionUnitSpqrT1.ZeroizeTotal`. The standalone `BraidT1.lean` states it for every
+width and every `Zeroize U8` record, including one whose `zeroize` fails, which the real function
+does not support. -/
+def ArrayZeroizeTotal : Prop :=
+  ∀ (a : Array U8 32#usize),
+    ∃ r, {Z}Array.Insts.ZeroizeZeroize.zeroize
+      ({Z}zeroize.Zeroize.Blanket {Z}U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
+""")
+
+text = unit_edit(text, "array_zeroize_spec at the unit's instance",
+    f"""theorem array_zeroize_spec (hzz : ArrayZeroizeTotal) {{N : Usize}} (a : Array U8 N) :
+    {Z}Array.Insts.ZeroizeZeroize.zeroize (N := N)
+      ({Z}zeroize.Zeroize.Blanket {Z}U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hzz N ({Z}zeroize.Zeroize.Blanket {Z}U8.Insts.ZeroizeDefaultIsZeroes) a
+""",
+    f"""theorem array_zeroize_spec (hzz : ArrayZeroizeTotal) (a : Array U8 32#usize) :
+    {Z}Array.Insts.ZeroizeZeroize.zeroize
+      ({Z}zeroize.Zeroize.Blanket {Z}U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hzz a
+""")
+
 text = unit_edit(text, "State.decoders_bounded",
     """  | .Ct1Acknowledged _ _ _ _ ct1 _ => ct1.length ≤ 4096
   | _ => True
@@ -244,8 +280,10 @@ note = (
     "-- port changes namespaces, pins aggregate tactic rules, audits the\n"
     "-- complete unit's concrete erasure dependencies and applies the named\n"
     "-- `unit_edit`s that restate `DecoderMessageTotal` for decoders with\n"
-    "-- `needed <= 65536` and add the hypothesis `hdb` (`State.decoders_bounded`)\n"
-    "-- to the receive theorems. The standalone file keeps its statements.\n\n"
+    "-- `needed <= 65536`, restate `ArrayZeroizeTotal` at the blanket `u8`\n"
+    "-- instance on 32-byte arrays, and add the hypothesis `hdb`\n"
+    "-- (`State.decoders_bounded`) to the receive theorems. The standalone file\n"
+    "-- keeps its statements.\n\n"
 )
 dest.write_text(note + text)
 PY

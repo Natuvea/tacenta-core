@@ -27,7 +27,8 @@ takes a liveness and an unspliced-stream precondition and, for the receive, the 
 preconditions that nothing on the unit discharges, and the boundary assumptions); see
 `../tacenta-proofs/CLAIMS.md` for the ledger and `../tacenta-proofs/LIMITATIONS.md`
 for what is not covered. The lifecycle crate has conditional T1 theorems and a
-conditional refinement of its private `decrypt_ratchet`, neither of which makes
+conditional refinement of its private `decrypt_ratchet` (under, among other hypotheses,
+two assumed laws about `Vec::pop` and `Option::as_mut`), neither of which makes
 `Session::encrypt` or `Session::decrypt` proved end to end. The KEM wrapper refuses a
 restored encapsulation state whose coefficients lie outside the bound libcrux states,
 so the Braid fails closed: tested only, not proved.

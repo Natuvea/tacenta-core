@@ -57,15 +57,18 @@ both stores to be empty would be refused here.
 ## E. The boundary model and the run, composed
 
 `decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`: the
-boundary shapes of part B, read at the real constants, and the two sparse agreements give every
-hypothesis of `decrypt_ratchet_refines` at part A's run and at part D's.
+boundary shapes of part B, read at the real constants, give every hypothesis of
+`decrypt_ratchet_refines` at part A's run and at part D's.  The record's two laws about `Vec::pop`
+and `Option::as_mut` are read from `StdLaws`; the sparse store's two agreements are no longer
+hypotheses (`UnitSatisfiabilitySpqrSessionLaws.lean`).
 
 ## What this does not show
 
 That a run carrying a chunk meets the record (the witnesses have no chunk, and `HonestChunk` holds by
 its vacuous arm there; `UnitSatisfiabilityBraidStates` has witnesses with data for the Braid relations
 alone).  Which branch the shipped code takes at any of the runs: the oracle clauses hold of part B's
-oracle, not at the real constants, so parts C and D show the model side.  The two sparse agreements.
+oracle, not at the real constants, so parts C and D show the model side.  That the real `Vec::pop`,
+`Option::as_mut` and `zeroize` functions satisfy the laws the sparse agreements are derived from.
 Anything about the real primitives.  That a session the shipped code accepts reaches these branches:
 the witness states are built for the theorem's hypotheses and not for `Ratchet::invariant`, which
 refuses part D's classical store (it repeats one key) and the receiving chain without a sending chain
@@ -326,10 +329,11 @@ That is an argument about derivations, not a theorem inside Lean, and nothing he
 real X25519, AEAD or `zeroize` code.  Part A's witness takes values of the two key types as
 arguments; in this interpretation those types are inhabited.
 
-Not decided here: `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`,
-statements about translated functions that the session unit takes as assumptions
-(`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), and `ErasureAgrees`, which
-`UnitErasureRs.Glue.erasureAgrees` derives from two laws, the value of `usize::div_ceil` and the prefix
+Not decided here as shapes: the two laws `DecryptRatchetAgreements` states about `Vec::pop` and
+`Option::as_mut`, which are the first two fields of `StdLaws` at `Interp.real` (part E reads them
+from there), and from which with three contract fields the proof derives the sparse store's two
+agreements about translated functions (`UnitSatisfiabilitySpqrSessionLaws.lean`); and
+`ErasureAgrees`, which `UnitErasureRs.Glue.erasureAgrees` derives from two laws, the value of `usize::div_ceil` and the prefix
 `Vec::truncate` keeps (`DivCeilValue`, `TruncatePrefix`), both of which hold in this model
 (`AllT1Shapes.divCeilValue`, `TruncatePrefixShape`). -/
 
@@ -1151,10 +1155,10 @@ theorem decrypt_ratchet_refines_at_eviction (dh : DhView) (view : Model.Lifecycl
 
 `decrypt_boundary_has_a_model` shows the boundary shapes together in one interpretation, and part A's
 run meets the per-run hypotheses.  This theorem joins them inside Lean: read at the real constants,
-the shapes that theorem lists, with the two sparse agreements, give every hypothesis of
-`decrypt_ratchet_refines` at part A's run.  So the substitution step, which replaces the real
-constants by the interpretation's, is the only part of the joint claim outside Lean, and the two
-sparse agreements are the only hypotheses it takes that no model here decides. -/
+the shapes that theorem lists give every hypothesis of `decrypt_ratchet_refines` at part A's run,
+the two laws of `DecryptRatchetAgreements` about `Vec::pop` and `Option::as_mut` among them (read
+from `StdLaws`).  So the substitution step, which replaces the real constants by the
+interpretation's, is the only part of the joint claim outside Lean. -/
 
 open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
 theorem decrypt_ratchet_refines_from_shapes
@@ -1168,8 +1172,6 @@ theorem decrypt_ratchet_refines_from_shapes
     (hO : DecryptOracleShape Interp.real ⟨dh.privateKey, dh.publicKey⟩
       Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
       Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle)
-    (vr : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (rm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
     ∃ output,
       lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
@@ -1201,7 +1203,7 @@ theorem decrypt_ratchet_refines_from_shapes
     Tacenta.UnitErasureRs.Glue.erasureAgrees hA.divCeilValue hTP
   letI : Tacenta.SessionUnitT1.DerivedKeysModel := hD.toDerived
   have agreements : DecryptRatchetAgreements oracle.braidKem :=
-    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
+    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, hL.pop, hL.asMut, hT.kemAgrees, er, hT.kemLen,
       hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
   exact decrypt_ratchet_refines_at_sample dh view oracle hdraws oracleOf codec contracts agreements
     sk pk
@@ -1219,8 +1221,6 @@ theorem decrypt_ratchet_refines_from_shapes_at_eviction
     (hO : DecryptOracleShape Interp.real ⟨dh.privateKey, dh.publicKey⟩
       Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
       Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle)
-    (vr : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (rm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes) :
     ∃ output,
       lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
@@ -1252,7 +1252,7 @@ theorem decrypt_ratchet_refines_from_shapes_at_eviction
     Tacenta.UnitErasureRs.Glue.erasureAgrees hA.divCeilValue hTP
   letI : Tacenta.SessionUnitT1.DerivedKeysModel := hD.toDerived
   have agreements : DecryptRatchetAgreements oracle.braidKem :=
-    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, vr, rm, hT.kemAgrees, er, hT.kemLen,
+    ⟨hT.hmac, hT.hkdf, hz.1, hz.2.1, hz.2.2.1, hz.2.2.2.1, hL.pop, hL.asMut, hT.kemAgrees, er, hT.kemLen,
       hT.validateEk, hT.kemClone, hz.2.2.2.2⟩
   exact decrypt_ratchet_refines_at_eviction dh view oracle hdraws oracleOf codec contracts agreements
     sk pk
@@ -1320,6 +1320,7 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_shapes_are_predicates' 
  tacenta_kem.IncrementalKeyPair.header,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  TupleABC.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
@@ -2368,22 +2369,20 @@ info: Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_sha
                       { privateKey := dh.privateKey, publicKey := dh.publicKey }
                       Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
                       Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle →
-                    Tacenta.SessionUnitSpqrT3.VecRetainAgrees →
-                      Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees →
-                        ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
-                          ∃ output,
-                            lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc
-                                  (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk)
-                                  Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage
-                                  Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
-                                ok output ∧
-                              (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
-                                  (Model.Lifecycle.decryptRatchet view oracle
-                                    (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
-                                      (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk))
-                                    (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage)) ∨
-                                TripleRefusalOpen output)
+                    ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
+                      ∃ output,
+                        lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                              Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                              (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk)
+                              Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage
+                              Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
+                            ok output ∧
+                          (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+                              (Model.Lifecycle.decryptRatchet view oracle
+                                (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                                  (Tacenta.UnitLifecycleDecryptRatchetScreen.sampleReal sk pk))
+                                (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage)) ∨
+                            TripleRefusalOpen output)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes
@@ -2683,22 +2682,20 @@ info: Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_sha
                       { privateKey := dh.privateKey, publicKey := dh.publicKey }
                       Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
                       Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle →
-                    Tacenta.SessionUnitSpqrT3.VecRetainAgrees →
-                      Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees →
-                        ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
-                          ∃ output,
-                            lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc
-                                  (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)
-                                  Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage
-                                  Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
-                                ok output ∧
-                              (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
-                                  (Model.Lifecycle.decryptRatchet view oracle
-                                    (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
-                                      (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk))
-                                    (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage)) ∨
-                                TripleRefusalOpen output)
+                    ∀ (sk : tacenta_boundary.dh.PrivateKey) (pk : tacenta_boundary.dh.PublicKeyBytes),
+                      ∃ output,
+                        lifecycle.Session.decrypt_ratchet Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                              Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                              (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk)
+                              Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage
+                              Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng =
+                            ok output ∧
+                          (StepRefines Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh oracle.braidKem output
+                              (Model.Lifecycle.decryptRatchet view oracle
+                                (Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf dh
+                                  (Tacenta.UnitLifecycleDecryptRatchetScreen.evictReal sk pk))
+                                (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.evictMessage)) ∨
+                            TripleRefusalOpen output)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction

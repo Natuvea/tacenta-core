@@ -2872,6 +2872,12 @@ def initial_dispatch_no_established_from_premises
   exact decrypt_initial_without_established_refines rngCore cryptoRng trace dh K view oracle
     real model message rng decoded ctx.hrel ctx.htrace ctx.htype hdecode hnone
 
+/-- A decoded initial wrapper whose ephemeral the comparison refuses is refused with
+`NotARepeatedInitial`. `hagreementMismatch` is the model's verdict on the branch, `false`, as a
+premise; it was an inequality of `oracle.dhAgree` at the two 33-byte strings until the model's
+comparison decoded them first, after which that inequality no longer decides the model's verdict.
+`UnitLifecycleInitialAgreementT3.repeated_initial_agreement_false_iff` derives this premise from
+`hsameAgreement` under `DecryptOracleOf` and `DhCodecOf`. -/
 theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -2890,9 +2896,8 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok false)
-    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-      oracle.dhAgree model.ratchetPrivate
-        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+    (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
     ∃ output,
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
@@ -2929,27 +2934,11 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
           (Model.Lifecycle.repeatedInitial_iff oracle _ _).1 hr
         rw [hmodelEstablished] at he
         cases he
-        have hcontra : False := by
-          have heq' : oracle.dhAgree model.ratchetPrivate (vecOf established) =
-              oracle.dhAgree model.ratchetPrivate
-                (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) := by
-            cases hleft : oracle.dhAgree model.ratchetPrivate (vecOf established) with
-            | none =>
-                simp [Model.Lifecycle.sameEphemeralAgreement,
-                  Tacenta.SessionUnitWireInitialT3.initialOf, hleft] at heq
-            | some left =>
-                cases hright : oracle.dhAgree model.ratchetPrivate
-                    (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) with
-                | none =>
-                    simp [Model.Lifecycle.sameEphemeralAgreement,
-                      Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] at heq
-                | some right =>
-                    have hkeys : left = right := by
-                      simpa [Model.Lifecycle.sameEphemeralAgreement,
-                        Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] using heq
-                    simpa [hleft, hright, hkeys]
-          exact hagreementMismatch heq'
-        exact hcontra.elim
+        have heq' : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+            (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true := by
+          simpa [Tacenta.SessionUnitWireInitialT3.initialOf] using heq
+        rw [hagreementMismatch] at heq'
+        exact absurd heq' (by decide)
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
@@ -2980,9 +2969,8 @@ def initial_dispatch_ephemeral_mismatch_from_premises
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok false)
-    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-      oracle.dhAgree model.ratchetPrivate
-        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+    (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.ephemeralMismatch ?_
   exact decrypt_initial_ephemeral_mismatch_refines rngCore cryptoRng trace dh K view oracle

@@ -665,7 +665,7 @@ theorem spqr_skip_refusal_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               have := max_skip_agrees
               scalar_tac
             omega)
-        obtain ⟨_, hskipped_zeroize⟩ := hret_total.2.1 Skipped.Insts.ZeroizeZeroize s.skipped
+        obtain ⟨_, hskipped_zeroize⟩ := hret_total.2.1.2.1 s.skipped
         simp only [hskipped_zeroize]
         have hcsend :
             core.option.Option.Insts.CoreCloneClone.clone Chain.Insts.CoreCloneClone cs.send
@@ -980,7 +980,7 @@ theorem triple_receive_refusal_refines : TripleReceiveRefusalRefines := by
   intro hmac hkdf hzr hvr _ hz96 hz64 hret hret_total hrm hzs hopt s m hrel header mh hheader
     dh_out_recv dh_out_send new_dhs_pub output hone hs hevents hepoch hroom hcb hsb hnewb
     hskiproom hone2 hcounter
-  have hz : ZeroizeTotal := fun a => hzs _ a
+  have hz : ZeroizeTotal := fun a => hzs a
   have hkt : Tacenta.SessionUnitT1.HkdfTotal := hkdf.total
   have counter : ∀ q ∈ s.post_quantum.chains.val, ∀ ch : tacenta_spqr.Chain,
       (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n.val < Std.U64.max := by

@@ -1447,16 +1447,37 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
         oracle := oracleNext } := by
   simp [encrypt, hg, hs, hf, ht]
 
-/-- Whether an initial wrapper is the repeat belonging to this responder
-    session (session-establishment.md, Receiving the initial message). -/
-/- Whether two ephemeral values are in the same successful X25519 agreement
-   class. Two rejected/non-contributory agreements are not a match: the
-   shipping predicate fails closed when either agreement is unavailable. -/
+/-- `DecodeEC` (session-establishment.md, Parameters and Sending the initial
+    message): the thirty-two key bytes of a 33-byte `EncodeEC` string whose first
+    byte is the curve type byte and whose key bytes are a canonical curve public
+    key, `none` for every other byte string. The two checks are the
+    initial-message decoder's own, `Model.Messages.checkCurve` and
+    `Model.Messages.checkKey`, so this accepts exactly the `identity` and
+    `ephemeral` fields `Model.Messages.decodeInitial` accepts. -/
+def decodeEc (e : Bytes) : Option Key :=
+  if e.length = 33 then do
+    Model.Messages.checkCurve e
+    Model.Messages.checkKey (e.drop 1)
+    pure (e.drop 1)
+  else none
+
+/-- Whether two `EncodeEC` ephemerals are in the same X25519 agreement class
+    under `secret` (session-establishment.md, Receiving the initial message):
+    both strings are decoded with `DecodeEC` (`decodeEc`), the
+    oracle's X25519 agreement of `secret` with each decoded 32-byte key must give
+    an output (the boundary refuses a non-contributory one, as `none`), and the
+    two outputs must be equal. It is `false` when either string does not decode
+    or either agreement is refused, so two refused agreements are not a match. -/
 def sameEphemeralAgreement (oracle : Oracle) (secret established incoming : Key) : Bool :=
-  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
-  | some left, some right => left == right
+  match decodeEc established, decodeEc incoming with
+  | some establishedKey, some incomingKey =>
+      match oracle.dhAgree secret establishedKey, oracle.dhAgree secret incomingKey with
+      | some left, some right => left == right
+      | _, _ => false
   | _, _ => false
 
+/-- Whether an initial wrapper is the repeat belonging to this responder
+    session (session-establishment.md, Receiving the initial message). -/
 def repeatedInitial (oracle : Oracle) (session : Session) (initial : Initial) : Bool :=
   match session.establishedEphemeral with
   | none => false

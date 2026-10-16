@@ -2,7 +2,9 @@
 -- Translation/UnitSpqrT1.lean. Do not edit: `port-session-unit-proofs.sh --check`
 -- regenerates this file and fails on any difference. The source is itself
 -- held byte-for-byte to its leaf proof by port-unit-proofs.sh. This port
--- changes only imports and the generated unit/proof namespaces.
+-- changes imports and the generated unit/proof namespaces, and applies
+-- 5 named unit edits that restate the general zeroize fields at
+-- the instances this unit uses (see the script).
 -- Reworded 0 explanatory reference(s) to name this unit.
 
 import Translation.TacentaSessionUnit
@@ -56,10 +58,17 @@ assumes its own copy returns. That is the same counting trap named above.
 
 Assuming it **returns** says nothing about whether it *wipes*, which is a
 property of the external crate and is listed separately in `LIMITATIONS.md`
-under secret deletion. -/
+under secret deletion.
+
+In this unit the statement is made at the one instance and width the translation passes to
+`Array::zeroize`: the blanket `Zeroize` for `u8`, on a 32-byte array.  The source of this file,
+`UnitSpqrT1.lean`, states it for every element type, width and `Zeroize` record, including a record
+whose `zeroize` fails; the real function propagates that failure, so the general form is stronger
+than the crate supports (`UnitSatisfiabilityZeroizeScope.zeroize_failure_propagation_conflicts`). -/
 def ZeroizeTotal : Prop :=
-  ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
-    ∃ r, Array.Insts.ZeroizeZeroize.zeroize inst a = ok r
+  ∀ (a : Array U8 32#usize),
+    ∃ r, Array.Insts.ZeroizeZeroize.zeroize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
 
 /-- `set_chains_loop` returns, never grows the chain table and leaves the skipped store alone. The
 translation scans explicitly and no longer calls `Vec::retain`. The length clause is not decoration:
@@ -82,11 +91,24 @@ def ClearSkippedLoopTotal : Prop :=
   ∀ (v : alloc.vec.Vec Skipped) (current : U64) (i : Usize), i.val ≤ v.length →
     ∃ r, State.clear_old_epochs_loop1 v current i = ok r ∧ r.length ≤ v.length
 
+/-- `Vec::capacity` returns, `Vec::zeroize` returns at the instances the unit passes to it, and the
+three loop contracts above.  In this unit the second conjunct is stated at the three instances the
+translation passes to `Vec::zeroize`: the chain table (`Vec<(u64, Chains)>`), the sparse ratchet's
+skipped-key store (`Vec<Skipped>`) and the classical ratchet's (`Vec<SkippedKey>`), in that order.
+The source of this file, `UnitSpqrT1.lean`, states it for every `Zeroize` record, including one
+whose `zeroize` fails, which the real function does not support. -/
 def VecRetainTotal : Prop :=
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
     ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
-  (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
-    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r) ∧
+  ((∀ v : alloc.vec.Vec (U64 × Chains),
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
+          Chains.Insts.ZeroizeZeroize) v = ok r) ∧
+    (∀ v : alloc.vec.Vec Skipped,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize Skipped.Insts.ZeroizeZeroize v = ok r) ∧
+    (∀ v : alloc.vec.Vec tacenta_session_unit.tacenta_ratchet.SkippedKey,
+      ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+        tacenta_session_unit.tacenta_ratchet.SkippedKey.Insts.ZeroizeZeroize v = ok r)) ∧
   SetChainsLoopTotal ∧ ClearChainsLoop0Total ∧ ClearSkippedLoopTotal
 
 /-- `Vec::pop` returns a shortened vector when its checked caller has already
@@ -260,7 +282,7 @@ theorem skip_message_keys_loop1_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     split
     · step
       obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ckA num1
-      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
+      obtain ⟨_, hzr⟩ := hz ckA
       simp only [hk, hzr]
       step*
       all_goals (try (step with alloc.vec.Vec.push_spec w _ (by omega)))
@@ -349,9 +371,7 @@ theorem prepare_chains_capacity_no_panic (st : State) (additional : Usize)
   unfold State.prepare_chains_capacity
   simp only [lift]
   obtain ⟨i1, hi1⟩ := hcap.1 Global st.chains
-  obtain ⟨z, hz⟩ := hcap.2.1
-    (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
-      Chains.Insts.ZeroizeZeroize) st.chains
+  obtain ⟨z, hz⟩ := hcap.2.1.1 st.chains
   simp only [hi1]
   simp only [hz]
   step*
@@ -414,7 +434,7 @@ theorem remove_chains_at_loop_no_panic
 theorem chain_zeroize_no_panic (hz : ZeroizeTotal) (c : Chain) :
     Chain.Insts.ZeroizeZeroize.zeroize c ⦃ fun _ => True ⦄ := by
   unfold Chain.Insts.ZeroizeZeroize.zeroize
-  obtain ⟨r, hr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) c.ck
+  obtain ⟨r, hr⟩ := hz c.ck
   rw [hr]
   simp
 
@@ -540,7 +560,7 @@ theorem advance_no_panic (hret : VecRetainTotal)
           True ⦄ := by
   unfold State.advance
   obtain ⟨⟨rk', k1', k2'⟩, hrkr⟩ := hrk st.rk out.key
-  obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) st.rk
+  obtain ⟨_, hzr⟩ := hz st.rk
   -- The epoch increment is a `checked_add`, so exhaustion at `u64::MAX` is
   -- an ordinary `ChainExhausted` result with the state untouched, walked
   -- here as a value rather than assumed away by an epoch bound.
@@ -642,7 +662,7 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal)
   all_goals (try (step with skip_message_keys_loop1_no_panic hkdf hz))
   all_goals (try step*)
   all_goals (try
-    (obtain ⟨r, hr⟩ := hret.2.1 Skipped.Insts.ZeroizeZeroize st.skipped
+    (obtain ⟨r, hr⟩ := hret.2.1.2.1 st.skipped
      rw [hr]
      simp_all))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
