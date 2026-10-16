@@ -1615,6 +1615,7 @@ REQUIRED_PINS = frozenset(
         "repeated_initial_agreement_refines",
         "repeated_initial_agreement_true_iff",
         "repeated_initial_agreement_false_iff",
+        "encoded_comparison_does_not_refine",
     )]
     # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Tacenta.SessionUnitDecodeEc." + n for n in (
@@ -2603,6 +2604,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "repeated_initial_agreement_refines",
         "repeated_initial_agreement_true_iff",
         "repeated_initial_agreement_false_iff",
+        "encoded_comparison_does_not_refine",
     )]
     # The model's repeat comparison, whose body the refinement states (`UnitLifecycleInitialAgreementT3`).
     + ["Model.Lifecycle." + n for n in (

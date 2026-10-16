@@ -1,5 +1,6 @@
 import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptRatchetT3
+import Translation.UnitLifecycleIntegrationScreen
 
 /-!
 # The repeated-initial ephemeral comparison refines the model's
@@ -22,6 +23,9 @@ session-establishment.md, Receiving the initial message, through the model's `De
   message, the shape the dispatch of `Session::decrypt` uses.
 * `repeated_initial_agreement_true_iff`, `repeated_initial_agreement_false_iff`: the code's
   verdict is `true` (`false`) exactly when the model's is.
+* `encoded_comparison_does_not_refine`, a control: the comparison the model made before its
+  correction, on the two 33-byte encodings, disagrees with the code at some oracle that meets
+  `OracleOf`, so no refinement of this shape holds of it.
 
 ## The hypotheses
 
@@ -176,6 +180,39 @@ theorem repeated_initial_agreement_false_iff {R : Type}
         (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false := by
   rw [repeated_initial_agreement_refines oracleOf codec hrel]
   exact ⟨fun h => Result.ok.inj h, fun h => by rw [h]⟩
+
+/-- **The comparison the model made before its correction does not refine the code.** Given an
+oracle that meets `OracleOf` and the DH codec, and two byte strings neither of which is 32 bytes long
+(every `EncodeEC` string is 33), some oracle that also meets `OracleOf` makes the encoded comparison,
+`UnitLifecycleIntegrationScreen.encodedEphemeralAgreement`, disagree with the translated one. So no
+theorem of the shape of `same_ephemeral_agreement_refines` holds of it: a model that compared the
+encodings again would not refine the code. It says nothing about whether an oracle meeting `OracleOf`
+exists; it is a control, not a claim. -/
+theorem encoded_comparison_does_not_refine {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {oracle : Model.Lifecycle.Oracle}
+    (codec : DhCodecOf dh) (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (privateKey : tacenta_boundary.dh.PrivateKey) (established incoming : Slice Std.U8)
+    (hestablished : (sliceOf established).length ≠ 32)
+    (hincoming : (sliceOf incoming).length ≠ 32) :
+    ∃ oracle', OracleOf rc crc dh kem trace oracle' ∧
+      lifecycle.same_ephemeral_agreement privateKey established incoming ≠
+        ok (Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement oracle'
+          (dh.privateKey privateKey) (sliceOf established) (sliceOf incoming)) := by
+  have hcode := same_ephemeral_agreement_refines (DecryptOracleOf.of_oracleOf oracleOf) codec
+    privateKey established incoming
+  obtain ⟨oracle', hof, _, hb⟩ :=
+    Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement_unconstrained codec oracleOf
+      (dh.privateKey privateKey) (sliceOf established) (sliceOf incoming) hestablished hincoming
+      (!(Model.Lifecycle.sameEphemeralAgreement oracle (dh.privateKey privateKey)
+        (sliceOf established) (sliceOf incoming)))
+  refine ⟨oracle', hof, ?_⟩
+  rw [hcode, hb]
+  intro h
+  have hv := Result.ok.inj h
+  cases hc : Model.Lifecycle.sameEphemeralAgreement oracle (dh.privateKey privateKey)
+      (sliceOf established) (sliceOf incoming) <;> simp [hc] at hv
 
 end Tacenta.UnitLifecycleInitialAgreementT3
 
@@ -431,3 +468,48 @@ info: @Tacenta.UnitLifecycleInitialAgreementT3.repeated_initial_agreement_false_
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleInitialAgreementT3.repeated_initial_agreement_false_iff
+
+/--
+info: 'Tacenta.UnitLifecycleInitialAgreementT3.encoded_comparison_does_not_refine' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleInitialAgreementT3.encoded_comparison_does_not_refine
+
+/--
+info: @Tacenta.UnitLifecycleInitialAgreementT3.encoded_comparison_does_not_refine : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {trace : R → List Model.Lifecycle.Key} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
+  {oracle : Model.Lifecycle.Oracle},
+  Tacenta.UnitLifecycleT3.DhCodecOf dh →
+    Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+      ∀ (privateKey : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+        (established incoming : Aeneas.Std.Slice Aeneas.Std.U8),
+        List.length (Tacenta.UnitLifecycleT3.sliceOf established) ≠ 32 →
+          List.length (Tacenta.UnitLifecycleT3.sliceOf incoming) ≠ 32 →
+            ∃ oracle',
+              Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle' ∧
+                tacenta_session_unit.lifecycle.same_ephemeral_agreement privateKey established incoming ≠
+                  Aeneas.Std.Result.ok
+                    (Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement oracle' (dh.privateKey privateKey)
+                      (Tacenta.UnitLifecycleT3.sliceOf established) (Tacenta.UnitLifecycleT3.sliceOf incoming))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleInitialAgreementT3.encoded_comparison_does_not_refine

@@ -2,7 +2,8 @@
 """Compile disposable proof copies; accept only the expected proof failures.
 
 These are proof-dependency controls, not protocol/runtime mutation tests.
-Dependencies must already be built (`lake build Translation.UnitLifecycleInitialDispatch`).
+Dependencies must already be built (`lake build Translation.UnitLifecycleInitialDispatch` and
+`lake build Translation.UnitLifecycleInitialAgreementT3`'s imports).
 No source, olean, or git worktree is changed by this script.
 """
 from pathlib import Path
@@ -22,7 +23,54 @@ SOURCES = {
     'classical': ROOT / 'translation/Translation/SessionUnitT3.lean',
     'sparse': ROOT / 'translation/Translation/SessionUnitSpqrT3.lean',
     'triple': ROOT / 'translation/Translation/SessionUnitTripleT3.lean',
+    'agreement': ROOT / 'translation/Translation/UnitLifecycleInitialAgreementT3.lean',
 }
+
+# The repeated-initial comparison's refinement (`UnitLifecycleInitialAgreementT3.lean`): its
+# statement is swapped for a model comparison that leaves one string undecoded, or that agrees on the
+# two encodings as the model did before its correction, and the proof must then fail.
+AGREEMENT_BEFORE = (
+    '    lifecycle.same_ephemeral_agreement privateKey established incoming =\n'
+    '      ok (Model.Lifecycle.sameEphemeralAgreement oracle (dh.privateKey privateKey)\n'
+    '        (sliceOf established) (sliceOf incoming)) := by\n'
+    '  obtain ⟨r1, h1, hr1⟩ := Tacenta.SessionUnitDecodeEc.decode_ec_refines dh codec established\n'
+    '  obtain ⟨r2, h2, hr2⟩ := Tacenta.SessionUnitDecodeEc.decode_ec_refines dh codec incoming\n'
+    '  unfold lifecycle.same_ephemeral_agreement Model.Lifecycle.sameEphemeralAgreement\n'
+)
+AGREEMENT_MUTANTS = {
+    'drop-incoming-decode': (
+        'match Model.Lifecycle.decodeEc established with\n'
+        '  | some establishedKey =>\n'
+        '      match oracle.dhAgree secret establishedKey, oracle.dhAgree secret incoming with\n'
+        '      | some left, some right => left == right\n'
+        '      | _, _ => false\n'
+        '  | none => false'),
+    'drop-established-decode': (
+        'match Model.Lifecycle.decodeEc incoming with\n'
+        '  | some incomingKey =>\n'
+        '      match oracle.dhAgree secret established, oracle.dhAgree secret incomingKey with\n'
+        '      | some left, some right => left == right\n'
+        '      | _, _ => false\n'
+        '  | none => false'),
+    'compare-encodings': (
+        'match oracle.dhAgree secret established, oracle.dhAgree secret incoming with\n'
+        '  | some left, some right => left == right\n'
+        '  | _, _ => false'),
+}
+
+
+def agreement_after(body):
+    # The mutant comparison is declared just before the refinement theorem, which is restated of it.
+    return (
+        AGREEMENT_BEFORE
+        .replace('Model.Lifecycle.sameEphemeralAgreement oracle', 'mutantComparison oracle')
+        .replace('unfold lifecycle.same_ephemeral_agreement Model.Lifecycle.sameEphemeralAgreement',
+                 'unfold lifecycle.same_ephemeral_agreement mutantComparison')
+    ), (
+        'def mutantComparison (oracle : Model.Lifecycle.Oracle)\n'
+        '    (secret established incoming : Model.Lifecycle.Key) : Bool :=\n'
+        '  ' + body + '\n\n'
+    )
 
 
 def run_lean(path, log, timeout):
@@ -116,6 +164,7 @@ def main():
          '    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch\n'
          '    bounds.sparseStoreRoom bounds.classicalEvents bounds.sparseEpoch',
          'bounds.sparseStoreRoom'),
+        *[(name, AGREEMENT_BEFORE, None, 'mutantComparison') for name in AGREEMENT_MUTANTS],
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
          '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
@@ -294,6 +343,7 @@ def main():
         'change-classical-full-store-refusal-to-too-many': 'classical',
         'change-sparse-full-store-refusal-to-too-many': 'sparse',
         'swap-triple-classical-full-store-family': 'triple',
+        **{name: 'agreement' for name in AGREEMENT_MUTANTS},
     }
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
         tmp = Path(tmp)
@@ -318,7 +368,16 @@ def main():
             # concrete terminal-discharge theorem, not a duplicated signature.
             # For the terminal guard, mutate its concrete-discharge theorem only.
             mutated = tmp / f'{name}.lean'
-            if name == 'restore-arbitrary-ceiling':
+            if name in AGREEMENT_MUTANTS:
+                marker = 'theorem same_ephemeral_agreement_refines_of_dhAgree'
+                start = source.find(marker)
+                if start < 0 or source.count(before) != 1 or source.find(before) < start:
+                    raise SystemExit(f'Target changed for {name}: the refinement statement is missing')
+                statement, definition = agreement_after(AGREEMENT_MUTANTS[name])
+                mutated.write_text(
+                    source[:start] + definition
+                    + source[start:].replace(before, statement, 1))
+            elif name == 'restore-arbitrary-ceiling':
                 # The live per-run record, not the superseded all-states one.
                 start = source.find('structure InitialRatchetConcreteBranchEvidenceRun')
                 target = source.find(before, start)
@@ -550,6 +609,23 @@ def main():
                 mismatch = re.search(
                     r'error: Tactic `rewrite` failed: Did not find an occurrence.+?'
                     r'initialHeadroom', output, re.S)
+            elif name in AGREEMENT_MUTANTS:
+                # The proof of the restated theorem must fail inside its own body: an error located
+                # between its `theorem` line and the next declaration, of a proof-step kind (a
+                # rewrite that finds no model decode, a goal left over, a term of the wrong type),
+                # not a parse or name error.
+                lines = mutated.read_text().split('\n')
+                first = next(i for i, l in enumerate(lines)
+                             if l.startswith('theorem same_ephemeral_agreement_refines_of_dhAgree'))
+                last = next(i for i in range(first + 1, len(lines))
+                            if lines[i].startswith(('theorem ', '/--', 'def ')))
+                mismatch = None
+                for found in re.finditer(
+                        re.escape(mutated.name) + r':(\d+):\d+: error: '
+                        r'(?:Tactic `rewrite` failed|unsolved goals|Type mismatch)', output):
+                    if first < int(found.group(1)) <= last:
+                        mismatch = found
+                        break
             elif name == 'drop-retry-batch-cap':
                 mismatch = re.search(
                     r'error:.+?Usize\.max', output, re.S)
