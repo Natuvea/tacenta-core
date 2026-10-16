@@ -41,8 +41,9 @@ this section says in one place what is not proved.
   the sparse ratchet's `ChainExhausted`, which needs an epoch or a chain counter at `u64::MAX`), among them the refusal of
   a message whose key was already used (`OutOfOrder`), the skip-limit refusal (`TooManySkipped`) and a full store, after
   the eviction retry loop, an authentication refusal and a success. It holds only for a message whose agreement chunk is a
-  codeword of one source that fits the receiving decoder; it takes two agreements about the sparse ratchet that no proof
-  here derives (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
+  codeword of one source that fits the receiving decoder; it takes two laws about `Vec::pop` and `Option::as_mut`, assumed
+  and not proved of the real functions, from which, with three contract fields, its proof derives the sparse ratchet's two
+  agreements about translated functions (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
   state, which a source with no state of its own, such as `OsRng`, is not; and it is compiler-trusted (the section "Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet`
   on every path, on the eight-leaf unit)"). Its first form, `decrypt_ratchet_refines`, left every Triple receive refusal other than a full
   store open, saying for it neither that the model refuses nor why (the section "Proved (tier T3, session lifecycle
@@ -3175,6 +3176,69 @@ and `attest.py` requires the pins (`REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FO
   satisfies every axiom-level shape of the joint model, the three restated fields among them, both model classes and
   `StdLaws`. Like the joint model it is a model of the shapes: the blanket `Zeroize` is the identity, and nothing here
   shows that the real functions satisfy any of it.
+- `faithful_SpqrSessionLaws`: the same interpretation satisfies the five laws the Session unit's two sparse agreements are
+  derived from (`UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape`, the next section), so they are not met only by
+  a wipe that ignores its instance record. It rests on no axiom of the unit but `rand_core`'s error type.
+
+## Proved (the Session unit's two sparse agreements, from named laws about opaque operations)
+
+Location: `Translation/UnitSatisfiabilitySpqrSessionLaws.lean`.
+
+`SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` are statements about functions the
+Session unit translates with a body: that `State::set_chains` and `State::clear_old_epochs` return a state related to the
+model's `setChains` and `clearOldEpochs`, and that `State::remove_skipped_at`, at an in-range index, returns the key at
+that index and the vector with that index erased. A model of the opaque constants cannot change what they say. The
+results below show both follow, by stepping through the translated code, from five laws about the opaque constants the
+bodies reach. The proofs are the three-leaf unit's (`UnitSatisfiabilityTripleLaws.lean`) under the Session unit's
+constants, built on the removal and loop specifications of `UnitSatisfiabilityRatchet.lean`, and are generic in the
+platform width. They are results about hypotheses and not about the product: each is conditional on exactly the laws its
+statement names.
+
+The five laws are assumed, each stated once as a named definition (the copies, in `StdLaws`, `SpqrSessionLawsShape` and
+the first two conjuncts of `VecRetainTotal`, are bound to it by the kernel: `spqrSessionLaws_iff` by unfolding,
+`triple.vecRetain.1` passed as `LawCapacity`, `hL.pop` as `LawPop`), and none is proved of the real functions (`LIMITATIONS.md`, "The laws, as
+assumptions about the real standard-library and `zeroize` functions"): `UnitSatisfiabilityRatchet.LawPop` (`Vec::pop` of a
+non-empty vector returns the vector without its last element), `LawAsMut` (`Option::as_mut` returns, at every type),
+`LawCapacity` (`Vec::capacity` returns), `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
+skipped-key stores) and `SessionUnitSpqrT1.ZeroizeTotal` (`Array::zeroize` returns at the blanket `u8` instance on a
+32-byte array). The last three are fields of `DecryptRatchetContracts` (`ZeroizeTotal`, and the first two conjuncts of
+`VecRetainTotal`); `LawPop` and `LawAsMut` are stated by no contract record and are fields of `DecryptRatchetAgreements`.
+
+- `removeSkippedAtAgrees_of_laws`: `RemoveSkippedAtAgrees`, from `ZeroizeTotal` and `LawPop`. Its pin lists
+  `Array::zeroize`, `Vec::pop` and the blanket `Zeroize`.
+- `setChainsAgrees`, `clearOldEpochsAgrees`, `vecRetainAgrees_of_laws`: the two halves of `VecRetainAgrees`, and the
+  agreement from the five laws. The chain-table scans and the skipped-key scan are proved to keep exactly the entries
+  their guard names, in order, and to leave the other fields of the state alone; `set_chains`' capacity copy takes
+  `VecRetainTotal`, which `UnitSatisfiabilityRatchet.vecRetainTotal` builds from the laws. The pin of
+  `vecRetainAgrees_of_laws` lists the seven opaque constants the five laws' statements mention: `Vec::pop`,
+  `Option::as_mut`, `Vec::capacity`, `Vec::zeroize`, `Array::zeroize`, and the blanket and pair `Zeroize`.
+- `sparse_agreements_of_laws`: both agreements from the bundle `SpqrSessionLaws` of the five laws.
+- `spqrSessionLaws_iff`, `spqrSessionLawsShape_of_parts`, `spqrSessionLaws_model`: the five laws as a shape over an
+  interpretation of the unit's opaque constants (`SpqrSessionLawsShape`, reusing `UnitSatisfiabilityJoint`'s
+  `VecRetainAxiomShape` and `SpqrZeroizeShape` and stating `pop` and `asMut` as `StdLaws` does), bound to the bundle at
+  `Interp.real` (the kernel accepts the binding only if the two unfold to the same propositions), and met by
+  `Interp.model`, the interpretation in which every axiom-level field of the four contract records holds. So the five
+  laws are consistent with each other and with those fields in the substitution sense of `UnitSatisfiabilityJoint.lean`,
+  an argument about derivations and not a theorem inside Lean. `UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws`
+  (the previous section) gives a second interpretation that meets them. The binding's pin lists the 49 interpreted
+  constants and `rand_core`'s error type; the model's lists only the error type.
+- `spqrSessionLawsShape_fails_of_noop_pop`: an interpretation whose `Vec::pop` returns every vector unchanged fails the
+  shape, so the shape is not met by every interpretation.
+
+None rests on a compiler-trust axiom; each carries an axiom pin and a statement pin that `attest.py` requires, and the
+bundle, the shape and the four laws of `UnitSatisfiabilityRatchet.lean` carry `#print` pins it requires in that form.
+`check-session-satisfiability-negatives.sh` refuses each law removed from the bundle, each weakened where
+`vecRetainAgrees_of_laws` takes it (`Vec::pop` only returning, `Option::as_mut` at one type, `Vec::capacity` at one element
+type, `Vec::zeroize` without the chain table, `Array::zeroize` at 16 bytes), each field of the shape dropped and its pop
+law weakened (refused by the binding), and the model witness removed (refused by its pins).
+
+What is not shown. That the real `Vec::pop`, `Option::as_mut`, `Vec::capacity`, `Vec::zeroize` and `Array::zeroize` satisfy
+the laws. That the theorems that still take the two agreements as hypotheses (the Session unit's sparse refinement
+theorems, `SessionUnitTripleT3`'s discharged theorems, the loop theorems of the `decrypt_ratchet` section, the refusal
+theorems of the section after it, and `TripleSendRefinementContracts`) hold under the laws instead: none of their
+statements is changed. Only `DecryptRatchetAgreements` and the two screen theorems that build it
+(`decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`) moved from the agreements to
+the laws. `check-hypothesis-witnesses.sh` does not read the Session unit.
 
 ## Proved (a negative result: five evidence hypotheses and records of the lifecycle dispatch layer are false or empty)
 
@@ -3623,9 +3687,10 @@ Location: `Translation/UnitLifecycleRetryLoopT3.lean`, `Translation/UnitLifecycl
 `Model.Lifecycle.decryptRatchet`, including the eviction retry loop of `receive_with_eviction`. Each is conditional on
 the hypotheses in its statement. The screen below shows the hypotheses this section introduces consistent with each other
 and with the session contract records, and meets the per-run ones at three runs. It does not show them true of the
-shipped code. It does not decide the two sparse agreements or a run that carries an agreement chunk, and it does not
-show the real `zeroize` functions return at the instances three fields of the contract records are stated at
-(`LIMITATIONS.md`, the sections on the four contract records and on this refinement). No gate reads these hypotheses: `check-hypothesis-witnesses.sh` leaves out the sections
+shipped code. It does not decide a run that carries an agreement chunk; it does not show the real `zeroize` functions
+return at the instances three fields of the contract records are stated at, or that the real `Vec::pop` and
+`Option::as_mut` meet the two laws `DecryptRatchetAgreements` states (`LIMITATIONS.md`, the sections on the four contract
+records and on this refinement). No gate reads these hypotheses: `check-hypothesis-witnesses.sh` leaves out the sections
 whose heading names a session lifecycle, so what shows them satisfiable is `Translation/UnitLifecycleDecryptRatchetScreen.lean`
 alone, in the senses stated below. They are not results about `Session::decrypt` or `Session::encrypt`.
 
@@ -3655,7 +3720,8 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
 - `decrypt_ratchet_refines`, `decrypt_ratchet_refines_statement`: for every input meeting the hypotheses of
   `DecryptRatchetRefinesStatement` (the four `OracleOf` clauses the transaction uses, `DecryptOracleOf`; `DhCodecOf`;
   `DecryptRatchetContracts`; the instance `SessionUnitT1.DerivedKeysModel`; the agreements `DecryptRatchetAgreements` at
-  the oracle's KEM model; `SessionRefines`; `DecryptRatchetHeadroom`; the trace equation; and the per-run record
+  the oracle's KEM model, which hold the KDF and wrapper agreements, two laws about `Vec::pop` and `Option::as_mut`, and
+  the Braid's KEM and erasure agreements; `SessionRefines`; `DecryptRatchetHeadroom`; the trace equation; and the per-run record
   `DecryptRatchetRun`), the generated `decrypt_ratchet` returns, and either `StepRefines` holds between its result, the
   session it leaves and the remaining trace and the model's step, or the output satisfies `TripleRefusalOpen`.
   `StepRefines` is proved on the terminal guard, a decode refusal, both DH refusals, a Triple refusal whose reason is a
@@ -3663,6 +3729,19 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
   session it returns refines the model's unchanged session, and `UnitLifecycleAtomicity.decrypt_ratchet_err_leaves_state`
   shows it is the given session; a success commits the Triple and Braid candidates and, when the sending key changed, the
   drawn private key.
+- `DecryptRatchetAgreements.vecRetainAgrees`, `DecryptRatchetAgreements.removeSkippedAtAgrees`:
+  `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` follow from the record's two laws, `pop`
+  (`LawPop`) and `asMut` (`LawAsMut`), and three axiom-level fields of `TripleReceiveContracts`: `spqrZeroize` and the
+  first two conjuncts of `vecRetain` (`Vec::capacity` returns; `Vec::zeroize` returns at the unit's three instances). The
+  proof of `decrypt_ratchet_refines` passes them to the loop theorem, so neither agreement, each a statement about
+  translated functions, is a hypothesis of the decrypt theorems; the two laws are, and they are assumed
+  (`UnitSatisfiabilitySpqrSessionLaws.lean`; the section on the Session unit's sparse agreements). Each rests on 31 of the
+  unit's axioms, the opaque constants the types of the record and of `TripleReceiveContracts` mention. Every theorem
+  that takes `DecryptRatchetAgreements` (`decrypt_ratchet_refines` and its `_statement`, `_or_open`, `_unless_open`,
+  `_at_sample` and `_at_eviction`, `decrypt_ratchet_refines_complete` and its `_complete_statement` and
+  `_complete_at_refusal`, and `generated_reaches_open_path`) therefore states a formally different proposition under
+  unchanged text, carried by the record's `#print` pin: `LawPop` and `LawAsMut` in place of the two agreements; with
+  `contracts.triple` the new hypotheses imply the old, and the converse is not shown (the laws quantify over every type).
 - `decrypt_ratchet_refines_unless_open`: under the same hypotheses, for every output that does not satisfy
   `TripleRefusalOpen`, `StepRefines` holds. A conclusion widened at the theorem level, with `TripleRefusalOpen` as it is,
   breaks this proof and not only a pin.
@@ -3710,9 +3789,10 @@ alone, in the senses stated below. They are not results about `Session::decrypt`
   theorem's predicate at the real constants. This is the substitution argument of `UnitSatisfiabilityJoint.lean`, an
   argument about derivations and not a theorem inside Lean.
 - `decrypt_ratchet_refines_from_shapes`, `decrypt_ratchet_refines_from_shapes_at_eviction`: the composition inside Lean:
-  from those shapes read at the real constants and the two sparse agreements, every hypothesis of
-  `decrypt_ratchet_refines` holds at the first run and at the third, and so does its conclusion. So the substitution step is the only part of the joint claim outside Lean, and the two sparse agreements
-  are the only hypotheses no model here decides.
+  from those shapes read at the real constants (the record's two laws about `Vec::pop` and `Option::as_mut` among them,
+  read from `StdLaws`), every hypothesis of `decrypt_ratchet_refines` holds at the first run and at the third, and so does
+  its conclusion. So the substitution step is the only part of the joint claim outside Lean. Neither theorem takes
+  `VecRetainAgrees` or `RemoveSkippedAtAgrees`.
 - `run_draw_not_trivial`, `retryRunBounds_not_trivial`, `tripleRefusalOpen_false_of_ok`,
   `tripleRefusalOpen_false_of_store_full`: the run record fails at an exhausted source, the receive bounds fail at a sparse
   epoch of `u64::MAX` and at a classical store with less than 2000 below the bound, and the open disjunct is false of a
@@ -3742,9 +3822,13 @@ carrying a chunk. The theorem takes `DecryptRatchetContracts`, three of whose fi
 `SessionUnitBraidT1.ArrayZeroizeTotal` and the `Vec::zeroize` conjunct of `SessionUnitSpqrT1.VecRetainTotal`) say that
 `Array::zeroize` and `Vec::zeroize` return at the instances the unit passes to them (the blanket `u8` instance on 32-byte
 arrays; the chain table and the two skipped-key stores); that the real functions do is assumed. The
-agreements include `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`, statements about
-translated functions the session unit assumes (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), which the screen does
-not decide. `LIMITATIONS.md`, section "The `decrypt_ratchet` refinement", lists what is assumed.
+agreements hold two laws about opaque standard-library operations, `LawPop` (`Vec::pop` of a non-empty vector returns the
+vector without its last element) and `LawAsMut` (`Option::as_mut` returns), from which with three contract fields the
+proof derives `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`; the laws hold in the
+joint model and in an interpretation whose wipes propagate a failing element's failure, and are not proved of the real
+functions. The loop theorems `receive_with_eviction_loop_refines` and `receive_with_eviction_refines` still take the two
+agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`). `LIMITATIONS.md`, section "The
+`decrypt_ratchet` refinement", lists what is assumed.
 
 **Compiler trust and pins.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
 `decrypt_ratchet_refines_statement`, `decrypt_ratchet_refines_unless_open`, `decrypt_ratchet_refines_at_sample`,
@@ -3758,9 +3842,9 @@ eight of the nine (all but `chain_start_agrees`, which the success path adds); t
 sparse ratchet's chain-start label, is new to the pinned results of the Session unit. These nine results are on
 `COMPILER_TRUSTED_PINS`, which grows from 13 to 22 names: each composes the Session unit's discharged Triple receive
 refinement, directly or through the loop theorems, and so inherits its nine constants; no other constant is added. The
-other 30 results here rest on no compiler-evaluated constant: seven (`receiveWithEvictionLoopResult_stop`,
+other 32 results here rest on no compiler-evaluated constant: seven (`receiveWithEvictionLoopResult_stop`,
 `shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
-`evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 23 each rest on between 1 and
+`evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 25 each rest on between 1 and
 49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
 pin. The definitions this package adds carry `#print` pins, except six that pinned texts name (`wrap32`, `zeros32`,
 `ones32`, `DhViewShape`, `sampleMessage` and `succMessage`), and five earlier ones its statements are written in carry them
@@ -3846,8 +3930,11 @@ adds a hypothesis to the result it extends. They are not results about `Session:
 clauses hold of the model interpretation, not at the real constants. The hypotheses are those of the previous section,
 with the same limits: a spliced or inconsistent agreement chunk is not covered; the random source is read as a function of
 its state, so a source with no state of its own, such as `OsRng`, is outside the statement; that the real `zeroize`
-functions return at the instances three fields of the contract records are stated at is assumed; and the two agreements of row `SESSION-SPARSE-AGREEMENTS` are undecided
-(`LIMITATIONS.md`, the section on the `decrypt_ratchet` refinement). The screen's run refuses on the classical side at the
+functions return at the instances three fields of the contract records are stated at is assumed; and the two laws of
+`DecryptRatchetAgreements` about `Vec::pop` and `Option::as_mut`, from which the proof derives the sparse store's two
+agreements, are assumed (`LIMITATIONS.md`, the section on the `decrypt_ratchet` refinement). `triple_receive_refusal_refines`,
+`receive_with_eviction_refines_complete`, `openRefusal_closes`, `ref_triple_refuses` and the `spqr_*_refusal_refines`
+family still take the two agreements as hypotheses (row `SESSION-SPARSE-AGREEMENTS`). The screen's run refuses on the classical side at the
 first attempt; no run here reaches a sparse refusal or a refusal returned by a retry inside the eviction loop, and unlike
 the first and third runs of the previous section this run is not composed with the boundary model inside Lean.
 
@@ -4610,10 +4697,10 @@ hypotheses that have a free variable (the state relations such as `StateR` and `
 numeric bounds) hold together with these hypotheses on any state: this section covers the closed boundary
 hypotheses only. That the leaf Braid's erasure and KEM agreements hold of states that carry such
 values. That `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` follow from
-laws: this section covers the leaf crates and the three-leaf unit, `UnitSatisfiabilityRatchet.lean` covers
-the session unit's T1 fields only, and `check-hypothesis-witnesses.sh` does not read the Session unit; the
-session unit's refinement theorems, `SessionUnitTripleT3`'s discharged theorems and the lifecycle contract
-`TripleSendRefinementContracts` take those two. That any of the four over-strong zeroize hypotheses of the leaf
+laws is not in this section, which covers the leaf crates and the three-leaf unit; the section on the Session unit's
+sparse agreements shows it, `check-hypothesis-witnesses.sh` does not read the Session unit, and the session unit's
+refinement theorems, `SessionUnitTripleT3`'s discharged theorems and the lifecycle contract
+`TripleSendRefinementContracts` still take those two as hypotheses. That any of the four over-strong zeroize hypotheses of the leaf
 crates and the three-leaf unit (the three array wipes and the `Vec::zeroize` conjunct) is replaced: only the
 session unit's fields are stated at the instances that unit uses.
 

@@ -1,4 +1,5 @@
 import Translation.UnitSatisfiabilityJoint
+import Translation.UnitSatisfiabilitySpqrSessionLaws
 
 /-!
 # Why three contract fields are stated at the unit's instances
@@ -28,7 +29,9 @@ This module keeps the general forms (`*UnscopedShape`) as the record of why the 
   vector).  `faithful_propagates` and `faithful_vec_propagates` show it propagates failures,
   `faithful_refutes_unscoped` that it refutes the general form, and
   `faithful_satisfies_all_axiom_shapes` that it satisfies every axiom-level shape of the joint
-  model, the three restated fields among them.
+  model, the three restated fields among them.  `faithful_SpqrSessionLaws` shows that it also
+  satisfies the five laws the sparse store's two agreements are derived from
+  (`UnitSatisfiabilitySpqrSessionLaws.lean`).
 
 None of this shows that the real functions return at the unit's instances; that stays an
 assumption (`LIMITATIONS.md`).  No proof module imports this one; `AxiomAuditSessionUnit.lean`
@@ -389,6 +392,15 @@ theorem faithful_satisfies_all_axiom_shapes :
     model_DivCeilValue, faithful_Faithful, faithful_StdLaws, faithful_arrayZeroizeScoped,
     faithful_vecZeroizeScoped, faithful_blanketTotal, faithful_propagates, faithful_vec_propagates⟩
 
+/-- The five laws the sparse store's two agreements are derived from
+(`UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape`) hold in the faithful interpretation, whose
+`Array::zeroize` and `Vec::zeroize` propagate a failing element's failure.  So the laws are not
+satisfied only because a model's wipe ignores its instance record. -/
+theorem faithful_SpqrSessionLaws :
+    Tacenta.UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape Interp.faithful :=
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.spqrSessionLawsShape_of_parts Interp.faithful
+    faithful_StdLaws faithful_VecRetainAxiom faithful_SpqrZeroize
+
 end ScopedZeroize
 
 
@@ -497,6 +509,22 @@ info: 'Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroizeScoped_of_total' depen
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSatisfiabilityZeroizeScope.arrayZeroizeScoped_of_total
+
+/--
+info: 'Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws
+
+/--
+info: Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws :
+  Tacenta.UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape Tacenta.UnitSatisfiabilityZeroizeScope.Interp.faithful
+-/
+#guard_msgs in
+#check Tacenta.UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws
 
 /-! ## Statement pins
 

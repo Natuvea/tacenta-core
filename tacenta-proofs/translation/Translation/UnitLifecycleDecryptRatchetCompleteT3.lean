@@ -19,7 +19,8 @@ case with it:
   under exactly the hypotheses of `decrypt_ratchet_refines` (`DecryptRatchetRefinesCompleteStatement`).
 
 No hypothesis is added: the Triple receive's agreements are fields of the records the decrypt theorem
-already takes.  The theorems rest on the compiler-trusted constants `decrypt_ratchet_refines` rests
+already takes, or, for the sparse store's two (`VecRetainAgrees`, `RemoveSkippedAtAgrees`), derived
+from them (`DecryptRatchetAgreements.vecRetainAgrees`, `removeSkippedAtAgrees`).  The theorems rest on the compiler-trusted constants `decrypt_ratchet_refines` rests
 on, which their pins list.
 -/
 
@@ -206,7 +207,7 @@ theorem decrypt_ratchet_refines_complete {R : Type}
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hclose : OpenRefusalCloses := openRefusal_closes contracts.triple agreements.hmac
     agreements.hkdf agreements.zeroizing64 agreements.zeroizing96 agreements.zeroizingSparse64
-    agreements.vecRetain agreements.removeSkipped
+    (agreements.vecRetainAgrees contracts.triple) (agreements.removeSkippedAtAgrees contracts.triple)
   obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_refines_or_open rngCore cryptoRng trace dh
     view oracle oracleOf codec contracts agreements real model message rng hrel headroom htrace run
   exact ⟨output, hcall, hstep.resolve_right (fun h => h.1 hclose)⟩

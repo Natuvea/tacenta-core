@@ -2336,8 +2336,8 @@ only one.
 
 | Law | Statement | Used by | Needed? |
 |---|---|---|---|
-| `LawPop` (`UnitSatisfiabilityRatchet.lean`) | `Vec::pop` of a non-empty vector returns the vector without its last element. `VecPopTotal` says only that it returns. | `SessionUnitT1.RemoveSkippedAtTotal`, `SessionUnitSpqrT1.RemoveSkippedAtTotal` (the sparse field's length claim, the classical field's key and value claims) and the three loop contracts inside `VecRetainTotal` (they terminate only because `pop` shortens), so by `EncryptContracts`, `DecryptRatchetContracts` and `EstablishResponderContracts` | A `pop` that returns `(none, v)` for every vector falsifies both removal fields, given `ZeroizeTotal` and, for the classical one, `LawBlanketU32` (`..._false_of_noop_pop`); whether every `pop` that does not shorten does is not checked. Not shown to be exactly implied by a field. |
-| `LawAsMut` | `Option::as_mut` returns, at every type (the proofs use it at `Option<Chain>` only) | `SetChainsLoopTotal`, `ClearChainsLoop0Total`, through `Chains::zeroize` (same three records) | Forced at `Option<Chain>` by `SetChainsLoopTotal` (`setChainsLoopTotal_forces_asMut`) |
+| `LawPop` (`UnitSatisfiabilityRatchet.lean`) | `Vec::pop` of a non-empty vector returns the vector without its last element. `VecPopTotal` says only that it returns. | `SessionUnitT1.RemoveSkippedAtTotal`, `SessionUnitSpqrT1.RemoveSkippedAtTotal` (the sparse field's length claim, the classical field's key and value claims) and the three loop contracts inside `VecRetainTotal` (they terminate only because `pop` shortens), so by `EncryptContracts`, `DecryptRatchetContracts` and `EstablishResponderContracts`; and, as the field `pop` of `DecryptRatchetAgreements`, the derivation of `SessionUnitSpqrT3.VecRetainAgrees` and `RemoveSkippedAtAgrees` (`UnitSatisfiabilitySpqrSessionLaws.lean`) | A `pop` that returns `(none, v)` for every vector falsifies both removal fields, given `ZeroizeTotal` and, for the classical one, `LawBlanketU32` (`..._false_of_noop_pop`); whether every `pop` that does not shorten does is not checked. Not shown to be exactly implied by a field. |
+| `LawAsMut` | `Option::as_mut` returns, at every type (the proofs use it at `Option<Chain>` only) | `SetChainsLoopTotal`, `ClearChainsLoop0Total`, through `Chains::zeroize` (same three records); and, as the field `asMut` of `DecryptRatchetAgreements`, the derivation of `SessionUnitSpqrT3.VecRetainAgrees` | Forced at `Option<Chain>` by `SetChainsLoopTotal` (`setChainsLoopTotal_forces_asMut`) |
 | `LawBlanketU32` | the blanket `Zeroize` returns at `u32` | the classical `SessionUnitT1.RemoveSkippedAtTotal`, through `SkippedKey::zeroize` (`DecryptRatchetContracts`, `EstablishResponderContracts`) | Forced by that field with `ZeroizeTotal` (`ratchetRemoveSkippedAtTotal_forces_blanketU32`) |
 | `TruncateTotal` (`SessionUnitErasureT1.lean`, already the hypothesis of `message_no_panic`) | `Vec::truncate` returns at `Vec<u8>` | the bounded `DecoderMessageTotal`, so `DecryptRatchetContracts`, `EstablishResponderContracts` | Not checked whether the field forces it |
 | `DivCeilValue` (`SessionUnitDecoderBound.lean`) | `usize::div_ceil a 32` returns `(a + 31) / 32` | `DecoderNewTotal` and `EncoderNewTotal`, each exactly equivalent to "`div_ceil` returns at divisor 32" (`decoderNew_iff`, `encoderNew_iff`), so by `EncryptContracts` (through `EncoderNewTotal`), `DecryptRatchetContracts` and `EstablishResponderContracts` (`EstablishInitiatorContracts` has no erasure field and takes none of the five laws); stated by `EstablishResponderContracts` as `divCeilValue` and by no other | The two fields are equivalent to the weaker law, which is implied by this one |
@@ -2346,8 +2346,12 @@ only one.
 statements than these (`pop` returns the last element, `truncate` is a prefix, `div_ceil` is ceiling division,
 `as_mut` is the identity borrow, `capacity` is at least the length: `FaithfulShape`), so the witness is the real
 operation on them and not a degenerate function with the weak property. The blanket `Zeroize` is modelled as the
-identity, which is not what it does; only its returning is used by a law (the array, vector, pair and tuple `Zeroize` are the identity too; `UnitSatisfiabilityZeroizeScope.lean` gives a second interpretation in which the array, vector and pair ones zeroize element by element and propagate a failing element's failure, and which satisfies every shape as well). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, so no product
-theorem and no record changed for them; they are assumptions of the inhabitation result only. `DivCeilValue` is the
+identity, which is not what it does; only its returning is used by a law (the array, vector, pair and tuple `Zeroize` are the identity too; `UnitSatisfiabilityZeroizeScope.lean` gives a second interpretation in which the array, vector and pair ones zeroize element by element and propagate a failing element's failure, and which satisfies every shape as well). `LawPop`, `LawAsMut`, `LawBlanketU32` and `TruncateTotal` are not in any of the four contract records, and no contract
+record changed for them. `LawPop` and `LawAsMut` are, however, fields of `DecryptRatchetAgreements`, so the
+`decrypt_ratchet` theorems take them as hypotheses: with the contract fields `ZeroizeTotal` and the first two conjuncts of
+`VecRetainTotal` they derive the two sparse agreements about translated functions (the section on the
+`decrypt_ratchet` refinement below). `LawBlanketU32` and `TruncateTotal` remain assumptions of the inhabitation result
+only. `DivCeilValue` is the
 field `divCeilValue` of `EstablishResponderContracts`, added by the repair of the receive decoder hypothesis and counted as
 the fourteenth session contract. `DecoderNewTotal` and
 `EncoderNewTotal` stay fields of the records although `DivCeilValue` implies both; whether they can be removed
@@ -2690,7 +2694,8 @@ of `random_secret` from the caller's random source. `DhCodecOf` says the byte vi
 injective on bytes, which holds of the locked `x25519-dalek 2.0.1` because `StaticSecret::from` stores the bytes unchanged
 and clamps at use, and would stop holding of a release that clamps at construction. `DecryptRatchetAgreements` assumes
 round trips of the opaque `zeroize::Zeroizing` wrapper at 32, 64, 80 and 96 bytes, the HMAC and HKDF agreements with
-`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), and the KEM agreements of the Braid section above. Those
+`Model.Kdf` (as `CLAIMS.md` records for the Triple and the Braid), the KEM agreements of the Braid section above, and two
+laws about `Vec::pop` and `Option::as_mut` (the paragraph on the sparse store below). Those
 include `ValidateEkAgrees K`, which holds of the real `validate_ek` only for a `K` whose `hashEk` also folds in the
 coefficient check, so the model step this theorem relates to is the model run with that `K`. None is shown of the real
 X25519, AEAD, KDF, ML-KEM or `zeroize` code. What is shown is that they are consistent: one interpretation of the unit's
@@ -2714,9 +2719,26 @@ were restated they quantified over every `Zeroize` record, which the real functi
 `Random32Total` and `MessageKeyMaterialRoundTrip`, a round trip of the `zeroize::Zeroizing` wrapper at a tuple of three
 arrays.
 
-**Assumed, about translated functions.** `SessionUnitSpqrT3.VecRetainAgrees` and `SessionUnitSpqrT3.RemoveSkippedAtAgrees`
-are statements about the session unit's sparse ratchet that it takes as assumptions (`GAP-REGISTER.md`, row
-`SESSION-SPARSE-AGREEMENTS`); the screen does not decide them. `ErasureAgrees` follows from the two laws above.
+**The sparse store: laws about opaque operations, in place of two agreements about translated functions.**
+`SessionUnitSpqrT3.VecRetainAgrees` (the chain-table and skipped-key scans of `set_chains` and `clear_old_epochs` keep
+what the model keeps) and `SessionUnitSpqrT3.RemoveSkippedAtAgrees` (the removal helper returns the key at the index it
+removes and the vector with that index erased) are statements about translated functions. The theorems do not take
+them: the proof derives them (`DecryptRatchetAgreements.vecRetainAgrees`, `.removeSkippedAtAgrees`, through
+`UnitSatisfiabilitySpqrSessionLaws.lean`) from five laws about opaque operations, all assumed: `LawPop` (`Vec::pop` of a
+non-empty vector returns the vector without its last element) and `LawAsMut` (`Option::as_mut` returns, at every type),
+the two fields `pop` and `asMut` of `DecryptRatchetAgreements`; and three laws the contract record already states,
+`LawCapacity` (`Vec::capacity` returns) and `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
+skipped-key stores), the first two conjuncts of `SessionUnitSpqrT1.VecRetainTotal`, and `SessionUnitSpqrT1.ZeroizeTotal`
+(`Array::zeroize` returns at the blanket `u8` instance on a 32-byte array). `RemoveSkippedAtAgrees` uses the pop and
+array laws; `VecRetainAgrees` uses all five. None of the five is proved of the real functions or tested; each is assumed,
+and matches the documented behaviour by reading only. What is shown of them is consistency: they hold in the joint model `Interp.model`, in
+which every axiom-level field of the four contract records holds (`spqrSessionLaws_model`), and in the interpretation of
+`UnitSatisfiabilityZeroizeScope.lean` whose wipes propagate a failing element's failure (`faithful_SpqrSessionLaws`), in the
+substitution sense above; and an interpretation whose `Vec::pop` leaves a vector unchanged fails them
+(`spqrSessionLawsShape_fails_of_noop_pop`). The loop theorems `receive_with_eviction_loop_refines` and
+`receive_with_eviction_refines`, the refusal theorems of the complete form and the session unit's sparse and Triple
+refinement theorems still take the two agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`).
+`ErasureAgrees` follows from the two laws about `usize::div_ceil` and `Vec::truncate` above.
 
 **The random source.** The random source holds at least one draw; the model's ceiling refusal for an exhausted source has
 no Rust counterpart. The source is read through a function `trace` that gives the draws left in its value, so the theorem
