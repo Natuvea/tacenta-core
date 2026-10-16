@@ -1503,6 +1503,19 @@ REQUIRED_PINS = frozenset(
         "modelDecrypt_validKey",
         "decrypt_joint_laws_model",
         "decrypt_joint_laws_satisfiable",
+        "modelShipped_sizes",
+        "modelShipped_kemLen",
+        "modelShipped_kemAgrees",
+        "modelShipped_kemClone",
+        "modelShipped_validateEk",
+        "modelShipped_t3",
+        "modelShipped_validKey",
+        "decrypt_joint_laws_model_at_shipped_sizes",
+        "decrypt_joint_laws_satisfiable_at_shipped_sizes",
+        "shippedHeader_le",
+        "ekVecShipped_le",
+        "ct1Shipped_le",
+        "ct2Shipped_le",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -2326,6 +2339,25 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DecryptJointLaws",
         "DecryptHypotheses",
         "DecryptHypothesesJointlySatisfiableStatement",
+        "modelShipped_sizes",
+        "modelShipped_kemLen",
+        "modelShipped_kemAgrees",
+        "modelShipped_kemClone",
+        "modelShipped_validateEk",
+        "modelShipped_t3",
+        "modelShipped_validKey",
+        "decrypt_joint_laws_model_at_shipped_sizes",
+        "decrypt_joint_laws_satisfiable_at_shipped_sizes",
+        "ekVecShipped",
+        "ct1Shipped",
+        "ct2Shipped",
+        "shippedSizeKem",
+        "Interp.modelShipped",
+        "viewShipped",
+        "shippedHeader_le",
+        "ekVecShipped_le",
+        "ct1Shipped_le",
+        "ct2Shipped_le",
     )]
 )
 
@@ -2466,6 +2498,12 @@ REQUIRED_PRINT_FORM = frozenset(
         "DecryptJointLaws",
         "DecryptHypotheses",
         "DecryptHypothesesJointlySatisfiableStatement",
+        "ekVecShipped",
+        "ct1Shipped",
+        "ct2Shipped",
+        "shippedSizeKem",
+        "Interp.modelShipped",
+        "viewShipped",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

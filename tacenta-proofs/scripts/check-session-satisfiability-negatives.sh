@@ -56,7 +56,8 @@
 #                 oracle's KEM model, refused by the link to the refinement and, with the link removed,
 #                 by the statement pin of the hypothesis set; the oracle built at `oracleOfLaws`'s own KEM
 #                 model, refused by the main theorem; the model witness removed, refused by its pins;
-#                 and every theorem of the module required to carry an axiom pin.
+#                 the shipped-size model's CT1_LEN, and its KEM's first-ciphertext size, set to the toy
+#                 size, each refused; and every theorem of the module required to carry an axiom pin.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -910,7 +911,8 @@ if t is not None:
 # hypothesis set: with the link `DecryptHypotheses.refines` kept, the link refuses it; with the link and
 # its pins removed and the proof adjusted so that it builds, the statement pin of `DecryptHypotheses`
 # refuses it. The oracle built with `oracleOfLaws`'s own KEM model (`toyKem`) in place of the chosen one
-# is refused by the main theorem. The model witness renamed is refused by its pins.
+# is refused by the main theorem. The model witness renamed is refused by its pins. The second model,
+# at the shipped KEM sizes, is refused with its `CT1_LEN` or its KEM's `ct1Size` set to the toy size.
 jd = module("UnitLifecycleDecryptScreen")
 passes("decrypt-joint-unmodified", jd)
 jd_code = re.sub(r"/-.*?-/", "", jd, flags=re.S)
@@ -974,6 +976,16 @@ t = once(jd, "theorem decrypt_joint_laws_model :", "theorem decrypt_joint_laws_m
          "decrypt-joint-remove-model")
 if t is not None:
     refused("decrypt-joint-remove-model-witness", t, "Unknown constant")
+# the shipped-size model: its `CT1_LEN` set back to the toy size is refused by the statement that names
+# the shipped sizes (`modelShipped_sizes`), and its KEM's first-ciphertext size set to the toy size by
+# the length agreement (`modelShipped_kemLen`)
+t = once(nopins(jd), "    CT1_LEN := ok 1408#usize\n", "    CT1_LEN := ok 64#usize\n",
+         "decrypt-joint-shipped-ct1-at-toy-size")
+if t is not None:
+    refused("decrypt-joint-shipped-interp-ct1-at-toy-size", t, "Interp.modelShipped.CT1_LEN = ok 1408#usize")
+t = once(nopins(jd), "  ct1Size := 1408\n", "  ct1Size := 64\n", "decrypt-joint-shipped-kem-ct1-at-toy-size")
+if t is not None:
+    refused("decrypt-joint-shipped-kem-ct1-at-toy-size", t, "Application type mismatch")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))

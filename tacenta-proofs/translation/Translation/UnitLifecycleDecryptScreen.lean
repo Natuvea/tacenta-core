@@ -33,10 +33,23 @@ source.
   `K`.  `decrypt_hypotheses_at_invReal` is the same at the explicit witness.
 * `decrypt_joint_laws_model`, `decrypt_joint_laws_satisfiable`: one interpretation of the unit's
   opaque constants (`Interp.modelDecrypt`), with its view, the KEM model `toyKem` and the standard
-  library's definition of `Option::eq`, satisfies every law of the bundle together.
+  library's definition of `Option::eq`, satisfies every law of the bundle together.  In it the four
+  KEM length constants are `toyKem`'s sizes (`CT1_LEN` 64, `CT2_LEN` 32, `HEADER_LEN` 64,
+  `EK_VECTOR_LEN` 64), and the KEM, the X25519 agreement, the AEAD open and the KDFs are toys or the
+  model's own bytes.
+* `decrypt_joint_laws_model_at_shipped_sizes`, `decrypt_joint_laws_satisfiable_at_shipped_sizes`: a
+  second model, `Interp.modelShipped`, whose four KEM length constants are the crate's (`CT1_LEN` 1408,
+  `CT2_LEN` 160, `HEADER_LEN` 64, `EK_VECTOR_LEN` 1536, `tacenta-core/kem/src/lib.rs`), with
+  `shippedSizeKem`, a model KEM of those sizes whose key pair, header, encapsulation and validation
+  functions produce byte strings of those lengths, satisfies the bundle too.  Its KEM is not ML-KEM
+  (it never refuses and its outputs are constant bytes), and its X25519 agreement, AEAD open and KDFs
+  are `Interp.modelDecrypt`'s.  So the laws are shown consistent with the shipped sizes, and nothing is
+  shown of the real ML-KEM wrapper: that it meets the agreements at some `K` is assumed.
 * `decryptJointLaws_named`: the bundle at the real constants gives, by projection, the four laws of
   `decryptOracleOf_of_laws`, the three zeroize fields stated at the unit's instances, the five laws the
-  two sparse agreements are derived from, and `KemAgreesFor K`.
+  two sparse agreements are derived from, and `KemAgreesFor K`.  Two of the zeroize fields
+  (`ZeroizeTotal`, `ArrayZeroizeTotal`) are the same statement, and `ZeroizeTotal` and `LawVecZeroize`
+  appear in two of these groups.
 
 ## The laws, and where each is assumed
 
@@ -46,27 +59,43 @@ in `decrypt_hypotheses_jointly_satisfiable`'s hypothesis `L`: the four laws of
 the axiom-level parts of `DecryptRatchetContracts` (with the three zeroize fields at the unit's
 instances); `StdLaws` (with `LawPop` and `LawAsMut`) and `TruncatePrefix`; the class
 `DerivedKeysModel` as a shape; the Braid KEM and KDF agreements at `K`; the five `zeroize` round
-trips; `ValidKeyShape` and `OptionEqU64Shape`.  None is proved of the shipped functions.
+trips; `ValidKeyShape` and `OptionEqU64Shape`.  The bundle has fifteen fields; a field can hold
+several laws, so fifteen is a count of fields, not of distinct statements.  None is proved of the
+shipped functions.
+
+## What the proof establishes, and what it restates
+
+Of the ten fields of `DecryptHypotheses`, `codec`, `derivedKeys`, the axiom-level fields of `contracts`
+and thirteen of the fourteen fields of `agreements` are fields of the bundle, restated.  The proof
+derives the defined fields of `contracts` (`decrypt_contracts_of_axiom_base`) and `ErasureAgrees`, and
+establishes `oracleOf` (from the four laws, `decryptOracleOf_of_laws`) and, at the witness,
+`invariant`, `related`, `headroom`, `trace_eq` and `run`.
 
 ## The sense
 
 The theorem is a theorem in the real environment: under the laws, the hypothesis set holds at the
-witness.  The laws have a model (`decrypt_joint_laws_model`), so, as in `UnitSatisfiabilityRecords`,
-a derivation of `False` from them at the real constants would become, after the constants are
-replaced by the model's terms, a derivation of `False` from facts that hold in the model.  That step
-is an argument about derivations and not a theorem inside Lean.
+witness.  The laws have two models (`decrypt_joint_laws_model`, and at the crate's KEM sizes
+`decrypt_joint_laws_model_at_shipped_sizes`), so, as in `UnitSatisfiabilityRecords`, a derivation of
+`False` from them at the real constants would become, after the constants are replaced by a model's
+terms, a derivation of `False` from facts that hold in that model.  That step is an argument about
+derivations and not a theorem inside Lean.
 
 ## The Braid KEM model
 
 `decryptOracleOf_of_laws` lets the caller choose the oracle's `braidKem`; this module chooses `K`, the
-KEM model at which the agreements are assumed.  The oracle `oracleOfLaws` builds before that choice
-carries the `braidKem` of `Model.Lifecycle.Examples.toyOracle`, which is `toyKem`.  The agreements are
-not shown at `toyKem` at the real constants, and by reading they fail there: `KemLenAgrees toyKem`
-asks the real `CT1_LEN` to be 64, and the crate's is 1408 (`tacenta-core/kem/src/lib.rs`).  So the
-choice is what puts the agreements on the same oracle's `braidKem`.  The oracle's other KEM fields
+KEM model at which the agreements are assumed, so the agreements are stated at the same oracle's
+`braidKem`.  The oracle `oracleOfLaws` builds before that choice carries the `braidKem` of
+`Model.Lifecycle.Examples.toyOracle`, which is `toyKem`; by reading, the agreements fail there for the
+real KEM (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64, and the crate's is 1408).  At this
+witness the coupling holds by construction: `K` enters the hypotheses only through `agreements`
+(fields of the bundle), `related` (which holds for every `K`, because the Braid is in `KeysUnsampled`)
+and `run` (which does not depend on `K`, because the run carries no chunk).  Nothing in Lean tells
+`toyKem` apart from any other `K` here: the theorem holds at `K := toyKem` under `DecryptJointLaws toyKem
+dh`.  The coupling is not tested until a state holds KEM values.  The oracle's other KEM fields
 (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not related to `K`; the model's
-`decrypt` reads none of them (`Model.Lifecycle.decrypt_oracle_frame`).  Whether some `K` meets the
-agreements at the real constants is assumed; in the model it is `toyKem`.
+`decrypt` reads none of them (`Model.Lifecycle.decrypt_oracle_frame`).  Not checked: that some `K`
+meets the agreements at the real constants; it is assumed.  In the models it is `toyKem` and
+`shippedSizeKem`.
 
 ## What the witness is not
 
@@ -371,7 +400,9 @@ codeword view.
 
 What it is not: the state is built for the hypotheses (a session over fresh states, not shown to be
 produced by establishment or `import`); the laws are assumed; the oracle is the code read through its
-byte views, not the primitives proved; the run carries no agreement chunk; and which way the model's
+byte views, not the primitives proved; the KEM agreements at `K` are fields of the laws, and at this
+witness nothing ties `K` to a Braid value (the Braid is in `KeysUnsampled`); the run carries no
+agreement chunk; and which way the model's
 step at the witness goes is not fixed by the laws: it refuses at the first agreement if the real
 agreement refuses the all-zero key (`invReal_model_refuses_of_agreement`, `invReal_agreement_is_real`),
 which by reading the X25519 boundary it does, and no law states.  Both platform widths: no proof
@@ -446,7 +477,10 @@ theorem modelDecrypt_validKey : ValidKeyShape Interp.modelDecrypt :=
 
 /-- **The laws have a model.**  `Interp.modelDecrypt` (`UnitLifecycleDecryptRatchetScreen.lean`), its
 view `viewDecrypt`, the KEM model `toyKem` and `optionEqImpl` (the standard library's definition of
-`Option::eq`) satisfy every field of `DecryptJointLawsShape` together. -/
+`Option::eq`) satisfy every field of `DecryptJointLawsShape` together.  In it the four KEM length
+constants are `toyKem`'s sizes (`CT1_LEN` 64, `CT2_LEN` 32, `HEADER_LEN` 64, `EK_VECTOR_LEN` 64), not the
+crate's (1408, 160, 64, 1536), and the KEM, the X25519 agreement and the AEAD are toys;
+`decrypt_joint_laws_model_at_shipped_sizes` is the model at the crate's sizes. -/
 theorem decrypt_joint_laws_model :
     DecryptJointLawsShape Interp.modelDecrypt viewDecrypt Model.Braid.toyKem @optionEqImpl where
   dhCodec := modelDecrypt_allT1.dhCodec
@@ -482,12 +516,190 @@ theorem decrypt_joint_laws_satisfiable :
       DecryptJointLawsShape I dh K oeq :=
   ⟨Interp.modelDecrypt, viewDecrypt, Model.Braid.toyKem, @optionEqImpl, decrypt_joint_laws_model⟩
 
+/-! ## A model at the shipped KEM sizes
+
+`decrypt_joint_laws_model` interprets the four KEM length constants as `toyKem`'s sizes (`CT1_LEN` 64,
+`CT2_LEN` 32, `HEADER_LEN` 64, `EK_VECTOR_LEN` 64), while the crate's are 1408, 160, 64 and 1536
+(`tacenta-core/kem/src/lib.rs`).  The model below sets the four constants to the shipped values, with
+a model KEM of those sizes, `shippedSizeKem`, and its key pair, header, encapsulation and validation
+functions producing byte strings of those lengths.  The KEM is not ML-KEM: like `toyKem` it never
+refuses, and its outputs are constant bytes.  The DH agreement, the AEAD open and the KDFs are those of
+`Interp.modelDecrypt` (toys and the model's own KDF bytes).  So it shows the laws consistent with the
+shipped sizes, not that the real ML-KEM wrapper meets the agreements. -/
+
+open Tacenta.UnitSatisfiabilityBraidAgreements (usize_max_ge vecOfBytes vecOf_vecOfBytes
+  length_vecOfBytes arr32 keyOf_arr32 seedOf)
+
+/-- The 1536-byte encapsulation-key vector of randomness `r`, and the two ciphertexts, 1408 and 160
+bytes.  Named, so that the model KEM and the interpretation share them and no proof unfolds them. -/
+def ekVecShipped (r : ℕ) : Bytes := List.replicate 1536 (UInt8.ofNat r)
+def ct1Shipped : Bytes := List.replicate 1408 7
+def ct2Shipped : Bytes := List.replicate 160 9
+
+/-- A model KEM of the shipped sizes: `toyKem`'s header hash, a 1536-byte encapsulation-key vector,
+a 1408-byte first ciphertext and a 160-byte second ciphertext. -/
+def shippedSizeKem : Model.Braid.Kem where
+  keyGen r := some (seedOf r, seedOf r, ekVecShipped r)
+  hashEk := Model.Braid.toyKem.hashEk
+  encaps1 _ seed _ := some (seed, ct1Shipped, seed)
+  encaps2 _ _ _ := some ct2Shipped
+  decaps dk _ _ := some dk
+  ekSize := 1536
+  ct1Size := 1408
+  ct2Size := 160
+
+/-- The byte strings of the shipped-size model fit `usize` at both widths. -/
+theorem shippedHeader_le (r : ℕ) :
+    (seedOf r ++ shippedSizeKem.hashEk (seedOf r) (ekVecShipped r)).length ≤ Usize.max := by
+  simp only [List.length_append, seedOf, List.length_replicate, shippedSizeKem, Model.Braid.toyKem]
+  exact usize_max_ge 64 (by norm_num)
+
+theorem ekVecShipped_le (r : ℕ) : (ekVecShipped r).length ≤ Usize.max := by
+  rw [ekVecShipped, List.length_replicate]; exact usize_max_ge 1536 (by norm_num)
+
+theorem ct1Shipped_le : ct1Shipped.length ≤ Usize.max := by
+  rw [ct1Shipped, List.length_replicate]; exact usize_max_ge 1408 (by norm_num)
+
+theorem ct2Shipped_le : ct2Shipped.length ≤ Usize.max := by
+  rw [ct2Shipped, List.length_replicate]; exact usize_max_ge 160 (by norm_num)
+
+/-- `Interp.modelDecrypt` with the four KEM length constants at the shipped values and the key pair,
+encapsulation and validation functions of `shippedSizeKem`. -/
+noncomputable def Interp.modelShipped : Interp :=
+  { Interp.modelDecrypt with
+    HEADER_LEN := ok 64#usize
+    EK_VECTOR_LEN := ok 1536#usize
+    CT1_LEN := ok 1408#usize
+    CT2_LEN := ok 160#usize
+    ikpHeader := fun r =>
+      ok (vecOfBytes (seedOf r ++ shippedSizeKem.hashEk (seedOf r) (ekVecShipped r))
+        (shippedHeader_le r))
+    ikpEkVector := fun r => ok (vecOfBytes (ekVecShipped r) (ekVecShipped_le r))
+    encapsulate1 := fun _ _ header rng =>
+      ok (core.result.Result.Ok ((), vecOfBytes ct1Shipped ct1Shipped_le,
+        arr32 ((Tacenta.SessionUnitBraidT3.sliceOf header).take 32)), rng)
+    encapsulate2 := fun _ _ =>
+      ok (core.result.Result.Ok (vecOfBytes ct2Shipped ct2Shipped_le))
+    validateEk := fun header ekVector =>
+      ok (decide (shippedSizeKem.hashEk ((Tacenta.SessionUnitBraidT3.sliceOf header).take 32)
+        (Tacenta.SessionUnitBraidT3.sliceOf ekVector)
+        = (Tacenta.SessionUnitBraidT3.sliceOf header).drop 32)) }
+
+/-- The four length constants of `Interp.modelShipped` are the shipped values. -/
+theorem modelShipped_sizes :
+    Interp.modelShipped.HEADER_LEN = ok 64#usize ∧ Interp.modelShipped.EK_VECTOR_LEN = ok 1536#usize ∧
+    Interp.modelShipped.CT1_LEN = ok 1408#usize ∧ Interp.modelShipped.CT2_LEN = ok 160#usize :=
+  ⟨rfl, rfl, rfl, rfl⟩
+
+theorem modelShipped_kemLen : KemLenShape Interp.modelShipped shippedSizeKem :=
+  ⟨⟨64#usize, rfl, rfl⟩, ⟨1536#usize, rfl, rfl⟩, ⟨1408#usize, rfl, rfl⟩, ⟨160#usize, rfl, rfl⟩⟩
+
+theorem modelShipped_kemAgrees : KemAgreesShape Interp.modelShipped shippedSizeKem := by
+  refine ⟨?_, ?_⟩
+  · intro R rc crc rng _
+    refine ⟨rng, 0, Or.inl ⟨(0 : ℕ), seedOf 0, seedOf 0, ekVecShipped 0, rfl, rfl, ⟨_, rfl, ?_⟩,
+      ⟨_, rfl, ?_⟩, ?_⟩⟩
+    · rw [vecOf_vecOfBytes]
+    · rw [vecOf_vecOfBytes]
+    · intro ct1 ct2 _ _
+      refine Or.inl ⟨arr32 (seedOf 0), rfl, ?_⟩
+      rw [keyOf_arr32 _ (by rw [seedOf, List.length_replicate])]; rfl
+  · intro R rc crc header rng _ _
+    refine ⟨rng, 0, Or.inl ⟨(), _, arr32 ((Tacenta.SessionUnitBraidT3.sliceOf header).take 32), rfl,
+      ?_⟩⟩
+    intro ekSeed hek hlen hsplit
+    refine ⟨ekSeed, ?_, ?_⟩
+    · rw [vecOf_vecOfBytes, hsplit, List.take_left' hlen, keyOf_arr32 _ hlen]; rfl
+    · intro ekVector _
+      refine Or.inl ⟨_, rfl, ?_⟩
+      rw [vecOf_vecOfBytes]; rfl
+
+theorem modelShipped_kemClone : KemCloneAgreesShape Interp.modelShipped := by
+  refine ⟨?_, ?_⟩
+  · intro kp kp' h
+    have h' : (ok kp : Result ℕ) = ok kp' := h
+    cases h'
+    exact ⟨fun _ h => h, fun _ h => h, fun _ _ _ h => h⟩
+  · intro es es' _
+    cases es; cases es'
+    exact fun _ _ h => h
+
+theorem modelShipped_validateEk : ValidateEkAgreesShape Interp.modelShipped shippedSizeKem := by
+  intro header ekVector ekSeed hek hlen _ _ hsplit
+  refine ⟨_, rfl, ?_⟩
+  rw [decide_eq_true_iff, hsplit, List.take_left' hlen, List.drop_left' hlen]
+
+theorem modelShipped_t3 : T3Agreements Interp.modelShipped shippedSizeKem :=
+  ⟨modelShipped_kemLen, modelShipped_kemAgrees, modelShipped_validateEk, modelShipped_kemClone,
+    modelDecrypt_t3.hkdf, modelDecrypt_t3.hmac⟩
+
+theorem modelShipped_validKey : ValidKeyShape Interp.modelShipped :=
+  modelDecrypt_validKey
+
+def viewShipped : DhViewShape Interp.modelShipped := ⟨arrayOf, arrayOf⟩
+
+/-- **The laws have a model at the shipped KEM sizes.**  `Interp.modelShipped`, whose `CT1_LEN`,
+`CT2_LEN`, `HEADER_LEN` and `EK_VECTOR_LEN` are 1408, 160, 64 and 1536, with `shippedSizeKem` (a model
+KEM of those sizes, not ML-KEM) and `optionEqImpl`, satisfies every field of `DecryptJointLawsShape`
+together.  The DH, AEAD and KDF constants are `Interp.modelDecrypt`'s. -/
+theorem decrypt_joint_laws_model_at_shipped_sizes :
+    DecryptJointLawsShape Interp.modelShipped viewShipped shippedSizeKem @optionEqImpl where
+  dhCodec := modelDecrypt_allT1.dhCodec
+  dhAgree := modelDecrypt_allT1.dhAgree
+  aeadOpen := modelDecrypt_allT1.aeadOpen
+  viewInjective := ⟨fun _ _ h => Tacenta.DispatchEvidenceVacuity.arrayOf_inj h,
+    fun _ _ h => Tacenta.DispatchEvidenceVacuity.arrayOf_inj h⟩
+  codec := ⟨fun _ => ⟨_, rfl, rfl⟩, fun _ => ⟨_, rfl, rfl⟩, fun _ => ⟨_, rfl, rfl⟩⟩
+  braid := by
+    refine ⟨⟨1408#usize, rfl, by decide⟩, ⟨160#usize, rfl, by decide⟩, ⟨64#usize, rfl, by decide⟩,
+      ⟨1536#usize, rfl, by decide⟩, ?_, modelDecrypt_allT1.keyPairDecapsulate, modelDecrypt_allT1.hkdf,
+      modelDecrypt_allT1.hmac, fun _ _ => ⟨_, rfl⟩, ?_, modelDecrypt_allT1.keyPairClone,
+      modelDecrypt_allT1.encapsStateClone, modelDecrypt_allT1.optionClone,
+      modelDecrypt_allT1.zeroizingArray, modelDecrypt_allT1.arrayZeroize,
+      modelDecrypt_allT1.rangeFullIndex⟩
+    · intro kp
+      refine ⟨_, rfl, ?_⟩
+      show (vecOfBytes (ekVecShipped kp) _).length ≤ 4096
+      rw [length_vecOfBytes, ekVecShipped, List.length_replicate]; decide
+    · intro es s
+      refine ⟨_, rfl, ?_⟩
+      intro c h
+      simp only [core.result.Result.Ok.injEq] at h
+      subst h
+      rw [length_vecOfBytes, ct2Shipped, List.length_replicate]; decide
+  triple := ⟨modelDecrypt_allT1.hmac, modelDecrypt_allT1.hkdf, modelDecrypt_allT1.zeroizingTotal,
+    modelDecrypt_allT1.spqrZeroize, modelDecrypt_allT1.vecRetainAxiom,
+    modelDecrypt_allT1.optionClone, trivial⟩
+  messageKeyMaterial := modelDecrypt_allT1.messageKeyMaterial
+  laws := ⟨modelDecrypt_stdLaws.pop, modelDecrypt_stdLaws.asMut, modelDecrypt_stdLaws.blanketU32,
+    modelDecrypt_stdLaws.truncate, modelDecrypt_stdLaws.divCeil⟩
+  truncatePrefix := modelDecrypt_truncatePrefix
+  derivedKeys := ⟨⟨fun z => z, (modelDecrypt_zeroizingModel DerivedZ).new,
+    (modelDecrypt_zeroizingModel DerivedZ).deref, (modelDecrypt_zeroizingModel DerivedZ).deref_mut⟩⟩
+  agreements := modelShipped_t3
+  roundTrips := ⟨modelDecrypt_zeroize.w64, modelDecrypt_zeroize.w80, modelDecrypt_zeroize.w96,
+    modelDecrypt_zeroize.w64Sparse, modelDecrypt_zeroize.w32⟩
+  validKey := modelShipped_validKey
+  optionEq := optionEqImpl_shape
+
+/-- The laws and the shipped-size model, in one statement: some interpretation whose four KEM length
+constants are 64, 1536, 1408 and 160, with a KEM model of those sizes, a view and an `Option::eq`,
+satisfies the bundle. -/
+theorem decrypt_joint_laws_satisfiable_at_shipped_sizes :
+    ∃ (I : Interp) (dh : DhViewShape I) (K : Model.Braid.Kem)
+      (oeq : {T : Type} → core.cmp.PartialEq T T → Option T → Option T → Result Bool),
+      I.HEADER_LEN = ok 64#usize ∧ I.EK_VECTOR_LEN = ok 1536#usize ∧ I.CT1_LEN = ok 1408#usize ∧
+      I.CT2_LEN = ok 160#usize ∧ K.ekSize = 1536 ∧ K.ct1Size = 1408 ∧ K.ct2Size = 160 ∧
+      DecryptJointLawsShape I dh K oeq :=
+  ⟨Interp.modelShipped, viewShipped, shippedSizeKem, @optionEqImpl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    decrypt_joint_laws_model_at_shipped_sizes⟩
+
 end Tacenta.UnitLifecycleDecryptScreen
 
 /-! ## Pins
 
 The axiom list and the statement of each result, and the bodies of the witness session, the law
-bundle, the hypothesis set and the statement, held by the build.  `attest.py` requires them
+bundle, the hypothesis set, the statement, and the shipped-size model and its KEM, held by the build.  `attest.py` requires them
 (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`).  `DecryptHypotheses.refines`
 lists the nine per-declaration `native_decide` axioms `decrypt_ratchet_refines_complete` rests on
 (compiler-trusted, `COMPILER_TRUSTED_PINS`); no other result here lists one. -/
@@ -1189,3 +1401,299 @@ info: def Tacenta.UnitLifecycleDecryptScreen.DecryptHypothesesJointlySatisfiable
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptScreen.DecryptHypothesesJointlySatisfiableStatement
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_sizes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_sizes
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_sizes : Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.HEADER_LEN =
+    ok 64#usize ∧
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.EK_VECTOR_LEN = ok 1536#usize ∧
+    Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.CT1_LEN = ok 1408#usize ∧
+      Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.CT2_LEN = ok 160#usize
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_sizes
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemLen' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemLen
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemLen : KemLenShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemLen
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemAgrees' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemAgrees
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemAgrees : KemAgreesShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemAgrees
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemClone' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemClone
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemClone : KemCloneAgreesShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_kemClone
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_validateEk' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_validateEk
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_validateEk : ValidateEkAgreesShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_validateEk
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_t3' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_t3
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_t3 : T3Agreements Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped
+  Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_t3
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.modelShipped_validKey' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.modelShipped_validKey
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.modelShipped_validKey : ValidKeyShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.modelShipped_validKey
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_model_at_shipped_sizes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_model_at_shipped_sizes
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_model_at_shipped_sizes : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped Tacenta.UnitLifecycleDecryptScreen.viewShipped
+  Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem @optionEqImpl
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_model_at_shipped_sizes
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_satisfiable_at_shipped_sizes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_satisfiable_at_shipped_sizes
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_satisfiable_at_shipped_sizes : ∃ I dh K oeq,
+  I.HEADER_LEN = ok 64#usize ∧
+    I.EK_VECTOR_LEN = ok 1536#usize ∧
+      I.CT1_LEN = ok 1408#usize ∧
+        I.CT2_LEN = ok 160#usize ∧
+          K.ekSize = 1536 ∧
+            K.ct1Size = 1408 ∧
+              K.ct2Size = 160 ∧ Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape I dh K fun {T} => oeq
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.decrypt_joint_laws_satisfiable_at_shipped_sizes
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.ekVecShipped : ℕ → Bytes :=
+fun r => List.replicate 1536 (UInt8.ofNat r)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.ekVecShipped
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.ct1Shipped : Bytes :=
+List.replicate 1408 7
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.ct1Shipped
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.ct2Shipped : Bytes :=
+List.replicate 160 9
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.ct2Shipped
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem : Model.Braid.Kem :=
+{ keyGen := fun r => some (seedOf r, seedOf r, Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r),
+  hashEk := Model.Braid.toyKem.hashEk,
+  encaps1 := fun x seed x_1 => some (seed, Tacenta.UnitLifecycleDecryptScreen.ct1Shipped, seed),
+  encaps2 := fun x x_1 x_2 => some Tacenta.UnitLifecycleDecryptScreen.ct2Shipped, decaps := fun dk x x_1 => some dk,
+  ekSize := 1536, ct1Size := 1408, ct2Size := 160 }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.viewShipped : DhViewShape
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped :=
+{ privateKey := arrayOf, publicKey := arrayOf }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.viewShipped
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.shippedHeader_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.shippedHeader_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.shippedHeader_le : ∀ (r : ℕ),
+  List.length
+      (seedOf r ++
+        Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem.hashEk (seedOf r)
+          (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r)) ≤
+    Usize.max
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.shippedHeader_le
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.ekVecShipped_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.ekVecShipped_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.ekVecShipped_le : ∀ (r : ℕ),
+  List.length (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r) ≤ Usize.max
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.ekVecShipped_le
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.ct1Shipped_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.ct1Shipped_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.ct1Shipped_le : List.length Tacenta.UnitLifecycleDecryptScreen.ct1Shipped ≤ Usize.max
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.ct1Shipped_le
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptScreen.ct2Shipped_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptScreen.ct2Shipped_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptScreen.ct2Shipped_le : List.length Tacenta.UnitLifecycleDecryptScreen.ct2Shipped ≤ Usize.max
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptScreen.ct2Shipped_le
+
+/--
+info: def Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped : Interp :=
+let __src := Interp.modelDecrypt;
+{ PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
+  IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
+  dhPrivFromBytes := __src.dhPrivFromBytes, dhPrivPublicKey := __src.dhPrivPublicKey, dhPrivAgree := __src.dhPrivAgree,
+  dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic, aeadEncrypt := __src.aeadEncrypt,
+  aeadDecrypt := __src.aeadDecrypt, kemEncapsulate := @Interp.kemEncapsulate __src,
+  kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
+  hmacSha256 := __src.hmacSha256, HEADER_LEN := ok 64#usize, EK_VECTOR_LEN := ok 1536#usize, CT1_LEN := ok 1408#usize,
+  CT2_LEN := ok 160#usize, ikpClone := __src.ikpClone, ikpGenerate := @Interp.ikpGenerate __src,
+  ikpHeader := fun r =>
+    ok
+      (vecOfBytes
+        (seedOf r ++
+          Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem.hashEk (seedOf r)
+            (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r))
+        ⋯),
+  ikpEkVector := fun r => ok (vecOfBytes (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r) ⋯),
+  ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
+  encapsulate1 := fun {R} x x_1 header rng =>
+    ok
+      (core.result.Result.Ok
+          ((),
+            vecOfBytes Tacenta.UnitLifecycleDecryptScreen.ct1Shipped Tacenta.UnitLifecycleDecryptScreen.ct1Shipped_le,
+            arr32 (List.take 32 (Tacenta.SessionUnitBraidT3.sliceOf header))),
+        rng),
+  encapsulate2 := fun x x_1 =>
+    ok
+      (core.result.Result.Ok
+        (vecOfBytes Tacenta.UnitLifecycleDecryptScreen.ct2Shipped Tacenta.UnitLifecycleDecryptScreen.ct2Shipped_le)),
+  validateEk := fun header ekVector =>
+    ok
+      (decide
+        (Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem.hashEk
+            (List.take 32 (Tacenta.SessionUnitBraidT3.sliceOf header)) (Tacenta.SessionUnitBraidT3.sliceOf ekVector) =
+          List.drop 32 (Tacenta.SessionUnitBraidT3.sliceOf header))),
+  blanketZeroize := @Interp.blanketZeroize __src, arrayZeroize := @Interp.arrayZeroize __src,
+  tupleZeroize := @Interp.tupleZeroize __src, pairZeroize := @Interp.pairZeroize __src,
+  vecZeroize := @Interp.vecZeroize __src, zNew := @Interp.zNew __src, zDeref := @Interp.zDeref __src,
+  zDerefMut := @Interp.zDerefMut __src, vecPop := @Interp.vecPop __src, vecCapacity := @Interp.vecCapacity __src,
+  vecTruncate := @Interp.vecTruncate __src, optionClone := @Interp.optionClone __src,
+  optionAsMut := @Interp.optionAsMut __src, rangeFullIndex := @Interp.rangeFullIndex __src, divCeil := __src.divCeil }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped

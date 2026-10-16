@@ -2522,8 +2522,8 @@ lifecycle and dispatch theorem that takes `OracleOf`. The model frame lemma `dec
 (`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads only the oracle's `draws`,
 `braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the oracle fields this route takes from the model's toy primitives, or
 sets to refusals, are not read by the model's `decrypt`. The four laws keep the status the table gives them: assumed, not
-proved of the shipped functions. The lemma lets the caller choose the KEM and shows nothing about which KEMs meet those
-agreements; that the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's `braidKem` hold
+proved of the shipped functions. Not checked: which KEMs meet those agreements; the lemma lets the caller choose the KEM
+and shows nothing about it. That the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's `braidKem` hold
 together is shown at one witness, under named laws with a model, in the `decrypt_ratchet` section below ("The hypotheses
 together, at one witness").
 
@@ -2769,22 +2769,36 @@ invariant refuses.
 **The hypotheses together, at one witness.** `decrypt_hypotheses_jointly_satisfiable`
 (`Translation/UnitLifecycleDecryptScreen.lean`) shows every hypothesis of `decrypt_ratchet_refines_complete`, with
 `Session::invariant`, holding together at the real constants and the byte-stream source, at one oracle, one state pair,
-one message and one source, for every codeword view, under fifteen laws (`DecryptJointLaws K dh`, a bundle whose fields
-are listed in `CLAIMS.md`), and `decrypt_joint_laws_model` shows one interpretation satisfying all fifteen together. The
-oracle is the one `decryptOracleOf_of_laws` builds, with its `braidKem` set to the KEM model `K` at which the Braid
-agreements are assumed, so the agreements are at the same oracle's `braidKem`. That choice is what the result rests on:
-the oracle `oracleOfLaws` builds carries `toyKem` before it, and by reading the agreements fail there at the real
-constants (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; it is 1408). That some `K` meets the agreements at the
-real constants is assumed, together with `ValidateEkAgrees K` above; in the model it is `toyKem`. What the joint witness
-is not:
+one message and one source, for every codeword view, under a bundle of fifteen fields (`DecryptJointLaws K dh`, listed
+in `CLAIMS.md`; fifteen counts fields, not distinct statements). Two interpretations satisfy all fifteen together, each a
+model in the substitution sense of the section on the four contract records: `decrypt_joint_laws_model`
+(`Interp.modelDecrypt` with `toyKem`), whose four KEM length constants are `toyKem`'s sizes (`CT1_LEN` 64, `CT2_LEN` 32,
+`HEADER_LEN` 64, `EK_VECTOR_LEN` 64), and `decrypt_joint_laws_model_at_shipped_sizes` (`Interp.modelShipped` with
+`shippedSizeKem`), whose four are the crate's (1408, 160, 64, 1536, `tacenta-core/kem/src/lib.rs`), with a model KEM of
+those sizes. In both the KEM is a model that never refuses and returns constant bytes, not ML-KEM, and the X25519 agreement,
+the AEAD open and the KDFs are toys or the model's own bytes. So the laws are shown consistent with the shipped KEM sizes;
+that the real ML-KEM wrapper meets the agreements at some `K` is shown by neither model and is assumed, together with
+`ValidateEkAgrees K` above.
+
+The proof restates, from the bundle, `DhCodecOf`, `DerivedKeysModel`, the axiom-level contract fields and thirteen of the
+fourteen fields of `DecryptRatchetAgreements`; it derives the contract record's defined fields and `ErasureAgrees`, and
+establishes `DecryptOracleOf` (from the four laws) and, at the witness, `Session::invariant`, `SessionRefines`,
+`DecryptRatchetHeadroom`, the trace equation and `DecryptRatchetRun`. The oracle is the one `decryptOracleOf_of_laws`
+builds, with its `braidKem` set to the KEM model `K` at which the Braid agreements are assumed, so the agreements are
+stated at the same oracle's `braidKem`. The oracle `oracleOfLaws` builds carries `toyKem` before that choice, and by
+reading the agreements fail there for the real KEM (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; it is 1408).
+At this witness the coupling holds by construction: `K` enters only through the agreements (fields of the bundle),
+`SessionRefines` (which holds for every `K`, the Braid being in `KeysUnsampled`) and the run (which does not depend on `K`,
+carrying no chunk); the theorem holds equally at `K := toyKem`. The coupling is not tested until a state holds KEM values
+(a Braid state with a decoder or key material, related by `SessionRefines`). What the joint witness is not:
 
 - The state is built for the hypotheses. It is `UnitHeadroomSatisfiable.sessionOf` with one key as both identities, the
   66-byte associated data `identity_ad` computes, no pending initial message, no established ephemeral key, no receiving
   chain and a Braid in `KeysUnsampled`. It passes `Session::invariant` under `ValidKeyShape` and `OptionEqU64Shape`
   (both laws of the bundle). It is not shown to be produced by `establish_initiator`, `establish_responder` or `import`.
-- The fifteen laws are assumed, not proved of the shipped functions; they are sufficient and not shown necessary. That
-  they hold together is shown in the substitution sense of the section on the four contract records, an argument about
-  derivations and not a theorem inside Lean.
+- The laws are assumed, not proved of the shipped functions; they are sufficient and not shown necessary. That they hold
+  together is shown in the substitution sense of the section on the four contract records, an argument about derivations
+  and not a theorem inside Lean, in two models whose primitives are toys (one of them at the shipped KEM sizes).
 - The oracle is the code read through its byte views (`oracleOfLaws` over `InterpO.decrypt`); nothing is shown of X25519,
   the AEAD, the KDFs, ML-KEM or `zeroize`.
 - The run carries no agreement chunk; the chunk and honest fields of `DecryptRatchetRun` hold by their arm for a message
@@ -2800,8 +2814,9 @@ is not:
 - `check-hypothesis-witnesses.sh` does not read the `CLAIMS.md` section of these results (its heading names no tier). A
   law added to the bundle, or a hypothesis added to `decrypt_ratchet_refines_complete`, is held by the `#print` pins of
   `DecryptJointLawsShape` and `DecryptHypotheses`, by `DecryptHypotheses.refines` and by the build, and by no other gate.
-- These results have been read by their writer, a tool-assisted agent working for the maintainer; no reviewer independent
-  of the maintainer has read them.
+- These results have been read by their writer, a tool-assisted agent working for the maintainer, and by one
+  tool-assisted reader working for the maintainer, whose findings were applied; no reviewer independent of the maintainer
+  has read them.
 
 No proof here chooses a width of `usize`, and only `DecryptHypotheses.refines` depends on a compiler-trust axiom (the nine
 of the refinement), so each result holds at both widths; no hypothesis of the set is width-dependent at this witness.

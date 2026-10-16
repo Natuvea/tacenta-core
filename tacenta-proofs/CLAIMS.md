@@ -63,8 +63,9 @@ this section says in one place what is not proved.
   same source ("Proved (`DecryptOracleOf` from four laws ...)"). The whole hypothesis set of
   `decrypt_ratchet_refines_complete`, with `Session::invariant`, holds together at one witness built for it, under named
   laws that one interpretation satisfies, with the Braid agreements at the same oracle's KEM model ("Proved (the
-  hypotheses of the `decrypt_ratchet` refinement together ...)"); the witness does not carry an agreement chunk and its
-  model step is not fixed by the laws.
+  hypotheses of the `decrypt_ratchet` refinement together ...)"); the witness does not carry an agreement chunk, its
+  model step is not fixed by the laws, the KEM agreements are fields of the laws, and the laws' models use toy primitives
+  (one at the shipped KEM sizes).
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4256,8 +4257,8 @@ toy primitives or from refusals and say nothing about the real ones; `DecryptOra
 frame lemma, the model's `decrypt` does not read them. Every theorem that takes `OracleOf` (the lifecycle and dispatch
 theorems of `UnitLifecycleT3.lean` and `UnitLifecycleInitialDispatch.lean`) still has only `oracleOf_of_laws` and its eleven
 laws. Only the byte-stream source is covered; a source with no state of its own, such as `OsRng`, is outside the `random32`
-clause (`LIMITATIONS.md`, "The random source"). The lemma lets the caller choose the KEM and shows nothing about which
-KEMs meet those agreements; that the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's
+clause (`LIMITATIONS.md`, "The random source"). Not checked: which KEMs meet those agreements; the lemma lets the caller
+choose the KEM and shows nothing about it. That the four laws, the contract records and `DecryptRatchetAgreements` at the oracle's
 `braidKem` hold together, at one witness and under named laws with a model, is the next section's
 (`decrypt_hypotheses_jointly_satisfiable`). The frame lemma is about the model; what the translated
 `decrypt_ratchet` calls is what the refinement theorems state. No proof chooses a width of `usize` and none depends on a
@@ -4285,8 +4286,9 @@ places: the four oracle clauses with a toy oracle at `toyKem` (`decrypt_boundary
 oracle from laws (`oracleOf_of_laws`, `decryptOracleOf_of_laws`), and the per-run records at runs over sessions that fail
 `Session::invariant`. These results show the whole set, with `Session::invariant` added, at one oracle, one state pair, one
 message and one source, under named laws, and show the laws satisfiable together in one interpretation. They are about the
-hypotheses of the refinement, not about the product. Their writer, a tool-assisted agent working for the maintainer, has
-read them; no reviewer independent of the maintainer has.
+hypotheses of the refinement, not about the product. Their writer, a tool-assisted agent working for the maintainer, and
+one tool-assisted reader working for the maintainer have read them, and the reader's findings were applied; no reviewer
+independent of the maintainer has.
 
 - `decrypt_hypotheses_jointly_satisfiable`, `decrypt_hypotheses_jointly_satisfiable_statement`: the second is the first
   as the proposition `DecryptHypothesesJointlySatisfiableStatement`. For every Braid KEM model `K` and DH view `dh` that meet
@@ -4319,7 +4321,21 @@ read them; no reviewer independent of the maintainer has.
 - `decrypt_joint_laws_model`, `decrypt_joint_laws_satisfiable`, `modelDecrypt_validKey`: one interpretation,
   `Interp.modelDecrypt` (`UnitLifecycleDecryptRatchetScreen.lean`), with its view `viewDecrypt`, the KEM model `toyKem` and
   `optionEqImpl` (the standard library's definition of `Option::eq`), satisfies every field of `DecryptJointLawsShape`
-  together. Their axioms are the three standard axioms and `rand_core_1.error.Error`.
+  together. In it the four KEM length constants are `toyKem`'s sizes (`CT1_LEN` 64, `CT2_LEN` 32, `HEADER_LEN` 64,
+  `EK_VECTOR_LEN` 64, against the crate's 1408, 160, 64 and 1536), and the KEM, the X25519 agreement and the AEAD open are
+  toys. Their axioms are the three standard axioms and `rand_core_1.error.Error`.
+- `decrypt_joint_laws_model_at_shipped_sizes`, `decrypt_joint_laws_satisfiable_at_shipped_sizes`, `modelShipped_sizes`,
+  `modelShipped_kemLen`, `modelShipped_kemAgrees`, `modelShipped_validateEk`, `modelShipped_kemClone`, `modelShipped_t3`,
+  `modelShipped_validKey`, `shippedHeader_le`, `ekVecShipped_le`, `ct1Shipped_le`, `ct2Shipped_le`: a second
+  interpretation, `Interp.modelShipped`, whose four KEM length constants are the crate's
+  (`HEADER_LEN` 64, `EK_VECTOR_LEN` 1536, `CT1_LEN` 1408, `CT2_LEN` 160, `tacenta-core/kem/src/lib.rs`), with
+  `shippedSizeKem`, a model KEM of those sizes (its key pair, header, encapsulation and validation functions produce byte
+  strings of those lengths), its view and `optionEqImpl`, satisfies every field of `DecryptJointLawsShape` together; the
+  second states the sizes of the interpretation and the KEM in its statement. The KEM is not ML-KEM: it never refuses and
+  its outputs are constant bytes. The X25519 agreement, the AEAD open and the KDFs are `Interp.modelDecrypt`'s toys and
+  model bytes. So the laws are shown consistent with the shipped KEM sizes; that the real ML-KEM wrapper meets the
+  agreements at some `K` is shown by neither model and is assumed. Their axioms are the three standard axioms and
+  `rand_core_1.error.Error`.
 - `invReal_model_refuses_of_agreement`, `invReal_agreement_is_real`: at the witness, the model's step refuses at the first
   agreement with `nonContributoryAgreement` if the oracle's agreement refuses the all-zero key; at an oracle meeting
   `DecryptOracleOf`, with a view meeting `DhCodecOf`, that agreement is the real `agree` on the key
@@ -4331,16 +4347,27 @@ the shipped functions: `dhCodec`, `dhAgree`, `aeadOpen`, `viewInjective` (the fo
 than its three primitive fields; they hold the three zeroize fields at the unit's instances, `LawCapacity` and
 `LawVecZeroize`); `laws` (`StdLaws`, with `LawPop` and `LawAsMut`); `truncatePrefix` (`TruncatePrefix`); `derivedKeys` (the
 class `DerivedKeysModel`); `agreements` (the Braid KEM agreements at `K` and the KDF agreements); `roundTrips` (the five
-`zeroize` round trips); `validKey` and `optionEq` (the two assumptions of `sessionOf_invariant`). The fifteen are
-sufficient and not shown necessary.
+`zeroize` round trips); `validKey` and `optionEq` (the two assumptions of `sessionOf_invariant`). Fifteen is a count of
+fields, not of distinct statements: a field can hold several laws, `SessionUnitSpqrT1.ZeroizeTotal` and
+`SessionUnitBraidT1.ArrayZeroizeTotal` (inside `triple` and `braid`) have the same statement, and `decryptJointLaws_named`
+lists `ZeroizeTotal` and `LawVecZeroize` in two groups each. The fields are sufficient and not shown necessary.
+
+What the proof establishes, and what it restates. Of the ten fields of `DecryptHypotheses`, `codec`, `derivedKeys`, the
+axiom-level fields of `contracts` and thirteen of the fourteen fields of `agreements` are fields of the bundle, restated.
+The proof derives the defined fields of `contracts` and `ErasureAgrees`, and establishes `oracleOf` (from the four laws)
+and, at the witness, `invariant`, `related`, `headroom`, `trace_eq` and `run`.
 
 The Braid KEM model. `decryptOracleOf_of_laws` lets the caller choose the oracle's `braidKem`; these results choose `K`, the
-model at which the agreements are assumed, so the agreements are at the same oracle's `braidKem`. Before that choice the
-oracle `oracleOfLaws` builds carries `toyKem` (from `Model.Lifecycle.Examples.toyOracle`), and the agreements are not shown
-there at the real constants: by reading they fail, since `KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64 and the
-crate's is 1408. The oracle's other KEM fields (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not
-related to `K`; the model's `decrypt` does not read them (`decrypt_oracle_frame`). That some `K` meets the agreements at the
-real constants is assumed; in the model it is `toyKem`.
+model at which the agreements are assumed, so the agreements are stated at the same oracle's `braidKem`. Before that choice
+the oracle `oracleOfLaws` builds carries `toyKem` (from `Model.Lifecycle.Examples.toyOracle`); by reading, the agreements
+fail there for the real KEM (`KemLenAgrees toyKem` asks the real `CT1_LEN` to be 64; the crate's is 1408). At this witness
+the coupling holds by construction: `K` enters the hypotheses only through `agreements` (fields of the bundle), `related`
+(which holds for every `K`, because the Braid is in `KeysUnsampled`) and `run` (which does not depend on `K`, because the
+run carries no chunk). Nothing in Lean tells `toyKem` apart from any other `K` here; the theorem holds at `K := toyKem`
+under `DecryptJointLaws toyKem dh`. The coupling is not tested until a state holds KEM values. The oracle's other KEM fields
+(`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not related to `K`; the model's `decrypt` does not read
+them (`decrypt_oracle_frame`). Not checked: that some `K` meets the agreements at the real constants; it is assumed. In the
+two models it is `toyKem` and `shippedSizeKem`.
 
 What these do not show. The state is built for the hypotheses: it is not shown to be produced by `establish_initiator`,
 `establish_responder` or `import`, and it has no pending initial message, no established ephemeral key and no receiving
@@ -4350,17 +4377,20 @@ AEAD, and nothing is shown of the primitives. The run carries no agreement chunk
 fixed by the laws: it refuses at the first agreement if the real agreement refuses the all-zero key, which no law states;
 by reading `tacenta-core/boundary/src/dh.rs` (`agree` returns `None` on a non-contributory result, which the all-zero key
 gives) it does, and in the model interpretation it does too. So the witness does not exercise the Triple receive, the
-AEAD, an eviction round or a success. The substitution step, from the model of the laws to the hypotheses at the real
+AEAD, an eviction round or a success. The substitution step, from a model of the laws to the hypotheses at the real
 constants, is an argument about derivations and not a theorem inside Lean (`LIMITATIONS.md`). Only the byte-stream source is
 covered. No proof chooses a width of `usize` (the bounds used, `usize_max_ge` and `cMax_usize`, hold at both) and only
 `DecryptHypotheses.refines` depends on a compiler-trust axiom, so each result holds at both widths; no hypothesis of the
-set is width-dependent at this witness. Each of the fifteen theorems has an axiom pin and a statement pin, and `invReal`,
-`DecryptJointLawsShape`, `DecryptJointLaws`, `DecryptHypotheses` and `DecryptHypothesesJointlySatisfiableStatement` have
-`#print` pins; `attest.py` requires them all. `check-session-satisfiability-negatives.sh` removes each of the fifteen laws
+set is width-dependent at this witness. Each of the twenty-eight theorems has an axiom pin and a statement pin, and `invReal`,
+`DecryptJointLawsShape`, `DecryptJointLaws`, `DecryptHypotheses`, `DecryptHypothesesJointlySatisfiableStatement`,
+`shippedSizeKem`, `ekVecShipped`, `ct1Shipped`, `ct2Shipped`, `Interp.modelShipped` and `viewShipped` have `#print` pins;
+`attest.py` requires them all. `check-session-satisfiability-negatives.sh` removes each of the fifteen laws
 from the bundle, in a copy holding only the two theorems that consume it, each refused; moves the agreements of
 `DecryptHypotheses` to another oracle's KEM model, refused by `DecryptHypotheses.refines` and, with that link and its pins
 removed and the proof adjusted so that it builds, by the statement pin of `DecryptHypotheses` alone; builds the oracle at
-`toyKem` in place of `K`, refused by the main theorem; and renames the model witness, refused by its pins.
+`toyKem` in place of `K`, refused by the main theorem; renames the model witness, refused by its pins; and sets the
+shipped-size model's `CT1_LEN`, and its KEM's first-ciphertext size, to the toy size, refused by `modelShipped_sizes` and
+by `modelShipped_kemLen`.
 
 ## Proved (bounded P6 session lifecycle observations)
 
