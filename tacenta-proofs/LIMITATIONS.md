@@ -2686,10 +2686,15 @@ one of the laws. Each law is a statement about opaque `tacenta_kem` constants, a
   the byte stream of some 32 bytes. Read from the source; that libcrux's first half is a function of the header and the 32
   bytes is not checked.
 - `LawEncapsulate2Fresh`: `encapsulate2` returns, `Ok` or `Err`, on a state `encapsulate1` produced and any 1536-byte
-  vector, including a vector that `validate_ek` refuses, which the Braid never passes it. libcrux deserializes such a
-  vector's coefficients without reduction; that its arithmetic does not panic on them is not checked. The coefficient-bound
-  refusal of `encapsulate2` is inside this opaque function, so it enters only here, and the law says nothing of whether it
-  refuses a fresh state.
+  vector, including a vector that `validate_ek` refuses. So the law assumes that libcrux returns on inputs outside its
+  stated precondition: libcrux deserializes the vector's 12-bit coefficients without reduction, so they reach 4095, and it
+  states `|c| <= 3328` for the arithmetic; the wrapper leaves that side of the precondition to `validate_ek`
+  (`kem/src/lib.rs`, the comment in `encapsulate2`). The Braid never calls `encapsulate2` there, because it validates the
+  vector first. The proofs need the law in this form: `EncapsRefines` quantifies over every 1536-byte vector. A probe by a
+  reader of these results, outside the tree, made 12,000 such calls on the NEON and portable backends, every coefficient
+  at 4095 among them, and each returned `Ok`; the AVX2 backend was not run. That is testing, not proof, and no test in the
+  tree makes such a call. The coefficient-bound refusal of `encapsulate2` is inside this opaque function, so it enters only
+  here, and the law says nothing of whether it refuses a fresh state.
 - `LawValidateEkTotal`: `validate_ek` returns on a 64-byte header and a 1536-byte vector.
 - `LawValidateEkUnique`: two 64-byte headers with the same first 32 bytes that `validate_ek` accepts with one vector are the
   same bytes. Read from the source: libcrux compares the last 32 bytes with a hash of the vector and the seed.
@@ -2701,6 +2706,7 @@ generation and encapsulation ignore the source and return constant bytes and not
 consistent, not that the wrapper meets them, and it exercises no refusing arm of `wrapperKem`. Not shown: a key pair or
 state restored by `from_bytes` has no model value at `wrapperKem`, so the refinement relations at it are shown only for
 values `generate` and `encapsulate1` produce; `KemDrawsSucceed` and `Model.Braid.Kem.Correct` are not shown at it.
+So the KEM side of the decrypt joint statement at `wrapperKem` does not rest on the eight laws alone. The corollary also takes, through the bundle's `braid` field (`BraidReceiveAxiom`), `SessionUnitBraidT1.KeyPairDecapsulateTotal`, `Encapsulate2Total` and `ValidateEkTotal`, which say that `decapsulate`, `encapsulate2` and `validate_ek` return on every value, restored key pairs and states and inputs of any length included; the eight laws do not narrow them, and those three imply the totality parts of `LawGeneratedKeyPair`, `LawEncapsulate2Fresh` and `LawValidateEkTotal`. They were in the bundle before these results and are not shown false; the first is the statement `GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, records as sampled and not shown total.
 
 **Assumed, about two library functions.** The erasure coder's agreement with the model, `ErasureAgrees`, is a
 theorem about the translated coder under two laws, because the translation leaves two library functions

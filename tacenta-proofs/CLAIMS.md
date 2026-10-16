@@ -4464,7 +4464,7 @@ and a 64-byte header, `encapsulate1` returns what it returns from the byte strea
 64-byte headers with the same first 32 bytes that `validate_ek` accepts with one vector are the same bytes); and
 `LawKemClone` (`KemCloneAgrees`). "Returns" means the call is `ok`, whether its value is `Ok` or `Err`. The
 coefficient-bound refusal of `encapsulate2` is inside that opaque function, so it enters only through
-`LawEncapsulate2Fresh`, which says nothing of whether `encapsulate2` refuses a fresh state.
+`LawEncapsulate2Fresh`, which says nothing of whether `encapsulate2` refuses a fresh state. The corollary also takes, through the bundle's `braid` field (`BraidReceiveAxiom`), `SessionUnitBraidT1.KeyPairDecapsulateTotal`, `Encapsulate2Total` and `ValidateEkTotal`, which say that `decapsulate`, `encapsulate2` and `validate_ek` return on every value, restored key pairs and states and inputs of any length included; the eight laws do not narrow them, and those three imply the totality parts of `LawGeneratedKeyPair`, `LawEncapsulate2Fresh` and `LawValidateEkTotal`. They were in the bundle before these results and are not shown false; the first is the statement `GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, records as sampled and not shown total.
 
 What these do not show. Nothing about ML-KEM: the operations are whatever the wrapper's functions are. A key pair or
 state restored by `IncrementalKeyPair::from_bytes` or `EncapsState::from_bytes` has no model value at `wrapperKem`, so the
