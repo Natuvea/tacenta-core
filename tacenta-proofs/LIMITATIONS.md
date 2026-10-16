@@ -2435,9 +2435,20 @@ excludes every receive until its epoch retires. By reading only, not proved: by 
 (`tacenta-core/lifecycle/src/lifecycle.rs`, the Braid-epoch relation in `structural_invariant`) the sparse epoch equals the
 Braid epoch or is one below it while the Braid has not failed, and a failed Braid is refused before the Triple step (the
 terminal guard at the top of `decrypt_ratchet`), so wherever the run bounds are used the Braid epoch ceiling covers the sparse
-one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The satisfiability witness
+one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The first satisfiability witness
 (`counterHeadroom_sessionOf`, and the joint witness `invReal`) is a session over fresh states and exercises no ceiling away from
-zero (`sparseCounters` holds vacuously there); no witness with a stored key, an open chain or the held-KEM state is given.
+zero (`sparseCounters` holds vacuously there). `UnitLifecycleDecryptStates.lean` gives a second, `storedSession`, built for the
+hypotheses: one stored key in each store, both classical chains open, a sparse send chain at counter 7 and receive chain at
+counter 6, the clock at 5, the sparse epoch at 2 and the Braid epoch at 3, so all four ceilings are met away from zero there,
+and the hypotheses of the restated refinement hold together at it under `DecryptJointLaws`
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`); and a third, the same Triple at sparse epoch 0 beside
+the held-KEM Braid, under the held witness's laws (`..._at_stored_keys_held`), where the sparse and Braid epochs are at their
+least values. No witness is near a ceiling, and no state produced by establishment, by `import` or by any operation is given;
+at these witnesses the run carries no agreement chunk, `sparseOutputEpoch` holds vacuously, and the model's step refuses at
+the first agreement before reading a stored key (as at `invReal`). The responder and pending-initial states of that module
+are shown to pass `Session::invariant` only, the responder under `DhCodecTotal` as well (for `PublicKeyBytes::from_bytes` in
+`decode_ec`) and the pending state under `kem::ciphertext_len = ok n` (from `KemCiphertextLenTotal`); that the opaque
+`kem::ciphertext_len` returns 1568 is not checked.
 These are the successor-headroom premises that
 [PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
 `PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
@@ -2846,7 +2857,9 @@ two more (the two kept-epoch bounds), the model gives one (the epoch label of a 
 are fields of `CounterHeadroom`, which also holds the run's Braid epoch ceiling; `CounterHeadroom` is assumed ("The headroom
 records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw conditions stay hypotheses
 (`DecryptRatchetRunInputs`). Its hypotheses hold together at the joint witness below under the same laws
-(`decrypt_of_invariant_hypotheses_jointly_satisfiable`).
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable`), and at a session with stored keys, open chains and counters away
+from zero (`UnitLifecycleDecryptStates.decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`), built for the
+hypotheses as that witness is.
 
 **Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
 sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the bounds of `RetryRunBounds` above and the four ceilings of `CounterHeadroom`:
