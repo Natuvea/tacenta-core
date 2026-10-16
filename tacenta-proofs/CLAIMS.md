@@ -3992,6 +3992,83 @@ fixed), of the closure (the bridge without the public mapping, and the complete 
 with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
 named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
 
+## Proved (tier T3, session lifecycle: the per-run receive bounds of `decrypt_ratchet` from `Session::invariant`, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleDecryptRunBounds.lean`.
+
+`decrypt_ratchet_refines_complete` (previous section) takes `DecryptRatchetHeadroom` and the run record
+`DecryptRatchetRun`, whose `retry` field asks the eleven fields of `RetryRunBounds` of the model Triple state and whose
+`braidEpoch` field asks a Braid epoch ceiling. These results derive `RetryRunBounds` from `Session::invariant`, the session
+relation and four counter ceilings, `CounterHeadroom`, which stay assumed, and restate the complete theorem with them. The
+complete theorem and `RetryRunBounds` are unchanged. They are not results about `Session::decrypt` or `Session::encrypt`.
+
+Which field comes from where. Of the eleven fields of `RetryRunBounds`, seven follow from the invariant: `classicalMatch` and
+`sparseMatch` (each store's clause that no two keys share a header), `sparseChainsRoom` (at most two chain-table entries),
+`classicalStore` and `sparseStore` (each store holds at most 2000 keys, and `2000 + 2000 <= 2^32 - 1`, at both widths), and
+`sparseChainEpochs` and `sparseSkippedEpochs` (the epoch window and the chained-key clause, together with the sparse epoch
+ceiling). One, `sparseOutputEpoch`, follows from the model alone: a key `Model.Braid.receive` outputs is labelled with an epoch
+of at most `u64::MAX - 2` for every state and message (`Model.Braid.receive_output_epoch_lt`). Three are fields of
+`CounterHeadroom`: `classicalEvents` (`events + 1 < u32::MAX`; the invariant gives `events < u32::MAX`), `sparseEpoch`
+(`epoch + 1 < u64::MAX`; the invariant gives `epoch < u64::MAX`) and `sparseCounters` (each chain counter below `u64::MAX`; no
+invariant clause bounds it). The fourth field of `CounterHeadroom`, `braidEpoch`, is the run record's own Braid epoch ceiling
+(`epoch + 1 < u64::MAX`), which the Braid invariant (`epoch >= 1`, no upper bound) does not give.
+
+The record `CounterHeadroom` holds the four ceilings, stated of the translated session, and is assumed. Each ceiling excludes a
+state `Session::invariant` accepts: a classical clock at `u32::MAX - 1`, where the crate's clamp holds it (`MAX_EVENTS`); a
+sparse epoch at `u64::MAX - 1`; a sparse chain counter at `u64::MAX`; a Braid epoch at `u64::MAX - 1`. They are counter
+ceilings, not capacity bounds.
+
+- `retryRunBounds_of_triple_invariant`: if `Triple::invariant` returns `true` of a translated Triple state related to a model
+  state, and the clock, sparse epoch and chain-counter ceilings hold of it, then `RetryRunBounds` holds of the model state for
+  every header and every sparse output labelled with an epoch below `u64::MAX - 1`.
+- `retryRunBounds_of_invariant`: if `Session::invariant` returns `true`, `SessionRefines` holds and `CounterHeadroom` holds,
+  then `RetryRunBounds` holds of the model Triple state for every header and the sparse output of every Braid receive, at
+  every Braid KEM model, state and message.
+- `classicalMatch_of_inv`, `sparseMatch_of_inv`, `sparseCounters_transport`, `store_room`, `sparseOutputOf_epoch`: the steps
+  of that derivation: the two match bounds from the stores' map clauses, the counter ceiling carried to the model's chain
+  table, the store room under `cMax Usize`, and the epoch label of a Braid receive's output.
+- `decryptRatchetRun_of_invariant`: `DecryptRatchetRun` from `Session::invariant`, `SessionRefines`, `CounterHeadroom` and
+  `DecryptRatchetRunInputs`, the run record's three remaining fields word for word (the chunk relation, `HonestChunk`, one
+  draw left in the trace).
+- `decrypt_ratchet_refines_of_invariant`, `decrypt_ratchet_refines_of_invariant_statement`: under the oracle, codec, contract,
+  derived-key and agreement hypotheses of `decrypt_ratchet_refines_complete`, `Session::invariant`, `SessionRefines`,
+  `CounterHeadroom`, the trace equation and `DecryptRatchetRunInputs`
+  (`DecryptRatchetRefinesOfInvariantStatement`), the generated `decrypt_ratchet` returns and `StepRefines` holds between its
+  result and the model's step. `DecryptRatchetHeadroom` is not a hypothesis: it is `decryptHeadroom_of_invariant`, from two
+  fields of the contract record.
+- `counterHeadroom_sessionOf`: `CounterHeadroom` holds at every session over fresh states (clock 0, sparse epoch 0, no chain
+  counter, Braid epoch 1).
+- `decrypt_inputs_at_invReal`, `DecryptOfInvariantHypotheses.refines`, `decrypt_of_invariant_hypotheses_jointly_satisfiable`:
+  under the laws `DecryptJointLaws K dh` of `UnitLifecycleDecryptScreen`, every hypothesis of the restated theorem holds
+  together at that module's witness session, for every codeword view; `DecryptOfInvariantHypotheses` is the hypothesis list,
+  and the restated theorem applies to it. The witness state is built for the hypotheses, and the laws are assumed, as there.
+- `parkedTriple_invariant`, `structural_parkedSession`, `parkedSession_invariant`, `parkedSession_not_counterHeadroom`,
+  `invariant_does_not_give_counterHeadroom`: a session over fresh states with the classical clock at `u32::MAX - 1` passes
+  `Session::invariant` (under `ValidKeyShape`, `OptionEqU64Shape` and `DhCodecTotal`, as `sessionOf_invariant`) and fails
+  `CounterHeadroom`, so the invariant does not give the ceilings.
+
+**What is not shown.** That `CounterHeadroom` holds of any session a caller holds: it is a per-run hypothesis. That the
+crate's operations produce the parked session: that the clamp parks the clock at `u32::MAX - 1` is the Rust's documented
+behaviour, not a theorem here. That the other three ceilings exclude states the invariant accepts is by reading the sparse
+ratchet's and the Braid's `invariant` documentation, not checked in Lean. Whether any of the four ceilings could be dropped
+from the refinement theorems that take them is not checked. The chunk, `HonestChunk` and draw conditions stay the caller's,
+with the limits of the previous two sections. No proof here chooses a width of `usize`. As for the previous section, no gate
+reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a session lifecycle out.
+
+**Compiler trust and pins.** `decrypt_ratchet_refines_of_invariant`, `decrypt_ratchet_refines_of_invariant_statement` and
+`DecryptOfInvariantHypotheses.refines` are compiler-trusted: they apply `decrypt_ratchet_refines_complete` and list its nine
+`native_decide` constants, and their pins list three more opaque constants than its pin, `Option::eq`,
+`is_prime_order_public` and `kem::ciphertext_len`, each of which occurs in `Session::invariant`. The other sixteen results
+rest on no compiler-evaluated constant: `classicalMatch_of_inv`, `sparseMatch_of_inv`, `sparseCounters_transport`,
+`retryRunBounds_of_triple_invariant` and `parkedTriple_invariant` on `propext`, `Classical.choice` and `Quot.sound` alone,
+`store_room` and `sparseOutputOf_epoch` on `propext` and `Quot.sound`, and the other nine on those three and between 4 and
+52 opaque constants of the unit, which the types and definitions they mention refer to. Each result carries an axiom pin and a statement pin, and each definition the section adds
+a `#print` pin (`CounterHeadroom`, `DecryptRatchetRunInputs`, `DecryptRatchetRefinesOfInvariantStatement`,
+`DecryptOfInvariantHypotheses`, `parkedTriple`, `parkedSession`). `check-decrypt-ratchet-negatives.py` plants five faults in a
+copy of the module (the sparse epoch ceiling dropped, the clock ceiling weakened to the invariant's, the output label dropped
+from the Triple derivation, the parked clock moved one below the park, and, with the pins kept, the Braid ceiling weakened to
+the decoder's) and requires Lean to refuse each at a named declaration or at the pin of `CounterHeadroom`.
+
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
 Location: `Translation/SessionUnitDecodeEc.lean`, `Translation/UnitLifecycleInitialAgreementT3.lean`.

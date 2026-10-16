@@ -2420,6 +2420,19 @@ and the wrapper around the one-time prekey vector inhabited by the contract reco
 derivations and not a theorem inside Lean, and not a statement that the real `PrivateKey` has a value, that the real primitives
 satisfy `ValidKeyShape`, or that the real `Option::eq` behaves.
 
+*Counter ceilings, assumed.* `DecryptRatchetHeadroom` is a size record; the `decrypt_ratchet` refinement also takes counter
+ceilings, which no record above holds. `UnitLifecycleDecryptRunBounds.lean` derives the run's receive bounds from
+`Session::invariant` and collects the ceilings the invariant does not give in one record, `CounterHeadroom`, which is ASSUMED
+per run: `events + 1 < u32::MAX` for the classical clock, `epoch + 1 < u64::MAX` for the sparse epoch, every sparse chain
+counter below `u64::MAX`, and `epoch + 1 < u64::MAX` for the Braid. Each excludes a state the invariant accepts and a long
+session reaches: the clock parked at `MAX_EVENTS = u32::MAX - 1`, a sparse epoch or a Braid epoch at `u64::MAX - 1`, a chain
+counter at `u64::MAX`. The first is proved (`invariant_does_not_give_counterHeadroom`, at a session over fresh states with the
+parked clock, under `ValidKeyShape` and `OptionEqU64Shape` of the table above and `DhCodecTotal`); the other three are by reading the sparse ratchet's and the
+Braid's `invariant` documentation and are not checked. That the crate's operations reach the parked clock is the clamp's
+documented behaviour and is not checked either. These are the successor-headroom premises that
+[PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
+`PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
+
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
 it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
@@ -2815,6 +2828,16 @@ which branch the shipped code takes; for the fourth, `generated_reaches_open_pat
 the boundary records. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
 store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
 invariant refuses.
+
+**The per-run bounds, from `Session::invariant`.** `decrypt_ratchet_refines_of_invariant`
+(`Translation/UnitLifecycleDecryptRunBounds.lean`) restates the complete form with `Session::invariant` in place of
+`DecryptRatchetHeadroom` and of the run's receive bounds. Of the eleven fields of `RetryRunBounds`, the invariant gives seven
+(the two match bounds, the chain-table room, the two store bounds, and, with the sparse epoch ceiling, the two kept-epoch
+bounds), the model gives one (the epoch label of a Braid receive's output, `Model.Braid.receive_output_epoch_lt`), and three
+are fields of `CounterHeadroom`, which also holds the run's Braid epoch ceiling; `CounterHeadroom` is assumed ("The headroom
+records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw conditions stay hypotheses
+(`DecryptRatchetRunInputs`). Its hypotheses hold together at the joint witness below under the same laws
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable`).
 
 **Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
 sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the ceilings above:

@@ -192,7 +192,9 @@ field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`; 
 and under the laws recorded in `tacenta-proofs/LIMITATIONS.md`; their headroom records are shown satisfiable in the same sense, with further assumptions recorded there), and, for
 its private `decrypt_ratchet`, a conditional refinement of the model's step on every path
 (`decrypt_ratchet_refines_complete`: every Triple receive refusal that the run's bounds admit is shown to be the
-model's refusal, with no case left open). That theorem is compiler-trusted (nine `native_decide` constants); it takes
+model's refusal, with no case left open). A restated form, `decrypt_ratchet_refines_of_invariant`, takes
+`Session::invariant` in place of most of those bounds and four counter ceilings, assumed, for the rest; each ceiling
+excludes a state the invariant accepts. That theorem is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
 row `SESSION-SPARSE-AGREEMENTS`); the three fields of the contract record it takes that were stronger than the crate
