@@ -46,6 +46,7 @@ import Translation.UnitOracleDh
 import Translation.UnitOracleAead
 import Translation.UnitOracleKemSig
 import Translation.UnitOracleJoint
+import Translation.UnitOracleDecrypt
 import Translation.UnitLifecycleRetryLoopT3
 import Translation.UnitLifecycleDecryptRatchetT3
 import Translation.UnitLifecycleDecryptRatchetScreen
@@ -73,6 +74,8 @@ is an argument about derivations and not a statement that the real primitives me
 `UnitOracleJoint.lean` and the five modules beneath it show that `OracleOf` is inhabited under
 eleven laws, with a model; that is an argument about derivations and not a statement that the
 real primitives meet the laws.
+`UnitOracleDecrypt.lean` gives `DecryptOracleOf`, the four clauses the decrypt refinements take,
+from four of those laws, without the KEM and signing laws.
 `DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
 initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every

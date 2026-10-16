@@ -2,8 +2,9 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Nine modules carry that evidence: the three below, and the six of the joint decision of OracleOf
-# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group):
+# Ten modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), and UnitOracleDecrypt.lean with
+# the model frame lemma it pins (also in the oracle group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -36,6 +37,13 @@
 #                 in turn, nine primitives and the private-key view of the joint model changed one at
 #                 a time, each refused by the result, the lemma or the law of the model that needs
 #                 it, and a bridge or a record changed by one field, each refused.
+#                 And `DecryptOracleOf` from four laws (UnitOracleDecrypt.lean): its proof moved
+#                 onto the real constants with the statement unchanged, refused by its axiom pin
+#                 alone; routed through `oracleOf_of_laws`, refused by both pins; two fields of its
+#                 interpretation and its view law changed, each refused by the lemma; and each of
+#                 the five equalities of the frame lemma's helper `decryptRatchet_oracle_frame`
+#                 (tacenta-model/Model/LifecycleFrame.lean) swapped for one about an unread field,
+#                 each refused because the proof fails.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -716,6 +724,101 @@ for name, text, old, new, reason in [
      "Application type mismatch"),
 ]:
     t = once(text, old, new, name)
+    if t is not None:
+        refused(name, t, reason)
+
+# `DecryptOracleOf` from four laws (`UnitOracleDecrypt.lean`) and the model frame lemma that `decrypt`
+# reads five oracle fields (`tacenta-model/Model/LifecycleFrame.lean`). The narrowed lemma's statement
+# takes only the four laws; that is what keeps the other seven off the route, and its statement pin
+# holds it. Its axiom pin holds something else: that the witness oracle is built without the KEM,
+# signing, identity-test, AEAD-seal and KDF constants. The first route change below keeps the
+# statement and moves the proof onto the real constants, so only the axiom pin refuses it, with the
+# signing constant among the added axioms. The second routes the lemma through `oracleOf_of_laws`,
+# which needs the seven other laws as hypotheses, so it changes the statement and both pins refuse it
+# (the reason checked is the axiom pin's). The interpretation and the lemma are then changed with their
+# pins removed, so that what refuses is the theorem. Last, each of the five equalities of the helper
+# `decryptRatchet_oracle_frame` is swapped, in turn, for one about a field `decrypt` does not read; a
+# refusal shows that the proof uses that equality, not that the swapped statement is false
+# (`decrypt_oracle_frame` fails with it because it calls the helper).
+o_dec = module("UnitOracleDecrypt")
+frame = open(os.path.join("..", "tacenta-model", "Model", "LifecycleFrame.lean")).read()
+passes("oracle-decrypt-unmodified", o_dec)
+passes("oracle-decrypt-frame-unmodified", frame)
+for text, nm in [(o_dec, "UnitOracleDecrypt"), (frame, "LifecycleFrame")]:
+    code = re.sub(r"/-.*?-/", "", text, flags=re.S)
+    pinned = o_dec if nm == "LifecycleFrame" else text
+    for t in re.findall(r"^theorem (\w+)", code, re.M):
+        if not re.search(rf"#print axioms \S+\.{t}\n", pinned):
+            wrong.append(f"theorem {t} of {nm} has no axiom pin in UnitOracleDecrypt.lean")
+
+DEC_PROOF = """  let kem : KemViewOf InterpO.decrypt.toInterp := ⟨arrayOf (n := 32#usize)⟩
+  let S : Array Std.U8 32#usize → Slice Std.U8 → Slice Std.U8 → Array Std.U8 64#usize :=
+    Tacenta.UnitOracleModel.signS
+  let base := oracleOfLaws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S
+  refine ⟨{ base with draws := draws, braidKem := braidKem }, rfl, rfl, ?_⟩
+  exact ⟨dhPublicClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hcodec
+      hdh.1,
+    dhAgreeClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hagree hdh,
+    aeadOpenClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hopen,
+    byte_random32Clause⟩
+"""
+DEC_STMT = """    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)
+    (draws : List Model.Lifecycle.Key) (braidKem : Model.Braid.Kem) :
+    ∃ oracle : Model.Lifecycle.Oracle, oracle.draws = draws ∧ oracle.braidKem = braidKem ∧
+      DecryptOracleOf byteRng byteCrc dh byteTrace oracle := by
+"""
+# the same proof over the real constants: the statement and its pin are unchanged
+REAL_PROOF = DEC_PROOF.replace("InterpO.decrypt (dhViewD dh)", "InterpO.real (dhViewOf dh)").replace(
+    "let kem : KemViewOf InterpO.decrypt.toInterp := ⟨arrayOf (n := 32#usize)⟩",
+    "let kem : KemViewOf InterpO.real.toInterp := ⟨fun _ => []⟩")
+t = once(o_dec, DEC_PROOF, REAL_PROOF, "decrypt oracle at the real constants")
+if t is not None:
+    refused("oracle-decrypt-built-at-the-real-constants", t, "+  tacenta_boundary.xeddsa.sign")
+# the route the narrowed lemma replaces: all eleven laws, through `oracleOf_of_laws` (a changed statement)
+ROUTED = """    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)
+    (kem : KemView) (hid : Tacenta.UnitLifecycleT1.DhIdentityTotal)
+    (hseal : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (hdecaps : Tacenta.UnitLifecycleT1.KemDecapsulateTotal)
+    (hverify : Tacenta.UnitLifecycleT1.XeddsaVerifyTotal)
+    (hsign : Tacenta.UnitLifecycleIntegrationScreen.SignFillsOnce64)
+    (hkem : Tacenta.UnitLifecycleIntegrationScreen.KemShape)
+    (hkv : Function.Injective kem.keyPair) :
+    ∃ oracle : Model.Lifecycle.Oracle, DecryptOracleOf byteRng byteCrc dh byteTrace oracle :=
+  (Tacenta.UnitOracleJoint.oracleOf_of_laws dh kem hcodec hagree hid hseal hopen hdecaps hverify hsign
+    hkem hdh hkv).elim fun oracle h => ⟨oracle, DecryptOracleOf.of_oracleOf h⟩
+"""
+t = once(o_dec, DEC_STMT + DEC_PROOF, ROUTED, "decrypt oracle through oracleOf_of_laws")
+if t is not None:
+    t = once(t, "import Translation.UnitOracleModel\n",
+             "import Translation.UnitOracleModel\nimport Translation.UnitOracleJoint\n", "import the joint module")
+if t is not None:
+    refused("oracle-decrypt-routed-through-oracleOf_of_laws", t, "+  tacenta_boundary.xeddsa.sign")
+for name, old, new, reason in [
+    ("oracle-decrypt-interp-open-is-the-models", "    aeadDecrypt := tacenta_boundary.aead.decrypt\n", "",
+     "aeadOpenClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hopen"),
+    ("oracle-decrypt-interp-agree-refuses", "    dhPrivAgree := tacenta_boundary.dh.PrivateKey.agree\n",
+     "    dhPrivAgree := fun _ _ => ok none\n",
+     "dhAgreeClause_of_laws InterpO.decrypt (dhViewD dh) kem kemModelValid kemModelE S hagree"),
+    ("oracle-decrypt-lemma-keeps-half-the-view-law",
+     "    (hdh : Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey)\n    (draws",
+     "    (hdh : Function.Injective dh.privateKey)\n    (draws", "Invalid projection"),
+]:
+    t = once(nopins(o_dec), old, new, name)
+    if t is not None:
+        refused(name, t, reason)
+FRAME_HYPS = """    (hdraws : oracle'.draws = oracle.draws) (hkem : oracle'.braidKem = oracle.braidKem)
+    (hpublic : oracle'.dhPublic = oracle.dhPublic) (hagree : oracle'.dhAgree = oracle.dhAgree)
+    (hopen : oracle'.aeadOpen = oracle.aeadOpen) :
+    decryptRatchet view"""
+for name, field, other, reason in [
+    ("oracle-decrypt-frame-without-draws", "draws", "kemDecaps", "unsolved goals"),
+    ("oracle-decrypt-frame-without-braidKem", "braidKem", "kemValid", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-dhPublic", "dhPublic", "identityValid", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-dhAgree", "dhAgree", "sigVerify", "Tactic `rfl` failed"),
+    ("oracle-decrypt-frame-without-aeadOpen", "aeadOpen", "aeadSeal", "Tactic `rfl` failed"),
+]:
+    t = once(frame, FRAME_HYPS, FRAME_HYPS.replace(f"oracle'.{field} = oracle.{field}",
+                                                   f"oracle'.{other} = oracle.{other}"), name)
     if t is not None:
         refused(name, t, reason)
 
