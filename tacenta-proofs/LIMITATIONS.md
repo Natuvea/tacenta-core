@@ -2849,10 +2849,10 @@ records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw
 (`decrypt_of_invariant_hypotheses_jointly_satisfiable`).
 
 **Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
-sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the ceilings above:
+sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the bounds of `RetryRunBounds` above and the four ceilings of `CounterHeadroom`:
 the event counter, the sparse epoch, the chain and skipped-key epochs, the chain counters, the room in the chain table and
 in both stores, at most one stored key matching the header in each store, and the Braid epoch (the output's key epoch only
-through the Braid's own, which the source never lets it exceed). It also asserts, at each call, that the random source is
+through the Braid's own, which `step_receive` never lets it exceed). It also asserts, at each call, that the random source is
 read as `Model.Lifecycle.decryptRatchet` reads it (no draw when the dispatch, the terminal guard, the decoder or the
 incoming agreement refuses; one 32-byte draw from the first agreement on, kept on a later refusal), that a refusal leaves
 the exported bytes unchanged, that a success changes them, and that `Session::invariant` holds before and after. The runs
@@ -2861,12 +2861,12 @@ a changed or low-order ephemeral, of a replay, of a frame beyond `MAX_SKIP`, of 
 version byte, of a truncated frame, of an initial message sent to an initiator, of a low-order ratchet key and of a failed
 agreement, and a full skipped-key store with an eviction. That is evidence about those runs, on the inputs tried; it is
 not proof, and it discharges no premise for any other run. It runs at the width of the machine that runs it, and the
-`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); its ceiling checks are written to the 32-bit bound
+`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); its bound checks are written to the 32-bit bound
 at every width, so the 32-bit run adds the shipped library's behaviour at that width, and it has not been made locally.
 It does not reach `IncomingChunkRefines` and `HonestChunk` (a chunk carries no source to read), a counter or epoch near
 its ceiling or a store near `2^32 - 1` (no run builds one), a second eviction round, a switch between the stores, a
 sparse refusal other than an out-of-order key after an eviction, or a frame naming an epoch the state holds no chain for.
-Each ceiling check has a control that calls it outside any run: eight on a mutated copy of an observed state, three
+Each premise check has a control that calls it outside any run: eight on a mutated copy of an observed state, three
 (`classicalStore`, `sparseStore`, `sparseChainsRoom`) on the length arithmetic alone, with lengths no session holds, and
 `sparseOutputEpoch`, whose bound is the Braid epoch's, through the `braidEpoch` check. Those controls show the checks can
 fail; they show nothing of the runs. `Session::invariant` accepts a state with `events = u32::MAX - 1`, which is outside

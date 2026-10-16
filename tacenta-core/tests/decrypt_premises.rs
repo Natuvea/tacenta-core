@@ -1,11 +1,20 @@
 //! The runtime form of the premises of the `decrypt_ratchet` refinement, checked on runs the
 //! shipped `Session::decrypt` performs. **Tested only, on the inputs tried; this is not a proof.**
 //!
-//! The Lean refinement of `Session::decrypt` (`Translation/UnitLifecycleDecryptRatchetT3.lean`)
-//! takes, for each call, a per-run record: `RetryRunBounds` (ceilings on the Triple state and its
+//! The Lean refinement of the private `decrypt_ratchet`, which `Session::decrypt` calls for a
+//! ratchet frame (`decrypt_ratchet_refines_complete` in
+//! `Translation/UnitLifecycleDecryptRatchetT3.lean`, restated as
+//! `decrypt_ratchet_refines_of_invariant` in `Translation/UnitLifecycleDecryptRunBounds.lean`),
+//! takes, for each call, a per-run record: `RetryRunBounds` (bounds on the Triple state and its
 //! skipped-key stores, and at most one skipped key matching the header), the Braid epoch's room,
 //! and one 32-byte draw in the random source. The theorem says nothing of a run that falls
-//! outside them. This file drives a real establishment (the inputs of
+//! outside them, and it is not a result about `Session::decrypt` as a whole. The proofs assume
+//! only the four ceilings of `CounterHeadroom` (the clock, `events + 1 < u32::MAX`; the sparse
+//! epoch, `+ 1 < u64::MAX`; the chain counters, `< u64::MAX`; the Braid epoch, `+ 1 < u64::MAX`).
+//! This file checks all eleven bounds of `RetryRunBounds` and the Braid epoch: five of the
+//! eleven follow from `Session::invariant` (checked here too), two more with the sparse epoch
+//! ceiling, and one from the model; its checks are the only evidence on real runs about the four
+//! assumed ceilings. This file drives a real establishment (the inputs of
 //! `session-e2e.json`, `one-time-prekeys-first-message`, drawn through a stated-then-stream
 //! random source) and a schedule of `decrypt` calls that reaches the outcomes listed below (and
 //! not those listed as not reached), and at every call asserts the runtime form of what the record asks, read from the state the call
@@ -23,7 +32,7 @@
 //!   success. Nothing else is read: every call the source logs is a 32-byte fill;
 //! * on a refusal the exported state is byte-equal to the state before; on a success it differs;
 //! * the error is the expected one;
-//! * the ceilings below hold of the state before the call.
+//! * the bounds below hold of the state before the call.
 //!
 //! # Premise to runtime check
 //!
@@ -478,7 +487,7 @@ fn chains_room(len: usize) -> bool {
     (len as u128) + 2 < usize::MAX as u128 && (len as u128) + 2 < CMAX32 as u128
 }
 
-/// The three ceilings that depend only on a length, so a control can call them with a length no
+/// The three bounds that depend only on a length, so a control can call them with a length no
 /// session holds.
 fn check_room(label: &str, classical_store: usize, sparse_store: usize, chains: usize) {
     assert!(
@@ -1084,7 +1093,7 @@ fn a_frame_beyond_the_skip_limit_is_refused_and_the_limit_is_accepted() {
     );
     assert!(r.is_ok());
     assert_eq!(observe(&bob).classical_skipped.len(), MAX_SKIP as usize);
-    // The next call starts from a store of MAX_SKIP keys and still meets the ceilings; one of
+    // The next call starts from a store of MAX_SKIP keys and still meets the bounds; one of
     // the stored keys is the one this frame needs.
     let (r, premises) = checked(
         &mut bob,

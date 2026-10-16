@@ -55,7 +55,7 @@ copy of a module and requires Lean to refuse it, at a named place:
     decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`).
 
 The changes are checked on copies without the module's pins, so that the refusal comes from a proof and
-not from a pin, except the two kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
+not from a pin, except the three kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
 that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place
 never count. These are proof-dependency controls on copies of the Lean; no source, olean or git state
 changes.
