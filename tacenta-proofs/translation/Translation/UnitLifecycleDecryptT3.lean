@@ -1,5 +1,6 @@
 import Translation.UnitLifecycleDecryptRatchetCompleteScreen
 import Translation.UnitHeadroomInvariant
+import Translation.UnitLifecycleDecryptRunBounds
 
 /-!
 # The public `Session::decrypt` refines the model's step on frames that are not initial messages
@@ -24,6 +25,15 @@ two:
 * `decrypt_refines_ratchet_frame_of_invariant`: the same, with `DecryptRatchetHeadroom` replaced by
   `Session::invariant` (`UnitHeadroomInvariant.decryptHeadroom_of_invariant`, from two fields of the
   contract record the theorem already takes).
+* `decrypt_refines_ratchet_frame_of_counter_headroom`: the same again, with `DecryptRatchetRun` also
+  replaced, by the four counter ceilings `UnitLifecycleDecryptRunBounds.CounterHeadroom` (assumed per
+  run; each excludes states `Session::invariant` accepts and a long session reaches) and the run's three
+  remaining conditions `DecryptRatchetRunInputs`, through `decryptRatchetRun_of_invariant`.
+  `decrypt_frame_hypotheses_jointly_satisfiable` shows its hypotheses, the boundary records included,
+  together at the witness of `UnitLifecycleDecryptRunBounds.decrypt_of_invariant_hypotheses_jointly_satisfiable`
+  under the named laws of `UnitLifecycleDecryptScreen.DecryptJointLaws` (assumed, with a model there),
+  whose message is a ratchet frame; the model step there refuses at the first agreement if the real
+  agreement refuses the all-zero key, which by reading it does.
 * `decrypt_refines_ratchet_frame_at_refusal`: the theorem at the run of
   `UnitLifecycleDecryptRatchetCompleteScreen.ref_run_satisfiable`.  That state fails
   `Session::invariant` (empty associated data, `refReal_fails_invariant`) and `Ratchet::invariant`, so it
@@ -46,9 +56,13 @@ two:
 ## What this does not show
 
 * Any initial frame: the repeated-initial branch is outside `hframe`.
-* That the boundary records hold of the shipped functions: three fields of `DecryptRatchetContracts`
-  are stronger than the crate supports, so the theorem cannot be applied to the shipped functions
-  until they are restated; `VecRetainAgrees` and `RemoveSkippedAtAgrees` are assumed and undecided.
+* That the boundary records hold of the shipped functions: they are assumed.  The three zeroize fields
+  of `DecryptRatchetContracts` are stated at the instances the unit passes to `Array::zeroize` and
+  `Vec::zeroize`, with the real functions' returning there assumed; `DecryptRatchetAgreements` holds the
+  two laws about `Vec::pop` and `Option::as_mut` from which `decrypt_ratchet_refines_complete` derives the
+  sparse store's two agreements; and the KDF, zeroizing-wrapper, KEM and erasure agreements stay
+  assumed.  The joint witness above shows them consistent with the other hypotheses under named laws,
+  not true of the crate.
 * A run carrying an agreement chunk: every witness here carries none.
 * Anything about a random source with no state of its own: the trace is read as a function of the
   source's value, so for such a source the hypotheses cannot all hold and the theorem makes no claim.
@@ -56,9 +70,12 @@ two:
   pending initial message, no receiving chain and no established ephemeral key, and its model step
   refuses at the first agreement; the run that reaches a success with a pending initial message does
   so with a toy oracle, at a state that fails `Session::invariant`.
+* That `CounterHeadroom` holds of any session a caller holds: it is a per-run hypothesis of the
+  corollary that takes it.
 
-The results rest on the nine compiler-trusted `native_decide` facts `decrypt_ratchet_refines_complete`
-rests on, which their pins list.
+The refinement theorems and their instances at the witnesses rest on the nine compiler-trusted
+`native_decide` facts `decrypt_ratchet_refines_complete` rests on, which their pins list;
+`decrypt_frame_hypotheses_jointly_satisfiable` and the witness lemmas rest on none.
 -/
 
 namespace Tacenta.UnitLifecycleDecryptT3
@@ -166,6 +183,59 @@ theorem decrypt_refines_ratchet_frame_of_invariant {R : Type}
     (Tacenta.UnitHeadroomInvariant.decryptHeadroom_of_invariant contracts.dhCodec
       contracts.braid.ct1Len real hinv)
     htrace run
+
+/-- **The same, with the run's receive bounds derived**: `Session::invariant`, the four counter ceilings
+`UnitLifecycleDecryptRunBounds.CounterHeadroom` (assumed per run) and the run's three remaining conditions
+(`DecryptRatchetRunInputs`) in place of `DecryptRatchetHeadroom` and `DecryptRatchetRun`, through
+`UnitLifecycleDecryptRunBounds.decryptRatchetRun_of_invariant`.  The other hypotheses are those of
+`decrypt_refines_ratchet_frame`, and the conclusion is the same. -/
+theorem decrypt_refines_ratchet_frame_of_counter_headroom {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : DecryptOracleOf rngCore cryptoRng dh trace oracle)
+    (codec : DhCodecOf dh)
+    (contracts : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (agreements : DecryptRatchetAgreements oracle.braidKem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hframe : Model.Lifecycle.messageType (sliceOf message) ≠ some .initial)
+    (hinv : lifecycle.Session.invariant real = ok true)
+    (hrel : SessionRefines dh oracle.braidKem real model)
+    (hc : Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom real)
+    (htrace : trace rng = oracle.draws)
+    (inputs : Tacenta.UnitLifecycleDecryptRunBounds.DecryptRatchetRunInputs view oracle trace real
+      model message rng) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh oracle.braidKem output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) :=
+  decrypt_refines_ratchet_frame_of_invariant rngCore cryptoRng trace dh view oracle oracleOf codec
+    contracts agreements real model message rng hframe hrel hinv htrace
+    (Tacenta.UnitLifecycleDecryptRunBounds.decryptRatchetRun_of_invariant hinv hrel hc inputs)
+
+/-- **The hypotheses of `decrypt_refines_ratchet_frame_of_counter_headroom` hold together**, at the real
+constants and the byte-stream source, under the named laws of `UnitLifecycleDecryptScreen.DecryptJointLaws`
+(assumed, with a model there), for every codeword view: the witness of
+`UnitLifecycleDecryptRunBounds.decrypt_of_invariant_hypotheses_jointly_satisfiable`, whose message is a
+ratchet frame and so meets the scope premise.  Its state is built for the hypotheses and is not shown to be
+produced by establishment or `import`, and its model step refuses at the first agreement if the real
+agreement refuses the all-zero key, which by reading it does (`UnitLifecycleDecryptScreen`). -/
+theorem decrypt_frame_hypotheses_jointly_satisfiable (K : Model.Braid.Kem) (dh : DhView)
+    (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh) :
+    ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+      (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : List Std.U8),
+      oracle.braidKem = K ∧
+      Model.Lifecycle.messageType (sliceOf message) ≠ some .initial ∧
+      ∀ view : Model.Lifecycle.CodewordView,
+        Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng
+          Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+          Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh view oracle real model message rng := by
+  obtain ⟨oracle, real, model, message, rng, hK, htype, h⟩ :=
+    Tacenta.UnitLifecycleDecryptRunBounds.decrypt_of_invariant_hypotheses_jointly_satisfiable K dh L
+  exact ⟨oracle, real, model, message, rng, hK, by simp [htype], h⟩
 
 /-! ## Witnesses
 
@@ -1632,3 +1702,179 @@ fun sk pk p =>
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptT3.pendReal
+
+/-! ## Pins of the corollary with the run bounds derived -/
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptT3.decrypt_frame_hypotheses_jointly_satisfiable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptT3.decrypt_frame_hypotheses_jointly_satisfiable
+
+/--
+info: @Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom : ∀ {R : Type}
+  (rngCore : tacenta_session_unit.rand_core_1.RngCore R) (cryptoRng : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rngCore cryptoRng dh trace oracle →
+    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+      Tacenta.UnitLifecycleT1.DecryptRatchetContracts rngCore →
+        ∀ [Tacenta.SessionUnitT1.DerivedKeysModel],
+          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracle.braidKem →
+            ∀ (real : tacenta_session_unit.lifecycle.Session) (model : Model.Lifecycle.Session)
+              (message : Aeneas.Std.Slice Aeneas.Std.U8) (rng : R),
+              Model.Lifecycle.messageType (Tacenta.UnitLifecycleT3.sliceOf message) ≠
+                  some Model.Lifecycle.MessageType.initial →
+                real.invariant = Aeneas.Std.Result.ok true →
+                  Tacenta.UnitLifecycleT3.SessionRefines dh oracle.braidKem real model →
+                    Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom real →
+                      trace rng = oracle.draws →
+                        Tacenta.UnitLifecycleDecryptRunBounds.DecryptRatchetRunInputs view oracle trace real model
+                            message rng →
+                          ∃ output,
+                            tacenta_session_unit.lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+                                Aeneas.Std.Result.ok output ∧
+                              Tacenta.UnitLifecycleT3.StepRefines trace dh oracle.braidKem output
+                                (Model.Lifecycle.decrypt view oracle model (Tacenta.UnitLifecycleT3.sliceOf message))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom
+
+/--
+info: Tacenta.UnitLifecycleDecryptT3.decrypt_frame_hypotheses_jointly_satisfiable : ∀ (K : Model.Braid.Kem)
+  (dh : Tacenta.UnitLifecycleT3.DhView),
+  Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh →
+    ∃ oracle real model message rng,
+      oracle.braidKem = K ∧
+        Model.Lifecycle.messageType (Tacenta.UnitLifecycleT3.sliceOf message) ≠
+            some Model.Lifecycle.MessageType.initial ∧
+          ∀ (view : Model.Lifecycle.CodewordView),
+            Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses
+              Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+              Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh view oracle real model message rng
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptT3.decrypt_frame_hypotheses_jointly_satisfiable
