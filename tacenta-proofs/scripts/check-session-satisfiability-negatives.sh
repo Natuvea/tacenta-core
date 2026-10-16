@@ -2,11 +2,11 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Twelve modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# Thirteen modules carry that evidence: the three below, the six of the joint decision of OracleOf
 # (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), UnitOracleDecrypt.lean with
 # the model frame lemma it pins (also in the oracle group), and
-# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group), and UnitLifecycleDecryptScreen.lean
-# (the decrypt-joint group):
+# UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group), UnitLifecycleDecryptScreen.lean
+# (the decrypt-joint group) and UnitKemWrapperModel.lean (the kem-wrapper group):
 #
 #   UnitSatisfiabilitySession.lean  thirteen separate witnesses, one per boundary
 #                                   contract of the first Session proof layer, and one
@@ -58,6 +58,13 @@
 #                 model, refused by the main theorem; the model witness removed, refused by its pins;
 #                 the shipped-size model's CT1_LEN, and its KEM's first-ciphertext size, set to the toy
 #                 size, each refused; and every theorem of the module required to carry an axiom pin.
+#   kem wrapper   a Braid KEM model read off the `tacenta_kem` wrapper (UnitKemWrapperModel.lean): each of
+#                 the eight laws, and each of the three fields the wrapper bundle puts in place of the joint
+#                 bundle's agreements, removed, refused by a proof that projects it; each refusing arm of
+#                 the model made to answer `some`, the model's hash given a 32-byte fallback, and its
+#                 first-ciphertext size set to the toy size, each refused by the agreement proofs; the
+#                 corollary restated at `toyKem`, refused by its statement pin alone; the model witness
+#                 removed, refused by its pins; and every theorem of the module required to carry an axiom pin.
 #   audit         the classification audit (the Lean text in AUDIT below), appended to a
 #                 copy of the joint module. It must pass on the module and print the
 #                 field counts, and must fail on seven mutations of the module or of its
@@ -986,6 +993,83 @@ if t is not None:
 t = once(nopins(jd), "  ct1Size := 1408\n", "  ct1Size := 64\n", "decrypt-joint-shipped-kem-ct1-at-toy-size")
 if t is not None:
     refused("decrypt-joint-shipped-kem-ct1-at-toy-size", t, "Application type mismatch")
+
+# -------------------------------------------------------------- kem wrapper
+# `UnitKemWrapperModel.lean`: a Braid KEM model read off the `tacenta_kem` wrapper's opaque functions
+# through byte views (`wrapperKemOf`), the KEM agreements at it from eight laws, the decrypt joint
+# statement at it, and one interpretation of the laws. Each law is removed from the law bundle in a
+# copy without the pins, the bundle's restatement `wrapperKemLaws_iff` and the model section, so a
+# refusal shows that an agreement proof needs the law; the three fields the wrapper bundle puts in
+# place of the joint bundle's `agreements` are removed the same way. Each refusing arm of the model
+# (key generation, the second half of encapsulation, decapsulation) is made to answer `some`, and the
+# model's hash is given a 32-byte fallback, each refused by the agreement proof; the model's
+# first-ciphertext size is set to the toy size, refused by the agreement proofs. The corollary is
+# restated at `toyKem` under the joint bundle at `toyKem`, with its proof adjusted so that it builds,
+# and is refused by its statement pin alone. The model witness renamed is refused by its pins, and
+# every theorem of the module must carry an axiom pin.
+kw = module("UnitKemWrapperModel")
+passes("kem-wrapper-unmodified", kw)
+kw_code = re.sub(r"/-.*?-/", "", kw, flags=re.S)
+for t in re.findall(r"^theorem (\S+)", kw_code, re.M):
+    if not re.search(rf"#print axioms Tacenta\.UnitKemWrapperModel\.{re.escape(t)}\n", kw):
+        wrong.append(f"theorem {t} of UnitKemWrapperModel has no axiom pin")
+KW_IFF_START = "/-- The eight laws, each at the real constants, are the bundle `WrapperKemLaws`. -/"
+KW_IFF_END = "/-! ## The agreements at `wrapperKemOf I`, from the laws -/"
+KW_CUT = "/-! ## One interpretation satisfies the wrapper bundle"
+kw_core = nopins(kw)
+if kw_core.count(KW_IFF_START) == 1 and kw_core.count(KW_IFF_END) == 1 and kw_core.count(KW_CUT) == 1:
+    kw_core = (kw_core[: kw_core.index(KW_IFF_START)] + kw_core[kw_core.index(KW_IFF_END): kw_core.index(KW_CUT)]
+               + "end Tacenta.UnitKemWrapperModel\n")
+    passes("kem-wrapper-core-unmodified", kw_core)
+    for field in ["constants : LawKemConstantsShape I", "generateSeeded : LawGenerateSeededShape I",
+                  "generatedKeyPair : LawGeneratedKeyPairShape I",
+                  "encapsulate1Seeded : LawEncapsulate1SeededShape I",
+                  "encapsulate2Fresh : LawEncapsulate2FreshShape I",
+                  "validateEkTotal : LawValidateEkTotalShape I", "validateEkUnique : LawValidateEkUniqueShape I",
+                  "clone : KemCloneAgreesShape I", "hkdf : HkdfAgreesShape I", "hmac : HmacAgreesShape I",
+                  "kem : WrapperKemLawsShape I"]:
+        name = field.split(" ")[0]
+        t = once(kw_core, f"  {field}\n", "", f"kem-wrapper-drop-{name}")
+        if t is not None:
+            refused(f"kem-wrapper-bundle-without-{name}", t,
+                    f"so it is not possible to project the field `{name}`")
+else:
+    wrong.append("kem-wrapper: the cut markers do not occur once each")
+# a refusing arm of the model answered `some`: the two-sided agreement refuses it
+for nm, old, new, goal in [
+        ("decaps", "      | ok (.Ok raw) => some (keyOf raw)\n      | _ => none\n",
+         "      | ok (.Ok raw) => some (keyOf raw)\n      | _ => some []\n", "⊢ some [] = none"),
+        ("keygen", "      | _, _ => none\n    | _ => none\n  hashEk",
+         "      | _, _ => none\n    | _ => some ([], [], [])\n  hashEk", "⊢ some ([], [], []) = none"),
+        ("encaps2", "      | ok (.Ok ct2) => some (vecOf ct2)\n      | _ => none\n",
+         "      | ok (.Ok ct2) => some (vecOf ct2)\n      | _ => some []\n", "⊢ some [] = none")]:
+    t = once(nopins(kw), old, new, f"kem-wrapper-{nm}-refusal-answers-some")
+    if t is not None:
+        refused(f"kem-wrapper-{nm}-refusal-answers-some", t, goal)
+# the model's hash given a 32-byte fallback: `ValidateEkAgrees` refuses it where `validate_ek` accepts none
+t = once(nopins(kw), "  then Classical.choose h else []\n", "  then Classical.choose h else List.replicate 32 0\n",
+         "kem-wrapper-hash-fallback")
+if t is not None:
+    refused("kem-wrapper-hash-fallback-32-bytes", t, "bytesSlice (ekSeed ++ List.replicate 32 0)")
+# the model's first-ciphertext size at the toy size
+t = once(nopins(kw), "  ct1Size := 1408\n", "  ct1Size := 64\n", "kem-wrapper-ct1-at-toy-size")
+if t is not None:
+    refused("kem-wrapper-ct1-at-toy-size", t, "Application type mismatch")
+# the corollary at `toyKem`, under the joint bundle at `toyKem`, proof adjusted: the statement pin refuses it
+t = kw
+for old, new in [("      oracle.braidKem = wrapperKem ∧\n", "      oracle.braidKem = Model.Braid.toyKem ∧\n"),
+                 ("    (L : DecryptWrapperLaws dh) :\n    ∃ (oracle",
+                  "    (L : DecryptJointLaws Model.Braid.toyKem dh) :\n    ∃ (oracle"),
+                 ("  decrypt_hypotheses_jointly_satisfiable wrapperKem dh (decryptWrapperLaws_joint dh L)\n",
+                  "  decrypt_hypotheses_jointly_satisfiable Model.Braid.toyKem dh L\n")]:
+    t = once(t, old, new, "kem-wrapper-corollary-at-toyKem") if t is not None else None
+if t is not None:
+    refused("kem-wrapper-corollary-at-toyKem-refused-by-the-statement-pin", t, "Model.Braid.toyKem ∧")
+# the model witness renamed: its pins refuse it
+t = once(kw, "theorem decrypt_wrapper_laws_model :", "theorem decrypt_wrapper_laws_model_removed :",
+         "kem-wrapper-remove-model")
+if t is not None:
+    refused("kem-wrapper-remove-model-witness", t, "Unknown constant")
 
 if wrong:
     sys.stderr.write("session-satisfiability negatives: %d of %d cases gave the wrong result\n" % (len(wrong), cases))
