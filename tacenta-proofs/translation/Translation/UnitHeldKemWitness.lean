@@ -9,8 +9,8 @@ a witness whose Braid is in `KeysUnsampled`.  There `SessionRefines` holds at ev
 run carries no agreement chunk, and the KEM model enters the hypotheses only through the agreements,
 so the coupling of the agreements to the oracle's KEM model holds by construction.  This module gives a
 second witness, built for the hypotheses as the first is, whose Braid holds a key pair and whose model
-Braid holds that pair's bytes, so that `SessionRefines` compares the KEM model's values with the bytes
-the wrapper's functions return.
+Braid holds that pair's bytes, so that `SessionRefines` at the KEM model read off the wrapper is asked
+of a held value.
 
 ## What is shown
 
@@ -25,15 +25,19 @@ the wrapper's functions return.
   wrapperKem` returns from the fresh initiator state at the randomness the 64 bytes are (transition
   (1)).  This is the shape `Braid::send` gives the initiator from `KeysUnsampled`
   (`tacenta-core/session-unit/src/tacenta_braid.rs`, the `KeysUnsampled` arm of `send`).
-* **The agreements at the held key, established** (`held_key_agreements`), from `wrapperKem`'s
-  definition and the wrapper laws `LawGeneratedKeyPair` and `LawValidateEkUnique`, and not by
-  projecting `KemAgreesFor wrapperKem`: `wrapperKem.keyGen` at the held randomness returns the held
-  private part, the header's first 32 bytes and the vector's bytes (the key-generation clause); the
-  model hash of that seed and vector is the header's last 32 bytes (the hash clause, and
-  `ValidateEkAgrees` at the held header and vector); the header has 64 bytes and the vector
-  `wrapperKem.ekSize` (the length clauses); `key_pair_valid kp` returns `true`; and
-  `FreshKeyPairRefines wrapperKem kp dk ekVector`, whose decapsulation clause compares
-  `wrapperKem.decaps dk` with the real `decapsulate` on every pair of ciphertext halves of the crate's
+* **The agreements at the held key** (`held_key_agreements`), from `wrapperKem`'s definition and the
+  wrapper laws `LawGeneratedKeyPair` and `LawValidateEkUnique`, and not by projecting
+  `KemAgreesFor wrapperKem`: `wrapperKem.keyGen` at the held randomness returns the held private part,
+  the header's first 32 bytes and the vector's bytes; the model hash of that seed and vector is the
+  header's last 32 bytes; the header has 64 bytes and the vector `wrapperKem.ekSize`; `key_pair_valid kp`
+  returns `true`; and `FreshKeyPairRefines wrapperKem kp dk ekVector`.  Which parts are definitional:
+  `wrapperKem`'s operations call the real `generate` and `decapsulate` on the held bytes, so the
+  key-generation part and the decapsulation clause (which compares `wrapperKem.decaps dk` with the
+  real `decapsulate kp`, that is, the real `decapsulate` with itself) hold by unfolding `wrapperKem`,
+  with only the totality of `decapsulate` on generated pairs taken from a law; so does `HeldKemAt`'s
+  conjunct that the model Braid is the model's transition (1).  What the held value tests beyond the
+  definitions: the vector by value (`held_relation_pins_vector`, at every KEM model), the header hash
+  (through `hashEkOf`, `LawValidateEkUnique` and `validate_ek` accepting the generated pair), and the
   lengths.
 * **`Session::invariant`** (`held_invariant`): the structural clauses (a) to (h) as for the first
   witness, with the Braid's epoch, tag and role read off `KeysSampled` at epoch 1
@@ -43,16 +47,23 @@ the wrapper's functions return.
 * **The relation is not met by construction.**  `held_sessionRefines` builds `SessionRefines` at the
   held state from `FreshKeyPairRefines` and `EncoderRefines`; `held_relation_pins_vector`: at every KEM
   model the relation fixes the model's vector to the bytes of the real `ek_vector`;
-  `held_not_refines_toyKem`: at `toyKem` the relation is false (its `decaps` returns the 64-byte private
-  part, which no 32-byte shared secret is).  At the first witness the relation holds at every model.
+  `held_not_refines_toyKem`: at `toyKem` the relation is false, a length mismatch (`toyKem.decaps`
+  returns the private part itself, and a private part that is not 32 bytes is no shared secret), not a
+  comparison of held bytes.  At the first witness the relation holds at every model.
 * **The joint statements.**  `decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held`: under
   `DecryptWrapperLaws dh` and `LawGenerateSucceeds`, there are an oracle whose Braid KEM model is
   `wrapperKem`, a session that passes `Session::invariant` and a related model session holding a key
   pair as `HeldKemAt` states, the first witness's message and source, at which every field of
-  `DecryptHypotheses` holds, for every codeword view.  `decrypt_hypotheses_with_chunk_at_wrapperKem_held`:
-  the same at a message whose agreement part is a `ct1` message of epoch 1 carrying a chunk, for a view
-  the theorem chooses; the chunk is the codeword of index 0 of a 1408-byte message, shown a codeword by
-  the real encoder (`zero_chunk_codeword`), and `IncomingChunkRefines` holds with it.
+  `DecryptHypotheses` holds, for every codeword view.
+* **A caller-selected run carrying a chunk** (`decrypt_hypotheses_with_chunk_at_wrapperKem_held`; not a
+  claim).  The same hypotheses at a message whose agreement part is a `ct1` message of epoch 1 carrying
+  a chunk, with the chunk and the codeword view chosen together: the chunk is index 0 and 32 zero bytes,
+  shown a codeword of 1408 zero bytes by the real encoder (`zero_chunk_codeword`), and the view is a
+  constant that reads every chunk as that codeword.  1408 zero bytes is not a ciphertext `encapsulate1`
+  produces, so no honest responder sends this chunk; `HonestChunk` asks nothing at `keysSampled`; and the
+  model's refusal at the first agreement discards the Braid step.  It is not a non-vacuity statement for
+  chunks, which would take every chunk that fits the real decoder (with its view derived from it), where
+  this fixes one chunk and one view.
 * **The model's step** (`held_model_refuses_of_agreement`): at either message it refuses at the first
   agreement with `nonContributoryAgreement` when the oracle's agreement refuses the all-zero key, the
   same condition as at the first witness (`invReal_agreement_is_real` applies unchanged: the session's
@@ -73,23 +84,30 @@ The `agreements` field of `DecryptHypotheses` is the record `DecryptRatchetAgree
 at the corollary of `UnitKemWrapperModel`: `kem`, `kemLen` and `validateEk` are derived from the eight
 wrapper laws, `erasure` from `divCeil` and `TruncatePrefix`, and the other ten (`hmac`, `hkdf`, the five
 round trips, `pop`, `asMut`, `kemClone`) are fields of the bundle, restated.  What this witness adds is
-that the KEM clauses are now asked at a held value: `related` contains the key-generation clause's
-instance at the held key, with its hash, length and decapsulation parts, and `ValidateEkAgrees` at the
-held header and vector, and the proof establishes these from the definitions and the laws.  No field
-reads an encapsulation state: the witness is the initiator's, so `EncapsRefines` is not asked.
+that the KEM clauses are now asked at a held value: `related` contains `FreshKeyPairRefines` at the held
+key (its decapsulation clause, the vector and the header-hash clause), and `invariant` contains
+`key_pair_valid kp`, and the proof establishes these from the definitions and the laws.  The record
+itself is exactly the corollary's.  No field reads an encapsulation state: the witness is the
+initiator's, so `EncapsRefines` is not asked.
 
 ## What it is not
 
-* The state is built for the hypotheses.  It is not shown to be produced by `establish_initiator`,
-  `establish_responder`, `import`, or the real `Braid::send`: the encoder's message is the header
-  followed by the model's MAC under the zero authenticator (`modelAuth0`), where `send` computes the MAC
-  with the opaque HMAC under the session's authenticator, and the authenticator is the first witness's
-  zero keys, not one `Auth::init` derives.
+* The state is built for the hypotheses; the shipped code does not produce this combination of Triple
+  and Braid states; the invariant admits it.  `Session::encrypt` commits the Triple and the Braid
+  together (`tacenta-core/session-unit/src/lifecycle.rs`, `self.triple = candidate; self.braid =
+  braid_next`), so no session holds a Braid in `KeysSampled` beside a Triple that has sent nothing, as
+  this one does.  `Session::invariant` reads neither the Braid's authenticator (here the zero keys, where
+  `Auth::init` derives them by HKDF) nor the header its encoder carries, and `SessionRefines` does not
+  relate that header to the key pair; only `HeldKemAt` does.  The encoder's message is the header
+  followed by the model's MAC under the zero authenticator, where `send` computes it with the opaque
+  HMAC.  That the real `Braid::send` from `KeysUnsampled` under the zero authenticator lands on this
+  Braid state was not attempted.
 * The chunk enters a fresh decoder: at `keysSampled` a `ct1` chunk starts the decoder of transition
   (2), and `HonestChunk` asks nothing there.  A run into a decoder that already holds a chunk is not
   shown: that state (`HeaderSent` and the others holding a decoder) has `Session::invariant` calling
   `Decoder::invariant`, a loop over the held chunks, and no result here evaluates it on such a decoder.
-* The chunk statement chooses the codeword view; the first statement holds for every view.
+* The chunk statement chooses the chunk and the codeword view; the first statement holds for every
+  view.
 * The oracle's other KEM fields (`kemValid`, `kemEncaps`, `kemDecaps`) are `oracleOfLaws`'s and are not
   related to `wrapperKem`; the model's `decrypt` reads none of them.
 * The laws are assumed, not proved of the shipped functions; nothing here is about ML-KEM, and a key
@@ -545,9 +563,11 @@ pair, with the Braid KEM model read off the wrapper.**  Under `DecryptWrapperLaw
 Braids hold a generated key pair and its bytes (`HeldKemAt`), a message that decodes on both sides and is
 a ratchet frame, and a byte-stream source, at which every hypothesis of
 `decrypt_ratchet_refines_complete` holds (`DecryptHypotheses`), for every codeword view.  The relation
-compares `wrapperKem`'s values with the real key pair's (`held_key_agreements`); it is false at `toyKem`
-(`held_not_refines_toyKem`).  The message carries no agreement chunk; the model's step refuses at the
-first agreement if the real agreement refuses the all-zero key (`held_model_refuses_of_agreement`). -/
+at the held key (`held_key_agreements`) fixes the model's vector and the header hash to the real key
+pair's; its key-generation and decapsulation parts hold by unfolding `wrapperKem`; it is false at
+`toyKem` (`held_not_refines_toyKem`, a length mismatch).  The message carries no agreement chunk; the
+model's step refuses at the first agreement if the real agreement refuses the all-zero key
+(`held_model_refuses_of_agreement`). -/
 theorem decrypt_hypotheses_jointly_satisfiable_at_wrapperKem_held (dh : DhView)
     (L : DecryptWrapperLaws dh) (G : LawGenerateSucceeds) :
     ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
@@ -719,9 +739,9 @@ theorem chunk_braid_step (K : Model.Braid.Kem) (dk ekVector header : Bytes) :
   simp [Model.Braid.receive, heldModelBraid, Model.Lifecycle.braidMessageOf, chunkComposite,
     Model.Lifecycle.braidTypeOf, chunkView, Model.Braid.BraidState.epoch]
 
-/-- **The run record at the held state and the chunk message**, with `chunkView`: the incoming chunk
-is a codeword of `ct1Zeros` (`zero_chunk_codeword`), so `IncomingChunkRefines` holds with a chunk
-present; `HonestChunk` holds because a `ct1` chunk at `keysSampled` starts a fresh decoder. -/
+/-- The run record at the held state and the chunk message, with the chosen view `chunkView`: the
+incoming chunk is a codeword of `ct1Zeros` (`zero_chunk_codeword`), so `IncomingChunkRefines` holds with
+a chunk present; `HonestChunk` holds because a `ct1` chunk at `keysSampled` starts a fresh decoder. -/
 theorem held_chunk_run (dh : DhView) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue) (k pkb ad a)
     (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder) (dk ekVector header : Bytes)
     (oracle : Model.Lifecycle.Oracle) :
@@ -766,11 +786,15 @@ theorem held_chunk_run (dh : DhView) (hdiv : Tacenta.SessionUnitDecoderBound.Div
     rw [hout]
     exact invReal_retryRunBounds k pkb ad a dh _ rfl
 
-/-- **The same, at a run carrying an agreement chunk.**  The message's agreement part is a `ct1`
-message of the Braid's epoch carrying a chunk, and the codeword view is one the theorem chooses
-(`chunkView`): the chunk is a codeword of a 1408-byte message by the real encoder, and the model Braid
-would start its `ct1` decoder with it (`chunk_braid_step`).  `HonestChunk` asks nothing of a chunk that
-starts a fresh decoder; a decoder already holding a chunk is not reached here. -/
+/-- **A caller-selected run carrying an agreement chunk; not a claim.**  The message's agreement part is a
+`ct1` message of the Braid's epoch carrying a chunk, and the chunk and the codeword view are chosen
+together: the chunk is index 0 and 32 zero bytes, a codeword of 1408 zero bytes by the real encoder
+(`zero_chunk_codeword`), and `chunkView` reads every chunk as that codeword.  1408 zero bytes is not a
+ciphertext `encapsulate1` produces, so no honest responder sends this chunk.  `HonestChunk` asks nothing
+of a chunk that starts a fresh decoder, and the model's refusal at the first agreement discards the
+Braid step it would commit (`chunk_braid_step`).  It is not a non-vacuity statement for chunks: that
+would take every chunk that fits the real decoder, with a view derived from it, where this fixes one
+chunk and one view.  A decoder already holding a chunk is not reached here. -/
 theorem decrypt_hypotheses_with_chunk_at_wrapperKem_held (dh : DhView)
     (L : DecryptWrapperLaws dh) (G : LawGenerateSucceeds) :
     ∃ (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)

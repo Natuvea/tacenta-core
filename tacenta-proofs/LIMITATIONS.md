@@ -2878,13 +2878,21 @@ of the refinement), so each result holds at both widths; no hypothesis of the se
 with its Braid in `KeysSampled` at epoch 1, holding a key pair `IncrementalKeyPair::generate` returned from a 64-byte stream
 and the header encoder after one chunk, and a model session whose Braid holds the 64 bytes as its private part and the
 bytes of the pair's `ek_vector` as its vector (`HeldKemAt`; the model Braid is the model's own transition (1) at that
-randomness). There `SessionRefines` at `wrapperKem` compares the model's values with the real key pair's: it fixes the
-model's vector to the real vector's bytes at every KEM model (`held_relation_pins_vector`) and is false at `toyKem`
-(`held_not_refines_toyKem`), and its key-generation, hash, length and decapsulation parts at the held key are proved from
-`wrapperKem`'s definition and the laws (`held_key_agreements`). `Session::invariant` passes under the first witness's
-assumptions, `LawKemConstants` and the encoder facts that `DivCeilValue` and `ErasureAgrees` give.
-`decrypt_hypotheses_with_chunk_at_wrapperKem_held` is the same at a message carrying a `ct1` agreement chunk that the real
-encoder makes a codeword of a 1408-byte message, for a codeword view the theorem chooses.
+randomness). There `SessionRefines` at `wrapperKem` is asked of a held value. What it compares by value: the model's
+vector with the real vector's bytes, at every KEM model (`held_relation_pins_vector`), and the header hash, through
+`hashEkOf`, `LawValidateEkUnique` and `validate_ek` accepting the generated pair (`held_key_agreements`), with the
+lengths. What holds by definition: `wrapperKem`'s operations call the real `generate` and `decapsulate` on the held
+bytes, so its key-generation part and its decapsulation clause (the real `decapsulate kp` compared with itself) hold by
+unfolding `wrapperKem`, with only the totality of `decapsulate` on generated pairs from `LawGeneratedKeyPair`, and so
+does `HeldKemAt`'s conjunct that the model Braid is the model's transition (1). The relation is false at `toyKem`
+(`held_not_refines_toyKem`), a length mismatch (any private part not of 32 bytes), not a comparison of held bytes.
+`Session::invariant` passes under the first witness's assumptions (`ValidKeyShape`, `OptionEqU64Shape`, `DhCodecTotal`),
+`LawKemConstants` (`HEADER_LEN`), `DivCeilValue` (the encoder's size), `LawGeneratedKeyPair` (`key_pair_valid`) and
+`LawGenerateSucceeds` (the key pair itself). `decrypt_hypotheses_with_chunk_at_wrapperKem_held` is pinned but not a
+claim: a caller-selected run whose chunk (index 0, 32 zero bytes, a codeword of 1408 zero bytes by the real encoder) and
+codeword view (a constant reading every chunk as that codeword) are chosen together; 1408 zero bytes is not a
+ciphertext `encapsulate1` produces, `HonestChunk` asks nothing at that state, and the model's refusal discards the Braid
+step. It is not a non-vacuity statement for chunks, which would take every chunk that fits the real decoder.
 
 *Assumed, beyond `DecryptWrapperLaws`:* `LawGenerateSucceeds`, that `generate` returns `Ok` from the byte stream of some
 64 bytes. It is a statement about one opaque `tacenta_kem` function and the Lean byte-stream source; none of the eight
@@ -2895,11 +2903,15 @@ key-generation half of `KemDrawsSucceed` with `LawGenerateSeeded` (`lawGenerateS
 
 What the second witness is not:
 
-- The state is built for the hypotheses. It is not shown to be produced by `establish_initiator`, `establish_responder`,
-  `import` or the real `Braid::send`: its header message carries the model's MAC under the zero authenticator, where
-  `send` computes the MAC with the opaque HMAC under the session's authenticator, and the authenticator is the zero
-  keys of the first witness, not one `Auth::init` derives.
-- The chunk starts a fresh decoder (transition (2)), where `HonestChunk` asks nothing. A run into a decoder that already
+- The state is built for the hypotheses; the shipped code does not produce this combination of Triple and Braid states;
+  the invariant admits it. `Session::encrypt` commits the Triple and the Braid together
+  (`tacenta-core/session-unit/src/lifecycle.rs`, `self.triple = candidate; self.braid = braid_next`), so no session
+  holds a Braid in `KeysSampled` beside a Triple that has sent nothing, as this one does. `Session::invariant` reads
+  neither the Braid's authenticator (the zero keys here; `Auth::init` derives them by HKDF) nor the header its encoder
+  carries, and `SessionRefines` does not relate that header to the key pair; only `HeldKemAt` does. The header message
+  carries the model's MAC under the zero authenticator, where `Braid::send` computes it with the opaque HMAC. That the
+  real `Braid::send` from `KeysUnsampled` under the zero authenticator lands on this Braid state was not attempted.
+- No run carrying an honest chunk is shown: the chunk run is caller-selected (above). A run into a decoder that already
   holds a chunk is still not reached: `Session::invariant` at such a state (`HeaderSent` and the others holding a decoder)
   calls `Decoder::invariant`, a loop over the held chunks, and no result evaluates it on a decoder holding chunks. Not
   checked: whether that evaluation needs more than the erasure laws already assumed.
