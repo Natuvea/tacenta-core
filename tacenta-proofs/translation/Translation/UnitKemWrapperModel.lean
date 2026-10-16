@@ -56,7 +56,8 @@ seed and a vector; and that a clone answers as its original.  The coefficient-bo
 `LawEncapsulate2Fresh`, which speaks of states `encapsulate1` produced and says nothing of whether
 `encapsulate2` refuses one.
 `LawEncapsulate2Fresh` covers every 1536-byte vector, including vectors outside libcrux's stated
-precondition that the Braid never passes it, because `EncapsRefines` quantifies over all of them.  The
+precondition that the Braid does not pass it on the states it produces (a restored state may: the
+gap register's `KEM-STORED-STATE-TOTALITY` row), because `EncapsRefines` quantifies over all of them.  The
 corollary also takes the joint bundle's `braid` field (`BraidReceiveAxiom`), whose `decapsulate`,
 `encapsulate2` and `validate_ek` totality fields cover every value, restored ones included; the eight
 laws do not narrow them.
