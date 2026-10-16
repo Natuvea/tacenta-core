@@ -2439,13 +2439,23 @@ one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBo
 (`counterHeadroom_sessionOf`, and the joint witness `invReal`) is a session over fresh states and exercises no ceiling away from
 zero (`sparseCounters` holds vacuously there). `UnitLifecycleDecryptStates.lean` gives a second, `storedSession`, built for the
 hypotheses: one stored key in each store, both classical chains open, a sparse send chain at counter 7 and receive chain at
-counter 6, the clock at 5, the sparse epoch at 2 and the Braid epoch at 3, so all four ceilings are met away from zero there,
-and the hypotheses of the restated refinement hold together at it under `DecryptJointLaws`
+counter 6, the clock at 5, the sparse epoch at 2 and the Braid epoch at 3, so all four ceilings are met away from zero there
+(the counters 7 and 6 by `storedSession_counterHeadroom` at that state; the joint statement's `StoredKeysShape` does not fix
+them). It is a session with itself: `ValidKeyShape` gives one key, so both identities are that key and the classical peer key
+and stored key are our own; clause (c)'s orientation is therefore not distinguished at the responder state, and the
+no-two-entries clauses of both stores hold vacuously on their one-element lists. The hypotheses
+of the restated refinement hold together at it under `DecryptJointLaws`
 (`decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`); and a third, the same Triple at sparse epoch 0 beside
 the held-KEM Braid, under the held witness's laws (`..._at_stored_keys_held`), where the sparse and Braid epochs are at their
 least values. No witness is near a ceiling, and no state produced by establishment, by `import` or by any operation is given;
-at these witnesses the run carries no agreement chunk, `sparseOutputEpoch` holds vacuously, and the model's step refuses at
-the first agreement before reading a stored key (as at `invReal`). The responder and pending-initial states of that module
+at these witnesses the run carries no agreement chunk and `sparseOutputEpoch` holds vacuously. No run here consumes a stored
+key: the run's header names neither (classical `n = 1` against the stored `n = 2`; sparse `(0, 1)` against `(2, 3)`), so both
+match filters are empty at it (`stored_run_header_names_no_stored_key`); the match bounds are tight only for headers chosen to
+name a stored key. Before that, the model's step refuses at the first agreement only if the oracle's agreement refuses the
+all-zero key, which no law states and which holds by reading the X25519 boundary (`invReal_agreement_is_real`); the refusal
+is proved under that premise at `invReal` (`invReal_model_refuses_of_agreement`) and at `storedSession`
+(`stored_model_refuses_of_agreement`); at `heldStoredSession` it is by reading only (`held_model_refuses_of_agreement` proves it at
+the held witness's own state, whose Triple is fresh). The responder and pending-initial states of that module
 are shown to pass `Session::invariant` only, the responder under `DhCodecTotal` as well (for `PublicKeyBytes::from_bytes` in
 `decode_ec`) and the pending state under `kem::ciphertext_len = ok n` (from `KemCiphertextLenTotal`); that the opaque
 `kem::ciphertext_len` returns 1568 is not checked.
