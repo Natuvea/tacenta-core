@@ -28,10 +28,12 @@ the unit discharges (they are argued from the sizes involved, not proved) and
 the boundary assumptions. The lifecycle crate is translated into the eight-leaf session
 unit, where it has conditional T1 theorems and a conditional T3 refinement of its private
 `decrypt_ratchet` on every path (`decrypt_ratchet_refines_complete`); that theorem is
-compiler-trusted, the three fields of the contract record it takes that were stronger than
-the crate are now stated at the instances the unit passes (assumed of the real `zeroize`
-functions, by reading), and nothing here proves `Session::encrypt` or `Session::decrypt`
-end to end. `Proofs/` carries the
+compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
+checked against the real functions) from which its proof derives the sparse ratchet's two
+agreements, the three fields of the contract record it takes that were stronger than
+the crate are now stated at the instances the unit passes (that the real `zeroize`
+functions return there is assumed; not checked against the real functions), and nothing
+here proves `Session::encrypt` or `Session::decrypt` end to end. `Proofs/` carries the
 model-layer work.
 
 Read [CLAIMS.md](CLAIMS.md) for what is established and

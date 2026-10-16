@@ -2,7 +2,7 @@
 # Hold the Session contract satisfiability evidence to mutations, and run the
 # classification audit of the joint model.
 #
-# Ten modules carry that evidence: the three below, the six of the joint decision of OracleOf
+# Eleven modules carry that evidence: the three below, the six of the joint decision of OracleOf
 # (UnitOracleShape.lean to UnitOracleJoint.lean, the oracle group), UnitOracleDecrypt.lean with
 # the model frame lemma it pins (also in the oracle group), and
 # UnitSatisfiabilitySpqrSessionLaws.lean (the sparse-laws group):

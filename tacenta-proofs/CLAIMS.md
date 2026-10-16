@@ -3180,6 +3180,8 @@ and `attest.py` requires the pins (`REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FO
   derived from (`UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape`, the next section), so they are not met only by
   a wipe that ignores its instance record. It rests on no axiom of the unit but `rand_core`'s error type.
 
+This section was made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
+
 ## Proved (the Session unit's two sparse agreements, from named laws about opaque operations)
 
 Location: `Translation/UnitSatisfiabilitySpqrSessionLaws.lean`.
@@ -3199,8 +3201,9 @@ the first two conjuncts of `VecRetainTotal`, are bound to it by the kernel: `spq
 `triple.vecRetain.1` passed as `LawCapacity`, `hL.pop` as `LawPop`), and none is proved of the real functions (`LIMITATIONS.md`, "The laws, as
 assumptions about the real standard-library and `zeroize` functions"): `UnitSatisfiabilityRatchet.LawPop` (`Vec::pop` of a
 non-empty vector returns the vector without its last element), `LawAsMut` (`Option::as_mut` returns, at every type),
-`LawCapacity` (`Vec::capacity` returns), `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
-skipped-key stores) and `SessionUnitSpqrT1.ZeroizeTotal` (`Array::zeroize` returns at the blanket `u8` instance on a
+`LawCapacity` (`Vec::capacity` returns), `UnitSatisfiabilityRatchet.LawVecZeroize` (`Vec::zeroize` returns at the chain
+table and the two skipped-key stores; not the general `LawVecZeroize` of the leaf crate and the three-leaf unit) and
+`SessionUnitSpqrT1.ZeroizeTotal` (`Array::zeroize` returns at the blanket `u8` instance on a
 32-byte array). The last three are fields of `DecryptRatchetContracts` (`ZeroizeTotal`, and the first two conjuncts of
 `VecRetainTotal`); `LawPop` and `LawAsMut` are stated by no contract record and are fields of `DecryptRatchetAgreements`.
 
@@ -3230,7 +3233,8 @@ bundle, the shape and the four laws of `UnitSatisfiabilityRatchet.lean` carry `#
 `check-session-satisfiability-negatives.sh` refuses each law removed from the bundle, each weakened where
 `vecRetainAgrees_of_laws` takes it (`Vec::pop` only returning, `Option::as_mut` at one type, `Vec::capacity` at one element
 type, `Vec::zeroize` without the chain table, `Array::zeroize` at 16 bytes), each field of the shape dropped and its pop
-law weakened (refused by the binding), and the model witness removed (refused by its pins).
+law weakened (refused by the binding), and the model witness removed (refused by its pins). This section was
+made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
 
 What is not shown. That the real `Vec::pop`, `Option::as_mut`, `Vec::capacity`, `Vec::zeroize` and `Array::zeroize` satisfy
 the laws. That the theorems that still take the two agreements as hypotheses (the Session unit's sparse refinement
@@ -4208,8 +4212,7 @@ section above, because `OracleOf` also has the identity, seal, KEM and signing c
 show that four of the laws suffice for the record (they are not shown necessary: of `DhCodecTotal` the proof uses only the
 `public_key` conjunct, and the view law is stronger than the clauses need), and show from the model's definitions which oracle fields `Model.Lifecycle.decrypt` reads. They
 are about a hypothesis of the decrypt refinements, not about the product. No theorem takes the narrowed lemma yet: the
-refinements take `DecryptOracleOf` as a hypothesis. Its writer and tool-assisted readers working for the maintainer have read
-it; no reviewer independent of the maintainer has.
+refinements take `DecryptOracleOf` as a hypothesis. This section was made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
 
 - `decryptOracleOf_of_laws`: for every `dh : DhView`, under `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and
   `Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey`, and for every `draws : List Model.Lifecycle.Key` and
@@ -4533,7 +4536,8 @@ The laws are assumptions about standard-library and `zeroize` operations, tested
 functions only by reading, and nothing here shows that the real functions satisfy them: `Vec::pop`
 of a non-empty vector returns the vector without its last element (`LawPop`), `Option::as_mut`
 returns (`LawAsMut`), `Vec::capacity` returns (`LawCapacity`), the `Vec` `Zeroize` implementation
-returns (`LawVecZeroize`, stated for every `Zeroize` record, which is stronger than the crate, as below), the blanket `Zeroize` implementation returns at `u32` (`LawBlanketU32`,
+returns (`LawVecZeroize` of these modules, stated for every `Zeroize` record, which is stronger than the crate, as below;
+the Session unit's `UnitSatisfiabilityRatchet.LawVecZeroize` is stated at that unit's three instances), the blanket `Zeroize` implementation returns at `u32` (`LawBlanketU32`,
 classical removal helper), the array `Zeroize` implementation returns (the existing hypotheses
 `SpqrT1.ZeroizeTotal` and `UnitSpqrT1.ZeroizeTotal`, and `ArrZU8` at the byte instance for the
 classical leaf), the HKDF returns for output lengths up to 8160 bytes (`LawHkdf`), and the

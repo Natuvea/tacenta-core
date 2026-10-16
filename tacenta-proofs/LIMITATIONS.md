@@ -2464,8 +2464,9 @@ the classical one (`Vec<SkippedKey>`). A walk of the elaborated definitions of `
 was run once, when the fields were restated; no gate repeats it. A new call at another instance or width in a function a
 theorem steps through is expected to stop that proof, because the restated fields and their stepping rules apply at the
 stated instance only (not checked); a new call in a function no theorem covers, such as a `Drop` implementation, would
-go unnoticed. No proof uses the classical `Vec<SkippedKey>` conjunct; it is stated so that the field covers every
-instance the unit passes.
+go unnoticed. No proof steps through a call at the classical `Vec<SkippedKey>` instance; the conjunct is stated so that
+the field covers every instance the unit passes, and the derivation of the sparse agreements passes it on only to build
+`VecRetainTotal`.
 
 What changed, and where. The Session copies are generated: the restated statements and the proof edits that use them
 are named, count-checked `unit_edit`s in `port-session-unit-proofs.sh` (`SessionUnitSpqrT1`, `SessionUnitSpqrT3`,
@@ -2727,8 +2728,8 @@ them: the proof derives them (`DecryptRatchetAgreements.vecRetainAgrees`, `.remo
 `UnitSatisfiabilitySpqrSessionLaws.lean`) from five laws about opaque operations, all assumed: `LawPop` (`Vec::pop` of a
 non-empty vector returns the vector without its last element) and `LawAsMut` (`Option::as_mut` returns, at every type),
 the two fields `pop` and `asMut` of `DecryptRatchetAgreements`; and three laws the contract record already states,
-`LawCapacity` (`Vec::capacity` returns) and `LawVecZeroize` (`Vec::zeroize` returns at the chain table and the two
-skipped-key stores), the first two conjuncts of `SessionUnitSpqrT1.VecRetainTotal`, and `SessionUnitSpqrT1.ZeroizeTotal`
+`LawCapacity` (`Vec::capacity` returns) and `UnitSatisfiabilityRatchet.LawVecZeroize` (`Vec::zeroize` returns at the
+chain table and the two skipped-key stores), the first two conjuncts of `SessionUnitSpqrT1.VecRetainTotal`, and `SessionUnitSpqrT1.ZeroizeTotal`
 (`Array::zeroize` returns at the blanket `u8` instance on a 32-byte array). `RemoveSkippedAtAgrees` uses the pop and
 array laws; `VecRetainAgrees` uses all five. None of the five is proved of the real functions or tested; each is assumed,
 and matches the documented behaviour by reading only. What is shown of them is consistency: they hold in the joint model `Interp.model`, in
