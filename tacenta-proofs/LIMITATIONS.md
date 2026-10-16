@@ -2504,7 +2504,7 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 | Law | Statement | Status |
 |---|---|---|
 | `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input a Rust program can supply and memory allows; the Lean slice type admits lengths up to `Usize.max`, which no Rust slice has, and the real `aead::encrypt` panics on a `Vec` capacity overflow just below `isize::MAX` bytes, so these fields are false of the real functions at the top of that range and under memory exhaustion (by reading); the AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
-| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the top of the length range that the totality row excludes. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target), so that it does not depend on the width of `usize` is by reading only |
+| `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the top of the length range that the totality row excludes. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target; its `i686` step runs `decrypt_premises` alone), so that it does not depend on the width of `usize` is by reading only |
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
 
@@ -2815,6 +2815,26 @@ which branch the shipped code takes; for the fourth, `generated_reaches_open_pat
 the boundary records. The witness states meet these hypotheses and not `Ratchet::invariant`: the third run's classical
 store repeats one key, and the second, third and fourth runs hold a receiving chain without a sending chain, which the
 invariant refuses.
+
+**Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
+sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the ceilings above:
+the event counter, the sparse epoch, the chain and skipped-key epochs, the chain counters, the room in the chain table and
+in both stores, at most one stored key matching the header in each store, and the Braid epoch (the output's key epoch only
+through the Braid's own, which the source never lets it exceed). It also asserts, at each call, that the random source is
+read as `Model.Lifecycle.decryptRatchet` reads it (no draw when the dispatch, the terminal guard, the decoder or the
+incoming agreement refuses; one 32-byte draw from the first agreement on, kept on a later refusal), that a refusal leaves
+the exported bytes unchanged, that a success changes them, and that `Session::invariant` holds before and after. The runs
+start from the establishment of `session-e2e.json` and reach an accepted repeat, a pass-through success, the refusals of
+a changed or low-order ephemeral, of a replay, of a frame beyond `MAX_SKIP`, of a forged tag, of an unknown type or
+version byte, of a truncated frame, of an initial message sent to an initiator, of a low-order ratchet key and of a failed
+agreement, and a full skipped-key store with an eviction. That is evidence about those runs, on the inputs tried; it is
+not proof, and it discharges no premise for any other run. It runs at the width of the machine that runs it, and the
+`armv7` CI job runs it once more at 32 bits (`i686-unknown-linux-gnu`); the 32-bit run has not been made locally. It does
+not reach `IncomingChunkRefines` and `HonestChunk` (a chunk carries no source to read), a counter or epoch near its
+ceiling or a store near `2^32 - 1` (no run builds one; a mutated copy of an observed state shows only that each check can
+fail), a second eviction round, a switch between the stores, a sparse refusal, or a frame naming an epoch the state holds
+no chain for. `Session::invariant` accepts a state with `events = u32::MAX - 1`, which is outside `classicalEvents`; the
+test imports such a state and shows the check rejects it.
 
 **The hypotheses together, at one witness.** `decrypt_hypotheses_jointly_satisfiable`
 (`Translation/UnitLifecycleDecryptScreen.lean`) shows every hypothesis of `decrypt_ratchet_refines_complete`, with
