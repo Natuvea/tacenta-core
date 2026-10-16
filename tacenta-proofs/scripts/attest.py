@@ -1606,6 +1606,20 @@ REQUIRED_PINS = frozenset(
         "held_not_refines_toyKem",
         "held_model_refuses_of_agreement",
     )]
+    # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
+    + ["Tacenta.SessionUnitDecodeEc." + n for n in (
+        "decodeEc_eq_some_iff",
+        "decodeEc_eq_none_iff",
+        "decodeEc_length",
+        "canonicalX25519_session_eq_wire",
+        "key_eq_drop",
+        "arrayOf_eq_drop",
+        "head_sliceOf",
+        "u8_eq_curve_iff",
+        "session_decode_ec_refines",
+        "session_decode_ec_characterization",
+        "decode_ec_refines",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2570,6 +2584,24 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "chunkMessage",
         "chunkView",
     )]
+    # The curve-key decoder's characterization: every result's statement (`SessionUnitDecodeEc`).
+    + ["Tacenta.SessionUnitDecodeEc." + n for n in (
+        "decodeEc_eq_some_iff",
+        "decodeEc_eq_none_iff",
+        "decodeEc_length",
+        "canonicalX25519_session_eq_wire",
+        "key_eq_drop",
+        "arrayOf_eq_drop",
+        "head_sliceOf",
+        "u8_eq_curve_iff",
+        "session_decode_ec_refines",
+        "session_decode_ec_characterization",
+        "decode_ec_refines",
+    )]
+    # The model's `DecodeEC`, whose body the characterization states (`SessionUnitDecodeEc`).
+    + ["Model.Lifecycle." + n for n in (
+        "decodeEc",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2754,6 +2786,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "chunkComposite",
         "chunkMessage",
         "chunkView",
+    )]
+    # The model's `DecodeEC` (`SessionUnitDecodeEc`).
+    + ["Model.Lifecycle." + n for n in (
+        "decodeEc",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
