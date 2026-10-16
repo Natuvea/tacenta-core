@@ -3992,7 +3992,7 @@ fixed), of the closure (the bridge without the public mapping, and the complete 
 with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
 named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
 
-## Proved (tier T3, the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input)
+## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
 Location: `Translation/SessionUnitDecodeEc.lean`, `Translation/UnitLifecycleInitialAgreementT3.lean`.
 
