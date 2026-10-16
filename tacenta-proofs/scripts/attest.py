@@ -1631,6 +1631,29 @@ REQUIRED_PINS = frozenset(
         "session_decode_ec_characterization",
         "decode_ec_refines",
     )]
+    # The per-run receive bounds of `decrypt_ratchet` from `Session::invariant` and the counter ceilings
+    # (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "classicalMatch_of_inv",
+        "sparseMatch_of_inv",
+        "sparseCounters_transport",
+        "store_room",
+        "retryRunBounds_of_triple_invariant",
+        "sparseOutputOf_epoch",
+        "retryRunBounds_of_invariant",
+        "decryptRatchetRun_of_invariant",
+        "decrypt_ratchet_refines_of_invariant",
+        "decrypt_ratchet_refines_of_invariant_statement",
+        "counterHeadroom_sessionOf",
+        "decrypt_inputs_at_invReal",
+        "DecryptOfInvariantHypotheses.refines",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable",
+        "parkedTriple_invariant",
+        "structural_parkedSession",
+        "parkedSession_invariant",
+        "parkedSession_not_counterHeadroom",
+        "invariant_does_not_give_counterHeadroom",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1678,6 +1701,11 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
         # The joint hypothesis set applied to `decrypt_ratchet_refines_complete` inherits its constants.
         "Tacenta.UnitLifecycleDecryptScreen.DecryptHypotheses.refines",
+        # The restated refinement and its hypothesis record apply `decrypt_ratchet_refines_complete`
+        # and inherit its constants (`UnitLifecycleDecryptRunBounds`).
+        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
+        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
+        "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
     }
 )
 
@@ -2628,6 +2656,35 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Model.Lifecycle." + n for n in (
         "decodeEc",
     )]
+    # The per-run receive bounds of `decrypt_ratchet`, the restated refinement, its records and the
+    # state the ceilings exclude (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "classicalMatch_of_inv",
+        "sparseMatch_of_inv",
+        "sparseCounters_transport",
+        "store_room",
+        "retryRunBounds_of_triple_invariant",
+        "sparseOutputOf_epoch",
+        "retryRunBounds_of_invariant",
+        "decryptRatchetRun_of_invariant",
+        "decrypt_ratchet_refines_of_invariant",
+        "decrypt_ratchet_refines_of_invariant_statement",
+        "counterHeadroom_sessionOf",
+        "decrypt_inputs_at_invReal",
+        "DecryptOfInvariantHypotheses.refines",
+        "decrypt_of_invariant_hypotheses_jointly_satisfiable",
+        "parkedTriple_invariant",
+        "structural_parkedSession",
+        "parkedSession_invariant",
+        "parkedSession_not_counterHeadroom",
+        "invariant_does_not_give_counterHeadroom",
+        "CounterHeadroom",
+        "DecryptRatchetRunInputs",
+        "DecryptRatchetRefinesOfInvariantStatement",
+        "DecryptOfInvariantHypotheses",
+        "parkedTriple",
+        "parkedSession",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2820,6 +2877,16 @@ REQUIRED_PRINT_FORM = frozenset(
     # The model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Model.Lifecycle." + n for n in (
         "decodeEc",
+    )]
+    # The counter ceilings, the run conditions left to the caller, the restated statement, its
+    # hypothesis record and the parked state (`UnitLifecycleDecryptRunBounds`).
+    + ["Tacenta.UnitLifecycleDecryptRunBounds." + n for n in (
+        "CounterHeadroom",
+        "DecryptRatchetRunInputs",
+        "DecryptRatchetRefinesOfInvariantStatement",
+        "DecryptOfInvariantHypotheses",
+        "parkedTriple",
+        "parkedSession",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
