@@ -1317,7 +1317,8 @@ REQUIRED_PINS = frozenset(
         "generatedTripleRefusalConditions_initAlice",
         "generatedTripleSuccessConditions_initAlice",
         "oracleOf_dhAgree_off_view",
-        "sameEphemeralAgreement_unconstrained",
+        "encodedEphemeralAgreement_unconstrained",
+        "sameEphemeralAgreement_of_view_agree",
         "concreteBranchEvidenceRun_of_run_parts",
         "runRandomDraw_byte",
         "braid_send_keysUnsampled_byte_trace",
@@ -2109,7 +2110,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "random32Clause_of_oracleOf",
         "retryReceiveBounds_initAlice",
         "retryReceiveBounds_not_trivial",
-        "sameEphemeralAgreement_unconstrained",
+        "encodedEphemeralAgreement",
+        "encodedEphemeralAgreement_unconstrained",
+        "sameEphemeralAgreement_of_view_agree",
         "sigSignClause_of_law",
         "sigSignClause_of_oracleOf",
         "concreteBranchEvidenceRun_of_run_parts",
@@ -2626,6 +2629,7 @@ REQUIRED_PRINT_FORM = frozenset(
         "SignFillsOnce64Of", "SignFillsOnce64", "KemShapeOf", "KemShape",
         "GenerateFillsOnce64Of", "GenerateFillsOnce64",
         "Random32Clause", "SigSignClause", "KemClauses",
+        "encodedEphemeralAgreement",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",

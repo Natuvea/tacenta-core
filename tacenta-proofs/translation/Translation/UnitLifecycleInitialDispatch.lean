@@ -8982,9 +8982,8 @@ inductive InitialDispatchBranchEvidence {R : Type}
       (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok false)
-      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
       InitialDispatchBranchEvidence rc crc trace dh K view oracle real model message rng
   | identityMismatch
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
@@ -13730,9 +13729,8 @@ inductive SessionDecryptEvidence {R : Type}
       (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok false)
-      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      (hagreementMismatch : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = false) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialIdentityMismatch
       (codec : DhCodecOf dh)

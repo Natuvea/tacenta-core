@@ -675,15 +675,18 @@ theorem generatedTripleSuccessConditions_initAlice [Tacenta.SessionUnitT1.Derive
       Model.SparseRatchet.init, Model.SparseRatchet.epochsKept, U64.max_eq] <;>
     first | omega | (rintro ch (h | h) <;> subst h <;> simp)
 
-/-! ## D. The model's repeat recognition is not tied to the code by `OracleOf`
+/-! ## D. The oracle's freedom off the 32-byte views, and the model's repeat recognition
 
-`Model.Lifecycle.sameEphemeralAgreement` hands the two 33-byte encoded ephemerals to
-`oracle.dhAgree`, while `OracleOf.dhAgree` constrains `dhAgree` only at the 32-byte views the DH
-codec produces. So whatever `OracleOf` holds, the oracle can be changed off those views, and the
-model's verdict on a pair of strings that are not 32 bytes long can be made either value. The
-premises `hmodelSame` and `hagreementMismatch` of the repeat constructors of
-`SessionDecryptEvidence` and `InitialDispatchBranchEvidence` are therefore a choice of oracle, not
-a fact the code supplies. -/
+`OracleOf.dhAgree` constrains `dhAgree` only at the 32-byte views the DH codec produces, so whatever
+`OracleOf` holds, the oracle can be changed off those views (`oracleOf_dhAgree_off_view`).
+
+Before its correction, `Model.Lifecycle.sameEphemeralAgreement` handed the two 33-byte encoded
+ephemerals to `oracle.dhAgree` as they were. That comparison is kept below, word for word, as
+`encodedEphemeralAgreement`, and `encodedEphemeralAgreement_unconstrained` shows its verdict on two
+strings that are not 32 bytes long can be made either value by an oracle that meets `OracleOf`: no
+theorem could tie it to the code. The model now decodes both strings with `DecodeEC` first and
+agrees only on the two 32-byte keys, so its verdict is fixed by `dhAgree` at 32-byte arguments, the
+arguments `OracleOf` constrains (`sameEphemeralAgreement_of_view_agree`). -/
 
 theorem oracleOf_dhAgree_off_view {R : Type} {rc : rand_core_1.RngCore R}
     {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
@@ -704,7 +707,16 @@ theorem oracleOf_dhAgree_off_view {R : Type} {rc : rand_core_1.RngCore R}
   rw [hf _ _ hlen]
   exact hres
 
-theorem sameEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCore R}
+/-- The model's repeat comparison before its correction, word for word: it handed the two 33-byte
+encoded ephemerals to `oracle.dhAgree` without decoding them. No theorem of the tree takes it; it is
+kept so that the fault it had can still be stated (`encodedEphemeralAgreement_unconstrained`). -/
+def encodedEphemeralAgreement (oracle : Model.Lifecycle.Oracle)
+    (secret established incoming : Model.Lifecycle.Key) : Bool :=
+  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
+  | some left, some right => left == right
+  | _, _ => false
+
+theorem encodedEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCore R}
     {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
     {kem : KemView} {oracle : Model.Lifecycle.Oracle}
     (codec : DhCodecOf dh) (oracleOf : OracleOf rc crc dh kem trace oracle)
@@ -713,7 +725,7 @@ theorem sameEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCor
     ∃ oracle' : Model.Lifecycle.Oracle,
       OracleOf rc crc dh kem trace oracle' ∧
       (∀ s p, p.length = 32 → oracle'.dhAgree s p = oracle.dhAgree s p) ∧
-      Model.Lifecycle.sameEphemeralAgreement oracle' secret established incoming = b := by
+      encodedEphemeralAgreement oracle' secret established incoming = b := by
   let f : Model.Lifecycle.Key → Model.Lifecycle.Key → Option Model.Lifecycle.Key :=
     fun s p => if p.length = 32 then oracle.dhAgree s p else if b then some [] else none
   have hf : ∀ s p, p.length = 32 → f s p = oracle.dhAgree s p := by
@@ -721,7 +733,36 @@ theorem sameEphemeralAgreement_unconstrained {R : Type} {rc : rand_core_1.RngCor
     simp [f, hp]
   refine ⟨{ oracle with dhAgree := f }, oracleOf_dhAgree_off_view codec oracleOf f hf,
     fun s p hp => hf s p hp, ?_⟩
-  cases b <;> simp [Model.Lifecycle.sameEphemeralAgreement, f, hestablished, hincoming]
+  cases b <;> simp [encodedEphemeralAgreement, f, hestablished, hincoming]
+
+/-- The corrected comparison reads `dhAgree` only at 32-byte arguments: two oracles that agree
+there give the same verdict on every pair of strings. So the change `oracleOf_dhAgree_off_view`
+allows cannot move it. -/
+theorem sameEphemeralAgreement_of_view_agree (oracle oracle' : Model.Lifecycle.Oracle)
+    (hview : ∀ s p, p.length = 32 → oracle'.dhAgree s p = oracle.dhAgree s p)
+    (secret established incoming : Model.Lifecycle.Key) :
+    Model.Lifecycle.sameEphemeralAgreement oracle' secret established incoming =
+      Model.Lifecycle.sameEphemeralAgreement oracle secret established incoming := by
+  have hlen : ∀ e k, Model.Lifecycle.decodeEc e = some k → k.length = 32 := by
+    intro e k h
+    unfold Model.Lifecycle.decodeEc at h
+    by_cases hl : e.length = 33
+    · rw [if_pos hl] at h
+      unfold Model.Messages.checkCurve Model.Messages.checkKey at h
+      split at h <;> (try split at h) <;> simp at h
+      subst h
+      simp [hl]
+    · rw [if_neg hl] at h
+      cases h
+  unfold Model.Lifecycle.sameEphemeralAgreement
+  cases h1 : Model.Lifecycle.decodeEc established with
+  | none => rfl
+  | some k1 =>
+      cases h2 : Model.Lifecycle.decodeEc incoming with
+      | none => rfl
+      | some k2 =>
+          simp only
+          rw [hview secret k1 (hlen _ _ h1), hview secret k2 (hlen _ _ h2)]
 
 /-! ## E. The restated records: what replaces the two refuted forms
 
@@ -1528,7 +1569,18 @@ info: @Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view : ∀ {R
 #check @Tacenta.UnitLifecycleIntegrationScreen.oracleOf_dhAgree_off_view
 
 /--
-info: 'Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrained' depends on axioms: [propext,
+info: def Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement : Model.Lifecycle.Oracle →
+  Model.Lifecycle.Key → Model.Lifecycle.Key → Model.Lifecycle.Key → Bool :=
+fun oracle secret established incoming =>
+  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
+  | some left, some right => left == right
+  | x, x_1 => false
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement_unconstrained' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  rand_core_1.error.Error,
@@ -1549,12 +1601,12 @@ info: 'Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrain
  tacenta_boundary.dh.PublicKeyBytes.from_bytes]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrained
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement_unconstrained
 
 /--
-info: @Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrained : ∀ {R : Type} {rc : rand_core_1.RngCore R}
-  {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
-  {oracle : Model.Lifecycle.Oracle},
+info: @Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement_unconstrained : ∀ {R : Type}
+  {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+  {kem : KemView} {oracle : Model.Lifecycle.Oracle},
   DhCodecOf dh →
     OracleOf rc crc dh kem trace oracle →
       ∀ (secret established incoming : Model.Lifecycle.Key),
@@ -1564,10 +1616,29 @@ info: @Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrain
               ∃ oracle',
                 OracleOf rc crc dh kem trace oracle' ∧
                   (∀ (s p : Model.Lifecycle.Key), List.length p = 32 → oracle'.dhAgree s p = oracle.dhAgree s p) ∧
-                    Model.Lifecycle.sameEphemeralAgreement oracle' secret established incoming = b
+                    Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement oracle' secret established
+                        incoming =
+                      b
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_unconstrained
+#check @Tacenta.UnitLifecycleIntegrationScreen.encodedEphemeralAgreement_unconstrained
+
+/--
+info: 'Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_of_view_agree' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_of_view_agree
+
+/--
+info: Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_of_view_agree : ∀
+  (oracle oracle' : Model.Lifecycle.Oracle),
+  (∀ (s p : Model.Lifecycle.Key), List.length p = 32 → oracle'.dhAgree s p = oracle.dhAgree s p) →
+    ∀ (secret established incoming : Model.Lifecycle.Key),
+      Model.Lifecycle.sameEphemeralAgreement oracle' secret established incoming =
+        Model.Lifecycle.sameEphemeralAgreement oracle secret established incoming
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleIntegrationScreen.sameEphemeralAgreement_of_view_agree
 
 /--
 info: def Tacenta.UnitLifecycleIntegrationScreen.Random32Clause : {R : Type} →
