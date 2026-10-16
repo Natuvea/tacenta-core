@@ -10,7 +10,9 @@ model Triple state, at the header and the sparse output of the run, and its `bra
 Braid epoch ceiling; a caller had to supply all twelve.  This module derives `RetryRunBounds` from
 `Session::invariant`, the session relation and four counter ceilings (`CounterHeadroom`), and restates
 the complete theorem with the invariant and those ceilings in place of `retry`, `braidEpoch` and
-`DecryptRatchetHeadroom` (the last is `decryptHeadroom_of_invariant`).
+`DecryptRatchetHeadroom` (the last is `decryptHeadroom_of_invariant`).  Of the eleven fields, the invariant
+alone gives five, the invariant with the assumed sparse epoch ceiling two more, and the model one; the
+ceilings give the remaining three and the run's Braid epoch bound.
 
 ## Where each field of `RetryRunBounds` comes from
 
@@ -42,7 +44,11 @@ Each of its four fields is one step below a ceiling the invariant states or the 
 refuses a state `Session::invariant` accepts: a classical clock at `MAX_EVENTS = u32::MAX - 1`, where the
 crate's clamp parks it; a sparse epoch at `u64::MAX - 1`; a sparse chain counter at `u64::MAX`; a Braid
 epoch at `u64::MAX - 1`.  They are counter ceilings, not capacity bounds, and a long enough session
-reaches each.  `invariant_does_not_give_counterHeadroom` proves the first case: a session with the
+reaches each, and an exclusion is permanent for a session: a parked clock stays parked, and one exhausted
+chain counter, a send chain's included, excludes every receive until its epoch retires.  By reading only,
+the Braid epoch ceiling covers the sparse one wherever the bounds are used (the invariant's Braid-epoch
+relation, and the terminal guard before the Triple step); the sparse field is kept because the run record
+asks `RetryRunBounds` of every run.  `invariant_does_not_give_counterHeadroom` proves the first case: a session with the
 clock at `u32::MAX - 1` passes `Session::invariant` and fails `CounterHeadroom`.  For the other three the
 exclusion is by reading the Rust (the sparse ratchet's and the Braid's `invariant` docs), not checked in
 Lean here.
