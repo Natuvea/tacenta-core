@@ -47,8 +47,9 @@ product.
   stands as a refutation of the form the session contract branch introduced; the layer had no such
   record before.
 * **D. The model's repeat recognition.** `OracleOf` constrains `dhAgree` only at the 32-byte views
-  the DH codec produces, so the model's verdict on two encoded ephemerals is a choice of oracle
-  (`oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`).
+  the DH codec produces (`oracleOf_dhAgree_off_view`), so the comparison the model made on two encoded
+  ephemerals before its correction is a choice of oracle (`encodedEphemeralAgreement_unconstrained`),
+  and the corrected one, which decodes both first, is not (`sameEphemeralAgreement_of_view_agree`).
 * **E. The restated records.** `concreteBranchEvidenceRun_of_run_parts` is the constructor of
   `InitialRatchetConcreteBranchEvidenceRun`: the record holds exactly when its four parts do, and
   each part names only the run's inner message and RNG state. Because this module builds the record

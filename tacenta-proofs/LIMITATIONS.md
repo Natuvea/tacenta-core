@@ -2248,7 +2248,9 @@ model's `kemEncaps` returns `some`, so an oracle that never encapsulates meets i
 the record as a whole, follow from eleven named laws that have a model ("The clauses of `OracleOf`", below); the four
 clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of them. The
 per-run records are stated as their parts, and no part beyond the draw is shown to be met. The
-model's comparison of a repeated initial ephemeral is not constrained by `OracleOf`. `GAP-REGISTER.md`, row
+model's comparison of a repeated initial ephemeral was not constrained by `OracleOf` until the model decoded both strings
+before agreeing; the corrected comparison is, and the code's refines it ("The repeated-initial comparison", below), but no
+dispatch theorem takes that yet. `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, lists the theorems, the conditions and what closes the row. In plain words: the decrypt
 lemmas cover a refused message only if the agreement chunk it carries is a codeword of one source that fits the
 decoder it is fed to. When the receiving decoder already holds a chunk, a message an attacker sends with an altered
@@ -2948,6 +2950,35 @@ the Session unit's discharged Triple receive refinement, and on no others (`CLAI
 or the sparse ratchet's own refinement, inherits some or all of them and is therefore compiler-trusted. The number of such
 results is the one `attest.py` reports (`counts.compiler_trusted`), not repeated here; `CLAIMS.md` gives it for the two
 sections. It is expected to change if the nine constants are settled by the kernel rather than by the compiler.
+
+### The repeated-initial comparison: what it assumes, and what it leaves to the dispatch
+
+`same_ephemeral_agreement_refines` (`Translation/UnitLifecycleInitialAgreementT3.lean`) says that the comparison
+`Session::decrypt` makes between a repeated initial message's `ephemeral` and the session's `established_ephemeral` returns
+the model's `sameEphemeralAgreement`, on every private key and every two byte strings.
+
+**Assumed, about opaque operations.** Two records, neither proved of the real code. The agreement clause of the oracle,
+`OracleOf.dhAgree` (the `dhAgree` field of `DecryptOracleOf`, the only field the theorem reads), says `PrivateKey::agree`
+returns, at every key pair, the model oracle's `dhAgree` read through the byte views; nothing ties that oracle to X25519.
+`DhCodecOf` says the byte views of the two opaque key types agree with `PrivateKey::from_bytes`,
+`PublicKeyBytes::from_bytes` and `PublicKeyBytes::as_bytes` (as in "The `decrypt_ratchet` refinement", above). The translated
+`decode_ec` needs neither: `session_decode_ec_refines` and `session_decode_ec_characterization`
+(`Translation/SessionUnitDecodeEc.lean`) rest on the generated code and the model alone.
+
+**What the model now says, and why it changed.** The model's comparison decodes both 33-byte strings with `DecodeEC`
+(`Model.Lifecycle.decodeEc`) before agreeing, as session-establishment.md, Receiving the initial message, and the Rust do;
+before, it agreed on the encodings, which `OracleOf` does not constrain (`encodedEphemeralAgreement_unconstrained`). The
+decode-refusal arms are reached only on states the shipped readers do not produce: the initial-message decoder refuses a
+re-spelled `ephemeral`, and clause (f) of `Session::invariant` refuses a session whose `established_ephemeral` does not
+decode. That is read from the code; no theorem here states it.
+
+**Not proved.** The composition of `Session::decrypt` on an initial frame. The dispatch theorems of
+`UnitLifecycleInitialDispatch.lean` still take caller-selected branch evidence (`InitialDispatchBranchEvidence`,
+`SessionDecryptEvidence`), whose repeat premises `hmodelSame` and `hagreementMismatch` state the model's verdict on the
+branch. `repeated_initial_agreement_true_iff` and `repeated_initial_agreement_false_iff` give each from the code's verdict,
+but no theorem uses them in place of the premises, and `InitialDispatchBranchEvidence` still splits the route on byte
+equality of the two ephemerals rather than on this verdict. Whether a state with an established ephemeral meets the other hypotheses of the
+dispatch theorems is not checked here.
 
 ## The erasure coding's field is proved
 

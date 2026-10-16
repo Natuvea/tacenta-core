@@ -3620,8 +3620,9 @@ What these do not show.
   `BraidSendTraceAgreementCounted`, whose draw clause holds together with `OracleOf.sigSign` under two laws at a Braid send from
   `KeysUnsampled` (`braidSendTraceCounted_with_sigSign_byte`); the one-draw form the session contract branch introduced
   contradicted it (`braidSendTrace_conflicts_with_sigSign`). The dispatch theorems no longer take the same-ephemeral evidence records; they take
-  the per-branch `InitialDispatchBranchEvidence`, whose model-side premises are a choice of oracle
-  (`sameEphemeralAgreement_unconstrained`).
+  the per-branch `InitialDispatchBranchEvidence`, whose model-side premises state the model's repeat verdict on the branch;
+  the code's verdict gives each (`repeated_initial_agreement_true_iff`, `repeated_initial_agreement_false_iff`), and no
+  dispatch theorem uses that yet.
 - That the consumer structure is satisfiable in general. The old `InitialRatchetConcreteBranchEvidence` is empty at any model
   state at which one inner message passes the first agreement, given `OracleOf` (`concreteBranchEvidence_empty`), and it asked the
   scoped Braid record of every inner message that reaches a refusal, an inconsistent one included. The seven dispatch theorems
@@ -3991,6 +3992,72 @@ fixed), of the closure (the bridge without the public mapping, and the complete 
 with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
 named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
 
+## Proved (tier T3, the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input)
+
+Location: `Translation/SessionUnitDecodeEc.lean`, `Translation/UnitLifecycleInitialAgreementT3.lean`.
+
+`Session::decrypt` recognises a repeated initial message by comparing its `ephemeral` with the session's
+`established_ephemeral`: `same_ephemeral_agreement` decodes both with `decode_ec`, agrees the session's `ratchet_private` with
+each decoded key, and compares the two outputs, `false` when either decode or either agreement fails. The model's
+`Model.Lifecycle.sameEphemeralAgreement` now states the same rule, from session-establishment.md, Receiving the initial
+message, through the model's `DecodeEC`, `Model.Lifecycle.decodeEc` (33 bytes, the curve type byte, a canonical key, by the
+initial-message decoder's own `checkCurve` and `checkKey`). Until this change the model handed the two 33-byte strings to the
+agreement without decoding them, and no theorem could relate it to the code (`GAP-REGISTER.md`, row
+`E2E-04-SAME-EPHEMERAL-MODEL`). This section was made by its author with tool assistance and has not been read by anyone else.
+
+- `decodeEc_eq_some_iff`, `decodeEc_eq_none_iff`, `decodeEc_length`: `Model.Lifecycle.decodeEc e = some k` exactly when `e` is
+  33 bytes long, its first byte is `Model.Messages.ecCurveByte` and `Model.Messages.canonicalKey (e.drop 1)` holds, with
+  `k = e.drop 1`; `none` exactly when one of the three fails; a returned key is 32 bytes long. Model facts; the axioms are
+  `propext` and `Quot.sound`.
+- `session_decode_ec_refines`, `session_decode_ec_characterization`: the translated `tacenta_session::decode_ec` returns on
+  every slice, and what it returns, carried across the byte boundary, is `Model.Lifecycle.decodeEc` of the slice's bytes. In
+  three arms: `none` exactly when the slice is not 33 bytes long, its first byte is not the curve type byte, or its last 32
+  bytes are not a canonical curve public key; otherwise `some k` with `k` those 32 bytes. This adds the rejecting direction to
+  `decode_ec_spec` (`Translation/SessionUnitSessionT1.lean`), which says only what a successful decode returns. No hypothesis;
+  the three standard axioms.
+- `canonicalX25519_session_eq_wire`, `key_eq_drop`, `arrayOf_eq_drop`, `head_sliceOf`, `u8_eq_curve_iff`: the steps of that
+  proof: the Session crate's and the wire crate's ports define the same canonicity predicate (so the wire decoder's
+  `canonicalKey_bytesOf` applies), the decoder's loop copies the 32 bytes after the curve byte, and the curve-byte test is the
+  model's. The three standard axioms or fewer.
+- `decode_ec_refines`: the Session unit's `decode_ec`, which wraps the key in the opaque `PublicKeyBytes`, returns on every slice
+  a result whose image under the DH view is the model's `decodeEc`. It takes `DhCodecOf` (the byte views of the two opaque key
+  types); its axioms add the two DH types and the three codec functions that record names.
+- `same_ephemeral_agreement_refines_of_dhAgree`, `same_ephemeral_agreement_refines`: for every private key and every two byte
+  strings, the translated `same_ephemeral_agreement` returns `ok` of `Model.Lifecycle.sameEphemeralAgreement` at the private
+  key's view and the two strings' bytes. Hypotheses: the agreement clause of the oracle (`OracleOf.dhAgree`, word for word; the
+  second form takes `DecryptOracleOf` and reads only that clause) and `DhCodecOf`, both assumed (`LIMITATIONS.md`, "The
+  repeated-initial comparison"). No hypothesis is about a branch, a route or the model's verdict. The first lists, beyond the
+  three standard axioms, the two DH types, `PrivateKey::agree` and the three codec functions; the second adds the constants
+  `DecryptOracleOf`'s other clauses name (`PrivateKey::public_key`, `aead::decrypt`, `rand_core`'s error type).
+- `repeated_initial_agreement_refines`, `repeated_initial_agreement_true_iff`, `repeated_initial_agreement_false_iff`: at a session
+  and model session related by `SessionRefines`, the comparison of `established_ephemeral` with a decoded message's `ephemeral`
+  returns the model's verdict at `model.ratchetPrivate` and the two byte strings `Model.Lifecycle.repeatedInitial` passes; the
+  code's verdict is `true` (`false`) exactly when the model's is. These derive what the per-branch premises `hmodelSame`
+  (`= true`) and `hagreementMismatch` (`= false`) of `InitialDispatchBranchEvidence`, `SessionDecryptEvidence` and the
+  initial-frame branch lemmas of `UnitLifecycleT3.lean` ask the caller for. Those records and lemmas are kept, and no theorem
+  takes these results yet. The axiom lists add the opaque KEM and standard-library constants `SessionRefines` names.
+- `arrayOf_injective`, `agreement_eq_refines`: the byte view of a translated array is injective, and the translated equality of
+  two 32-byte agreement outputs is the model's `==` on their bytes. The three standard axioms or fewer.
+- `encoded_comparison_does_not_refine`: a control, not a claim. For every oracle that meets `OracleOf`, given `DhCodecOf`, and
+  every two byte strings neither of which is 32 bytes long, some oracle that also meets `OracleOf` makes the comparison the
+  model made before this change (`UnitLifecycleIntegrationScreen.encodedEphemeralAgreement`, on the two encodings) disagree
+  with the translated one, so no refinement of the shape above holds of it. It says nothing about whether an oracle meeting
+  `OracleOf` exists.
+
+What these do not show. That the two hypotheses hold of the real `tacenta_boundary::dh`: they are assumptions about opaque
+operations, with models in `UnitOracleModel.lean` and `UnitLifecycleDecryptRatchetScreen.lean` and no proof about X25519. That
+`Session::decrypt` refines the model on an initial frame: the composition that would split the repeated-initial route on this
+verdict instead of on byte equality is not in the tree, and the dispatch theorems of `UnitLifecycleInitialDispatch.lean` still
+take caller-selected branch evidence. On a state the shipped readers accept, both strings decode (the initial-message decoder
+checks `ephemeral`, and clause (f) of `Session::invariant` checks `established_ephemeral`), so the decode-refusal arms of the
+comparison are reached only on other states; this is read from the code and not proved here. No proof chooses a width of
+`usize`, and none lists a compiler-trust axiom. Each of the 19 theorems has an axiom pin and a statement pin, and the bodies of
+`Model.Lifecycle.decodeEc` and `Model.Lifecycle.sameEphemeralAgreement` have `#print` pins, so a model that compared the
+encodings again fails the build at the pin; `attest.py` requires them all. `check-initial-dispatch-negatives.py` restates the
+refinement of a model comparison that leaves the incoming string undecoded, the established one undecoded, or agrees on the two
+encodings, and each is refused because the proof fails inside its body; that shows the proof uses each decode, and
+`encoded_comparison_does_not_refine` shows the third statement false at some oracle meeting `OracleOf`.
+
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 
 Location: `Translation/UnitLifecycleIntegrationScreen.lean`.
@@ -4064,12 +4131,13 @@ records to the dispatch layer. These results decide some of them. They are about
   `generatedTripleSuccessConditions_initAlice`: `RetryReceiveBounds` and the two finite-store condition records hold at the
   initiator's initial Triple state, `Model.Triple.initAlice` (the responder's, `Model.Triple.initBob`, is not decided), the last two given the class `SessionUnitT1.DerivedKeysModel` that the axiom base provides, and
   the first fails at a sparse epoch of `u64::MAX`. That they hold at the states the retry loop reaches is not shown here.
-- `oracleOf_dhAgree_off_view`, `sameEphemeralAgreement_unconstrained`: given the DH codec, `OracleOf` still holds when the
-  oracle's `dhAgree` is changed at second arguments that are not 32 bytes long, so for two strings that are not 32 bytes long
-  the model's `sameEphemeralAgreement` can be made either value by an oracle that meets `OracleOf`. The repeated-initial premises
-  `hmodelSame` and `hagreementMismatch` of `SessionDecryptEvidence` and `InitialDispatchBranchEvidence` compare the 33-byte encoded
-  ephemerals, so they are a choice of oracle and not a fact the code supplies (`GAP-REGISTER.md`, row
-  `E2E-04-SAME-EPHEMERAL-MODEL`).
+- `oracleOf_dhAgree_off_view`, `encodedEphemeralAgreement_unconstrained`, `sameEphemeralAgreement_of_view_agree`: given the
+  DH codec, `OracleOf` still holds when the oracle's `dhAgree` is changed at second arguments that are not 32 bytes long. So the
+  comparison the model made before it decoded the two ephemerals, kept word for word as `encodedEphemeralAgreement`, can be made
+  either value on two strings that are not 32 bytes long by an oracle that meets `OracleOf`. The corrected
+  `Model.Lifecycle.sameEphemeralAgreement` decodes both first, and two oracles that agree at every 32-byte argument give it the
+  same verdict on every pair of strings, so that change cannot move it. Its refinement by the code is in the section on the
+  repeated-initial comparison above (`GAP-REGISTER.md`, row `E2E-04-SAME-EPHEMERAL-MODEL`).
 
 What these do not show: that `OracleOf` as a whole is satisfiable (its `dh`, `aead`, `kemDecapsulate`, `sigVerify` and
 `identityValid` clauses are not decided here; the next section decides them); that the shipped functions meet the three laws; that any dispatch theorem is
