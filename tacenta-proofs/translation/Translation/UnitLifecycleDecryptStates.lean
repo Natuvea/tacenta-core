@@ -182,17 +182,31 @@ theorem decode_ec_ephemeral (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal) (a : Ar
   obtain ⟨q, hq⟩ := hdh.2.2.2.1 k
   exact ⟨q, by simp [decode_ec, hk, hq]⟩
 
+/-- The empty classical store fits `vecOf`'s bound.  Named, so that the definitions below carry no
+auxiliary proof constant. -/
+theorem classicalStore_nil_le : ([] : List tacenta_ratchet.SkippedKey).length ≤ 4294967295 :=
+  Nat.zero_le _
+
+/-- The empty sparse store fits `vecOf`'s bound. -/
+theorem sparseStore_nil_le : ([] : List tacenta_spqr.Skipped).length ≤ 4294967295 :=
+  Nat.zero_le _
+
+/-- The responder's one-entry chain table fits `vecOf`'s bound. -/
+theorem responderChains_le :
+    [((1#u64 : U64), ({ send := none, receive := none } : tacenta_spqr.Chains))].length ≤ 4294967295 := by
+  simp
+
 /-- The Triple of the responder state: a classical receiver with no chain and no peer key, a sparse
 ratchet at epoch 1 with one empty chain-table entry for epoch 1, direction `B2a`. -/
 def responderTriple (a : Array U8 32#usize) : tacenta_triple.State :=
   { classical :=
       { dhs_pub := a, dhr_pub := none, rk := zeros, cks := none, ckr := none,
-        ns := 0#u32, nr := 0#u32, pn := 0#u32, skipped := vecOf [] (by simp), events := 0#u32,
+        ns := 0#u32, nr := 0#u32, pn := 0#u32, skipped := vecOf [] classicalStore_nil_le, events := 0#u32,
         labels := tacenta_ratchet.LabelSet.Tacenta },
     post_quantum :=
       { rk := zeros, epoch := 1#u64,
-        chains := vecOf [(1#u64, { send := none, receive := none })] (by simp),
-        skipped := vecOf [] (by simp), direction := tacenta_spqr.Direction.B2a } }
+        chains := vecOf [(1#u64, { send := none, receive := none })] responderChains_le,
+        skipped := vecOf [] sparseStore_nil_le, direction := tacenta_spqr.Direction.B2a } }
 
 /-- The Braid of the responder state: `KeysUnsampled` at epoch 2, the header-sending side of an even epoch,
 which `Braid::is_initiator` reports as the responder's. -/
@@ -982,6 +996,24 @@ info: 'Tacenta.UnitLifecycleDecryptStates.decode_ec_ephemeral' depends on axioms
 #print axioms Tacenta.UnitLifecycleDecryptStates.decode_ec_ephemeral
 
 /--
+info: 'Tacenta.UnitLifecycleDecryptStates.classicalStore_nil_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptStates.classicalStore_nil_le
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptStates.sparseStore_nil_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptStates.sparseStore_nil_le
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptStates.responderChains_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptStates.responderChains_le
+
+/--
 info: 'Tacenta.UnitLifecycleDecryptStates.structural_responderSession' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -1764,6 +1796,24 @@ info: Tacenta.UnitLifecycleDecryptStates.decode_ec_ephemeral : Tacenta.UnitLifec
 #check @Tacenta.UnitLifecycleDecryptStates.decode_ec_ephemeral
 
 /--
+info: Tacenta.UnitLifecycleDecryptStates.classicalStore_nil_le : [].length ≤ 4294967295
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptStates.classicalStore_nil_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptStates.sparseStore_nil_le : [].length ≤ 4294967295
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptStates.sparseStore_nil_le
+
+/--
+info: Tacenta.UnitLifecycleDecryptStates.responderChains_le : [(1#u64, { send := none, receive := none })].length ≤ 4294967295
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptStates.responderChains_le
+
+/--
 info: Tacenta.UnitLifecycleDecryptStates.structural_responderSession : Tacenta.UnitLifecycleT1.DhCodecTotal →
   ∀ (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
     (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
@@ -2270,14 +2320,14 @@ fun a =>
     classical :=
       { dhs_pub := a, dhr_pub := none, rk := Tacenta.UnitLifecycleDecryptStates.zeros, cks := none, ckr := none,
         ns := 0#u32, nr := 0#u32, pn := 0#u32,
-        skipped := Tacenta.UnitHeadroomSatisfiable.vecOf [] Tacenta.UnitLifecycleDecryptStates.responderTriple._proof_2,
+        skipped := Tacenta.UnitHeadroomSatisfiable.vecOf [] Tacenta.UnitLifecycleDecryptStates.classicalStore_nil_le,
         events := 0#u32, labels := tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta },
     post_quantum :=
       { rk := Tacenta.UnitLifecycleDecryptStates.zeros, epoch := 1#u64,
         chains :=
           Tacenta.UnitHeadroomSatisfiable.vecOf [(1#u64, { send := none, receive := none })]
-            Tacenta.UnitLifecycleDecryptStates.responderTriple._proof_4,
-        skipped := Tacenta.UnitHeadroomSatisfiable.vecOf [] Tacenta.UnitLifecycleDecryptStates.responderTriple._proof_2,
+            Tacenta.UnitLifecycleDecryptStates.responderChains_le,
+        skipped := Tacenta.UnitHeadroomSatisfiable.vecOf [] Tacenta.UnitLifecycleDecryptStates.sparseStore_nil_le,
         direction := tacenta_session_unit.tacenta_spqr.Direction.B2a } }
 -/
 #guard_msgs in

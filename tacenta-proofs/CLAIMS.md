@@ -4119,6 +4119,8 @@ also takes the held Braid's invariant, which `heldBraid_invariant` gives under t
   `started_as_sender = some false`.
 - `canonicalKey_ephemeral`, `session_decode_ec_ephemeral`, `decode_ec_ephemeral`: the steps of the (f) arm: the translated
   `decode_ec` accepts `ephemeralOf a` when `a` is canonical, and the unit's `decode_ec` returns `some` under `DhCodecTotal`.
+- `classicalStore_nil_le`, `sparseStore_nil_le`, `responderChains_le`: the length side conditions of the responder Triple's
+  three vectors, stated as named results so that the definition and its `#print` pin carry no auxiliary proof constant.
 - `pendingSession_invariant`, `structural_pendingSession`: `Session::invariant` returns `true` at the pending state, for every
   ciphertext of the length `kem::ciphertext_len` returns: (e) with the pending message, (f) on the ciphertext-length arm, (h)
   on the pending ephemeral.
@@ -4175,8 +4177,9 @@ distinct identities. No proof
 here chooses a width of `usize`. As for the previous section, `check-hypothesis-witnesses.sh` routes this section out.
 
 **Compiler trust and pins.** No result here rests on a compiler-evaluated constant. `canonicalKey_ephemeral`,
-`session_decode_ec_ephemeral`, `responderTriple_invariant`, `window_of` and `storedTriple_invariant` rest on `propext`,
-`Classical.choice` and `Quot.sound` alone; the other twenty-eight on those three and between 4 and 52 opaque constants of the
+`session_decode_ec_ephemeral`, `classicalStore_nil_le`, `sparseStore_nil_le`, `responderChains_le`,
+`responderTriple_invariant`, `window_of` and `storedTriple_invariant` rest on `propext`, `Classical.choice` and `Quot.sound`
+alone; the other twenty-eight on those three and between 4 and 52 opaque constants of the
 unit (`stored_run_header_names_no_stored_key` and `stored_model_refuses_of_agreement` list 4). `storedSession_invariant`, `pendingSession_invariant` and `heldStoredSession_invariant` list eighteen, among them
 `is_prime_order_public`, `kem::ciphertext_len`, `PublicKeyBytes::from_bytes` and `Option::eq`; `responderSession_invariant`
 lists twenty-two, adding `PrivateKey::from_bytes`, `PrivateKey::to_bytes`, the `PublicKeyBytes` equality and `Zeroizing`,
