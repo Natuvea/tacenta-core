@@ -24,8 +24,10 @@ Every state here is built for the hypotheses.  None is shown to be produced by `
   Triple (`responderTriple`) is a classical receiver with no chain and no peer key, a sparse ratchet at
   epoch 1 with one empty chain-table entry for epoch 1, direction `B2a`; its Braid (`responderBraid`) is
   `KeysUnsampled` at epoch 2, the header-sending side of an even epoch, so the Braid reports the
-  responder's role.  Clauses exercised beyond the fresh session's: (b) at sparse epoch 1 and Braid epoch
-  2; (c) in the responder's orientation; (d) with both halves on the responder's side; (e) and (f) on the
+  responder's role.  Like every state here it is a session with itself: both identities are the key
+  `pkb`.  Clauses exercised beyond the fresh session's: (b) at sparse epoch 1 and Braid epoch 2; (c) on
+  the responder's branch, where, both identities being `pkb`, the orientation is not distinguished (a
+  swapped orientation would pass as well); (d) with both halves on the responder's side; (e) and (f) on the
   `established_ephemeral` arm (`decode_ec` accepts it); the Triple's role agreement with
   `started_as_sender = some false`.
 * `pendingSession` (an initiator with a pending initial message): `sessionOf` with `pending_initial =
@@ -36,13 +38,17 @@ Every state here is built for the hypotheses.  None is shown to be produced by `
   `dhs_pub = dhr_pub = a`, both chains open, `ns = 3`, `nr = 4`, `pn = 2`, `events = 5` and one stored key
   (`dh = a`, `n = 2`, `stored_at = 4`), and a sparse ratchet at epoch 2 with one chain-table entry for
   epoch 2 holding a send chain at counter 7 and a receive chain at counter 6, one stored key (epoch 2,
-  `n = 3`) and direction `A2b`; its Braid (`storedBraid`) is `KeysUnsampled` at epoch 3.  Clauses
-  exercised: every clause of the classical invariant on a non-empty store (bound, clock, `stored_at <=
-  events`, no two keys sharing `(dh, n)`, a receiving chain only with a sending chain and a peer key, the
-  peer key and the stored key canonical); every clause of the sparse invariant on a non-empty store
-  (bound, the epoch window at 2, the current epoch present, every stored key's epoch in the table, no two
-  keys sharing `(epoch, n)`); (b) at sparse epoch 2 and Braid epoch 3.  With both classical chains open
-  `started_as_sender` is `none`, so the Triple's role agreement holds by its `None` arm.
+  `n = 3`) and direction `A2b`; its Braid (`storedBraid`) is `KeysUnsampled` at epoch 3.  It is a session
+  with itself: the peer ratchet key `dhr_pub` and the stored classical key's `dh` are our own ratchet key
+  `a`, which is also the bytes of the identity key `pkb`, and both identities are `pkb`.  Clauses
+  exercised: the clauses of the classical invariant on a store of one key (bound, clock, `stored_at <=
+  events`, a receiving chain only with a sending chain and a peer key, the peer key and the stored key
+  canonical); the clauses of the sparse invariant on a store of one key and a table of one entry (bound,
+  the epoch window at 2, the current epoch present, every stored key's epoch in the table); (b) at sparse
+  epoch 2 and Braid epoch 3.  The three clauses that no two entries collide (`store_map`, `chains_distinct`,
+  `skipped_map`) hold vacuously on one-element lists; the negative with a repeated classical header is what
+  shows the classical one can fail.  With both classical chains open `started_as_sender` is `none`, so the
+  Triple's role agreement holds by its `None` arm.
 * `heldStoredSession`: `storedTriple a 0` beside the Braid of `UnitHeldKemWitness` (`KeysSampled` at epoch
   1, holding a generated key pair and a header encoder), so (b) at sparse epoch 0 and Braid epoch 1.
 
@@ -68,12 +74,18 @@ both already recorded elsewhere:
 * `storedSession_invariant`, `storedSession_sessionRefines` (to `storedModel`, the model read off the
   session with its Braid at `keysUnsampled 3`), `storedSession_counterHeadroom`, and
   `storedSession_retryRunBounds`, which is `retryRunBounds_of_invariant` instantiated there.
-* `stored_classicalMatch_tight`, `stored_sparseMatch_tight`: for a header naming the stored key, each
-  store's filter has exactly one entry, so the `<= 1` bounds of `RetryRunBounds.classicalMatch` and
-  `sparseMatch` are met with equality there, where at `invReal` the filters are empty.
+* `stored_classicalMatch_tight`, `stored_sparseMatch_tight`: for a header chosen to name the stored key,
+  each store's filter has exactly one entry, so the `<= 1` bounds of `RetryRunBounds.classicalMatch` and
+  `sparseMatch` are met with equality there.  At the header of the run the joint statement instantiates
+  both filters are empty, as at `invReal` (`stored_run_header_names_no_stored_key`).
+* `stored_model_refuses_of_agreement`: the model's step at the stored-key state refuses at the first
+  agreement when the oracle's agreement refuses the all-zero key, a premise no law states.
 * `decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`: under `DecryptJointLaws K dh`,
   every field of `DecryptOfInvariantHypotheses` holds together at a session with the shape
-  `StoredKeysShape 2 3`, for every codeword view.  `..._at_stored_keys_held` is the same under
+  `StoredKeysShape 2 3`, for every codeword view.  The shape fixes the stores, the chains being open, the
+  classical counters and the two epochs; it does not fix the sparse chain counters, which only the
+  `CounterHeadroom` lemmas at the concrete states (`storedSession_counterHeadroom`,
+  `heldStoredSession_counterHeadroom`) carry.  `..._at_stored_keys_held` is the same under
   `DecryptWrapperLaws dh` and `LawGenerateSucceeds` at `heldStoredSession`, with `HeldKemAt`.
 
 ## Which ceilings are exercised away from zero, and which still hold vacuously
@@ -84,9 +96,10 @@ so the field held vacuously there), `braidEpoch` at 3.  At `heldStoredSession`: 
 and `sparseCounters` at the same two chains; `sparseEpoch` at 0 and `braidEpoch` at 1, their least values.
 
 Of the eleven fields of `RetryRunBounds` at `storedSession`: `classicalMatch` and `sparseMatch` are tight
-for the stored keys' headers; `classicalStore` and `sparseStore` are over one key each;
-`sparseSkippedEpochs` is over one key (vacuous at `invReal`); `sparseChainEpochs` and `sparseChainsRoom`
-are over one entry at epoch 2; `classicalEvents`, `sparseEpoch` and `sparseCounters` as above.
+for headers chosen to name a stored key, not for the run's header, at which both filters are empty;
+`classicalStore`, `sparseStore` and `sparseChainsRoom` are met at length 1, far from binding;
+`sparseSkippedEpochs` is over one key (vacuous at `invReal`); `sparseChainEpochs` is over one entry at
+epoch 2; `classicalEvents`, `sparseEpoch` and `sparseCounters` as above.
 `sparseOutputEpoch` still holds vacuously at the run: the derivation covers every output, but the run's
 Braid receive (no agreement chunk) returns no output.  Of `DecryptRatchetRunInputs`, `chunk` and `honest`
 still hold only by the arm for a message without a chunk, and `draw` is one draw.  No counter is near its
@@ -98,9 +111,15 @@ ceiling at these states: the ceilings are exercised away from zero, not at their
 * That any of these states is produced by the code, or that an operation keeps the invariant.
 * A run that carries an agreement chunk at these states.
 * The restated theorem at the responder or the pending state: those are shown to pass the invariant only.
-* That the run reads the stored keys: the message is the first witness's, whose ratchet key is 32 zero
-  bytes, so the model's step refuses at the first agreement when the oracle's agreement refuses that key
-  (`UnitLifecycleDecryptScreen.invReal_model_refuses_of_agreement`), before the Triple receive.
+* That the run reads the stored keys.  It does not: the message is the first witness's, whose header
+  (classical `n = 1`, sparse `(0, 1)`) names neither stored key (classical `n = 2`, sparse `(2, 3)`), so
+  both store filters are empty at it (`stored_run_header_names_no_stored_key`).  Before that, the model's
+  step refuses at the first agreement if the oracle's agreement refuses the all-zero ratchet key
+  (`stored_model_refuses_of_agreement`, proved at `storedSession`; at `heldStoredSession` by reading only);
+  no law states that premise, and that the real agreement refuses
+  that key is by reading the X25519 boundary (`invReal_agreement_is_real`).
+* A session between two distinct identities: `ValidKeyShape` gives one valid key, so every state here uses
+  it as both identities, and the classical peer key is our own.
 
 No proof here chooses a width of `usize`.
 -/
@@ -188,8 +207,9 @@ def responderSession (k : tacenta_boundary.dh.PrivateKey) (pkb : tacenta_boundar
     triple := responderTriple a, braid := responderBraid,
     established_ephemeral := some (ephemeralOf a) }
 
-/-- `Session::structural_invariant` of the responder state: clauses (a) to (h), with (c) and (d) on the
-responder's side and (f) on the `established_ephemeral` arm. -/
+/-- `Session::structural_invariant` of the responder state: clauses (a) to (h), with (c) on the responder's
+branch (both identities are `pkb`, so the orientation is not distinguished and a swapped orientation would
+pass as well), (d) on the responder's side and (f) on the `established_ephemeral` arm. -/
 theorem structural_responderSession (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
     (k : tacenta_boundary.dh.PrivateKey) (pkb : tacenta_boundary.dh.PublicKeyBytes)
     (a : Array U8 32#usize)
@@ -333,7 +353,8 @@ theorem pendingSession_invariant
 /-- A sparse chain at message counter `n`. -/
 def chainAt (n : U64) : tacenta_spqr.Chain := { ck := zeros, n := n }
 
-/-- The Triple state with stored keys and open chains, at sparse epoch `E`. -/
+/-- The Triple state with stored keys and open chains, at sparse epoch `E`.  Its peer ratchet key and its
+stored classical key's `dh` are its own ratchet key `a`. -/
 def storedTriple (a : Array U8 32#usize) (E : U64) : tacenta_triple.State :=
   { classical :=
       { dhs_pub := a, dhr_pub := some a, rk := zeros, cks := some zeros, ckr := some zeros,
@@ -364,7 +385,8 @@ theorem window_of (E : U64) (hE : E.val + 2 ≤ U64.max) :
   omega
 
 /-- **`Triple::invariant` of the stored-key Triple**, at every sparse epoch `E` with `E + 2 <= u64::MAX`:
-every clause of both ratchets' invariants on a store of one key each. -/
+every clause of both ratchets' invariants on a store of one key each; the three no-two-entries clauses
+hold vacuously on those one-element lists. -/
 theorem storedTriple_invariant (a : Array U8 32#usize)
     (hcan : Tacenta.SessionUnitT1.canonicalX25519 a = true) (E : U64)
     (hE : E.val + 2 ≤ U64.max) :
@@ -401,7 +423,8 @@ def storedBraid : tacenta_braid.Braid :=
   ⟨tacenta_braid.State.KeysUnsampled 3#u64 ⟨zeros, zeros⟩⟩
 
 /-- **The stored-key state**: `sessionOf` with `storedTriple a 2` and `storedBraid`, built for the
-hypotheses, not shown produced by `establish_initiator`, `establish_responder` or `import`. -/
+hypotheses, not shown produced by `establish_initiator`, `establish_responder` or `import`.  A session with
+itself: both identities are `pkb`, and the classical peer key and stored key are our own key `a`. -/
 def storedSession (k : tacenta_boundary.dh.PrivateKey) (pkb : tacenta_boundary.dh.PublicKeyBytes)
     (ad : alloc.vec.Vec U8) (a : Array U8 32#usize) : lifecycle.Session :=
   { sessionOf k pkb pkb ad a none with triple := storedTriple a 2#u64, braid := storedBraid }
@@ -554,6 +577,45 @@ theorem stored_sparseMatch_tight (dh : DhView) (k pkb ad a) (header : Model.Trip
   simp [storedModel, Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf, storedSession, storedTriple,
     vecOf, Tacenta.SessionUnitTripleT3.spqrAbs, Tacenta.SessionUnitSpqrT3.skippedOf, he, hn]
 
+/-- **The run's header names neither stored key**: at the header of the first witness's message
+(`sampleComposite`: classical `n = 1`, sparse `(epoch, n) = (0, 1)`) both store filters of the stored-key
+model are empty, against the stored keys' classical `n = 2` and sparse `(2, 3)`.  So the run the joint
+statement instantiates reads no stored key, whatever the oracle's agreement does; the tightness lemmas above
+are for headers chosen to name a stored key. -/
+theorem stored_run_header_names_no_stored_key (dh : DhView) (k pkb ad a) :
+    ((storedModel dh (storedSession k pkb ad a)).triple.classical.skipped.filter
+      (fun x => x.1 == (Model.Lifecycle.tripleHeaderOf
+          Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).dr.dh &&
+        x.2.1 == (Model.Lifecycle.tripleHeaderOf
+          Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).dr.n)) = [] ∧
+    ((storedModel dh (storedSession k pkb ad a)).triple.postQuantum.skipped.filter
+      (fun x => x.1 == (Model.Lifecycle.tripleHeaderOf
+          Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).epoch &&
+        x.2.1 == (Model.Lifecycle.tripleHeaderOf
+          Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).pqN)) = [] := by
+  constructor <;>
+    simp [storedModel, Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf, storedSession, storedTriple,
+      vecOf, Tacenta.SessionUnitTripleT3.ratchetAbs, Tacenta.SessionUnitTripleT3.spqrAbs,
+      Tacenta.SessionUnitT3.skippedOf, Tacenta.SessionUnitSpqrT3.skippedOf, Model.Lifecycle.tripleHeaderOf,
+      Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite]
+
+/-- **The model's step at the stored-key state refuses at the first agreement when the oracle's agreement
+refuses the all-zero key**, as `UnitLifecycleDecryptScreen.invReal_model_refuses_of_agreement` at the first
+witness.  The premise is not given by any law: by reading the X25519 boundary the real agreement refuses
+that key (`invReal_agreement_is_real`). -/
+theorem stored_model_refuses_of_agreement (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (k pkb ad a)
+    (hnone : oracle.dhAgree (dh.privateKey k) (List.replicate 32 0) = none) :
+    (Model.Lifecycle.decryptRatchet view oracle (storedModel dh (storedSession k pkb ad a))
+      (sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage)).result =
+        .error (.handshake .nonContributoryAgreement) := by
+  have hzero : Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite.dh = List.replicate 32 0 := rfl
+  simp [Model.Lifecycle.decryptRatchet, Model.Lifecycle.agreementFailed, storedModel,
+    Tacenta.UnitLifecycleDecryptRatchetScreen.modelOf, storedSession, sessionOf,
+    Tacenta.UnitLifecycleDecryptRatchetScreen.sample_decode_model, hzero]
+  simp only [List.replicate] at hnone
+  simp [hnone]
+
 /-- The run conditions `DecryptRatchetRunInputs` leaves to the caller, at the stored-key state and the
 first witness's message (no agreement chunk) and source. -/
 theorem storedSession_runInputs (dh : DhView) (k pkb ad a) (view : Model.Lifecycle.CodewordView)
@@ -586,8 +648,11 @@ theorem storedSession_runInputs (dh : DhView) (k pkb ad a) (view : Model.Lifecyc
 /-! ## The restated theorem's hypotheses at the stored-key state -/
 
 /-- What sets a session apart from one over fresh states, as facts about the translated session: one
-stored key in each store, both classical chains and a peer key, a sparse chain-table entry for the
-current epoch with both chains open, and the counters away from zero. -/
+stored key in each store, both classical chains and a peer key (at the states here our own key), a sparse
+chain-table entry for the current epoch with both chains open, the classical clock and counters at 5, 3, 4
+and 2, the sparse epoch at `e` and the Braid epoch at `b`.  The sparse chain counters are not part of the
+shape: the `CounterHeadroom` lemmas at the concrete states carry them.  At `e = 0`, `b = 1` the epochs are
+at their least values. -/
 structure StoredKeysShape (e b : Nat) (real : lifecycle.Session) : Prop where
   classicalStored : real.triple.classical.skipped.val.length = 1
   sparseStored : real.triple.post_quantum.skipped.val.length = 1
@@ -1280,6 +1345,30 @@ info: 'Tacenta.UnitLifecycleDecryptStates.stored_sparseMatch_tight' depends on a
 #print axioms Tacenta.UnitLifecycleDecryptStates.stored_sparseMatch_tight
 
 /--
+info: 'Tacenta.UnitLifecycleDecryptStates.stored_run_header_names_no_stored_key' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptStates.stored_run_header_names_no_stored_key
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptStates.stored_model_refuses_of_agreement' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptStates.stored_model_refuses_of_agreement
+
+/--
 info: 'Tacenta.UnitLifecycleDecryptStates.storedSession_runInputs' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -1915,6 +2004,45 @@ info: Tacenta.UnitLifecycleDecryptStates.stored_sparseMatch_tight : ∀ (dh : Ta
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleDecryptStates.stored_sparseMatch_tight
+
+/--
+info: Tacenta.UnitLifecycleDecryptStates.stored_run_header_names_no_stored_key : ∀ (dh : Tacenta.UnitLifecycleT3.DhView)
+  (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+  (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (ad : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+  (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  List.filter
+        (fun x =>
+          x.1 == (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).dr.dh &&
+            x.2.1 == (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).dr.n)
+        (Tacenta.UnitLifecycleDecryptStates.storedModel dh
+                (Tacenta.UnitLifecycleDecryptStates.storedSession k pkb ad a)).triple.classical.skipped =
+      [] ∧
+    List.filter
+        (fun x =>
+          x.1 == (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).epoch &&
+            x.2.1 == (Model.Lifecycle.tripleHeaderOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleComposite).pqN)
+        (Tacenta.UnitLifecycleDecryptStates.storedModel dh
+                (Tacenta.UnitLifecycleDecryptStates.storedSession k pkb ad a)).triple.postQuantum.skipped =
+      []
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptStates.stored_run_header_names_no_stored_key
+
+/--
+info: Tacenta.UnitLifecycleDecryptStates.stored_model_refuses_of_agreement : ∀ (dh : Tacenta.UnitLifecycleT3.DhView)
+  (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+  (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+  (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (ad : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+  (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  oracle.dhAgree (dh.privateKey k) (List.replicate 32 0) = none →
+    (Model.Lifecycle.decryptRatchet view oracle
+          (Tacenta.UnitLifecycleDecryptStates.storedModel dh
+            (Tacenta.UnitLifecycleDecryptStates.storedSession k pkb ad a))
+          (Tacenta.UnitLifecycleT3.sliceOf Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage)).result =
+      Except.error (Model.Lifecycle.Refusal.handshake Model.Lifecycle.HandshakeRefusal.nonContributoryAgreement)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptStates.stored_model_refuses_of_agreement
 
 /--
 info: Tacenta.UnitLifecycleDecryptStates.storedSession_runInputs : ∀ (dh : Tacenta.UnitLifecycleT3.DhView)
