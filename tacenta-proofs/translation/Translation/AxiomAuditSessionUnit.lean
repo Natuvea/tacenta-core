@@ -57,6 +57,7 @@ import Translation.UnitLifecycleDecryptScreen
 import Translation.UnitKemWrapperModel
 import Translation.UnitHeldKemWitness
 import Translation.SessionUnitDecodeEc
+import Translation.UnitLifecycleInitialAgreementT3
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -90,7 +91,9 @@ with a model; that is not a statement that the real wrapper meets the laws.
 generated key pair, so that the relation compares that KEM model's values with the real key pair's; that
 witness state is built for the hypotheses too.
 `SessionUnitDecodeEc.lean` states the translated `decode_ec` on every input, refusals included, as
-the model's `DecodeEC`.
+the model's `DecodeEC`. `UnitLifecycleInitialAgreementT3.lean` proves the repeated-initial
+ephemeral comparison of `Session::decrypt` refines the model's, under the agreement clause of the
+oracle and `DhCodecOf`; the initial-frame composition of `decrypt` is not there.
 `DispatchEvidenceVacuity.lean` shows five evidence hypotheses and records of the lifecycle and
 initial-dispatch modules to be false or empty (`GAP-REGISTER.md`, row `DISPATCH-EVIDENCE-VACUITY`). General
 receive refinement and the full public Session T3 theorem remain open. Every

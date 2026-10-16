@@ -1606,6 +1606,16 @@ REQUIRED_PINS = frozenset(
         "held_not_refines_toyKem",
         "held_model_refuses_of_agreement",
     )]
+    # The repeated-initial ephemeral comparison refines the model's (`UnitLifecycleInitialAgreementT3`).
+    + ["Tacenta.UnitLifecycleInitialAgreementT3." + n for n in (
+        "arrayOf_injective",
+        "agreement_eq_refines",
+        "same_ephemeral_agreement_refines_of_dhAgree",
+        "same_ephemeral_agreement_refines",
+        "repeated_initial_agreement_refines",
+        "repeated_initial_agreement_true_iff",
+        "repeated_initial_agreement_false_iff",
+    )]
     # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Tacenta.SessionUnitDecodeEc." + n for n in (
         "decodeEc_eq_some_iff",
@@ -2584,6 +2594,20 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "chunkMessage",
         "chunkView",
     )]
+    # The repeated-initial comparison's refinement: every result's statement (`UnitLifecycleInitialAgreementT3`).
+    + ["Tacenta.UnitLifecycleInitialAgreementT3." + n for n in (
+        "arrayOf_injective",
+        "agreement_eq_refines",
+        "same_ephemeral_agreement_refines_of_dhAgree",
+        "same_ephemeral_agreement_refines",
+        "repeated_initial_agreement_refines",
+        "repeated_initial_agreement_true_iff",
+        "repeated_initial_agreement_false_iff",
+    )]
+    # The model's repeat comparison, whose body the refinement states (`UnitLifecycleInitialAgreementT3`).
+    + ["Model.Lifecycle." + n for n in (
+        "sameEphemeralAgreement",
+    )]
     # The curve-key decoder's characterization: every result's statement (`SessionUnitDecodeEc`).
     + ["Tacenta.SessionUnitDecodeEc." + n for n in (
         "decodeEc_eq_some_iff",
@@ -2786,6 +2810,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "chunkComposite",
         "chunkMessage",
         "chunkView",
+    )]
+    # The model's repeat comparison (`UnitLifecycleInitialAgreementT3`).
+    + ["Model.Lifecycle." + n for n in (
+        "sameEphemeralAgreement",
     )]
     # The model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Model.Lifecycle." + n for n in (
