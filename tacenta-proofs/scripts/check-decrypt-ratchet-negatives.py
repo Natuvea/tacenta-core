@@ -48,7 +48,9 @@ copy of a module and requires Lean to refuse it, at a named place:
     ceiling dropped from `CounterHeadroom`, and with its clock ceiling weakened to the invariant's own
     `events < u32::MAX` (each refused in `retryRunBounds_of_invariant`), with the Triple-level derivation
     no longer told the sparse output's epoch label (refused in `retryRunBounds_of_triple_invariant`), and
-    with the excluded state's clock one below the park (refused in `parkedSession_not_counterHeadroom`);
+    with the excluded state's clock one below the park (refused in `parkedSession_not_counterHeadroom`), and
+    with the Braid epoch ceiling of `CounterHeadroom` weakened to the decoder's `epoch < u64::MAX` (refused in
+    `decryptRatchetRun_of_invariant`, where the proof first uses it);
   * the per-run bounds derivation with the Braid epoch ceiling of `CounterHeadroom` weakened to the
     decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`).
 
@@ -199,6 +201,10 @@ MUTANTS = [
     ('runbounds', 'parked-clock-one-below-the-park',
      [(r'      events := 4294967294#u32 \} \}\n', '      events := 4294967293#u32 } }\n')], PROOF,
      ['parkedSession_not_counterHeadroom']),
+    ('runbounds', 'counter-headroom-braid-ceiling-at-the-decoder-bound',
+     [(r'  braidEpoch : \(Tacenta\.SessionUnitBraidT1\.State\.epoch_val real\.braid\.state\)\.val \+ 1 <\n',
+       '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')], PROOF,
+     ['decryptRatchetRun_of_invariant']),
     ('runboundspinned', 'counter-headroom-braid-ceiling-at-the-decoder-bound-pinned',
      [(r'  braidEpoch : \(Tacenta\.SessionUnitBraidT1\.State\.epoch_val real\.braid\.state\)\.val \+ 1 <\n',
        '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')],
