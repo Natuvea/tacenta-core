@@ -58,6 +58,7 @@ import Translation.UnitLifecycleDecryptRunBounds
 import Translation.UnitKemWrapperModel
 import Translation.UnitHeldKemWitness
 import Translation.SessionUnitDecodeEc
+import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
 
 /-!
@@ -93,6 +94,10 @@ with a model; that is not a statement that the real wrapper meets the laws.
 `UnitHeldKemWitness.lean` shows the same hypotheses together at a second witness whose Braid holds a
 generated key pair, so that the relation compares that KEM model's values with the real key pair's; that
 witness state is built for the hypotheses too.
+`UnitLifecycleDecryptStates.lean` builds sessions that pass `Session::invariant` with an established
+ephemeral key, with a pending initial message, and with stored keys, open chains and counters away from
+zero, and shows the hypotheses of the restated refinement together at the last; those states are built for
+the hypotheses too, not shown produced by establishment or `import`.
 `SessionUnitDecodeEc.lean` states the translated `decode_ec` on every input, refusals included, as
 the model's `DecodeEC`. `UnitLifecycleInitialAgreementT3.lean` proves the repeated-initial
 ephemeral comparison of `Session::decrypt` refines the model's, under the agreement clause of the
