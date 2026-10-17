@@ -31,9 +31,10 @@ unit, where it has conditional T1 theorems and a conditional T3 refinement of it
 `Session::invariant` in place of the run's bounds, five of whose eleven fields the invariant gives alone and two more with an
 assumed sparse epoch ceiling, one the model, and four counter ceilings, assumed, the remaining three and a Braid epoch bound;
 each ceiling excludes a state the invariant accepts, the clock case shown in Lean and the other three by reading of the Rust,
-not checked in Lean; at a session `establish_initiator_for` returned, the invariant, under two assumed laws, the four ceilings
-and the relation to one model session follow from the establishment, and an honest peer cannot produce a frame that succeeds
-there before it sends); `decrypt_ratchet_refines_complete` is
+not checked in Lean; at a session `establish_initiator_for` returned, the invariant, under two assumed laws, and the four
+ceilings follow from the establishment, the relation to the model session read off it holds by definition at its
+`KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows and no
+proof does); `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than

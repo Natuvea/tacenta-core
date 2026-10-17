@@ -2447,22 +2447,41 @@ successful `establish_initiator_for` output, for every input, the hypotheses abo
 witnessed: `Session::invariant` (`establish_initiator_for_admissible`), all four fields of `CounterHeadroom`
 (`counterHeadroom_of_established`, with no hypothesis: the classical clock and both sparse chain counters are 0, the sparse
 epoch 0, the Braid epoch 1) and `SessionRefines` with one model session read off the output (`sessionRefines_established`,
-`sessionRefines_established_unique`, with no hypothesis). So at that state the ceilings are not premises; at every other state
+`sessionRefines_established_unique`, with no hypothesis; the relation holds by definition for every session whose Braid is
+`KeysUnsampled`, so what the establishment supplies to it is that Braid state, and the establishment-specific content is the
+invariant and the ceilings). So at that state the ceilings are not premises; at every other state
 they stay assumed as above. The invariant there takes `OptionEqU64Shape` of the table above and two more laws, ASSUMED:
 
 | Law | Statement | Used for | Satisfied by |
 |---|---|---|---|
-| `DhPublicValid` | every public key `PrivateKey::public_key` returns has canonical bytes and is of prime order (`DhPublicValidShape` at the real constants) | our identity key passes `is_valid_identity_key`; the ratchet key's bytes and the pending ephemeral key are canonical | the joint model: `model_dhPublicValid`. Of the real primitive it is true by reading (x25519-dalek multiplies a clamped scalar by the base point; `tacenta-core/boundary/src/dh.rs`), not checked in Lean |
-| `KemCiphertextLenOf` | a successful `kem::encapsulate` returns a ciphertext of length `kem::ciphertext_len` (`KemCiphertextLenShape kem::ciphertext_len` at the real constants) | the pending ciphertext's length clause | `Interp` has no field for `kem::ciphertext_len`, so the shape takes the constant as an argument, as `OptionEqU64Shape` does for `Option::eq`; the joint model, whose encapsulation returns an empty ciphertext, satisfies it at `ok 0`: `model_kemCiphertextLen`. Of the real wrapper it is true by reading (`tacenta-core/boundary/src/kem.rs`), not checked in Lean |
+| `DhPublicValid` | every public key `PrivateKey::public_key` returns has canonical bytes and is of prime order (`DhPublicValidShape` at the real constants) | our identity key passes `is_valid_identity_key`; the ratchet key's bytes and the pending ephemeral key are canonical | the joint model: `model_dhPublicValid`. Of the real primitive it is true by reading (x25519-dalek multiplies a clamped scalar, a multiple of 8 in `[2^254, 2^255)` and so never 0 modulo the group order, by the base point, and encodes the reduced u-coordinate; `tacenta-core/boundary/src/dh.rs`), not checked in Lean. It would be false of a `public_key` that did not reduce the u-coordinate modulo p, or that could return a point outside the prime-order subgroup (a scalar that is 0 modulo the group order, or a base point of mixed order) |
+| `KemCiphertextLenOf` | a successful `kem::encapsulate` returns a ciphertext of length `kem::ciphertext_len` (`KemCiphertextLenLawShape kem::ciphertext_len` at the real constants) | the pending ciphertext's length clause | `Interp` has no field for `kem::ciphertext_len`, so the shape takes the constant as an argument, as `OptionEqU64Shape` does for `Option::eq`; the joint model, whose encapsulation returns an empty ciphertext, satisfies it at `ok 0`: `model_kemCiphertextLen`. Of the real wrapper it is true by reading (`encapsulate` returns the bytes of an `MlKem1024Ciphertext`, and `ciphertext_len` is that type's length; `tacenta-core/boundary/src/kem.rs`), not checked in Lean. It would be false if `encapsulate` and `ciphertext_len` used different ML-KEM parameter sets, or if `encapsulate` returned the ciphertext with framing or truncation |
 
 That the success case is inhabited is shown under the axiom part of the initiator contract record and one more statement,
 `InitiatorSuccessShape` (a self-equal valid key on which some signature verifies for every message and every agreement is
 contributory, and a KEM key on which encapsulation succeeds), assumed; the joint model satisfies it with the two laws
-(`establishment_hypotheses_satisfiable`), in the substitution sense above. The model session is read off the output, not
-shown to be `Model.Lifecycle.establishInitiator`'s. An honest peer cannot produce a frame that succeeds at this state before
-the initiator sends (it needs the initial message only the initiator's first `encrypt` produces, and that call moves the Braid
-out of `KeysUnsampled`), so what the composition with the `decrypt_ratchet` refinement establishes at a state the code
-produced is every refusal and its effects (`CLAIMS.md`, the section on the established initiator).
+(`establishment_hypotheses_satisfiable`), in the substitution sense above. Of the real primitives it holds by reading, not
+checked: a key whose private half is known signs every message, agreement with a prime-order key is contributory because a
+clamped scalar is never 0 modulo the group order, and a valid ML-KEM-1024 public key encapsulates. The witness bundle uses one
+key as identity key and signed prekey and has no one-time prekey; the success branch with a one-time prekey is not shown
+inhabited. The model session is read off the output, not shown to be `Model.Lifecycle.establishInitiator`'s.
+
+The premises of the composed results (`established_initiator_decrypt_refines`) hold together: at the real constants under the
+decrypt laws `DecryptJointLaws K dh`, the initiator contract axioms, `InitiatorSuccessShape` and the two laws
+(`established_decrypt_hypotheses_jointly_satisfiable`), and those shapes hold together in one interpretation,
+`Interp.modelEstablished` (`established_decrypt_laws_model`), which is `Interp.modelDecrypt` with a constant canonical public
+key: `Interp.modelDecrypt`, the model of `DecryptJointLaws`, does not satisfy `DhPublicValidShape`, since its public key is the
+private key's bytes. Both models are toys and show nothing of the real primitives.
+
+The success arm at this state is reached in an honest run through a copy of the session:
+`tacenta-core/tests/restored_initiator_receives_reply.rs` exports the session `establish_initiator` returned, lets the
+initiator send and the responder reply, restores the export and decrypts the reply, on 20 seeds. That is a test on the seeds
+it tries, not a proof, and it says nothing about whether restoring an older snapshot is safe for an application. A session
+value never copied leaves this state at its own first `encrypt`. The composed results relate success and refusal alike to the
+model step (`StepRefines`: result, post-state and draws left; on a refusal the model's `decryptRatchet` keeps the session,
+`Model.Lifecycle.decryptRatchet_refusal_keeps_session`), for a ratchet-type frame whose agreement chunk, if any, meets
+`IncomingChunkRefines`, with a draw left; that chunk premise excludes some frames a sender who is not honest can send
+(`CLAIMS.md`, the section on the established initiator).
 
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
@@ -2481,7 +2500,7 @@ keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the
   The witness session has no pending initial message and no established ephemeral key, and it is not one that
   `establish_initiator` or `establish_responder` returns. A session `establish_initiator_for` returns holds a pending initial
   message and passes `Session::invariant` under `KemCiphertextLenOf` and `DhPublicValid` (above), so
-  `decryptHeadroom_of_invariant` gives it `DecryptRatchetHeadroom`; no state `establish_responder` returns is shown to pass
+  `decryptHeadroom_of_invariant` gives it `DecryptRatchetHeadroom` under `DhCodecTotal` and `Ct1LenTotal`; no state `establish_responder` returns is shown to pass
   the invariant. No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
   or that the invariant bounds `last_resort_seen`, so `EstablishResponderHeadroom` is shown only as a bound on a vector length,
   with a key pair (`HeadroomInhabitants`) as a value. The Braid in the witness is in `KeysUnsampled`,
