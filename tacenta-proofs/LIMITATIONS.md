@@ -2442,6 +2442,28 @@ These are the successor-headroom premises that
 [PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
 `PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
 
+*At a session `establish_initiator_for` returned.* `UnitLifecycleEstablishInitiatorShape.lean` derives, at every
+successful `establish_initiator_for` output, for every input, the hypotheses above that a session over fresh states only
+witnessed: `Session::invariant` (`establish_initiator_for_admissible`), all four fields of `CounterHeadroom`
+(`counterHeadroom_of_established`, with no hypothesis: the classical clock and both sparse chain counters are 0, the sparse
+epoch 0, the Braid epoch 1) and `SessionRefines` with one model session read off the output (`sessionRefines_established`,
+`sessionRefines_established_unique`, with no hypothesis). So at that state the ceilings are not premises; at every other state
+they stay assumed as above. The invariant there takes `OptionEqU64Shape` of the table above and two more laws, ASSUMED:
+
+| Law | Statement | Used for | Satisfied by |
+|---|---|---|---|
+| `DhPublicValid` | every public key `PrivateKey::public_key` returns has canonical bytes and is of prime order (`DhPublicValidShape` at the real constants) | our identity key passes `is_valid_identity_key`; the ratchet key's bytes and the pending ephemeral key are canonical | the joint model: `model_dhPublicValid`. Of the real primitive it is true by reading (x25519-dalek multiplies a clamped scalar by the base point; `tacenta-core/boundary/src/dh.rs`), not checked in Lean |
+| `KemCiphertextLenOf` | a successful `kem::encapsulate` returns a ciphertext of length `kem::ciphertext_len` (`KemCiphertextLenShape kem::ciphertext_len` at the real constants) | the pending ciphertext's length clause | `Interp` has no field for `kem::ciphertext_len`, so the shape takes the constant as an argument, as `OptionEqU64Shape` does for `Option::eq`; the joint model, whose encapsulation returns an empty ciphertext, satisfies it at `ok 0`: `model_kemCiphertextLen`. Of the real wrapper it is true by reading (`tacenta-core/boundary/src/kem.rs`), not checked in Lean |
+
+That the success case is inhabited is shown under the axiom part of the initiator contract record and one more statement,
+`InitiatorSuccessShape` (a self-equal valid key on which some signature verifies for every message and every agreement is
+contributory, and a KEM key on which encapsulation succeeds), assumed; the joint model satisfies it with the two laws
+(`establishment_hypotheses_satisfiable`), in the substitution sense above. The model session is read off the output, not
+shown to be `Model.Lifecycle.establishInitiator`'s. An honest peer cannot produce a frame that succeeds at this state before
+the initiator sends (it needs the initial message only the initiator's first `encrypt` produces, and that call moves the Braid
+out of `KeysUnsampled`), so what the composition with the `decrypt_ratchet` refinement establishes at a state the code
+produced is every refusal and its effects (`CLAIMS.md`, the section on the established initiator).
+
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
 it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
@@ -2455,10 +2477,12 @@ keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the
   `Vec::pop`, `Vec::truncate`, `usize::div_ceil`, `Option::as_mut` and `Vec::capacity` as the real operations. The
   blanket `Zeroize`, `Array::zeroize`, `Vec::zeroize` and the tuple `Zeroize` are the identity, which is not what they do.
 - That the substitution step is sound inside Lean (above).
-- That the headroom records are met by a state the crate can reach. The witness session has no pending initial message and no
-  established ephemeral key, and it is not one that `establish_initiator` or `establish_responder` returns. A session with a
-  pending initial message passes `Session::invariant` only with a ciphertext of the length of the opaque `kem::ciphertext_len`,
-  which no record bounds, and no theorem shows one passes. No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
+- That the headroom records are met by a state the crate can reach, apart from a session `establish_initiator_for` returns.
+  The witness session has no pending initial message and no established ephemeral key, and it is not one that
+  `establish_initiator` or `establish_responder` returns. A session `establish_initiator_for` returns holds a pending initial
+  message and passes `Session::invariant` under `KemCiphertextLenOf` and `DhPublicValid` (above), so
+  `decryptHeadroom_of_invariant` gives it `DecryptRatchetHeadroom`; no state `establish_responder` returns is shown to pass
+  the invariant. No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
   or that the invariant bounds `last_resort_seen`, so `EstablishResponderHeadroom` is shown only as a bound on a vector length,
   with a key pair (`HeadroomInhabitants`) as a value. The Braid in the witness is in `KeysUnsampled`,
   which holds no decoder, ciphertext or KEM value; for the other states the receive record holds of every state that passes
@@ -2824,6 +2848,9 @@ during the call as its draws. The same holds for every `OracleOf` theorem of the
 
 **Per run.** The run's agreement chunk is a codeword of one source that fits the decoder it is fed to (`IncomingChunkRefines`,
 `HonestChunk`), so a run whose chunk is spliced or inconsistent is outside the theorem whether it is refused or accepted.
+At a session `establish_initiator_for` returned, `HonestChunk` holds for every message (`honestChunk_established`: its
+Braid is in `KeysUnsampled`, which holds no decoder); the chunk relation for a frame that carries an agreement chunk and the
+draw stay the caller's there too.
 Each skipped-key store is at most `2^32 - 1 - 2000` long. The model state meets `RetryReceiveBounds`: its event counter,
 epochs and chain counters leave room, its chain table has room for two more entries, and at most one skipped key in each
 store matches the header (`Ratchet::invariant` and `State::invariant` supply the last; the event bound is one stricter than
