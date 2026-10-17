@@ -200,7 +200,9 @@ other three by reading of the Rust, not checked in Lean). At a session that `est
 `Session::invariant` (under two assumed laws about X25519 public keys and the KEM ciphertext length) and the four ceilings
 follow from the establishment, so the restated form applies there, to success and refusal alike; the relation to the model
 session read off it holds by definition at its `KeysUnsampled` Braid. A restored copy of that session decrypts the
-responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof).
+responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof); that `import` of
+the exported bytes returns that session unchanged, so the restated form applies to the restored copy, is proved under six
+assumed laws, and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,

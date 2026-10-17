@@ -2483,6 +2483,40 @@ model step (`StepRefines`: result, post-state and draws left; on a refusal the m
 `IncomingChunkRefines`, with a draw left; that chunk premise excludes some frames a sender who is not honest can send
 (`CLAIMS.md`, the section on the established initiator).
 
+*A restored session: acceptance against continuation.* `UnitLifecycleRestoredSession.lean` starts from the bytes
+`Session::import` accepted. What acceptance gives is proved with no hypothesis: every accepted session passes
+`Session::invariant` (`import_ok_gives_invariant`). What the next operation also consumes is not given by acceptance and
+stays a premise: the four counter ceilings (`CounterHeadroom`, stated at an accepted import as the decidable
+`headroomCheck`, `restored_counterHeadroom_iff`; the parked classical clock passes the invariant,
+`invariant_does_not_give_counterHeadroom`, and `import` checks nothing about counters beyond the invariant, as its Rust
+documentation says, "a property whose check belongs at the use site"), and the scope `RestoredScope` (Braid in
+`KeysUnsampled` or `Failed`). Outside the scope no relation to a model session is claimed: a restored key pair or
+encapsulation state has no model value at the wrapper's KEM model, and a restored encoder or decoder has no history for
+`EncoderRefines`/`DecoderRefines`; so a restored Braid in any of the other ten states is not covered by the restored
+results. That `import` of the bytes `export` writes returns every established initiator session itself
+(`export_import_established`), so that the copy is in scope, meets the ceilings and receives under the model's step
+(`restored_established_initiator_decrypt_refines`), takes six more laws, ASSUMED:
+
+| Law | Statement | Used for | Satisfied by |
+|---|---|---|---|
+| `ZeroizingVecRoundTrip` | `Zeroizing::new` then `Zeroizing::deref` on a byte vector returns it (`ZeroizingVecRoundTripShape` at the real constants) | reading the leaf encoders' output back out of its wrapper | `Interp.model` (`model_zeroizingVecRoundTrip`). True of the `zeroize` crate by reading (`Zeroizing` is a transparent wrapper whose `deref` returns the wrapped value). It would be false of a wrapper that copied or transformed the value on construction or read |
+| `OptionBranchSome` | `Option::branch` on `Some x` continues with `x` (a shape over the constant, which the translation declares without a body) | the session-level `take_len_prefixed` and `PendingInitial::from_bytes` | `optionBranchImpl`, the standard library's definition (`restored_laws_model`). True of `core` by reading (`Some(v) => ControlFlow::Continue(v)`). It would be false only of a different `Try` implementation for `Option` |
+| `VecAsSlice` | `Vec::as_slice` returns the vector's slice view (a shape over the constant) | `import`'s canonical re-encode check | `vecAsSliceImpl` (`vecAsSliceImpl_shape`). True of `alloc` by reading. It would be false of an `as_slice` that returned anything other than the vector's elements in order |
+| `DhPrivateBytesRoundTrip` | `PrivateKey::to_bytes`, read out of its `Zeroizing`, then `PrivateKey::from_bytes` returns the key (`DhPrivateBytesRoundTripShape` at the real constants) | the ratchet private key comes back from the exported bytes | `Interp.model` (`model_dhPrivateBytesRoundTrip`). True of `tacenta-core/boundary/src/dh.rs` by reading (in x25519-dalek 2.0.1, the version `Cargo.lock` pins, `StaticSecret::from` stores the 32 bytes as given and `StaticSecret::to_bytes` returns them). It would be false if `to_bytes` returned something other than what `from_bytes` reads, and, as an equality of opaque values, it says the rebuilt key is the same key, which a Rust test can only check by its behaviour |
+| `DhPublicBytesRoundTrip` | `PublicKeyBytes::as_bytes` then `PublicKeyBytes::from_bytes` returns the key (`DhPublicBytesRoundTripShape` at the real constants) | the two identity keys and the pending ephemeral key come back; the associated data's length | `Interp.model` (`model_dhPublicBytesRoundTrip`). True by reading (`PublicKeyBytes` wraps its 32 bytes; `from_bytes` wraps, `as_bytes` unwraps). It would be false of a `from_bytes` that normalised its input |
+| `KemCiphertextLenBound` | `kem::ciphertext_len` returns at most 65536 (`KemCiphertextLenBoundShape` at the real constant) | with `KemCiphertextLenOf`, the pending ciphertext's length prefix and the size arithmetic of `export` do not wrap | `ok 0`, the constant of the established-initiator model (`model_kemCiphertextLenBound`). True by reading (`ciphertext_len` is the length of an ML-KEM-1024 ciphertext, 1568 bytes; `tacenta-core/boundary/src/kem.rs`). It would be false of a parameter set with ciphertexts over 64 KiB |
+
+The six laws hold together with `DhPublicValid`, `KemCiphertextLenOf` and `OptionEqU64Shape` in one interpretation
+(`restored_laws_model`), in the substitution sense above; that shows nothing of the real functions. The round trip is proved
+for the shape an established initiator session has (`CodecShape`: Braid `KeysUnsampled` below epoch `u64::MAX`, no stored
+skipped key, one sparse chain-table entry with both chains, a pending initial message, no established ephemeral, both
+variable-length fields at most 65536 bytes); a session of another shape is not covered, including a later session with
+stored keys, a responder, and a Braid in any other state. `Session::invariant` alone does not give the epoch bound: a
+`KeysUnsampled` Braid at epoch `u64::MAX` passes the Braid's invariant (`epoch >= 1`) and is refused by its reader, as
+`session-persistence.md` states; the operations never reach that epoch, and the established session is at epoch 1. Every
+statement that names `export` or `import` lists one compiler-trust axiom from the `toStr` of a panic message in the
+generated `export` (`by decide +native`), not from the argument (`CLAIMS.md`).
+
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
 it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
