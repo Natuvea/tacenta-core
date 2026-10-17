@@ -157,11 +157,11 @@ report_time "send refusal proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-sparse-store-full-negatives.py || fail=1
 report_time "sparse store-full proof-dependency control" "$t"
-# The decrypt_ratchet refinement, its retry-loop induction, its refusal closure and the public decrypt on
+# The decrypt_ratchet refinement, its retry-loop induction, its refusal closure, its per-run bounds and the public decrypt on
 # frames that are not initial messages
 # (`UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`, `UnitLifecycleDecryptRatchetScreen.lean`,
 # `UnitLifecycleTripleRefusalT3.lean`, `UnitLifecycleDecryptRatchetCompleteT3.lean`,
-# `UnitLifecycleDecryptRatchetCompleteScreen.lean`, `UnitLifecycleDecryptT3.lean`): a copy with the fact a proof
+# `UnitLifecycleDecryptRatchetCompleteScreen.lean`, `UnitLifecycleDecryptRunBounds.lean`, `UnitLifecycleDecryptT3.lean`): a copy with the fact a proof
 # rests on removed, a copy whose open disjunct grows, a copy of the complete statement that regains it, a
 # fault planted in a renamed copy of the generated `decrypt` and a copy of the join without its scope premise
 # or on the first form must each be refused at a named declaration or pin, after the unmodified copies are

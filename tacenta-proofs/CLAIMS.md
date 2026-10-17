@@ -4200,16 +4200,27 @@ about an initial message, so `Session::decrypt` is still not proved end to end.
   `decrypt_of_invariant_hypotheses_jointly_satisfiable`, for every codeword view; its message is a ratchet frame, so it
   meets `hframe`. The laws are assumed, with the models of that section, and the witness keeps that section's limits: the
   state is built for the hypotheses, carries no agreement chunk, and its model step refuses at the first agreement if the real
-  agreement refuses the all-zero key, which, by reading the X25519 boundary, it does.
+  agreement refuses the all-zero key, which, by reading the X25519 boundary, it does. Its conclusion is the record
+  `DecryptOfInvariantHypotheses` of the section on the per-run receive bounds, with `hframe`; the next result ties that record to the corollary.
+- `decrypt_refines_ratchet_frame_of_hypotheses`: from `DecryptOfInvariantHypotheses` and `hframe`,
+  `decrypt_refines_ratchet_frame_of_counter_headroom` applies, so the generated `lifecycle.Session.decrypt` returns and
+  `StepRefines` holds against `Model.Lifecycle.decrypt`. The record with `hframe` is the corollary's hypothesis set by
+  this theorem, not by reading: a hypothesis added to the corollary that the record does not supply breaks its proof.
+- `decrypt_frame_at_invReal`: the two composed. Under `DecryptJointLaws K dh`, at the witness of
+  `decrypt_frame_hypotheses_jointly_satisfiable`, for every codeword view, the generated public `decrypt` returns and its
+  output refines the model's step. The laws are assumed; the limits of that witness stay (built for the hypotheses, no
+  agreement chunk, a model step that refuses at the first agreement if the real agreement refuses the all-zero key).
 - `refReal_fails_invariant`, `succMessage_not_initial`, `decrypt_refines_ratchet_frame_at_refusal`: the theorem at the run
   of the complete refinement's screen (`UnitLifecycleDecryptRatchetCompleteScreen`) whose model step is the Triple refusal `outOfOrder`. That state fails
   `Session::invariant` (its associated data is empty, and a state that passes holds 66 bytes there, under `DhCodecTotal`),
   so this run shows the hypotheses consistent, not met by a state the crate admits.
 - `sampleMessage_not_initial`, `inv_sessionRefines`, `inv_retryRunBounds`, `inv_run_satisfiable`, `inv_model_refuses`,
   `decrypt_refines_ratchet_frame_of_invariant_at_sample`, `decrypt_refines_ratchet_frame_of_invariant_exists`: the earlier
-  screen's first run, rebased on the session of `sessionOf_invariant` (`invReal`: fresh Triple and Braid states, the
+  screen's first run, rebased on the session of `sessionOf_invariant` (`UnitLifecycleDecryptT3.invReal`: fresh Triple and Braid states, the
   ratchet key's own public bytes, the associated data `identity_ad` computes, and as the identity key on both sides the
-  public key of that same ratchet key, so the session's peer is itself). That session passes `Session::invariant` under the two
+  public key of that same ratchet key, so the session's peer is itself; it is the same state as
+  `UnitLifecycleDecryptScreen.invReal`, the session of the joint witness above, with the last two arguments swapped, and
+  unifying the two definitions is a follow-up). That session passes `Session::invariant` under the two
   assumptions `sessionOf_invariant` takes, `ValidKeyShape` (a canonical prime-order key) and `OptionEqU64Shape`
   (`LIMITATIONS.md`, "The headroom records"); `SessionRefines`, the trace equation and the five fields of
   `DecryptRatchetRun` hold there, for each Braid KEM model, view and oracle with the source's draws; and the `Session::invariant` corollary applies at it. The boundary records are
@@ -4261,16 +4272,16 @@ the senses stated.
 `decrypt_refines_ratchet_frame_at_refusal`, `decrypt_refines_ratchet_frame_at_pending_success` and
 `generated_clears_at_pending_success` have exactly the axioms of `decrypt_ratchet_refines_complete`, 61, including its
 nine `native_decide` constants; the generated `decrypt` and `message_type` add none.
-`decrypt_refines_ratchet_frame_of_invariant`, `decrypt_refines_ratchet_frame_of_counter_headroom` and
-`decrypt_refines_ratchet_frame_of_invariant_at_sample` add three opaque
+`decrypt_refines_ratchet_frame_of_invariant`, `decrypt_refines_ratchet_frame_of_counter_headroom`,
+`decrypt_refines_ratchet_frame_of_hypotheses` and `decrypt_refines_ratchet_frame_of_invariant_at_sample` add three opaque
 operations that `Session::invariant` mentions (`is_prime_order_public`, `kem::ciphertext_len` and `Option::eq`), 64 in all;
-`decrypt_refines_ratchet_frame_of_invariant_exists` adds five more that the real interpretation in `ValidKeyShape` names
-(`aead::encrypt`, `kem::KeyPair`, `kem::encapsulate`, `kem::decapsulate` and `xeddsa::verify`), 69 in all; each has the
-same nine. These nine are compiler-trusted; the class is expected to change as for the complete `decrypt_ratchet`
+`decrypt_refines_ratchet_frame_of_invariant_exists` and `decrypt_frame_at_invReal` add five more that the real
+interpretation names (`aead::encrypt`, `kem::KeyPair`, `kem::encapsulate`, `kem::decapsulate` and `xeddsa::verify`), 69 in
+all; each has the same nine. These eleven are compiler-trusted; the class is expected to change as for the complete `decrypt_ratchet`
 refinement. Of the other ten, `succMessage_not_initial` and `sampleMessage_not_initial` are kernel-only, seven rest on
 between 4 and 22 of the Session unit's opaque-operation axioms, and `decrypt_frame_hypotheses_jointly_satisfiable` on 52
 (55 in all), those the laws and the witness name. Each result carries an axiom pin and a statement pin, and
-`DecryptRefinesRatchetFrameStatement`, `invReal` and `pendReal` carry `#print` pins; `attest.py` requires them.
+`DecryptRefinesRatchetFrameStatement`, `UnitLifecycleDecryptT3.invReal` and `pendReal` carry `#print` pins; `attest.py` requires them.
 `check-decrypt-ratchet-negatives.py` holds the join against nine planted faults: five in a renamed copy of the generated
 `decrypt` compiled with copies of `decrypt_passthrough_step_refines`, `decrypt_passthrough_refines` and the join (a
 success that keeps `pending_initial`, a refusal that clears it, a `none` arm that refuses without calling
@@ -4278,7 +4289,10 @@ success that keeps `pending_initial`, a refusal that clears it, a `none` arm tha
 byte), each refused in the copied step lemma; and four on a copy of the module (the target replaced by
 `Model.Lifecycle.decryptRatchet`, `hframe` deleted with its one use left open, and `decrypt_ratchet_refines_complete`
 replaced by the first form `decrypt_ratchet_refines`, each refused in the join; and, with the pins kept, the recorded
-statement without its `draws` conjunct, refused at its pin).
+statement without its `draws` conjunct, refused at its pin). No planted fault covers the four results added with the run
+bounds derived (`decrypt_refines_ratchet_frame_of_counter_headroom`, `decrypt_frame_hypotheses_jointly_satisfiable`,
+`decrypt_refines_ratchet_frame_of_hypotheses`, `decrypt_frame_at_invReal`); each is a short composition held by its
+axiom and statement pins.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 

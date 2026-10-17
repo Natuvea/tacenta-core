@@ -3045,7 +3045,9 @@ its ceiling, is outside the corollary, permanently. `decrypt_frame_hypotheses_jo
 the boundary records included, together at the witness of `decrypt_of_invariant_hypotheses_jointly_satisfiable` under the
 named laws `DecryptJointLaws`, with that witness's limits: built for the hypotheses, no agreement chunk, no ceiling
 exercised away from zero, and a model step that refuses at the first agreement if the real agreement refuses the all-zero
-key.
+key. `decrypt_refines_ratchet_frame_of_hypotheses` applies the corollary to that record with `hframe`, and
+`decrypt_frame_at_invReal` carries the laws to the corollary's conclusion at that witness. No planted-fault control covers
+these four results; their axiom and statement pins hold them.
 
 **The random source.** As in the previous section, the source is read through a function of its value. For a source with
 no state of its own, such as `OsRng`, `DecryptOracleOf.random32` and the draw field of `DecryptRatchetRun` cannot both
