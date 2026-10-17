@@ -11,8 +11,10 @@
 use rand::SeedableRng;
 use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
 
-/// The type byte of a ratchet frame, as `serialization::message_type` reads it.
-const RATCHET_TYPE: u8 = 1;
+/// Byte 0 of a frame is the wire version; byte 1 is the type, which
+/// `serialization::message_type` reads (`tacenta_wire::VERSION`, `TYPE_RATCHET`).
+const VERSION: u8 = tacenta_wire::VERSION;
+const RATCHET_TYPE: u8 = tacenta_wire::TYPE_RATCHET;
 
 #[test]
 fn restored_initiator_receives_reply() {
@@ -36,6 +38,11 @@ fn restored_initiator_receives_reply() {
         let reply = bob.encrypt(b"reply", &mut rng).unwrap();
         assert_eq!(
             reply.first(),
+            Some(&VERSION),
+            "seed {seed}: the reply carries the wire version"
+        );
+        assert_eq!(
+            reply.get(1),
             Some(&RATCHET_TYPE),
             "seed {seed}: the reply is a ratchet frame"
         );
