@@ -2464,6 +2464,12 @@ These are the successor-headroom premises that
 [PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
 `PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
 
+*What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
+`#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
+it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
+and by their axiom pin alone, and the axiom pin lists axioms and not the statement, so a weaker statement of any of them that
+keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the width bound and the four controls.
+
 *At a session `establish_initiator_for` returned.* `UnitLifecycleEstablishInitiatorShape.lean` derives, at every
 successful `establish_initiator_for` output, for every input, the hypotheses above that a session over fresh states only
 witnessed: `Session::invariant` (`establish_initiator_for_admissible`), all four fields of `CounterHeadroom`
@@ -2547,12 +2553,6 @@ stored keys, a responder, and a Braid in any other state. `Session::invariant` a
 `session-persistence.md` states; the operations never reach that epoch, and the established session is at epoch 1. Every
 statement that names `export` or `import` lists one compiler-trust axiom from the `toStr` of a panic message in the
 generated `export` (`by decide +native`), not from the argument (`CLAIMS.md`).
-
-*What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
-`#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
-it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
-and by their axiom pin alone, and the axiom pin lists axioms and not the statement, so a weaker statement of any of them that
-keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the width bound and the four controls.
 
 **What is not shown.**
 
