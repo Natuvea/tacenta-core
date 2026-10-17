@@ -60,6 +60,7 @@ import Translation.UnitHeldKemWitness
 import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
+import Translation.UnitLifecycleDecryptT3
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 
