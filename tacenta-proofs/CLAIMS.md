@@ -4668,7 +4668,11 @@ and `established_encrypt_successor_reachable`. Of the other 50, 12 rest on `prop
 which the types and definitions they mention refer to; the joint-satisfiability results are among them. Each of the 63
 results carries an axiom pin and a statement pin, and each of the 28 definitions a `#print` pin.
 `check-encrypt-negatives.py` plants sixteen faults in copies of the module and requires Lean to refuse each at a named
-declaration or pin, with a message that names the fact removed: the headroom lemma without `KemCiphertextLenBound`, and one byte short of
+declaration or pin. Ten are refused with a message that names the fact removed (an omega counterexample, an unsolved goal or a
+mismatch naming it); four are refused at the named place by an unsolved `False` goal, which shows the proof fails there and
+does not name the fact (the outcome theorem without the refusal, the first Triple send claimed to refuse, its sparse message
+number claimed to be 0, the successor's counters claimed to stay at 0); one by a proof error at the named place (the joint
+model's key generation leaving the source); and one by its pin's text, by design. The faults: the headroom lemma without `KemCiphertextLenBound`, and one byte short of
 its plaintext bound (each refused in `encryptHeadroom_parts`, omega's counterexample naming the ciphertext's length or the
 bound); the Triple store facts restated at the established session with its sparse epoch set to `u64::MAX`, the proof
 otherwise unchanged (refused in `tripleStoreFacts_parts`, omega unable to prove the epoch bound: the proof rests on the

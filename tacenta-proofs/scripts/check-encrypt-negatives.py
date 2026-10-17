@@ -6,8 +6,12 @@ successful `establish_initiator_for` output: the headroom record, the Triple con
 draw record from the key-generation law, the model's two-outcome step, the session a successful send
 leaves (its counter ceilings, its relation and `Session::invariant`), and one interpretation of every law
 the premise lists rest on.  A proof that Lean accepts after the fact it rests on is removed would hold
-nothing, so this script makes one change to a copy of the module and requires Lean to refuse it, at a named
-place, for the reason named:
+nothing, so this script makes one change to a copy of the module and requires Lean to refuse it at a named
+place, with an error matching the control's marker.  Ten markers name the fact removed (an omega counterexample,
+an unsolved goal or a mismatch naming it); four accept an unsolved `False` goal at the named place (the outcome
+theorem without the refusal, the first Triple send claimed to refuse, its sparse number claimed to be 0, the
+counters claimed uncounted), one a generic proof error there (the joint model's key generation), and one the pin's
+text, by design:
 
   * the headroom lemma without `KemCiphertextLenBound` (refused in `encryptHeadroom_parts`: the
     initial-message field's arithmetic has no bound on the ciphertext);
@@ -48,7 +52,7 @@ place, for the reason named:
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not
 from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
 compiler that does not start, a syntax error, an unrelated failure, a refusal elsewhere than the named
-place and a refusal at the named place whose message does not match the control's reason never count.
+place and a refusal at the named place whose message does not match the control's marker never count.
 These are proof-dependency controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleEstablishedEncrypt`).
