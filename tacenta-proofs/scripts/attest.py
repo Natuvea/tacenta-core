@@ -1804,7 +1804,6 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitLifecycleRestoredSession." + n for n in (
         "import_ok_gives_invariant",
         "counterHeadroom_iff_check",
-        "restored_counterHeadroom_iff",
         "sessionRefines_restored",
         "sessionRefines_restored_unique",
         "honestChunk_restored",
@@ -1818,6 +1817,9 @@ REQUIRED_PINS = frozenset(
         "restored_established_initiator_decrypt_refines",
         "restored_established_inhabited",
         "restored_laws_model",
+        "restored_laws_model_established",
+        "restored_decrypt_hypotheses_jointly_satisfiable",
+        "restored_decrypt_laws_model",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -1883,7 +1885,6 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleSessionRoundTrip.export_spec",
         "Tacenta.UnitLifecycleSessionRoundTrip.export_import_of_shape",
         "Tacenta.UnitLifecycleRestoredSession.import_ok_gives_invariant",
-        "Tacenta.UnitLifecycleRestoredSession.restored_counterHeadroom_iff",
         "Tacenta.UnitLifecycleRestoredSession.RestoredDecryptHypotheses.ofInvariant",
         "Tacenta.UnitLifecycleRestoredSession.RestoredDecryptHypotheses.refines",
         "Tacenta.UnitLifecycleRestoredSession.restored_decrypt_refines",
@@ -1891,6 +1892,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleRestoredSession.restored_established_continues",
         "Tacenta.UnitLifecycleRestoredSession.restored_established_initiator_decrypt_refines",
         "Tacenta.UnitLifecycleRestoredSession.restored_established_inhabited",
+        "Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable",
     }
 )
 
@@ -3063,7 +3065,6 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitLifecycleRestoredSession." + n for n in (
         "import_ok_gives_invariant",
         "counterHeadroom_iff_check",
-        "restored_counterHeadroom_iff",
         "sessionRefines_restored",
         "sessionRefines_restored_unique",
         "honestChunk_restored",
@@ -3077,6 +3078,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "restored_established_initiator_decrypt_refines",
         "restored_established_inhabited",
         "restored_laws_model",
+        "restored_laws_model_established",
+        "restored_decrypt_hypotheses_jointly_satisfiable",
+        "restored_decrypt_laws_model",
         "headroomCheck",
         "RestoredScope",
         "restoredModelOf",

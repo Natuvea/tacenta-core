@@ -9,9 +9,11 @@ proves that `import` of `export` returns every established initiator session unc
 accepts after the fact it rests on is removed would hold nothing, so this script makes one change to a copy
 of a module and requires Lean to refuse it, at a named place:
 
-  * the invariant inversion, run against a copy of `import` with the `Inconsistent` refusal removed
-    (refused in `import_ok_gives_invariant`);
-  * `headroomCheck` without its sparse-epoch clause (refused in `counterHeadroom_iff_check`);
+  * the invariant inversion, run against a copy of `import` with the `Inconsistent` refusal removed and
+    with the proof adapted to that body (refused in `import_ok_gives_invariant`, the invariant goal left
+    unsolved);
+  * `headroomCheck` without its sparse-epoch clause, with the proof adapted to the shorter check (refused
+    in `counterHeadroom_iff_check`, the sparse-epoch goal left unsolved);
   * `RestoredScope` widened to a `KeysSampled` Braid, which holds a fresh key pair and an encoder (refused in
     `sessionRefines_restored`);
   * the round trip concluding a session with one field altered, the associated data emptied (refused in
@@ -19,19 +21,24 @@ of a module and requires Lean to refuse it, at a named place:
   * the round trip without the `Vec::as_slice` law (refused in `export_import_of_shape`);
   * the classical ratchet encoding with two counters in the wrong order (refused in
     `ratchet_to_bytes_spec`);
-  * the Braid decoder without the hypothesis that the epoch is below `u64::MAX`, which its reader refuses
-    (refused in `braid_from_bytes_of`);
-  * `OptionBranchSomeShape` weakened to say only that `Option::branch` returns (refused in
-    `lifecycle_take_len_prefixed_of`);
+  * the Braid epoch reader without the hypothesis that the epoch is not `u64::MAX`, which it refuses
+    (refused in `read_epoch_of`, the goal `epoch ≠ u64::MAX` left unsolved);
+  * `OptionBranchSomeShape` weakened to allow `Option::branch` on `Some x` to break, with the proof adapted
+    to take both cases (refused in `lifecycle_take_len_prefixed_of`, the break cases left unsolved);
   * the established round trip's shape without the ciphertext length bound (refused in
     `codecShape_parts`);
+  * the round-trip half of the joint model at an interpretation whose public-key reader ignores its bytes
+    (refused in `restored_laws_model_established`, where that law's round trip fails);
   * `KemCiphertextLenBoundShape` with its bound dropped, with the module's pins kept (refused at the pin of
-    `KemCiphertextLenBoundShape`).
+    `KemCiphertextLenBoundShape`);
+  * the joint model of the composed premise list with its round-trip half at `Interp.model` and its decrypt
+    half at `Interp.modelEstablished`, two interpretations, proved from `restored_laws_model`, with the
+    module's pins kept (refused at the statement pin of `restored_decrypt_laws_model`).
 
 The changes are checked on copies without the modules' pins, so that the refusal comes from a proof and not
-from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
-compiler that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named
-place never count.  These are proof-dependency controls on copies of the Lean; no source, olean or git
+from a pin, except the two kept with their pins.  The unmodified copies must be accepted first.  A timeout, a
+compiler that does not start, a syntax error, an unrelated failure, a refusal elsewhere than the named
+place and a refusal at the named place whose message does not match the control's reason never count.  These are proof-dependency controls on copies of the Lean; no source, olean or git
 state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleRestoredSession`).
@@ -55,6 +62,8 @@ RESTORED = ROOT / 'translation/Translation/UnitLifecycleRestoredSession.lean'
 PROOF = (r'unsolved goals|Application type mismatch|Type mismatch|type mismatch|omega could not prove'
          r'|made no progress|rcases|Insufficient number of fields|failed to prove|rewrite. failed'
          r'|The rfl tactic failed|rfl. failed|scalar_tac failed|simp failed|Tactic .* failed')
+
+UNSOLVED = r'unsolved goals'
 
 IMPORT_WITHOUT_CHECK = (
     '/-- `import` with the `Inconsistent` refusal removed (a planted fault). -/\n'
@@ -84,13 +93,32 @@ MUTANTS = [
     ('restored', 'invariant-inversion-without-the-inconsistent-refusal',
      [(r'/-- \*\*Every session `Session::import` accepts', IMPORT_WITHOUT_CHECK + '**'),
       (r'    \(h : lifecycle\.Session\.import b = ok \(core\.result\.Result\.Ok s\)\) :\n'
-       r'    lifecycle\.Session\.invariant s = ok true := by\n  unfold lifecycle\.Session\.import at h\n',
+       r'    lifecycle\.Session\.invariant s = ok true := by\n  unfold lifecycle\.Session\.import at h\n'
+       r'((?:.*\n)*?)    split at h\n    · simp at h\n    · obtain ⟨b1, hb1, h⟩ := bind_eq_ok_inv h\n'
+       r'      split at h\n      · simp only \[ok\.injEq, core\.result\.Result\.Ok\.injEq\] at h\n'
+       r'        subst h\n        simp_all\n      · simp at h\n',
        '    (h : importWithoutInvariant b = ok (core.result.Result.Ok s)) :\n'
-       '    lifecycle.Session.invariant s = ok true := by\n  unfold importWithoutInvariant at h\n')],
-     PROOF, ['import_ok_gives_invariant']),
+       '    lifecycle.Session.invariant s = ok true := by\n  unfold importWithoutInvariant at h\n'
+       '  obtain ⟨r, -, h⟩ := bind_eq_ok_inv h\n'
+       '  rcases r with val | e\n'
+       '  · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_tc_ok] at h\n'
+       '    obtain ⟨z, -, h⟩ := bind_eq_ok_inv h\n'
+       '    obtain ⟨v, -, h⟩ := bind_eq_ok_inv h\n'
+       '    obtain ⟨sl, -, h⟩ := bind_eq_ok_inv h\n'
+       '    obtain ⟨c, -, h⟩ := bind_eq_ok_inv h\n'
+       '    split at h\n'
+       '    · simp at h\n'
+       '    · simp only [ok.injEq, core.result.Result.Ok.injEq] at h\n'
+       '      subst h\n'
+       '      try simp_all\n')],
+     UNSOLVED + r'[^\n]*\n(?:.*\n)*?⊢ [^\n]*invariant[^\n]*= ok true', ['import_ok_gives_invariant']),
     ('restored', 'ceiling-check-without-the-sparse-epoch',
-     [(r'  decide \(s\.triple\.post_quantum\.epoch\.val \+ 1 < Std\.U64\.max\) &&\n', '')],
-     PROOF, ['counterHeadroom_iff_check']),
+     [(r'  decide \(s\.triple\.post_quantum\.epoch\.val \+ 1 < Std\.U64\.max\) &&\n', ''),
+      (r'    refine ⟨⟨⟨h1, h2⟩, \?_⟩, h4⟩\n', '    refine ⟨⟨h1, ?_⟩, h4⟩\n'),
+      (r'    obtain ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ := h\n    refine ⟨h1, h2, \?_, h4⟩\n',
+       '    obtain ⟨⟨h1, h3⟩, h4⟩ := h\n    refine ⟨h1, ?_, ?_, h4⟩\n'
+       '    · try (first | omega | simp_all)\n')],
+     UNSOLVED + r'[^\n]*\n(?:.*\n)*?⊢ [^\n]*post_quantum\.epoch', ['counterHeadroom_iff_check']),
     ('restored', 'scope-widened-to-a-sampled-braid',
      [(r'    s\.braid\.state = tacenta_braid\.State\.Failed\n\n',
        '    s.braid.state = tacenta_braid.State.Failed ∨\n'
@@ -110,18 +138,44 @@ MUTANTS = [
     ('codec', 'ratchet-encoding-with-two-counters-swapped',
      [(r'\(be32 r\.ns \+\+ \(be32 r\.nr ', '(be32 r.nr ++ (be32 r.ns ')],
      PROOF, ['ratchet_to_bytes_spec']),
-    ('codec', 'braid-decoder-without-the-epoch-bound',
-     [(r'    \(hb : bytes\.val = braidEnc epoch auth\) \(hmax : epoch ≠ core\.num\.U64\.MAX\)\n',
-       '    (hb : bytes.val = braidEnc epoch auth) (hmax : True)\n')],
-     PROOF, ['braid_from_bytes_of']),
+    ('codec', 'braid-epoch-reader-without-its-bound',
+     [(r'    \(h : bytes\.val\.drop pos\.val = be64 epoch \+\+ rest\) \(hmax : epoch ≠ core\.num\.U64\.MAX\) :\n'
+       r'    tacenta_braid\.read_epoch bytes pos = ok \(some epoch\) := by\n'
+       r'  unfold tacenta_braid\.read_epoch\n  rw \[read_u64_of bytes pos epoch rest h\]\n  simp \[hmax\]\n',
+       '    (h : bytes.val.drop pos.val = be64 epoch ++ rest) :\n'
+       '    tacenta_braid.read_epoch bytes pos = ok (some epoch) := by\n'
+       '  unfold tacenta_braid.read_epoch\n  rw [read_u64_of bytes pos epoch rest h]\n  simp\n'),
+      (r'  rw \[read_epoch_of bytes pos epoch _ h hmax\]\n', '  rw [read_epoch_of bytes pos epoch _ h]\n')],
+     UNSOLVED + r'[^\n]*\n(?:.*\n)*?⊢ [^\n]*U64\.rMax', ['read_epoch_of']),
     ('codec', 'option-branch-law-weakened',
      [(r'  ∀ \(T : Type\) \(x : T\), br \(some x\) = ok \(core\.ops\.control_flow\.ControlFlow\.Continue x\)\n',
-       '  ∀ (T : Type) (x : T), ∃ y, br (some x) = ok y\n')],
-     PROOF, ['lifecycle_take_len_prefixed_of']),
+       '  ∀ (T : Type) (x : T), br (some x) = ok (core.ops.control_flow.ControlFlow.Continue x) ∨\n'
+       '    br (some x) = ok (core.ops.control_flow.ControlFlow.Break none)\n'),
+      (r'    · simp only at ho; exact ⟨s, rfl, ho\.2\.1⟩\n  rw \[hbr\]\n',
+       '    · simp only at ho; exact ⟨s, rfl, ho.2.1⟩\n  rcases hbr _ s with hb | hb <;> rw [hb]\n'),
+      (r'    · simp only at ho1; exact ⟨e, rfl, ho1\.2\.1⟩\n  rw \[hbr\]\n',
+       '    · simp only at ho1; exact ⟨e, rfl, ho1.2.1⟩\n  rcases hbr _ e with hb | hb <;> rw [hb]\n')],
+     UNSOLVED + r'[^\n]*\n(?:.*\n)*?⊢ \(do\n\s+let cf1? ← ok \(core\.ops\.control_flow\.ControlFlow\.Break none\)',
+     ['lifecycle_take_len_prefixed_of']),
     ('restored', 'established-shape-without-the-ciphertext-bound',
      [(r'  obtain ⟨n, hn, hnle⟩ := hbound\n',
        '  obtain ⟨n, hn, -⟩ := hbound\n  have hnle : True := trivial\n')],
      PROOF, ['codecShape_parts']),
+    ('restored', 'joint-model-with-a-public-key-reader-that-drops-the-key',
+     [(r'/-- \*\*The six laws of the round trip hold at the interpretation the decrypt joint model uses\*\*',
+       '/-- `Interp.modelEstablished` with a public-key reader that ignores its bytes (a planted fault). -/\n'
+       'noncomputable def modelFaulty : Tacenta.UnitSatisfiabilityJoint.Interp :=\n'
+       '  { Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished with\n'
+       '    dhPubFromBytes := fun _ => ok Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32 }\n\n'
+       '/-- **The six laws of the round trip hold at the interpretation the decrypt joint model uses**'),
+      (r'      DhPublicBytesRoundTripShape Tacenta\.UnitLifecycleEstablishedDecrypt\.Interp\.modelEstablished ∧\n'
+       r'      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧\n'
+       r'      KemCiphertextLenBoundShape \(ok 0#usize\) :=\n',
+       '      DhPublicBytesRoundTripShape modelFaulty ∧\n'
+       '      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧\n'
+       '      KemCiphertextLenBoundShape (ok 0#usize) :=\n')],
+     r'[Tt]ype mismatch(?:.*\n)*?.*expected to have type\n\s+modelFaulty\.dhPubFromBytes \S+ = ok ',
+     ['restored_laws_model_established']),
     ('restoredpinned', 'ciphertext-bound-law-without-its-bound-pinned',
      [(r'  ∃ n : Usize, ciphertextLen = ok n ∧ n\.val ≤ 65536\n', '  ∃ n : Usize, ciphertextLen = ok n\n'),
       (r'  ⟨0#usize, rfl, by simp⟩\n', '  ⟨0#usize, rfl⟩\n'),
@@ -129,6 +183,22 @@ MUTANTS = [
        '  obtain ⟨n, hn⟩ := hbound\n  have hnle : n.val ≤ 65536 := sorry\n')],
      r'Docstring on `#guard_msgs` does not match generated message',
      ('pin', 'Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape')),
+    ('restoredpinned', 'joint-model-at-two-interpretations-pinned',
+     [(r'    \(ZeroizingVecRoundTripShape Tacenta\.UnitLifecycleEstablishedDecrypt\.Interp\.modelEstablished ∧\n'
+       r'      DhPrivateBytesRoundTripShape Tacenta\.UnitLifecycleEstablishedDecrypt\.Interp\.modelEstablished ∧\n'
+       r'      DhPublicBytesRoundTripShape Tacenta\.UnitLifecycleEstablishedDecrypt\.Interp\.modelEstablished ∧\n'
+       r'      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧\n'
+       r'      KemCiphertextLenBoundShape \(ok 0#usize\)\) :=\n'
+       r'  ⟨established_decrypt_laws_model, restored_laws_model_established⟩\n',
+       '    (ZeroizingVecRoundTripShape Interp.model ∧ DhPrivateBytesRoundTripShape Interp.model ∧\n'
+       '      DhPublicBytesRoundTripShape Interp.model ∧\n'
+       '      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧\n'
+       '      KemCiphertextLenBoundShape (ok 0#usize)) :=\n'
+       '  ⟨established_decrypt_laws_model, restored_laws_model.1, restored_laws_model.2.1,\n'
+       '    restored_laws_model.2.2.1, restored_laws_model.2.2.2.1, restored_laws_model.2.2.2.2.1,\n'
+       '    restored_laws_model.2.2.2.2.2.1⟩\n')],
+     r'Docstring on `#guard_msgs` does not match generated message',
+     ('pin', 'Tacenta.UnitLifecycleRestoredSession.restored_decrypt_laws_model')),
 ]
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
@@ -182,15 +252,30 @@ def declaration_lines(text, name):
 
 
 def pin_line(text, name):
-    """The 1-based line of the `#guard_msgs in` that precedes `#print name`, or None."""
+    """The 1-based line of the `#guard_msgs in` that precedes `#print name` (a definition's pin) or
+    `#check @name` (a theorem's statement pin), or None."""
     lines = text.split('\n')
     for k in range(1, len(lines)):
-        if lines[k] == f'#print {name}' and lines[k - 1].startswith('#guard_msgs'):
+        if lines[k] in (f'#print {name}', f'#check @{name}') and lines[k - 1].startswith('#guard_msgs'):
             return k
     return None
 
 
-ERROR_AT = re.compile(r'^\S+\.lean:(\d+):\d+: error', re.M)
+MESSAGE_HEAD = re.compile(r'^\S+\.lean:(\d+):\d+: (error|warning|info)')
+
+
+def errors_of(output):
+    """Every error Lean printed, as (1-based line, message with its continuation lines)."""
+    errors, current = [], None
+    for line in output.split('\n'):
+        m = MESSAGE_HEAD.match(line)
+        if m:
+            current = [int(m.group(1)), line] if m.group(2) == 'error' else None
+            if current is not None:
+                errors.append(current)
+        elif current is not None:
+            current[1] += '\n' + line
+    return [(n, message) for n, message in errors]
 
 
 def check_refused(name, status, output, marker, log, mutated, where):
@@ -199,23 +284,24 @@ def check_refused(name, status, output, marker, log, mutated, where):
     if not refused:
         raise SystemExit(f'FAILED control {name}: expected Lean to refuse it with `{marker}`, '
                          f'exit={status}; {log}')
-    errors = {int(n) for n in ERROR_AT.findall(output)}
+    errors = errors_of(output)
     if isinstance(where, tuple):
         line = pin_line(mutated, where[1])
         if line is None:
-            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` pin, so '
+            raise SystemExit(f'FAILED control {name}: the copy has no pin of {where[1]}, so '
                              f'its refusal cannot be the pin\'s; {log}')
-        if line not in errors:
+        if not any(e == line and re.search(marker, m) for e, m in errors):
             raise SystemExit(f'FAILED control {name}: refused, but not at the pin of {where[1]} '
-                             f'(line {line}); {log}')
+                             f'(line {line}) with `{marker}`; {log}')
         return f'the pin of {where[1]}'
     for decl in where:
         span = declaration_lines(mutated, decl)
         if span is None:
             raise SystemExit(f'Target changed for {name}: no declaration {decl} in the copy')
-        if any(span[0] <= e <= span[1] for e in errors):
+        if any(span[0] <= e <= span[1] and re.search(marker, m) for e, m in errors):
             return decl
-    raise SystemExit(f'FAILED control {name}: refused, but in none of {", ".join(where)}; {log}')
+    raise SystemExit(f'FAILED control {name}: refused, but in none of {", ".join(where)} with '
+                     f'`{marker}`; {log}')
 
 
 def main():
