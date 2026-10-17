@@ -25,11 +25,16 @@ every identity, published bundle, expected identity and source of randomness, ev
   classical clock and both sparse chain counters are 0, the sparse epoch is 0, the Braid epoch is 1.
 * `sessionRefines_established` (no hypothesis): `SessionRefines dh K s (establishedModelOf dh s)` for every
   DH view `dh` and KEM `K`; `sessionRefines_established_unique`: every model session `s` refines equals
-  `establishedModelOf dh s`, so the relation names one model state, not a free one.
+  `establishedModelOf dh s`.  Both hold by definition for every session whose Braid is `KeysUnsampled`
+  (each field of `SessionRefines` is an equation through the abstraction functions); what the
+  establishment supplies to them is that Braid state.  The establishment-specific content of this module is
+  the invariant and the ceilings.
 * `establish_initiator_for_succeeds`, `established_initiator_inhabited`: under the axiom part of
   `EstablishInitiatorContracts` and `InitiatorSuccessShape` (a self-equal valid key on which a signature
   verifies and every agreement is contributory, and a KEM key on which encapsulation succeeds), a
-  successful output exists, and the invariant, the ceilings and the relation hold at it.
+  successful output exists, and the invariant, the ceilings and the relation hold at it.  The witness
+  bundle uses one key as identity key and signed prekey and has no one-time prekey; the success branch
+  with a one-time prekey is covered by the theorems above and not shown inhabited.
   `establishment_hypotheses_satisfiable`: those hypotheses and the three laws hold together in the joint
   model of `UnitSatisfiabilityJoint` (with `ok 0` for `kem::ciphertext_len`).
 
@@ -46,6 +51,8 @@ every identity, published bundle, expected identity and source of randomness, ev
   sparse invariant (one chain-table entry at epoch 0, empty store); the Braid invariant (epoch 1 ≥ 1).
   The epoch clause compares `checked_add 0 1` with `some 1` through `Option::eq`, and uses
   `OptionEqU64Shape` (assumed, recorded in `UnitHeadroomInvariant`).
+  Two clauses hold vacuously because `established_ephemeral = none`: the `decode_ec` check of an established
+  ephemeral in clause (f), and the responder branch of the orientation clause (c).
 * **By inverting `verify_bundle`**: the peer identity key passes `is_valid_identity_key`.
 * **By a law** (assumed): our identity public key passes `is_valid_identity_key`, the ratchet public key's
   bytes are canonical, and the pending ephemeral key is canonical (`DhPublicValid`); the pending
@@ -58,7 +65,7 @@ Both are assumed at the real constants and stated as shapes over an interpretati
   canonical bytes and is of prime order.  True of the boundary by reading (x25519-dalek multiplies a
   clamped scalar by the base point; `tacenta-core/boundary/src/dh.rs`); not checked in Lean.  Model:
   `model_dhPublicValid`.
-* `KemCiphertextLenOf` (`KemCiphertextLenShape kem::ciphertext_len Interp.real`): a successful
+* `KemCiphertextLenOf` (`KemCiphertextLenLawShape kem::ciphertext_len Interp.real`): a successful
   `kem::encapsulate` returns a ciphertext of length `kem::ciphertext_len`.  True of the wrapper by reading
   (`tacenta-core/boundary/src/kem.rs`); not checked in Lean.  `Interp` has no field for
   `kem::ciphertext_len`, so the shape takes the constant as an argument, as `OptionEqU64Shape` does for
@@ -254,16 +261,16 @@ theorem model_dhPublicValid : DhPublicValidShape Interp.model :=
 
 /-- A successful encapsulation's ciphertext has the length `ciphertextLen` returns, for a constant
 `ciphertextLen` standing for `kem::ciphertext_len`, over an interpretation `I`. -/
-def KemCiphertextLenShape (ciphertextLen : Result Usize) (I : Interp) : Prop :=
+def KemCiphertextLenLawShape (ciphertextLen : Result Usize) (I : Interp) : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (pk : Slice U8)
     (rng : R) (ct : alloc.vec.Vec U8) (ss : Array U8 32#usize) (rng' : R),
     I.kemEncapsulate rc crc pk rng = ok (core.result.Result.Ok (ct, ss), rng') →
     ∃ n, ciphertextLen = ok n ∧ ct.val.length = n.val
 
-/-- **Assumed law**: `KemCiphertextLenShape` at the real constants, `kem::ciphertext_len` and
+/-- **Assumed law**: `KemCiphertextLenLawShape` at the real constants, `kem::ciphertext_len` and
 `kem::encapsulate`. -/
 def KemCiphertextLenOf : Prop :=
-  KemCiphertextLenShape tacenta_boundary.kem.ciphertext_len Interp.real
+  KemCiphertextLenLawShape tacenta_boundary.kem.ciphertext_len Interp.real
 
 /-- At the real constants, `KemCiphertextLenOf` is the statement about the real functions. -/
 theorem kemCiphertextLenOf_is :
@@ -275,9 +282,9 @@ theorem kemCiphertextLenOf_is :
         ∃ n, tacenta_boundary.kem.ciphertext_len = ok n ∧ ct.val.length = n.val :=
   Iff.rfl
 
-/-- The joint model, whose encapsulation returns an empty ciphertext, satisfies `KemCiphertextLenShape` with
+/-- The joint model, whose encapsulation returns an empty ciphertext, satisfies `KemCiphertextLenLawShape` with
 the constant `ok 0`.  `Interp` has no field for `kem::ciphertext_len`, so the constant is chosen here. -/
-theorem model_kemCiphertextLen : KemCiphertextLenShape (ok 0#usize) Interp.model := by
+theorem model_kemCiphertextLen : KemCiphertextLenLawShape (ok 0#usize) Interp.model := by
   intro R rc crc pk rng ct ss rng' h
   simp only [Interp.model, ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
   obtain ⟨⟨rfl, -⟩, -⟩ := h
@@ -682,7 +689,7 @@ theorem established_initiator_inhabited {R : Type} (rc : rand_core_1.RngCore R)
 
 /-- **The hypotheses of `established_initiator_inhabited` hold together in the joint model**, for the
 byte-stream source of `UnitLifecycleIntegrationScreen`: the axiom part of the initiator contracts,
-`InitiatorSuccessShape`, `DhPublicValidShape`, `KemCiphertextLenShape` at the constant `ok 0`, and
+`InitiatorSuccessShape`, `DhPublicValidShape`, `KemCiphertextLenLawShape` at the constant `ok 0`, and
 `OptionEqU64Shape` at `optionEqImpl`.  Each is a statement over the opaque constants that the real
 constants instantiate, so this is an argument about derivations, not a statement that the real primitives
 meet them. -/
@@ -692,7 +699,7 @@ theorem establishment_hypotheses_satisfiable :
       InitiatorSuccessShape Interp.model Tacenta.UnitLifecycleIntegrationScreen.byteRng
         Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
       DhPublicValidShape Interp.model ∧
-      KemCiphertextLenShape (ok 0#usize) Interp.model ∧
+      KemCiphertextLenLawShape (ok 0#usize) Interp.model ∧
       OptionEqU64Shape (@Tacenta.UnitHeadroomInvariant.optionEqImpl) :=
   ⟨⟨Tacenta.UnitSatisfiabilityJoint.model_initiatorAxiom Tacenta.UnitOracleModel.byteRng_total
       (fun _ _ _ => ⟨_, rfl⟩)⟩,
@@ -1746,7 +1753,7 @@ info: Tacenta.UnitLifecycleEstablishInitiatorShape.kemCiphertextLenOf_is : Tacen
 #check @Tacenta.UnitLifecycleEstablishInitiatorShape.kemCiphertextLenOf_is
 
 /--
-info: @Tacenta.UnitLifecycleEstablishInitiatorShape.model_kemCiphertextLen : Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenShape
+info: @Tacenta.UnitLifecycleEstablishInitiatorShape.model_kemCiphertextLen : Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape
   (Aeneas.Std.Result.ok 0#usize) Tacenta.UnitSatisfiabilityJoint.Interp.model
 -/
 #guard_msgs in
@@ -2018,7 +2025,7 @@ info: Tacenta.UnitLifecycleEstablishInitiatorShape.establishment_hypotheses_sati
   Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape Tacenta.UnitSatisfiabilityJoint.Interp.model
       Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
     Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape Tacenta.UnitSatisfiabilityJoint.Interp.model ∧
-      Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenShape (Aeneas.Std.Result.ok 0#usize)
+      Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape (Aeneas.Std.Result.ok 0#usize)
           Tacenta.UnitSatisfiabilityJoint.Interp.model ∧
         Tacenta.UnitHeadroomInvariant.OptionEqU64Shape @Tacenta.UnitHeadroomInvariant.optionEqImpl
 -/
@@ -2185,7 +2192,7 @@ Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape Tacenta.UnitSati
 #print Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid
 
 /--
-info: def Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenShape : Aeneas.Std.Result Aeneas.Std.Usize →
+info: def Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape : Aeneas.Std.Result Aeneas.Std.Usize →
   Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
 fun ciphertextLen I =>
   ∀ {R : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R)
@@ -2195,11 +2202,11 @@ fun ciphertextLen I =>
       ∃ n, ciphertextLen = Aeneas.Std.Result.ok n ∧ (↑ct).length = ↑n
 -/
 #guard_msgs in
-#print Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenShape
+#print Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape
 
 /--
 info: def Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf : Prop :=
-Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenShape
+Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape
   tacenta_session_unit.tacenta_boundary.kem.ciphertext_len Tacenta.UnitSatisfiabilityJoint.Interp.real
 -/
 #guard_msgs in

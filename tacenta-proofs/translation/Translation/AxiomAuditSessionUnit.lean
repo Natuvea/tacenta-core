@@ -91,8 +91,8 @@ the agreements at the same oracle's KEM model; the witness state is built for th
 `Session::invariant` and four counter ceilings, which stay assumed, and restates it with them.
 `UnitLifecycleEstablishInitiatorShape.lean` derives, at every successful `establish_initiator_for`
 output, `Session::invariant` (under two assumed laws about X25519 public keys and the KEM ciphertext
-length, with models), the four counter ceilings and the relation to one model session read off the
-output, with no hypothesis for the last two; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
+length, with models) and the four counter ceilings, with no hypothesis for the ceilings, and the relation
+to the model session read off the output, which holds by definition at its `KeysUnsampled` Braid; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
 `decrypt_ratchet` refinement and, for ratchet-type frames, to the public `decrypt`.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
