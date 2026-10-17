@@ -204,6 +204,11 @@ responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receive
 the exported bytes returns that session unchanged, so the restated form applies to the restored copy (given the caller's
 boundary records, chunk relation and draw), is proved under nine assumed laws (six of its own, the establishment's two and
 the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
+At that established session the first `encrypt` is related to the model's step on both of its outcomes (key generation
+refusing, or the initial message wrapping the first ratchet frame, each consuming two draws), and the session a successful
+send leaves passes `Session::invariant` and meets the ceilings, under the encrypt boundary records, an assumed law that key
+generation reads the two draws the model counts and, for that session, six more assumptions (compiler-trusted, as the
+decrypt results are); the responder's receipt of the frame is not covered.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,

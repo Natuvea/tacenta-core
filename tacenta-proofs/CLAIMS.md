@@ -32,7 +32,10 @@ this section says in one place what is not proved.
   records the accepted-initial decrypt lemmas take are asked of the run alone, and the one they replace is shown
   empty; the dispatch records are not shown satisfiable as a whole;
   see also `GAP-REGISTER.md`, rows `E2E-04`, `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`). No theorem says what the two functions
-  return as a whole, on every branch, against the model. For the private `decrypt_ratchet` that `Session::decrypt` runs on a
+  return as a whole, on every branch, against the model. For `Session::encrypt` the one state at which every outcome is
+  related to the model's step is the first send from a session `establish_initiator_for` returned, under the encrypt
+  boundary records and an assumed key-generation law (the section "Proved (tier T3, session lifecycle: the public
+  `encrypt` at every successful `establish_initiator_for` output ...)"). For the private `decrypt_ratchet` that `Session::decrypt` runs on a
   ratchet message (and that `establish_responder` also calls), `decrypt_ratchet_refines_complete` relates the generated
   function's output to the model's step on every path of that function for a run that meets its hypotheses. Three fields
   of the contract record it takes are stated at the instances the unit passes to `Array::zeroize` and `Vec::zeroize`;
@@ -90,8 +93,17 @@ this section says in one place what is not proved.
   establishment's two and the `Option::eq` law), which hold with the decrypt laws in one interpretation; every session `import` accepts passes `Session::invariant` (no hypothesis), but acceptance does not give
   the counter ceilings, which stay a check on the accepted session, and the relation to a model session is claimed only
   when the restored Braid holds no KEM value, encoder or decoder ("Proved (tier T3, session lifecycle: what an accepted
-  `Session::import` gives ...)"). Initial frames, `encrypt` and `establish_responder` are not covered ("Proved (tier T3,
-  session lifecycle: the invariant, the counter ceilings and the model relation at every successful
+  `Session::import` gives ...)"). At that session the first `encrypt` is covered: under the encrypt boundary records, the
+  oracle record and an assumed law that key generation reads the two draws the model counts, its result, post-state and
+  draws left refine the model's step, the two outcomes are named with their effects (key generation refusing, with the
+  agreement failed and nothing else changed, or the initial message wrapping the first ratchet frame, with the pending
+  initial message kept), each consuming two draws, and after a success the session passes `Session::invariant`, meets the
+  four ceilings and relates to the model's next session, under six more assumptions, one of them a new size law about the
+  model KEM; both premise lists hold together in one interpretation, a toy model, with the decrypt, establishment and
+  restored-session laws ("Proved (tier T3, session lifecycle: the public `encrypt` at every successful
+  `establish_initiator_for` output ...)"). Initial frames, a second `encrypt`, the next `decrypt` on the session that sent,
+  and `establish_responder` are not covered, so the responder's receipt of that first frame is not covered ("Proved (tier
+  T3, session lifecycle: the invariant, the counter ceilings and the model relation at every successful
   `establish_initiator_for` output ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
@@ -4200,7 +4212,8 @@ it is related to keeps the session on a refusal (`Model.Lifecycle.decryptRatchet
 post-state of a refusal refines the unchanged model session. "Every frame" is bounded by the caller's premises: a ratchet-type frame whose
 agreement chunk, if it has one, meets `IncomingChunkRefines`, with at least one draw left. The chunk premise is not benign for
 a frame from a sender who is not honest: a spliced or inconsistent chunk is outside the theorem whether the frame is refused
-or accepted. Initial-type frames, `encrypt` and `establish_responder` are not covered; `import` is covered in the next section only. The two laws `DhPublicValid`
+or accepted. Initial-type frames and `establish_responder` are not covered; `import` is covered in the next section only, and the
+first `encrypt` at this session in the section after it. The two laws `DhPublicValid`
 and `KemCiphertextLenOf` are assumed, as are `OptionEqU64Shape`, the boundary records, the chunk relation and the draw. As for
 the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
 session lifecycle out.
@@ -4467,7 +4480,8 @@ two about `tacenta-core/boundary/src/dh.rs`, the last about `tacenta-core/bounda
 **What it does not show.** A restored Braid holding a KEM value, an encoder or a decoder (no relation is claimed there);
 any session shape other than the covered one in the round trip (stored skipped keys, another sparse table, an absent
 pending message, a present established ephemeral, any other Braid state); that a decoder refuses what it should; the
-model's own imported session; initial-type frames, `encrypt`, the responder, and the T3 refinement of establishment. As for
+model's own imported session; initial-type frames, the responder, and the T3 refinement of establishment (the first
+`encrypt` at an established session is in the next section; a restored copy of the session it leaves is outside the scope). As for
 the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
 session lifecycle out.
 
@@ -4497,6 +4511,166 @@ interpretation whose public-key reader drops the key (refused in `restored_laws_
 without its bound, with the pins kept (refused at its `#print` pin); and the joint model of the composed premise list with
 its round-trip half at `Interp.model`, two interpretations, with the pins kept (it compiles, and is refused at the statement
 pin of `restored_decrypt_laws_model`).
+
+## Proved (tier T3, session lifecycle: the public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the session a successful send leaves, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleEstablishedEncrypt.lean`.
+
+These results start from an actual establishment result: for every identity, published bundle, expected identity and
+source `rng0` with `lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 = ok (.Ok s, rng1)`, every plaintext
+of at most `Usize.max - 65770` bytes (at both platform widths a bound that admits every plaintext of fewer than
+`2^32 - 65770` bytes) and
+every source state `rng` whose trace starts with two draws `d1`, `d2`. The model session is `establishedModelOf dh s`
+(previous sections) and the model step `Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)`.
+The composition goes through the dispatch layer's encrypt route (`public_session_encrypt_of_send_contracts`, every outcome
+of the public call), whose state premises are derived here: the relation (by definition at the `KeysUnsampled` agreement),
+the headroom record, both Triple condition records and the counted draw record. **Two outcomes**, each with its effects:
+key generation refuses, and the call returns `AgreementFailed` with the session unchanged except that its agreement is
+`Failed`; or key generation answers, and the call returns the model's initial message wrapping the first ratchet frame, with
+only the Triple Ratchet and the agreement changed (so the pending initial message is kept). Both leave the source holding the
+trace less its first two entries. At the `KeysSampled` agreement a successful send leaves, the relation to the model's next
+session carries the key pair's decapsulation, vector and header agreement and the encoder's provenance, and is derived from
+the call, so it is not definitional.
+
+- `established_initiator_encrypt_refines`: `Session::encrypt` at `s` returns, and its result, its post-state and the draws it
+  leaves refine the model's step (`PublicEncryptWitness`, so `StepRefines`), under the encrypt boundary records
+  (`BraidSendRefinementContracts` at `oracle.braidKem`, `TripleSendRefinementContracts`, `AeadSealBounded`, `DhCodecTotal`,
+  the class `DerivedKeysModel`), the oracle record `OracleOf`, `DhCodecOf`, `CodewordViewSendOf`, three `zeroize` round trips
+  (80-byte arrays, 32-byte arrays, the message-key triple), the law `KeyGenSeededFor` (below), `KemCiphertextLenOf`,
+  `KemCiphertextLenBound`, the trace equation and the two draws, all the caller's and assumed.
+- `established_encrypt_outcomes`: under the same hypotheses, the call returns, the source it leaves holds the trace less
+  `d1`, `d2`, and either the model's key generation refuses at `braidRandomness (d1 ++ d2)` and the call returns
+  `AgreementFailed` with `{ s with braid := ⟨Failed⟩ }`, or it answers `(dk, ekSeed, ekVector)` and the call returns bytes
+  equal to `initialWire` of the model session's pending initial fields and `firstFrame` (the composite header with the
+  session's ratchet key, classical numbers 0 and 0, sparse epoch 0 and number 1, agreement epoch 1 and type `hdr`, and the
+  plaintext sealed under the first message key), the session equal to `s` except for the Triple and the agreement, the
+  agreement `KeysSampled` at epoch 1, and the session related to the model's next session (agreement `keysSampled 1` holding
+  `dk`, `ekVector` and the header encoder after one chunk). The terminal guard and every Triple refusal are neither
+  disjunct: under these hypotheses they do not occur at this state.
+- `established_encrypt_model_cases`, `established_triple_send_ok`: the model's step at the model session of the parts, when
+  the oracle holds two draws, computed: the two arms above on the model side, and the model Triple's first send succeeding
+  with header numbers `(n 0, pn 0, epoch 0, pqN 1)`; no hypothesis.
+- `established_encrypt_successor_counterHeadroom`, `established_encrypt_successor_refines`: after a success, the four counter
+  ceilings hold (classical clock 0, sparse epoch 0, sparse chain counters 1 and 0, agreement epoch 1), and the session is
+  related to the model step's session, whose agreement is `keysSampled 1`, with the source holding the model step's draws;
+  under the hypotheses of `established_initiator_encrypt_refines`.
+- `established_encrypt_successor_admissible`, `established_encrypt_successor_hypotheses`: after a success, the session passes
+  `Session::invariant`, and with the relation, the ceilings and `HonestChunk` for every model message (the `keysSampled`
+  agreement feeds no decoder) every session-side premise of the `decrypt` refinement holds at the session that sent; under
+  the same hypotheses and six more, assumed: the establishment's `DhPublicValid` and `OptionEqU64Shape`, `KemLenAgrees` and
+  `ValidateEkAgrees` at `oracle.braidKem` (both already premises of the `decrypt` refinement), `DivCeilValue`, and the size
+  law `KeyGenSizesOf` (below). The session is the establishment's with the Triple after the send (`sentTriple`) and the
+  agreement at `KeysSampled` epoch 1 whose key pair has the header key generation returned, so `key_pair_valid` holds, and
+  whose encoder is `Encoder::new` of that header and its MAC advanced once, so `Encoder::invariant` and `encoder_sized`
+  hold. The next call's boundary records, trace equation, chunk relation and draw stay the caller's.
+- `braidSendTraceCounted_established`, `braidSendTraceCounted_of_keysUnsampled`: the counted draw record of the dispatch
+  layer at every session whose agreement is `KeysUnsampled` (at every establishment output in particular), from the Braid
+  send record, `KeyGenSeededFor` and two draws: the send reads the two draws key generation reads, and the model's send at
+  their little-endian value is related to the code's.
+- `step_send_keysUnsampled_pinned`, `braid_send_keysUnsampled_pinned`: `step_send` and `Braid::send` from `KeysUnsampled`
+  refine the model's send at the randomness key generation answers to, and the next state's key pair has the header the
+  model's key generation fixes: the `KeysUnsampled` branch of `step_send_refines`, with its key-generation clause taken at
+  one randomness, under `ErasureAgrees`, `BraidHmacAgrees`, `KeyPairHeaderTotal` and, for `Braid::send`, the clone fields
+  of the Braid send record.
+- `encryptHeadroom_established`, `encryptHeadroom_parts`, `identityAd_length_parts`, `kemCiphertext_length_parts`:
+  `EncryptHeadroom` at every establishment output for every plaintext of at most `Usize.max - 65770` bytes: one chain-table
+  entry, 66 bytes of associated data (under `DhCodecTotal`), a pending ciphertext of at most 65536 bytes (under
+  `KemCiphertextLenOf` and `KemCiphertextLenBound`).
+- `encryptProviders_established`, `tripleStoreFacts_parts`, `sparseOutput_none_of_evidence`, `sendAgreement_keysUnsampled_output`,
+  `send_keysUnsampled_output`: both Triple condition records of the route for every generated run: the model's sparse
+  store has one entry at epoch 0 with counters 0 and no stored key, and the sparse output the generated call hands the
+  Triple is `none` because the model's agreement send from `keysUnsampled` has no output; no hypothesis.
+- `established_triple_next_counters`, `triple_eq_sent`, `encrypt_ok_parts`, `state_failed_of_refines`,
+  `state_keysSampled_of_refines`, `array_eq_of_bytes`, `two_of_length`: the model Triple after the first send (clock 0,
+  sparse epoch 0, counters at most 1), a translated Triple related to it is `sentTriple` up to the two advanced chain keys
+  (the abstraction fixes every other field), a successful `encrypt` ran the agreement send and a Triple candidate send and
+  returned the session with their results, and the translated agreement related to `failed` or `keysSampled` is `Failed` or
+  `KeysSampled`; no hypothesis.
+- `sentTriple_invariant`, `structural_sent`, `sent_invariant`, `keysSampled_invariant`, `keyPairValid_of_header`,
+  `encoder_of_refines`: `Triple::invariant` of `sentTriple` (given its two public keys are canonical),
+  `Session::structural_invariant` of the session after the send (under `DhPublicValid`, `KemCiphertextLenOf` and
+  `OptionEqU64Shape`), `Session::invariant` of it given its agreement's invariant, `Braid::invariant` of a `KeysSampled`
+  agreement at epoch 1 (given `HEADER_LEN = 64`, the encoder facts and `key_pair_valid`), `key_pair_valid` from a header that
+  is a model seed and its hash of the sizes `KeyGenSizesOf` states (under `ValidateEkAgrees`), and the encoder facts from
+  `EncoderRefines` against a 96-byte message advanced once (under `DivCeilValue` and `ErasureAgrees`).
+- `keyGenSeededFor_is`, `keyGenAnswers_is`, `zeroizingKeys_is`: each law's shape over an interpretation is, at the real
+  constants, the statement the theorems take (`Iff.rfl`).
+- `EstablishedEncryptHypotheses.refines`, `established_encrypt_hypotheses_jointly_satisfiable`, `byteTrace_two`,
+  `nil_length_le`: the premise list of `established_initiator_encrypt_refines` as one record, and every field of it holding
+  together at the real constants, under the decrypt laws `DecryptJointLaws K dh` (which include `OptionEqU64Shape`), the axiom
+  part of the initiator contract record and `InitiatorSuccessShape` at the byte-stream source, `DhPublicValid` (not taken by
+  the theorem; the shared witness of the establishment takes it), `KemCiphertextLenOf` and `EncryptExtraLaws K dh kem` (the
+  laws `OracleOf` is derived from, the axiom part of the encrypt contract record, `KeyGenSeededFor` and the message-key round
+  trip at the byte-stream source, and `KemCiphertextLenBound`), all assumed: for every identity and every byte-stream source
+  of at least 64 bytes there are an oracle with `braidKem = K`, a bundle and a successful establishment, at the empty
+  plaintext and the codeword view of `UnitLifecycleRepair`.
+- `EstablishedEncryptSuccessorHypotheses.successor`, `established_encrypt_successor_hypotheses_jointly_satisfiable`: the same
+  for the six further premises of the successor results, under `KeyGenSizesOf K` in addition.
+- `established_encrypt_success_reachable`, `established_encrypt_refusal_reachable`, `established_encrypt_successor_reachable`,
+  `established_encrypt_outcomes_at_witness`, `two_draws_of_64`: at the real constants, under those laws, at every 64-byte
+  source the success arm is reached where `K.keyGen` answers at the source's bytes (and the session it leaves passes
+  `Session::invariant` and meets the ceilings) and the refusal arm where it refuses, at a session and source where every
+  premise holds.
+- `established_encrypt_laws_model`, `modelEncrypt_keyGenSeeded`, `modelEncrypt_kemAgrees`, `modelEncrypt_keyPairGenerate`,
+  `modelEncrypt_kemEncapsulate`, `modelEncrypt_allT1`, `genFill_answers`, `byteRng_rngTotal`, `toyKemR_sizes`, `toyKemR_seeds`,
+  `leValue_replicate_zero`: every law those statements take, with the six laws of the restored session's round trip, holds
+  in one interpretation, `InterpO.modelEncrypt`: `Interp.modelEstablished` (previous sections) with key generation that
+  fills one 64-byte seed from the source and returns its little-endian value, refusing 0, and encapsulation that fills one
+  32-byte buffer and returns an empty ciphertext, with its signing function `signModelO`, at the toy KEM `toyKemR` (`toyKem`
+  with key generation refusing at 0), `optionEqImpl` and `ok 0` for `kem::ciphertext_len`; and `toyKemR` refuses at the
+  all-zero 64-byte seed and answers at the seed `1, 0, ..., 0`, so both arms happen in that model. In the substitution sense
+  of `LIMITATIONS.md`; the model is a toy and shows nothing of the real primitives.
+
+**The laws.** Two are new, both assumed, none checked in Lean, each with a model (`LIMITATIONS.md`, "At a session
+`establish_initiator_for` returned", its paragraph on the first `encrypt`): `KeyGenSeededFor K rc crc trace` (from every source state whose trace holds two draws,
+`IncrementalKeyPair::generate` leaves the trace without them and answers as `K.keyGen` does at their little-endian value,
+two-sided, the key pair's header, vector and decapsulation agreeing with the model's: the key-generation clause of
+`KemAgreesFor` with its randomness fixed to the draws the model counts), and `KeyGenSizesOf K` (the model KEM's key
+generation returns a 32-byte seed and a vector of `ekSize` bytes and its hash is 32 bytes; a statement about the model, not
+the code). The others are the existing boundary records and laws named above.
+
+**What it does not show.** The responder's receipt of the frame (`establish_responder` has T1 and a store frame only, and no
+claimed theorem relates an output of it to the model), so the send → receive edge stays open on the responder's side;
+initial-frame `decrypt` anywhere; a second `encrypt` from the session that sent, or the next `decrypt` on it (the successor
+results supply their session-side premises, not the calls); a relation for a copy of the post-send session restored by
+`import` (its agreement holds a key pair, outside `RestoredScope`); that `establishedModelOf dh s` is the model's own
+establishment output; that the real primitives meet the boundary records, `OracleOf`'s laws, `KeyGenSeededFor` or the KEM
+agreements, or that the real KEM's model meets `KeyGenSizesOf`; whether the real key generation ever refuses (the refusal
+arm is covered and shown reachable at a model KEM that refuses, not at the real one); a random source with no state of its
+own, such as `OsRng`. As for the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a
+section whose heading names a session lifecycle out.
+
+**Compiler trust and pins.** `public_session_encrypt_of_send_contracts` lists the nine `native_decide` constants of the
+sparse and Triple refinements (`SessionUnitSpqrT3` and `SessionUnitTripleT3`), so the twelve results that go through it
+are compiler-trusted: `established_initiator_encrypt_refines`, `established_encrypt_outcomes`,
+`established_encrypt_successor_counterHeadroom`, `established_encrypt_successor_refines`,
+`established_encrypt_successor_admissible`, `established_encrypt_successor_hypotheses`,
+`EstablishedEncryptHypotheses.refines`, `EstablishedEncryptSuccessorHypotheses.successor`,
+`established_encrypt_outcomes_at_witness`, `established_encrypt_success_reachable`, `established_encrypt_refusal_reachable`
+and `established_encrypt_successor_reachable`. Of the other 47, 11 rest on `propext`, `Classical.choice` and
+`Quot.sound` alone (`send_keysUnsampled_output`, `sendAgreement_keysUnsampled_output`, `two_of_length`, `nil_length_le`,
+`byteTrace_two`, `two_draws_of_64`, `leValue_replicate_zero`, `toyKemR_seeds`, `toyKemR_sizes`, `array_eq_of_bytes`,
+`sentTriple_invariant`), and 36 on those three and between 1 and 58 opaque constants of the unit,
+which the types and definitions they mention refer to; the joint-satisfiability results are among them. Each of the 59
+results carries an axiom pin and a statement pin, and each of the 28 definitions a `#print` pin.
+`check-encrypt-negatives.py` plants fifteen faults in copies of the module and requires Lean to refuse each at a named
+declaration or pin, with a message that names the fact removed: the headroom lemma without `KemCiphertextLenBound`, and one byte short of
+its plaintext bound (each refused in `encryptHeadroom_parts`, omega's counterexample naming the ciphertext's length or the
+bound); the Triple store facts restated at the last sparse epoch (refused in `tripleStoreFacts_parts`, the epoch clause
+reduced to `False`); the counted draw record with one draw consumed (refused in `braidSendTraceCounted_of_keysUnsampled`,
+one draw against the two `braidSendDrawCount` gives); `KeyGenSeededFor` weakened to some randomness, the `KemAgreesFor`
+form, with the proof adapted to use it (refused there, the goal `rand = braidRandomness (d1 ++ d2)` unsolved); the outcome
+theorem without the key-generation refusal, with the proof adapted to rule it out (refused in
+`established_encrypt_outcomes`, `False` unsolved); the model's first Triple send claimed to refuse, and its sparse message
+number claimed to be 0 (each refused in `established_triple_send_ok`, `False` unsolved); the wire claimed to be the bare
+ratchet frame (refused in `established_encrypt_model_cases`, the unsolved goal naming `encodeInitial`); the successor's chain
+counters claimed to stay at 0 (refused in `established_triple_next_counters`); `sentTriple` with its classical counter at 0
+(refused in `triple_eq_sent`, the relation fixing it at 1); the successor invariant without `ValidateEkAgrees` (refused in
+`established_encrypt_successor_admissible`, the `validate_ek` goal unsolved) and without the seed length of
+`KeyGenSizesOf`, with the proof asked to derive it (refused there, omega's counterexample naming the seed); the joint model
+with key generation that leaves the source where it was (refused in `genFill_answers`); and `KeyGenAnswersShape` without its
+refusing arm, with the pins kept (refused at its `#print` pin). Two unmodified copies, without and with the pins, are
+accepted first.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
