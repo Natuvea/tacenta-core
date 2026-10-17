@@ -504,7 +504,7 @@ theorem restored_laws_model :
       DhPublicValidShape Interp.model ∧ KemCiphertextLenLawShape (ok 0#usize) Interp.model ∧
       Tacenta.UnitHeadroomInvariant.OptionEqU64Shape (@Tacenta.UnitHeadroomInvariant.optionEqImpl) :=
   ⟨model_zeroizingVecRoundTrip, model_dhPrivateBytesRoundTrip, model_dhPublicBytesRoundTrip,
-    optionBranchImpl_shape, vecAsSliceImpl_shape, model_kemCiphertextLenBound, model_dhPublicValid,
+    (fun _ _ => rfl), vecAsSliceImpl_shape, model_kemCiphertextLenBound, model_dhPublicValid,
     model_kemCiphertextLen, Tacenta.UnitHeadroomInvariant.optionEqImpl_shape⟩
 
 end Tacenta.UnitLifecycleRestoredSession

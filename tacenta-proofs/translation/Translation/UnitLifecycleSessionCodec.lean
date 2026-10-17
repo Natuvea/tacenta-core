@@ -29,7 +29,8 @@ over a shape with a model:
 * `ZeroizingVecRoundTrip`: `Zeroizing::new` then `Zeroizing::deref` on a byte vector gives it back.  Model:
   `model_zeroizingVecRoundTrip`.
 * `OptionBranchSome`: `Option::branch` on `Some x` continues with `x` (used by the session-level
-  `take_len_prefixed` and by `PendingInitial::from_bytes`).  Model: `optionBranchImpl_shape`.
+  `take_len_prefixed` and by `PendingInitial::from_bytes`).  Model: `optionBranchImpl`
+  (`UnitLifecycleRestoredSession.restored_laws_model`).
 * `VecAsSlice`: `Vec::as_slice` is the vector's slice view (used by `import`'s canonical re-encode
   check).  Model: `vecAsSliceImpl_shape`.
 * `DhPrivateBytesRoundTrip`: `PrivateKey::to_bytes`, read out of its `Zeroizing`, then
@@ -1212,8 +1213,6 @@ def optionBranchImpl {T : Type} :
   | some x => ok (core.ops.control_flow.ControlFlow.Continue x)
   | none => ok (core.ops.control_flow.ControlFlow.Break none)
 
-theorem optionBranchImpl_shape : OptionBranchSomeShape @optionBranchImpl := fun _ _ => rfl
-
 theorem lifecycle_take_len_prefixed_of (hbr : OptionBranchSome) (bytes : Slice U8) (pos : Usize)
     (n : U32) (payload rest : List U8)
     (hn : n.val = payload.length) (h : bytes.val.drop pos.val = be32 n ++ (payload ++ rest)) :
@@ -1949,12 +1948,6 @@ info: 'Tacenta.UnitLifecycleSessionCodec.braid_from_bytes_of' depends on axioms:
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleSessionCodec.braid_from_bytes_of
-
-/--
-info: 'Tacenta.UnitLifecycleSessionCodec.optionBranchImpl_shape' does not depend on any axioms
--/
-#guard_msgs in
-#print axioms Tacenta.UnitLifecycleSessionCodec.optionBranchImpl_shape
 
 /--
 info: 'Tacenta.UnitLifecycleSessionCodec.lifecycle_take_len_prefixed_of' depends on axioms: [propext,
@@ -2849,13 +2842,6 @@ info: Tacenta.UnitLifecycleSessionCodec.braid_from_bytes_of : ∀ (bytes : Aenea
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSessionCodec.braid_from_bytes_of
-
-/--
-info: Tacenta.UnitLifecycleSessionCodec.optionBranchImpl_shape : Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape
-  @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl
--/
-#guard_msgs in
-#check @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl_shape
 
 /--
 info: Tacenta.UnitLifecycleSessionCodec.lifecycle_take_len_prefixed_of : Tacenta.UnitLifecycleSessionCodec.OptionBranchSome →
