@@ -2447,7 +2447,8 @@ no-two-entries clauses of both stores hold vacuously on their one-element lists.
 of the restated refinement hold together at it under `DecryptJointLaws`
 (`decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`); and a third, the same Triple at sparse epoch 0 beside
 the held-KEM Braid, under the held witness's laws (`..._at_stored_keys_held`), where the sparse and Braid epochs are at their
-least values. No witness is near a ceiling, and no state produced by establishment, by `import` or by any operation is given;
+least values. No witness is near a ceiling, and none of these witnesses is a state produced by establishment, by `import` or by
+any operation (the ceilings at the output of `establish_initiator_for` are derived below, at counters 0 and Braid epoch 1);
 at these witnesses the run carries no agreement chunk and `sparseOutputEpoch` holds vacuously. No run here consumes a stored
 key: the run's header names neither (classical `n = 1` against the stored `n = 2`; sparse `(0, 1)` against `(2, 3)`), so both
 match filters are empty at it (`stored_run_header_names_no_stored_key`); the match bounds are tight only for headers chosen to
