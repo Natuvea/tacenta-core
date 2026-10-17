@@ -3,6 +3,7 @@ import Translation.UnitLifecycleIntegrationScreen
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitOracleJoint
+import Translation.UnitHeldKemWitness
 
 /-!
 # The public `Session::encrypt` at an established initiator session
@@ -40,8 +41,14 @@ consumes about the session.
    Triple refusal do not occur: the model's step at that state is computed (`established_encrypt_model_cases`,
    `established_triple_send_ok`) and has neither.
 4. **What the next operation consumes.**  After a success: the four counter ceilings
-   (`established_encrypt_successor_counterHeadroom`), and the relation to the model step's session with the
-   source's draws (`established_encrypt_successor_refines`).
+   (`established_encrypt_successor_counterHeadroom`), the relation to the model step's session with the
+   source's draws (`established_encrypt_successor_refines`), and `Session::invariant`
+   (`established_encrypt_successor_admissible`): the session is the establishment's with the Triple after
+   the send (`sentTriple`, recovered from the relation by `triple_eq_sent`) and the agreement at
+   `KeysSampled` epoch 1, whose key pair has the header key generation returned (so `key_pair_valid`) and
+   whose encoder is `Encoder::new` of that header and its MAC advanced once (so `Encoder::invariant` and
+   `encoder_sized`).  `established_encrypt_successor_hypotheses` collects the session-side premises of the
+   `decrypt` refinement at that session: invariant, relation, ceilings and `HonestChunk`.
 
 ## The law, and the other premises
 
@@ -52,6 +59,12 @@ decapsulation agreeing with the model's.  It is the key-generation clause of `Ke
 randomness fixed to the draws the model counts (`braidSendDrawCount`), so the counted draw record of the
 dispatch layer is derived (`braidSendTraceCounted_established`), through a copy of the `KeysUnsampled` branch
 of `step_send_refines` at that randomness (`step_send_keysUnsampled_pinned`).
+
+The successor's invariant takes six more: the establishment's `DhPublicValid` and `OptionEqU64Shape` (as
+for the establishment output), the KEM agreements `KemLenAgrees` and `ValidateEkAgrees` at `oracle.braidKem`
+(both already premises of the `decrypt` refinement), `DivCeilValue`, and a size law of the model KEM,
+`KeyGenSizesOf` (assumed: its key generation returns a 32-byte seed and a vector of `ekSize` bytes, and its
+hash is 32 bytes).
 
 The other premises are the caller's: the encrypt boundary records (`BraidSendRefinementContracts` at
 `oracle.braidKem`, `TripleSendRefinementContracts`, `AeadSealBounded`, `DhCodecTotal`, the class
@@ -73,14 +86,18 @@ fills one 64-byte seed and encapsulation that fills one 32-byte buffer), at the 
 refuses key generation at the all-zero seed.  `established_encrypt_success_reachable` and
 `established_encrypt_refusal_reachable`: at the real constants, under the same laws, the success arm is
 reached where the model's key generation answers at the source's bytes and the refusal arm where it refuses;
-in the model both happen (`toyKemR_seeds`).  The models are toys and show nothing of the real primitives.
+in the model both happen (`toyKemR_seeds`).  For the successor, `EstablishedEncryptSuccessorHypotheses`,
+`established_encrypt_successor_hypotheses_jointly_satisfiable` (adding `KeyGenSizesOf K`) and
+`established_encrypt_successor_reachable` (a success whose session passes the invariant and meets the
+ceilings) do the same; `toyKemR_sizes` is the size law in the model.  The models are toys and show nothing
+of the real primitives.
 
 ## What it does not show
 
 * The responder's receipt of the frame (`establish_responder`), initial-frame `decrypt`, a second `encrypt`.
-* That the session after a success passes `Session::invariant`.
 * That `establishedModelOf dh s` is the model's own establishment output.
-* That the real primitives meet the boundary records, `OracleOf`'s laws or `KeyGenSeededFor`; whether the
+* That the real primitives meet the boundary records, `OracleOf`'s laws, `KeyGenSeededFor` or the KEM
+  agreements, or that the KEM model meets `KeyGenSizesOf`; whether the
   real key generation ever refuses (the refusal arm is covered, not shown reachable at the real KEM).
 * A restored copy of the session after the send (its agreement holds a key pair: outside `RestoredScope`).
 -/
@@ -161,6 +178,13 @@ theorem keyGenSeededFor_is (K : Model.Braid.Kem) {R : Type} (rc : rand_core_1.Rn
 
 end Law
 
+/-- **Assumed law about the model KEM**: its key generation returns a 32-byte seed and a vector of
+`K.ekSize` bytes, and its hash of them is 32 bytes (the layout of an ML-KEM-1024 header: seed and hash,
+32 bytes each). -/
+def KeyGenSizesOf (K : Model.Braid.Kem) : Prop :=
+  ∀ rand dk ekSeed ekVector, K.keyGen rand = some (dk, ekSeed, ekVector) →
+    ekSeed.length = 32 ∧ ekVector.length = K.ekSize ∧ (K.hashEk ekSeed ekVector).length = 32
+
 /-! ## The Braid send from `KeysUnsampled` at a fixed randomness
 
 `SessionUnitBraidT3.step_send_refines` says that *some* randomness makes the model agree with the code's
@@ -187,7 +211,11 @@ theorem step_send_keysUnsampled_pinned {K : Model.Braid.Kem} (hea : ErasureAgree
           MsgRefines msg modelMsg) ∧
         ((Model.Braid.send K rand (.keysUnsampled e a)).1 = none → msg.data = none) ∧
         OptionOutputRefines out (Model.Braid.send K rand (.keysUnsampled e a)).2.2.1 ∧
-        StateRefines K next (Model.Braid.send K rand (.keysUnsampled e a)).2.2.2 ⦄ := by
+        StateRefines K next (Model.Braid.send K rand (.keysUnsampled e a)).2.2.2 ∧
+        (∀ e' a' kp enc, next = .KeysSampled e' a' kp enc → ∃ h,
+          tacenta_kem.IncrementalKeyPair.header kp = ok h ∧ ∃ dk ekSeed ekVector,
+            K.keyGen rand = some (dk, ekSeed, ekVector) ∧
+            vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ⦄ := by
   rcases state with _|_|_|_|_|_|_|_|_|_|_|_ <;>
     (simp only [StateRefines] at hrel; try exact hrel.elim)
   rename_i epoch auth
@@ -200,11 +228,12 @@ theorem step_send_keysUnsampled_pinned {K : Model.Braid.Kem} (hea : ErasureAgree
     simp only [hgenerr]
     unfold Msg.empty
     step*
-    refine ⟨?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
     · intro modelMsg hm; simp [Model.Braid.send, hkg] at hm
     · intro _; trivial
     · simp only [Model.Braid.send, hkg]; trivial
     · simp only [Model.Braid.send, hkg]; trivial
+    · intro _ _ _ _ hnext; cases hnext
   obtain ⟨h', hh', hh'len⟩ := hhdr kp
   rw [hh] at hh'; injection hh' with hh'; subst hh'
   unfold Braid.step_send
@@ -245,7 +274,7 @@ theorem step_send_keysUnsampled_pinned {K : Model.Braid.Kem} (hea : ErasureAgree
     unfold Model.Braid.send
     simp only [hkg]
     rw [← hheader1val]
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
     exact ⟨he, trivial, hidx0, hstep0.2.1⟩
   · intro hnone; rw [hmsg_ex] at hnone; cases hnone
@@ -253,6 +282,10 @@ theorem step_send_keysUnsampled_pinned {K : Model.Braid.Kem} (hea : ErasureAgree
   · simp only [Model.Braid.send, hkg]
     exact ⟨he, ha, ⟨hdecap, ⟨v, hv, hvval⟩, ⟨h, _, hh, hhval⟩⟩,
       (EncoderRefines.step hencR hlt hnc_eq).2.2⟩
+  · intro e' a' kp' enc' hnext
+    injection hnext with _ _ hkp _
+    subst hkp
+    exact ⟨h, hh, dk, ekSeed, ekVector, hkg, hhval⟩
 
 /-- **`Braid::send` from a `KeysUnsampled` state refines the model's send at the randomness key
 generation answers to**: clone, the step above, the reported epoch. -/
@@ -267,15 +300,19 @@ theorem braid_send_keysUnsampled_pinned {K : Model.Braid.Kem}
           MsgRefines msg modelMsg) ∧
         i.val = (Model.Braid.send K rand (.keysUnsampled e a)).2.2.2.epoch - 1 ∧
         OptionOutputRefines out (Model.Braid.send K rand (.keysUnsampled e a)).2.2.1 ∧
-        StateRefines K next.state (Model.Braid.send K rand (.keysUnsampled e a)).2.2.2 ⦄ := by
+        StateRefines K next.state (Model.Braid.send K rand (.keysUnsampled e a)).2.2.2 ∧
+        (∀ e' a' kp enc, next.state = .KeysSampled e' a' kp enc → ∃ h,
+          tacenta_kem.IncrementalKeyPair.header kp = ok h ∧ ∃ dk ekSeed ekVector,
+            K.keyGen rand = some (dk, ekSeed, ekVector) ∧
+            vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ⦄ := by
   unfold Braid.send
   step with State.clone_refines contracts.kemClone contracts.erasureClone contracts.encoderClone
     contracts.decoderClone contracts.keyPairClone contracts.encapsStateClone hrel
   step with step_send_keysUnsampled_pinned contracts.hea contracts.hmac contracts.header rc crc self s
     rng s_post rand rng' hgenR
-  obtain ⟨hmsg, -, hout, hnext⟩ := ‹_›
+  obtain ⟨hmsg, -, hout, hnext, htie⟩ := ‹_›
   step with Braid.reported_refines K { state := next } _ hnext
-  exact ⟨hmsg, i_post, hout, hnext⟩
+  exact ⟨hmsg, i_post, hout, hnext, htie⟩
 
 end BraidPinned
 
@@ -363,7 +400,7 @@ theorem braidSendTraceCounted_of_keysUnsampled {R : Type} {rc : rand_core_1.RngC
     subst heq
     refine ⟨Model.Lifecycle.braidRandomness (d1 ++ d2), by simp, ?_⟩
     rw [hmodel]
-    exact hpost
+    exact ⟨hpost.1, hpost.2.1, hpost.2.2.1, hpost.2.2.2.1⟩
 
 /-- **The counted draw record at every successful `establish_initiator_for` output**, with the model session
 `establishedModelOf dh s`. -/
@@ -1439,6 +1476,16 @@ theorem toyKemR_seeds :
     rw [h1, Model.Messages.leValue, leValue_replicate_zero]
     simp [toyKemR, Model.Braid.toyKem]
 
+/-- `toyKemR`'s key generation returns a 32-byte seed, a vector of `ekSize` (64) bytes and a 32-byte
+hash. -/
+theorem toyKemR_sizes : KeyGenSizesOf toyKemR := by
+  intro rand dk ekSeed ekVector h
+  by_cases h0 : rand = 0
+  · simp [toyKemR, h0] at h
+  · simp only [toyKemR, h0, if_false, Model.Braid.toyKem, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨by simp, by simp [toyKemR, Model.Braid.toyKem], by simp [toyKemR, Model.Braid.toyKem]⟩
+
 /-- **Every law the encrypt premise list rests on, with the decrypt, establishment and restore laws, holds
 in one interpretation**, `InterpO.modelEncrypt` (`Interp.modelEstablished` with key generation and
 encapsulation that read the byte-stream source, and its signing function), with its views, the toy KEM
@@ -1459,13 +1506,14 @@ theorem established_encrypt_laws_model :
       (ZeroizingVecRoundTripShape Interp.modelEncrypt ∧ DhPrivateBytesRoundTripShape Interp.modelEncrypt ∧
         DhPublicBytesRoundTripShape Interp.modelEncrypt ∧ OptionBranchSomeShape @optionBranchImpl ∧
         VecAsSliceShape @vecAsSliceImpl ∧ KemCiphertextLenBoundShape (ok 0#usize)) ∧
+      KeyGenSizesOf toyKemR ∧
       toyKemR.keyGen (Model.Lifecycle.braidRandomness
           (zeroSeed.map Tacenta.SessionUnitBraidT3.u8)) = none ∧
       toyKemR.keyGen (Model.Lifecycle.braidRandomness
           (oneSeed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none := by
   obtain ⟨M, ⟨A⟩, S, P, -⟩ := established_decrypt_laws_model
   have T := modelEncrypt_allT1
-  refine ⟨?_, ⟨?_⟩, ?_, ?_, ?_, ?_, ?_, toyKemR_seeds⟩
+  refine ⟨?_, ⟨?_⟩, ?_, ?_, ?_, ?_, ?_, toyKemR_sizes, toyKemR_seeds⟩
   · exact
       { dhCodec := T.dhCodec
         dhAgree := M.dhAgree
@@ -1552,5 +1600,584 @@ theorem established_encrypt_laws_model :
       (fun _ _ => rfl), vecAsSliceImpl_shape, model_kemCiphertextLenBound⟩
 
 end JointModel
+
+/-! ## After a successful first send: the session passes `Session::invariant` -/
+
+section Successor
+open Tacenta.SessionUnitRatchetImportInv (bind_eq_ok_inv bind3_eq_ok_inv)
+open Tacenta.UnitHeadroomInvariant (OptionEqU64Shape vec_ne_self array_ne_self)
+
+/-- A successful `encrypt` ran the agreement send and a Triple candidate send that succeeded, and returned
+the session with the candidate and the agreement send's next state, and the source the agreement send
+left. -/
+theorem encrypt_ok_parts {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (s : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) (v : alloc.vec.Vec Std.U8)
+    (s' : lifecycle.Session) (rng' : R)
+    (h : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok v, s', rng')) :
+    ∃ m e o b, tacenta_braid.Braid.send rc crc s.braid rng = ok ((m, e, o, b), rng') ∧
+      ∃ sparse cand hdr mk, lifecycle.send_candidate s.triple e sparse = ok (cand, .Ok (hdr, mk)) ∧
+        s' = { s with triple := cand, braid := b } := by
+  unfold lifecycle.Session.encrypt at h
+  obtain ⟨fb, hfb, h⟩ := bind_eq_ok_inv h
+  split at h
+  · simp at h
+  obtain ⟨⟨⟨m, e, o, b⟩, rng1⟩, hsend, h⟩ := bind_eq_ok_inv h
+  obtain ⟨fb1, hfb1, h⟩ := bind_eq_ok_inv h
+  split at h
+  · simp at h
+  obtain ⟨sp, hsp, h⟩ := bind_eq_ok_inv h
+  obtain ⟨⟨cand, sent⟩, hcand, h⟩ := bind_eq_ok_inv h
+  rcases sent with ⟨hdr, mk⟩ | err
+  · simp only at h
+    have key : s' = { s with triple := cand, braid := b } ∧ rng' = rng1 := by
+      repeat' first
+        | (replace h := bind3_eq_ok_inv h; obtain ⟨_, _, _, _, h⟩ := h)
+        | (replace h := bind_eq_ok_inv h; obtain ⟨_, _, h⟩ := h)
+        | split at h
+        | simp only [ok.injEq, Prod.mk.injEq] at h
+      all_goals (obtain ⟨-, rfl, rfl⟩ := h; exact ⟨rfl, rfl⟩)
+    obtain ⟨rfl, rfl⟩ := key
+    exact ⟨m, e, o, b, hsend, sp, cand, hdr, mk, hcand, rfl⟩
+  · simp at h
+
+/-- The sparse chain table after the first send: the epoch-0 entry with its send chain at counter 1. -/
+def sentChains (c1 c2 : Array U8 32#usize) : alloc.vec.Vec (U64 × tacenta_spqr.Chains) :=
+  Tacenta.UnitHeadroomSatisfiable.vecOf
+    [(0#u64, { send := some { ck := c1, n := 1#u64 }, receive := some { ck := c2, n := 0#u64 } })]
+    (singleton_length_le _)
+
+/-- The Triple state after the first send from `initiatorTriple`: one classical message counted, the
+epoch-0 send chain at counter 1, with the chain keys as arguments. -/
+def sentTriple (a4 a5 rk cks prk c1 c2 : Array U8 32#usize) : tacenta_triple.State :=
+  { classical :=
+      { dhs_pub := a4, dhr_pub := some a5, rk := rk, cks := some cks, ckr := none,
+        ns := 1#u32, nr := 0#u32, pn := 0#u32, skipped := alloc.vec.Vec.new tacenta_ratchet.SkippedKey,
+        events := 0#u32, labels := tacenta_ratchet.LabelSet.Tacenta },
+    post_quantum :=
+      { rk := prk, epoch := 0#u64, chains := sentChains c1 c2,
+        skipped := alloc.vec.Vec.new tacenta_spqr.Skipped, direction := tacenta_spqr.Direction.A2b } }
+
+/-- Two arrays with the same bytes, as `UnitT3`'s byte reading sees them, are equal. -/
+theorem array_eq_of_bytes {n : Usize} {a b : Array U8 n}
+    (h : a.val.map (fun x : Std.U8 => UInt8.ofNat x.val) = b.val.map (fun x => UInt8.ofNat x.val)) :
+    a = b := by
+  apply Subtype.ext
+  refine (List.map_injective_iff.mpr ?_) h
+  intro x y hxy
+  have hx : x.val < 256 := by scalar_tac
+  have hy : y.val < 256 := by scalar_tac
+  have := congrArg UInt8.toNat hxy
+  simp at this
+  scalar_tac
+
+theorem triple_eq_sent (dh : DhView) {R : Type} {rc : rand_core_1.RngCore R}
+    {crc : rand_core_1.CryptoRng R} {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+    (p : InitiatorOutputParts rc crc our bundle) (tripleNext : Model.Triple.State)
+    (header : Model.Triple.Header) (messageKey : Model.Lifecycle.Key)
+    (htriple : Model.Triple.sendDetailed (establishedModelOf dh p.session).triple 0 none =
+      .ok (tripleNext, header, messageKey))
+    (t : tacenta_triple.State)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs t tripleNext) :
+    ∃ cks c1, t = sentTriple p.ratchetBytes p.peerRatchetBytes p.rootKey cks p.sparseRoot c1
+      p.sparseReceive := by
+  simp [Model.Triple.sendDetailed, Model.Ratchet.sendDetailed, Model.SparseRatchet.sendDetailed,
+    Model.SparseRatchet.maybeAdvanceDetailed, Model.SparseRatchet.findChains, establishedModelOf,
+    InitiatorOutputParts.session, initiatorTriple, initChains, Tacenta.UnitHeadroomSatisfiable.vecOf,
+    Tacenta.SessionUnitTripleT3.ratchetAbs, Tacenta.SessionUnitTripleT3.spqrAbs,
+    Tacenta.SessionUnitSpqrT3.chainsEntryOf, Tacenta.SessionUnitSpqrT3.chainsOf,
+    Tacenta.SessionUnitSpqrT3.chainOf, Model.State.u32Max, Model.SparseRatchet.u64Max] at htriple
+  obtain ⟨rfl, -, -⟩ := htriple
+  obtain ⟨hc, hq⟩ := hrel
+  obtain ⟨⟨dhs, dhr, rk, cks, ckr, ns, nr, pn, sk, ev, lab⟩, ⟨prk, ep, ch, ssk, dir⟩⟩ := t
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs, Tacenta.SessionUnitTripleT3.spqrAbs,
+    Model.SparseRatchet.setChains] at hc hq
+  obtain ⟨rfl, rfl, rfl, ⟨cks', rfl, -⟩, rfl, hns, hnr, hpn, hsk, hev⟩ := hc
+  obtain ⟨hprk, hep, ⟨a, ⟨bs, br⟩, hch, hab⟩, hssk, hdir⟩ := hq
+  have hprk' : prk = p.sparseRoot := array_eq_of_bytes hprk
+  simp only [Tacenta.SessionUnitSpqrT3.chainsEntryOf, Tacenta.SessionUnitSpqrT3.chainsOf,
+    Prod.mk.injEq, Model.SparseRatchet.Chains.mk.injEq] at hab
+  obtain ⟨ha, hbs, hbr⟩ := hab
+  rcases bs with _ | ⟨sck, sn⟩
+  · simp at hbs
+  rcases br with _ | ⟨rck, rn⟩
+  · simp at hbr
+  simp only [Option.map_some, Option.some.injEq, Tacenta.SessionUnitSpqrT3.chainOf,
+    Model.SparseRatchet.Chain.mk.injEq] at hbs hbr
+  obtain ⟨-, hsn⟩ := hbs
+  obtain ⟨hrck, hrn⟩ := hbr
+  have hrck' : rck = p.sparseReceive := array_eq_of_bytes hrck
+  cases lab
+  cases dir <;> simp [Tacenta.SessionUnitSpqrT3.directionOf] at hdir
+  refine ⟨cks', sck, ?_⟩
+  subst hprk' hrck'
+  have hns' : ns = 1#u32 := UScalar.eq_of_val_eq (by simpa using hns)
+  have hnr' : nr = 0#u32 := UScalar.eq_of_val_eq (by simpa using hnr)
+  have hpn' : pn = 0#u32 := UScalar.eq_of_val_eq (by simpa using hpn)
+  have hev' : ev = 0#u32 := UScalar.eq_of_val_eq (by simpa using hev)
+  have hep' : ep = 0#u64 := UScalar.eq_of_val_eq (by simpa using hep)
+  have ha' : a = 0#u64 := UScalar.eq_of_val_eq (by simpa using ha)
+  have hsn' : sn = 1#u64 := UScalar.eq_of_val_eq (by simpa using hsn)
+  have hrn' : rn = 0#u64 := UScalar.eq_of_val_eq (by simpa using hrn)
+  subst hns' hnr' hpn' hev' hep' ha' hsn' hrn'
+  have hsk' : sk = alloc.vec.Vec.new tacenta_ratchet.SkippedKey := Subtype.ext hsk
+  have hssk' : ssk = alloc.vec.Vec.new tacenta_spqr.Skipped := Subtype.ext hssk
+  have hch' : ch = sentChains sck p.sparseReceive := Subtype.ext hch
+  subst hsk' hssk' hch'
+  rfl
+
+/-- `Triple::invariant` of the Triple after the first send, given its two public keys are canonical. -/
+theorem sentTriple_invariant (a4 a5 rk cks prk c1 c2 : Array U8 32#usize)
+    (h4 : Tacenta.SessionUnitT1.canonicalX25519 a4 = true)
+    (h5 : Tacenta.SessionUnitT1.canonicalX25519 a5 = true) :
+    tacenta_triple.State.invariant (sentTriple a4 a5 rk cks prk c1 c2) = ok true := by
+  have h1 : tacenta_ratchet.State.invariant
+      (sentTriple a4 a5 rk cks prk c1 c2).classical = ok true := by
+    rw [Tacenta.SessionUnitRatchetImportInv.Ratchet.invariant_true_iff]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · simp [sentTriple, alloc.vec.Vec.new, tacenta_ratchet.MAX_SKIPPED_STORE]
+    · simp [sentTriple, U32.max_eq]
+    · simp [sentTriple, alloc.vec.Vec.new]
+    · simp [sentTriple, alloc.vec.Vec.new]
+    · simp [sentTriple]
+    · simpa [sentTriple] using h4
+    · simpa [sentTriple] using h5
+    · simp [sentTriple, alloc.vec.Vec.new]
+  have h2 : tacenta_spqr.State.invariant
+      (sentTriple a4 a5 rk cks prk c1 c2).post_quantum = ok true := by
+    rw [Tacenta.SessionUnitRatchetImportInv.Spqr.invariant_true_iff]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    · simp [sentTriple, alloc.vec.Vec.new, tacenta_spqr.MAX_SKIPPED_STORE]
+    · simp [sentTriple, sentChains, Tacenta.UnitHeadroomSatisfiable.vecOf,
+        core.num.U64.saturating_add, UScalar.saturating_add, tacenta_spqr.EPOCHS_KEPT, U64.max_eq]
+      decide
+    · simp [sentTriple, sentChains, Tacenta.UnitHeadroomSatisfiable.vecOf]
+    · simp [sentTriple, sentChains, Tacenta.UnitHeadroomSatisfiable.vecOf]
+    · simp [sentTriple, alloc.vec.Vec.new]
+    · simp [sentTriple, alloc.vec.Vec.new]
+  simp only [sentTriple] at h1 h2
+  unfold tacenta_triple.State.invariant
+  simp [h1, h2, sentTriple, tacenta_spqr.State.impl.direction,
+    tacenta_ratchet.State.started_as_sender]
+
+/-- The session after a successful first send, from the parts: the Triple after the send, the agreement
+at `KeysSampled` epoch 1, every other field the establishment's. -/
+def sentSession {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+    (p : InitiatorOutputParts rc crc our bundle) (cks c1 : Array U8 32#usize) (auth : tacenta_braid.Auth)
+    (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder) : lifecycle.Session :=
+  { p.session with
+    triple := sentTriple p.ratchetBytes p.peerRatchetBytes p.rootKey cks p.sparseRoot c1 p.sparseReceive
+    braid := ⟨tacenta_braid.State.KeysSampled 1#u64 auth kp enc⟩ }
+
+/-- `Session::structural_invariant` of the session after the first send: as at the establishment output,
+with the agreement's epoch, tag and role read off `KeysSampled` at epoch 1. -/
+theorem structural_sent {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+    (hpub : DhPublicValid) (hct : KemCiphertextLenOf)
+    (hoeq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    (p : InitiatorOutputParts rc crc our bundle) (cks c1 : Array U8 32#usize) (auth : tacenta_braid.Auth)
+    (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder) :
+    lifecycle.Session.structural_invariant (sentSession p cks c1 auth kp enc) = ok true := by
+  have hv := identity_public_valid hpub p.hOurPublic
+  have hc := (dhPublicValid_valid hpub p.hEphemeralPublic).2
+  obtain ⟨n, hctl, hlen0⟩ := kemCiphertextLenOf_is.mp hct rc crc _ _ _ _ _ p.hEncapsulate
+  have hlen : alloc.vec.Vec.len p.kemCiphertext = n := by
+    apply UScalar.eq_of_val_eq; simp [alloc.vec.Vec.len, hlen0]
+  unfold lifecycle.Session.structural_invariant
+  simp [sentSession, InitiatorOutputParts.session, sentTriple, p.hRatchetPublic, p.hRatchetBytes,
+    tacenta_triple.State.sending_public, tacenta_ratchet.State.sending_public, array_ne_self,
+    tacenta_braid.Braid.failed, tacenta_braid.Braid.is_initiator, tacenta_braid.State.epoch,
+    lifecycle.Session.is_responder, p.hIdentityAd, vec_ne_self, tacenta_triple.State.direction,
+    tacenta_spqr.State.impl.direction, hv, p.hPeerValid, hc, hctl, hlen,
+    tacenta_braid.Braid.epoch, tacenta_triple.State.epoch, tacenta_spqr.State.impl.epoch,
+    tacenta_braid.Braid.state_tag, lift, tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection.eq]
+  have h01 : U64.checked_add 0#u64 1#u64 = some 1#u64 := by decide
+  rw [h01, hoeq]
+  rfl
+
+/-- `Braid::invariant` of a `KeysSampled` agreement at epoch 1: the encoder passes `Encoder::invariant` and
+is sized for `HEADER_LEN + MAC_LEN` bytes (96, with `HEADER_LEN` 64), and `key_pair_valid` returns
+`true`. -/
+theorem keysSampled_invariant (hk : tacenta_kem.HEADER_LEN = ok 64#usize) (auth : tacenta_braid.Auth)
+    (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder)
+    (henc : tacenta_erasure.Encoder.invariant enc = ok true)
+    (hsized : ∀ len : Usize, len.val = 96 → tacenta_braid.encoder_sized enc len = ok true)
+    (hkp : tacenta_braid.key_pair_valid kp = ok true) :
+    tacenta_braid.Braid.invariant ⟨tacenta_braid.State.KeysSampled 1#u64 auth kp enc⟩ = ok true := by
+  unfold tacenta_braid.Braid.invariant
+  simp only [henc, hk, bind_tc_ok, if_true]
+  have h1 : (1#u64 : U64) >= 1#u64 := by decide
+  simp only [h1, if_true]
+  obtain ⟨x, hx, hxv⟩ : ∃ x : Usize, 64#usize + tacenta_braid.MAC_LEN = ok x ∧ x.val = 96 := by
+    have : tacenta_braid.MAC_LEN.val = 32 := by simp [tacenta_braid.MAC_LEN]
+    have h := Tacenta.UnitSatisfiabilityBraidAgreements.usize_max_ge 96 (by norm_num)
+    obtain ⟨x, hx, hxv⟩ := Std.WP.spec_imp_exists (Usize.add_spec (x := 64#usize)
+      (y := tacenta_braid.MAC_LEN) (by scalar_tac))
+    exact ⟨x, hx, by scalar_tac⟩
+  rw [hx]
+  simp only [bind_tc_ok, hsized x hxv, if_true, hkp]
+
+/-- `Session::invariant` of the session after the first send, given its agreement's invariant. -/
+theorem sent_invariant {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+    (hpub : DhPublicValid) (hct : KemCiphertextLenOf)
+    (hoeq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    (p : InitiatorOutputParts rc crc our bundle) (cks c1 : Array U8 32#usize) (auth : tacenta_braid.Auth)
+    (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder)
+    (hbraid : tacenta_braid.Braid.invariant ⟨tacenta_braid.State.KeysSampled 1#u64 auth kp enc⟩ =
+      ok true) :
+    lifecycle.Session.invariant (sentSession p cks c1 auth kp enc) = ok true := by
+  unfold lifecycle.Session.invariant
+  rw [structural_sent hpub hct hoeq p cks c1 auth kp enc]
+  simp only [Aeneas.Std.bind_tc_ok, if_true]
+  unfold lifecycle.Session.leaf_invariants
+  have h4 := dhPublicValid_canonical hpub p.hRatchetPublic p.hRatchetBytes
+  have h5 := canonical_of_is_canonical_key p.hPeerRatchetBytes p.hPeerRatchetCanonical
+  simp only [sentSession]
+  rw [sentTriple_invariant _ _ _ _ _ _ _ h4 h5]
+  simpa using hbraid
+
+/-- `key_pair_valid` returns `true` at a key pair whose header is a model seed followed by the model's hash
+of it and its vector, of the sizes `KeyGenSizesOf` states, under `ValidateEkAgrees`. -/
+theorem keyPairValid_of_header {K : Model.Braid.Kem}
+    (hval : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K) (kp : tacenta_kem.IncrementalKeyPair)
+    (h v : alloc.vec.Vec Std.U8) (hh : tacenta_kem.IncrementalKeyPair.header kp = ok h)
+    (hv : tacenta_kem.IncrementalKeyPair.ek_vector kp = ok v) (ekSeed ekVector : Model.Braid.Bytes)
+    (hhval : Tacenta.SessionUnitBraidT3.vecOf h = ekSeed ++ K.hashEk ekSeed ekVector)
+    (hvval : Tacenta.SessionUnitBraidT3.vecOf v = ekVector) (hs : ekSeed.length = 32)
+    (hvl : ekVector.length = K.ekSize) (hhl : (K.hashEk ekSeed ekVector).length = 32) :
+    tacenta_braid.key_pair_valid kp = ok true := by
+  have hvlen : (alloc.vec.Vec.deref v).length = K.ekSize := by
+    rw [← hvl, ← hvval]; simp [Tacenta.SessionUnitBraidT3.vecOf, alloc.vec.Vec.deref]
+  obtain ⟨r, hr, hiff⟩ := hval (alloc.vec.Vec.deref h) (alloc.vec.Vec.deref v) ekSeed
+    (K.hashEk ekSeed ekVector) hs hhl hvlen
+    (by simpa [Tacenta.SessionUnitBraidT3.sliceOf, Tacenta.SessionUnitBraidT3.vecOf,
+      alloc.vec.Vec.deref] using hhval)
+  have hsv : Tacenta.SessionUnitBraidT3.sliceOf (alloc.vec.Vec.deref v) = ekVector := by
+    simpa [Tacenta.SessionUnitBraidT3.sliceOf, Tacenta.SessionUnitBraidT3.vecOf,
+      alloc.vec.Vec.deref] using hvval
+  rw [hsv] at hiff
+  have hrt : r = true := hiff.mpr rfl
+  subst hrt
+  unfold tacenta_braid.key_pair_valid
+  simp only [hh, hv, bind_tc_ok]
+  exact hr
+
+/-- An encoder that refines the model encoder of a 96-byte message advanced once passes
+`Encoder::invariant` and is sized for 96 bytes, under `DivCeilValue` and `ErasureAgrees`: its provenance
+is `Encoder::new` of that message and one `next_chunk`. -/
+theorem encoder_of_refines (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) (enc : tacenta_erasure.Encoder)
+    (m : Model.Braid.Bytes) (hm : m.length = 96)
+    (hr : Tacenta.SessionUnitBraidT3.EncoderRefines enc (Model.Braid.encode m).nextChunk.2) :
+    tacenta_erasure.Encoder.invariant enc = ok true ∧
+      ∀ len : Usize, len.val = 96 → tacenta_braid.encoder_sized enc len = ok true := by
+  obtain ⟨src, enc0, hsrc, hnew, hstep⟩ := hr.1
+  simp only [Model.Braid.encode, Model.Braid.Encoder.nextChunk] at hsrc hstep
+  obtain ⟨enc0', enc1', c, hnew', hnext', -, -, -, hinv, hsized⟩ :=
+    Tacenta.UnitHeldKemWitness.held_encoder hdiv hea m hm
+  have hsrc' : src = Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes m
+      (by rw [hm]; exact Tacenta.UnitSatisfiabilityBraidAgreements.usize_max_ge 96 (by norm_num)) := by
+    apply Subtype.ext
+    simp only [Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes]
+    rw [← hsrc]
+    exact (Tacenta.UnitKemWrapperModel.bytesOf_map_u8 src.val).symm
+  subst hsrc'
+  rw [hnew'] at hnew
+  cases hnew
+  obtain ⟨c', e', hnc, he'⟩ := hstep
+  rw [hnext'] at hnc
+  cases hnc
+  subst he'
+  exact ⟨hinv, hsized⟩
+
+/-- **After a successful first send, the session passes `Session::invariant`**, under the hypotheses of
+`established_initiator_encrypt_refines` and, in addition, the establishment's laws `DhPublicValid` and
+`OptionEqU64Shape` (as for the establishment output itself), the KEM agreements `KemLenAgrees` and
+`ValidateEkAgrees` at `oracle.braidKem`, the size law `KeyGenSizesOf` of the model KEM, and `DivCeilValue`.
+The session is the establishment's with the Triple after the send (`sentTriple`: one classical message
+counted, the epoch-0 send chain at counter 1) and the agreement at `KeysSampled` epoch 1, whose key pair has
+the header key generation returned and whose encoder is `Encoder::new` of that header and its MAC, advanced
+once. -/
+theorem established_encrypt_successor_admissible [Tacenta.SessionUnitT1.DerivedKeysModel]
+    {R E : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (braid : BraidSendRefinementContracts rc oracle.braidKem) (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (oracleOf : OracleOf rc crc dh kem trace oracle) (codec : DhCodecOf dh)
+    (codewordView : CodewordViewSendOf view)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hgen : KeyGenSeededFor oracle.braidKem rc crc trace) (hct : KemCiphertextLenOf)
+    (hbound : KemCiphertextLenBound)
+    (hpub : DhPublicValid)
+    (hoeq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    (hlen : Tacenta.SessionUnitBraidT3.KemLenAgrees oracle.braidKem)
+    (hval : Tacenta.SessionUnitBraidT3.ValidateEkAgrees oracle.braidKem)
+    (hsizes : KeyGenSizesOf oracle.braidKem) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E)
+    (our : lifecycle.Identity) (bundle : lifecycle.PublishedBundle)
+    (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E) (s : lifecycle.Session)
+    (h : lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
+      ok (core.result.Result.Ok s, rng1))
+    (plaintext : Slice Std.U8) (hroom : plaintext.val.length + 65770 ≤ Usize.max)
+    (rng : R) (htrace : trace rng = oracle.draws)
+    (hdraws : ∃ d1 d2 rest, trace rng = d1 :: d2 :: rest)
+    (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
+      ok (core.result.Result.Ok bytes, s', rng')) :
+    lifecycle.Session.invariant s' = ok true := by
+  obtain ⟨d1, d2, rest, htr⟩ := hdraws
+  obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
+    braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
+    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest htr
+  rw [hcall] at hcall'
+  cases hcall'
+  obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
+  rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, hkg, bytes', -, hframe, ⟨auth, kp, enc, hst⟩,
+      tripleNext, messageKey, chunk, encoder, pending, a, ⟨header, htriple⟩, hbraidM, hnc, -, -, hrel⟩
+  · cases hres
+  simp only at hframe hst hrel
+  have ha : a = Tacenta.SessionUnitBraidT3.AuthOf p.auth := by
+    have : (Model.Braid.BraidState.keysUnsampled 1 (Tacenta.SessionUnitBraidT3.AuthOf p.auth) :
+        Model.Braid.BraidState) = .keysUnsampled 1 a := hbraidM
+    injection this with _ h2
+    exact h2.symm
+  subst ha
+  -- The Triple: the relation fixes it as `sentTriple` up to the two advanced chain keys.
+  obtain ⟨cks', c1', hcand⟩ := triple_eq_sent dh p tripleNext header messageKey htriple s'.triple
+    hrel.triple
+  -- The agreement: the relation at `keysSampled` gives the vector and the encoder's provenance.
+  have hb := hrel.braid
+  simp only [hst] at hb
+  obtain ⟨-, -, ⟨-, ⟨v, hv, hvval⟩, -⟩, hencR⟩ := hb
+  -- The key pair's header is the one key generation returned: from the code's send at the fixed
+  -- randomness.
+  obtain ⟨m, e, o, b, hsend, -, cand, -, -, -, hs'⟩ :=
+    encrypt_ok_parts rc crc p.session plaintext rng bytes s' rng' hcall
+  obtain ⟨rng'', -, hans⟩ := hgen rng d1 d2 rest htr
+  have hrel0 : Tacenta.SessionUnitBraidT3.StateRefines oracle.braidKem p.session.braid.state
+      (.keysUnsampled (1#u64 : Std.U64).val (Tacenta.SessionUnitBraidT3.AuthOf p.auth)) := ⟨rfl, rfl⟩
+  obtain ⟨res, hcallB, hpostB⟩ := Std.WP.spec_imp_exists
+    (braid_send_keysUnsampled_pinned braid crc p.session.braid rng hrel0
+      (Model.Lifecycle.braidRandomness (d1 ++ d2)) rng'' hans)
+  rw [hsend] at hcallB
+  cases hcallB
+  have hbs : b.state = .KeysSampled 1#u64 auth kp enc := by
+    rw [← hst, hs']
+  obtain ⟨hh0, hhh, dk', ekSeed', ekVector', hkg', hhval⟩ := hpostB.2.2.2.2 _ _ _ _ hbs
+  rw [hkg] at hkg'
+  obtain ⟨rfl, rfl, rfl⟩ : dk = dk' ∧ ekSeed = ekSeed' ∧ ekVector = ekVector' := by
+    simpa using hkg'
+  obtain ⟨hs32, hvl, hhl⟩ := hsizes _ _ _ _ hkg
+  have hkp := keyPairValid_of_header hval kp hh0 v hhh hv ekSeed ekVector hhval hvval hs32 hvl hhl
+  -- The encoder: the model's header-plus-MAC message is 96 bytes.
+  have hm : ((ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector) ++
+      (Tacenta.SessionUnitBraidT3.AuthOf p.auth).macHdr 1
+        (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector)).length = 96 := by
+    simp [Model.Braid.Auth.macHdr, Model.Kdf.hmac_length, Model.Kdf.hashLen, hs32, hhl]
+  have hencoder : encoder = (Model.Braid.encode ((ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector) ++
+      (Tacenta.SessionUnitBraidT3.AuthOf p.auth).macHdr 1
+        (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector))).nextChunk.2 := by
+    rw [hnc]
+  subst hencoder
+  obtain ⟨henc, hsized⟩ := encoder_of_refines hdiv braid.hea enc _ hm hencR
+  obtain ⟨⟨hv64, hhd, hhv⟩, -⟩ := hlen
+  have hk : tacenta_kem.HEADER_LEN = ok 64#usize := by
+    rw [hhd]; congr 1; exact UScalar.eq_of_val_eq (by simpa [Model.Braid.headerSize] using hhv)
+  have hbraidInv := keysSampled_invariant hk auth kp enc henc hsized hkp
+  -- The session is `sentSession`.
+  have hbr : s'.braid = ⟨tacenta_braid.State.KeysSampled 1#u64 auth kp enc⟩ := by
+    cases hb2 : s'.braid with
+    | mk st => rw [hb2] at hst; simp only at hst; rw [hst]
+  have hs'' : s' = sentSession p cks' c1' auth kp enc := by
+    rw [hframe, hcand, hbr]
+    rfl
+  rw [hs'']
+  exact sent_invariant hpub hct hoeq p cks' c1' auth kp enc hbraidInv
+
+/-- **Every session-side premise the `decrypt` refinement takes holds at the session the first send leaves**,
+with the model step's session: `Session::invariant`, the relation, the four counter ceilings and
+`HonestChunk` for every model message (the agreement is at `keysSampled`, which feeds no decoder).  Under the
+hypotheses of `established_encrypt_successor_admissible`.  The next call's boundary records, trace equation,
+chunk relation and draw remain the caller's. -/
+theorem established_encrypt_successor_hypotheses [Tacenta.SessionUnitT1.DerivedKeysModel]
+    {R E : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (braid : BraidSendRefinementContracts rc oracle.braidKem) (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (oracleOf : OracleOf rc crc dh kem trace oracle) (codec : DhCodecOf dh)
+    (codewordView : CodewordViewSendOf view)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hgen : KeyGenSeededFor oracle.braidKem rc crc trace) (hct : KemCiphertextLenOf)
+    (hbound : KemCiphertextLenBound)
+    (hpub : DhPublicValid)
+    (hoeq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    (hlen : Tacenta.SessionUnitBraidT3.KemLenAgrees oracle.braidKem)
+    (hval : Tacenta.SessionUnitBraidT3.ValidateEkAgrees oracle.braidKem)
+    (hsizes : KeyGenSizesOf oracle.braidKem) (hdiv : Tacenta.SessionUnitDecoderBound.DivCeilValue)
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E)
+    (our : lifecycle.Identity) (bundle : lifecycle.PublishedBundle)
+    (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E) (s : lifecycle.Session)
+    (h : lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
+      ok (core.result.Result.Ok s, rng1))
+    (plaintext : Slice Std.U8) (hroom : plaintext.val.length + 65770 ≤ Usize.max)
+    (rng : R) (htrace : trace rng = oracle.draws)
+    (hdraws : ∃ d1 d2 rest, trace rng = d1 :: d2 :: rest)
+    (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
+      ok (core.result.Result.Ok bytes, s', rng')) :
+    lifecycle.Session.invariant s' = ok true ∧
+      SessionRefines dh oracle.braidKem s'
+        (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session ∧
+      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' ∧
+      ∀ msg, Tacenta.SessionUnitBraidT3.HonestChunk
+        (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session.braid
+        msg := by
+  obtain ⟨hrel, -, a, dk, ekVector, encoder, hb⟩ := established_encrypt_successor_refines rc crc trace
+    dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct
+    hbound rcE crcE our bundle expected rng0 rng1 s h plaintext hroom rng htrace hdraws bytes s' rng'
+    hcall
+  refine ⟨established_encrypt_successor_admissible rc crc trace dh kem view oracle braid triple aead
+      dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound hpub hoeq hlen hval hsizes
+      hdiv rcE crcE our bundle expected rng0 rng1 s h plaintext hroom rng htrace hdraws bytes s' rng'
+      hcall, hrel,
+    established_encrypt_successor_counterHeadroom rc crc trace dh kem view oracle braid triple aead
+      dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our bundle expected
+      rng0 rng1 s h plaintext hroom rng htrace hdraws bytes s' rng' hcall, ?_⟩
+  intro msg mc _ _
+  rw [hb]
+  cases msg.type <;> trivial
+
+end Successor
+
+
+/-! ## The successor's premise list holds together, and the success arm reaches it -/
+
+open Tacenta.UnitHeadroomInvariant (OptionEqU64Shape) in
+/-- The hypotheses of `established_encrypt_successor_hypotheses` as one record: those of the call, and the
+six the successor's invariant adds. -/
+structure EstablishedEncryptSuccessorHypotheses {R E : Type} (rc : rand_core_1.RngCore R)
+    (crc : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (kem : KemView) (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E) (our : lifecycle.Identity)
+    (bundle : lifecycle.PublishedBundle) (expected : tacenta_boundary.dh.PublicKeyBytes)
+    (rng0 rng1 : E) (s : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) : Prop
+    extends EstablishedEncryptHypotheses rc crc trace dh kem view oracle rcE crcE our bundle expected
+      rng0 rng1 s plaintext rng where
+  dhPublicValid : DhPublicValid
+  optionEq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq)
+  kemLen : Tacenta.SessionUnitBraidT3.KemLenAgrees oracle.braidKem
+  validateEk : Tacenta.SessionUnitBraidT3.ValidateEkAgrees oracle.braidKem
+  keyGenSizes : KeyGenSizesOf oracle.braidKem
+  divCeil : Tacenta.SessionUnitDecoderBound.DivCeilValue
+
+/-- The record is the hypothesis list of `established_encrypt_successor_hypotheses`: from it, that theorem
+applies to every successful call. -/
+theorem EstablishedEncryptSuccessorHypotheses.successor {R E : Type} {rc : rand_core_1.RngCore R}
+    {crc : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key} {dh : DhView}
+    {kem : KemView} {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {rcE : rand_core_1.RngCore E} {crcE : rand_core_1.CryptoRng E} {our : lifecycle.Identity}
+    {bundle : lifecycle.PublishedBundle} {expected : tacenta_boundary.dh.PublicKeyBytes}
+    {rng0 rng1 : E} {s : lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
+    (H : EstablishedEncryptSuccessorHypotheses rc crc trace dh kem view oracle rcE crcE our bundle
+      expected rng0 rng1 s plaintext rng)
+    (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
+      ok (core.result.Result.Ok bytes, s', rng')) :
+    lifecycle.Session.invariant s' = ok true ∧
+      SessionRefines dh oracle.braidKem s'
+        (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session ∧
+      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' ∧
+      ∀ msg, Tacenta.SessionUnitBraidT3.HonestChunk
+        (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session.braid
+        msg := by
+  obtain ⟨inst⟩ := H.derivedKeys
+  exact established_encrypt_successor_hypotheses rc crc trace dh kem view oracle H.braid H.triple H.aead
+    H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen
+    H.kemCiphertextLen H.kemCiphertextBound H.dhPublicValid H.optionEq H.kemLen H.validateEk
+    H.keyGenSizes H.divCeil rcE crcE our bundle expected rng0 rng1 s H.established plaintext H.room rng
+    H.trace_eq H.draws bytes s' rng' hcall
+
+/-- **Every hypothesis of `established_encrypt_successor_hypotheses` holds together at the real
+constants**, under the laws of `established_encrypt_hypotheses_jointly_satisfiable` and the size law
+`KeyGenSizesOf K` of the model KEM: the six the successor adds come from the decrypt laws (`OptionEqU64Shape`,
+the KEM length and validation agreements, `DivCeilValue`), `DhPublicValid` and `KeyGenSizesOf K`. -/
+theorem established_encrypt_successor_hypotheses_jointly_satisfiable (K : Model.Braid.Kem)
+    (dh : DhView) (kem : KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
+    (A : Nonempty (InitiatorAxiom Interp.real byteRng))
+    (S : InitiatorSuccessShape Interp.real byteRng byteCrc)
+    (hpub : DhPublicValid) (hct : KemCiphertextLenOf) (X : EncryptExtraLaws K dh kem)
+    (hsizes : KeyGenSizesOf K) (our : lifecycle.Identity) (seed : List Std.U8)
+    (hseed : 64 ≤ seed.length) :
+    ∃ (oracle : Model.Lifecycle.Oracle) (bundle : lifecycle.PublishedBundle) (s : lifecycle.Session)
+      (rng1 : List Std.U8),
+      oracle.braidKem = K ∧ oracle.draws = byteTrace seed ∧
+      EstablishedEncryptSuccessorHypotheses byteRng byteCrc byteTrace dh kem
+        Tacenta.UnitLifecycleRepair.witnessView oracle byteRng byteCrc our bundle
+        bundle.bundle.identity_key [] rng1 s emptyPlaintext seed := by
+  obtain ⟨oracle, bundle, s, rng1, hK, hdr, H⟩ :=
+    established_encrypt_hypotheses_jointly_satisfiable K dh kem L A S hpub hct X our seed hseed
+  refine ⟨oracle, bundle, s, rng1, hK, hdr, ?_⟩
+  subst hK
+  exact
+    { toEstablishedEncryptHypotheses := H
+      dhPublicValid := hpub
+      optionEq := L.optionEq
+      kemLen := (Tacenta.UnitSatisfiabilityBraidAgreements.KemLenAgrees_is _).mpr L.agreements.kemLen
+      validateEk :=
+        (Tacenta.UnitSatisfiabilityBraidAgreements.ValidateEkAgrees_is _).mpr L.agreements.validateEk
+      keyGenSizes := hsizes
+      divCeil := Tacenta.UnitSatisfiabilityJoint.DivCeilValue_is.mpr L.laws.divCeil }
+
+/-- **The success arm is reached and leaves a session that passes `Session::invariant` and meets the four
+counter ceilings**, at the real constants, under the laws of
+`established_encrypt_successor_hypotheses_jointly_satisfiable`, for every identity and every 64-byte source
+at whose bytes the model's key generation answers. -/
+theorem established_encrypt_successor_reachable (K : Model.Braid.Kem) (dh : DhView)
+    (kem : KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
+    (A : Nonempty (InitiatorAxiom Interp.real byteRng))
+    (S : InitiatorSuccessShape Interp.real byteRng byteCrc)
+    (hpub : DhPublicValid) (hct : KemCiphertextLenOf) (X : EncryptExtraLaws K dh kem)
+    (hsizes : KeyGenSizesOf K) (our : lifecycle.Identity) (seed : List Std.U8)
+    (hseed : seed.length = 64)
+    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none) :
+    ∃ (oracle : Model.Lifecycle.Oracle) (bundle : lifecycle.PublishedBundle) (s : lifecycle.Session)
+      (rng1 : List Std.U8) (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : List Std.U8),
+      oracle.braidKem = K ∧
+      EstablishedEncryptSuccessorHypotheses byteRng byteCrc byteTrace dh kem
+        Tacenta.UnitLifecycleRepair.witnessView oracle byteRng byteCrc our bundle
+        bundle.bundle.identity_key [] rng1 s emptyPlaintext seed ∧
+      lifecycle.Session.encrypt byteRng byteCrc s emptyPlaintext seed =
+        ok (core.result.Result.Ok bytes, s', rng') ∧
+      lifecycle.Session.invariant s' = ok true ∧
+      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by
+  obtain ⟨oracle, bundle, s, rng1, hK, -, H⟩ :=
+    established_encrypt_successor_hypotheses_jointly_satisfiable K dh kem L A S hpub hct X hsizes our
+      seed (by omega)
+  obtain ⟨inst⟩ := H.derivedKeys
+  subst hK
+  obtain ⟨⟨res, s', rng'⟩, hcall, -, hcases⟩ := established_encrypt_outcomes byteRng byteCrc byteTrace
+    dh kem Tacenta.UnitLifecycleRepair.witnessView oracle H.braid H.triple H.aead H.dhCodec H.oracleOf
+    H.codec H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen H.kemCiphertextLen
+    H.kemCiphertextBound byteRng byteCrc our bundle _ [] rng1 s H.established emptyPlaintext H.room seed
+    H.trace_eq _ _ _ (byteTrace_two seed (by omega))
+  rw [two_draws_of_64 seed hseed] at hcases
+  rcases hcases with ⟨hnone, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes, hres, -⟩
+  · exact absurd hnone hkg
+  · simp only at hres
+    subst hres
+    obtain ⟨hinv, -, hcnt, -⟩ := H.successor bytes s' rng' hcall
+    exact ⟨oracle, bundle, s, rng1, bytes, s', rng', rfl, H, hcall, hinv, hcnt⟩
 
 end Tacenta.UnitLifecycleEstablishedEncrypt
