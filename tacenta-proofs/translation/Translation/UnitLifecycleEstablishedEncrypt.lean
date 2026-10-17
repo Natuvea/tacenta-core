@@ -28,15 +28,20 @@ consumes about the session.
    its post-state and the draws it leaves refine the model's step (`PublicEncryptWitness`, so
    `StepRefines`).  `established_encrypt_outcomes` names the two outcomes and their effects:
    * key generation refuses (`K.keyGen (braidRandomness (d1 ++ d2)) = none`): the call returns
-     `AgreementFailed` and the session `{ s with braid := ⟨Failed⟩ }`, nothing else changed;
+     `AgreementFailed` and the session `{ s with braid := ⟨Failed⟩ }`, nothing else changed.  This arm is
+     reachable only for a model KEM whose key generation refuses; the shipping wrapper's key generation does
+     not refuse, by reading (`tacenta-core/kem/src/lib.rs`, libcrux's only error there is an output buffer
+     of the wrong length, which the wrapper never passes; `LIMITATIONS.md`), so at the shipping KEM this is
+     a covered arm, not a reachable refusal;
    * key generation answers `(dk, ekSeed, ekVector)`: the call returns bytes equal to the model's initial
      message (`initialWire`) wrapping the first ratchet frame (`firstFrame`: classical numbers 0 and 0,
      sparse epoch 0 and number 1, agreement epoch 1 and type `hdr`), the session changes only in the Triple
      Ratchet and the agreement (so the pending initial message is kept), the agreement is `KeysSampled` at
      epoch 1, and the session relates to the model's next session, whose agreement holds `dk`, `ekVector`
-     and the header encoder after one chunk.  At a `KeysSampled` agreement the relation carries the key
-     pair's decapsulation, vector and header agreement and the encoder's provenance, so it is not
-     definitional.
+     and the header encoder after one chunk.  At a `KeysSampled` agreement the relation is not
+     definitional: its encoder half (provenance and simulation) is derived from the code's send under
+     `ErasureAgrees`, and its key-pair half (decapsulation, vector and header agreement) is the content of
+     `KeyGenSeededFor`, carried through.
    Both outcomes leave the source with the trace less its first two entries.  The terminal guard and every
    Triple refusal do not occur: the model's step at that state is computed (`established_encrypt_model_cases`,
    `established_triple_send_ok`) and has neither.
@@ -48,7 +53,10 @@ consumes about the session.
    `KeysSampled` epoch 1, whose key pair has the header key generation returned (so `key_pair_valid`) and
    whose encoder is `Encoder::new` of that header and its MAC advanced once (so `Encoder::invariant` and
    `encoder_sized`).  `established_encrypt_successor_hypotheses` collects the session-side premises of the
-   `decrypt` refinement at that session: invariant, relation, ceilings and `HonestChunk`.
+   `decrypt` refinement at that session: invariant, relation and ceilings (and `HonestChunk`, which is
+   `True` at a `keysSampled` agreement).  `established_encrypt_successor_shape` states the session exactly:
+   the establishment's, with `sentTriple` (classical counter 1, sparse send counter 1, receive counter 0,
+   clock 0, sparse epoch 0) and the agreement `KeysSampled 1` with the establishment's authenticator.
 
 ## The law, and the other premises
 
@@ -97,8 +105,11 @@ of the real primitives.
 * The responder's receipt of the frame (`establish_responder`), initial-frame `decrypt`, a second `encrypt`.
 * That `establishedModelOf dh s` is the model's own establishment output.
 * That the real primitives meet the boundary records, `OracleOf`'s laws, `KeyGenSeededFor` or the KEM
-  agreements, or that the KEM model meets `KeyGenSizesOf`; whether the
-  real key generation ever refuses (the refusal arm is covered, not shown reachable at the real KEM).
+  agreements.  `KeyGenSizesOf` holds at the KEM model read off the wrapper under the wrapper laws
+  (`keyGenSizes_wrapperKem`).
+* A refusal the shipping `encrypt` can reach: at this state the only refusal is key generation refusing,
+  which the shipping wrapper does not do, by reading; the terminal guard and the Triple refusals, reachable
+  later in a session, do not occur here and are not covered.
 * A restored copy of the session after the send (its agreement holds a key pair: outside `RestoredScope`).
 -/
 
@@ -184,6 +195,54 @@ end Law
 def KeyGenSizesOf (K : Model.Braid.Kem) : Prop :=
   ∀ rand dk ekSeed ekVector, K.keyGen rand = some (dk, ekSeed, ekVector) →
     ekSeed.length = 32 ∧ ekVector.length = K.ekSize ∧ (K.hashEk ekSeed ekVector).length = 32
+
+/-! ## The size law at the KEM model read off the wrapper -/
+
+section WrapperSizes
+open Tacenta.UnitSatisfiabilityJoint (Interp)
+open Tacenta.UnitSatisfiabilityBraidAgreements
+open Tacenta.SessionUnitBraidT3 (vecOf keyOf sliceOf Bytes u8)
+open Tacenta.UnitKemWrapperModel
+
+/-- **`KeyGenSizesOf` holds at the KEM model read off the wrapper**, over every interpretation that meets the
+wrapper laws: a generated pair's header is 64 bytes and its vector 1536, and the model hash of the header's
+first 32 bytes and the vector is the header's last 32. -/
+theorem keyGenSizes_wrapperKemOf {I : Interp} (W : WrapperKemLawsShape I) :
+    KeyGenSizesOf (wrapperKemOf I) := by
+  intro rand dk ekSeed ekVector h
+  simp only [wrapperKemOf] at h
+  have hlen : (streamOf 64 rand).length = 64 := by
+    simp [streamOf, bytesOf, length_leBytes]
+  split at h
+  · rename_i kp rest hgen
+    split at h
+    · rename_i hd vd hh hv
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl⟩ := h
+      obtain ⟨h', v', hh', hhl, hv', hvl, hval, -⟩ := W.generatedKeyPair _ kp rest hlen hgen
+      rw [hh] at hh'; obtain rfl : hd = h' := Result.ok.inj hh'
+      rw [hv] at hv'; obtain rfl : vd = v' := Result.ok.inj hv'
+      have hvl' : (vecSlice vd).length = 1536 := hvl
+      have hhl' : (vecOf hd).length = 64 := by simpa [vecOf] using hhl
+      have htk : ((vecOf hd).take 32).length = 32 := by simp [hhl']
+      have hdr : ((vecOf hd).drop 32).length = 32 := by simp [hhl']
+      have hval' : I.validateEk (bytesSlice ((vecOf hd).take 32 ++ (vecOf hd).drop 32)) (vecSlice vd) =
+          ok true := by
+        rw [List.take_append_drop, ← sliceOf_vecSlice, bytesSlice_sliceOf]; exact hval
+      have heq := hashEkOf_eq W htk hdr hvl' hval'
+      refine ⟨htk, ?_, ?_⟩
+      · show (vecOf vd).length = 1536
+        simpa [vecOf] using hvl
+      · show (hashEkOf I ((vecOf hd).take 32) (vecOf vd)).length = 32
+        rw [← sliceOf_vecSlice vd, heq]; exact hdr
+    · simp at h
+  · simp at h
+
+/-- **`KeyGenSizesOf wrapperKem`**, at the real constants, under the wrapper laws. -/
+theorem keyGenSizes_wrapperKem (W : WrapperKemLaws) : KeyGenSizesOf wrapperKem :=
+  keyGenSizes_wrapperKemOf W
+
+end WrapperSizes
 
 /-! ## The Braid send from `KeysUnsampled` at a fixed randomness
 
@@ -901,9 +960,9 @@ theorem established_triple_next_counters (dh : DhView) {R : Type} {rc : rand_cor
   rintro ch (h | h) <;> subst h <;> simp
 
 /-- **The four counter ceilings at the session a successful first `encrypt` leaves**, under the
-hypotheses of `established_encrypt_outcomes`: the classical clock is unchanged, the sparse epoch is 0, the
-two sparse chain counters are 1 and 0, the agreement epoch is 1.  Derived from the relation to the model's
-next session (`established_encrypt_outcomes`), whose values the model computes. -/
+hypotheses of `established_encrypt_outcomes`.  Derived from the relation to the model's next session
+(`established_encrypt_outcomes`), whose values the model computes (clock 0, sparse epoch 0, chain counters at
+most 1, agreement epoch 1); the exact values are `established_encrypt_successor_shape`'s. -/
 theorem established_encrypt_successor_counterHeadroom [Tacenta.SessionUnitT1.DerivedKeysModel]
     {R E : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -967,8 +1026,9 @@ theorem established_encrypt_successor_counterHeadroom [Tacenta.SessionUnitT1.Der
 /-- **After a successful first send, the session the call leaves is related to the model step's session**,
 whose agreement is `keysSampled` at epoch 1, and the source it leaves holds the model step's draws: the
 premises the next operation on that session takes about the session and the source, under the hypotheses of
-`established_initiator_encrypt_refines`.  The relation at a `keysSampled` agreement carries the key pair's
-decapsulation, vector and header agreement and the encoder's provenance, so it is not definitional. -/
+`established_initiator_encrypt_refines`.  The relation at a `keysSampled` agreement is not definitional:
+its encoder half is derived from the code's send under `ErasureAgrees`, its key-pair half is the content of
+`KeyGenSeededFor`. -/
 theorem established_encrypt_successor_refines [Tacenta.SessionUnitT1.DerivedKeysModel] {R E : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -2005,8 +2065,9 @@ theorem established_encrypt_successor_admissible [Tacenta.SessionUnitT1.DerivedK
   exact sent_invariant hpub hct hoeq p cks' c1' auth kp enc hbraidInv
 
 /-- **Every session-side premise the `decrypt` refinement takes holds at the session the first send leaves**,
-with the model step's session: `Session::invariant`, the relation, the four counter ceilings and
-`HonestChunk` for every model message (the agreement is at `keysSampled`, which feeds no decoder).  Under the
+with the model step's session: `Session::invariant`, the relation and the four counter ceilings, and
+`HonestChunk` for every model message, which holds trivially (`True`) at a `keysSampled` agreement, which
+feeds no decoder.  Under the
 hypotheses of `established_encrypt_successor_admissible`.  The next call's boundary records, trace equation,
 chunk relation and draw remain the caller's. -/
 theorem established_encrypt_successor_hypotheses [Tacenta.SessionUnitT1.DerivedKeysModel]
@@ -2061,6 +2122,84 @@ theorem established_encrypt_successor_hypotheses [Tacenta.SessionUnitT1.DerivedK
   intro msg mc _ _
   rw [hb]
   cases msg.type <;> trivial
+
+/-- Two authenticators the model reads alike are equal. -/
+theorem authOf_injective {a b : tacenta_braid.Auth}
+    (h : Tacenta.SessionUnitBraidT3.AuthOf a = Tacenta.SessionUnitBraidT3.AuthOf b) : a = b := by
+  obtain ⟨ar, am⟩ := a
+  obtain ⟨br, bm⟩ := b
+  simp only [Tacenta.SessionUnitBraidT3.AuthOf, Model.Braid.Auth.mk.injEq] at h
+  obtain ⟨hr, hm⟩ := h
+  have hr' : ar = br := array_eq_of_bytes hr
+  have hm' : am = bm := array_eq_of_bytes hm
+  subst hr' hm'
+  rfl
+
+/-- **The session a successful first send leaves, exactly**, under the hypotheses of
+`established_initiator_encrypt_refines`: the establishment's session with the Triple after the send
+(`sentTriple`: classical message counter 1, previous chain 0, clock 0, no stored key, the epoch-0 sparse entry
+with its send chain at counter 1 and its receive chain at counter 0, sparse epoch 0) and the agreement at
+`KeysSampled` epoch 1 with the establishment's own authenticator; only the two advanced chain keys, the key
+pair and the encoder are left as values. -/
+theorem established_encrypt_successor_shape [Tacenta.SessionUnitT1.DerivedKeysModel]
+    {R E : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (braid : BraidSendRefinementContracts rc oracle.braidKem) (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (oracleOf : OracleOf rc crc dh kem trace oracle) (codec : DhCodecOf dh)
+    (codewordView : CodewordViewSendOf view)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hgen : KeyGenSeededFor oracle.braidKem rc crc trace) (hct : KemCiphertextLenOf)
+    (hbound : KemCiphertextLenBound)
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E)
+    (our : lifecycle.Identity) (bundle : lifecycle.PublishedBundle)
+    (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E) (s : lifecycle.Session)
+    (h : lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
+      ok (core.result.Result.Ok s, rng1))
+    (plaintext : Slice Std.U8) (hroom : plaintext.val.length + 65770 ≤ Usize.max)
+    (rng : R) (htrace : trace rng = oracle.draws)
+    (hdraws : ∃ d1 d2 rest, trace rng = d1 :: d2 :: rest)
+    (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
+      ok (core.result.Result.Ok bytes, s', rng')) :
+    ∃ (p : InitiatorOutputParts rcE crcE our bundle) (cks c1 : Array U8 32#usize)
+      (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder),
+      s = p.session ∧ s' = sentSession p cks c1 p.auth kp enc := by
+  obtain ⟨d1, d2, rest, htr⟩ := hdraws
+  obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
+    braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
+    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest htr
+  rw [hcall] at hcall'
+  cases hcall'
+  obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
+  rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes', -, hframe, ⟨auth, kp, enc, hst⟩,
+      tripleNext, messageKey, chunk, encoder, pending, a, ⟨header, htriple⟩, hbraidM, -, -, -, hrel⟩
+  · cases hres
+  simp only at hframe hst hrel
+  have ha : a = Tacenta.SessionUnitBraidT3.AuthOf p.auth := by
+    have : (Model.Braid.BraidState.keysUnsampled 1 (Tacenta.SessionUnitBraidT3.AuthOf p.auth) :
+        Model.Braid.BraidState) = .keysUnsampled 1 a := hbraidM
+    injection this with _ h2
+    exact h2.symm
+  subst ha
+  obtain ⟨cks', c1', hcand⟩ := triple_eq_sent dh p tripleNext header messageKey htriple s'.triple
+    hrel.triple
+  have hb := hrel.braid
+  simp only [hst] at hb
+  obtain ⟨-, hauth, -, -⟩ := hb
+  have hauth' : auth = p.auth := authOf_injective hauth
+  subst hauth'
+  have hbr : s'.braid = ⟨tacenta_braid.State.KeysSampled 1#u64 p.auth kp enc⟩ := by
+    cases hb2 : s'.braid with
+    | mk st => rw [hb2] at hst; simp only at hst; rw [hst]
+  refine ⟨p, cks', c1', kp, enc, rfl, ?_⟩
+  rw [hframe, hcand, hbr]
+  rfl
 
 end Successor
 
@@ -2306,6 +2445,73 @@ info: 'Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSeededFor_is' depends on ax
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSeededFor_is
+
+/--
+info: 'Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKemOf' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKemOf
+
+/--
+info: 'Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKem' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKem
 
 /--
 info: 'Tacenta.UnitLifecycleEstablishedEncrypt.step_send_keysUnsampled_pinned' depends on axioms: [propext,
@@ -4087,6 +4293,86 @@ info: 'Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hyp
 #print axioms Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hypotheses
 
 /--
+info: 'Tacenta.UnitLifecycleEstablishedEncrypt.authOf_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleEstablishedEncrypt.authOf_injective
+
+/--
+info: 'Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape
+
+/--
 info: 'Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptSuccessorHypotheses.successor' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
@@ -4323,6 +4609,21 @@ info: Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSeededFor_is : ∀ (K : Mode
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSeededFor_is
+
+/--
+info: @Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKemOf : ∀ {I : Tacenta.UnitSatisfiabilityJoint.Interp},
+  Tacenta.UnitKemWrapperModel.WrapperKemLawsShape I →
+    Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf (Tacenta.UnitKemWrapperModel.wrapperKemOf I)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKemOf
+
+/--
+info: Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKem : Tacenta.UnitKemWrapperModel.WrapperKemLaws →
+  Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf Tacenta.UnitKemWrapperModel.wrapperKem
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleEstablishedEncrypt.keyGenSizes_wrapperKem
 
 /--
 info: @Tacenta.UnitLifecycleEstablishedEncrypt.step_send_keysUnsampled_pinned : ∀ {K : Model.Braid.Kem},
@@ -5498,6 +5799,61 @@ info: @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hyp
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hypotheses
+
+/--
+info: @Tacenta.UnitLifecycleEstablishedEncrypt.authOf_injective : ∀ {a b : tacenta_session_unit.tacenta_braid.Auth},
+  Tacenta.SessionUnitBraidT3.AuthOf a = Tacenta.SessionUnitBraidT3.AuthOf b → a = b
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleEstablishedEncrypt.authOf_injective
+
+/--
+info: @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {R E : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R)
+  (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleT3.BraidSendRefinementContracts rc oracle.braidKem →
+    Tacenta.UnitLifecycleT3.TripleSendRefinementContracts →
+      Tacenta.UnitLifecycleT1.AeadSealBounded →
+        Tacenta.UnitLifecycleT1.DhCodecTotal →
+          Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+            Tacenta.UnitLifecycleT3.DhCodecOf dh →
+              Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+                Tacenta.SessionUnitT3.ZeroizingRoundTrips80 →
+                  Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Aeneas.Std.Array Aeneas.Std.U8 32#usize) →
+                    Tacenta.UnitLifecycleT3.ZeroizingRoundTrips
+                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize ×
+                          Aeneas.Std.Array Aeneas.Std.U8 32#usize × Aeneas.Std.Array Aeneas.Std.U8 16#usize) →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace →
+                        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+                          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                            ∀ (rcE : tacenta_session_unit.rand_core_1.RngCore E)
+                              (crcE : tacenta_session_unit.rand_core_1.CryptoRng E)
+                              (our : tacenta_session_unit.lifecycle.Identity)
+                              (bundle : tacenta_session_unit.lifecycle.PublishedBundle)
+                              (expected : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E)
+                              (s : tacenta_session_unit.lifecycle.Session),
+                              tacenta_session_unit.lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
+                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
+                                ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                                  (↑plaintext).length + 65770 ≤ Aeneas.Std.Usize.max →
+                                    ∀ (rng : R),
+                                      trace rng = oracle.draws →
+                                        (∃ d1 d2 rest, trace rng = d1 :: d2 :: rest) →
+                                          ∀ (bytes : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+                                            (s' : tacenta_session_unit.lifecycle.Session) (rng' : R),
+                                            tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext rng =
+                                                Aeneas.Std.Result.ok
+                                                  (Aeneas.Std.core.result.Result.Ok bytes, s', rng') →
+                                              ∃ p cks c1 kp enc,
+                                                s = p.session ∧
+                                                  s' =
+                                                    Tacenta.UnitLifecycleEstablishedEncrypt.sentSession p cks c1 p.auth
+                                                      kp enc
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape
 
 /--
 info: @Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptSuccessorHypotheses.successor : ∀ {R E : Type}
