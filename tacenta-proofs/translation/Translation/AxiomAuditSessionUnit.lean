@@ -61,6 +61,9 @@ import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
+import Translation.UnitLifecycleSessionCodec
+import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleRestoredSession
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -94,6 +97,12 @@ output, `Session::invariant` (under two assumed laws about X25519 public keys an
 length, with models) and the four counter ceilings, with no hypothesis for the ceilings, and the relation
 to the model session read off the output, which holds by definition at its `KeysUnsampled` Braid; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
 `decrypt_ratchet` refinement and, for ratchet-type frames, to the public `decrypt`.
+`UnitLifecycleRestoredSession.lean` shows every session `Session::import` accepts passes
+`Session::invariant` (no hypothesis), states `CounterHeadroom` at an accepted import as a decidable check,
+relates an accepted session whose Braid is `KeysUnsampled` or `Failed` to the model session read off it (by
+definition) and composes it with `decrypt`; with `UnitLifecycleSessionCodec.lean` and
+`UnitLifecycleSessionRoundTrip.lean` it proves that `import` of `export` returns every established initiator
+session unchanged, under six assumed laws with a model.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
