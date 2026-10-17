@@ -53,6 +53,16 @@ copy of a module and requires Lean to refuse it, at a named place:
     `decryptRatchetRun_of_invariant`, where the proof first uses it);
   * the per-run bounds derivation with the Braid epoch ceiling of `CounterHeadroom` weakened to the
     decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`).
+  * the non-fresh states (`Translation/UnitLifecycleDecryptStates.lean`) with a second stored classical key
+    under the same header, with the stored key ahead of the clock, and with the sparse stored key at an epoch
+    the chain table does not hold (each refused in `storedTriple_invariant`),
+    with the stored-key state's clock at the park `u32::MAX - 1` (refused in `storedSession_counterHeadroom`:
+    the invariant still accepts it, the ceilings do not), with its sparse epoch one below the Braid's
+    relation (clause (b) alone) and with its Braid at an even epoch with the sparse epoch moved to keep (b)
+    (clause (d) alone; each refused in `structural_storedSession`), with the responder's sparse direction the initiator's (refused in
+    `structural_responderSession` or `responderTriple_invariant`), with the pending ciphertext one byte longer
+    than `kem::ciphertext_len` (refused in `structural_pendingSession`), and with the established ephemeral's
+    curve byte wrong (refused in `session_decode_ec_ephemeral`).
 
 The changes are checked on copies without the module's pins, so that the refusal comes from a proof and
 not from a pin, except the three kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
@@ -60,8 +70,8 @@ that does not start, a syntax error, an unrelated failure and a refusal elsewher
 never count. These are proof-dependency controls on copies of the Lean; no source, olean or git state
 changes.
 
-Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen` and
-`lake build Translation.UnitLifecycleDecryptRunBounds`).
+Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen`,
+`lake build Translation.UnitLifecycleDecryptRunBounds` and `lake build Translation.UnitLifecycleDecryptStates`).
 """
 from pathlib import Path
 import argparse
@@ -82,6 +92,7 @@ REFUSAL = ROOT / 'translation/Translation/UnitLifecycleTripleRefusalT3.lean'
 COMPLETE = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteT3.lean'
 COMPLETE_SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean'
 RUN_BOUNDS = ROOT / 'translation/Translation/UnitLifecycleDecryptRunBounds.lean'
+STATES = ROOT / 'translation/Translation/UnitLifecycleDecryptStates.lean'
 
 # The declaration that composes the loop into `decrypt_ratchet`.
 COMPOSITION = 'decrypt_ratchet_refines_or_open'
@@ -210,6 +221,56 @@ MUTANTS = [
        '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')],
      r'Docstring on `#guard_msgs` does not match generated message',
      ('pin', 'Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom')),
+    ('states', 'stored-store-with-a-repeated-header',
+     [(r'        skipped := vecOf \[\{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros },\n'
+       '          { dh := a, n := 2#u32, stored_at := 3#u32, key := zeros }] (by simp),\n')], PROOF,
+     ['storedTriple_invariant']),
+    ('states', 'stored-key-ahead-of-the-clock',
+     [(r'        skipped := vecOf \[\{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ dh := a, n := 2#u32, stored_at := 6#u32, key := zeros }] (by simp),\n')],
+     PROOF, ['storedTriple_invariant']),
+    ('states', 'sparse-key-at-an-epoch-without-a-chain',
+     [(r'        skipped := vecOf \[\{ epoch := E, n := 3#u64, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ epoch := 0#u64, n := 3#u64, key := zeros }] (by simp),\n')],
+     PROOF, ['storedTriple_invariant']),
+    ('states', 'stored-clock-at-the-park',
+     [(r'        events := 5#u32, labels := tacenta_ratchet\.LabelSet\.Tacenta \},\n',
+       '        events := 4294967294#u32, labels := tacenta_ratchet.LabelSet.Tacenta },\n')], PROOF,
+     ['storedSession_counterHeadroom']),
+    # Clause (b) alone: the sparse epoch one below where the Braid at epoch 3 needs it; (d) still holds
+    # at the odd epoch.
+    ('states', 'stored-sparse-epoch-off-the-braid',
+     [(r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 1#u64, braid := storedBraid }'),
+      # the proof's arithmetic step moved with the state, so the refusal is the clause's and not a
+      # rewrite that no longer matches
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 1#u64 1#u64 = some 2#u64 := by decide')], PROOF,
+     ['structural_storedSession']),
+    # Clause (d) alone: the Braid at the even epoch 4 and the sparse epoch at 3, so (b) still holds, but
+    # at an even epoch the header-sending Braid reports the responder's role.
+    ('states', 'stored-braid-on-the-responder-side',
+     [(r'  ⟨tacenta_braid\.State\.KeysUnsampled 3#u64 ⟨zeros, zeros⟩⟩\n',
+       '  ⟨tacenta_braid.State.KeysUnsampled 4#u64 ⟨zeros, zeros⟩⟩\n'),
+      (r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 3#u64, braid := storedBraid }'),
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 3#u64 1#u64 = some 4#u64 := by decide'),
+      (r'have h32 : \(3#u64 % 2#u64 : Result U64\) = ok 1#u64 := by rfl',
+       'have h32 : (4#u64 % 2#u64 : Result U64) = ok 0#u64 := by rfl')], PROOF,
+     ['structural_storedSession']),
+    ('states', 'responder-direction-of-the-initiator',
+     [(r'skipped := vecOf \[\] sparseStore_nil_le, direction := tacenta_spqr\.Direction\.B2a \} \}',
+       'skipped := vecOf [] sparseStore_nil_le, direction := tacenta_spqr.Direction.A2b } }')], PROOF,
+     ['structural_responderSession', 'responderTriple_invariant']),
+    ('states', 'pending-ciphertext-one-byte-long',
+     [(r'\(hct : ct\.val\.length = n\.val\) :\n    lifecycle\.Session\.structural_invariant \(pendingSession',
+       '(hct : ct.val.length = n.val + 1) :\n    lifecycle.Session.structural_invariant (pendingSession')],
+     PROOF, ['structural_pendingSession']),
+    ('states', 'ephemeral-with-a-wrong-curve-byte',
+     [(r'  vecOf \(5#u8 :: a\.val\) \(by simp\)\n', '  vecOf (6#u8 :: a.val) (by simp)\n')], PROOF,
+     ['session_decode_ec_ephemeral']),
 ]
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
@@ -335,6 +396,7 @@ def main():
     refusal, complete = REFUSAL.read_text(), COMPLETE.read_text()
     complete_screen = COMPLETE_SCREEN.read_text()
     run_bounds = RUN_BOUNDS.read_text()
+    states = STATES.read_text()
     sources = {
         'loop': without_pins(loop, LOOP),
         't3': without_pins(t3, T3),
@@ -346,6 +408,7 @@ def main():
         'completescreen': without_pins(complete_screen, COMPLETE_SCREEN),
         'runbounds': without_pins(run_bounds, RUN_BOUNDS),
         'runboundspinned': run_bounds,
+        'states': without_pins(states, STATES),
     }
     results = {
         'loop_sha256': hashlib.sha256(loop.encode()).hexdigest(),
@@ -355,6 +418,7 @@ def main():
         'complete_sha256': hashlib.sha256(complete.encode()).hexdigest(),
         'complete_screen_sha256': hashlib.sha256(complete_screen.encode()).hexdigest(),
         'run_bounds_sha256': hashlib.sha256(run_bounds.encode()).hexdigest(),
+        'states_sha256': hashlib.sha256(states.encode()).hexdigest(),
         'accepted': [], 'rejected': {},
     }
     with tempfile.TemporaryDirectory(prefix='decrypt-ratchet-controls-') as tmp:
