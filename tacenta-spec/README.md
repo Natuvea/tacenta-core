@@ -23,7 +23,10 @@ are the security properties: security-properties/ states authentication,
 confidentiality, forward secrecy and post-compromise security as numbered
 requirements, each marked proved, assumed or tested only, and its
 limitations.md lists the known gaps. group-messaging.md is an outline ahead of
-the code, and that work is not yet scheduled. identities-and-devices.md is
+the code, and that work is not yet scheduled. group-epochs.md is a draft of the
+membership-epoch part of it: it is marked "Status: draft" (see "Normative
+status") and adds no numbered requirement to security-properties/.
+identities-and-devices.md is
 partly written: it specifies the identity key's secret, how that key signs
 (XEdDSA) and how a verifier checks a signature against it, and application
 signatures, and devices remain a scaffold. key-registration.md,
@@ -54,8 +57,15 @@ of it ([ADR-0006](decisions/ADR-0006-specification-is-normative.md)).
   examples of it. The decision records say why; they are not themselves the
   protocol.
 - **Not normative:** any implementation, including `tacenta-core`, and any
-  page marked "Status: scaffold". Nothing is true of the protocol because
-  the code does it.
+  page marked "Status: scaffold" or "Status: draft". Nothing is true of the
+  protocol because the code does it.
+- **Draft:** a page marked "Status: draft" is a proposed text awaiting review
+  under [ADR-0008](decisions/ADR-0008-assurance-expectations.md), rule 7. It is
+  not normative and not a conformance target, and the rules above for normative
+  text (a constant needs an entry in `CONSTANTS.md`; a change lands
+  specification-first) apply from the change that removes the mark after review.
+  A draft can span several files: the entry page carries the status, and each
+  part points to it.
 - **When they disagree:** an implementation that disagrees with this
   specification does not conform, and is fixed unless the specification is
   amended first. A disagreement between the prose, the model and the vectors

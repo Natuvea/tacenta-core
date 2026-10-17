@@ -89,6 +89,117 @@ is SemVer against the specified protocol (not the implementation).
   a caller can find such states beforehand by applying the rule to the stored
   keys). The encodings, the signature input and the persisted layouts are unchanged.
 
+- `protocol/group-epochs.md` and its parts: new draft, not ratified, for signed
+  hash-chained group membership epochs, written as an entry page,
+  `protocol/group-epochs.md`, and ten parts beside it, read in this order:
+  `group-epochs-encoding.md`, `group-epochs-genesis-and-joining.md`,
+  `group-epochs-successor.md`, `group-epochs-successor-effects.md`,
+  `group-epochs-siblings.md`, `group-epochs-siblings-forks.md`,
+  `group-epochs-key-epochs.md`, `group-epochs-limits.md`,
+  `group-epochs-removal.md` and `group-epochs-decisions.md`. The entry page
+  holds the status, the review record, the scope, the terms, the constants and
+  the accepted state, and lists the parts; each part says that it is part of the
+  draft and awaiting review, and a pointer to a section in another part names
+  that part's file. The draft proposes the canonical epoch body,
+  its commitment and writer signature, genesis and successor acceptance as an
+  ordered list of checks with a first-failure rule and a table of its five
+  results and 28 refusal kinds, batched operations, including closing a group,
+  that take effect atomically, an owner, admin and member policy read against
+  the predecessor only, an optional policy verdict that can only refuse, key
+  epochs, a rule for two valid epochs for one slot (ordered siblings), and the
+  obligations an epoch places on a key engine and on a product. Under that rule,
+  while the head has no accepted successor, a sibling of the head that passes
+  every check displaces the head if it ranks before it and is refused as
+  `outranked` otherwise; the rank is the role and the position, in the shared
+  predecessor, of the device that wrote each sibling, and, only between two
+  epochs of one device, the commitment. Between two devices of the owner's
+  principal, a sibling whose writer the head removed or demoted is refused as
+  `removed-by-head` whatever its rank. That protects a removal only against the
+  devices it removes or demotes: an honest device that ranks before the
+  removal's writer, and that the removal leaves in place, can still displace it,
+  so the draft asks the product to have a removal written by the owner device
+  that ranks first among those it leaves in place. The draft states that the rule
+  makes the head depend on the order of arrival, and lets a replay change it,
+  when the removed device ranks before its remover, mutual removal included, and
+  that a compromised owner device of any rank can keep the honest one that ranks
+  first out of a verifier with one delivery. No sibling stops a verifier: two
+  epochs that one device signed for one slot are ranked by commitment and given
+  to the caller as a pair. Beside `superseded`, and beside `missing-predecessor`
+  at a checkpoint head, the verifier returns a hint, `possible-fork`, for a
+  candidate whose predecessor is the epoch it holds for the number before; the
+  hint has no effect, is not authenticated, and also fires without a fork. Open
+  decision D-12 lists the alternatives to that rule, among them a rule that
+  freezes a verifier for good at the first valid sibling of its head, with the
+  reasons they were not chosen. The draft states that a displaced epoch's key
+  material is retired and its proposer proposes again, with back-off; that an
+  accepted epoch, and so a removal, is final at a verifier only once a successor
+  of it is accepted there; that a fork deeper than one epoch still splits a
+  group and nothing brings it back; that an authority an owner removes, or a
+  network, can still keep chosen verifiers from accepting the removal by having
+  them accept a successor of a sibling first; that a writer that ranks first can
+  undo, at depth one, the epochs of writers that rank after it, apart from the
+  case of owner devices; that a sibling's evidence is judged with the records of
+  its slot set aside, so that the order of arrival does not choose the head, and
+  that verifiers that received different siblings then hold different records;
+  that catching up an offline device can stall under the default freshness rule;
+  and that a split group gives a user no signal beyond that hint. Its
+  obligations at the product boundary also ask that a proposer build only on a
+  head that has settled, or rely on an ordering hint that gains no authority;
+  that re-proposals be paced; that the step that accepts an epoch write accepted
+  state first and derive the caller's record of generations and the key engine's
+  current material from it on restart; that an inviter give as a checkpoint an
+  epoch that already has a successor; and that the owner be shown which of its
+  devices ranks first and have a removal of an owner device written by the one
+  that ranks first among those the removal leaves in place. A caller may
+  remember an `outranked` or `removed-by-head` answer while the head is
+  unchanged. For a successor, only an owner of the predecessor can cause the
+  `unsupported` result. A device that joins after genesis starts from a
+  checkpoint, which may be the genesis epoch itself, that an authenticated
+  invitation carries, on seven ordered checks and a stated trust assumption: the
+  joiner trusts its inviter for the checkpoint and cannot verify the chain
+  before it. Identity keys of member devices are compared as bytes, which relies
+  on the verifier applying the identity-key rule of `identities-and-devices.md`
+  to the key of each new device (at the evidence check and at a checkpoint) and
+  to a writer's key at the signature check. The draft states a removal invariant,
+  as a target that is not shown, with its adversary, assumptions and limits; it
+  concerns recipient sets and retired key material and restates obligations on
+  the key engine and the product, and it is not about the derivation of later
+  key material. It names RFC 9420 (MLS) as related published work, says that the
+  draft has not been compared with it, that it quotes no text of it and that this
+  repository does not record what the drafter had read of it, and says a
+  comparison is required before the key engine is fixed. It lists thirteen open
+  decisions. Seven carry a recommended default marked as adopted on the
+  maintainer's word (go of 2026-09-29, instruction of 2026-09-30, or go of
+  2026-10-01 for option F of D-12, which replaces an option that the plan of
+  2026-09-29 adopted); their review is pending. Where its own text gives two readings that
+  differ for some input (the kind reported for an input with another domain and
+  a bad tail, and check 8's clause on a principal named by two operations), the
+  draft marks the point as open. The draft is awaiting review: the passes
+  it has been through were working checks directed by the maintainer, and are
+  not the rule-7 review. It is not a conformance target until a reviewed change
+  ratifies it, and no model, vector or proof states it. The domain and
+  label constants and the bounds it proposes are not yet in `CONSTANTS.md` or
+  `tacenta-core/LABELS.md`, and its refusal kinds are in neither, since
+  `CONSTANTS.md` has no rows for refusal kinds. The same pull request adds to
+  `protocol/group-messaging.md` a paragraph that points to the page, says it is
+  awaiting review and says that an accepted epoch of the draft can be
+  replaced, with its key material, by a competing one; a paragraph there that
+  names RFC 9420 as published work that the project's design has not been
+  compared with and says that the epochs page is awaiting review; a
+  sentence to `README.md` that the page is a draft awaiting review; and a
+  sentence to `threat-model/exclusions.md` (EX-04) that the page is a draft
+  awaiting review and that the exclusion stands until a reviewed change ratifies
+  it. These add no requirement and change no rule.
+
+- `README.md`, "Normative status": add the status "Status: draft" beside "Status:
+  scaffold". A page marked draft is a proposed text awaiting review under
+  ADR-0008, rule 7. It is not normative and not a conformance target, and the
+  rules for normative text (a constant needs an entry in `CONSTANTS.md`; a
+  change is specified first) apply from the change that removes the mark after
+  review. A draft can span several files: the entry page carries the status and
+  each part points to it. This adds no requirement and changes no rule for any
+  existing page.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale
