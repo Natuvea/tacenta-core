@@ -1654,6 +1654,47 @@ REQUIRED_PINS = frozenset(
         "parkedSession_not_counterHeadroom",
         "invariant_does_not_give_counterHeadroom",
     )]
+    # The shape, invariant, ceilings and relation at every successful `establish_initiator_for` output, its
+    # two laws and the inhabited success case (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "singleton_length_le",
+        "init_sender_ok",
+        "braid_initiator_ok",
+        "verify_bundle_ok",
+        "establish_initiator_for_parts",
+        "dhPublicValid_is",
+        "model_dhPublicValid",
+        "kemCiphertextLenOf_is",
+        "model_kemCiphertextLen",
+        "dhPublicValid_canonical",
+        "dhPublicValid_valid",
+        "identity_public_valid",
+        "canonical_of_is_canonical_key",
+        "initiatorTriple_invariant",
+        "structural_parts",
+        "parts_invariant",
+        "establish_initiator_for_admissible",
+        "counterHeadroom_parts",
+        "counterHeadroom_of_established",
+        "sessionRefines_parts",
+        "sessionRefines_established",
+        "sessionRefines_parts_unique",
+        "sessionRefines_established_unique",
+        "model_initiatorSuccess",
+        "verify_successBundle",
+        "shared_secret_successBundle",
+        "establish_initiator_for_succeeds",
+        "established_initiator_inhabited",
+        "establishment_hypotheses_satisfiable",
+    )]
+    # The `decrypt_ratchet` and public `decrypt` refinements at an established initiator session
+    # (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "honestChunk_established",
+        "established_initiator_decrypt_ratchet_hypotheses",
+        "established_initiator_decrypt_ratchet_refines",
+        "established_initiator_decrypt_refines",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1706,6 +1747,10 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
         "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
+        # The refinements at an established initiator session apply the restated refinement and
+        # inherit its constants (`UnitLifecycleEstablishedDecrypt`).
+        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_ratchet_refines",
+        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_refines",
     }
 )
 
@@ -2685,6 +2730,58 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "parkedTriple",
         "parkedSession",
     )]
+    # The establishment shape, its laws, the model state and the success case
+    # (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "singleton_length_le",
+        "init_sender_ok",
+        "braid_initiator_ok",
+        "verify_bundle_ok",
+        "establish_initiator_for_parts",
+        "dhPublicValid_is",
+        "model_dhPublicValid",
+        "kemCiphertextLenOf_is",
+        "model_kemCiphertextLen",
+        "dhPublicValid_canonical",
+        "dhPublicValid_valid",
+        "identity_public_valid",
+        "canonical_of_is_canonical_key",
+        "initiatorTriple_invariant",
+        "structural_parts",
+        "parts_invariant",
+        "establish_initiator_for_admissible",
+        "counterHeadroom_parts",
+        "counterHeadroom_of_established",
+        "sessionRefines_parts",
+        "sessionRefines_established",
+        "sessionRefines_parts_unique",
+        "sessionRefines_established_unique",
+        "model_initiatorSuccess",
+        "verify_successBundle",
+        "shared_secret_successBundle",
+        "establish_initiator_for_succeeds",
+        "established_initiator_inhabited",
+        "establishment_hypotheses_satisfiable",
+        "initChains",
+        "initiatorTriple",
+        "InitiatorOutputParts",
+        "InitiatorOutputParts.session",
+        "DhPublicValidShape",
+        "DhPublicValid",
+        "KemCiphertextLenShape",
+        "KemCiphertextLenOf",
+        "unsampledModelOf",
+        "establishedModelOf",
+        "InitiatorSuccessShape",
+        "successBundle",
+    )]
+    # The refinements at an established initiator session (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "honestChunk_established",
+        "established_initiator_decrypt_ratchet_hypotheses",
+        "established_initiator_decrypt_ratchet_refines",
+        "established_initiator_decrypt_refines",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2887,6 +2984,22 @@ REQUIRED_PRINT_FORM = frozenset(
         "DecryptOfInvariantHypotheses",
         "parkedTriple",
         "parkedSession",
+    )]
+    # The establishment parts, the two laws and their shapes, the model state and the success shape
+    # (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "initChains",
+        "initiatorTriple",
+        "InitiatorOutputParts",
+        "InitiatorOutputParts.session",
+        "DhPublicValidShape",
+        "DhPublicValid",
+        "KemCiphertextLenShape",
+        "KemCiphertextLenOf",
+        "unsampledModelOf",
+        "establishedModelOf",
+        "InitiatorSuccessShape",
+        "successBundle",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
