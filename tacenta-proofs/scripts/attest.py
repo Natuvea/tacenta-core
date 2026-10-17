@@ -1694,6 +1694,30 @@ REQUIRED_PINS = frozenset(
         "heldStoredSession_runInputs",
         "decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys_held",
     )]
+    # The public `decrypt` on frames that are not initial messages: `UnitLifecycleDecryptT3.lean`.
+    + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
+        "decrypt_refines_ratchet_frame",
+        "decrypt_refines_ratchet_frame_statement",
+        "decrypt_refines_ratchet_frame_of_invariant",
+        "decrypt_refines_ratchet_frame_of_counter_headroom",
+        "decrypt_frame_hypotheses_jointly_satisfiable",
+        "decrypt_refines_ratchet_frame_of_hypotheses",
+        "decrypt_frame_at_invReal",
+        "succMessage_not_initial",
+        "sampleMessage_not_initial",
+        "decrypt_refines_ratchet_frame_at_refusal",
+        "refReal_fails_invariant",
+        "inv_sessionRefines",
+        "inv_retryRunBounds",
+        "inv_run_satisfiable",
+        "inv_model_refuses",
+        "decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "decrypt_refines_ratchet_frame_of_invariant_exists",
+        "pendReal_fails_invariant",
+        "decrypt_refines_ratchet_frame_at_pending_success",
+        "pend_model_clears",
+        "generated_clears_at_pending_success",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -1746,6 +1770,19 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
         "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
+        # The public `decrypt` on frames that are not initial messages: the join composes
+        # `decrypt_ratchet_refines_complete` and rests on its compiler-evaluated constants, no others.
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_statement",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_hypotheses",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_frame_at_invReal",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_refusal",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_exists",
+        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_pending_success",
+        "Tacenta.UnitLifecycleDecryptT3.generated_clears_at_pending_success",
     }
 )
 
@@ -2779,6 +2816,34 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "StoredKeysShape",
         "heldStoredSession",
     )]
+    # The public `decrypt` on frames that are not initial messages: the statements, and the bodies of
+    # the definitions they are written in (`#print`).
+    + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
+        "decrypt_refines_ratchet_frame",
+        "decrypt_refines_ratchet_frame_statement",
+        "decrypt_refines_ratchet_frame_of_invariant",
+        "decrypt_refines_ratchet_frame_of_counter_headroom",
+        "decrypt_frame_hypotheses_jointly_satisfiable",
+        "decrypt_refines_ratchet_frame_of_hypotheses",
+        "decrypt_frame_at_invReal",
+        "succMessage_not_initial",
+        "sampleMessage_not_initial",
+        "decrypt_refines_ratchet_frame_at_refusal",
+        "refReal_fails_invariant",
+        "inv_sessionRefines",
+        "inv_retryRunBounds",
+        "inv_run_satisfiable",
+        "inv_model_refuses",
+        "decrypt_refines_ratchet_frame_of_invariant_at_sample",
+        "decrypt_refines_ratchet_frame_of_invariant_exists",
+        "pendReal_fails_invariant",
+        "decrypt_refines_ratchet_frame_at_pending_success",
+        "pend_model_clears",
+        "generated_clears_at_pending_success",
+        "DecryptRefinesRatchetFrameStatement",
+        "invReal",
+        "pendReal",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -2998,6 +3063,11 @@ REQUIRED_PRINT_FORM = frozenset(
         "storedModel",
         "StoredKeysShape",
         "heldStoredSession",
+    )]
+    + ["Tacenta.UnitLifecycleDecryptT3." + n for n in (
+        "DecryptRefinesRatchetFrameStatement",
+        "invReal",
+        "pendReal",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
