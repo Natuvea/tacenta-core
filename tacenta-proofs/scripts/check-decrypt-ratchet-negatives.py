@@ -52,16 +52,44 @@ copy of a module and requires Lean to refuse it, at a named place:
     with the Braid epoch ceiling of `CounterHeadroom` weakened to the decoder's `epoch < u64::MAX` (refused in
     `decryptRatchetRun_of_invariant`, where the proof first uses it);
   * the per-run bounds derivation with the Braid epoch ceiling of `CounterHeadroom` weakened to the
-    decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`).
+    decoder's `epoch < u64::MAX`, with its pins kept (refused at the pin of `CounterHeadroom`);
+  * the non-fresh states (`Translation/UnitLifecycleDecryptStates.lean`) with a second stored classical key
+    under the same header, with the stored key ahead of the clock, and with the sparse stored key at an epoch
+    the chain table does not hold (each refused in `storedTriple_invariant`),
+    with the stored-key state's clock at the park `u32::MAX - 1` (refused in `storedSession_counterHeadroom`:
+    the invariant still accepts it, the ceilings do not), with its sparse epoch one below the Braid's
+    relation (clause (b) alone) and with its Braid at an even epoch with the sparse epoch moved to keep (b)
+    (clause (d) alone; each refused in `structural_storedSession`), with the responder's sparse direction the initiator's (refused in
+    `structural_responderSession` or `responderTriple_invariant`), with the pending ciphertext one byte longer
+    than `kem::ciphertext_len` (refused in `structural_pendingSession`), and with the established ephemeral's
+    curve byte wrong (refused in `session_decode_ec_ephemeral`);
+  * the public `decrypt` on frames that are not initial messages
+    (`Translation/UnitLifecycleDecryptT3.lean`, `decrypt_refines_ratchet_frame`).  A copy of the generated
+    `lifecycle.Session.decrypt` is renamed and compiled together with copies of
+    `UnitLifecycleT3.decrypt_passthrough_step_refines` and `decrypt_passthrough_refines` and of the join,
+    each aimed at the renamed body; a fault planted in the body fails first in the copied step lemma,
+    which unfolds it, so that is the named place.  The five plants: the pass-through success arm keeps
+    `pending_initial`; the pass-through refusal arm clears it; the `none` arm refuses with
+    `NotARepeatedInitial` instead of calling `decrypt_ratchet`; the pass-through refusal arm returns the
+    input random source instead of the one the inner step returned; the inner call is given the message
+    without its first byte (each refused in `decrypt_passthrough_step_refines_ctl`).  On a copy of the
+    module: the join's target `Model.Lifecycle.decrypt` replaced by `Model.Lifecycle.decryptRatchet`
+    (refused in `decrypt_refines_ratchet_frame`); the scope premise `hframe` deleted, with the one step
+    that used it left open (refused there, in the initial-message case); the inner refinement
+    `decrypt_ratchet_refines_complete` replaced by the first form `decrypt_ratchet_refines`, whose
+    conclusion keeps the open disjunct (refused there); and, with the pins kept, the recorded statement
+    `DecryptRefinesRatchetFrameStatement` without its `draws` conjunct and the proof of
+    `decrypt_refines_ratchet_frame_statement` adjusted to it (refused at the statement's pin).
 
 The changes are checked on copies without the module's pins, so that the refusal comes from a proof and
-not from a pin, except the three kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
+not from a pin, except the four kept with their pins. The unmodified copies must be accepted first. A timeout, a compiler
 that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place
 never count. These are proof-dependency controls on copies of the Lean; no source, olean or git state
 changes.
 
-Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen` and
-`lake build Translation.UnitLifecycleDecryptRunBounds`).
+Dependencies must be built (`lake build Translation.UnitLifecycleDecryptRatchetCompleteScreen`,
+`lake build Translation.UnitLifecycleDecryptRunBounds`, `lake build Translation.UnitLifecycleDecryptStates` and
+`lake build Translation.UnitLifecycleDecryptT3`).
 """
 from pathlib import Path
 import argparse
@@ -82,6 +110,10 @@ REFUSAL = ROOT / 'translation/Translation/UnitLifecycleTripleRefusalT3.lean'
 COMPLETE = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteT3.lean'
 COMPLETE_SCREEN = ROOT / 'translation/Translation/UnitLifecycleDecryptRatchetCompleteScreen.lean'
 RUN_BOUNDS = ROOT / 'translation/Translation/UnitLifecycleDecryptRunBounds.lean'
+STATES = ROOT / 'translation/Translation/UnitLifecycleDecryptStates.lean'
+GENERATED = ROOT / 'translation/Translation/TacentaSessionUnit.lean'
+LIFECYCLE_T3 = ROOT / 'translation/Translation/UnitLifecycleT3.lean'
+DECRYPT = ROOT / 'translation/Translation/UnitLifecycleDecryptT3.lean'
 
 # The declaration that composes the loop into `decrypt_ratchet`.
 COMPOSITION = 'decrypt_ratchet_refines_or_open'
@@ -210,6 +242,118 @@ MUTANTS = [
        '  braidEpoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val <\n')],
      r'Docstring on `#guard_msgs` does not match generated message',
      ('pin', 'Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom')),
+    ('states', 'stored-store-with-a-repeated-header',
+     [(r'        skipped := vecOf \[\{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros },\n'
+       '          { dh := a, n := 2#u32, stored_at := 3#u32, key := zeros }] (by simp),\n')], PROOF,
+     ['storedTriple_invariant']),
+    ('states', 'stored-key-ahead-of-the-clock',
+     [(r'        skipped := vecOf \[\{ dh := a, n := 2#u32, stored_at := 4#u32, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ dh := a, n := 2#u32, stored_at := 6#u32, key := zeros }] (by simp),\n')],
+     PROOF, ['storedTriple_invariant']),
+    ('states', 'sparse-key-at-an-epoch-without-a-chain',
+     [(r'        skipped := vecOf \[\{ epoch := E, n := 3#u64, key := zeros \}\] \(by simp\),\n',
+       '        skipped := vecOf [{ epoch := 0#u64, n := 3#u64, key := zeros }] (by simp),\n')],
+     PROOF, ['storedTriple_invariant']),
+    ('states', 'stored-clock-at-the-park',
+     [(r'        events := 5#u32, labels := tacenta_ratchet\.LabelSet\.Tacenta \},\n',
+       '        events := 4294967294#u32, labels := tacenta_ratchet.LabelSet.Tacenta },\n')], PROOF,
+     ['storedSession_counterHeadroom']),
+    # Clause (b) alone: the sparse epoch one below where the Braid at epoch 3 needs it; (d) still holds
+    # at the odd epoch.
+    ('states', 'stored-sparse-epoch-off-the-braid',
+     [(r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 1#u64, braid := storedBraid }'),
+      # the proof's arithmetic step moved with the state, so the refusal is the clause's and not a
+      # rewrite that no longer matches
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 1#u64 1#u64 = some 2#u64 := by decide')], PROOF,
+     ['structural_storedSession']),
+    # Clause (d) alone: the Braid at the even epoch 4 and the sparse epoch at 3, so (b) still holds, but
+    # at an even epoch the header-sending Braid reports the responder's role.
+    ('states', 'stored-braid-on-the-responder-side',
+     [(r'  ⟨tacenta_braid\.State\.KeysUnsampled 3#u64 ⟨zeros, zeros⟩⟩\n',
+       '  ⟨tacenta_braid.State.KeysUnsampled 4#u64 ⟨zeros, zeros⟩⟩\n'),
+      (r'triple := storedTriple a 2#u64, braid := storedBraid \}',
+       'triple := storedTriple a 3#u64, braid := storedBraid }'),
+      (r'have h23 : U64\.checked_add 2#u64 1#u64 = some 3#u64 := by decide',
+       'have h23 : U64.checked_add 3#u64 1#u64 = some 4#u64 := by decide'),
+      (r'have h32 : \(3#u64 % 2#u64 : Result U64\) = ok 1#u64 := by rfl',
+       'have h32 : (4#u64 % 2#u64 : Result U64) = ok 0#u64 := by rfl')], PROOF,
+     ['structural_storedSession']),
+    ('states', 'responder-direction-of-the-initiator',
+     [(r'skipped := vecOf \[\] sparseStore_nil_le, direction := tacenta_spqr\.Direction\.B2a \} \}',
+       'skipped := vecOf [] sparseStore_nil_le, direction := tacenta_spqr.Direction.A2b } }')], PROOF,
+     ['structural_responderSession', 'responderTriple_invariant']),
+    ('states', 'pending-ciphertext-one-byte-long',
+     [(r'\(hct : ct\.val\.length = n\.val\) :\n    lifecycle\.Session\.structural_invariant \(pendingSession',
+       '(hct : ct.val.length = n.val + 1) :\n    lifecycle.Session.structural_invariant (pendingSession')],
+     PROOF, ['structural_pendingSession']),
+    ('states', 'ephemeral-with-a-wrong-curve-byte',
+     [(r'  vecOf \(5#u8 :: a\.val\) \(by simp\)\n', '  vecOf (6#u8 :: a.val) (by simp)\n')], PROOF,
+     ['session_decode_ec_ephemeral']),
+    # The public `decrypt` on frames that are not initial messages.  Plants in the renamed copy of the
+    # generated body; each refused in the copied step lemma that unfolds it.
+    ('decryptcopy', 'passthrough-success-keeps-pending-initial',
+     [(r'\n      ok \(core\.result\.Result\.Ok val, \{ self1 with pending_initial := none \},\n        rng1\)',
+       '\n      ok (core.result.Result.Ok val, self1,\n        rng1)')], PROOF,
+     ['decrypt_passthrough_step_refines_ctl']),
+    ('decryptcopy', 'passthrough-refusal-clears-pending-initial',
+     [(r'\n      ok \(r1, self1, rng1\)\n  \| some mt =>',
+       '\n      ok (r1, { self1 with pending_initial := none }, rng1)\n  | some mt =>')], PROOF,
+     ['decrypt_passthrough_step_refines_ctl']),
+    ('decryptcopy', 'none-arm-refuses-without-the-inner-step',
+     [(r'\n  \| none =>\n(?:    [^\n]*\n)+(?=  \| some mt =>)',
+       '\n  | none =>\n    ok (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, self, rng)\n')],
+     PROOF, ['decrypt_passthrough_step_refines_ctl']),
+    ('decryptcopy', 'passthrough-refusal-returns-the-input-source',
+     [(r'\n      ok \(r1, self1, rng1\)\n  \| some mt =>',
+       '\n      ok (r1, self1, rng)\n  | some mt =>')], PROOF,
+     ['decrypt_passthrough_step_refines_ctl']),
+    ('decryptcopy', 'inner-call-without-the-first-byte',
+     [(r'\n    let inner ← alloc\.slice\.Slice\.to_vec core\.clone\.CloneU8 message\n',
+       '\n    let inner ← alloc.slice.Slice.to_vec core.clone.CloneU8 (Aeneas.Std.Slice.drop message 1#usize)\n')],
+     PROOF, ['decrypt_passthrough_step_refines_ctl']),
+    # On a copy of the module, without its pins.
+    ('decrypt', 'join-target-without-the-dispatch',
+     [(r'        \(Model\.Lifecycle\.decrypt view oracle model \(sliceOf message\)\) := by\n'
+       r'  obtain ⟨innerOutput',
+       '        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by\n'
+       '  obtain ⟨innerOutput')], PROOF, ['decrypt_refines_ratchet_frame']),
+    # `hframe` deleted from the join, and the one step that used it left open: the refusal must be an
+    # unsolved goal in the initial-message case, not an unknown identifier.
+    ('decrypt', 'join-without-the-scope-premise',
+     [(r'    \(hframe : Model\.Lifecycle\.messageType \(sliceOf message\) ≠ some \.initial\)\n'
+       r'    \(hrel : SessionRefines dh oracle\.braidKem real model\)\n'
+       r'    \(headroom : ',
+       '    (hrel : SessionRefines dh oracle.braidKem real model)\n'
+       '    (headroom : '),
+      (r'    rintro rfl\n    exact hframe \(message_type_refines_initial message htype\)\n',
+       '    rintro rfl\n    done\n')],
+     r'unsolved goals[\s\S]*MessageType\.Initial', ['decrypt_refines_ratchet_frame']),
+    ('decrypt', 'join-on-the-first-form',
+     [(r'Tacenta\.UnitLifecycleDecryptRatchetCompleteT3\.decrypt_ratchet_refines_complete rngCore cryptoRng',
+       'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines rngCore cryptoRng')], PROOF,
+     ['decrypt_refines_ratchet_frame']),
+    # With the pins kept: the recorded statement without its `draws` conjunct, and the proof of
+    # `decrypt_refines_ratchet_frame_statement` adjusted to it, so that the one refusal left is the pin.
+    ('decryptpinned', 'statement-without-the-draws-pinned',
+     [(r'      ∃ output,\n'
+       r'        lifecycle\.Session\.decrypt rngCore cryptoRng real message rng = ok output ∧\n'
+       r'        StepRefines trace dh oracle\.braidKem output\n'
+       r'          \(Model\.Lifecycle\.decrypt view oracle model \(sliceOf message\)\)\n\n/-! ## The join -/',
+       '      ∃ output,\n'
+       '        lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧\n'
+       '        ResultRefines output.1 (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result ∧\n'
+       '        SessionRefines dh oracle.braidKem output.2.1\n'
+       '          (Model.Lifecycle.decrypt view oracle model (sliceOf message)).session\n\n/-! ## The join -/'),
+      (r'  exact decrypt_refines_ratchet_frame rngCore cryptoRng trace dh view oracle oracleOf codec\n'
+       r'    contracts agreements real model message rng hframe hrel headroom htrace run\n',
+       '  obtain ⟨output, hcall, hstep⟩ := decrypt_refines_ratchet_frame rngCore cryptoRng trace dh view\n'
+       '    oracle oracleOf codec contracts agreements real model message rng hframe hrel headroom htrace run\n'
+       '  exact ⟨output, hcall, hstep.result, hstep.session⟩\n')],
+     r'Docstring on `#guard_msgs` does not match generated message',
+     ('pin', 'Tacenta.UnitLifecycleDecryptT3.DecryptRefinesRatchetFrameStatement')),
 ]
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
@@ -264,6 +408,89 @@ def joint_copy(t3_text, screen_text):
         if line not in imports:
             imports.append(line)
     return '\n'.join(imports) + '\n\n' + t3_body + '\n' + screen_body
+
+
+def generated_body(text, name):
+    """The generated definition `name`, renamed to `name_ctl`."""
+    start = re.search(r'^def ' + re.escape(name) + r'$', text, re.M)
+    if start is None:
+        raise SystemExit(f'generated definition not found: {name}')
+    end = re.search(r'\n\n(?=\S)', text[start.end():])
+    if end is None:
+        raise SystemExit(f'end of generated definition not found: {name}')
+    body = text[start.start():start.end() + end.start()]
+    renamed, n = re.subn(r'^def ' + re.escape(name) + r'$', 'def ' + name + '_ctl', body, count=1,
+                         flags=re.M)
+    assert n == 1
+    return renamed
+
+
+def theorem_block(text, name, path):
+    """The theorem `name` of a module, from its keyword to the next top-level command."""
+    found = re.findall(r'^theorem ' + re.escape(name) + r'\b.*?(?=^\S)', text, re.M | re.S)
+    if len(found) != 1:
+        raise SystemExit(f'expected one theorem {name} in {path.name}, found {len(found)}')
+    return found[0].rstrip('\n') + '\n'
+
+
+PUBLIC_DECRYPT = re.compile(r'lifecycle\.Session\.decrypt\b')
+
+
+def replace_once(text, old, new, what):
+    if text.count(old) != 1:
+        raise SystemExit(f'the decrypt copy is stale: expected one {what}, found {text.count(old)}')
+    return text.replace(old, new)
+
+
+def decrypt_copy(generated, lifecycle_t3, decrypt):
+    """The generated public `decrypt`, renamed `lifecycle.Session.decrypt_ctl`, with copies of the step
+    lemma that unfolds it, the pass-through lemma and the join, each renamed with `_ctl` and aimed at
+    the renamed body, so that a fault planted in the body reaches the proofs."""
+    body = generated_body(generated, 'lifecycle.Session.decrypt')
+    step = theorem_block(lifecycle_t3, 'decrypt_passthrough_step_refines', LIFECYCLE_T3)
+    passthrough = theorem_block(lifecycle_t3, 'decrypt_passthrough_refines', LIFECYCLE_T3)
+    join = theorem_block(decrypt, 'decrypt_refines_ratchet_frame', DECRYPT)
+    step = PUBLIC_DECRYPT.sub('lifecycle.Session.decrypt_ctl', step)
+    step = replace_once(step, 'theorem decrypt_passthrough_step_refines ',
+                        'theorem decrypt_passthrough_step_refines_ctl ', 'step lemma name')
+    passthrough = replace_once(
+        passthrough,
+        'PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model\n'
+        '      message rng := by\n',
+        '∃ output,\n      lifecycle.Session.decrypt_ctl rngCore cryptoRng real message rng = ok output ∧\n'
+        '      StepRefines trace dh K output\n'
+        '        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by\n',
+        'pass-through conclusion')
+    passthrough = replace_once(passthrough, 'theorem decrypt_passthrough_refines ',
+                               'theorem decrypt_passthrough_refines_ctl ', 'pass-through name')
+    passthrough = replace_once(passthrough, 'exact decrypt_passthrough_step_refines ',
+                               'exact decrypt_passthrough_step_refines_ctl ', 'step lemma use')
+    join = PUBLIC_DECRYPT.sub('lifecycle.Session.decrypt_ctl', join)
+    join = replace_once(join, 'theorem decrypt_refines_ratchet_frame ',
+                        'theorem decrypt_refines_ratchet_frame_ctl ', 'join name')
+    join = replace_once(join, 'exact decrypt_passthrough_refines ',
+                        'exact decrypt_passthrough_refines_ctl ', 'pass-through use')
+    imports, _ = split_imports(decrypt)
+    return ('\n'.join(imports) + '\n'
+            'open Aeneas Aeneas.Std Result ControlFlow Error\n'
+            'set_option maxHeartbeats 1000000\n'
+            'set_option maxRecDepth 2048\n'
+            'noncomputable section\n'
+            'namespace tacenta_session_unit\n\n'
+            f'{body}\n\n'
+            'end tacenta_session_unit\n\n'
+            'namespace Tacenta.UnitLifecycleT3\n'
+            'open Aeneas Aeneas.Std Result\n'
+            'open tacenta_session_unit\n\n'
+            f'{step}\n{passthrough}\n'
+            'end Tacenta.UnitLifecycleT3\n\n'
+            'namespace Tacenta.UnitLifecycleDecryptT3\n'
+            'open Aeneas Aeneas.Std Result\n'
+            'open tacenta_session_unit\n'
+            'open Tacenta.UnitLifecycleT3\n'
+            'open Tacenta.UnitLifecycleDecryptRatchetT3\n\n'
+            f'{join}\n'
+            'end Tacenta.UnitLifecycleDecryptT3\n')
 
 
 DECL = re.compile(r'^(?:@\[[^\]]*\]\s*)?(?:private |protected |noncomputable )*'
@@ -335,6 +562,8 @@ def main():
     refusal, complete = REFUSAL.read_text(), COMPLETE.read_text()
     complete_screen = COMPLETE_SCREEN.read_text()
     run_bounds = RUN_BOUNDS.read_text()
+    states = STATES.read_text()
+    generated, lifecycle_t3, decrypt = GENERATED.read_text(), LIFECYCLE_T3.read_text(), DECRYPT.read_text()
     sources = {
         'loop': without_pins(loop, LOOP),
         't3': without_pins(t3, T3),
@@ -346,6 +575,10 @@ def main():
         'completescreen': without_pins(complete_screen, COMPLETE_SCREEN),
         'runbounds': without_pins(run_bounds, RUN_BOUNDS),
         'runboundspinned': run_bounds,
+        'states': without_pins(states, STATES),
+        'decryptcopy': decrypt_copy(generated, lifecycle_t3, decrypt),
+        'decrypt': without_pins(decrypt, DECRYPT),
+        'decryptpinned': decrypt,
     }
     results = {
         'loop_sha256': hashlib.sha256(loop.encode()).hexdigest(),
@@ -355,6 +588,10 @@ def main():
         'complete_sha256': hashlib.sha256(complete.encode()).hexdigest(),
         'complete_screen_sha256': hashlib.sha256(complete_screen.encode()).hexdigest(),
         'run_bounds_sha256': hashlib.sha256(run_bounds.encode()).hexdigest(),
+        'states_sha256': hashlib.sha256(states.encode()).hexdigest(),
+        'generated_sha256': hashlib.sha256(generated.encode()).hexdigest(),
+        'lifecycle_t3_sha256': hashlib.sha256(lifecycle_t3.encode()).hexdigest(),
+        'decrypt_sha256': hashlib.sha256(decrypt.encode()).hexdigest(),
         'accepted': [], 'rejected': {},
     }
     with tempfile.TemporaryDirectory(prefix='decrypt-ratchet-controls-') as tmp:

@@ -42,7 +42,11 @@ compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assum
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than
 the crate are now stated at the instances the unit passes (that the real `zeroize`
-functions return there is assumed; not checked against the real functions), and nothing
+functions return there is assumed; not checked against the real functions); the same
+result is carried through the public `Session::decrypt` on frames that are not initial
+messages, under the same hypotheses and one premise on the input
+(`decrypt_refines_ratchet_frame`, also in compiler-trusted forms that take `Session::invariant`
+and the counter ceilings), and no theorem covers an initial message, so nothing
 here proves `Session::encrypt` or `Session::decrypt` end to end. `Proofs/` carries the
 model-layer work.
 

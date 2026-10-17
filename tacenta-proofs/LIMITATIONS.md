@@ -2435,9 +2435,31 @@ excludes every receive until its epoch retires. By reading only, not proved: by 
 (`tacenta-core/lifecycle/src/lifecycle.rs`, the Braid-epoch relation in `structural_invariant`) the sparse epoch equals the
 Braid epoch or is one below it while the Braid has not failed, and a failed Braid is refused before the Triple step (the
 terminal guard at the top of `decrypt_ratchet`), so wherever the run bounds are used the Braid epoch ceiling covers the sparse
-one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The satisfiability witness
+one; the sparse field is kept because `DecryptRatchetRun.retry` asks `RetryRunBounds` of every run. The first satisfiability witness
 (`counterHeadroom_sessionOf`, and the joint witness `invReal`) is a session over fresh states and exercises no ceiling away from
-zero (`sparseCounters` holds vacuously there); no witness with a stored key, an open chain or the held-KEM state is given.
+zero (`sparseCounters` holds vacuously there). `UnitLifecycleDecryptStates.lean` gives a second, `storedSession`, built for the
+hypotheses: one stored key in each store, both classical chains open, a sparse send chain at counter 7 and receive chain at
+counter 6, the clock at 5, the sparse epoch at 2 and the Braid epoch at 3, so all four ceilings are met away from zero there
+(the counters 7 and 6 by `storedSession_counterHeadroom` at that state; the joint statement's `StoredKeysShape` does not fix
+them). It is a session with itself: `ValidKeyShape` gives one key, so both identities are that key and the classical peer key
+and stored key are our own; clause (c)'s orientation is therefore not distinguished at the responder state, and the
+no-two-entries clauses of both stores hold vacuously on their one-element lists. The hypotheses
+of the restated refinement hold together at it under `DecryptJointLaws`
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`); and a third, the same Triple at sparse epoch 0 beside
+the held-KEM Braid, under the held witness's laws (`..._at_stored_keys_held`), where the sparse and Braid epochs are at their
+least values. No witness is near a ceiling, and none of these witnesses is a state produced by establishment, by `import` or by
+any operation (the ceilings at the output of `establish_initiator_for` are derived below, at counters 0 and Braid epoch 1);
+at these witnesses the run carries no agreement chunk and `sparseOutputEpoch` holds vacuously. No run here consumes a stored
+key: the run's header names neither (classical `n = 1` against the stored `n = 2`; sparse `(0, 1)` against `(2, 3)`), so both
+match filters are empty at it (`stored_run_header_names_no_stored_key`); the match bounds are tight only for headers chosen to
+name a stored key. Before that, the model's step refuses at the first agreement only if the oracle's agreement refuses the
+all-zero key, which no law states and which holds by reading the X25519 boundary (`invReal_agreement_is_real`); the refusal
+is proved under that premise at `invReal` (`invReal_model_refuses_of_agreement`) and at `storedSession`
+(`stored_model_refuses_of_agreement`); at `heldStoredSession` it is by reading only (`held_model_refuses_of_agreement` proves it at
+the held witness's own state, whose Triple is fresh). The responder and pending-initial states of that module
+are shown to pass `Session::invariant` only, the responder under `DhCodecTotal` as well (for `PublicKeyBytes::from_bytes` in
+`decode_ec`) and the pending state under `kem::ciphertext_len = ok n` (from `KemCiphertextLenTotal`); that the opaque
+`kem::ciphertext_len` returns 1568 is not checked.
 These are the successor-headroom premises that
 [PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md](PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) keeps in scope (`GAP-REGISTER.md`, row
 `PROOF-BOUNDARY-HEADROOM`); whether the refinement holds without them is not checked.
@@ -2935,7 +2957,9 @@ two more (the two kept-epoch bounds), the model gives one (the epoch label of a 
 are fields of `CounterHeadroom`, which also holds the run's Braid epoch ceiling; `CounterHeadroom` is assumed ("The headroom
 records", *Counter ceilings, assumed*, above). The chunk, `HonestChunk` and draw conditions stay hypotheses
 (`DecryptRatchetRunInputs`). Its hypotheses hold together at the joint witness below under the same laws
-(`decrypt_of_invariant_hypotheses_jointly_satisfiable`).
+(`decrypt_of_invariant_hypotheses_jointly_satisfiable`), and at a session with stored keys, open chains and counters away
+from zero (`UnitLifecycleDecryptStates.decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`), built for the
+hypotheses as that witness is.
 
 **Tested only: the run premises on shipped runs.** `tacenta-core/tests/decrypt_premises.rs` reads the state of real
 sessions before each `Session::decrypt` call, from `Session::export`, and asserts the runtime form of the bounds of `RetryRunBounds` above and the four ceilings of `CounterHeadroom`:
@@ -3095,6 +3119,57 @@ the Session unit's discharged Triple receive refinement, and on no others (`CLAI
 or the sparse ratchet's own refinement, inherits some or all of them and is therefore compiler-trusted. The number of such
 results is the one `attest.py` reports (`counts.compiler_trusted`), not repeated here; `CLAIMS.md` gives it for the two
 sections. It is expected to change if the nine constants are settled by the kernel rather than by the compiler.
+
+### The public `decrypt` on frames that are not initial messages: what it adds, and what it does not show
+
+`decrypt_refines_ratchet_frame` (`Translation/UnitLifecycleDecryptT3.lean`; `CLAIMS.md`, the section on the public
+`decrypt`) carries `decrypt_ratchet_refines_complete` through the pass-through arms of the generated `Session::decrypt`.
+It assumes everything the previous section lists, with the same limits, and adds one premise.
+
+**The scope premise.** `hframe` says that the model's reading of the message (`Model.Lifecycle.messageType`) is not an
+initial message. It is a condition on the input bytes alone, decidable, and it selects no branch of the proof: the proof
+derives the generated message type from it. It is not assumed of any message; a caller who wants the theorem for a
+message must have it, and for an initial message the premise is false, so the theorem says nothing there.
+
+**Not shown.** The repeated-initial branch of `Session::decrypt`: no claimed T3 theorem covers it (conditional branch
+lemmas that take evidence records exist for its routes, in `Translation/UnitLifecycleT3.lean` and
+`Translation/UnitLifecycleInitialDispatch.lean`, and are not claims); the model's comparison on that branch now decodes
+both ephemerals and the translated comparison refines it (the next section), but no theorem composes it into
+`Session::decrypt` on an initial frame. That a session the shipped
+code produces meets the per-run hypotheses. One witness state passes `Session::invariant` (`UnitLifecycleDecryptT3.invReal`, the session of
+`sessionOf_invariant`, whose identity keys on both sides are the public key of its own ratchet key), under the two
+assumptions of "The headroom records" (`ValidKeyShape`, `OptionEqU64Shape`); it has no pending initial message, no receiving chain and no established ephemeral key, it is not shown to be produced by
+`establish_initiator_for` or `establish_responder`, its message carries no agreement chunk, and the boundary records are
+not discharged at it. The one run that reaches a success and clears a pending initial message (`pendReal`) does so on
+the model side with the earlier screen's toy oracle, and on the generated side only under the boundary records at that
+oracle, at a state that fails `Session::invariant` (`pendReal_fails_invariant`). The four runs of the earlier screens hold
+empty associated data; for the refusal run,
+`refReal_fails_invariant` proves that this fails `Session::invariant`. The theorem quantifies over the oracle; the model
+frame lemma `decrypt_oracle_frame` (`tacenta-model/Model/LifecycleFrame.lean`) shows that `Model.Lifecycle.decrypt` reads
+only the oracle's `draws`, `braidKem`, `dhPublic`, `dhAgree` and `aeadOpen`, so the fields the hypotheses leave unbound are
+not read by the model's step; no theorem here applies the lemma.
+
+**The run bounds from `Session::invariant`.** `decrypt_refines_ratchet_frame_of_counter_headroom` takes
+`Session::invariant`, `CounterHeadroom` and `DecryptRatchetRunInputs` in place of `DecryptRatchetHeadroom` and
+`DecryptRatchetRun`, as `decrypt_ratchet_refines_of_invariant` does for the private transaction (the previous section, "The
+per-run bounds, from `Session::invariant`"). `CounterHeadroom` is assumed per run, with the exclusions "The headroom
+records" lists: a session whose classical clock has parked, or whose sparse or Braid epoch or a chain counter has reached
+its ceiling, is outside the corollary, permanently. `decrypt_frame_hypotheses_jointly_satisfiable` shows its hypotheses,
+the boundary records included, together at the witness of `decrypt_of_invariant_hypotheses_jointly_satisfiable` under the
+named laws `DecryptJointLaws`, with that witness's limits: built for the hypotheses, no agreement chunk, no ceiling
+exercised away from zero, and a model step that refuses at the first agreement if the real agreement refuses the all-zero
+key. `decrypt_refines_ratchet_frame_of_hypotheses` applies the corollary to that record with `hframe`, and
+`decrypt_frame_at_invReal` carries the laws to the corollary's conclusion at that witness. No planted-fault control covers
+these four results; their axiom and statement pins hold them.
+
+**The random source.** As in the previous section, the source is read through a function of its value. For a source with
+no state of its own, such as `OsRng`, `DecryptOracleOf.random32` and the draw field of `DecryptRatchetRun` cannot both
+hold, so the theorem makes no claim about such a call. The argument outside Lean that the previous section records for
+such a source is not proof.
+
+**Compiler trust.** The theorem rests on the same nine compiler-evaluated constants as `decrypt_ratchet_refines_complete`,
+and on no others; the `Session::invariant` corollary adds three opaque operations that the invariant mentions and no
+compiler-evaluated constant; the corollary with the run bounds derived adds the same three and no compiler-evaluated constant.
 
 ### The repeated-initial comparison: what it assumes, and what it leaves to the dispatch
 
