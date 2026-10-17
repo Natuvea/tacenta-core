@@ -1694,6 +1694,14 @@ REQUIRED_PINS = frozenset(
         "established_initiator_decrypt_ratchet_hypotheses",
         "established_initiator_decrypt_ratchet_refines",
         "established_initiator_decrypt_refines",
+        "EstablishedDecryptHypotheses.refines",
+        "sampleMessage_real_type",
+        "sampleMessage_chunk",
+        "established_decrypt_hypotheses_jointly_satisfiable",
+        "oneKey_length",
+        "oneKey_canonical",
+        "oneKey_ne_zero",
+        "established_decrypt_laws_model",
     )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
@@ -1751,6 +1759,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         # inherit its constants (`UnitLifecycleEstablishedDecrypt`).
         "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_ratchet_refines",
         "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_refines",
+        "Tacenta.UnitLifecycleEstablishedDecrypt.EstablishedDecryptHypotheses.refines",
     }
 )
 
@@ -2768,7 +2777,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "InitiatorOutputParts.session",
         "DhPublicValidShape",
         "DhPublicValid",
-        "KemCiphertextLenShape",
+        "KemCiphertextLenLawShape",
         "KemCiphertextLenOf",
         "unsampledModelOf",
         "establishedModelOf",
@@ -2781,6 +2790,18 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "established_initiator_decrypt_ratchet_hypotheses",
         "established_initiator_decrypt_ratchet_refines",
         "established_initiator_decrypt_refines",
+        "EstablishedDecryptHypotheses.refines",
+        "sampleMessage_real_type",
+        "sampleMessage_chunk",
+        "established_decrypt_hypotheses_jointly_satisfiable",
+        "oneKey_length",
+        "oneKey_canonical",
+        "oneKey_ne_zero",
+        "established_decrypt_laws_model",
+        "EstablishedDecryptHypotheses",
+        "Interp.modelEstablished",
+        "viewEstablished",
+        "oneKey",
     )]
 )
 
@@ -2994,12 +3015,19 @@ REQUIRED_PRINT_FORM = frozenset(
         "InitiatorOutputParts.session",
         "DhPublicValidShape",
         "DhPublicValid",
-        "KemCiphertextLenShape",
+        "KemCiphertextLenLawShape",
         "KemCiphertextLenOf",
         "unsampledModelOf",
         "establishedModelOf",
         "InitiatorSuccessShape",
         "successBundle",
+    )]
+    # The connected theorem's hypothesis record and the joint model (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "EstablishedDecryptHypotheses",
+        "Interp.modelEstablished",
+        "viewEstablished",
+        "oneKey",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

@@ -21,16 +21,19 @@ change to a copy of the module and requires Lean to refuse it, at a named place:
     `sessionRefines_parts`);
   * `InitiatorSuccessShape` without the self-equality of the key, which the expected-identity check needs
     (refused in `establish_initiator_for_succeeds`);
+  * the joint model of `UnitLifecycleEstablishedDecrypt.lean` with the public key of `Interp.modelDecrypt`,
+    the private key's bytes (refused in `established_decrypt_laws_model`, since such a key need not be
+    canonical);
   * `DhPublicValid` without its prime-order clause with the module's pins kept (refused at the pin of
     `DhPublicValidShape`).
 
-The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not
+The changes are checked on copies without the modules' pins, so that the refusal comes from a proof and not
 from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
 compiler that does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named
 place never count.  These are proof-dependency controls on copies of the Lean; no source, olean or git
 state changes.
 
-Dependencies must be built (`lake build Translation.UnitLifecycleEstablishInitiatorShape`).
+Dependencies must be built (`lake build Translation.UnitLifecycleEstablishedDecrypt`).
 """
 from pathlib import Path
 import argparse
@@ -45,6 +48,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SHAPE = ROOT / 'translation/Translation/UnitLifecycleEstablishInitiatorShape.lean'
+DECRYPT = ROOT / 'translation/Translation/UnitLifecycleEstablishedDecrypt.lean'
 
 PROOF = (r'unsolved goals|Application type mismatch|Type mismatch|type mismatch|omega could not prove'
          r'|made no progress|rcases|Insufficient number of fields|failed to prove|rewrite. failed'
@@ -103,6 +107,9 @@ MUTANTS = [
      [(r'    I\.dhIsPrimeOrderPublic pkb = ok true ∧ I\.dhPubEq pkb pkb = ok true ∧\n',
        '    I.dhIsPrimeOrderPublic pkb = ok true ∧\n')], PROOF,
      ['establish_initiator_for_succeeds']),
+    ('decrypt', 'joint-model-with-the-decrypt-model-public-key',
+     [(r'    dhPrivPublicKey := fun _ => ok Tacenta\.UnitLifecycleDecryptRatchetScreen\.zeros32 \}\n',
+       '    dhPrivPublicKey := fun k => ok k }\n')], PROOF, ['established_decrypt_laws_model']),
     ('shapepinned', 'law-without-the-prime-order-clause-pinned',
      [(LAW_SHAPE, LAW_SHAPE_WEAK), (LAW_IS, LAW_IS_WEAK)],
      r'Docstring on `#guard_msgs` does not match generated message',
@@ -204,12 +211,15 @@ def main():
     logs = args.log_dir or Path(tempfile.mkdtemp(prefix='established-logs-'))
     logs.mkdir(parents=True, exist_ok=True)
     shape = SHAPE.read_text()
+    decrypt = DECRYPT.read_text()
     sources = {
         'shape': without_pins(shape, SHAPE),
         'shapepinned': shape,
+        'decrypt': without_pins(decrypt, DECRYPT),
     }
     results = {
         'shape_sha256': hashlib.sha256(shape.encode()).hexdigest(),
+        'decrypt_sha256': hashlib.sha256(decrypt.encode()).hexdigest(),
         'accepted': [], 'rejected': {},
     }
     with tempfile.TemporaryDirectory(prefix='established-controls-') as tmp:
