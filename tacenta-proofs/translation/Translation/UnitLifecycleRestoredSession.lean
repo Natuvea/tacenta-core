@@ -18,11 +18,13 @@ import Translation.UnitLifecycleSessionRoundTrip
    `KeysUnsampled` or `Failed`), `SessionRefines dh K s (restoredModelOf dh s)` for every DH view and KEM;
    **this holds by definition**, as at an established session; `sessionRefines_restored_unique`: it is the
    only related model session.
-4. **What the next operation consumes, separated from what acceptance guarantees.**  Acceptance gives the
-   invariant.  It does not give the scope or `CounterHeadroom`: `restored_counterHeadroom_iff` states the
-   ceilings, at an accepted import, as the decidable check `headroomCheck s`, and
-   `invariant_does_not_give_counterHeadroom` (of `UnitLifecycleDecryptRunBounds`) shows a session with the
-   classical clock parked at `u32::MAX - 1` passes the invariant.  `RestoredDecryptHypotheses` packs the
+4. **What the next operation consumes, separated from what acceptance guarantees.**  Of what the next
+   operation consumes, acceptance gives only the invariant (it also gives that `export` writes the accepted
+   bytes back, the `NonCanonical` check).  It does not give the scope or `CounterHeadroom`:
+   `counterHeadroom_iff_check` states the ceilings, for every session and so for every accepted one, as the
+   decidable check `headroomCheck s`, and `invariant_does_not_give_counterHeadroom` (of
+   `UnitLifecycleDecryptRunBounds`) shows a session with the classical clock parked at `u32::MAX - 1`
+   passes the invariant.  `RestoredDecryptHypotheses` packs the
    accepted import, the scope, the ceilings and the caller's boundary records, trace equation, frame type,
    chunk relation and draw; `RestoredDecryptHypotheses.refines` and `restored_decrypt_refines` conclude
    that the public `Session::decrypt` on that ratchet-type frame refines `Model.Lifecycle.decrypt` at
@@ -39,14 +41,19 @@ applies `restored_decrypt_refines` to it.  This is the theorem form of what
 `tacenta-core/tests/restored_initiator_receives_reply.rs` tests: a copy of the established session,
 exported and imported, receives the peer's ratchet frames.  `restored_established_inhabited` shows such a
 success exists under the initiator axiom base and `InitiatorSuccessShape`; `restored_laws_model` shows the
-laws hold together in one model.
+laws of the round trip hold together in one model.  For the composition with `decrypt`,
+`restored_decrypt_hypotheses_jointly_satisfiable` fills every field of `RestoredDecryptHypotheses` at once,
+at the real constants, under the decrypt laws, the initiator contract axioms, `InitiatorSuccessShape` and the
+nine laws of the round trip; `restored_decrypt_laws_model` shows that whole premise list holds in one
+interpretation, `Interp.modelEstablished` (`restored_laws_model_established` is its round-trip half).
 
 ## Laws
 
-The round trip takes the five laws of `UnitLifecycleSessionCodec` and `KemCiphertextLenBound` (the
-ML-KEM ciphertext length constant is at most 65536, so the pending ciphertext's length prefix and the
-size arithmetic of `export` do not wrap), with `KemCiphertextLenOf`, `DhPublicValid` and
-`OptionEqU64Shape` from the established invariant.  Each is assumed and has a model.
+The round trip takes nine assumed laws: the five of `UnitLifecycleSessionCodec` and `KemCiphertextLenBound`
+(the ML-KEM ciphertext length constant is at most 65536, so the pending ciphertext's length prefix and the
+size arithmetic of `export` do not wrap), with `KemCiphertextLenOf`, `DhPublicValid` and `OptionEqU64Shape`
+from the established invariant.  Each has a model, and all nine hold with the decrypt laws in one
+interpretation (`restored_decrypt_laws_model`).
 
 ## What it does not show
 
@@ -113,7 +120,10 @@ def headroomCheck (s : lifecycle.Session) : Bool :=
     (match p.2.receive with | some ch => decide (ch.n.val < Std.U64.max) | none => true)) &&
   decide ((Tacenta.SessionUnitBraidT1.State.epoch_val s.braid.state).val + 1 < Std.U64.max)
 
-/-- `CounterHeadroom` is exactly `headroomCheck`, for every session. -/
+/-- `CounterHeadroom` is exactly `headroomCheck`, for every session, so for every session `import` accepts.
+Acceptance itself does not give it (`invariant_does_not_give_counterHeadroom`: a session with the classical
+clock parked at `u32::MAX - 1` passes the invariant, and `import` checks nothing about counters beyond the
+invariant); the check is not part of acceptance and is not added to it here. -/
 theorem counterHeadroom_iff_check (s : lifecycle.Session) :
     CounterHeadroom s ↔ headroomCheck s = true := by
   constructor
@@ -138,17 +148,6 @@ theorem counterHeadroom_iff_check (s : lifecycle.Session) :
     · rw [hch] at hs; simpa using hs
     · rw [hch] at hr; simpa using hr
 
-/-- **At an accepted import the continuation premise is an explicit check**: for every byte string `b`
-that `Session::import` accepts with session `s`, `CounterHeadroom s` holds exactly when `headroomCheck s`
-does.  Acceptance itself does not give it (`invariant_does_not_give_counterHeadroom`: a session with the
-classical clock parked at `u32::MAX - 1` passes the invariant, and `import` checks nothing about counters
-beyond the invariant); the check is not part of acceptance and is not added to it here. -/
-theorem restored_counterHeadroom_iff (b : Slice Std.U8) (s : lifecycle.Session)
-    (h : lifecycle.Session.import b = ok (core.result.Result.Ok s)) :
-    CounterHeadroom s ↔ headroomCheck s = true := by
-  have _ := import_ok_gives_invariant b s h
-  exact counterHeadroom_iff_check s
-
 /-! ## The scope, the model state and the relation -/
 
 /-- **The scope of the restored relation**: the session's Braid is in `KeysUnsampled` or `Failed`.  These
@@ -164,7 +163,13 @@ Excluded, and why:
 * `Ct2Sampled`, `NoHeaderReceived`, `HeaderReceived`, which hold an erasure encoder or decoder and no KEM
   value: `EncoderRefines` records where an encoder came from (a source slice and a number of steps) and
   `DecoderRefines` how a decoder answers future chunks against one source; a restored encoder or decoder
-  has no such history, and no law here gives one. -/
+  has no such history, and no law here gives one.
+In practice the scope is narrow: the first send from `KeysUnsampled` moves the Braid to `KeysSampled`
+(`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived`, and a Braid returns to
+`KeysUnsampled` only on the side that sent the last ciphertext, when the next epoch begins
+(`lib.rs:1355-1368`).  So the scope holds a snapshot taken on that side before its first send in the epoch
+(at epoch 1, the established initiator) and a failed session; most mid-conversation snapshots are outside
+it. -/
 def RestoredScope (s : lifecycle.Session) : Prop :=
   (∃ epoch auth, s.braid.state = tacenta_braid.State.KeysUnsampled epoch auth) ∨
     s.braid.state = tacenta_braid.State.Failed
@@ -227,7 +232,7 @@ theorem honestChunk_restored (dh : DhView) (s : lifecycle.Session) (hscope : Res
 /-- **The hypotheses of the `decrypt_ratchet` refinement at an accepted import in scope**, for one
 choice of every binder.  The session's part of acceptance is `accepted`; the scope and the ceilings are
 the two premises acceptance does not give and the next operation consumes (`scope`, `counters`; the
-latter is `headroomCheck s = true`, `restored_counterHeadroom_iff`).  The boundary records, the trace
+latter is `headroomCheck s = true`, `counterHeadroom_iff_check`).  The boundary records, the trace
 equation, the frame's type, the chunk relation and the draw are the caller's, as
 `decrypt_ratchet_refines_of_invariant` takes them. -/
 structure RestoredDecryptHypotheses {R : Type} (rngCore : rand_core_1.RngCore R)
@@ -420,7 +425,7 @@ public `Session::decrypt` of the accepted session on every ratchet-type frame re
 at `restoredModelOf dh s`, under the round-trip laws, the established invariant's laws and the caller's
 decrypt boundary records, trace equation, chunk relation and draw.  The theorem form of the tested
 reachability: a persisted copy of the established session, restored, receives the peer's ratchet frames
-under the model's step. -/
+under the model's step, given the caller's boundary records, trace equation, chunk relation and draw. -/
 theorem restored_established_initiator_decrypt_refines {R E : Type}
     (hz : ZeroizingVecRoundTrip) (hbr : OptionBranchSome)
     (hsl : VecAsSlice) (hpriv : DhPrivateBytesRoundTrip) (hpubb : DhPublicBytesRoundTrip)
@@ -507,6 +512,84 @@ theorem restored_laws_model :
     (fun _ _ => rfl), vecAsSliceImpl_shape, model_kemCiphertextLenBound, model_dhPublicValid,
     model_kemCiphertextLen, Tacenta.UnitHeadroomInvariant.optionEqImpl_shape⟩
 
+/-! ## The composed premise list holds together -/
+
+open Tacenta.UnitLifecycleIntegrationScreen (byteRng byteCrc byteTrace)
+open Tacenta.UnitSatisfiabilityJoint (InitiatorAxiom)
+open Tacenta.UnitLifecycleEstablishedDecrypt (established_decrypt_hypotheses_jointly_satisfiable
+  established_decrypt_laws_model viewEstablished)
+
+/-- **The six laws of the round trip hold at the interpretation the decrypt joint model uses**,
+`Interp.modelEstablished`: the three byte-codec laws there, `Option::branch` and `Vec::as_slice` at their
+standard-library definitions, and the ciphertext length constant at `ok 0`, the constant
+`established_decrypt_laws_model` uses for `KemCiphertextLenLawShape`.  In the substitution sense of
+`UnitSatisfiabilityRecords`; not a statement that the real functions meet them. -/
+theorem restored_laws_model_established :
+    ZeroizingVecRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      DhPrivateBytesRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      DhPublicBytesRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧
+      KemCiphertextLenBoundShape (ok 0#usize) :=
+  ⟨fun _ _ => ⟨_, rfl, rfl⟩, fun _ => ⟨_, _, rfl, rfl, rfl⟩, fun _ => ⟨_, rfl, rfl⟩,
+    (fun _ _ => rfl), vecAsSliceImpl_shape, model_kemCiphertextLenBound⟩
+
+/-- **Every field of `RestoredDecryptHypotheses` holds together at the real constants**, under the decrypt
+laws `DecryptJointLaws K dh` of `UnitLifecycleDecryptScreen`, the axiom part of the initiator contract
+record and `InitiatorSuccessShape` at the byte-stream source, and the nine laws of the round trip, all
+assumed: for every identity and codeword view there are an oracle with `braidKem = K`, a session and the
+bytes `export` writes for it such that, at the sample ratchet frame and source of
+`UnitLifecycleDecryptRatchetScreen`, `import` accepts the bytes with that session, the session is in scope
+and meets `CounterHeadroom`, and every boundary record, the trace equation, the frame type, the chunk
+relation and the draw hold.  The session is the established one of
+`established_decrypt_hypotheses_jointly_satisfiable`, restored by `restored_established_continues`. -/
+theorem restored_decrypt_hypotheses_jointly_satisfiable (K : Model.Braid.Kem) (dh : DhView)
+    (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
+    (A : Nonempty (InitiatorAxiom Interp.real byteRng))
+    (S : InitiatorSuccessShape Interp.real byteRng byteCrc)
+    (hpub : DhPublicValid) (hct : KemCiphertextLenOf)
+    (hz : ZeroizingVecRoundTrip) (hbr : OptionBranchSome) (hsl : VecAsSlice)
+    (hpriv : DhPrivateBytesRoundTrip) (hpubb : DhPublicBytesRoundTrip) (hbound : KemCiphertextLenBound)
+    (our : lifecycle.Identity) (view : Model.Lifecycle.CodewordView) :
+    ∃ (oracle : Model.Lifecycle.Oracle) (s : lifecycle.Session) (v : alloc.vec.Vec U8),
+      oracle.braidKem = K ∧
+      RestoredDecryptHypotheses byteRng byteCrc byteTrace dh view oracle (alloc.vec.Vec.deref v) s
+        Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage
+        Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng := by
+  obtain ⟨oracle, bundle, s, rng1, hK, H⟩ :=
+    established_decrypt_hypotheses_jointly_satisfiable K dh L A S hpub hct our
+  have H0 := H view
+  obtain ⟨z, v, -, -, himp, hscope, hcounters⟩ := restored_established_continues hz hbr hsl hpriv hpubb
+    hpub hct hbound L.optionEq byteRng byteCrc our bundle _ [] rng1 s H0.established
+  exact ⟨oracle, s, v, hK,
+    { accepted := himp, scope := hscope, counters := hcounters, oracleOf := H0.oracleOf,
+      codec := H0.codec, contracts := H0.contracts, derivedKeys := H0.derivedKeys,
+      agreements := H0.agreements, messageType := H0.messageType, trace_eq := H0.trace_eq,
+      chunk := H0.chunk, draw := H0.draw }⟩
+
+/-- **The whole premise list of the restored composition holds in one interpretation**,
+`Interp.modelEstablished`, with its view, the KEM model `toyKem`, `optionEqImpl` for `Option::eq`, the
+constant `ok 0` for `kem::ciphertext_len` (in both ciphertext laws) and the byte-stream source: the decrypt
+laws, the initiator contract axioms, `InitiatorSuccessShape`, `DhPublicValid` and `KemCiphertextLenOf`
+(`established_decrypt_laws_model`), and the six laws of the round trip (`restored_laws_model_established`),
+that is, the shape of every hypothesis `restored_decrypt_hypotheses_jointly_satisfiable` takes.  In the
+substitution sense of `UnitSatisfiabilityRecords`; not a statement that the real primitives meet them. -/
+theorem restored_decrypt_laws_model :
+    (Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+        Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished viewEstablished
+        Model.Braid.toyKem @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+      Nonempty (InitiatorAxiom Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished byteRng) ∧
+      InitiatorSuccessShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished byteRng
+        byteCrc ∧
+      DhPublicValidShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      KemCiphertextLenLawShape (ok 0#usize)
+        Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished) ∧
+    (ZeroizingVecRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      DhPrivateBytesRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      DhPublicBytesRoundTripShape Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      OptionBranchSomeShape @optionBranchImpl ∧ VecAsSliceShape @vecAsSliceImpl ∧
+      KemCiphertextLenBoundShape (ok 0#usize)) :=
+  ⟨established_decrypt_laws_model, restored_laws_model_established⟩
+
 end Tacenta.UnitLifecycleRestoredSession
 
 /-! ## Pins
@@ -568,48 +651,6 @@ info: 'Tacenta.UnitLifecycleRestoredSession.counterHeadroom_iff_check' depends o
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleRestoredSession.counterHeadroom_iff_check
-
-/--
-info: 'Tacenta.UnitLifecycleRestoredSession.restored_counterHeadroom_iff' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_session_unit.tacenta_kem.CT1_LEN,
- tacenta_session_unit.tacenta_kem.CT2_LEN,
- tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
- tacenta_session_unit.tacenta_kem.EncapsState,
- tacenta_session_unit.tacenta_kem.HEADER_LEN,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
- tacenta_session_unit.tacenta_kem.validate_ek,
- tacenta_session_unit.zeroize.Zeroizing,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
- tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
- tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
- tacenta_session_unit.tacenta_kem.EncapsState.from_bytes,
- tacenta_session_unit.tacenta_kem.EncapsState.to_bytes,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair.from_bytes,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
- tacenta_session_unit.tacenta_kem.IncrementalKeyPair.to_bytes,
- tacenta_session_unit.zeroize.Zeroizing.new,
- tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.alloc.vec.Vec.as_slice,
- tacenta_session_unit.core.num.Usize.div_ceil,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
- tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
- tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
- tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionInfallible.from_residual,
- tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitTry.branch,
- tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitLifecycleRestoredSession.restored_counterHeadroom_iff
 
 /--
 info: 'Tacenta.UnitLifecycleRestoredSession.sessionRefines_restored' depends on axioms: [propext,
@@ -1256,6 +1297,101 @@ info: 'Tacenta.UnitLifecycleRestoredSession.restored_laws_model' depends on axio
 #print axioms Tacenta.UnitLifecycleRestoredSession.restored_laws_model
 
 /--
+info: 'Tacenta.UnitLifecycleRestoredSession.restored_laws_model_established' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleRestoredSession.restored_laws_model_established
+
+/--
+info: 'Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.EncapsState.from_bytes,
+ tacenta_session_unit.tacenta_kem.EncapsState.to_bytes,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.from_bytes,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.to_bytes,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.as_slice,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionInfallible.from_residual,
+ tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitTry.branch,
+ tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable
+
+/--
+info: 'Tacenta.UnitLifecycleRestoredSession.restored_decrypt_laws_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleRestoredSession.restored_decrypt_laws_model
+
+/--
 info: Tacenta.UnitLifecycleRestoredSession.import_ok_gives_invariant : ∀ (b : Aeneas.Std.Slice Aeneas.Std.U8)
   (s : tacenta_session_unit.lifecycle.Session),
   tacenta_session_unit.lifecycle.Session.import b = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s) →
@@ -1270,16 +1406,6 @@ info: Tacenta.UnitLifecycleRestoredSession.counterHeadroom_iff_check : ∀ (s : 
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleRestoredSession.counterHeadroom_iff_check
-
-/--
-info: Tacenta.UnitLifecycleRestoredSession.restored_counterHeadroom_iff : ∀ (b : Aeneas.Std.Slice Aeneas.Std.U8)
-  (s : tacenta_session_unit.lifecycle.Session),
-  tacenta_session_unit.lifecycle.Session.import b = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s) →
-    (Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s ↔
-      Tacenta.UnitLifecycleRestoredSession.headroomCheck s = true)
--/
-#guard_msgs in
-#check @Tacenta.UnitLifecycleRestoredSession.restored_counterHeadroom_iff
 
 /--
 info: Tacenta.UnitLifecycleRestoredSession.sessionRefines_restored : ∀ (dh : Tacenta.UnitLifecycleT3.DhView)
@@ -1567,6 +1693,78 @@ info: Tacenta.UnitLifecycleRestoredSession.restored_laws_model : Tacenta.UnitLif
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleRestoredSession.restored_laws_model
+
+/--
+info: Tacenta.UnitLifecycleRestoredSession.restored_laws_model_established : Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTripShape
+    Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+  Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTripShape
+      Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+    Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTripShape
+        Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl ∧
+        Tacenta.UnitLifecycleSessionCodec.VecAsSliceShape @Tacenta.UnitLifecycleSessionCodec.vecAsSliceImpl ∧
+          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape (Aeneas.Std.Result.ok 0#usize)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleRestoredSession.restored_laws_model_established
+
+/--
+info: Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable : ∀ (K : Model.Braid.Kem)
+  (dh : Tacenta.UnitLifecycleT3.DhView),
+  Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh →
+    Nonempty
+        (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng) →
+      Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+            Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTrip →
+              Tacenta.UnitLifecycleSessionCodec.OptionBranchSome →
+                Tacenta.UnitLifecycleSessionCodec.VecAsSlice →
+                  Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTrip →
+                    Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                      Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                        ∀ (our : tacenta_session_unit.lifecycle.Identity) (view : Model.Lifecycle.CodewordView),
+                          ∃ oracle s v,
+                            oracle.braidKem = K ∧
+                              Tacenta.UnitLifecycleRestoredSession.RestoredDecryptHypotheses
+                                Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh view oracle v.deref s
+                                Tacenta.UnitLifecycleDecryptRatchetScreen.sampleMessage
+                                Tacenta.UnitLifecycleDecryptRatchetScreen.sampleRng
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable
+
+/--
+info: Tacenta.UnitLifecycleRestoredSession.restored_decrypt_laws_model : (Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+      Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished
+      Tacenta.UnitLifecycleEstablishedDecrypt.viewEstablished Model.Braid.toyKem
+      @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+    Nonempty
+        (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+      Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape
+          Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished Tacenta.UnitLifecycleIntegrationScreen.byteRng
+          Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
+        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape
+            Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape (Aeneas.Std.Result.ok 0#usize)
+            Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished) ∧
+  Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTripShape
+      Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+    Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTripShape
+        Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+      Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTripShape
+          Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+        Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl ∧
+          Tacenta.UnitLifecycleSessionCodec.VecAsSliceShape @Tacenta.UnitLifecycleSessionCodec.vecAsSliceImpl ∧
+            Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape (Aeneas.Std.Result.ok 0#usize)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleRestoredSession.restored_decrypt_laws_model
 
 /--
 info: def Tacenta.UnitLifecycleRestoredSession.headroomCheck : tacenta_session_unit.lifecycle.Session → Bool :=
