@@ -174,6 +174,15 @@ report_time "decrypt_ratchet refinement proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-established-negatives.py || fail=1
 report_time "established initiator proof-dependency control" "$t"
+# What an accepted `Session::import` guarantees, the restored relation and the round trip of an established
+# initiator session (`UnitLifecycleRestoredSession.lean`, `UnitLifecycleSessionRoundTrip.lean`,
+# `UnitLifecycleSessionCodec.lean`): a copy with the `Inconsistent` refusal, a ceiling clause, a law or a
+# hypothesis removed, the scope widened, an encoded field reordered, or the round trip concluding an altered
+# session, and a copy of a law with its pins kept, must each be refused at a named declaration or pin, after
+# the unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-restored-negatives.py || fail=1
+report_time "restored session proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
