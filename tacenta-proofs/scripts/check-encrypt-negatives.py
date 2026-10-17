@@ -13,8 +13,10 @@ place, for the reason named:
     initial-message field's arithmetic has no bound on the ciphertext);
   * the headroom lemma at a plaintext bound one byte short, `+ 65769` (refused in `encryptHeadroom_parts`,
     the same field);
-  * the Triple store facts restated at a model state whose sparse epoch is `u64::MAX - 1` (refused in
-    `tripleStoreFacts_parts`, the epoch bound);
+  * the Triple store facts restated at the session the parts make with its sparse epoch set to `u64::MAX`,
+    the proof unchanged but for a substitution and the epoch clause asked separately (refused in
+    `tripleStoreFacts_parts`: omega cannot prove the epoch bound, its counterexample naming `U64.rMax`; the
+    proof rests on the established sparse epoch 0);
   * the counted draw record restated with one draw consumed (refused in
     `braidSendTraceCounted_of_keysUnsampled`: one draw is not the two the model counts);
   * `KeyGenSeededFor` weakened to some randomness, the `KemAgreesFor` form, with the proof adapted to use
@@ -27,17 +29,19 @@ place, for the reason named:
     `established_triple_send_ok`);
   * the wire message claimed to be the bare ratchet frame, the pending initial message ignored (refused in
     `established_encrypt_model_cases`);
+  * the successor's agreement encoder restated as the encoder before its first chunk (refused in
+    `established_encrypt_model_cases`, the goal `encoder = Model.Braid.encode ...` unsolved);
   * the successor's chain counters claimed to stay at 0, the send not counted (refused in
     `established_triple_next_counters`);
   * `sentTriple` with the classical message counter at 0 (refused in `triple_eq_sent`: the relation fixes
     it at 1);
-  * the encoder fact restated for the encoder before its `next_chunk` (refused in `encoder_of_refines`);
   * the successor invariant without `ValidateEkAgrees`, key-pair validity left to unfolding (refused in
     `established_encrypt_successor_admissible`, the `validate_ek` goal left unsolved);
-  * the successor invariant without the size law `KeyGenSizesOf` (refused in
-    `established_encrypt_successor_admissible`: the header-and-MAC message is not shown to be 96 bytes);
-  * the joint model with key generation that reads nothing from the source (refused in `genFill_answers`:
-    the source left is not the one the law names);
+  * `KeyGenSizesOf` without its seed-length conjunct, the successor's proof asked to derive the seed length
+    from the header equation (refused in `established_encrypt_successor_admissible`: omega cannot, its
+    counterexample naming `ekSeed`; `toyKemR_sizes` is also refused, as its proof no longer fits);
+  * the joint model's key generation reading its 64 bytes but returning the source it was given, not the one
+    the fill left (refused in `genFill_answers`: the source left is not the one the law names);
   * `KeyGenAnswersShape` with the refusing arm dropped, with the module's pins kept (refused at the pin of
     `KeyGenAnswersShape`).
 
@@ -84,14 +88,40 @@ MUTANTS = [
       (re.escape('  exact encryptHeadroom_parts hdh hct hbound p plaintext hroom\n'),
        '  exact encryptHeadroom_parts hdh hct hbound p plaintext (by omega)\n')],
      r'omega could not prove the goal(?:.*\n)*?.*a - b ≥ 65769', ['encryptHeadroom_parts']),
-    ('encrypt', 'triple-store-facts-at-the-last-sparse-epoch',
-     [(re.escape('    (establishedModelOf dh p.session).triple.postQuantum.epoch + 1 < Std.U64.max ∧\n'
+    ('encrypt', 'triple-store-facts-at-a-session-at-the-last-sparse-epoch',
+     [(re.escape('    (p : InitiatorOutputParts rc crc our bundle) :\n'
+                 '    (establishedModelOf dh p.session).triple.postQuantum.chains.length + 1 < Usize.max ∧\n'
                  '    (∀ q ∈ (establishedModelOf dh p.session).triple.postQuantum.chains,\n'
-                 '      ∀ ch : Model.SparseRatchet.Chain,'),
-       '    (Std.U64.max - 1) + 1 < Std.U64.max ∧\n'
-       '    (∀ q ∈ (establishedModelOf dh p.session).triple.postQuantum.chains,\n'
-       '      ∀ ch : Model.SparseRatchet.Chain,')],
-     r'expected type `False`|⊢ False', ['tripleStoreFacts_parts']),
+                 '      q.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) ∧\n'
+                 '    (∀ sk ∈ (establishedModelOf dh p.session).triple.postQuantum.skipped,\n'
+                 '      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) ∧\n'
+                 '    (establishedModelOf dh p.session).triple.postQuantum.epoch + 1 < Std.U64.max ∧\n'
+                 '    (∀ q ∈ (establishedModelOf dh p.session).triple.postQuantum.chains,\n'
+                 '      ∀ ch : Model.SparseRatchet.Chain,\n'
+                 '      (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n < Std.U64.max) := by\n'
+                 '  have hu : 4294967295 ≤ Usize.max :=\n'),
+       '    (p : InitiatorOutputParts rc crc our bundle) (s : lifecycle.Session)\n'
+       '    (hs : s = { p.session with triple := { p.session.triple with post_quantum :=\n'
+       '      { p.session.triple.post_quantum with epoch := core.num.U64.MAX } } }) :\n'
+       '    (establishedModelOf dh s).triple.postQuantum.chains.length + 1 < Usize.max ∧\n'
+       '    (∀ q ∈ (establishedModelOf dh s).triple.postQuantum.chains,\n'
+       '      q.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) ∧\n'
+       '    (∀ sk ∈ (establishedModelOf dh s).triple.postQuantum.skipped,\n'
+       '      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) ∧\n'
+       '    (establishedModelOf dh s).triple.postQuantum.epoch + 1 < Std.U64.max ∧\n'
+       '    (∀ q ∈ (establishedModelOf dh s).triple.postQuantum.chains,\n'
+       '      ∀ ch : Model.SparseRatchet.Chain,\n'
+       '      (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n < Std.U64.max) := by\n'
+       '  subst hs\n'
+       '  have hu : 4294967295 ≤ Usize.max :=\n'),
+      (re.escape('    Tacenta.SessionUnitSpqrT3.chainOf, Model.SparseRatchet.epochsKept, U64.max_eq]\n'
+                 '  refine ⟨by omega, ?_⟩\n'
+                 '  rintro ch (h | h) <;> subst h <;> simp\n'),
+       '    Tacenta.SessionUnitSpqrT3.chainOf, Model.SparseRatchet.epochsKept, U64.max_eq]\n'
+       '  refine ⟨by omega, ?_, ?_⟩\n'
+       '  · omega\n'
+       '  · rintro ch (h | h) <;> subst h <;> simp\n')],
+     r'omega could not prove the goal(?:.*\n)*?.*rMax', ['tripleStoreFacts_parts']),
     ('encrypt', 'draw-record-with-one-draw-consumed',
      [(re.escape("    refine ⟨[d1, d2], rest, ?_, by simpa using htr, by rw [hnext]; exact htr'⟩\n"),
        "    refine ⟨[d1], d2 :: rest, ?_, by simpa using htr, by rw [hnext]; exact htr'⟩\n")],
@@ -153,6 +183,12 @@ MUTANTS = [
                  '              (firstFrame view oracle (establishedModelOf dh p.session) plaintext messageKey chunk)) ∧\n'),
        '            .ok (firstFrame view oracle (establishedModelOf dh p.session) plaintext messageKey chunk) ∧\n')],
      UNSOLVED + r'(?:.*\n)*?⊢ [^\n]*encodeInitial', ['established_encrypt_model_cases']),
+    ('encrypt', 'successor-encoder-before-its-first-chunk',
+     [(re.escape('                encoder })) := by\n'),
+       '                (Model.Braid.encode ((ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector) ++\n'
+       '              (Tacenta.SessionUnitBraidT3.AuthOf p.auth).macHdr 1\n'
+       '                (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector))) })) := by\n')],
+     UNSOLVED + r'(?:.*\n)*?⊢ encoder =\s+Model\.Braid\.encode', ['established_encrypt_model_cases']),
     ('encrypt', 'successor-counters-claimed-uncounted',
      [(re.escape('        (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n ≤ 1 := by\n'),
        '        (q.2.send = some ch ∨ q.2.receive = some ch) → ch.n ≤ 0 := by\n')],

@@ -1890,6 +1890,8 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitLifecycleEstablishedEncrypt." + n for n in (
         "keyGenAnswers_is",
         "keyGenSeededFor_is",
+        "keyGenSizes_wrapperKemOf",
+        "keyGenSizes_wrapperKem",
         "step_send_keysUnsampled_pinned",
         "braid_send_keysUnsampled_pinned",
         "send_keysUnsampled_output",
@@ -1944,6 +1946,8 @@ REQUIRED_PINS = frozenset(
         "encoder_of_refines",
         "established_encrypt_successor_admissible",
         "established_encrypt_successor_hypotheses",
+        "authOf_injective",
+        "established_encrypt_successor_shape",
         "EstablishedEncryptSuccessorHypotheses.successor",
         "established_encrypt_successor_hypotheses_jointly_satisfiable",
         "established_encrypt_successor_reachable",
@@ -2045,6 +2049,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_refusal_reachable",
         "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_admissible",
         "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hypotheses",
+        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape",
         "Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptSuccessorHypotheses.successor",
         "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_reachable",
     }
@@ -3329,6 +3334,8 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitLifecycleEstablishedEncrypt." + n for n in (
         "keyGenAnswers_is",
         "keyGenSeededFor_is",
+        "keyGenSizes_wrapperKemOf",
+        "keyGenSizes_wrapperKem",
         "step_send_keysUnsampled_pinned",
         "braid_send_keysUnsampled_pinned",
         "send_keysUnsampled_output",
@@ -3383,6 +3390,8 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "encoder_of_refines",
         "established_encrypt_successor_admissible",
         "established_encrypt_successor_hypotheses",
+        "authOf_injective",
+        "established_encrypt_successor_shape",
         "EstablishedEncryptSuccessorHypotheses.successor",
         "established_encrypt_successor_hypotheses_jointly_satisfiable",
         "established_encrypt_successor_reachable",
