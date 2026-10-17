@@ -3023,7 +3023,7 @@ lemmas that take evidence records exist for its routes, in `Translation/UnitLife
 `Translation/UnitLifecycleInitialDispatch.lean`, and are not claims); the model's comparison on that branch now decodes
 both ephemerals and the translated comparison refines it (the next section), but no theorem composes it into
 `Session::decrypt` on an initial frame. That a session the shipped
-code produces meets the per-run hypotheses. One witness state passes `Session::invariant` (`invReal`, the session of
+code produces meets the per-run hypotheses. One witness state passes `Session::invariant` (`UnitLifecycleDecryptT3.invReal`, the session of
 `sessionOf_invariant`, whose identity keys on both sides are the public key of its own ratchet key), under the two
 assumptions of "The headroom records" (`ValidKeyShape`, `OptionEqU64Shape`); it has no pending initial message, no receiving chain and no established ephemeral key, it is not shown to be produced by
 `establish_initiator_for` or `establish_responder`, its message carries no agreement chunk, and the boundary records are
