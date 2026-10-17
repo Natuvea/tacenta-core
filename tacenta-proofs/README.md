@@ -37,9 +37,11 @@ ceilings follow from the establishment, the relation to the model session read o
 `import` of the exported bytes returns that session unchanged, so the restated form applies to the copy given the caller's
 boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law), and
 every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; at that established session
-the first `encrypt` is related to the model's step on both of its outcomes, and the session a successful send leaves passes
-the invariant and meets the ceilings, under the encrypt boundary records, an assumed key-generation law and six more
-assumptions for that session, compiler-trusted, the responder's receipt of the frame not covered);
+the first `encrypt` is related to the model's step (its refusal arm only at a model KEM that refuses, since the shipping key
+generation does not refuse, by reading), and the session a successful send leaves passes the invariant and meets the
+ceilings, under the encrypt boundary records, the oracle record, three assumed laws (a new key-generation law, the
+establishment's ciphertext-length law and the ciphertext bound) and six more assumptions for that session, compiler-trusted,
+the responder's receipt of the frame not covered);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
