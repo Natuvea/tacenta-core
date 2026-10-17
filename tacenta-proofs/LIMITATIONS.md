@@ -2484,18 +2484,23 @@ model step (`StepRefines`: result, post-state and draws left; on a refusal the m
 (`CLAIMS.md`, the section on the established initiator).
 
 *A restored session: acceptance against continuation.* `UnitLifecycleRestoredSession.lean` starts from the bytes
-`Session::import` accepted. What acceptance gives is proved with no hypothesis: every accepted session passes
-`Session::invariant` (`import_ok_gives_invariant`). What the next operation also consumes is not given by acceptance and
-stays a premise: the four counter ceilings (`CounterHeadroom`, stated at an accepted import as the decidable
-`headroomCheck`, `restored_counterHeadroom_iff`; the parked classical clock passes the invariant,
+`Session::import` accepted. Of what the next operation consumes, acceptance gives only the invariant, proved with no
+hypothesis: every accepted session passes `Session::invariant` (`import_ok_gives_invariant`). What the next operation also
+consumes is not given by acceptance and stays a premise: the four counter ceilings (`CounterHeadroom`, stated for every
+session, so at every accepted import, as the decidable `headroomCheck`, `counterHeadroom_iff_check`; the parked classical clock passes the invariant,
 `invariant_does_not_give_counterHeadroom`, and `import` checks nothing about counters beyond the invariant, as its Rust
 documentation says, "a property whose check belongs at the use site"), and the scope `RestoredScope` (Braid in
 `KeysUnsampled` or `Failed`). Outside the scope no relation to a model session is claimed: a restored key pair or
 encapsulation state has no model value at the wrapper's KEM model, and a restored encoder or decoder has no history for
 `EncoderRefines`/`DecoderRefines`; so a restored Braid in any of the other ten states is not covered by the restored
-results. That `import` of the bytes `export` writes returns every established initiator session itself
-(`export_import_established`), so that the copy is in scope, meets the ceilings and receives under the model's step
-(`restored_established_initiator_decrypt_refines`), takes six more laws, ASSUMED:
+results. The scope is narrow in practice: the first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
+(`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived` (`lib.rs:420-428`), and a Braid returns to
+`KeysUnsampled` only on the side that sent the last ciphertext, when the next epoch begins (`lib.rs:1355-1368`). So the
+restored results cover a snapshot taken on the side holding `KeysUnsampled` before its first send in that epoch (at epoch
+1, the established initiator), and a failed session; most snapshots taken mid-conversation are out of scope. That `import` of the bytes `export` writes returns every established initiator session itself
+(`export_import_established`), so that the copy is in scope, meets the ceilings and receives under the model's step given
+the caller's boundary records, trace equation, chunk relation and draw (`restored_established_initiator_decrypt_refines`),
+takes six more laws besides the establishment's three, nine in all, ASSUMED:
 
 | Law | Statement | Used for | Satisfied by |
 |---|---|---|---|
@@ -2507,7 +2512,11 @@ results. That `import` of the bytes `export` writes returns every established in
 | `KemCiphertextLenBound` | `kem::ciphertext_len` returns at most 65536 (`KemCiphertextLenBoundShape` at the real constant) | with `KemCiphertextLenOf`, the pending ciphertext's length prefix and the size arithmetic of `export` do not wrap | `ok 0`, the constant of the established-initiator model (`model_kemCiphertextLenBound`). True by reading (`ciphertext_len` is the length of an ML-KEM-1024 ciphertext, 1568 bytes; `tacenta-core/boundary/src/kem.rs`). It would be false of a parameter set with ciphertexts over 64 KiB |
 
 The six laws hold together with `DhPublicValid`, `KemCiphertextLenOf` and `OptionEqU64Shape` in one interpretation
-(`restored_laws_model`), in the substitution sense above; that shows nothing of the real functions. The round trip is proved
+(`restored_laws_model`). The whole premise list of the composition with `decrypt` (the decrypt laws, the initiator contract
+axioms, `InitiatorSuccessShape` and the nine laws) also holds in one interpretation, `Interp.modelEstablished`
+(`restored_decrypt_laws_model`), and at the real constants under those laws every field of `RestoredDecryptHypotheses` can
+be filled at once (`restored_decrypt_hypotheses_jointly_satisfiable`). Both are in the substitution sense above; they show
+nothing of the real functions. The round trip is proved
 for the shape an established initiator session has (`CodecShape`: Braid `KeysUnsampled` below epoch `u64::MAX`, no stored
 skipped key, one sparse chain-table entry with both chains, a pending initial message, no established ephemeral, both
 variable-length fields at most 65536 bytes); a session of another shape is not covered, including a later session with

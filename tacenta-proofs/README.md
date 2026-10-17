@@ -34,8 +34,9 @@ each ceiling excludes a state the invariant accepts, the clock case shown in Lea
 not checked in Lean; at a session `establish_initiator_for` returned, the invariant, under two assumed laws, and the four
 ceilings follow from the establishment, the relation to the model session read off it holds by definition at its
 `KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows; that
-`import` of the exported bytes returns that session unchanged, so the restated form applies to the copy, is proved under six
-assumed laws, and every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it);
+`import` of the exported bytes returns that session unchanged, so the restated form applies to the copy given the caller's
+boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law), and
+every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two

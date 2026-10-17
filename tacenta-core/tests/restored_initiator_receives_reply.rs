@@ -10,9 +10,10 @@
 //!
 //! What it exercises is what `restored_established_initiator_decrypt_refines`
 //! (`tacenta-proofs/translation/Translation/UnitLifecycleRestoredSession.lean`) states of the
-//! translated session unit under assumed laws: `import` of the bytes `export` writes returns the
-//! established session unchanged, and `decrypt` of the restored copy on a ratchet-type frame refines
-//! the model's step. The theorem does not say what an honest responder sends; this test runs one.
+//! translated session unit under nine assumed laws: `import` of the bytes `export` writes returns
+//! the established session unchanged, and, given the caller's boundary records, chunk relation and
+//! draw, `decrypt` of the restored copy on a ratchet-type frame refines the model's step. The theorem
+//! does not say what an honest responder sends; this test runs one.
 
 use rand::SeedableRng;
 use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};

@@ -81,8 +81,9 @@ this section says in one place what is not proved.
   their whole premise list holds together in one interpretation. A copy of that session, exported before its first
   `encrypt` and restored after the responder replied, decrypts the reply in an honest run (a test on the seeds it tries,
   `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof). That `import` of the bytes `export` writes
-  returns that session itself, so that the same refinements apply to the restored copy, is proved under six assumed laws
-  with a model; every session `import` accepts passes `Session::invariant` (no hypothesis), but acceptance does not give
+  returns that session itself, so that the same refinements apply to the restored copy (given the caller's boundary
+  records, chunk relation and draw, as for the session never copied), is proved under nine assumed laws (six of its own, the
+  establishment's two and the `Option::eq` law), which hold with the decrypt laws in one interpretation; every session `import` accepts passes `Session::invariant` (no hypothesis), but acceptance does not give
   the counter ceilings, which stay a check on the accepted session, and the relation to a model session is claimed only
   when the restored Braid holds no KEM value, encoder or decoder ("Proved (tier T3, session lifecycle: what an accepted
   `Session::import` gives ...)"). Initial frames, `encrypt` and `establish_responder` are not covered ("Proved (tier T3,
@@ -4228,19 +4229,25 @@ These results start from the bytes `Session::import` accepted: for every byte st
 `restoredModelOf dh s`, a function of `s` and so of `b`: the same reading as `establishedModelOf` (Triple through
 `ratchetAbs`/`spqrAbs`, Braid through `unsampledModelOf`, the other fields through the DH view). It is not the model's own
 imported session, because `Model.Lifecycle` has none: the model's `Model.PersistedState.SessionState.ofBytes` returns the
-stored format, whose Braid is bytes. **Acceptance and continuation are kept apart.** Acceptance gives `Session::invariant`
-and nothing else; the next operation also consumes the scope and the four counter ceilings, which are premises, stated as
-such. The relation is claimed only in scope, `RestoredScope s`: the Braid is in `KeysUnsampled` or in `Failed` (which
+stored format, whose Braid is bytes. **Acceptance and continuation are kept apart.** Of what the next operation consumes,
+acceptance gives only `Session::invariant` (acceptance also means `export` writes the accepted bytes back unchanged, the
+`NonCanonical` check, which no theorem here uses); the next operation also consumes the scope and the four counter ceilings,
+which are premises, stated as such. The relation is claimed only in scope, `RestoredScope s`: the Braid is in `KeysUnsampled` or in `Failed` (which
 `Session::invariant` accepts: the failure is terminal and persists). It excludes the seven Braid states that hold a key
 pair or an encapsulation state, because a key pair restored by `IncrementalKeyPair::from_bytes` or a state restored by
 `EncapsState::from_bytes` has no model value at the wrapper's KEM model (`UnitKemWrapperModel.lean`), and the three that
 hold an erasure encoder or decoder and no KEM value (`Ct2Sampled`, `NoHeaderReceived`, `HeaderReceived`), because
 `EncoderRefines` and `DecoderRefines` record a history (a source slice and a number of steps; answers to future chunks
-against one source) that a restored value does not have and no law here supplies.
+against one source) that a restored value does not have and no law here supplies. In practice the scope is narrow. The first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
+(`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived` (`lib.rs:420-428`), and a Braid returns
+to `KeysUnsampled` only on the side that sent the last ciphertext, when it learns the next epoch has begun
+(`lib.rs:1355-1368`). So the restored relation covers a snapshot taken on the side holding `KeysUnsampled` before its first send in that
+epoch (at epoch 1, the established initiator, which the round trip below and the test cover), and a failed session; most
+snapshots taken mid-conversation are out of scope.
 
 - `import_ok_gives_invariant`: every session `import` accepts passes `Session::invariant`; no hypothesis (the generated
   body reaches `Ok` only after `invariant` returned `true`; every other branch returns an `Err`).
-- `counterHeadroom_iff_check`, `restored_counterHeadroom_iff`: `CounterHeadroom s` holds exactly when the decidable
+- `counterHeadroom_iff_check`: `CounterHeadroom s` holds exactly when the decidable
   `headroomCheck s` does (the classical clock, the sparse epoch, every sparse chain counter and the Braid epoch, each below
   its ceiling), for every session and so at every accepted import; no hypothesis. Acceptance does not give it:
   `invariant_does_not_give_counterHeadroom` (previous sections) has a session with the classical clock parked at
@@ -4260,10 +4267,10 @@ against one source) that a restored value does not have and no law here supplies
   `restoredModelOf dh s`, refusals included (through `decrypt_ratchet_refines_of_invariant` and
   `decrypt_ratchet_message_refines`).
 - `export_import_established`: for every success output `s` of `establish_initiator_for`, `export s` returns, and `import`
-  of the exported bytes accepts and returns `s` itself, every field equal; under the six laws below, `KemCiphertextLenOf`,
-  `DhPublicValid` and `OptionEqU64Shape`, all assumed. No field differs: the ratchet private key and the three public keys
+  of the exported bytes accepts and returns `s` itself, every field equal; under nine assumed laws, the six below and the
+  establishment's `KemCiphertextLenOf`, `DhPublicValid` and `OptionEqU64Shape`. No field differs: the ratchet private key and the three public keys
   come back through the byte-codec laws, everything else is read back by the translated decoders.
-- `restored_established_continues`, `restored_established_initiator_decrypt_refines`: under the same laws, that accepted
+- `restored_established_continues`, `restored_established_initiator_decrypt_refines`: under the same nine laws, that accepted
   copy is in scope and meets `CounterHeadroom` (it is the establishment output), and `restored_decrypt_refines` applies to
   it: the public `Session::decrypt` of the restored copy on every ratchet-type frame refines the model's `decrypt` at
   `restoredModelOf dh s`, given the caller's boundary records, trace equation, chunk relation and draw, all assumed. This is
@@ -4277,10 +4284,24 @@ against one source) that a restored value does not have and no law here supplies
 - `restored_established_inhabited`: under the axiom part of the initiator contract record and `InitiatorSuccessShape`
   (which give a successful establishment, previous section) and the laws above, all assumed, such an established session
   and its accepted copy exist for every identity and source state.
-- `restored_laws_model`, `model_kemCiphertextLenBound`: one interpretation satisfies the six laws' shapes together with
-  those of `DhPublicValid`, `KemCiphertextLenOf` and `OptionEqU64Shape` (`Interp.model` for the byte-codec laws,
-  `optionBranchImpl` and `vecAsSliceImpl` for the two library functions, `optionEqImpl`, and `ok 0` for
-  `kem::ciphertext_len`), in the substitution sense of `LIMITATIONS.md`; not a statement that the real functions meet them.
+- `restored_laws_model`, `model_kemCiphertextLenBound`: one interpretation satisfies the nine laws' shapes together
+  (`Interp.model` for the byte-codec laws, `optionBranchImpl` and `vecAsSliceImpl` for the two library functions,
+  `optionEqImpl`, and `ok 0` for `kem::ciphertext_len`), in the substitution sense of `LIMITATIONS.md`; not a statement that
+  the real functions meet them. It is not a model of the decrypt laws.
+- `restored_decrypt_hypotheses_jointly_satisfiable`: every field of `RestoredDecryptHypotheses` holds together at the real
+  constants, under the decrypt laws `DecryptJointLaws K dh` (which include `OptionEqU64Shape`), the axiom part of the
+  initiator contract record and `InitiatorSuccessShape` at the byte-stream source, `DhPublicValid`, `KemCiphertextLenOf` and
+  the six laws below, all assumed: for every identity and codeword view there are an oracle with `braidKem = K`, a session
+  and the bytes `export` writes for it, which `import` accepts with that session, in scope and with the ceilings, with every
+  boundary record, the trace equation, the frame type, the chunk relation and the draw, at the sample ratchet frame and
+  source. The session is the established one of `established_decrypt_hypotheses_jointly_satisfiable`, restored by
+  `restored_established_continues`.
+- `restored_decrypt_laws_model`, `restored_laws_model_established`: the whole premise list of that statement holds in one
+  interpretation, `Interp.modelEstablished` (previous section), with its view, `toyKem`, `optionEqImpl` and `ok 0` for
+  `kem::ciphertext_len` in both ciphertext laws: `established_decrypt_laws_model` for the decrypt laws, the contract axioms,
+  `InitiatorSuccessShape`, `DhPublicValid` and `KemCiphertextLenOf`, and `restored_laws_model_established` for the six laws
+  of the round trip at the same interpretation. In the substitution sense of `LIMITATIONS.md`; neither shows anything of the
+  real primitives.
 - `export_import_of_shape`, `export_spec`, `import_unchecked_spec`, `session_invariant_leaves`, `slice_ne_self`,
   `identity_ad_length_of`: the round trip for every session with `CodecShape` that passes `Session::invariant`, under the
   five laws of `UnitLifecycleSessionCodec.lean`, all assumed: `export` returns the bytes `sessionEnc` of the leaf encodings,
@@ -4318,7 +4339,9 @@ against one source) that a restored value does not have and no law here supplies
   `model_dhPrivateBytesRoundTrip`, `model_zeroizingVecRoundTrip`, `vecAsSliceImpl_shape`: each byte-codec law is its shape at
   the real constants, and `Interp.model` (or `vecAsSliceImpl`) satisfies each shape.
 
-**The laws.** Six, all assumed, none checked in Lean, each with a model (`LIMITATIONS.md`, "A restored session"):
+**The laws.** Six of the round trip's own, all assumed, none checked in Lean, each with a model (`LIMITATIONS.md`, "A
+restored session"), besides the three the establishment's invariant takes (`DhPublicValid`, `KemCiphertextLenOf`,
+`OptionEqU64Shape`), nine in all:
 `ZeroizingVecRoundTrip` (`Zeroizing::new` then `deref` on a byte vector gives it back), `OptionBranchSome`
 (`Option::branch` on `Some x` continues with `x`), `VecAsSlice` (`Vec::as_slice` is the slice view), `DhPrivateBytesRoundTrip`
 (`PrivateKey::to_bytes`, read out of its wrapper, then `PrivateKey::from_bytes` gives the key back),
@@ -4336,24 +4359,30 @@ session lifecycle out.
 
 **Compiler trust and pins.** Every statement that names `Session::export` or `Session::import` lists one compiler-trust
 axiom, carried by the `toStr` of a panic message in the generated `export` (Aeneas discharges its length bound
-`by decide +native`), not by the argument: `import_ok_gives_invariant`, `restored_counterHeadroom_iff`,
-`RestoredDecryptHypotheses.ofInvariant`, `export_import_established`, `restored_established_continues`,
-`restored_established_inhabited`, `export_spec` and `export_import_of_shape` list that one;
+`by decide +native`), not by the argument: `import_ok_gives_invariant`, `RestoredDecryptHypotheses.ofInvariant`,
+`export_import_established`, `restored_established_continues`, `restored_established_inhabited`,
+`restored_decrypt_hypotheses_jointly_satisfiable`, `export_spec` and `export_import_of_shape` list that one;
 `RestoredDecryptHypotheses.refines`, `restored_decrypt_refines` and `restored_established_initiator_decrypt_refines` list it
 and the nine `native_decide` constants of `decrypt_ratchet_refines_of_invariant`. These eleven are compiler-trusted. Of the
-other 94 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
-`model_kemCiphertextLenBound` and 66 of the codec module's), and 26 on those three and between 1 and 51 opaque constants of the
-unit, which the types and definitions they mention refer to. Each of the 105 results carries an axiom pin and a statement
-pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants ten faults in
-copies of the three modules and requires Lean to refuse each at a named declaration or pin: the invariant inversion against
-a copy of `import` with the `Inconsistent` refusal removed (refused in `import_ok_gives_invariant`); `headroomCheck` without
-its sparse-epoch clause (refused in `counterHeadroom_iff_check`); `RestoredScope` widened to a `KeysSampled` Braid (refused in
-`sessionRefines_restored`); the round trip concluding a session with its associated data emptied, and without the
-`VecAsSlice` law (each refused in `export_import_of_shape`); the classical ratchet encoding with two counters swapped
-(refused in `ratchet_to_bytes_spec`); the Braid decoder without its epoch bound (refused in `braid_from_bytes_of`);
-`OptionBranchSomeShape` weakened to say only that `branch` returns (refused in `lifecycle_take_len_prefixed_of`); the
-established shape without the ciphertext bound (refused in `codecShape_parts`); and `KemCiphertextLenBoundShape` without its
-bound, with the pins kept (refused at its `#print` pin).
+other 96 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
+`model_kemCiphertextLenBound` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
+unit, which the types and definitions they mention refer to. Each of the 107 results carries an axiom pin and a statement
+pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants twelve faults in
+copies of the three modules and requires Lean to refuse each at a named declaration or pin, with a message that names the
+fact removed (an unsolved goal stating it, or the mismatch or pin text), not a failure of the proof script's shape: the
+invariant inversion against a copy of `import` with the `Inconsistent` refusal removed, with the proof adapted to that body
+(refused in `import_ok_gives_invariant`, the invariant goal unsolved); `headroomCheck` without its sparse-epoch clause, with
+the proof adapted (refused in `counterHeadroom_iff_check`, the sparse-epoch goal unsolved); `RestoredScope` widened to a
+`KeysSampled` Braid (refused in `sessionRefines_restored`); the round trip concluding a session with its associated data
+emptied, and without the `VecAsSlice` law (each refused in `export_import_of_shape`); the classical ratchet encoding with two
+counters swapped (refused in `ratchet_to_bytes_spec`); the Braid epoch reader without the hypothesis that the epoch is not
+`u64::MAX` (refused in `read_epoch_of`, that goal unsolved); `OptionBranchSomeShape` weakened to let `branch` on `Some x`
+break, with the proof adapted to both cases (refused in `lifecycle_take_len_prefixed_of`, the break cases unsolved); the
+established shape without the ciphertext bound (refused in `codecShape_parts`); the round-trip half of the joint model at an
+interpretation whose public-key reader drops the key (refused in `restored_laws_model_established`); `KemCiphertextLenBoundShape`
+without its bound, with the pins kept (refused at its `#print` pin); and the joint model of the composed premise list with
+its round-trip half at `Interp.model`, two interpretations, with the pins kept (it compiles, and is refused at the statement
+pin of `restored_decrypt_laws_model`).
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
