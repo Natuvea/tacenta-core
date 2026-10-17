@@ -61,6 +61,8 @@ import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
+import Translation.UnitLifecycleEstablishInitiatorShape
+import Translation.UnitLifecycleEstablishedDecrypt
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -89,6 +91,11 @@ with `Session::invariant`, together at one witness under named laws that one int
 the agreements at the same oracle's KEM model; the witness state is built for the hypotheses.
 `UnitLifecycleDecryptRunBounds.lean` derives that refinement's per-run receive bounds from
 `Session::invariant` and four counter ceilings, which stay assumed, and restates it with them.
+`UnitLifecycleEstablishInitiatorShape.lean` derives, at every successful `establish_initiator_for`
+output, `Session::invariant` (under two assumed laws about X25519 public keys and the KEM ciphertext
+length, with models) and the four counter ceilings, with no hypothesis for the ceilings, and the relation
+to the model session read off the output, which holds by definition at its `KeysUnsampled` Braid; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
+`decrypt_ratchet` refinement and, for ratchet-type frames, to the public `decrypt`.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

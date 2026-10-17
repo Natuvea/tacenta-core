@@ -77,6 +77,16 @@ this section says in one place what is not proved.
   that combination of Triple and Braid states; the invariant admits it. It takes one more assumed law, and its model
   step is not fixed either; a run carrying a chunk there is caller-selected and not a claim ("Proved
   (the hypotheses of the `decrypt_ratchet` refinement at a session whose Braid holds a key pair ...)").
+  At a session that `establish_initiator_for` returned, for every input, `Session::invariant` (under two assumed laws about
+  X25519 public keys and the KEM ciphertext length) and the four counter ceilings follow from the establishment rather
+  than being assumed; the relation to the model session read off it holds by definition at a `KeysUnsampled` Braid, which
+  the establishment supplies, and that model session is not shown to be the model's own establishment output. The
+  `decrypt_ratchet` refinement and the public `decrypt` for ratchet-type frames apply there, success and refusal alike, and
+  their whole premise list holds together in one interpretation. A copy of that session, exported before its first
+  `encrypt` and restored after the responder replied, decrypts the reply in an honest run (a test on the seeds it tries,
+  `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof). Initial frames, `encrypt`, `establish_responder`
+  and `import` are not covered ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model
+  relation at every successful `establish_initiator_for` output ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4085,6 +4095,128 @@ copy of the module (the sparse epoch ceiling dropped, the clock ceiling weakened
 from the Triple derivation, the parked clock moved one below the park, and the Braid ceiling weakened to the decoder's, once
 without the pins, refused in `decryptRatchetRun_of_invariant`, and once with them, refused at the pin of `CounterHeadroom`) and
 requires Lean to refuse each at a named declaration or at that pin.
+
+## Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model relation at every successful `establish_initiator_for` output, and the receive at that session, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleEstablishInitiatorShape.lean`, `Translation/UnitLifecycleEstablishedDecrypt.lean`.
+
+`decrypt_ratchet_refines_of_invariant` (previous section) takes `Session::invariant`, `SessionRefines` and `CounterHeadroom`
+of the session it runs on, and until these results every session they were shown at was built for them (`sessionOf`,
+`invReal`). These results derive the three from an actual establishment result: for every identity, published bundle,
+expected identity and source of randomness, every session `s` with
+`establish_initiator_for rc crc our bundle expected rng0 = ok (.Ok s, rng1)`; no concrete input is chosen. The model session
+is `establishedModelOf dh s`, read off `s` through the DH view (the Triple through `ratchetAbs`/`spqrAbs`, the Braid through
+`unsampledModelOf`); it is not shown to be the model's own `establishInitiator` output, and the T3 refinement of
+`establish_initiator_for` is not here. `SessionRefines dh K s (establishedModelOf dh s)` holds by definition for every session
+whose Braid is `KeysUnsampled` (each field of the relation is an equation through the abstraction functions), and its
+uniqueness follows the same way; what the establishment supplies to the relation is that Braid state. The
+establishment-specific content is `Session::invariant` and the four ceilings.
+
+Of the clauses of `Session::invariant` at the output, these hold by construction (the value the code stores, or a recomputation
+of the same opaque function on the same arguments): the ratchet key equals the Triple's sending key, the Braid has not failed,
+its role (`is_initiator = some true` at epoch 1) differs from `is_responder = false`, the associated data is in initiator order,
+the sparse direction `A2b` agrees with the role and with `started_as_sender = some true`, a pending initial message without an
+established ephemeral, the classical invariant apart from its own key (the peer key canonical by the establishment's own check
+of the signed prekey), the sparse invariant and the Braid invariant; the epoch clause also uses `OptionEqU64Shape` (assumed,
+recorded in the headroom section). Two clauses hold vacuously at this state because `established_ephemeral = none`: the
+`decode_ec` check of an established ephemeral in clause (f), and the responder branch of the orientation clause (c). The peer identity key passes `is_valid_identity_key` by inversion of `verify_bundle`. Our
+identity key's validity, the ratchet key's canonical bytes and the pending ephemeral key's canonical bytes use the law
+`DhPublicValid` (every public key `PrivateKey::public_key` returns has canonical bytes and is of prime order), and the pending
+ciphertext's length uses the law `KemCiphertextLenOf` (a successful `kem::encapsulate` returns a ciphertext of length
+`kem::ciphertext_len`). Both laws are assumed, true by reading of `tacenta-core/boundary/src/dh.rs` and
+`tacenta-core/boundary/src/kem.rs`, not checked in Lean, and each has a model (`LIMITATIONS.md`, "The headroom records").
+
+- `establish_initiator_for_parts`: every successful output is the session `InitiatorOutputParts.session` assembles from
+  parts read off the generated function, with the facts the code checked or computed on the way; no hypothesis.
+- `establish_initiator_for_admissible`: every successful output passes `Session::invariant`, under `DhPublicValid`,
+  `KemCiphertextLenOf` and `OptionEqU64Shape`, all assumed.
+- `counterHeadroom_of_established`: all four fields of `CounterHeadroom` hold at every successful output (the classical clock
+  and both sparse chain counters 0, the sparse epoch 0, the Braid epoch 1); no hypothesis.
+- `sessionRefines_established`: every successful output refines `establishedModelOf dh s`, for every DH view and KEM; no
+  hypothesis. It holds by definition once the Braid is `KeysUnsampled` (above).
+- `sessionRefines_established_unique`: every model session a successful output refines equals `establishedModelOf dh s`; no
+  hypothesis, and by definition in the same way.
+- `structural_parts`, `parts_invariant`, `initiatorTriple_invariant`, `counterHeadroom_parts`, `sessionRefines_parts`,
+  `sessionRefines_parts_unique`: the same facts of the session the parts make; `initiatorTriple_invariant` is
+  `Triple::invariant` of the Triple `init_sender` builds, given its two public keys are canonical.
+- `init_sender_ok`, `braid_initiator_ok`, `verify_bundle_ok`: a successful `init_sender` returns that Triple, a successful
+  `Braid::initiator` a `KeysUnsampled` Braid at epoch 1, and `verify_bundle` accepts only an identity key that passes
+  `is_valid_identity_key`; no hypothesis.
+- `dhPublicValid_canonical`, `dhPublicValid_valid`, `identity_public_valid`, `canonical_of_is_canonical_key`: under
+  `DhPublicValid`, a public key `public_key` returns, our identity key among them, has canonical bytes and passes
+  `is_valid_identity_key`; and `is_canonical_key` returning `true` gives the canonical test of the key's bytes, with no
+  hypothesis.
+- `singleton_length_le`, `verify_successBundle`, `shared_secret_successBundle`: steps of the inhabitation below: the side
+  condition of a one-element vector, and `verify_bundle` and `initiator_shared_secret` succeeding on the bundle it uses
+  when the signatures verify and the agreements are contributory.
+- `dhPublicValid_is`, `kemCiphertextLenOf_is`, `model_dhPublicValid`, `model_kemCiphertextLen`: each law is its shape over
+  an interpretation at the real constants, and the joint model satisfies each shape (`KemCiphertextLenLawShape` at the constant
+  `ok 0`, since `Interp` has no field for `kem::ciphertext_len`).
+- `establish_initiator_for_succeeds`, `established_initiator_inhabited`: under the axiom part of the initiator contract
+  record and `InitiatorSuccessShape` (a self-equal valid key on which a signature verifies and every agreement is
+  contributory, and a KEM key on which encapsulation succeeds), both assumed, a successful output exists for every identity
+  and source state, and the invariant (under the three laws), the ceilings and the relation hold at it. The witness bundle
+  uses one key as identity key and signed prekey and has no one-time prekey; the success branch with a one-time prekey is
+  covered by the universal theorems above and is not shown inhabited.
+- `establishment_hypotheses_satisfiable`, `model_initiatorSuccess`: those hypotheses and the three laws hold together in the
+  joint model at the byte-stream source, in the substitution sense of `LIMITATIONS.md`; not a statement that the real
+  primitives meet them.
+- `honestChunk_established`: `HonestChunk` of the model session's Braid holds for every model message; no hypothesis.
+- `established_initiator_decrypt_ratchet_hypotheses`: `DecryptOfInvariantHypotheses` holds at every successful output and
+  `establishedModelOf dh s`, for every message and source state, given the boundary records (`DecryptOracleOf`, `DhCodecOf`,
+  `DecryptRatchetContracts`, `DerivedKeysModel`, `DecryptRatchetAgreements oracle.braidKem`), the trace equation, the chunk
+  relation and one draw, which are the caller's, and the three laws, all assumed.
+- `established_initiator_decrypt_ratchet_refines`: under the same hypotheses, `decrypt_ratchet` at every successful output
+  returns and its result refines the model's step, refusals included.
+- `established_initiator_decrypt_refines`: under the same hypotheses, the public `Session::decrypt` at every successful
+  output refines the model's `decrypt` for every message whose type byte is the ratchet type.
+- `EstablishedDecryptHypotheses.refines`: the record `EstablishedDecryptHypotheses`, every hypothesis of
+  `established_initiator_decrypt_refines` at one choice of every binder, gives that theorem's conclusion.
+- `established_decrypt_hypotheses_jointly_satisfiable`, `sampleMessage_real_type`, `sampleMessage_chunk`: at the real
+  constants, under the decrypt laws `DecryptJointLaws K dh` of `UnitLifecycleDecryptScreen`, the axiom part of the initiator
+  contract record, `InitiatorSuccessShape`, `DhPublicValid` and `KemCiphertextLenOf`, all assumed, every field of the record
+  holds together for every identity and codeword view: an oracle whose Braid KEM model is `K`, a successful establishment from
+  the empty byte-stream source, and the sample ratchet frame (no agreement chunk) with one draw.
+- `established_decrypt_laws_model`, `oneKey_length`, `oneKey_canonical`, `oneKey_ne_zero`: one interpretation,
+  `Interp.modelEstablished` (`Interp.modelDecrypt` with a constant canonical public key), satisfies the shapes of all of those
+  hypotheses together, with `toyKem`, `optionEqImpl` and the constant `ok 0` for `kem::ciphertext_len`, in the substitution
+  sense of `LIMITATIONS.md`. `Interp.modelDecrypt` itself, the model of `DecryptJointLaws`, does not satisfy
+  `DhPublicValidShape` (its public key is the private key's bytes, which need not be canonical), which is why the variant is
+  needed; neither shows anything of the real primitives.
+
+**What this establishes at a real state, and what it does not.** The success arm at an established initiator is
+reached in an honest run through a copy of the session: a snapshot exported before the initiator's first `encrypt` and
+restored after the responder replied decrypts that reply (`tacenta-core/tests/restored_initiator_receives_reply.rs`, on the
+20 seeds it tries; a test, not a proof). A session value never copied leaves this state at its own first `encrypt`, which the
+peer needs before it can reply. So the composed results cover success and refusal at this state. What they say of a step is
+`StepRefines`: the result, the post-state and the draws left refine the model's step; for `decrypt_ratchet`, the model step
+it is related to keeps the session on a refusal (`Model.Lifecycle.decryptRatchet_refusal_keeps_session`), so the real
+post-state of a refusal refines the unchanged model session. "Every frame" is bounded by the caller's premises: a ratchet-type frame whose
+agreement chunk, if it has one, meets `IncomingChunkRefines`, with at least one draw left. The chunk premise is not benign for
+a frame from a sender who is not honest: a spliced or inconsistent chunk is outside the theorem whether the frame is refused
+or accepted. Initial-type frames, `encrypt`, `establish_responder` and `import` are not covered. The two laws `DhPublicValid`
+and `KemCiphertextLenOf` are assumed, as are `OptionEqU64Shape`, the boundary records, the chunk relation and the draw. As for
+the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
+session lifecycle out.
+
+**Compiler trust and pins.** `established_initiator_decrypt_ratchet_refines` and `established_initiator_decrypt_refines` are
+compiler-trusted, and so is `EstablishedDecryptHypotheses.refines`: they apply `decrypt_ratchet_refines_of_invariant` and list
+its nine `native_decide` constants and 57 opaque constants of the unit. Of the other 38 results, six rest on `propext`,
+`Classical.choice` and `Quot.sound` alone (`singleton_length_le`, `initiatorTriple_invariant`, `sampleMessage_real_type`,
+`oneKey_length`, `oneKey_canonical`, `oneKey_ne_zero`), and the other 32 on those three and between 1 and 57 opaque constants
+of the unit, which the types and definitions they mention refer to. Each of the 41 results carries an axiom pin and a statement
+pin, and each of the sixteen definitions the section adds a `#print` pin (`initChains`, `initiatorTriple`,
+`InitiatorOutputParts`, `InitiatorOutputParts.session`, `DhPublicValidShape`, `DhPublicValid`, `KemCiphertextLenLawShape`,
+`KemCiphertextLenOf`, `unsampledModelOf`, `establishedModelOf`, `InitiatorSuccessShape`, `successBundle`,
+`EstablishedDecryptHypotheses`, `Interp.modelEstablished`, `viewEstablished`, `oneKey`). `check-established-negatives.py` plants
+thirteen faults in copies of the two modules and requires Lean to refuse each at a named declaration or pin: the walk's Triple with its clock at 1 (refused in `init_sender_ok`); the structural invariant without
+`DhPublicValid` for our identity key, without it for the ephemeral key, without `KemCiphertextLenOf` and without the
+`verify_bundle` inversion (each refused in `structural_parts`); `DhPublicValid` without its prime-order clause (refused in
+`dhPublicValid_valid`, and with the pins kept at the pin of `DhPublicValidShape`); the ceiling lemma restated at the output
+with the clock parked at `u32::MAX - 1` and with the Braid epoch at `u64::MAX - 1` (each refused in `counterHeadroom_parts`);
+the model session with the Braid epoch one higher and with empty associated data (each refused in `sessionRefines_parts`);
+`InitiatorSuccessShape` without the key's self-equality (refused in `establish_initiator_for_succeeds`); and the joint model
+with `Interp.modelDecrypt`'s public key (refused in `established_decrypt_laws_model`).
 
 ## Proved (tier T3 witnesses, session lifecycle: invariant-passing session states that are not fresh, and the restated `decrypt_ratchet` hypotheses at stored keys, on the eight-leaf unit)
 

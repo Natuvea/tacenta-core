@@ -1654,6 +1654,55 @@ REQUIRED_PINS = frozenset(
         "parkedSession_not_counterHeadroom",
         "invariant_does_not_give_counterHeadroom",
     )]
+    # The shape, invariant, ceilings and relation at every successful `establish_initiator_for` output, its
+    # two laws and the inhabited success case (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "singleton_length_le",
+        "init_sender_ok",
+        "braid_initiator_ok",
+        "verify_bundle_ok",
+        "establish_initiator_for_parts",
+        "dhPublicValid_is",
+        "model_dhPublicValid",
+        "kemCiphertextLenOf_is",
+        "model_kemCiphertextLen",
+        "dhPublicValid_canonical",
+        "dhPublicValid_valid",
+        "identity_public_valid",
+        "canonical_of_is_canonical_key",
+        "initiatorTriple_invariant",
+        "structural_parts",
+        "parts_invariant",
+        "establish_initiator_for_admissible",
+        "counterHeadroom_parts",
+        "counterHeadroom_of_established",
+        "sessionRefines_parts",
+        "sessionRefines_established",
+        "sessionRefines_parts_unique",
+        "sessionRefines_established_unique",
+        "model_initiatorSuccess",
+        "verify_successBundle",
+        "shared_secret_successBundle",
+        "establish_initiator_for_succeeds",
+        "established_initiator_inhabited",
+        "establishment_hypotheses_satisfiable",
+    )]
+    # The `decrypt_ratchet` and public `decrypt` refinements at an established initiator session
+    # (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "honestChunk_established",
+        "established_initiator_decrypt_ratchet_hypotheses",
+        "established_initiator_decrypt_ratchet_refines",
+        "established_initiator_decrypt_refines",
+        "EstablishedDecryptHypotheses.refines",
+        "sampleMessage_real_type",
+        "sampleMessage_chunk",
+        "established_decrypt_hypotheses_jointly_satisfiable",
+        "oneKey_length",
+        "oneKey_canonical",
+        "oneKey_ne_zero",
+        "established_decrypt_laws_model",
+    )]
     # Invariant-passing session states that are not fresh, and the restated refinement's hypotheses
     # together at the stored-key state (`UnitLifecycleDecryptStates`).
     + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
@@ -1770,6 +1819,11 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
         "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
         "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
+        # The refinements at an established initiator session apply the restated refinement and
+        # inherit its constants (`UnitLifecycleEstablishedDecrypt`).
+        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_ratchet_refines",
+        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_refines",
+        "Tacenta.UnitLifecycleEstablishedDecrypt.EstablishedDecryptHypotheses.refines",
         # The public `decrypt` on frames that are not initial messages: the join composes
         # `decrypt_ratchet_refines_complete` and rests on its compiler-evaluated constants, no others.
         "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame",
@@ -2762,6 +2816,70 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "parkedTriple",
         "parkedSession",
     )]
+    # The establishment shape, its laws, the model state and the success case
+    # (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "singleton_length_le",
+        "init_sender_ok",
+        "braid_initiator_ok",
+        "verify_bundle_ok",
+        "establish_initiator_for_parts",
+        "dhPublicValid_is",
+        "model_dhPublicValid",
+        "kemCiphertextLenOf_is",
+        "model_kemCiphertextLen",
+        "dhPublicValid_canonical",
+        "dhPublicValid_valid",
+        "identity_public_valid",
+        "canonical_of_is_canonical_key",
+        "initiatorTriple_invariant",
+        "structural_parts",
+        "parts_invariant",
+        "establish_initiator_for_admissible",
+        "counterHeadroom_parts",
+        "counterHeadroom_of_established",
+        "sessionRefines_parts",
+        "sessionRefines_established",
+        "sessionRefines_parts_unique",
+        "sessionRefines_established_unique",
+        "model_initiatorSuccess",
+        "verify_successBundle",
+        "shared_secret_successBundle",
+        "establish_initiator_for_succeeds",
+        "established_initiator_inhabited",
+        "establishment_hypotheses_satisfiable",
+        "initChains",
+        "initiatorTriple",
+        "InitiatorOutputParts",
+        "InitiatorOutputParts.session",
+        "DhPublicValidShape",
+        "DhPublicValid",
+        "KemCiphertextLenLawShape",
+        "KemCiphertextLenOf",
+        "unsampledModelOf",
+        "establishedModelOf",
+        "InitiatorSuccessShape",
+        "successBundle",
+    )]
+    # The refinements at an established initiator session (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "honestChunk_established",
+        "established_initiator_decrypt_ratchet_hypotheses",
+        "established_initiator_decrypt_ratchet_refines",
+        "established_initiator_decrypt_refines",
+        "EstablishedDecryptHypotheses.refines",
+        "sampleMessage_real_type",
+        "sampleMessage_chunk",
+        "established_decrypt_hypotheses_jointly_satisfiable",
+        "oneKey_length",
+        "oneKey_canonical",
+        "oneKey_ne_zero",
+        "established_decrypt_laws_model",
+        "EstablishedDecryptHypotheses",
+        "Interp.modelEstablished",
+        "viewEstablished",
+        "oneKey",
+    )]
     # The non-fresh states, their results and the joint statements at them
     # (`UnitLifecycleDecryptStates`).
     + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
@@ -3046,6 +3164,29 @@ REQUIRED_PRINT_FORM = frozenset(
         "DecryptOfInvariantHypotheses",
         "parkedTriple",
         "parkedSession",
+    )]
+    # The establishment parts, the two laws and their shapes, the model state and the success shape
+    # (`UnitLifecycleEstablishInitiatorShape`).
+    + ["Tacenta.UnitLifecycleEstablishInitiatorShape." + n for n in (
+        "initChains",
+        "initiatorTriple",
+        "InitiatorOutputParts",
+        "InitiatorOutputParts.session",
+        "DhPublicValidShape",
+        "DhPublicValid",
+        "KemCiphertextLenLawShape",
+        "KemCiphertextLenOf",
+        "unsampledModelOf",
+        "establishedModelOf",
+        "InitiatorSuccessShape",
+        "successBundle",
+    )]
+    # The connected theorem's hypothesis record and the joint model (`UnitLifecycleEstablishedDecrypt`).
+    + ["Tacenta.UnitLifecycleEstablishedDecrypt." + n for n in (
+        "EstablishedDecryptHypotheses",
+        "Interp.modelEstablished",
+        "viewEstablished",
+        "oneKey",
     )]
     # The non-fresh states, the stored-key model and its shape (`UnitLifecycleDecryptStates`).
     + ["Tacenta.UnitLifecycleDecryptStates." + n for n in (
