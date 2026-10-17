@@ -4055,8 +4055,8 @@ bounds are used the Braid epoch ceiling covers the sparse one; the field is kept
   under the laws `DecryptJointLaws K dh` of `UnitLifecycleDecryptScreen`, every hypothesis of the restated theorem holds
   together at that module's witness session, for every codeword view; `DecryptOfInvariantHypotheses` is the hypothesis list,
   and the restated theorem applies to it. The witness state is built for the hypotheses, and the laws are assumed, as there.
-  The witness is that fresh session, so no ceiling is exercised away from zero; no witness with a stored key, an open chain or
-  the held-KEM state is given.
+  The witness is that fresh session, so no ceiling is exercised away from zero there; the next section gives a witness with
+  stored keys, open chains and counters away from zero, and one beside the held-KEM Braid.
 - `parkedTriple_invariant`, `structural_parkedSession`, `parkedSession_invariant`, `parkedSession_not_counterHeadroom`,
   `invariant_does_not_give_counterHeadroom`: a session over fresh states with the classical clock at `u32::MAX - 1` passes
   `Session::invariant` (under `ValidKeyShape`, `OptionEqU64Shape` and `DhCodecTotal`, as `sessionOf_invariant`) and fails
@@ -4085,6 +4085,116 @@ copy of the module (the sparse epoch ceiling dropped, the clock ceiling weakened
 from the Triple derivation, the parked clock moved one below the park, and the Braid ceiling weakened to the decoder's, once
 without the pins, refused in `decryptRatchetRun_of_invariant`, and once with them, refused at the pin of `CounterHeadroom`) and
 requires Lean to refuse each at a named declaration or at that pin.
+
+## Proved (tier T3 witnesses, session lifecycle: invariant-passing session states that are not fresh, and the restated `decrypt_ratchet` hypotheses at stored keys, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleDecryptStates.lean`.
+
+The joint witness of the previous section is a session over fresh states (empty stores, no receiving chain, clock 0, sparse
+epoch 0, no chain, Braid epoch 1). These results build sessions that `Session::invariant` accepts and that are not fresh,
+and show the hypotheses of `decrypt_ratchet_refines_of_invariant` together at one of them. Every state is built for the
+hypotheses, not shown produced by the code: none is shown to come from `establish_initiator`, `establish_responder` or
+`import`, or from any sequence of operations.
+
+The states. `responderSession`: an established ephemeral key (`ephemeralOf a`, the curve byte `0x05` then the 32 bytes of
+the canonical key `a`), no pending initial message, a classical receiver with no chain, sparse epoch 1, direction `B2a`, and a
+Braid in `KeysUnsampled` at epoch 2. `pendingSession`: the fresh session with a pending initial message whose ephemeral is the
+identity key and whose KEM ciphertext has the length `kem::ciphertext_len` returns. `storedSession`: a Triple
+(`storedTriple a 2`) with both classical chains open, a peer key, `ns = 3`, `nr = 4`, `pn = 2`, `events = 5` and one stored
+classical key (`n = 2`, `stored_at = 4`), and a sparse ratchet at epoch 2 with one chain-table entry holding a send chain at
+counter 7 and a receive chain at counter 6 and one stored sparse key (epoch 2, `n = 3`); the Braid is `KeysUnsampled` at
+epoch 3. `heldStoredSession`: `storedTriple a 0` beside the Braid of `UnitHeldKemWitness` (`KeysSampled` at epoch 1, holding
+a generated key pair). Every state is a session with itself: `ValidKeyShape` gives one valid key, so both identities are the
+key `pkb`, and in `storedTriple` the peer ratchet key `dhr_pub` and the stored classical key's `dh` are our own ratchet key
+`a`, the bytes of that identity key. The "peer key" below is that key, not a second party's.
+
+What each state assumes. `pendingSession_invariant`, `storedSession_invariant` and `heldStoredSession_invariant` take what
+`sessionOf_invariant` takes: the key material of `ValidKeyShape` as hypotheses, `OptionEqU64Shape` and the associated data
+`identity_ad` returns. `responderSession_invariant` also takes `DhCodecTotal` (assumed; carried by every contract record and a
+field of `DecryptJointLaws`), for `PublicKeyBytes::from_bytes` on the key `decode_ec` extracts. `pendingSession_invariant`
+also takes `kem::ciphertext_len = ok n`, and `pending_state_exists` takes `KemCiphertextLenTotal` (assumed; a T1 contract of
+`UnitLifecycleT1`). `kem::ciphertext_len` is opaque: that it returns 1568 is not stated or checked. `heldStoredSession_invariant`
+also takes the held Braid's invariant, which `heldBraid_invariant` gives under that module's laws.
+
+- `responderSession_invariant`, `structural_responderSession`, `responderTriple_invariant`: `Session::invariant` returns `true`
+  at the responder state: clause (b) at sparse epoch 1 and Braid epoch 2, (c) on the responder's branch (both identities are
+  `pkb`, so the orientation is not distinguished, and a swapped orientation would pass as well), (d) with both halves on the
+  responder's side, (e) and (f) on the `established_ephemeral` arm, and the Triple's role agreement with
+  `started_as_sender = some false`.
+- `canonicalKey_ephemeral`, `session_decode_ec_ephemeral`, `decode_ec_ephemeral`: the steps of the (f) arm: the translated
+  `decode_ec` accepts `ephemeralOf a` when `a` is canonical, and the unit's `decode_ec` returns `some` under `DhCodecTotal`.
+- `classicalStore_nil_le`, `sparseStore_nil_le`, `responderChains_le`: the length side conditions of the responder Triple's
+  three vectors, stated as named results so that the definition and its `#print` pin carry no auxiliary proof constant.
+- `pendingSession_invariant`, `structural_pendingSession`: `Session::invariant` returns `true` at the pending state, for every
+  ciphertext of the length `kem::ciphertext_len` returns: (e) with the pending message, (f) on the ciphertext-length arm, (h)
+  on the pending ephemeral.
+- `storedSession_invariant`, `structural_storedSession`, `storedTriple_invariant`, `window_of`: `Session::invariant` returns
+  `true` at the stored-key state, and `Triple::invariant` at `storedTriple a E` for every sparse epoch `E` with
+  `E + 2 <= u64::MAX`: every clause of the classical and sparse invariants on a store of one key each, (b) at sparse epoch 2
+  and Braid epoch 3. The three clauses that no two entries collide (`store_map`, `chains_distinct`, `skipped_map`) hold
+  vacuously on those one-element lists; the repeated-header negative below shows the classical one can fail. With both classical chains open `started_as_sender` is `none`, so the role agreement holds by that arm.
+- `responder_state_exists`, `pending_state_exists`, `stored_state_exists`: under `ValidKeyShape`, `OptionEqU64Shape` and
+  `DhCodecTotal` (with `KemCiphertextLenTotal` for the second), each kind of state exists; the third also meets
+  `CounterHeadroom` and has the shape `StoredKeysShape 2 3`.
+- `storedSession_sessionRefines`, `storedSession_counterHeadroom`, `storedSession_retryRunBounds`: at the stored-key state,
+  `SessionRefines` holds to `storedModel` at every Braid KEM model, `CounterHeadroom` holds, and `RetryRunBounds` holds by
+  `retryRunBounds_of_invariant` for every header and the sparse output of every Braid receive.
+- `stored_classicalMatch_tight`, `stored_sparseMatch_tight`: for a header chosen to name a stored key, the model store's
+  filter has exactly one entry, so the `<= 1` bounds of `RetryRunBounds.classicalMatch` and `sparseMatch` are met with
+  equality there. This is not the run's header.
+- `stored_run_header_names_no_stored_key`: at the header of the run the joint statement instantiates (the first witness's
+  message: classical `n = 1`, sparse `(0, 1)`), both filters of the stored-key model are empty, against the stored keys'
+  classical `n = 2` and sparse `(2, 3)`.
+- `stored_model_refuses_of_agreement`: the model's step at the stored-key state refuses at the first agreement when the
+  oracle's agreement refuses the all-zero ratchet key. No law states that premise; that the real agreement refuses that key
+  is by reading the X25519 boundary (`invReal_agreement_is_real`).
+- `storedSession_runInputs`, `storedSession_shape`, `decrypt_of_invariant_hypotheses_at_stored`,
+  `decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys`: under the laws `DecryptJointLaws K dh` (assumed, as in
+  `UnitLifecycleDecryptScreen`), every field of `DecryptOfInvariantHypotheses` holds together at a session with the shape
+  `StoredKeysShape 2 3` and its model, at the first witness's message and source, for every codeword view. The chunk and
+  honest fields of `DecryptRatchetRunInputs` are met only by the arm for a message without a chunk. `StoredKeysShape` fixes
+  the stores, the open chains, the classical counters and the two epochs, and not the sparse chain counters: the joint
+  statements do not carry the counters 7 and 6, which only `storedSession_counterHeadroom` and
+  `heldStoredSession_counterHeadroom`, at the concrete states, use.
+- `structural_heldStoredSession`, `heldStoredSession_invariant`, `heldStoredSession_sessionRefines`,
+  `heldStoredSession_counterHeadroom`, `heldStoredSession_shape`, `heldStoredSession_runInputs`,
+  `decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys_held`: the same at the stored-key Triple beside the held
+  Braid, under `DecryptWrapperLaws dh` and `LawGenerateSucceeds` (assumed, as in `UnitHeldKemWitness`), with `HeldKemAt` and
+  the shape `StoredKeysShape 0 1`.
+
+**Which ceilings are exercised.** At `storedSession` the four fields of `CounterHeadroom` are met away from zero: the clock at
+5, the sparse epoch at 2, two chain counters (7 and 6; at the fresh witness the table holds no chain and that field held
+vacuously) and the Braid epoch at 3. At `heldStoredSession` the clock and the two chain counters are away from zero; the
+sparse epoch (0) and the Braid epoch (1) are at their least values. Of the eleven fields of `RetryRunBounds` at
+`storedSession`, ten are met over non-empty data: both match bounds (tight for headers naming a stored key, not the run's,
+at which both filters are empty), both stores and the chain-table room (each at length 1, far from binding), the chain-table
+and stored-key epoch fields, and the counters; `sparseOutputEpoch` still holds vacuously at the run, whose Braid receive
+returns no output. No counter
+is near its ceiling: the parked session of the previous section is the edge for the clock.
+
+**What is not shown.** That any of these states is produced by the code, or kept by an operation. A run that carries an
+agreement chunk at them. The restated theorem at the responder or the pending state, which are shown to pass the invariant
+only. That the run reads the stored keys: it does not, because the run's header names neither
+(`stored_run_header_names_no_stored_key`); and the model's step refuses at the first agreement if the oracle's agreement
+refuses the all-zero key (`stored_model_refuses_of_agreement`), a premise that holds only by reading. A session between two
+distinct identities. No proof
+here chooses a width of `usize`. As for the previous section, `check-hypothesis-witnesses.sh` routes this section out.
+
+**Compiler trust and pins.** No result here rests on a compiler-evaluated constant. `canonicalKey_ephemeral`,
+`session_decode_ec_ephemeral`, `classicalStore_nil_le`, `sparseStore_nil_le`, `responderChains_le`,
+`responderTriple_invariant`, `window_of` and `storedTriple_invariant` rest on `propext`, `Classical.choice` and `Quot.sound`
+alone; the other twenty-eight on those three and between 4 and 52 opaque constants of the
+unit (`stored_run_header_names_no_stored_key` and `stored_model_refuses_of_agreement` list 4). `storedSession_invariant`, `pendingSession_invariant` and `heldStoredSession_invariant` list eighteen, among them
+`is_prime_order_public`, `kem::ciphertext_len`, `PublicKeyBytes::from_bytes` and `Option::eq`; `responderSession_invariant`
+lists twenty-two, adding `PrivateKey::from_bytes`, `PrivateKey::to_bytes`, the `PublicKeyBytes` equality and `Zeroizing`,
+which `DhCodecTotal` names; the three existence theorems and the three joint statements list fifty-two. Each result carries an
+axiom pin and a statement pin, and each of the fourteen definitions a `#print` pin. `check-decrypt-ratchet-negatives.py`
+plants nine faults in a copy of the module without its pins (a second stored classical key under the same header, the stored
+key ahead of the clock, the sparse stored key at an epoch the table does not hold, the clock at the park `u32::MAX - 1`, the
+sparse epoch off the Braid's relation (clause (b) alone), the Braid at an even epoch with the sparse epoch moved to keep (b)
+(clause (d) alone), the responder on the initiator's sparse direction, the pending ciphertext one byte longer than
+`kem::ciphertext_len`, the ephemeral's curve byte wrong) and requires Lean to refuse each at a named declaration. At the
+parked clock the invariant proofs still pass and `storedSession_counterHeadroom` is refused.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
