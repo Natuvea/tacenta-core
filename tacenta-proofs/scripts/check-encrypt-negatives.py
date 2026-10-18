@@ -7,10 +7,9 @@ draw record from the key-generation law, the model's two-outcome step, the sessi
 leaves (its counter ceilings, its relation and `Session::invariant`), and one interpretation of every law
 the premise lists rest on.  A proof that Lean accepts after the fact it rests on is removed would hold
 nothing, so this script makes one change to a copy of the module and requires Lean to refuse it at a named
-place, with an error matching the control's marker.  Ten markers name the fact removed (an omega counterexample,
-an unsolved goal or a mismatch naming it); four accept an unsolved `False` goal at the named place (the outcome
-theorem without the refusal, the first Triple send claimed to refuse, its sparse number claimed to be 0, the
-counters claimed uncounted), one a generic proof error there (the joint model's key generation), and one the pin's
+place, with an error matching the control's marker.  Eleven markers name the fact removed (an omega
+counterexample, an unsolved goal or a mismatch naming it); three accept an unsolved `False` goal at the named place
+(the first Triple send claimed to refuse, its sparse number claimed to be 0, the counters claimed uncounted), one a generic proof error there (the joint model's key generation), and one the pin's
 text, by design:
 
   * the headroom lemma without `KemCiphertextLenBound` (refused in `encryptHeadroom_parts`: the
@@ -26,8 +25,9 @@ text, by design:
   * `KeyGenSeededFor` weakened to some randomness, the `KemAgreesFor` form, with the proof adapted to use
     whatever randomness it gives (refused in `braidSendTraceCounted_of_keysUnsampled`: that randomness is
     not shown to be the draws' value);
-  * the outcome theorem without the key-generation refusal arm, the proof adapted to rule it out (refused
-    in `established_encrypt_outcomes`: the refusal is not ruled out);
+  * the outcome theorem with its key-generation refusal arm replaced by `False` (the refusal claimed impossible),
+    its three dependents adjusted only so that they still elaborate (refused in `established_encrypt_outcomes`:
+    `False` is left unsolved with `hkg : ... keyGen ... = none` in context, and nothing else is refused);
   * the model Triple's first send claimed to refuse (refused in `established_triple_send_ok`);
   * the sparse message number of the first header claimed to be 0 (refused in
     `established_triple_send_ok`);
@@ -52,7 +52,10 @@ text, by design:
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not
 from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
 compiler that does not start, a syntax error, an unrelated failure, a refusal elsewhere than the named
-place and a refusal at the named place whose message does not match the control's marker never count.
+place and a refusal at the named place whose message does not match the control's marker never count; an
+error whose first line names a kind of failure that is not a refusal (an unresolved name, a syntax error)
+voids the run anywhere in the copy, compared without regard to case, and the script checks at start that
+this guard fires on the toolchain's own `Unknown identifier`.
 These are proof-dependency controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleEstablishedEncrypt`).
@@ -149,24 +152,17 @@ MUTANTS = [
      ['braidSendTraceCounted_of_keysUnsampled']),
     ('encrypt', 'outcomes-without-the-key-generation-refusal',
      [(re.escape('      ((oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = none ∧\n'
-                 '          output.1 = core.result.Result.Err lifecycle.Error.AgreementFailed ∧\n'
-                 '          output.2.1 = { s with braid := ⟨tacenta_braid.State.Failed⟩ }) ∨\n'
-                 '        (∃ dk ekSeed ekVector,\n'
-                 '          oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) =\n'
-                 '            some (dk, ekSeed, ekVector) ∧\n'
-                 '          ∃ bytes, output.1 = core.result.Result.Ok bytes ∧\n'
-                 '          output.2.1 = { s with triple := output.2.1.triple, braid := output.2.1.braid } ∧\n'
-                 '          (∃ auth kp encoder'),
-       '      ((∃ dk ekSeed ekVector,\n'
-       '          oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) =\n'
-       '            some (dk, ekSeed, ekVector) ∧\n'
-       '          ∃ bytes, output.1 = core.result.Result.Ok bytes ∧\n'
-       '          output.2.1 = { s with triple := output.2.1.triple, braid := output.2.1.braid } ∧\n'
-       '          (∃ auth kp encoder'),
-      (re.escape('        exact Or.inl ⟨hkg, rfl, rfl⟩\n'), '        exfalso\n        simp_all\n'),
-      (re.escape('      refine Or.inr ⟨dk, ekSeed, ekVector, hkg, bytes, rfl,\n'),
-       '      refine ⟨dk, ekSeed, ekVector, hkg, bytes, rfl,\n')],
-     UNSOLVED + r'(?:.*\n)*?⊢ False', ['established_encrypt_outcomes']),
+                 '          output.1 = core.result.Result.Err lifecycle.Error.AgreementFailed ∧\n'),
+       '      ((False ∧\n'
+       '          output.1 = core.result.Result.Err lifecycle.Error.AgreementFailed ∧\n'),
+      (re.escape('        exact Or.inl ⟨hkg, rfl, rfl⟩\n'), '        refine Or.inl ⟨?_, rfl, rfl⟩\n'),
+      (re.escape('  · exact Or.inl hl\n'), '  · exact Or.inl ⟨hl.1.elim, hl.2⟩\n'),
+      (re.escape('  rcases hcases with ⟨hnone, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes, hres, -⟩\n'
+                 '  · exact absurd hnone hkg\n'),
+       '  rcases hcases with ⟨hnone, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes, hres, -⟩\n'
+       '  · exact hnone.elim\n')],
+     UNSOLVED + r'(?:.*\n)*?hkg : [^\n]*keyGen[^\n]*= none(?:.*\n)*?⊢ False',
+     ['established_encrypt_outcomes']),
     ('encrypt', 'first-triple-send-claimed-to-refuse',
      [(re.escape('    ∃ tripleNext header messageKey,\n'
                  '      Model.Triple.sendDetailed (establishedModelOf dh p.session).triple 0 none =\n'
@@ -244,6 +240,26 @@ NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "
                  'unknown namespace', 'does not contain')
 
 
+# Lean capitalises its error messages (`Unknown identifier`, `Unknown constant`, `Function expected`), so the
+# guard is matched case-insensitively, on the first line of each error, where Lean names the kind of failure.
+ERROR_HEAD = re.compile(r'^\S+\.lean:\d+:\d+: error(?:\([^)]*\))?: (.*)$', re.M)
+
+
+def not_a_refusal(output, guards):
+    """Whether an error of `output` is of a kind that is not a refusal (a name that does not resolve, a syntax
+    error, ...), compared without regard to case."""
+    heads = [head.lower() for head in ERROR_HEAD.findall(output)]
+    return any(bad in head for head in heads for bad in guards)
+
+
+def guard_self_test(guards):
+    """The guard must fire on the toolchain's own spelling of an unresolved name."""
+    sample = ("/tmp/x.lean:3:8: error(lean.unknownIdentifier): Unknown identifier `fooBar`\n"
+              "/tmp/x.lean:4:2: error: unsolved goals\n")
+    if not not_a_refusal(sample, guards):
+        raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on `Unknown identifier`')
+
+
 def run_lean(path, log, timeout):
     with log.open('w') as output:
         try:
@@ -319,7 +335,7 @@ def errors_of(output):
 
 def check_refused(name, status, output, marker, log, mutated, where):
     refused = (status != 0 and 'error' in output and re.search(marker, output)
-               and not any(bad in output for bad in NOT_A_REFUSAL))
+               and not not_a_refusal(output, NOT_A_REFUSAL))
     if not refused:
         raise SystemExit(f'FAILED control {name}: expected Lean to refuse it with `{marker}`, '
                          f'exit={status}; {log}')
@@ -344,6 +360,7 @@ def check_refused(name, status, output, marker, log, mutated, where):
 
 
 def main():
+    guard_self_test(NOT_A_REFUSAL)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)

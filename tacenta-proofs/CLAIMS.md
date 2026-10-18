@@ -4668,10 +4668,10 @@ and `established_encrypt_successor_reachable`. Of the other 50, 12 rest on `prop
 which the types and definitions they mention refer to; the joint-satisfiability results are among them. Each of the 63
 results carries an axiom pin and a statement pin, and each of the 28 definitions a `#print` pin.
 `check-encrypt-negatives.py` plants sixteen faults in copies of the module and requires Lean to refuse each at a named
-declaration or pin. Ten are refused with a message that names the fact removed (an omega counterexample, an unsolved goal or a
-mismatch naming it); four are refused at the named place by an unsolved `False` goal, which shows the proof fails there and
-does not name the fact (the outcome theorem without the refusal, the first Triple send claimed to refuse, its sparse message
-number claimed to be 0, the successor's counters claimed to stay at 0); one by a proof error at the named place (the joint
+declaration or pin. Eleven are refused with a message that names the fact removed (an omega counterexample, an unsolved goal
+or a mismatch naming it); three are refused at the named place by an unsolved `False` goal, which shows the proof fails there
+and does not name the fact (the first Triple send claimed to refuse, its sparse message number claimed to be 0, the
+successor's counters claimed to stay at 0); one by a proof error at the named place (the joint
 model's key generation leaving the source); and one by its pin's text, by design. The faults: the headroom lemma without `KemCiphertextLenBound`, and one byte short of
 its plaintext bound (each refused in `encryptHeadroom_parts`, omega's counterexample naming the ciphertext's length or the
 bound); the Triple store facts restated at the established session with its sparse epoch set to `u64::MAX`, the proof
@@ -4679,8 +4679,9 @@ otherwise unchanged (refused in `tripleStoreFacts_parts`, omega unable to prove 
 established epoch 0); the counted draw record with one draw consumed (refused in `braidSendTraceCounted_of_keysUnsampled`,
 one draw against the two `braidSendDrawCount` gives); `KeyGenSeededFor` weakened to some randomness, the `KemAgreesFor`
 form, with the proof adapted to use it (refused there, the goal `rand = braidRandomness (d1 ++ d2)` unsolved); the outcome
-theorem without the key-generation refusal, with the proof adapted to rule it out (refused in
-`established_encrypt_outcomes`, `False` unsolved); the model's first Triple send claimed to refuse, and its sparse message
+theorem with its key-generation refusal arm replaced by `False`, its three dependents adjusted only so that they still
+elaborate (refused in `established_encrypt_outcomes`, `False` unsolved with the model's key generation refusing, `hkg`, in
+context, and no error elsewhere); the model's first Triple send claimed to refuse, and its sparse message
 number claimed to be 0 (each refused in `established_triple_send_ok`, `False` unsolved); the wire claimed to be the bare
 ratchet frame (refused in `established_encrypt_model_cases`, the unsolved goal naming `encodeInitial`); the successor's
 agreement encoder restated as the encoder before its first chunk (refused there, the goal `encoder = Model.Braid.encode ...`
