@@ -128,7 +128,7 @@ this section says in one place what is not proved.
   On the bytes that first `encrypt` returns, at a responder store whose `publish` returned the bundle the initiator used
   (with the store's identifiers distinct, a named hypothesis whose derivation from `PrekeyStore::invariant` is not
   checked), `establish_responder` refuses only with the legacy marker on the last-resort key, a handshake already
-  recorded or a full record, and only when the bundle names the last-resort key, with the store and the random source as
+  recorded, or a non-empty record whose count for the key has reached `MAX_LAST_RESORT_SEEN`, and only when the bundle names the last-resort key, with the store and the random source as
   given; otherwise it reaches the inner receive at a session whose shared secret is the initiator's, where the invariant,
   the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
   (`DhAgreeSymmetric`), a premise about the run, that the store's KEM key decapsulates the initiator's ciphertext to the
@@ -4929,11 +4929,12 @@ either
 
 | Outcome | When | Result | Prekey store after | Random source after |
 | --- | --- | --- | --- | --- |
-| a refusal the store decides (`StoreRefusal`) | only when the bundle names the store's last-resort KEM key | `LegacyLastResortRecord` (the legacy marker lists the key), `ReplayedLastResort` (the record holds this handshake's fingerprint) or `LastResortRecordFull` (the record is not empty and full for the key) | as given | as given |
+| a refusal the store decides (`StoreRefusal`) | only when the bundle names the store's last-resort KEM key | `LegacyLastResortRecord` (the legacy marker lists the key), `ReplayedLastResort` (the record holds this handshake's fingerprint) or `LastResortRecordFull` (no entry holds the fingerprint, the record is not empty, and the key's count in it, `last_resort_seen_for`, is at least `MAX_LAST_RESORT_SEEN`, the condition the code checks) | as given | as given |
 | the inner receive reached | otherwise, and possibly on the last-resort path | parts `p` whose shared secret, its zeroized bytes and both slices, peer identity and ephemeral keys and decapsulated secret are the initiator's, whose frame is the one the message carries, and whose last-resort flag holds exactly when the bundle names the last-resort key | | |
 
 No other refusal of the prepare phase occurs at this input: the disjunction has no arm for `Decode`, `UnknownPrekeyId`,
-`BadEncoding`, `Handshake(InvalidIdentityKey)`, `Handshake(NonContributoryAgreement)` or `Kem`, and where parts exist the call
+`BadEncoding`, `Handshake(InvalidIdentityKey)`, `Handshake(NonContributoryAgreement)` or `Kem` (`Kem` is excluded by the premise
+`FirstKemAgrees`, not shown impossible), and where parts exist the call
 is exactly the inner receive followed by the commit (the generic route's `establish_responder_at_parts`); the inner receive's
 own refusals are not excluded. The responder's shared secret is
 the initiator's because the responder's four agreements are the initiator's with the arguments swapped
@@ -4984,8 +4985,10 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
   the identifier; the last two under the zeroizing round trip, the others with no hypothesis beyond the stated store facts.
 - `nodup_append_disjoint`, `distinct_kem_last`, `distinct_pool_last`, `heldKemPair_last`: what `PrekeyIdsDistinct` gives at
   the entries `publish` named; no other hypothesis.
-- `replay_refusal_cause`: on the last-resort path the replay check refuses only with the fingerprint recorded
-  (`ReplayedLastResort`) or a non-empty record (`LastResortRecordFull`); no hypothesis.
+- `replay_refusal_cause`, `replay_loop_flag`: on the last-resort path the replay check refuses only with the fingerprint
+  recorded (`ReplayedLastResort`), or with no entry holding it, a non-empty record and the key's count
+  (`last_resort_seen_for`) at least `MAX_LAST_RESORT_SEEN` (`LastResortRecordFull`); the record's loop returns the store's
+  fields and whether some entry holds the fingerprint; no hypothesis.
 - `establish_responder_slot_refused`, `establish_responder_replay_refused_at`, `parts_of_steps`: the call refuses with the
   store and the source as given when the KEM lookup or the replay check refuses after the earlier steps returned, and parts
   exist when every step returned (the remaining steps under the contracts); no other hypothesis.
@@ -5001,7 +5004,9 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
   `DhPublicBytesRoundTrip` and `FirstFrameSuccessShape`, all assumed, for every initiator identity and every 64-byte source at
   whose bytes the model's key generation answers, one run exists from a store's `publish` through the establishment and a
   successful first send to parts at which the call reaches the inner receive, every premise of
-  `first_send_responder_prepares` holding there, at a store that refuses nothing (no legacy marker, an empty record).
+  `first_send_responder_prepares` holding there, at a store that refuses nothing (no legacy marker, an empty record). The
+  run takes the last-resort path at a store with one key as identity key and signed prekey and no one-time keys of either
+  kind, so the one-time path (where `PrekeyIdsDistinct` does its work) has no exhibited run.
 - `publish_reachStore`, `reachStore_distinct`, `random_secret_byte`, `reach_establishment`: steps of that run (the store and
   its published bundle, its distinct identifiers, the byte-stream draw, the establishment and its record); under the
   initiator contracts and the key and KEM facts they name.
@@ -5016,26 +5021,28 @@ invariant and the draws on success; any later message in either direction; that 
 set under the assumptions it names; it does not show the inner receive accepts.
 
 **Compiler trust and pins.** `first_send_responder_prepares` and `first_send_responder_reachable` are compiler-trusted: they
-apply `established_encrypt_outcomes` and list the encrypt wrapper's nine `native_decide` constants. Of the other 43 results, 6
-rest on `propext`, `Classical.choice` and `Quot.sound` alone (some on a subset of them), and 37 on those three and opaque
-constants of the unit. Each of the 45 results carries an axiom pin and a statement pin, and each of the 20 definitions the
+apply `established_encrypt_outcomes` and list the encrypt wrapper's nine `native_decide` constants. Of the other 44 results, 6
+rest on `propext`, `Classical.choice` and `Quot.sound` alone (some on a subset of them), and 38 on those three and opaque
+constants of the unit. Each of the 46 results carries an axiom pin and a statement pin, and each of the 20 definitions the
 section adds a `#print` pin (`InitiatorSecretParts`, `DhAgreeSymmetricShape`, `DhAgreeSymmetric`, `OneTimeMatches`, `zPool`,
 `PoolEntry`, `KemEntry`, `storeIds`, `PrekeyIdsDistinct`, `heldKemPair`, `FirstKemAgrees`, `StoreRefusal`,
 `FirstFrameSuccessShape`, `Interp.modelFirstFrame`, `InterpO.modelFirstFrame`, `viewFirstFrame`, `dhViewFirstFrame`,
-`kemViewFirstFrame`, `reachStore`, `reachBundle`). `check-responder-frame-negatives.py` plants eighteen faults in a copy of the
+`kemViewFirstFrame`, `reachStore`, `reachBundle`). `check-responder-frame-negatives.py` plants twenty faults in a copy of the
 module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
-against a message naming the change: the agreement law weakened to agree with itself (refused in `shared_secret_symmetric`);
+against a message naming the change (a proof-breakage check at that place: it shows the proof depends on what the change
+removed, not that the changed statement is false): the agreement law weakened to agree with itself (refused in `shared_secret_symmetric`);
 the joint model's agreement returning the private key and its public key the zero key (refused in `modelFirstFrame_symmetric`
 and `first_frame_laws_model`); the KEM premise saying nothing of what decapsulation returns, the legacy refusal claimed without
 the marker, the parts' secret claimed the ratchet agreement, their peer identity key the initiator's ephemeral key and the
 last-resort flag inverted (refused in `responder_first_frame_prepares`); the store's distinctness kept for its first two
 identifiers only, once for repeat-freedom and once for `ABSENT_ID` (refused in `distinct_kem_last` and `distinct_pool_last`);
-the full-record refusal at an empty record (refused in `replay_refusal_cause`); the decoded KEM identifier claimed the signed
+the full-record refusal at an empty record and below the bound (refused in `replay_refusal_cause`); the decoded KEM identifier claimed the signed
 prekey's (refused in `decode_first_frame`); `publish` claimed to name the first one-time KEM entry (refused in
 `publish_parts`); the one-time KEM lookup without its first-occurrence premise (refused in `kem_slot_one_time`); the
 initiator's ratchet agreement claimed with its identity key (refused in `establish_initiator_for_secret`); the reach's store
 with a legacy marker (refused in `first_send_responder_reachable`); the composed frame claimed for the empty plaintext
-(refused in `first_send_responder_prepares`); and the agreement law weakened with its pins kept (refused at the pin of
+and the responder fed the plaintext instead of the bytes the first send returned (refused in
+`first_send_responder_prepares`); and the agreement law weakened with its pins kept (refused at the pin of
 `DhAgreeSymmetricShape`). An error that is not a refusal voids a run anywhere in the copy, compared without regard to case.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)

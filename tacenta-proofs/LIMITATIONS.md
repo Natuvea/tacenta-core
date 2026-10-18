@@ -2654,10 +2654,12 @@ invariant, and nothing is shown here of the initiator's frame (the next paragrap
 *At the initiator's first frame.* `UnitLifecycleResponderFirstFrame.lean` feeds the bytes the first `encrypt` at an
 `establish_initiator_for` output returns to `establish_responder`, at a responder store whose `publish` returned the bundle the
 initiator used and an identity whose public key is the store's identity key. There, only the three refusals the store decides
-remain (the legacy marker on the last-resort key, the handshake's fingerprint already recorded, a non-empty full record), and only
+remain (the legacy marker on the last-resort key, the handshake's fingerprint already recorded, a non-empty record whose count for the key, `last_resort_seen_for`, has reached
+`MAX_LAST_RESORT_SEEN`), and only
 when the bundle names the last-resort key; otherwise the call reaches the inner receive at a session whose shared secret is the
 initiator's (`responder_first_frame_prepares`, `responder_first_frame_admissible`, composed with the first send in
-`first_send_responder_prepares`, which is compiler-trusted through the encrypt wrapper). One law, one premise about the run and
+`first_send_responder_prepares`; it and the reach, `first_send_responder_reachable`, are compiler-trusted through the encrypt
+wrapper). One law, one premise about the run and
 one hypothesis about the store are new:
 
 | Statement | Kind | Says | Used for | Model, and when it would be false |
