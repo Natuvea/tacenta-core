@@ -203,6 +203,17 @@ report_time "established encrypt proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-responder-negatives.py || fail=1
 report_time "establish_responder proof-dependency control" "$t"
+# `establish_responder` on the frame the initiator's first `encrypt` emits
+# (`UnitLifecycleResponderFirstFrame.lean`): a copy with the agreement law weakened, the joint model's agreement
+# or public key changed, the per-run KEM premise or the store's distinctness weakened, a refusal's cause
+# claimed otherwise, the parts' secret, peer key or last-resort flag claimed otherwise, the decoded identifier
+# or `publish`'s entry claimed otherwise, the lookup's first-occurrence premise dropped, the ratchet agreement
+# or the reach's store changed, the composed frame claimed for another plaintext, and a copy of the law with
+# its pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-responder-frame-negatives.py || fail=1
+report_time "first-frame responder proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
