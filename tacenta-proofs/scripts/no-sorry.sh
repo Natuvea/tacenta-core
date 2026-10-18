@@ -186,6 +186,14 @@ report_time "established initiator proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-restored-negatives.py || fail=1
 report_time "restored session proof-dependency control" "$t"
+# The public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the
+# session a successful send leaves (`UnitLifecycleEstablishedEncrypt.lean`): a copy with a law, a bound or a
+# premise removed, the draw record or the key-generation law weakened, the model step or the successor
+# restated wrongly, or the joint model's key generation leaving the source, and a copy of a law with its pins
+# kept, must each be refused at a named declaration or pin, after the unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-encrypt-negatives.py || fail=1
+report_time "established encrypt proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

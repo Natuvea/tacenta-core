@@ -66,6 +66,7 @@ import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
 import Translation.UnitLifecycleRestoredSession
+import Translation.UnitLifecycleEstablishedEncrypt
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -105,6 +106,14 @@ to the model session read off it (by definition) and composes it with `decrypt` 
 records, chunk relation and draw; with `UnitLifecycleSessionCodec.lean` and
 `UnitLifecycleSessionRoundTrip.lean` it proves that `import` of `export` returns every established initiator
 session unchanged, under nine assumed laws, which hold with the decrypt laws in one interpretation.
+`UnitLifecycleEstablishedEncrypt.lean` composes the public `encrypt` with every successful
+`establish_initiator_for` output, under the encrypt boundary records, the oracle record and three assumed laws
+(that key generation reads the two draws the model counts, `KeyGenSeededFor`, and `KemCiphertextLenOf` and
+`KemCiphertextLenBound`); it names the two outcomes (key generation refusing,
+or the initial message wrapping the first ratchet frame) with their effects and draws, and derives, after a
+success, `Session::invariant`, the four counter ceilings and the relation to the model's next session under
+the establishment's laws, two KEM agreements, `DivCeilValue` and an assumed size law of the model KEM; the
+premise lists hold together with the decrypt, establishment and restored-session laws in one interpretation.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
