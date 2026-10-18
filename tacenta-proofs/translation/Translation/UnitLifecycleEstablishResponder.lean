@@ -42,12 +42,14 @@ assumed).  No concrete input is chosen in the generic results.
   applies to the inner call, so on top of the three outcomes the inner step's result, successor and draws
   refine `Model.Lifecycle.decryptRatchet` at `responderModelOf dh p`; with `decryptRatchet_oracle`, an inner
   refusal leaves the draws unchanged or one shorter and an inner success takes exactly one.
-* Non-vacuity.  `establish_responder_returns`: the call returns for every input under the T1 contracts.
+* Non-vacuity.  `establish_responder_returns`: the call returns for every input under the T1 contracts and their
+  store bound.
   `establish_responder_short_message_refused` and `establish_responder_unknown_prekey_refused` (no
   hypothesis), `establish_responder_legacy_refused` (the zeroizing round trip),
   `establish_responder_noncontributory_refused`, `establish_responder_replay_refused`,
   `establish_responder_record_full_refused` (the T1 contracts, `ResponderSuccessShape`, and for the first
-  `ZeroKeyShape`): those refusals are reached, each with the store and the source as given.
+  `ZeroKeyShape`): those refusals are reached, each with the store and the source as given.  The first three are
+  stated of every identity, store and source; a store value itself is exhibited only under `ResponderSuccessShape`.
   `responder_prepared_inhabited`: an input reaching the inner receive exists.
   `responder_route_hypotheses_jointly_satisfiable`: every premise of `establish_responder_refines` holds
   together at an input that reaches the inner receive (`ResponderRouteHypotheses`), under the decrypt laws,
@@ -1213,7 +1215,7 @@ theorem readBe32_be32 (n : UInt32) (rest : List UInt8) :
   omega
 
 /-- Splitting a prefix of known length off an append. -/
-theorem take?_append (a b : List UInt8) :
+theorem takeSplit_append (a b : List UInt8) :
     Model.Messages.take? a.length (a ++ b) = some (a, b) := by
   simp [Model.Messages.take?]
 
@@ -1229,11 +1231,11 @@ theorem decodeInitial_encodeInitial (i e ct : List UInt8) (s o k : UInt32) (m : 
              kemPrekeyId := k, ratchetMessage := m } := by
   have hlen : (UInt32.ofNat ct.length).toNat = ct.length := by
     rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hct]
-  have h1 := take?_append i (e ++ (Model.Messages.be32 (UInt32.ofNat ct.length) ++ (ct ++
+  have h1 := takeSplit_append i (e ++ (Model.Messages.be32 (UInt32.ofNat ct.length) ++ (ct ++
     (Model.Messages.be32 s ++ (Model.Messages.be32 o ++ (Model.Messages.be32 k ++ m))))))
-  have h2 := take?_append e (Model.Messages.be32 (UInt32.ofNat ct.length) ++ (ct ++
+  have h2 := takeSplit_append e (Model.Messages.be32 (UInt32.ofNat ct.length) ++ (ct ++
     (Model.Messages.be32 s ++ (Model.Messages.be32 o ++ (Model.Messages.be32 k ++ m)))))
-  have h3 := take?_append ct (Model.Messages.be32 s ++ (Model.Messages.be32 o ++ (Model.Messages.be32 k ++ m)))
+  have h3 := takeSplit_append ct (Model.Messages.be32 s ++ (Model.Messages.be32 o ++ (Model.Messages.be32 k ++ m)))
   rw [hi] at h1
   rw [he] at h2
   simp only [Model.Messages.decodeInitial, Model.Messages.encodeInitial, List.append_assoc]
@@ -1250,11 +1252,14 @@ def basePointBytes : List UInt8 := 9 :: List.replicate 31 0
 /-- The base point in `EncodeEC` form: the curve byte, then its 32 bytes. -/
 def wireKey : List UInt8 := Model.Messages.ecCurveByte :: basePointBytes
 
-theorem wireKey_length : wireKey.length = 33 := by decide
+theorem wireKey_length : wireKey.length = 33 := by simp [wireKey, basePointBytes]
 
-theorem wireKey_curve : Model.Messages.checkCurve wireKey = some () := by decide
+theorem wireKey_curve : Model.Messages.checkCurve wireKey = some () := by
+  simp [wireKey, Model.Messages.checkCurve]
 
-theorem wireKey_key : Model.Messages.checkKey (wireKey.drop 1) = some () := by decide
+theorem wireKey_key : Model.Messages.checkKey (wireKey.drop 1) = some () := by
+  simp only [Model.Messages.checkKey,
+    if_pos (show Model.Messages.canonicalKey (wireKey.drop 1) = true by decide)]
 
 /-- The all-zero curve public key in `EncodeEC` form: canonical, and of small order. -/
 def zeroWire : List UInt8 := Model.Messages.ecCurveByte :: List.replicate 32 0
@@ -1262,13 +1267,18 @@ def zeroWire : List UInt8 := Model.Messages.ecCurveByte :: List.replicate 32 0
 /-- The initiator's ephemeral key a message carries: the base point, or with `zeroEph` the zero key. -/
 def ephKey (zeroEph : Bool) : List UInt8 := if zeroEph then zeroWire else wireKey
 
-theorem ephKey_length (b : Bool) : (ephKey b).length = 33 := by cases b <;> decide
+theorem ephKey_length (b : Bool) : (ephKey b).length = 33 := by
+  cases b <;> simp [ephKey, zeroWire, wireKey, basePointBytes]
 
 theorem ephKey_curve (b : Bool) : Model.Messages.checkCurve (ephKey b) = some () := by
-  cases b <;> decide
+  cases b <;> simp [ephKey, zeroWire, wireKey, Model.Messages.checkCurve]
 
 theorem ephKey_key (b : Bool) : Model.Messages.checkKey ((ephKey b).drop 1) = some () := by
-  cases b <;> decide
+  cases b
+  · simp only [Model.Messages.checkKey,
+      if_pos (show Model.Messages.canonicalKey ((ephKey false).drop 1) = true by decide)]
+  · simp only [Model.Messages.checkKey,
+      if_pos (show Model.Messages.canonicalKey ((ephKey true).drop 1) = true by decide)]
 
 /-- An initial message naming signed prekey 0, no one-time curve prekey and KEM prekey 0, with the base
 point as the initiator's identity key, `ephKey zeroEph` as its ephemeral key, the given KEM ciphertext and
@@ -3315,10 +3325,10 @@ info: 'Tacenta.UnitLifecycleEstablishResponder.readBe32_be32' depends on axioms:
 #print axioms Tacenta.UnitLifecycleEstablishResponder.readBe32_be32
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.take?_append' depends on axioms: [propext]
+info: 'Tacenta.UnitLifecycleEstablishResponder.takeSplit_append' depends on axioms: [propext]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleEstablishResponder.take?_append
+#print axioms Tacenta.UnitLifecycleEstablishResponder.takeSplit_append
 
 /--
 info: 'Tacenta.UnitLifecycleEstablishResponder.decodeInitial_encodeInitial' depends on axioms: [propext,
@@ -3329,37 +3339,37 @@ info: 'Tacenta.UnitLifecycleEstablishResponder.decodeInitial_encodeInitial' depe
 #print axioms Tacenta.UnitLifecycleEstablishResponder.decodeInitial_encodeInitial
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_length' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_length' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.wireKey_length
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_curve' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_curve' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.wireKey_curve
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_key' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.wireKey_key' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.wireKey_key
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_length' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_length' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.ephKey_length
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_curve' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_curve' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.ephKey_curve
 
 /--
-info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_key' does not depend on any axioms
+info: 'Tacenta.UnitLifecycleEstablishResponder.ephKey_key' depends on axioms: [propext]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.ephKey_key
@@ -4835,11 +4845,11 @@ info: Tacenta.UnitLifecycleEstablishResponder.readBe32_be32 : ∀ (n : UInt32) (
 #check @Tacenta.UnitLifecycleEstablishResponder.readBe32_be32
 
 /--
-info: Tacenta.UnitLifecycleEstablishResponder.take?_append : ∀ (a b : List UInt8),
+info: Tacenta.UnitLifecycleEstablishResponder.takeSplit_append : ∀ (a b : List UInt8),
   Model.Messages.take? a.length (a ++ b) = some (a, b)
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleEstablishResponder.take?_append
+#check @Tacenta.UnitLifecycleEstablishResponder.takeSplit_append
 
 /--
 info: Tacenta.UnitLifecycleEstablishResponder.decodeInitial_encodeInitial : ∀ (i e ct : List UInt8) (s o k : UInt32)
