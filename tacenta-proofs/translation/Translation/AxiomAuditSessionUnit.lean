@@ -63,6 +63,7 @@ import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
+import Translation.UnitLifecycleEstablishResponder
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -96,6 +97,11 @@ output, `Session::invariant` (under two assumed laws about X25519 public keys an
 length, with models) and the four counter ceilings, with no hypothesis for the ceilings, and the relation
 to the model session read off the output, which holds by definition at its `KeysUnsampled` Braid; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
 `decrypt_ratchet` refinement and, for ratchet-type frames, to the public `decrypt`.
+`UnitLifecycleEstablishResponder.lean` composes the public `establish_responder` for every input (each
+return is a refusal before the inner receive with the store and the source of randomness as given, an inner
+refusal with the store as given, or an inner success with the named store commit), derives
+`Session::invariant`, the four ceilings and the relation for the session it builds, and applies the
+`decrypt_ratchet` refinement to its inner call; no input at which the whole call succeeds is exhibited.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
