@@ -214,6 +214,17 @@ report_time "establish_responder proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-responder-frame-negatives.py || fail=1
 report_time "first-frame responder proof-dependency control" "$t"
+# `establish_responder` accepting the initiator's first frame (`UnitLifecycleResponderFirstReceipt.lean`): a copy
+# with the model's first message changed (chains, root relation, header, decoder condition, the model step's oracle
+# or ratchet key), either new law weakened, the associated data, the responder's root or the attributed source
+# claimed otherwise, a refusal claimed when its cause is absent, the composition claimed for another plaintext, a
+# frame under another key, the plaintext fed instead of the bytes, the store unchanged or the draws untouched, the
+# header source without its MAC, the joint model with the empty seal, and a copy of the contributory law with its
+# pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-responder-receipt-negatives.py || fail=1
+report_time "first-receipt responder proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

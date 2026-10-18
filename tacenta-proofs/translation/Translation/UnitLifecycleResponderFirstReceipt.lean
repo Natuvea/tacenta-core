@@ -2024,3 +2024,2730 @@ theorem first_send_receive_reachable (K : Model.Braid.Kem) (dh : DhView)
 end Reach
 
 end Tacenta.UnitLifecycleResponderFirstReceipt
+
+/-! ## Pins
+
+The constants each result depends on, and the statement of each result and definition, held by the
+build.  `attest.py` requires every one of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`,
+`REQUIRED_PRINT_FORM`). -/
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_send_key' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_send_key
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_key' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_key
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_with_eviction' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_with_eviction
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.readBe64_be64_kernel' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.readBe64_be64_kernel
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.readBe16_be16_kernel' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.readBe16_be16_kernel
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.decode_encodeMessage' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.decode_encodeMessage
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_frame_model_outcomes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_frame_model_outcomes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.aeadRoundTrip_is' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.aeadRoundTrip_is
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.dhAgreeContributory_is' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.dhAgreeContributory_is
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_init_pair' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_init_pair
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.established_triple_first' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.established_triple_first
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_triple_first' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_triple_first
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_kdf_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_kdf_model
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.zeroized_eq' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.zeroized_eq
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.parts_of_first_frame' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.parts_of_first_frame
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.view_ratchet_public' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.view_ratchet_public
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_agreement' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_agreement
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_candidate_agreement' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_candidate_agreement
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_identityAd_eq' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_identityAd_eq
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.arrayOf_arrayOfBytes' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.arrayOf_arrayOfBytes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.aead_open_sealed' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.aead_open_sealed
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.attributedView_send' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.core.num.Usize.div_ceil]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.attributedView_send
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.firstFrame_attributedView' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.firstFrame_attributedView
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_run_inputs' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_run_inputs
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.firstAd_length_le' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.firstAd_length_le
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_outcomes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_outcomes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_succeeds' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_succeeds
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_commit_of_inner' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_commit_of_inner
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_refused_of_inner' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_refused_of_inner
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhCodec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhCodec
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhAgree' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhAgree
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_symmetric' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_symmetric
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadOpen' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadOpen
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadSeal' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadSeal
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadRoundTrip' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadRoundTrip
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_contributory' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_contributory
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_laws_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_laws_model
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_send_key : ∀ (a4 peer rkA cksA prk k1 k2 : Model.State.Key),
+  Model.Triple.sendDetailed (Tacenta.UnitLifecycleResponderFirstReceipt.firstSenderTriple a4 peer rkA cksA prk k1 k2) 0
+      none =
+    Except.ok
+      (Tacenta.UnitLifecycleResponderFirstReceipt.senderAfterFirst a4 peer rkA cksA prk k1 k2,
+        Tacenta.UnitLifecycleResponderFirstReceipt.firstHeader a4,
+        Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_send_key
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_key : ∀
+  (b ec prk k1 k2 a4 d dSend newPub rkA cksA : Model.State.Key),
+  Model.State.kdfRk ec d Model.State.LabelSet.tacenta = (rkA, cksA) →
+    Model.Triple.receiveDetailed (Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple b ec prk k1 k2)
+        (Tacenta.UnitLifecycleResponderFirstReceipt.firstHeader a4) d dSend newPub none =
+      Except.ok
+        (Tacenta.UnitLifecycleResponderFirstReceipt.receiverAfterFirst ec prk k1 k2 a4 d dSend newPub,
+          Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_key
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_with_eviction : ∀
+  (b ec prk k1 k2 a4 d dSend newPub rkA cksA : Model.State.Key) (composite : Model.CompositeHeader.Composite),
+  Model.State.kdfRk ec d Model.State.LabelSet.tacenta = (rkA, cksA) →
+    Model.Lifecycle.receiveWithEviction (Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple b ec prk k1 k2)
+        composite (Tacenta.UnitLifecycleResponderFirstReceipt.firstHeader a4) d dSend newPub none =
+      Except.ok
+        (Tacenta.UnitLifecycleResponderFirstReceipt.receiverAfterFirst ec prk k1 k2 a4 d dSend newPub,
+          Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_receive_with_eviction
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.readBe64_be64_kernel : ∀ (n : UInt64) (rest : List UInt8),
+  Model.CompositeHeader.readBe64 (Model.CompositeHeader.be64 n ++ rest) = some (n, rest)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.readBe64_be64_kernel
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.readBe16_be16_kernel : ∀ (n : UInt16) (rest : List UInt8),
+  Model.CompositeHeader.readBe16 (Model.CompositeHeader.be16 n ++ rest) = some (n, rest)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.readBe16_be16_kernel
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.decode_encodeMessage : ∀ (h : Model.CompositeHeader.Composite)
+  (ct : List UInt8),
+  List.length h.dh = 32 →
+    Model.Messages.checkKey h.dh = some () →
+      (∀ (c : Model.CompositeHeader.Codeword), h.agChunk = some c → c.data.length = 32) →
+        Model.CompositeHeader.decode (Model.CompositeHeader.encodeMessage h ct) = some (h, ct)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.decode_encodeMessage
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_frame_model_outcomes : ∀ (viewA viewB : Model.Lifecycle.CodewordView)
+  (oracleA oracleB : Model.Lifecycle.Oracle) (mA mB : Model.Lifecycle.Session)
+  (a4 peer b rkA cksA prk k1 k2 ec : Model.State.Key) (secret pt : Model.Lifecycle.Bytes) (chunk : Model.Braid.Chunk)
+  (d : Model.State.Key),
+  mA.triple = Tacenta.UnitLifecycleResponderFirstReceipt.firstSenderTriple a4 peer rkA cksA prk k1 k2 →
+    mB.triple = Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple b ec prk k1 k2 →
+      Model.State.kdfRk ec d Model.State.LabelSet.tacenta = (rkA, cksA) →
+        mB.braid = Model.Braid.initBob secret →
+          mB.identityAd = mA.identityAd →
+            List.length a4 = 32 →
+              Model.Messages.checkKey a4 = some () →
+                (viewA.send mA.braid chunk).data.length = 32 →
+                  oracleB.dhAgree mB.ratchetPrivate a4 = some d →
+                    oracleB.draws = [] ∧
+                        Model.Lifecycle.decryptRatchet viewB oracleB mB
+                            (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame viewA oracleA mA pt
+                              (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) chunk) =
+                          { session := mB, result := Except.error Model.Lifecycle.Refusal.ceiling, oracle := oracleB } ∨
+                      (∃ c rest,
+                          oracleB.draws = c :: rest ∧
+                            oracleB.dhAgree c a4 = none ∧
+                              Model.Lifecycle.decryptRatchet viewB oracleB mB
+                                  (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame viewA oracleA mA pt
+                                    (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) chunk) =
+                                { session := mB,
+                                  result :=
+                                    Except.error
+                                      (Model.Lifecycle.Refusal.handshake
+                                        Model.Lifecycle.HandshakeRefusal.nonContributoryAgreement),
+                                  oracle :=
+                                    { draws := rest, braidKem := oracleB.braidKem, dhPublic := oracleB.dhPublic,
+                                      dhAgree := oracleB.dhAgree, identityValid := oracleB.identityValid,
+                                      aeadSeal := oracleB.aeadSeal, aeadOpen := oracleB.aeadOpen,
+                                      kemValid := oracleB.kemValid, kemEncaps := oracleB.kemEncaps,
+                                      kemDecaps := oracleB.kemDecaps, sigVerify := oracleB.sigVerify,
+                                      sigSign := oracleB.sigSign } }) ∨
+                        (∃ c rest dSend,
+                            oracleB.draws = c :: rest ∧
+                              oracleB.dhAgree c a4 = some dSend ∧
+                                Tacenta.UnitLifecycleResponderFirstReceipt.firstOpen oracleA oracleB
+                                      (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) pt
+                                      (Tacenta.UnitLifecycleResponderFirstReceipt.firstAd viewA mA chunk) =
+                                    none ∧
+                                  Model.Lifecycle.decryptRatchet viewB oracleB mB
+                                      (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame viewA oracleA mA pt
+                                        (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) chunk) =
+                                    { session := mB, result := Except.error Model.Lifecycle.Refusal.aead,
+                                      oracle :=
+                                        { draws := rest, braidKem := oracleB.braidKem, dhPublic := oracleB.dhPublic,
+                                          dhAgree := oracleB.dhAgree, identityValid := oracleB.identityValid,
+                                          aeadSeal := oracleB.aeadSeal, aeadOpen := oracleB.aeadOpen,
+                                          kemValid := oracleB.kemValid, kemEncaps := oracleB.kemEncaps,
+                                          kemDecaps := oracleB.kemDecaps, sigVerify := oracleB.sigVerify,
+                                          sigSign := oracleB.sigSign } }) ∨
+                          ∃ c rest dSend x,
+                            oracleB.draws = c :: rest ∧
+                              oracleB.dhAgree c a4 = some dSend ∧
+                                Tacenta.UnitLifecycleResponderFirstReceipt.firstOpen oracleA oracleB
+                                      (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) pt
+                                      (Tacenta.UnitLifecycleResponderFirstReceipt.firstAd viewA mA chunk) =
+                                    some x ∧
+                                  Model.Lifecycle.decryptRatchet viewB oracleB mB
+                                      (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame viewA oracleA mA pt
+                                        (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey cksA k1) chunk) =
+                                    {
+                                      session :=
+                                        Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession mB secret
+                                          (viewB.receive mB.braid (viewA.send mA.braid chunk).index
+                                            (viewA.send mA.braid chunk).data)
+                                          ec prk k1 k2 a4 d dSend (oracleB.dhPublic c) c,
+                                      result := Except.ok x,
+                                      oracle :=
+                                        { draws := rest, braidKem := oracleB.braidKem, dhPublic := oracleB.dhPublic,
+                                          dhAgree := oracleB.dhAgree, identityValid := oracleB.identityValid,
+                                          aeadSeal := oracleB.aeadSeal, aeadOpen := oracleB.aeadOpen,
+                                          kemValid := oracleB.kemValid, kemEncaps := oracleB.kemEncaps,
+                                          kemDecaps := oracleB.kemDecaps, sigVerify := oracleB.sigVerify,
+                                          sigSign := oracleB.sigSign } }
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_frame_model_outcomes
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.aeadRoundTrip_is : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip ↔
+  ∀ (k1 k2 : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (iv : Aeneas.Std.Array Aeneas.Std.U8 16#usize)
+    (pt ad : Aeneas.Std.Slice Aeneas.Std.U8) (ct : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),
+    (↑pt).length + 48 ≤ Aeneas.Std.Usize.max →
+      tacenta_session_unit.tacenta_boundary.aead.encrypt k1 k2 iv pt ad = Aeneas.Std.Result.ok ct →
+        ∃ v,
+          tacenta_session_unit.tacenta_boundary.aead.decrypt k1 k2 iv ct.deref ad =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok v) ∧
+            ↑v = ↑pt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.aeadRoundTrip_is
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.dhAgreeContributory_is : Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory ↔
+  ∀ (a b : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+    (pb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+    b.public_key = Aeneas.Std.Result.ok pb → ∃ x, a.agree pb = Aeneas.Std.Result.ok (some x)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.dhAgreeContributory_is
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_init_pair : ∀ (sk : Aeneas.Std.Slice Aeneas.Std.U8)
+  (a4 a5 dh b rk cks prk c1 c2 : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  (t : tacenta_session_unit.tacenta_triple.State),
+  tacenta_session_unit.tacenta_triple.State.init_sender sk a4 a5 dh
+        tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+      Aeneas.Std.Result.ok (Tacenta.UnitLifecycleEstablishInitiatorShape.initiatorTriple a4 a5 rk cks prk c1 c2) →
+    tacenta_session_unit.tacenta_triple.State.init_receiver sk b tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+        Aeneas.Std.Result.ok t →
+      ∃ ec,
+        tacenta_session_unit.tacenta_ratchet.kdf_rk ec dh tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+            Aeneas.Std.Result.ok (rk, cks) ∧
+          t = Tacenta.UnitLifecycleEstablishResponder.responderTriple b ec prk c1 c2
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_init_pair
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.established_triple_first : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  (dh : Tacenta.UnitLifecycleT3.DhView)
+  (p : Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts rc crc our bundle),
+  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session).triple =
+    Tacenta.UnitLifecycleResponderFirstReceipt.firstSenderTriple (Tacenta.UnitLifecycleT3.arrayOf p.ratchetBytes)
+      (Tacenta.UnitLifecycleT3.arrayOf p.peerRatchetBytes) (Tacenta.UnitLifecycleT3.arrayOf p.rootKey)
+      (Tacenta.UnitLifecycleT3.arrayOf p.sendChain) (Tacenta.UnitLifecycleT3.arrayOf p.sparseRoot)
+      (Tacenta.UnitLifecycleT3.arrayOf p.sparseSend) (Tacenta.UnitLifecycleT3.arrayOf p.sparseReceive)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.established_triple_first
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.responder_triple_first : ∀ (dh : Tacenta.UnitLifecycleT3.DhView)
+  {ourB : tacenta_session_unit.lifecycle.Identity} {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+  {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+  (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg)
+  (ec prk c1 c2 : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  p.triple = Tacenta.UnitLifecycleEstablishResponder.responderTriple p.ratchetBytes ec prk c1 c2 →
+    (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p).triple =
+      Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple (Tacenta.UnitLifecycleT3.arrayOf p.ratchetBytes)
+        (Tacenta.UnitLifecycleT3.arrayOf ec) (Tacenta.UnitLifecycleT3.arrayOf prk) (Tacenta.UnitLifecycleT3.arrayOf c1)
+        (Tacenta.UnitLifecycleT3.arrayOf c2)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_triple_first
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_kdf_model : Tacenta.SessionUnitT3.HkdfAgrees →
+  Tacenta.SessionUnitT3.ZeroizingRoundTrips →
+    ∀ {ec d rk cks : Aeneas.Std.Array Aeneas.Std.U8 32#usize},
+      tacenta_session_unit.tacenta_ratchet.kdf_rk ec d tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+          Aeneas.Std.Result.ok (rk, cks) →
+        Model.State.kdfRk (Tacenta.UnitLifecycleT3.arrayOf ec) (Tacenta.UnitLifecycleT3.arrayOf d)
+            Model.State.LabelSet.tacenta =
+          (Tacenta.UnitLifecycleT3.arrayOf rk, Tacenta.UnitLifecycleT3.arrayOf cks)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_kdf_model
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.zeroized_eq : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+  ∀ {a b : Aeneas.Std.Array Aeneas.Std.U8 32#usize}
+    {w : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)},
+    tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 a = Aeneas.Std.Result.ok w →
+      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleEstablishResponder.z32
+            w =
+          Aeneas.Std.Result.ok b →
+        b = a
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.zeroized_eq
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.parts_of_first_frame : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle},
+  Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+    Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+      ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+        Tacenta.UnitLifecycleT3.DhCodecOf dh →
+          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+            Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+              ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                (pending : Model.Lifecycle.PendingInitial),
+                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).pendingInitial =
+                    some pending →
+                  ∀ (frame : Model.Lifecycle.Bytes) (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                    Tacenta.UnitLifecycleT3.sliceOf msg =
+                        Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending frame →
+                      ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                        (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                        storeB.publish = Aeneas.Std.Result.ok bundle →
+                          ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                            ∀ (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg),
+                              p.decoded.kem_prekey_id = bundle.kem_prekey_id ∧
+                                p.decoded.one_time_prekey_id = bundle.one_time_prekey_id ∧
+                                  p.ratchetPrivate.public_key = Aeneas.Std.Result.ok bundle.bundle.signed_prekey ∧
+                                    p.ourPublic = bundle.bundle.identity_key
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.parts_of_first_frame
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.view_ratchet_public : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  {dh : Tacenta.UnitLifecycleT3.DhView},
+  Tacenta.UnitLifecycleT3.DhCodecOf dh →
+    ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle),
+      dh.publicKey q.ratchetPublic = Tacenta.UnitLifecycleT3.arrayOf q.ratchetBytes
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.view_ratchet_public
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_agreement : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle},
+  Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+    ∀ {E : Type} {rcB : tacenta_session_unit.rand_core_1.RngCore E}
+      {crcB : tacenta_session_unit.rand_core_1.CryptoRng E} {dh : Tacenta.UnitLifecycleT3.DhView},
+      Tacenta.UnitLifecycleT3.DhCodecOf dh →
+        ∀ {traceB : E → List Model.Lifecycle.Key} {oracleB : Model.Lifecycle.Oracle},
+          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+            ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+              (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+              k.public_key = Aeneas.Std.Result.ok bundle.bundle.signed_prekey →
+                oracleB.dhAgree (dh.privateKey k) (Tacenta.UnitLifecycleT3.arrayOf q.ratchetBytes) =
+                  some (Tacenta.UnitLifecycleT3.arrayOf q.dhOut)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_agreement
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_candidate_agreement : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle},
+  Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+    ∀ {E : Type} {rcB : tacenta_session_unit.rand_core_1.RngCore E}
+      {crcB : tacenta_session_unit.rand_core_1.CryptoRng E} {dh : Tacenta.UnitLifecycleT3.DhView},
+      Tacenta.UnitLifecycleT3.DhCodecOf dh →
+        ∀ {traceB : E → List Model.Lifecycle.Key} {oracleB : Model.Lifecycle.Oracle},
+          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+            ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle) (rngB : E)
+              (dB : Model.Lifecycle.Key) (restB : List Model.Lifecycle.Key),
+              traceB rngB = dB :: restB →
+                ∃ x, oracleB.dhAgree dB (Tacenta.UnitLifecycleT3.arrayOf q.ratchetBytes) = some x
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_candidate_agreement
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.first_identityAd_eq : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+  {ourB : tacenta_session_unit.lifecycle.Identity} {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+  {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+  (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg),
+  p.peerIdentity = q.ourPublic → p.ourPublic = bundle.bundle.identity_key → p.identityAd = q.identityAd
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_identityAd_eq
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.arrayOf_arrayOfBytes : ∀ {n : Aeneas.Std.Usize} (l : Model.Lifecycle.Bytes)
+  (h : List.length l = ↑n),
+  Tacenta.UnitLifecycleT3.arrayOf (Tacenta.UnitLifecycleResponderFirstReceipt.arrayOfBytes l h) = l
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.arrayOf_arrayOfBytes
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.aead_open_sealed : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+  ∀ {E : Type} {rcB : tacenta_session_unit.rand_core_1.RngCore E} {crcB : tacenta_session_unit.rand_core_1.CryptoRng E}
+    {dh : Tacenta.UnitLifecycleT3.DhView} {traceB : E → List Model.Lifecycle.Key}
+    {oracleA oracleB : Model.Lifecycle.Oracle},
+    Tacenta.UnitOracleShape.AeadSealClause Tacenta.UnitSatisfiabilityJoint.Interp.real oracleA →
+      Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+        ∀ (k1 k2 iv : Model.Lifecycle.Bytes),
+          List.length k1 = 32 →
+            List.length k2 = 32 →
+              List.length iv = 16 →
+                ∀ (pt : Aeneas.Std.Slice Aeneas.Std.U8),
+                  (↑pt).length + 48 ≤ Aeneas.Std.Usize.max →
+                    ∀ (ad : Model.Lifecycle.Bytes),
+                      List.length ad ≤ Aeneas.Std.Usize.max →
+                        oracleB.aeadOpen k1 k2 iv (oracleA.aeadSeal k1 k2 iv (Tacenta.UnitLifecycleT3.sliceOf pt) ad)
+                            ad =
+                          some (Tacenta.UnitLifecycleT3.sliceOf pt)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.aead_open_sealed
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.attributedView_send : ∀ {view : Model.Lifecycle.CodewordView},
+  Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+    ∀ (idx : UInt16) (data : Model.Lifecycle.Bytes) (mc : Model.Braid.Chunk),
+      Tacenta.UnitLifecycleT3.CodewordViewSendOf
+        (Tacenta.UnitLifecycleResponderFirstReceipt.attributedView view idx data mc)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.attributedView_send
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.firstFrame_attributedView : ∀ (view : Model.Lifecycle.CodewordView)
+  (idx : UInt16) (data : Model.Lifecycle.Bytes) (mc : Model.Braid.Chunk),
+  Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+      (Tacenta.UnitLifecycleResponderFirstReceipt.attributedView view idx data mc) =
+    Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.firstFrame_attributedView
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_run_inputs : ∀ {E : Type}
+  (view : Model.Lifecycle.CodewordView) (oracleA oracleB : Model.Lifecycle.Oracle)
+  (traceB : E → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView)
+  {ourB : tacenta_session_unit.lifecycle.Identity} {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+  {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+  (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg) (mA : Model.Lifecycle.Session)
+  (pt : Model.Lifecycle.Bytes) (mk : Model.Lifecycle.Key) (src : Model.Lifecycle.Bytes),
+  List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+    ∀ (c : tacenta_session_unit.tacenta_erasure.Chunk),
+      Tacenta.SessionUnitBraidT3.CodewordOf src c →
+        view.send mA.braid (Tacenta.UnitLifecycleT3.modelChunkOf src c) = Tacenta.UnitLifecycleT3.modelCodewordOf c →
+          List.length mA.triple.classical.dhsPub = 32 →
+            Model.Messages.checkKey mA.triple.classical.dhsPub = some () →
+              Tacenta.UnitLifecycleT3.sliceOf p.message =
+                  Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracleA mA pt mk
+                    (Tacenta.UnitLifecycleT3.modelChunkOf src c) →
+                ∀ (rngB : E) (dB : Model.Lifecycle.Key) (restB : List Model.Lifecycle.Key),
+                  traceB rngB = dB :: restB →
+                    Tacenta.UnitLifecycleDecryptRunBounds.DecryptRatchetRunInputs
+                      (Tacenta.UnitLifecycleResponderFirstReceipt.attributedView view
+                        (Tacenta.UnitLifecycleT3.modelCodewordOf c).index
+                        (Tacenta.UnitLifecycleT3.modelCodewordOf c).data (Tacenta.UnitLifecycleT3.modelChunkOf src c))
+                      oracleB traceB p.session (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p) p.message
+                      rngB
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_run_inputs
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.firstAd_length_le : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle},
+  Tacenta.UnitLifecycleT1.DhCodecTotal →
+    ∀ (dh : Tacenta.UnitLifecycleT3.DhView) (view : Model.Lifecycle.CodewordView)
+      (q : Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts rc crc our bundle)
+      (src : Model.Lifecycle.Bytes) (c : tacenta_session_unit.tacenta_erasure.Chunk),
+      view.send (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).braid
+            (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+          Tacenta.UnitLifecycleT3.modelCodewordOf c →
+        List.length
+            (Tacenta.UnitLifecycleResponderFirstReceipt.firstAd view
+              (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session)
+              (Tacenta.UnitLifecycleT3.modelChunkOf src c)) ≤
+          Aeneas.Std.Usize.max
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.firstAd_length_le
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_outcomes : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type} (rcB : tacenta_session_unit.rand_core_1.RngCore E)
+  (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+          @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+        ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+          Tacenta.UnitLifecycleT3.DhCodecOf dh →
+            ∀ (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle)
+              (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle),
+              Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+                Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracleB.braidKem →
+                  ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                    (plaintext : Aeneas.Std.Slice Aeneas.Std.U8) (src : Model.Lifecycle.Bytes),
+                    List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+                      ∀ (c : tacenta_session_unit.tacenta_erasure.Chunk),
+                        Tacenta.SessionUnitBraidT3.CodewordOf src c →
+                          view.send (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).braid
+                                (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+                              Tacenta.UnitLifecycleT3.modelCodewordOf c →
+                            ∀ {ourB : tacenta_session_unit.lifecycle.Identity}
+                              {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+                              {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+                              (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg),
+                              p.tripleSecret = q.sharedSlice →
+                                p.peerIdentity = q.ourPublic →
+                                  p.ratchetPrivate.public_key = Aeneas.Std.Result.ok bundle.bundle.signed_prekey →
+                                    p.ourPublic = bundle.bundle.identity_key →
+                                      Tacenta.UnitLifecycleT3.sliceOf p.message =
+                                          Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracleA
+                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                              q.session)
+                                            (Tacenta.UnitLifecycleT3.sliceOf plaintext)
+                                            (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                              (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
+                                              (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend))
+                                            (Tacenta.UnitLifecycleT3.modelChunkOf src c) →
+                                        ∀ (rngB : E),
+                                          traceB rngB = oracleB.draws →
+                                            ∀ (dB : Model.Lifecycle.Key) (restB : List Model.Lifecycle.Key),
+                                              traceB rngB = dB :: restB →
+                                                ∃ ec inner,
+                                                  tacenta_session_unit.tacenta_ratchet.kdf_rk ec q.dhOutBytes
+                                                        tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+                                                      Aeneas.Std.Result.ok (q.rootKey, q.sendChain) ∧
+                                                    tacenta_session_unit.lifecycle.Session.decrypt_ratchet rcB crcB
+                                                          p.session p.message rngB =
+                                                        Aeneas.Std.Result.ok inner ∧
+                                                      traceB inner.2.2 = restB ∧
+                                                        (inner.1 =
+                                                              Aeneas.Std.core.result.Result.Err
+                                                                (tacenta_session_unit.lifecycle.Error.Handshake
+                                                                  tacenta_session_unit.SessionError.NonContributoryAgreement) ∧
+                                                            oracleB.dhAgree dB ⋯ = none ∨
+                                                          (inner.1 =
+                                                                Aeneas.Std.core.result.Result.Err
+                                                                  tacenta_session_unit.lifecycle.Error.Aead ∧
+                                                              ∃ dSend, ⋯) ∨
+                                                            ∃ ptB dSend, ⋯)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_outcomes
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_succeeds : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type} (rcB : tacenta_session_unit.rand_core_1.RngCore E)
+  (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+        Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+          Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+              @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+            ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+              Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                ∀ (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle),
+                  Tacenta.UnitOracleShape.AeadSealClause Tacenta.UnitSatisfiabilityJoint.Interp.real oracleA →
+                    ∀ (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle),
+                      Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+                        Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracleB.braidKem →
+                          ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                            (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                            (↑plaintext).length + 48 ≤ Aeneas.Std.Usize.max →
+                              ∀ (src : Model.Lifecycle.Bytes),
+                                List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+                                  ∀ (c : tacenta_session_unit.tacenta_erasure.Chunk),
+                                    Tacenta.SessionUnitBraidT3.CodewordOf src c →
+                                      view.send
+                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                                q.session).braid
+                                            (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+                                          Tacenta.UnitLifecycleT3.modelCodewordOf c →
+                                        ∀ {ourB : tacenta_session_unit.lifecycle.Identity}
+                                          {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+                                          {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+                                          (p :
+                                            Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB
+                                              msg),
+                                          p.tripleSecret = q.sharedSlice →
+                                            p.peerIdentity = q.ourPublic →
+                                              p.ratchetPrivate.public_key =
+                                                  Aeneas.Std.Result.ok bundle.bundle.signed_prekey →
+                                                p.ourPublic = bundle.bundle.identity_key →
+                                                  Tacenta.UnitLifecycleT3.sliceOf p.message =
+                                                      Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracleA
+                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                          dh q.session)
+                                                        (Tacenta.UnitLifecycleT3.sliceOf plaintext)
+                                                        (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                          (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
+                                                          (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend))
+                                                        (Tacenta.UnitLifecycleT3.modelChunkOf src c) →
+                                                    ∀ (rngB : E),
+                                                      traceB rngB = oracleB.draws →
+                                                        ∀ (dB : Model.Lifecycle.Key) (restB : List Model.Lifecycle.Key),
+                                                          traceB rngB = dB :: restB → ∃ ec dSend ptB sB' rngB', ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_succeeds
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_commit_of_inner : ∀ {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  {ourB : tacenta_session_unit.lifecycle.Identity} {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+  {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+  (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg) (rngB : E)
+  (ptB : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) (sB' : tacenta_session_unit.lifecycle.Session) (rngB' : E),
+  tacenta_session_unit.lifecycle.Session.decrypt_ratchet rcB crcB p.session p.message rngB =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ptB, sB', rngB') →
+    ∀
+      (out :
+        Aeneas.Std.core.result.Result (tacenta_session_unit.lifecycle.Session × Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+            tacenta_session_unit.lifecycle.Error ×
+          tacenta_session_unit.lifecycle.PrekeyStore × E),
+      tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB storeB msg rngB = Aeneas.Std.Result.ok out →
+        ∃ storeB',
+          Tacenta.UnitLifecycleEstablishResponder.ResponderCommit storeB p.decoded.kem_prekey_id
+              p.decoded.one_time_prekey_id p.lastResort p.replay storeB' ∧
+            out = (Aeneas.Std.core.result.Result.Ok (sB', ptB), storeB', rngB')
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_commit_of_inner
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_refused_of_inner : ∀ {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  {ourB : tacenta_session_unit.lifecycle.Identity} {storeB : tacenta_session_unit.lifecycle.PrekeyStore}
+  {msg : Aeneas.Std.Slice Aeneas.Std.U8}
+  (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts ourB storeB msg) (rngB : E)
+  (e : tacenta_session_unit.lifecycle.Error) (sB' : tacenta_session_unit.lifecycle.Session) (rngB' : E),
+  tacenta_session_unit.lifecycle.Session.decrypt_ratchet rcB crcB p.session p.message rngB =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e, sB', rngB') →
+    tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB storeB msg rngB =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e, storeB, rngB')
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.establish_responder_refused_of_inner
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type} (rcB : tacenta_session_unit.rand_core_1.RngCore E)
+  (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+            Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+              ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+                Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                  ∀ (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle)
+                    (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle),
+                    Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+                      Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracleB.braidKem →
+                        ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                          (pending : Model.Lifecycle.PendingInitial),
+                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                  q.session).pendingInitial =
+                              some pending →
+                            ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8) (src : Model.Lifecycle.Bytes),
+                              List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+                                ∀ (c : tacenta_session_unit.tacenta_erasure.Chunk),
+                                  Tacenta.SessionUnitBraidT3.CodewordOf src c →
+                                    view.send
+                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                              q.session).braid
+                                          (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+                                        Tacenta.UnitLifecycleT3.modelCodewordOf c →
+                                      ∀ (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                                        Tacenta.UnitLifecycleT3.sliceOf msg =
+                                            Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                              (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                                q.session)
+                                              pending
+                                              (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracleA
+                                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                                  q.session)
+                                                (Tacenta.UnitLifecycleT3.sliceOf plaintext)
+                                                (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                  (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
+                                                  (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend))
+                                                (Tacenta.UnitLifecycleT3.modelChunkOf src c)) →
+                                          ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                            (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                                            storeB.publish = Aeneas.Std.Result.ok bundle →
+                                              ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                                                Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
+                                                  Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
+                                                      bundle.kem_prekey_id q.kemCiphertext q.kemSecret →
+                                                    Tacenta.UnitLifecycleT1.EstablishResponderHeadroom storeB →
+                                                      ∀ (rngB : E),
+                                                        traceB rngB = oracleB.draws →
+                                                          ∀ (dB : Model.Lifecycle.Key)
+                                                            (restB : List Model.Lifecycle.Key),
+                                                            traceB rngB = dB :: restB →
+                                                              (bundle.kem_prekey_id = storeB.kem_id ∧
+                                                                  ∃ e,
+                                                                    Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal
+                                                                        storeB q.sharedBytes e ∧
+                                                                      tacenta_session_unit.lifecycle.establish_responder
+                                                                          rcB crcB ourB storeB msg rngB =
+                                                                        Aeneas.Std.Result.ok
+                                                                          (Aeneas.Std.core.result.Result.Err e, storeB,
+                                                                            rngB)) ∨
+                                                                ∃ p ec rngB', ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type} (rcB : tacenta_session_unit.rand_core_1.RngCore E)
+  (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+        Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+          Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+            Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+              Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                    @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                  ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+                    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                      ∀ (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle),
+                        Tacenta.UnitOracleShape.AeadSealClause Tacenta.UnitSatisfiabilityJoint.Interp.real oracleA →
+                          ∀ (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle),
+                            Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+                              Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracleB.braidKem →
+                                ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                                  (pending : Model.Lifecycle.PendingInitial),
+                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                          q.session).pendingInitial =
+                                      some pending →
+                                    ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                                      (↑plaintext).length + 48 ≤ Aeneas.Std.Usize.max →
+                                        ∀ (src : Model.Lifecycle.Bytes),
+                                          List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+                                            ∀ (c : tacenta_session_unit.tacenta_erasure.Chunk),
+                                              Tacenta.SessionUnitBraidT3.CodewordOf src c →
+                                                view.send
+                                                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                          dh q.session).braid
+                                                      (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+                                                    Tacenta.UnitLifecycleT3.modelCodewordOf c →
+                                                  ∀ (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                                                    Tacenta.UnitLifecycleT3.sliceOf msg =
+                                                        Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                            dh q.session)
+                                                          pending
+                                                          (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view
+                                                            oracleA
+                                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                              dh q.session)
+                                                            (Tacenta.UnitLifecycleT3.sliceOf plaintext)
+                                                            (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                              (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
+                                                              (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend))
+                                                            (Tacenta.UnitLifecycleT3.modelChunkOf src c)) →
+                                                      ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                                        (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                                                        storeB.publish = Aeneas.Std.Result.ok bundle →
+                                                          ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                                                            Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                storeB →
+                                                              Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                  storeB bundle.kem_prekey_id q.kemCiphertext
+                                                                  q.kemSecret →
+                                                                Tacenta.UnitLifecycleT1.EstablishResponderHeadroom
+                                                                    storeB →
+                                                                  ∀ (rngB : E),
+                                                                    traceB rngB = oracleB.draws →
+                                                                      ∀ (dB : Model.Lifecycle.Key)
+                                                                        (restB : List Model.Lifecycle.Key),
+                                                                        traceB rngB = dB :: restB → ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R)
+  (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleT3.BraidSendRefinementContracts rc oracle.braidKem →
+    Tacenta.UnitLifecycleT3.TripleSendRefinementContracts →
+      Tacenta.UnitLifecycleT1.AeadSealBounded →
+        Tacenta.UnitLifecycleT1.DhCodecTotal →
+          Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+            Tacenta.UnitLifecycleT3.DhCodecOf dh →
+              Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+                Tacenta.SessionUnitT3.ZeroizingRoundTrips80 →
+                  Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Aeneas.Std.Array Aeneas.Std.U8 32#usize) →
+                    Tacenta.UnitLifecycleT3.ZeroizingRoundTrips
+                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize ×
+                          Aeneas.Std.Array Aeneas.Std.U8 32#usize × Aeneas.Std.Array Aeneas.Std.U8 16#usize) →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace →
+                        Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf oracle.braidKem →
+                          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+                            Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                              ∀ (rcE : tacenta_session_unit.rand_core_1.RngCore E)
+                                (crcE : tacenta_session_unit.rand_core_1.CryptoRng E)
+                                (ourA : tacenta_session_unit.lifecycle.Identity)
+                                (bundleA : tacenta_session_unit.lifecycle.PublishedBundle)
+                                (expected : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E)
+                                (s : tacenta_session_unit.lifecycle.Session),
+                                tacenta_session_unit.lifecycle.establish_initiator_for rcE crcE ourA bundleA expected
+                                      rng0 =
+                                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
+                                  ∀
+                                    (q :
+                                      Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcE crcE ourA
+                                        bundleA),
+                                    s = q.session →
+                                      ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                                        (↑plaintext).length + 65770 ≤ Aeneas.Std.Usize.max →
+                                          ∀ (rng : R),
+                                            trace rng = oracle.draws →
+                                              ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                                                trace rng = d1 :: d2 :: rest →
+                                                  ∀ (bytes : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+                                                    (s' : tacenta_session_unit.lifecycle.Session) (rng' : R),
+                                                    tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext
+                                                          rng =
+                                                        Aeneas.Std.Result.ok
+                                                          (Aeneas.Std.core.result.Result.Ok bytes, s', rng') →
+                                                      ∀ (rcB : tacenta_session_unit.rand_core_1.RngCore F)
+                                                        (crcB : tacenta_session_unit.rand_core_1.CryptoRng F)
+                                                        (contracts :
+                                                          Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+                                                        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+                                                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                                                            Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+                                                              Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+                                                                ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R)
+  (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleT3.BraidSendRefinementContracts rc oracle.braidKem →
+    Tacenta.UnitLifecycleT3.TripleSendRefinementContracts →
+      Tacenta.UnitLifecycleT1.AeadSealBounded →
+        Tacenta.UnitLifecycleT1.DhCodecTotal →
+          Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+            Tacenta.UnitLifecycleT3.DhCodecOf dh →
+              Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+                Tacenta.SessionUnitT3.ZeroizingRoundTrips80 →
+                  Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Aeneas.Std.Array Aeneas.Std.U8 32#usize) →
+                    Tacenta.UnitLifecycleT3.ZeroizingRoundTrips
+                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize ×
+                          Aeneas.Std.Array Aeneas.Std.U8 32#usize × Aeneas.Std.Array Aeneas.Std.U8 16#usize) →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace →
+                        Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf oracle.braidKem →
+                          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+                            Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                              ∀ (rcE : tacenta_session_unit.rand_core_1.RngCore E)
+                                (crcE : tacenta_session_unit.rand_core_1.CryptoRng E)
+                                (ourA : tacenta_session_unit.lifecycle.Identity)
+                                (bundleA : tacenta_session_unit.lifecycle.PublishedBundle)
+                                (expected : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E)
+                                (s : tacenta_session_unit.lifecycle.Session),
+                                tacenta_session_unit.lifecycle.establish_initiator_for rcE crcE ourA bundleA expected
+                                      rng0 =
+                                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
+                                  ∀
+                                    (q :
+                                      Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcE crcE ourA
+                                        bundleA),
+                                    s = q.session →
+                                      ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                                        (↑plaintext).length + 65770 ≤ Aeneas.Std.Usize.max →
+                                          ∀ (rng : R),
+                                            trace rng = oracle.draws →
+                                              ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                                                trace rng = d1 :: d2 :: rest →
+                                                  ∀ (bytes : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+                                                    (s' : tacenta_session_unit.lifecycle.Session) (rng' : R),
+                                                    tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext
+                                                          rng =
+                                                        Aeneas.Std.Result.ok
+                                                          (Aeneas.Std.core.result.Result.Ok bytes, s', rng') →
+                                                      ∀ (rcB : tacenta_session_unit.rand_core_1.RngCore F)
+                                                        (crcB : tacenta_session_unit.rand_core_1.CryptoRng F)
+                                                        (contracts :
+                                                          Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+                                                        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+                                                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                                                            Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                                                              Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                                                                  @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                                                                ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhCodec : Tacenta.UnitSatisfiabilityJoint.DhCodecShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhCodec
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhAgree : Tacenta.UnitSatisfiabilityJoint.DhAgreeShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_dhAgree
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_symmetric : Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_symmetric
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadOpen : Tacenta.UnitSatisfiabilityJoint.AeadOpenShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadOpen
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadSeal : Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadSeal
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadRoundTrip : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadRoundTrip
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_contributory : Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_contributory
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_laws_model : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+    Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+    Tacenta.UnitLifecycleResponderFirstReceipt.viewFirstReceipt Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR
+    @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+  Nonempty
+      (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom
+        Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+        Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+    Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape
+        Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+        Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
+      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape
+          Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape (Aeneas.Std.Result.ok 0#usize)
+            Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+          Tacenta.UnitLifecycleEstablishedEncrypt.EncryptExtraLawsShape
+              Tacenta.UnitLifecycleResponderFirstReceipt.InterpO.modelFirstReceipt
+              Tacenta.UnitLifecycleResponderFirstReceipt.dhViewFirstReceipt
+              Tacenta.UnitLifecycleResponderFirstReceipt.kemViewFirstReceipt
+              Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR (Aeneas.Std.Result.ok 0#usize) ∧
+            (Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTripShape
+                  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTripShape
+                    Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                  Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTripShape
+                      Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                    Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape
+                        @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl ∧
+                      Tacenta.UnitLifecycleSessionCodec.VecAsSliceShape
+                          @Tacenta.UnitLifecycleSessionCodec.vecAsSliceImpl ∧
+                        Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape
+                          (Aeneas.Std.Result.ok 0#usize)) ∧
+              Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR ∧
+                Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                      (Model.Lifecycle.braidRandomness
+                        (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.zeroSeed)) =
+                    none ∧
+                  Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                        (Model.Lifecycle.braidRandomness
+                          (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.oneSeed)) ≠
+                      none ∧
+                    Nonempty
+                        (Tacenta.UnitSatisfiabilityJoint.ResponderAxiom
+                          Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+                          Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+                      Tacenta.UnitLifecycleEstablishResponder.ResponderSuccessShape
+                          Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                        Tacenta.UnitLifecycleEstablishResponder.ZeroKeyShape
+                            Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+                              Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                            (Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+                                Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+                                (fun x => Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Aeneas.Std.U8))
+                                fun {T} x v => Aeneas.Std.Result.ok (decide (↑v = []))) ∧
+                              Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+                                  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt ∧
+                                Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape
+                                  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_receipt_laws_model
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable : ∀ (K : Model.Braid.Kem)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView),
+  Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh →
+    Nonempty
+        (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng) →
+      Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+            Tacenta.UnitLifecycleEstablishedEncrypt.EncryptExtraLaws K dh kem →
+              Nonempty
+                  (Tacenta.UnitSatisfiabilityJoint.ResponderAxiom Tacenta.UnitSatisfiabilityJoint.Interp.real
+                    Tacenta.UnitLifecycleIntegrationScreen.byteRng) →
+                Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                  Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                    Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+                        Tacenta.UnitSatisfiabilityJoint.Interp.real
+                        tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key
+                        @tacenta_session_unit.alloc.vec.Vec.is_empty →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf K →
+                        Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+                          Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+                            ∀ (ourA : tacenta_session_unit.lifecycle.Identity) (seed : List Aeneas.Std.U8),
+                              seed.length = 64 →
+                                K.keyGen
+                                      (Model.Lifecycle.braidRandomness (List.map Tacenta.SessionUnitBraidT3.u8 seed)) ≠
+                                    none →
+                                  ∃ oracle bundle rng0 rng1 q bytes s' rng' ourB storeB sB' ptB storeB' rngB',
+                                    oracle.braidKem = K ∧
+                                      Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptHypotheses
+                                          Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                          Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh kem
+                                          Tacenta.UnitLifecycleRepair.witnessView oracle
+                                          Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourA bundle
+                                          bundle.bundle.identity_key rng0 rng1 q.session
+                                          Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext seed ∧
+                                        tacenta_session_unit.lifecycle.Session.encrypt
+                                              Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                              Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
+                                              Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext seed =
+                                            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok bytes, s', rng') ∧
+                                          storeB.publish = Aeneas.Std.Result.ok bundle ∧
+                                            ourB.public = Aeneas.Std.Result.ok storeB.identity_public ∧
+                                              Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB ∧
+                                                Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
+                                                    bundle.kem_prekey_id q.kemCiphertext q.kemSecret ∧
+                                                  Tacenta.UnitLifecycleT1.EstablishResponderHeadroom storeB ∧
+                                                    Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf
+                                                        Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc dh
+                                                        Tacenta.UnitLifecycleIntegrationScreen.byteTrace oracle ∧
+                                                      Tacenta.UnitLifecycleIntegrationScreen.byteTrace seed =
+                                                          oracle.draws ∧
+                                                        ↑storeB.legacy_last_resort_blocked = [] ∧
+                                                          ↑storeB.last_resort_seen = [] ∧
+                                                            tacenta_session_unit.lifecycle.establish_responder
+                                                                  Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB
+                                                                  storeB bytes.deref seed =
+                                                                Aeneas.Std.Result.ok
+                                                                  (Aeneas.Std.core.result.Result.Ok (sB', ptB), storeB',
+                                                                    rngB') ∧
+                                                              ↑ptB =
+                                                                ↑Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstSenderTriple : Model.State.Key →
+  Model.State.Key →
+    Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.Triple.State :=
+fun a4 peer rkA cksA prk k1 k2 =>
+  {
+    classical :=
+      { dhsPub := a4, dhrPub := some peer, rk := rkA, cks := some cksA, ckr := none, ns := 0, nr := 0, pn := 0,
+        skipped := [], events := 0, labels := Model.State.LabelSet.tacenta },
+    postQuantum :=
+      { rk := prk, epoch := 0,
+        chains := [(0, { send := some { ck := k1, n := 0 }, receive := some { ck := k2, n := 0 } })], skipped := [],
+        direction := Model.SparseRatchet.Direction.a2b } }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstSenderTriple
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple : Model.State.Key →
+  Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.Triple.State :=
+fun b ec prk k1 k2 =>
+  {
+    classical :=
+      { dhsPub := b, dhrPub := none, rk := ec, cks := none, ckr := none, ns := 0, nr := 0, pn := 0, skipped := [],
+        events := 0, labels := Model.State.LabelSet.tacenta },
+    postQuantum :=
+      { rk := prk, epoch := 0,
+        chains := [(0, { send := some { ck := k2, n := 0 }, receive := some { ck := k1, n := 0 } })], skipped := [],
+        direction := Model.SparseRatchet.Direction.b2a } }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiverTriple
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstHeader : Model.State.Key → Model.Triple.Header :=
+fun a4 => { dr := { dh := a4, pn := 0, n := 0 }, epoch := 0, pqN := 1 }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstHeader
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstKey : Model.State.Key → Model.State.Key → Model.State.Key :=
+fun cksA k1 => Model.TripleRatchet.combine (Model.State.kdfCk cksA).2 (Model.SparseRatchet.kdfCk k1 1).2
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.senderAfterFirst : Model.State.Key →
+  Model.State.Key →
+    Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.Triple.State :=
+fun a4 peer rkA cksA prk k1 k2 =>
+  {
+    classical :=
+      { dhsPub := a4, dhrPub := some peer, rk := rkA, cks := some (Model.State.kdfCk cksA).1, ckr := none, ns := 1,
+        nr := 0, pn := 0, skipped := [], events := 0, labels := Model.State.LabelSet.tacenta },
+    postQuantum :=
+      { rk := prk, epoch := 0,
+        chains :=
+          [(0,
+              { send := some { ck := (Model.SparseRatchet.kdfCk k1 1).1, n := 1 },
+                receive := some { ck := k2, n := 0 } })],
+        skipped := [], direction := Model.SparseRatchet.Direction.a2b } }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.senderAfterFirst
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.receiverAfterFirst : Model.State.Key →
+  Model.State.Key →
+    Model.State.Key →
+      Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.Triple.State :=
+fun ec prk k1 k2 a4 d dSend newPub =>
+  {
+    classical :=
+      { dhsPub := newPub, dhrPub := some a4,
+        rk :=
+          (Model.State.kdfRk (Model.State.kdfRk ec d Model.State.LabelSet.tacenta).1 dSend
+              Model.State.LabelSet.tacenta).1,
+        cks :=
+          some
+            (Model.State.kdfRk (Model.State.kdfRk ec d Model.State.LabelSet.tacenta).1 dSend
+                Model.State.LabelSet.tacenta).2,
+        ckr := some (Model.State.kdfCk (Model.State.kdfRk ec d Model.State.LabelSet.tacenta).2).1, ns := 0, nr := 1,
+        pn := 0, skipped := [], events := 1, labels := Model.State.LabelSet.tacenta },
+    postQuantum :=
+      { rk := prk, epoch := 0,
+        chains :=
+          [(0,
+              { send := some { ck := k2, n := 0 },
+                receive := some { ck := (Model.SparseRatchet.kdfCk k1 1).1, n := 1 } })],
+        skipped := [], direction := Model.SparseRatchet.Direction.b2a } }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.receiverAfterFirst
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstAd : Model.Lifecycle.CodewordView →
+  Model.Lifecycle.Session → Model.Braid.Chunk → Model.Lifecycle.Bytes :=
+fun view m chunk =>
+  Model.Messages.concatAd m.identityAd
+    (Model.CompositeHeader.encode (Tacenta.UnitLifecycleEstablishedEncrypt.firstComposite view m chunk))
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstAd
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstOpen : Model.Lifecycle.Oracle →
+  Model.Lifecycle.Oracle →
+    Model.State.Key → Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Option Model.Lifecycle.Bytes :=
+fun oracleA oracleB mk pt ad =>
+  oracleB.aeadOpen (Model.State.messageKeys mk Model.State.LabelSet.tacenta).1
+    (Model.State.messageKeys mk Model.State.LabelSet.tacenta).2.1
+    (Model.State.messageKeys mk Model.State.LabelSet.tacenta).2.2
+    (oracleA.aeadSeal (Model.State.messageKeys mk Model.State.LabelSet.tacenta).1
+      (Model.State.messageKeys mk Model.State.LabelSet.tacenta).2.1
+      (Model.State.messageKeys mk Model.State.LabelSet.tacenta).2.2 pt ad)
+    ad
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstOpen
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession : Model.Lifecycle.Session →
+  Model.Lifecycle.Bytes →
+    Model.Braid.Chunk →
+      Model.State.Key →
+        Model.State.Key →
+          Model.State.Key →
+            Model.State.Key →
+              Model.State.Key →
+                Model.State.Key → Model.State.Key → Model.State.Key → Model.State.Key → Model.Lifecycle.Session :=
+fun mB secret rcv ec prk k1 k2 a4 d dSend newPub c =>
+  { triple := Tacenta.UnitLifecycleResponderFirstReceipt.receiverAfterFirst ec prk k1 k2 a4 d dSend newPub,
+    braid :=
+      Model.Braid.BraidState.noHeaderReceived 1 (Model.Braid.Auth.init 1 secret)
+        ((Model.Braid.Decoder.new (Model.Braid.headerSize + Model.Braid.macSize)).addChunk rcv),
+    ratchetPrivate := if (newPub == mB.triple.classical.dhsPub) = true then mB.ratchetPrivate else c,
+    identityAd := mB.identityAd, ourIdentityPublic := mB.ourIdentityPublic, peerIdentityPublic := mB.peerIdentityPublic,
+    pendingInitial := mB.pendingInitial, establishedEphemeral := mB.establishedEphemeral }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (k1 k2 : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (iv : Aeneas.Std.Array Aeneas.Std.U8 16#usize)
+    (pt ad : Aeneas.Std.Slice Aeneas.Std.U8) (ct : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),
+    (↑pt).length + 48 ≤ Aeneas.Std.Usize.max →
+      I.aeadEncrypt k1 k2 iv pt ad = Aeneas.Std.Result.ok ct →
+        ∃ v, I.aeadDecrypt k1 k2 iv ct.deref ad = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok v) ∧ ↑v = ↑pt
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip : Prop :=
+Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape : Tacenta.UnitSatisfiabilityJoint.Interp →
+  Prop :=
+fun I =>
+  ∀ (a b : I.PrivateKey) (pb : I.PublicKeyBytes),
+    I.dhPrivPublicKey b = Aeneas.Std.Result.ok pb → ∃ x, I.dhPrivAgree a pb = Aeneas.Std.Result.ok (some x)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory : Prop :=
+Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.arrayOfBytes : {n : Aeneas.Std.Usize} →
+  (l : Model.Lifecycle.Bytes) → List.length l = ↑n → Aeneas.Std.Array Aeneas.Std.U8 n :=
+fun {n} l h => ⟨Tacenta.UnitSatisfiabilityBraidAgreements.bytesOf l, ⋯⟩
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.arrayOfBytes
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.attributedView : Model.Lifecycle.CodewordView →
+  UInt16 → Model.Lifecycle.Bytes → Model.Braid.Chunk → Model.Lifecycle.CodewordView :=
+fun view idx data mc =>
+  { receive := fun st i d => if i = idx ∧ d = data then mc else view.receive st i d, send := view.send }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.attributedView
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.headerSource : Model.Braid.Kem →
+  Model.Braid.Auth → Model.Braid.Bytes → Model.Braid.Bytes → Model.Braid.Bytes :=
+fun K a ekSeed ekVector => ekSeed ++ K.hashEk ekSeed ekVector ++ a.macHdr 1 (ekSeed ++ K.hashEk ekSeed ekVector)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt : Tacenta.UnitSatisfiabilityJoint.Interp :=
+have __src := Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame;
+{ PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
+  IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
+  dhPrivFromBytes := __src.dhPrivFromBytes, dhPrivPublicKey := __src.dhPrivPublicKey, dhPrivAgree := __src.dhPrivAgree,
+  dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic,
+  aeadEncrypt := fun x x_1 x_2 p x_3 => Aeneas.Std.Result.ok (Tacenta.UnitOracleModel.sealModel p),
+  aeadDecrypt := fun x x_1 x_2 c x_3 => Aeneas.Std.Result.ok (Tacenta.UnitOracleModel.openModel c),
+  kemEncapsulate := @Tacenta.UnitSatisfiabilityJoint.Interp.kemEncapsulate __src,
+  kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
+  hmacSha256 := __src.hmacSha256, HEADER_LEN := __src.HEADER_LEN, EK_VECTOR_LEN := __src.EK_VECTOR_LEN,
+  CT1_LEN := __src.CT1_LEN, CT2_LEN := __src.CT2_LEN, ikpClone := __src.ikpClone,
+  ikpGenerate := @Tacenta.UnitSatisfiabilityJoint.Interp.ikpGenerate __src, ikpHeader := __src.ikpHeader,
+  ikpEkVector := __src.ikpEkVector, ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
+  encapsulate1 := @Tacenta.UnitSatisfiabilityJoint.Interp.encapsulate1 __src, encapsulate2 := __src.encapsulate2,
+  validateEk := __src.validateEk, blanketZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.blanketZeroize __src,
+  arrayZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.arrayZeroize __src,
+  tupleZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.tupleZeroize __src,
+  pairZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.pairZeroize __src,
+  vecZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.vecZeroize __src,
+  zNew := @Tacenta.UnitSatisfiabilityJoint.Interp.zNew __src,
+  zDeref := @Tacenta.UnitSatisfiabilityJoint.Interp.zDeref __src,
+  zDerefMut := @Tacenta.UnitSatisfiabilityJoint.Interp.zDerefMut __src,
+  vecPop := @Tacenta.UnitSatisfiabilityJoint.Interp.vecPop __src,
+  vecCapacity := @Tacenta.UnitSatisfiabilityJoint.Interp.vecCapacity __src,
+  vecTruncate := @Tacenta.UnitSatisfiabilityJoint.Interp.vecTruncate __src,
+  optionClone := @Tacenta.UnitSatisfiabilityJoint.Interp.optionClone __src,
+  optionAsMut := @Tacenta.UnitSatisfiabilityJoint.Interp.optionAsMut __src,
+  rangeFullIndex := @Tacenta.UnitSatisfiabilityJoint.Interp.rangeFullIndex __src, divCeil := __src.divCeil }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.InterpO.modelFirstReceipt : Tacenta.UnitOracleShape.InterpO :=
+have __src := Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt;
+{ toInterp := __src, xeddsaSign := fun {R} => Tacenta.UnitOracleModel.signModelO }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.InterpO.modelFirstReceipt
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.viewFirstReceipt : Tacenta.UnitLifecycleDecryptRatchetScreen.DhViewShape
+  Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt :=
+{ privateKey := Tacenta.UnitLifecycleT3.arrayOf, publicKey := Tacenta.UnitLifecycleT3.arrayOf }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.viewFirstReceipt
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.dhViewFirstReceipt : Tacenta.UnitOracleShape.DhViewOf
+  Tacenta.UnitLifecycleResponderFirstReceipt.InterpO.modelFirstReceipt.toInterp :=
+{ privateKey := Tacenta.UnitLifecycleResponderFirstReceipt.viewFirstReceipt.privateKey,
+  publicKey := Tacenta.UnitLifecycleResponderFirstReceipt.viewFirstReceipt.publicKey }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.dhViewFirstReceipt
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstReceipt.kemViewFirstReceipt : Tacenta.UnitOracleShape.KemViewOf
+  Tacenta.UnitLifecycleResponderFirstReceipt.InterpO.modelFirstReceipt.toInterp :=
+{ keyPair := fun x => [] }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstReceipt.kemViewFirstReceipt

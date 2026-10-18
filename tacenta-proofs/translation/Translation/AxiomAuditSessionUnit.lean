@@ -69,6 +69,7 @@ import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
+import Translation.UnitLifecycleResponderFirstReceipt
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -127,6 +128,13 @@ the initiator used: under a DH symmetry law, a per-run KEM premise and the store
 the call refuses only with the three refusals the store decides, on the last-resort path, or reaches the inner
 receive with the initiator's shared secret, where the invariant, the ceilings and the relation hold; the laws
 hold in one interpretation and one run reaches the inner receive.  That the inner receive succeeds is not shown.
+`UnitLifecycleResponderFirstReceipt.lean` continues on the same bytes: past the store's refusals the inner receive
+returns exactly one of a non-contributory candidate agreement, an AEAD refusal (store as given, one draw each) or
+what the open of the initiator's seal returns; under two further boundary laws (the AEAD opens what it sealed, and
+an agreement with a key `public_key` returned is not refused) and a per-run draw premise, the inner receive returns
+the initiator's plaintext and the whole call succeeds with the committed store and one draw, its session related
+to the model's step at a view that attributes the received chunk to the initiator's header source; the laws hold
+in one interpretation and one run reaches the success.  A tampered frame being refused is not shown.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
