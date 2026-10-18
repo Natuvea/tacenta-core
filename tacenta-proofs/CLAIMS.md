@@ -106,7 +106,8 @@ this section says in one place what is not proved.
   `establish_initiator_for` output ...)"). Initial frames, a second `encrypt` and the next `decrypt` on the session that
   sent are not covered ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model relation at
   every successful `establish_initiator_for` output ...)"); `establish_responder` is covered for every input by its own
-  section, below, but not shown to accept that first frame, so the responder's receipt of that frame is not covered.
+  section, below, and on that first frame up to its inner receive (two sentences on), but not shown to accept it, so the
+  responder's receipt of that frame is not covered.
   For every responder identity, prekey store, initial message and source of randomness, `establish_responder` returns
   a refusal before its inner receive (one of nine named errors, the store and the random source as given), a refusal of
   its inner `decrypt_ratchet` (the store as given), or that receive's success with the store changed only in the two
@@ -124,6 +125,19 @@ this section says in one place what is not proved.
   interpretation.
   No input at which the whole call succeeds is exhibited ("Proved (tier T3, session lifecycle: `establish_responder` over
   every input ...)").
+  On the bytes that first `encrypt` returns, at a responder store whose `publish` returned the bundle the initiator used
+  (with the store's identifiers distinct, a named hypothesis whose derivation from `PrekeyStore::invariant` is not
+  checked), `establish_responder` refuses only with the legacy marker on the last-resort key, a handshake already
+  recorded or a full record, and only when the bundle names the last-resort key, with the store and the random source as
+  given; otherwise it reaches the inner receive at a session whose shared secret is the initiator's, where the invariant,
+  the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
+  (`DhAgreeSymmetric`), a premise about the run, that the store's KEM key decapsulates the initiator's ciphertext to the
+  initiator's secret (`FirstKemAgrees`; ML-KEM decapsulation can fail with small probability, so it is not a law), and the
+  establishment's, restore and decrypt laws named there; the composed statement is compiler-trusted through the encrypt
+  wrapper. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
+  shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists. That the inner receive accepts the
+  frame, and with which plaintext, is not shown ("Proved (tier T3, session lifecycle: `establish_responder` on the frame the
+  initiator's first `encrypt` emits ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4238,9 +4252,10 @@ it is related to keeps the session on a refusal (`Model.Lifecycle.decryptRatchet
 post-state of a refusal refines the unchanged model session. "Every frame" is bounded by the caller's premises: a ratchet-type frame whose
 agreement chunk, if it has one, meets `IncomingChunkRefines`, with at least one draw left. The chunk premise is not benign for
 a frame from a sender who is not honest: a spliced or inconsistent chunk is outside the theorem whether the frame is refused
-or accepted. Initial-type frames are not covered; `establish_responder` is covered for every input in the next section, but
-not at a frame this session sent; `import` is covered in a later section only, and the first `encrypt` at this session in
-the section after that. The two laws `DhPublicValid`
+or accepted. Initial-type frames are not covered; `establish_responder` is covered for every input in the next section, and
+at the frame this session's first `encrypt` emits up to its inner receive in a later section, but its acceptance of that
+frame is not shown; `import` is covered in a later section only, and the first `encrypt` at this session in the section
+after that. The two laws `DhPublicValid`
 and `KemCiphertextLenOf` are assumed, as are `OptionEqU64Shape`, the boundary records, the chunk relation and the draw. As for
 the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
 session lifecycle out.
@@ -4407,8 +4422,9 @@ successes are tested only (`tacenta-core/tests/full_session.rs` and the other re
 `tacenta-core/wire/src/lib.rs`, whose canonical-key checks precede `decode_ec`'s; not checked in Lean),
 `Handshake(InvalidIdentityKey)` and `Kem` (the joint model's prime-order check and KEM decapsulation accept every input, so a
 shape that refuses could not be shown satisfiable there). The run's chunk relation, `HonestChunk`, the trace equation and the
-draw are the caller's and are asked of every parts value of the input; an attacker chooses the chunk. Not covered: the
-initiator's frame and the plaintext, the successor's invariant, the responder's next operation, that
+draw are the caller's and are asked of every parts value of the input; an attacker chooses the chunk. Not covered here: the
+initiator's frame (its own section, "`establish_responder` on the frame the initiator's first `encrypt` emits", reaches
+the inner receive at it) and the plaintext, the successor's invariant, the responder's next operation, that
 `responderModelOf dh p` is the model's prepared session, the model's `establishResponder` equality, which entry a removal
 takes, and a source with no state of its own such as `OsRng`.
 
@@ -4842,8 +4858,8 @@ two-sided, the key pair's header, vector and decapsulation agreeing with the mod
 generation returns a 32-byte seed and a vector of `ekSize` bytes and its hash is 32 bytes; a statement about the model, not
 the code, which holds at the wrapper's KEM model under the wrapper laws, `keyGenSizes_wrapperKem`). The others are the existing boundary records and laws named above.
 
-**What it does not show.** The responder's receipt of the frame (`establish_responder`'s outcomes and its inner receive are covered
-for every input in their own section, above, but nothing shows this frame reaching that receive or being accepted), so the send → receive edge stays open on the responder's side;
+**What it does not show.** The responder's receipt of the frame (`establish_responder` reaches its inner receive on this frame, under
+the premises of the next section, but its acceptance of the frame is not shown), so the send → receive edge stays open on the responder's side;
 initial-frame `decrypt` anywhere; a second `encrypt` from the session that sent, or the next `decrypt` on it (the successor
 results supply their session-side premises, not the calls); a relation for a copy of the post-send session restored by
 `import` (its agreement holds a key pair, outside `RestoredScope`); that `establishedModelOf dh s` is the model's own
@@ -4891,6 +4907,135 @@ counters claimed to stay at 0 (refused in `established_triple_next_counters`); `
 with key generation that reads its 64 bytes but returns the source it was given (refused in `genFill_answers`); and `KeyGenAnswersShape` without its
 refusing arm, with the pins kept (refused at its `#print` pin). Two unmodified copies, without and with the pins, are
 accepted first.
+
+## Proved (tier T3, session lifecycle: `establish_responder` on the frame the initiator's first `encrypt` emits, at a store whose `publish` returned the bundle, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleResponderFirstFrame.lean`.
+
+The two sections above stop at each other: the first `encrypt` at a session `establish_initiator_for` returned emits the
+model's initial message wrapping the first ratchet frame, and `establish_responder` is composed for every input. These
+results feed the one into the other: the bytes one party's actual call returned, to the other party's actual call, at a
+responder store whose `publish` returned the very bundle the initiator established against. The initiator's run is read off
+the generated function a second time (`InitiatorSecretParts`), because the session it returns does not hold the shared
+secret, the encapsulated secret or the ratchet agreement.
+
+**At the initiator's frame.** For every record `q` of a successful establishment, every frame the initial message carries,
+every responder identity whose public key is the store's identity key, every prekey store whose `publish` returned the
+bundle, whose identifiers are distinct and none `ABSENT_ID` (`PrekeyIdsDistinct`), and at which the store's KEM key pair under
+the named identifier decapsulates the initiator's ciphertext to the initiator's encapsulated secret (`FirstKemAgrees`), and
+every source of randomness, `establish_responder` on the initiator's initial message (`responder_first_frame_prepares`)
+either
+
+| Outcome | When | Result | Prekey store after | Random source after |
+| --- | --- | --- | --- | --- |
+| a refusal the store decides (`StoreRefusal`) | only when the bundle names the store's last-resort KEM key | `LegacyLastResortRecord` (the legacy marker lists the key), `ReplayedLastResort` (the record holds this handshake's fingerprint) or `LastResortRecordFull` (the record is not empty and full for the key) | as given | as given |
+| the inner receive reached | otherwise, and possibly on the last-resort path | parts `p` whose shared secret, its zeroized bytes and both slices, peer identity and ephemeral keys and decapsulated secret are the initiator's, whose frame is the one the message carries, and whose last-resort flag holds exactly when the bundle names the last-resort key | | |
+
+No other refusal of the prepare phase occurs at this input: the disjunction has no arm for `Decode`, `UnknownPrekeyId`,
+`BadEncoding`, `Handshake(InvalidIdentityKey)`, `Handshake(NonContributoryAgreement)` or `Kem`, and where parts exist the call
+is exactly the inner receive followed by the commit (the generic route's `establish_responder_at_parts`); the inner receive's
+own refusals are not excluded. The responder's shared secret is
+the initiator's because the responder's four agreements are the initiator's with the arguments swapped
+(`shared_secret_symmetric`): so the two `shared_secret` calls receive the same inputs, and the contributory checks pass on the
+responder's side because they passed on the initiator's; no contributory law is used. At the session the call reaches the
+inner receive with, `Session::invariant`, the four ceilings and the relation to `responderModelOf dh p` hold
+(`responder_first_frame_admissible`, from the generic responder route). Composed with the first send
+(`first_send_responder_prepares`): the bytes a successful first `encrypt` returns are the initial message wrapping the first
+ratchet frame for some message key and chunk, and `establish_responder` on them is as above, with that first ratchet frame as
+the parts' frame.
+
+**The law and the premises.** `DhAgreeSymmetric` (new, assumed; `LIMITATIONS.md`): for private keys `a`, `b` with public keys
+`pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` is a premise about the run, not a law: ML-KEM decapsulation of an
+honest ciphertext fails with small probability, and the wrapper's implicit rejection then returns another secret.
+`PrekeyIdsDistinct` is a named hypothesis about the store; it is what `PrekeyStore::invariant`'s identifier loop checks, but
+that the invariant gives it is not checked (the loop reads the pools through `IntoIterator for &Vec`, which the translation
+leaves opaque and no law describes). Reused: `DhPublicValid`, `DhPublicBytesRoundTrip` (the restore branch's law),
+`KemCiphertextLenOf` and `KemCiphertextLenBound`, `DhCodecOf dh`, the contracts of `establish_responder_no_panic`, and for the
+second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed statement adds the hypotheses of
+`established_encrypt_outcomes`.
+
+- `responder_first_frame_prepares`: the two outcomes above, under the contracts of `establish_responder_no_panic`,
+  `DhPublicValid`, `DhAgreeSymmetric`, `DhPublicBytesRoundTrip`, the two ciphertext-length laws and `DhCodecOf dh`, all
+  assumed, and the store premises and `FirstKemAgrees`.
+- `responder_first_frame_admissible`: with, in the second arm, `Session::invariant`, `CounterHeadroom` and `SessionRefines`
+  at the parts' session, under the same and `OptionEqU64Shape` and `DecryptRatchetAgreements K`, assumed.
+- `first_send_responder_prepares`: the composition with the success arm of `established_encrypt_outcomes`, under the union of
+  its hypotheses and those above.
+- `establish_initiator_for_secret`, `bundle_with_own`: every successful establishment output is the session of an
+  `InitiatorSecretParts` record (the identity key, the zeroized encapsulated secret, the shared secret with its zeroized bytes
+  and slices, the ratchet agreement, the `init_sender` and `Braid::initiator` calls, `verify_bundle`'s acceptance); no
+  hypothesis.
+- `publish_parts`, `vec_index_last`: what `publish` names (identity key, signed prekey identifier and public key, the
+  last-resort KEM key or the last one-time KEM entry, no one-time curve key or the last pool entry with its public key); no
+  hypothesis.
+- `shared_secret_symmetric`: the responder's `responder_shared_secret` call equals the initiator's `initiator_shared_secret`
+  call as computations, under `DhAgreeSymmetric` and the key relations it names.
+- `dhAgreeSymmetric_is`: the law at the real constants is the statement about the real functions; by `Iff.rfl`.
+- `decode_first_frame`, `canonicalKey_arrayOf`, `view_of_public`, `identity_public_of_dh_key`, `ciphertext_le`: the
+  responder's `decode_initial` accepts the initiator's bytes and returns the bundle's identifiers, the initiator's
+  ciphertext, the frame and the two keys in `EncodeEC` form, under `DhPublicValid`, `DhCodecOf dh` and the two
+  ciphertext-length laws; the helpers under the laws they name or none.
+- `decode_ec_public`, `curve_inputs_of`: the two keys decode to the initiator's public keys, under `DhPublicBytesRoundTrip`, and
+  the curve-input step returns them when the identity key is valid.
+- `signed_prekey_own`, `contains_u32`, `kem_slot_last_resort`, `kem_slot_one_time`, `one_time_kem_ids_spec`,
+  `u32_index_first`, `decapsulate_current`, `decapsulate_one_time`, `one_time_key_absent`, `one_time_key_last`,
+  `peek_one_time_first`: the store's lookups at the identifiers `publish` named, the one-time ones at the first occurrence of
+  the identifier; the last two under the zeroizing round trip, the others with no hypothesis beyond the stated store facts.
+- `nodup_append_disjoint`, `distinct_kem_last`, `distinct_pool_last`, `heldKemPair_last`: what `PrekeyIdsDistinct` gives at
+  the entries `publish` named; no other hypothesis.
+- `replay_refusal_cause`: on the last-resort path the replay check refuses only with the fingerprint recorded
+  (`ReplayedLastResort`) or a non-empty record (`LastResortRecordFull`); no hypothesis.
+- `establish_responder_slot_refused`, `establish_responder_replay_refused_at`, `parts_of_steps`: the call refuses with the
+  store and the source as given when the KEM lookup or the replay check refuses after the earlier steps returned, and parts
+  exist when every step returned (the remaining steps under the contracts); no other hypothesis.
+- `first_frame_laws_model`, `modelFirstFrame_dhCodec`, `modelFirstFrame_dhAgree`, `modelFirstFrame_symmetric`,
+  `basePoint_ne_zero`: one interpretation, `InterpO.modelFirstFrame` (the encrypt branch's joint model with an agreement that
+  is symmetric and contributory on every key its `public_key` returns), satisfies the decrypt laws, the initiator and
+  responder contract axioms, `InitiatorSuccessShape`, `ResponderSuccessShape`, `ZeroKeyShape`, `DhPublicValidShape`, the
+  ciphertext-length law, the encrypt extra laws, the six restore laws, the encrypt branch's size law and seeds,
+  `DhAgreeSymmetricShape` and `FirstFrameSuccessShape` together, in the substitution sense of `LIMITATIONS.md`; not a
+  statement that the real primitives meet them.
+- `first_send_responder_reachable`: at the real constants, under the decrypt laws, the initiator and responder contract
+  axioms, `InitiatorSuccessShape`, `DhPublicValid`, `KemCiphertextLenOf`, the encrypt extra laws, `DhAgreeSymmetric`,
+  `DhPublicBytesRoundTrip` and `FirstFrameSuccessShape`, all assumed, for every initiator identity and every 64-byte source at
+  whose bytes the model's key generation answers, one run exists from a store's `publish` through the establishment and a
+  successful first send to parts at which the call reaches the inner receive, every premise of
+  `first_send_responder_prepares` holding there, at a store that refuses nothing (no legacy marker, an empty record).
+- `publish_reachStore`, `reachStore_distinct`, `random_secret_byte`, `reach_establishment`: steps of that run (the store and
+  its published bundle, its distinct identifiers, the byte-stream draw, the establishment and its record); under the
+  initiator contracts and the key and KEM facts they name.
+
+**What this establishes, and what it does not.** On the actual bytes the initiator's actual first `encrypt` returns, at a
+store that published the bundle used, every refusal of the responder's prepare phase other than the three the store decides
+is excluded, and the responder's shared secret is the initiator's, under the law, the run premise and the store hypothesis
+named above. **Not shown:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext it returns (that
+needs the first message key to agree on both sides in the model, and the AEAD round trip); the responder's successor, its
+invariant and the draws on success; any later message in either direction; that `PrekeyStore::invariant` gives
+`PrekeyIdsDistinct`; the model's `establishResponder` equality. The reach shows only that the second arm is not about an empty
+set under the assumptions it names; it does not show the inner receive accepts.
+
+**Compiler trust and pins.** `first_send_responder_prepares` and `first_send_responder_reachable` are compiler-trusted: they
+apply `established_encrypt_outcomes` and list the encrypt wrapper's nine `native_decide` constants. Of the other 43 results, 6
+rest on `propext`, `Classical.choice` and `Quot.sound` alone (some on a subset of them), and 37 on those three and opaque
+constants of the unit. Each of the 45 results carries an axiom pin and a statement pin, and each of the 20 definitions the
+section adds a `#print` pin (`InitiatorSecretParts`, `DhAgreeSymmetricShape`, `DhAgreeSymmetric`, `OneTimeMatches`, `zPool`,
+`PoolEntry`, `KemEntry`, `storeIds`, `PrekeyIdsDistinct`, `heldKemPair`, `FirstKemAgrees`, `StoreRefusal`,
+`FirstFrameSuccessShape`, `Interp.modelFirstFrame`, `InterpO.modelFirstFrame`, `viewFirstFrame`, `dhViewFirstFrame`,
+`kemViewFirstFrame`, `reachStore`, `reachBundle`). `check-responder-frame-negatives.py` plants eighteen faults in a copy of the
+module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
+against a message naming the change: the agreement law weakened to agree with itself (refused in `shared_secret_symmetric`);
+the joint model's agreement returning the private key and its public key the zero key (refused in `modelFirstFrame_symmetric`
+and `first_frame_laws_model`); the KEM premise saying nothing of what decapsulation returns, the legacy refusal claimed without
+the marker, the parts' secret claimed the ratchet agreement, their peer identity key the initiator's ephemeral key and the
+last-resort flag inverted (refused in `responder_first_frame_prepares`); the store's distinctness kept for its first two
+identifiers only, once for repeat-freedom and once for `ABSENT_ID` (refused in `distinct_kem_last` and `distinct_pool_last`);
+the full-record refusal at an empty record (refused in `replay_refusal_cause`); the decoded KEM identifier claimed the signed
+prekey's (refused in `decode_first_frame`); `publish` claimed to name the first one-time KEM entry (refused in
+`publish_parts`); the one-time KEM lookup without its first-occurrence premise (refused in `kem_slot_one_time`); the
+initiator's ratchet agreement claimed with its identity key (refused in `establish_initiator_for_secret`); the reach's store
+with a legacy marker (refused in `first_send_responder_reachable`); the composed frame claimed for the empty plaintext
+(refused in `first_send_responder_prepares`); and the agreement law weakened with its pins kept (refused at the pin of
+`DhAgreeSymmetricShape`). An error that is not a refusal voids a run anywhere in the copy, compared without regard to case.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

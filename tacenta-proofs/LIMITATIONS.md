@@ -2649,7 +2649,38 @@ reachable once `decode_initial` accepted, since its canonical-key checks precede
 `Handshake(InvalidIdentityKey)` and `Kem` (the model's prime-order check and decapsulation accept every input, so a statement
 that makes them refuse could not be shown satisfiable together with the others there). Which entry a removal from a one-time
 pool takes is not stated (`GAP-REGISTER.md`, row `E2E-03`). The successor the call returns is not shown to pass the
-invariant, and nothing is shown of the initiator's frame, the plaintext or the responder's next operation.
+invariant, and nothing is shown here of the initiator's frame (the next paragraph), the plaintext or the responder's next operation.
+
+*At the initiator's first frame.* `UnitLifecycleResponderFirstFrame.lean` feeds the bytes the first `encrypt` at an
+`establish_initiator_for` output returns to `establish_responder`, at a responder store whose `publish` returned the bundle the
+initiator used and an identity whose public key is the store's identity key. There, only the three refusals the store decides
+remain (the legacy marker on the last-resort key, the handshake's fingerprint already recorded, a non-empty full record), and only
+when the bundle names the last-resort key; otherwise the call reaches the inner receive at a session whose shared secret is the
+initiator's (`responder_first_frame_prepares`, `responder_first_frame_admissible`, composed with the first send in
+`first_send_responder_prepares`, which is compiler-trusted through the encrypt wrapper). One law, one premise about the run and
+one hypothesis about the store are new:
+
+| Statement | Kind | Says | Used for | Model, and when it would be false |
+|---|---|---|---|---|
+| `DhAgreeSymmetric` | law, ASSUMED (`DhAgreeSymmetricShape` at the real constants) | for private keys `a`, `b` whose public keys are `pa`, `pb`, `PrivateKey::agree a pb` returns what `agree b pa` returns | the responder's four agreements are the initiator's, so the two shared secrets are equal and the responder's contributory checks pass (`shared_secret_symmetric`) | `InterpO.modelFirstFrame` (`modelFirstFrame_symmetric`), whose public key is the base point for every private key and whose agreement returns the public key it was given unless it is the zero key: a toy. True of the boundary by reading (`tacenta-core/boundary/src/dh.rs`, X25519 through x25519-dalek: both sides compute the u-coordinate of the product of the two clamped scalars and the base point, and the boundary refuses the all-zero output on both sides); not checked in Lean. It would be false of a DH whose two directions differ, of a boundary that clamped or validated on one side only, and of one that refused a non-contributory result on one side only |
+| `FirstKemAgrees` | premise about the run, not a law | the KEM key pair the store holds under the identifier the bundle names decapsulates the initiator's ciphertext to the secret the initiator's encapsulation returned | the responder's decapsulated secret is the initiator's | holds in the reach's run (`first_send_responder_reachable`), from `FirstFrameSuccessShape`. Deliberately not a law: ML-KEM decapsulation of an honestly encapsulated ciphertext fails with a small probability (FIPS 203), and the wrapper's implicit rejection then returns another secret rather than an error, so a statement for every run would be false of the real primitive |
+| `PrekeyIdsDistinct` | hypothesis about the store, named | the identifiers the store holds (signed prekey, KEM key, previous ones, the one-time curve and KEM entries) are distinct and none is `ABSENT_ID` | the KEM lookup and the one-time lookup find the entries `publish` named (`u32_index` and `peek_one_time` return the first occurrence; `ABSENT_ID` names no key) | holds at the reach's store (`reachStore_distinct`). It is what `PrekeyStore::invariant`'s identifier loop checks (with the bound by `next_id`), but that the invariant gives it is not checked: the invariant reads the pools through `IntoIterator for &Vec`, which the translation leaves opaque and for which no law is in the tree. It would be false of a store holding a repeated identifier (then the lookup can find another entry than the one published) |
+
+One more statement is assumed for inhabitation only, as `ResponderSuccessShape` above; no result about every input takes it:
+
+| Statement | Says | Used for | Model, and when it would be false |
+|---|---|---|---|
+| `FirstFrameSuccessShape` | over an interpretation and two functions it has no field for (`KeyPair::public_key`, `Vec::is_empty`): a private key, given by its bytes, whose public key has canonical bytes, is of prime order, equals itself, has a verifying signature for every message and agrees contributorily with every private key; a KEM key pair with a public key and one byte stream at which encapsulation to it returns a ciphertext and a secret the pair decapsulates back; a wrapper holding the empty one-time pool; `Vec::is_empty` true on an empty vector | the run of `first_send_responder_reachable`: a store from that key and pair, its published bundle, a successful establishment against it, a first send, and the responder reaching the inner receive | `InterpO.modelFirstFrame` with an empty public KEM key and `Vec::is_empty` as an emptiness test (`first_frame_laws_model`). It would be false of a signature scheme with a key on which no signature verifies, of an agreement that refuses some private key with that public key, of a KEM whose decapsulation recovers no encapsulation at any stream, and of a `Vec::is_empty` that says an empty vector is not empty |
+
+Every law and shape of those premise lists (the decrypt laws, the initiator and responder contract axioms,
+`InitiatorSuccessShape`, `ResponderSuccessShape`, `ZeroKeyShape`, `DhPublicValidShape`, the ciphertext-length law, the encrypt extra
+laws, the six restore laws, the encrypt branch's size law and seeds, `DhAgreeSymmetricShape` and `FirstFrameSuccessShape`) holds
+together in `InterpO.modelFirstFrame` (`first_frame_laws_model`), a toy that shows nothing of the real primitives. The encrypt
+branch's joint model satisfies `DhAgreeSymmetricShape` too, but only because every public key there is the zero key and the
+agreement refuses it, so no establishment against a published bundle succeeds there; that is why the new interpretation changes
+the public key and the agreement. **Not shown:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext
+it returns (it needs the first message key to agree on both sides in the model, and an AEAD round trip); the responder's
+successor, its invariant and its draws; any later message; that `PrekeyStore::invariant` gives `PrekeyIdsDistinct`.
 
 **What is not shown.**
 
