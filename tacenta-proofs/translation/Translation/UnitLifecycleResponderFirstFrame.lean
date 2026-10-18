@@ -1968,3 +1968,2719 @@ theorem first_send_responder_reachable (K : Model.Braid.Kem) (dh : DhView)
 
 end Tacenta.UnitLifecycleResponderFirstFrame
 
+/-! ## Pins
+
+The constants each result depends on, and the statement of each result and definition, held by the
+build.  `attest.py` requires every one of them (`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`,
+`REQUIRED_PRINT_FORM`). -/
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.bundle_with_own' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.bundle_with_own
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.establish_initiator_for_secret' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.establish_initiator_for_secret
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.dhAgreeSymmetric_is' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.dhAgreeSymmetric_is
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.shared_secret_symmetric' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.shared_secret_symmetric
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.vec_index_last' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.vec_index_last
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.publish_parts' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.publish_parts
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.one_time_kem_ids_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.one_time_kem_ids_spec
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.u32_index_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.u32_index_first
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.peek_one_time_first' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.peek_one_time_first
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.canonicalKey_arrayOf' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.canonicalKey_arrayOf
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.view_of_public' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.view_of_public
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.identity_public_of_dh_key' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.identity_public_of_dh_key
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.ciphertext_le' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.ciphertext_le
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.decode_first_frame' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.decode_first_frame
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.decode_ec_public' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.decode_ec_public
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.curve_inputs_of' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.curve_inputs_of
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.contains_u32' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.contains_u32
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.signed_prekey_own' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.signed_prekey_own
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_last_resort' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_last_resort
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_one_time' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_one_time
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_current' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_current
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_one_time' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_one_time
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_absent' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_absent
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_last' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_last
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.nodup_append_disjoint' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.nodup_append_disjoint
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.distinct_kem_last' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.distinct_kem_last
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.distinct_pool_last' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.distinct_pool_last
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair_last' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair_last
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.replay_loop_flag' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.replay_loop_flag
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.replay_refusal_cause' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.replay_refusal_cause
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.basePoint_ne_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.basePoint_ne_zero
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhCodec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhCodec
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhAgree' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhAgree
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_symmetric' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_symmetric
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.first_frame_laws_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.first_frame_laws_model
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.publish_reachStore' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.publish_reachStore
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.reachStore_distinct' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.reachStore_distinct
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.random_secret_byte' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.random_secret_byte
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.reach_establishment' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.reach_establishment
+
+/--
+info: 'Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.tacenta_kdf.hmac_sha256,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.ciphertext_len,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.sign,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.is_empty,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.bundle_with_own : ∀ (b : tacenta_session_unit.PreKeyBundle)
+  (o : Option tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+  b.one_time_prekey = o →
+    { identity_key := b.identity_key, signed_prekey := b.signed_prekey,
+        signed_prekey_signature := b.signed_prekey_signature, kem_prekey := b.kem_prekey,
+        kem_prekey_signature := b.kem_prekey_signature, one_time_prekey := o } =
+      b
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.bundle_with_own
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.establish_initiator_for_secret : ∀ {R : Type}
+  (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (our : tacenta_session_unit.lifecycle.Identity) (bundle : tacenta_session_unit.lifecycle.PublishedBundle)
+  (expected : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : R)
+  (s : tacenta_session_unit.lifecycle.Session),
+  tacenta_session_unit.lifecycle.establish_initiator_for rc crc our bundle expected rng0 =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
+    ∃ q, s = q.session
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.establish_initiator_for_secret
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.dhAgreeSymmetric_is : Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric ↔
+  ∀ (a b : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+    (pa pb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+    a.public_key = Aeneas.Std.Result.ok pa → b.public_key = Aeneas.Std.Result.ok pb → a.agree pb = b.agree pa
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.dhAgreeSymmetric_is
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.shared_secret_symmetric : Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+  ∀ (ikA eph ikB spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+    (pubA ephPub : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (bundle : tacenta_session_unit.PreKeyBundle)
+    (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey) (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+    ikA.public_key = Aeneas.Std.Result.ok pubA →
+      eph.public_key = Aeneas.Std.Result.ok ephPub →
+        ikB.public_key = Aeneas.Std.Result.ok bundle.identity_key →
+          spk.public_key = Aeneas.Std.Result.ok bundle.signed_prekey →
+            Tacenta.UnitLifecycleResponderFirstFrame.OneTimeMatches bundle.one_time_prekey otk →
+              tacenta_session_unit.verify_bundle bundle = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) →
+                tacenta_session_unit.is_valid_identity_key pubA = Aeneas.Std.Result.ok true →
+                  tacenta_session_unit.responder_shared_secret ikB spk otk pubA ephPub enc =
+                    tacenta_session_unit.initiator_shared_secret ikA eph bundle enc
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.shared_secret_symmetric
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.vec_index_last : ∀ {α : Type} (v : Aeneas.Std.alloc.vec.Vec α)
+  (i : Aeneas.Std.Usize) (x : α),
+  Aeneas.Std.alloc.vec.Vec.index (Aeneas.Std.core.slice.index.SliceIndexUsizeSlice α) v i = Aeneas.Std.Result.ok x →
+    ↑i = (↑v).length - 1 → (↑v).getLast? = some x
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.vec_index_last
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.publish_parts : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (bundle : tacenta_session_unit.lifecycle.PublishedBundle),
+  store.publish = Aeneas.Std.Result.ok bundle →
+    bundle.signed_prekey_id = store.signed_prekey_id ∧
+      bundle.bundle.identity_key = store.identity_public ∧
+        (∃ spk,
+            tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes store.signed_prekey_secret =
+                Aeneas.Std.Result.ok spk ∧
+              spk.public_key = Aeneas.Std.Result.ok bundle.bundle.signed_prekey) ∧
+          (bundle.kem_prekey_id = store.kem_id ∧ store.kem.public_key = Aeneas.Std.Result.ok bundle.bundle.kem_prekey ∨
+              ∃ e,
+                (↑store.kem_one_time).getLast? = some e ∧
+                  bundle.kem_prekey_id = e.1 ∧ e.2.1.public_key = Aeneas.Std.Result.ok bundle.bundle.kem_prekey) ∧
+            ∃ v,
+              tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                    Tacenta.UnitLifecycleResponderFirstFrame.zPool store.one_time =
+                  Aeneas.Std.Result.ok v ∧
+                (bundle.one_time_prekey_id = tacenta_session_unit.serialization.ABSENT_ID ∧
+                    bundle.bundle.one_time_prekey = none ∨
+                  ∃ e k pk,
+                    (↑v).getLast? = some e ∧
+                      bundle.one_time_prekey_id = e.1 ∧
+                        tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes e.2 = Aeneas.Std.Result.ok k ∧
+                          k.public_key = Aeneas.Std.Result.ok pk ∧ bundle.bundle.one_time_prekey = some pk)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.publish_parts
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.one_time_kem_ids_spec : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore),
+  Aeneas.Std.WP.spec store.one_time_kem_ids fun ids => ↑ids = List.map (fun x => x.1) ↑store.kem_one_time
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.one_time_kem_ids_spec
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.u32_index_first : ∀ (values : Aeneas.Std.Slice Aeneas.Std.U32)
+  (needle : Aeneas.Std.U32) (pre post : List Aeneas.Std.U32),
+  ↑values = pre ++ needle :: post →
+    needle ∉ pre →
+      Aeneas.Std.WP.spec (tacenta_session_unit.lifecycle.u32_index values needle) fun r =>
+        ∃ i, r = some i ∧ ↑i = pre.length
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.u32_index_first
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.peek_one_time_first : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+  ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore) (id : Aeneas.Std.U32)
+    (v : Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+    tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleResponderFirstFrame.zPool
+          store.one_time =
+        Aeneas.Std.Result.ok v →
+      ∀ (e : Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry)
+        (pre post : List Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry),
+        ↑v = pre ++ e :: post →
+          e.1 = id →
+            id ∉ List.map (fun x => x.1) pre →
+              Aeneas.Std.WP.spec (store.peek_one_time id) fun r =>
+                ∃ z,
+                  r = some z ∧
+                    tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                        Tacenta.UnitLifecycleEstablishResponder.z32 z =
+                      Aeneas.Std.Result.ok e.2
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.peek_one_time_first
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.canonicalKey_arrayOf : ∀ (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  Tacenta.SessionUnitT1.canonicalX25519 a = true →
+    Model.Messages.canonicalKey (Tacenta.UnitLifecycleT3.arrayOf a) = true
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.canonicalKey_arrayOf
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.view_of_public : Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+  ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+      ∀ {k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey}
+        {pk : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes},
+        k.public_key = Aeneas.Std.Result.ok pk →
+          ∃ a,
+            pk.as_bytes = Aeneas.Std.Result.ok a ∧
+              Tacenta.SessionUnitT1.canonicalX25519 a = true ∧ dh.publicKey pk = Tacenta.UnitLifecycleT3.arrayOf a
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.view_of_public
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.identity_public_of_dh_key : ∀ {our : tacenta_session_unit.lifecycle.Identity}
+  {k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey}
+  {pk : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes},
+  our.dh_key = Aeneas.Std.Result.ok k → our.public = Aeneas.Std.Result.ok pk → k.public_key = Aeneas.Std.Result.ok pk
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.identity_public_of_dh_key
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.ciphertext_le : Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+  Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+    ∀ {R : Type} {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+      {pk : Aeneas.Std.Slice Aeneas.Std.U8} {rng rng' : R} {ct : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8}
+      {ss : Aeneas.Std.Array Aeneas.Std.U8 32#usize},
+      tacenta_session_unit.tacenta_boundary.kem.encapsulate rc crc pk rng =
+          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (ct, ss), rng') →
+        (↑ct).length ≤ 65536
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.ciphertext_le
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.decode_first_frame : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle},
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+      Tacenta.UnitLifecycleT3.DhCodecOf dh →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+            ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+              (pending : Model.Lifecycle.PendingInitial),
+              (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).pendingInitial =
+                  some pending →
+                ∀ (frame : Model.Lifecycle.Bytes) (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                  Tacenta.UnitLifecycleT3.sliceOf msg =
+                      Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending frame →
+                    ∃ d,
+                      tacenta_session_unit.tacenta_wire.decode_initial msg =
+                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) ∧
+                        d.signed_prekey_id = bundle.signed_prekey_id ∧
+                          d.one_time_prekey_id = bundle.one_time_prekey_id ∧
+                            d.kem_prekey_id = bundle.kem_prekey_id ∧
+                              d.kem_ciphertext.deref = q.kemCiphertext.deref ∧
+                                Tacenta.UnitLifecycleT3.sliceOf d.message.deref = frame ∧
+                                  Tacenta.UnitLifecycleT3.sliceOf d.identity.deref =
+                                      Model.PersistedState.SessionState.encodeEc (dh.publicKey q.ourPublic) ∧
+                                    Tacenta.UnitLifecycleT3.sliceOf d.ephemeral.deref =
+                                      Model.PersistedState.SessionState.encodeEc (dh.publicKey q.ephemeralPublic)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.decode_first_frame
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.decode_ec_public : Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+  ∀ {pk : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes} {a : Aeneas.Std.Array Aeneas.Std.U8 32#usize},
+    pk.as_bytes = Aeneas.Std.Result.ok a →
+      Tacenta.SessionUnitT1.canonicalX25519 a = true →
+        ∀ (s : Aeneas.Std.Slice Aeneas.Std.U8),
+          Tacenta.UnitLifecycleT3.sliceOf s =
+              Model.PersistedState.SessionState.encodeEc (Tacenta.UnitLifecycleT3.arrayOf a) →
+            tacenta_session_unit.decode_ec s = Aeneas.Std.Result.ok (some pk)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.decode_ec_public
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.curve_inputs_of : ∀ (identity ephemeral : Aeneas.Std.Slice Aeneas.Std.U8)
+  (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+  tacenta_session_unit.decode_ec identity = Aeneas.Std.Result.ok (some pi) →
+    tacenta_session_unit.is_valid_identity_key pi = Aeneas.Std.Result.ok true →
+      tacenta_session_unit.decode_ec ephemeral = Aeneas.Std.Result.ok (some pe) →
+        tacenta_session_unit.lifecycle.responder_curve_inputs identity ephemeral =
+          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.curve_inputs_of
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.contains_u32 : ∀ (l : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U32)
+  (x : Aeneas.Std.U32),
+  Aeneas.Std.core.slice.Slice.contains Aeneas.Std.core.cmp.PartialEqU32 l.deref x =
+    Aeneas.Std.Result.ok (decide (x ∈ ↑l))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.contains_u32
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.signed_prekey_own : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (z : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+  tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 store.signed_prekey_secret =
+      Aeneas.Std.Result.ok z →
+    tacenta_session_unit.lifecycle.responder_signed_prekey_secret store store.signed_prekey_id =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok z)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.signed_prekey_own
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_last_resort : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore),
+  tacenta_session_unit.lifecycle.responder_kem_slot store store.kem_id =
+    Aeneas.Std.Result.ok
+      (if store.kem_id ∈ ↑store.legacy_last_resort_blocked then
+        Aeneas.Std.core.result.Result.Err tacenta_session_unit.lifecycle.Error.LegacyLastResortRecord
+      else Aeneas.Std.core.result.Result.Ok (tacenta_session_unit.lifecycle.KemKeySlot.Current, true))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_last_resort
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_one_time : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (pre : List Tacenta.UnitLifecycleResponderFirstFrame.KemEntry)
+  (e : Tacenta.UnitLifecycleResponderFirstFrame.KemEntry),
+  ↑store.kem_one_time = pre ++ [e] →
+    e.1 ≠ store.kem_id →
+      (∀
+          (x :
+            tacenta_session_unit.tacenta_boundary.kem.KeyPair ×
+              Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 64#usize),
+          store.previous_kem = some x → x.2.1 ≠ e.1) →
+        e.1 ∉ List.map (fun x => x.1) pre →
+          ∃ i,
+            ↑i = pre.length ∧
+              tacenta_session_unit.lifecycle.responder_kem_slot store e.1 =
+                Aeneas.Std.Result.ok
+                  (Aeneas.Std.core.result.Result.Ok (tacenta_session_unit.lifecycle.KemKeySlot.OneTime i, false))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.kem_slot_one_time
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_current : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (ct : Aeneas.Std.Slice Aeneas.Std.U8) (ss : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  tacenta_session_unit.tacenta_boundary.kem.decapsulate store.kem ct =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss) →
+    tacenta_session_unit.lifecycle.responder_decapsulate store tacenta_session_unit.lifecycle.KemKeySlot.Current ct =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_current
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_one_time : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (pre : List Tacenta.UnitLifecycleResponderFirstFrame.KemEntry)
+  (e : Tacenta.UnitLifecycleResponderFirstFrame.KemEntry),
+  ↑store.kem_one_time = pre ++ [e] →
+    ∀ (i : Aeneas.Std.Usize),
+      ↑i = pre.length →
+        ∀ (ct : Aeneas.Std.Slice Aeneas.Std.U8) (ss : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+          tacenta_session_unit.tacenta_boundary.kem.decapsulate e.2.1 ct =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss) →
+            tacenta_session_unit.lifecycle.responder_decapsulate store
+                (tacenta_session_unit.lifecycle.KemKeySlot.OneTime i) ct =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.decapsulate_one_time
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_absent : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore),
+  tacenta_session_unit.lifecycle.responder_one_time_key store tacenta_session_unit.serialization.ABSENT_ID =
+    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok none)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_absent
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_last : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+  ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+    (v : Aeneas.Std.alloc.vec.Vec Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry),
+    tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleResponderFirstFrame.zPool
+          store.one_time =
+        Aeneas.Std.Result.ok v →
+      ∀ (pre : List Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry)
+        (e : Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry),
+        ↑v = pre ++ [e] →
+          e.1 ≠ tacenta_session_unit.serialization.ABSENT_ID →
+            e.1 ∉ List.map (fun x => x.1) pre →
+              ∀ (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes e.2 = Aeneas.Std.Result.ok k →
+                  tacenta_session_unit.lifecycle.responder_one_time_key store e.1 =
+                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (some k))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.one_time_key_last
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.nodup_append_disjoint : ∀ {α : Type} {l1 l2 : List α},
+  (l1 ++ l2).Nodup → ∀ {a : α}, a ∈ l1 → a ∈ l2 → False
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.nodup_append_disjoint
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.distinct_kem_last : ∀ {store : tacenta_session_unit.lifecycle.PrekeyStore},
+  Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct store →
+    ∀ {pre : List Tacenta.UnitLifecycleResponderFirstFrame.KemEntry}
+      {e : Tacenta.UnitLifecycleResponderFirstFrame.KemEntry},
+      ↑store.kem_one_time = pre ++ [e] →
+        e.1 ≠ store.kem_id ∧
+          (∀
+              (x :
+                tacenta_session_unit.tacenta_boundary.kem.KeyPair ×
+                  Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 64#usize),
+              store.previous_kem = some x → x.2.1 ≠ e.1) ∧
+            e.1 ∉ List.map (fun x => x.1) pre
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.distinct_kem_last
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.distinct_pool_last : ∀ {store : tacenta_session_unit.lifecycle.PrekeyStore},
+  Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct store →
+    ∀ {v : Aeneas.Std.alloc.vec.Vec Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry},
+      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+            Tacenta.UnitLifecycleResponderFirstFrame.zPool store.one_time =
+          Aeneas.Std.Result.ok v →
+        ∀ {pre : List Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry}
+          {e : Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry},
+          ↑v = pre ++ [e] → e.1 ≠ tacenta_session_unit.serialization.ABSENT_ID ∧ e.1 ∉ List.map (fun x => x.1) pre
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.distinct_pool_last
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair_last : ∀ {store : tacenta_session_unit.lifecycle.PrekeyStore},
+  Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct store →
+    ∀ {pre : List Tacenta.UnitLifecycleResponderFirstFrame.KemEntry}
+      {e : Tacenta.UnitLifecycleResponderFirstFrame.KemEntry},
+      ↑store.kem_one_time = pre ++ [e] → Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair store e.1 = some e.2.1
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair_last
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.replay_loop_flag : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (fp : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  Aeneas.Std.WP.spec (tacenta_session_unit.lifecycle.responder_replay_fingerprint_loop store fp false 0#usize) fun r =>
+    r =
+      (store.identity_public, store.signed_prekey_secret, store.signed_prekey_id, store.signed_prekey_sig,
+        store.one_time, store.kem, store.kem_id, store.kem_sig, store.kem_one_time, store.previous_signed_prekey,
+        store.previous_kem, store.next_id, store.last_resort_seen, store.legacy_last_resort_blocked,
+        decide (∃ x ∈ ↑store.last_resort_seen, x.2 = fp))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.replay_loop_flag
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.replay_refusal_cause : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (kemId : Aeneas.Std.U32) (sk : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (e : tacenta_session_unit.lifecycle.Error),
+  tacenta_session_unit.lifecycle.responder_replay_fingerprint store kemId sk true =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e) →
+    ∃ fp,
+      tacenta_session_unit.lifecycle.last_resort_fingerprint sk = Aeneas.Std.Result.ok fp ∧
+        ((e = tacenta_session_unit.lifecycle.Error.ReplayedLastResort ∧ ∃ x ∈ ↑store.last_resort_seen, x.2 = fp) ∨
+          e = tacenta_session_unit.lifecycle.Error.LastResortRecordFull ∧
+            ↑store.last_resort_seen ≠ [] ∧
+              ∃ n,
+                store.last_resort_seen_for kemId = Aeneas.Std.Result.ok n ∧
+                  tacenta_session_unit.lifecycle.MAX_LAST_RESORT_SEEN ≤ n)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.replay_refusal_cause
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused : ∀ {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (ourB : tacenta_session_unit.lifecycle.Identity) (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (msg : Aeneas.Std.Slice Aeneas.Std.U8) (rng : E) (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
+  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+        ∀ (e : tacenta_session_unit.lifecycle.Error),
+          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e) →
+            tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB store msg rng =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e, store, rng)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at : ∀ {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (ourB : tacenta_session_unit.lifecycle.Identity) (store : tacenta_session_unit.lifecycle.PrekeyStore)
+  (msg : Aeneas.Std.Slice Aeneas.Std.U8) (rng : E) (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
+  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+        ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
+          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
+            ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+              tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
+                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
+                ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                  tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
+                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
+                    ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                      tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
+                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
+                        ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                          tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
+                              Aeneas.Std.Result.ok ksz →
+                            ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                              tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                    Tacenta.UnitLifecycleEstablishResponder.z32 zs =
+                                  Aeneas.Std.Result.ok sb →
+                                ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
+                                      Aeneas.Std.Result.ok spk →
+                                    ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                      ourB.dh_key = Aeneas.Std.Result.ok ik →
+                                        ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                          tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
+                                              Aeneas.Std.Result.ok enc →
+                                            ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                              tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
+                                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
+                                                ∀
+                                                  (shz :
+                                                    tacenta_session_unit.zeroize.Zeroizing
+                                                      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                  tacenta_session_unit.zeroize.Zeroizing.new
+                                                        Tacenta.UnitLifecycleEstablishResponder.z32 sh =
+                                                      Aeneas.Std.Result.ok shz →
+                                                    ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                            Tacenta.UnitLifecycleEstablishResponder.z32 shz =
+                                                          Aeneas.Std.Result.ok shb →
+                                                        ∀ (e : tacenta_session_unit.lifecycle.Error),
+                                                          tacenta_session_unit.lifecycle.responder_replay_fingerprint
+                                                                store d.kem_prekey_id shb lr =
+                                                              Aeneas.Std.Result.ok
+                                                                (Aeneas.Std.core.result.Result.Err e) →
+                                                            tacenta_session_unit.lifecycle.establish_responder rcB crcB
+                                                                ourB store msg rng =
+                                                              Aeneas.Std.Result.ok
+                                                                (Aeneas.Std.core.result.Result.Err e, store, rng)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps : ∀ {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB) (ourB : tacenta_session_unit.lifecycle.Identity)
+  (store : tacenta_session_unit.lifecycle.PrekeyStore) (msg : Aeneas.Std.Slice Aeneas.Std.U8)
+  (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
+  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+        ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
+          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
+            ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+              tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
+                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
+                ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                  tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
+                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
+                    ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                      tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
+                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
+                        ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                          tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
+                              Aeneas.Std.Result.ok ksz →
+                            ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                              tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                    Tacenta.UnitLifecycleEstablishResponder.z32 zs =
+                                  Aeneas.Std.Result.ok sb →
+                                ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
+                                      Aeneas.Std.Result.ok spk →
+                                    ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                      ourB.dh_key = Aeneas.Std.Result.ok ik →
+                                        ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                          tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
+                                              Aeneas.Std.Result.ok enc →
+                                            ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                              tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
+                                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
+                                                ∀
+                                                  (shz :
+                                                    tacenta_session_unit.zeroize.Zeroizing
+                                                      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                  tacenta_session_unit.zeroize.Zeroizing.new
+                                                        Tacenta.UnitLifecycleEstablishResponder.z32 sh =
+                                                      Aeneas.Std.Result.ok shz →
+                                                    ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                            Tacenta.UnitLifecycleEstablishResponder.z32 shz =
+                                                          Aeneas.Std.Result.ok shb →
+                                                        ∀ (r : Option (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                          tacenta_session_unit.lifecycle.responder_replay_fingerprint
+                                                                store d.kem_prekey_id shb lr =
+                                                              Aeneas.Std.Result.ok
+                                                                (Aeneas.Std.core.result.Result.Ok r) →
+                                                            ∀ (sl : Aeneas.Std.Slice Aeneas.Std.U8),
+                                                              Tacenta.UnitLifecycleEstablishResponder.fullSlice shb =
+                                                                  Aeneas.Std.Result.ok sl →
+                                                                ∃ p,
+                                                                  p.decoded = d ∧
+                                                                    p.lastResort = lr ∧
+                                                                      p.peerIdentity = pi ∧
+                                                                        p.peerEphemeral = pe ∧
+                                                                          p.oneTime = otk ∧
+                                                                            p.kemSecret = ks ∧
+                                                                              p.signedPrekey = spk ∧
+                                                                                p.shared = sh ∧
+                                                                                  p.secret = shb ∧
+                                                                                    p.tripleSecret = sl ∧
+                                                                                      p.braidSecret = sl
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle} {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+            ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+              Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                  (pending : Model.Lifecycle.PendingInitial),
+                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).pendingInitial =
+                      some pending →
+                    ∀ (frame : Model.Lifecycle.Bytes) (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                      Tacenta.UnitLifecycleT3.sliceOf msg =
+                          Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending
+                            frame →
+                        ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                          (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                          storeB.publish = Aeneas.Std.Result.ok bundle →
+                            ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                              Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
+                                Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB bundle.kem_prekey_id
+                                    q.kemCiphertext q.kemSecret →
+                                  ∀ (rngB : E),
+                                    (bundle.kem_prekey_id = storeB.kem_id ∧
+                                        ∃ e,
+                                          Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB q.sharedBytes e ∧
+                                            tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB storeB msg
+                                                rngB =
+                                              Aeneas.Std.Result.ok
+                                                (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
+                                      ∃ p,
+                                        p.shared = q.shared ∧
+                                          p.secret = q.sharedBytes ∧
+                                            p.tripleSecret = q.sharedSlice ∧
+                                              p.braidSecret = q.sharedSlice ∧
+                                                p.peerIdentity = q.ourPublic ∧
+                                                  p.peerEphemeral = q.ephemeralPublic ∧
+                                                    p.kemSecret = q.kemSecret ∧
+                                                      Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
+                                                        (p.lastResort = true ↔ bundle.kem_prekey_id = storeB.kem_id)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible : ∀ {R : Type}
+  {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+  {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle} {E : Type}
+  (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+            Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+              ∀ {K : Model.Braid.Kem},
+                Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements K →
+                  ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+                    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                      ∀ (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle)
+                        (pending : Model.Lifecycle.PendingInitial),
+                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session).pendingInitial =
+                            some pending →
+                          ∀ (frame : Model.Lifecycle.Bytes) (msg : Aeneas.Std.Slice Aeneas.Std.U8),
+                            Tacenta.UnitLifecycleT3.sliceOf msg =
+                                Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending
+                                  frame →
+                              ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                                storeB.publish = Aeneas.Std.Result.ok bundle →
+                                  ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                                    Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
+                                      Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
+                                          bundle.kem_prekey_id q.kemCiphertext q.kemSecret →
+                                        ∀ (rngB : E),
+                                          (bundle.kem_prekey_id = storeB.kem_id ∧
+                                              ∃ e,
+                                                Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB
+                                                    q.sharedBytes e ∧
+                                                  tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB
+                                                      storeB msg rngB =
+                                                    Aeneas.Std.Result.ok
+                                                      (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
+                                            ∃ p,
+                                              p.shared = q.shared ∧
+                                                p.secret = q.sharedBytes ∧
+                                                  p.tripleSecret = q.sharedSlice ∧
+                                                    p.braidSecret = q.sharedSlice ∧
+                                                      p.peerIdentity = q.ourPublic ∧
+                                                        p.peerEphemeral = q.ephemeralPublic ∧
+                                                          p.kemSecret = q.kemSecret ∧
+                                                            Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
+                                                              (p.lastResort = true ↔
+                                                                  bundle.kem_prekey_id = storeB.kem_id) ∧
+                                                                p.session.invariant = Aeneas.Std.Result.ok true ∧
+                                                                  Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                      p.session ∧
+                                                                    Tacenta.UnitLifecycleT3.SessionRefines dh K
+                                                                      p.session
+                                                                      (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                        dh p)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible
+
+/--
+info: @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares : ∀ {R : Type}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E F : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R)
+  (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView) (view : Model.Lifecycle.CodewordView)
+  (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleT3.BraidSendRefinementContracts rc oracle.braidKem →
+    Tacenta.UnitLifecycleT3.TripleSendRefinementContracts →
+      Tacenta.UnitLifecycleT1.AeadSealBounded →
+        Tacenta.UnitLifecycleT1.DhCodecTotal →
+          Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+            Tacenta.UnitLifecycleT3.DhCodecOf dh →
+              Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+                Tacenta.SessionUnitT3.ZeroizingRoundTrips80 →
+                  Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Aeneas.Std.Array Aeneas.Std.U8 32#usize) →
+                    Tacenta.UnitLifecycleT3.ZeroizingRoundTrips
+                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize ×
+                          Aeneas.Std.Array Aeneas.Std.U8 32#usize × Aeneas.Std.Array Aeneas.Std.U8 16#usize) →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace →
+                        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+                          Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                            ∀ (rcE : tacenta_session_unit.rand_core_1.RngCore E)
+                              (crcE : tacenta_session_unit.rand_core_1.CryptoRng E)
+                              (ourA : tacenta_session_unit.lifecycle.Identity)
+                              (bundleA : tacenta_session_unit.lifecycle.PublishedBundle)
+                              (expected : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E)
+                              (s : tacenta_session_unit.lifecycle.Session),
+                              tacenta_session_unit.lifecycle.establish_initiator_for rcE crcE ourA bundleA expected
+                                    rng0 =
+                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
+                                ∀
+                                  (q :
+                                    Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcE crcE ourA
+                                      bundleA),
+                                  s = q.session →
+                                    ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
+                                      (↑plaintext).length + 65770 ≤ Aeneas.Std.Usize.max →
+                                        ∀ (rng : R),
+                                          trace rng = oracle.draws →
+                                            ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                                              trace rng = d1 :: d2 :: rest →
+                                                ∀ (bytes : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+                                                  (s' : tacenta_session_unit.lifecycle.Session) (rng' : R),
+                                                  tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext
+                                                        rng =
+                                                      Aeneas.Std.Result.ok
+                                                        (Aeneas.Std.core.result.Result.Ok bytes, s', rng') →
+                                                    ∀ (rcB : tacenta_session_unit.rand_core_1.RngCore F)
+                                                      (crcB : tacenta_session_unit.rand_core_1.CryptoRng F)
+                                                      (contracts :
+                                                        Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+                                                      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+                                                        Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                                                          Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                                                            Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                                                                @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                                                              ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.basePoint_ne_zero : ↑Tacenta.UnitLifecycleEstablishResponder.basePoint ≠
+  ↑Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.basePoint_ne_zero
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhCodec : Tacenta.UnitSatisfiabilityJoint.DhCodecShape
+  Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhCodec
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhAgree : Tacenta.UnitSatisfiabilityJoint.DhAgreeShape
+  Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_dhAgree
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_symmetric : Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+  Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.modelFirstFrame_symmetric
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.first_frame_laws_model : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+    Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+    Tacenta.UnitLifecycleResponderFirstFrame.viewFirstFrame Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR
+    @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+  Nonempty
+      (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+        Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+    Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape
+        Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
+      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape
+          Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape (Aeneas.Std.Result.ok 0#usize)
+            Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+          Tacenta.UnitLifecycleEstablishedEncrypt.EncryptExtraLawsShape
+              Tacenta.UnitLifecycleResponderFirstFrame.InterpO.modelFirstFrame
+              Tacenta.UnitLifecycleResponderFirstFrame.dhViewFirstFrame
+              Tacenta.UnitLifecycleResponderFirstFrame.kemViewFirstFrame Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR
+              (Aeneas.Std.Result.ok 0#usize) ∧
+            (Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTripShape
+                  Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTripShape
+                    Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                  Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTripShape
+                      Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                    Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape
+                        @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl ∧
+                      Tacenta.UnitLifecycleSessionCodec.VecAsSliceShape
+                          @Tacenta.UnitLifecycleSessionCodec.vecAsSliceImpl ∧
+                        Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape
+                          (Aeneas.Std.Result.ok 0#usize)) ∧
+              Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR ∧
+                Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                      (Model.Lifecycle.braidRandomness
+                        (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.zeroSeed)) =
+                    none ∧
+                  Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                        (Model.Lifecycle.braidRandomness
+                          (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.oneSeed)) ≠
+                      none ∧
+                    Nonempty
+                        (Tacenta.UnitSatisfiabilityJoint.ResponderAxiom
+                          Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+                          Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+                      Tacenta.UnitLifecycleEstablishResponder.ResponderSuccessShape
+                          Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                        Tacenta.UnitLifecycleEstablishResponder.ZeroKeyShape
+                            Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+                              Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame ∧
+                            Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+                              Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+                              (fun x => Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Aeneas.Std.U8))
+                              fun {T} x v => Aeneas.Std.Result.ok (decide (↑v = []))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.first_frame_laws_model
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.publish_reachStore : ∀
+  (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb = Aeneas.Std.Result.ok k →
+    k.public_key = Aeneas.Std.Result.ok pkb →
+      ∀ (sig1 sig2 : Aeneas.Std.Array Aeneas.Std.U8 64#usize)
+        (z :
+          tacenta_session_unit.zeroize.Zeroizing
+            (Aeneas.Std.alloc.vec.Vec Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry)),
+        tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+              Tacenta.UnitLifecycleResponderFirstFrame.zPool z =
+            Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry) →
+          (∀ (T A : Type),
+              tacenta_session_unit.alloc.vec.Vec.is_empty A (Aeneas.Std.alloc.vec.Vec.new T) =
+                Aeneas.Std.Result.ok true) →
+            ∀ (kp : tacenta_session_unit.tacenta_boundary.kem.KeyPair) (kemPk : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),
+              kp.public_key = Aeneas.Std.Result.ok kemPk →
+                (Tacenta.UnitLifecycleResponderFirstFrame.reachStore pkb sb sig1 sig2 z kp).publish =
+                  Aeneas.Std.Result.ok (Tacenta.UnitLifecycleResponderFirstFrame.reachBundle pkb sig1 sig2 kemPk)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.publish_reachStore
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.reachStore_distinct : ∀
+  (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes) (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  (sig1 sig2 : Aeneas.Std.Array Aeneas.Std.U8 64#usize)
+  (z :
+    tacenta_session_unit.zeroize.Zeroizing
+      (Aeneas.Std.alloc.vec.Vec Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry)),
+  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleResponderFirstFrame.zPool
+        z =
+      Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry) →
+    ∀ (kp : tacenta_session_unit.tacenta_boundary.kem.KeyPair),
+      Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+        (Tacenta.UnitLifecycleResponderFirstFrame.reachStore pkb sb sig1 sig2 z kp)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.reachStore_distinct
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.random_secret_byte : ∀
+  (crc : tacenta_session_unit.rand_core_1.CryptoRng (List Aeneas.Std.U8)) (pre rest : List Aeneas.Std.U8),
+  pre.length = 32 →
+    ∃ a,
+      tacenta_session_unit.lifecycle.random_secret Tacenta.UnitLifecycleIntegrationScreen.byteRng crc (pre ++ rest) =
+        Aeneas.Std.Result.ok (a, rest)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.random_secret_byte
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.reach_establishment : ∀
+  (c : Tacenta.UnitLifecycleT1.EstablishInitiatorContracts Tacenta.UnitLifecycleIntegrationScreen.byteRng)
+  (ourA : tacenta_session_unit.lifecycle.Identity) (pkb : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes)
+  (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+  pkb.as_bytes = Aeneas.Std.Result.ok a →
+    Tacenta.SessionUnitT1.canonicalX25519 a = true →
+      tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq pkb pkb =
+          Aeneas.Std.Result.ok true →
+        ∀ (sig1 sig2 : Aeneas.Std.Array Aeneas.Std.U8 64#usize) (kemPk : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),
+          tacenta_session_unit.verify_bundle
+                (Tacenta.UnitLifecycleResponderFirstFrame.reachBundle pkb sig1 sig2 kemPk).bundle =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) →
+            (∀ (k : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                ∃ x, k.agree pkb = Aeneas.Std.Result.ok (some x)) →
+              ∀ (stream rest : List Aeneas.Std.U8) (ct : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+                (ss : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                tacenta_session_unit.tacenta_boundary.kem.encapsulate Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc kemPk.deref stream =
+                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (ct, ss), rest) →
+                  ∃ q rng1,
+                    q.kemCiphertext = ct ∧
+                      q.kemSecret = ss ∧
+                        tacenta_session_unit.lifecycle.establish_initiator_for
+                            Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                            Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourA
+                            (Tacenta.UnitLifecycleResponderFirstFrame.reachBundle pkb sig1 sig2 kemPk) pkb
+                            (List.replicate 32 0#u8 ++ stream) =
+                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok q.session, rng1)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.reach_establishment
+
+/--
+info: Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable : ∀ (K : Model.Braid.Kem)
+  (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView),
+  Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh →
+    Nonempty
+        (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng) →
+      Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+          Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc →
+        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+            Tacenta.UnitLifecycleEstablishedEncrypt.EncryptExtraLaws K dh kem →
+              Nonempty
+                  (Tacenta.UnitSatisfiabilityJoint.ResponderAxiom Tacenta.UnitSatisfiabilityJoint.Interp.real
+                    Tacenta.UnitLifecycleIntegrationScreen.byteRng) →
+                Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                  Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                    Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+                        Tacenta.UnitSatisfiabilityJoint.Interp.real
+                        tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key
+                        @tacenta_session_unit.alloc.vec.Vec.is_empty →
+                      ∀ (ourA : tacenta_session_unit.lifecycle.Identity) (seed : List Aeneas.Std.U8),
+                        seed.length = 64 →
+                          K.keyGen (Model.Lifecycle.braidRandomness (List.map Tacenta.SessionUnitBraidT3.u8 seed)) ≠
+                              none →
+                            ∃ oracle bundle rng0 rng1 q bytes s' rng' ourB storeB messageKey chunk p,
+                              oracle.braidKem = K ∧
+                                Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptHypotheses
+                                    Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                    Tacenta.UnitLifecycleIntegrationScreen.byteTrace dh kem
+                                    Tacenta.UnitLifecycleRepair.witnessView oracle
+                                    Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourA bundle
+                                    bundle.bundle.identity_key rng0 rng1 q.session
+                                    Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext seed ∧
+                                  tacenta_session_unit.lifecycle.Session.encrypt
+                                        Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
+                                        Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext seed =
+                                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok bytes, s', rng') ∧
+                                    storeB.publish = Aeneas.Std.Result.ok bundle ∧
+                                      ourB.public = Aeneas.Std.Result.ok storeB.identity_public ∧
+                                        Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB ∧
+                                          Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
+                                              bundle.kem_prekey_id q.kemCiphertext q.kemSecret ∧
+                                            ↑storeB.legacy_last_resort_blocked = [] ∧
+                                              ↑storeB.last_resort_seen = [] ∧
+                                                p.shared = q.shared ∧
+                                                  p.peerIdentity = q.ourPublic ∧
+                                                    p.peerEphemeral = q.ephemeralPublic ∧
+                                                      Tacenta.UnitLifecycleT3.sliceOf p.message =
+                                                          Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+                                                            Tacenta.UnitLifecycleRepair.witnessView oracle
+                                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                              dh q.session)
+                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                              Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext)
+                                                            messageKey chunk ∧
+                                                        p.session.invariant = Aeneas.Std.Result.ok true ∧
+                                                          Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                              p.session ∧
+                                                            Tacenta.UnitLifecycleT3.SessionRefines dh K p.session
+                                                              (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                dh p)
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable
+
+/--
+info: structure Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts {R : Type}
+  (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R)
+  (our : tacenta_session_unit.lifecycle.Identity) (bundle : tacenta_session_unit.lifecycle.PublishedBundle) : Type
+number of parameters: 5
+parents:
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.toInitiatorOutputParts : Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts
+    rc crc our bundle
+fields:
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ratchetPrivate : tacenta_session_unit.tacenta_boundary.dh.PrivateKey
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ratchetPublic : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ratchetBytes : Aeneas.Std.Array Aeneas.Std.U8
+      32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.peerRatchetBytes : Aeneas.Std.Array Aeneas.Std.U8
+      32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.rootKey : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.sendChain : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.sparseRoot : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.sparseSend : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.sparseReceive : Aeneas.Std.Array Aeneas.Std.U8
+      32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.auth : tacenta_session_unit.tacenta_braid.Auth
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.identityAd : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ourPublic : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ephemeral : tacenta_session_unit.tacenta_boundary.dh.PrivateKey
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.ephemeralPublic : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.kemCiphertext : Aeneas.Std.alloc.vec.Vec
+      Aeneas.Std.U8
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.kemSecret : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.rngBefore : R
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.rngAfter : R
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hRatchetPublic : self.ratchetPrivate.public_key =
+      Aeneas.Std.Result.ok self.ratchetPublic
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hRatchetBytes : self.ratchetPublic.as_bytes =
+      Aeneas.Std.Result.ok self.ratchetBytes
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hPeerRatchetBytes : bundle.bundle.signed_prekey.as_bytes =
+      Aeneas.Std.Result.ok self.peerRatchetBytes
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hPeerRatchetCanonical : tacenta_session_unit.is_canonical_key
+        bundle.bundle.signed_prekey =
+      Aeneas.Std.Result.ok true
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hOurPublic : our.public =
+      Aeneas.Std.Result.ok self.ourPublic
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hIdentityAd : tacenta_session_unit.lifecycle.identity_ad
+        self.ourPublic bundle.bundle.identity_key =
+      Aeneas.Std.Result.ok self.identityAd
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hPeerValid : tacenta_session_unit.is_valid_identity_key
+        bundle.bundle.identity_key =
+      Aeneas.Std.Result.ok true
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hEphemeralPublic : self.ephemeral.public_key =
+      Aeneas.Std.Result.ok self.ephemeralPublic
+  Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts.hEncapsulate : tacenta_session_unit.tacenta_boundary.kem.encapsulate
+        rc crc bundle.bundle.kem_prekey.deref self.rngBefore =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (self.kemCiphertext, self.kemSecret), self.rngAfter)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.identityKey : tacenta_session_unit.tacenta_boundary.dh.PrivateKey
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.kemSecretZ : tacenta_session_unit.zeroize.Zeroizing
+      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.encapsulated : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.shared : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.sharedZ : tacenta_session_unit.zeroize.Zeroizing
+      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.sharedBytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.sharedSlice : Aeneas.Std.Slice Aeneas.Std.U8
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.dhOut : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.dhOutZ : tacenta_session_unit.zeroize.Zeroizing
+      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.dhOutBytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.braidSlice : Aeneas.Std.Slice Aeneas.Std.U8
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hDhKey : our.dh_key =
+      Aeneas.Std.Result.ok self.identityKey
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hKemSecretZ : tacenta_session_unit.zeroize.Zeroizing.new
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.kemSecret =
+      Aeneas.Std.Result.ok self.kemSecretZ
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hEncapsulated : tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.kemSecretZ =
+      Aeneas.Std.Result.ok self.encapsulated
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hShared : tacenta_session_unit.initiator_shared_secret
+        self.identityKey self.ephemeral bundle.bundle self.encapsulated =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok self.shared)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hSharedZ : tacenta_session_unit.zeroize.Zeroizing.new
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.shared =
+      Aeneas.Std.Result.ok self.sharedZ
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hSharedBytes : tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.sharedZ =
+      Aeneas.Std.Result.ok self.sharedBytes
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hTriple : tacenta_session_unit.tacenta_triple.State.init_sender
+        self.sharedSlice self.ratchetBytes self.peerRatchetBytes self.dhOutBytes
+        tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+      Aeneas.Std.Result.ok
+        (Tacenta.UnitLifecycleEstablishInitiatorShape.initiatorTriple self.ratchetBytes self.peerRatchetBytes
+          self.rootKey self.sendChain self.sparseRoot self.sparseSend self.sparseReceive)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hSharedSlice : Tacenta.UnitLifecycleEstablishResponder.fullSlice
+        self.sharedBytes =
+      Aeneas.Std.Result.ok self.sharedSlice
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hDhOutBytes : tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.dhOutZ =
+      Aeneas.Std.Result.ok self.dhOutBytes
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hDhOutZ : tacenta_session_unit.zeroize.Zeroizing.new
+        Tacenta.UnitLifecycleEstablishResponder.z32 self.dhOut =
+      Aeneas.Std.Result.ok self.dhOutZ
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hDhOut : self.ratchetPrivate.agree
+        bundle.bundle.signed_prekey =
+      Aeneas.Std.Result.ok (some self.dhOut)
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hBraid : tacenta_session_unit.tacenta_braid.Braid.initiator
+        self.braidSlice =
+      Aeneas.Std.Result.ok { state := tacenta_session_unit.tacenta_braid.State.KeysUnsampled 1#u64 self.auth }
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hBraidSlice : Tacenta.UnitLifecycleEstablishResponder.fullSlice
+        self.sharedBytes =
+      Aeneas.Std.Result.ok self.braidSlice
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.hVerify : tacenta_session_unit.verify_bundle
+        bundle.bundle =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())
+constructor:
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts.mk {R : Type}
+    {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
+    {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
+    (toInitiatorOutputParts : Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts rc crc our bundle)
+    (identityKey : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
+    (kemSecretZ : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize))
+    (encapsulated shared : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+    (sharedZ : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize))
+    (sharedBytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (sharedSlice : Aeneas.Std.Slice Aeneas.Std.U8)
+    (dhOut : Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+    (dhOutZ : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize))
+    (dhOutBytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (braidSlice : Aeneas.Std.Slice Aeneas.Std.U8)
+    (hDhKey : our.dh_key = Aeneas.Std.Result.ok identityKey)
+    (hKemSecretZ :
+      tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32
+          toInitiatorOutputParts.kemSecret =
+        Aeneas.Std.Result.ok kemSecretZ)
+    (hEncapsulated :
+      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleEstablishResponder.z32
+          kemSecretZ =
+        Aeneas.Std.Result.ok encapsulated)
+    (hShared :
+      tacenta_session_unit.initiator_shared_secret identityKey toInitiatorOutputParts.ephemeral bundle.bundle
+          encapsulated =
+        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok shared))
+    (hSharedZ :
+      tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 shared =
+        Aeneas.Std.Result.ok sharedZ)
+    (hSharedBytes :
+      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleEstablishResponder.z32
+          sharedZ =
+        Aeneas.Std.Result.ok sharedBytes)
+    (hTriple :
+      tacenta_session_unit.tacenta_triple.State.init_sender sharedSlice toInitiatorOutputParts.ratchetBytes
+          toInitiatorOutputParts.peerRatchetBytes dhOutBytes tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta =
+        Aeneas.Std.Result.ok
+          (Tacenta.UnitLifecycleEstablishInitiatorShape.initiatorTriple toInitiatorOutputParts.ratchetBytes
+            toInitiatorOutputParts.peerRatchetBytes toInitiatorOutputParts.rootKey toInitiatorOutputParts.sendChain
+            toInitiatorOutputParts.sparseRoot toInitiatorOutputParts.sparseSend toInitiatorOutputParts.sparseReceive))
+    (hSharedSlice : Tacenta.UnitLifecycleEstablishResponder.fullSlice sharedBytes = Aeneas.Std.Result.ok sharedSlice)
+    (hDhOutBytes :
+      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleEstablishResponder.z32
+          dhOutZ =
+        Aeneas.Std.Result.ok dhOutBytes)
+    (hDhOutZ :
+      tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 dhOut =
+        Aeneas.Std.Result.ok dhOutZ)
+    (hDhOut :
+      toInitiatorOutputParts.ratchetPrivate.agree bundle.bundle.signed_prekey = Aeneas.Std.Result.ok (some dhOut))
+    (hBraid :
+      tacenta_session_unit.tacenta_braid.Braid.initiator braidSlice =
+        Aeneas.Std.Result.ok
+          { state := tacenta_session_unit.tacenta_braid.State.KeysUnsampled 1#u64 toInitiatorOutputParts.auth })
+    (hBraidSlice : Tacenta.UnitLifecycleEstablishResponder.fullSlice sharedBytes = Aeneas.Std.Result.ok braidSlice)
+    (hVerify :
+      tacenta_session_unit.verify_bundle bundle.bundle = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())) :
+    Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rc crc our bundle
+field notation resolution order:
+  Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts, Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (a b : I.PrivateKey) (pa pb : I.PublicKeyBytes),
+    I.dhPrivPublicKey a = Aeneas.Std.Result.ok pa →
+      I.dhPrivPublicKey b = Aeneas.Std.Result.ok pb → I.dhPrivAgree a pb = I.dhPrivAgree b pa
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric : Prop :=
+Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.OneTimeMatches : Option
+    tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes →
+  Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey → Prop :=
+fun bundleKey held =>
+  bundleKey = none ∧ held = none ∨ ∃ k pk, held = some k ∧ k.public_key = Aeneas.Std.Result.ok pk ∧ bundleKey = some pk
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.OneTimeMatches
+
+/--
+info: @[reducible] def Tacenta.UnitLifecycleResponderFirstFrame.zPool : tacenta_session_unit.zeroize.Zeroize
+  (Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 32#usize)) :=
+tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize
+  (tacenta_session_unit.Pair.Insts.ZeroizeZeroize
+    (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U32.Insts.ZeroizeDefaultIsZeroes)
+    (tacenta_session_unit.Array.Insts.ZeroizeZeroize 32#usize
+      (tacenta_session_unit.zeroize.Zeroize.Blanket tacenta_session_unit.U8.Insts.ZeroizeDefaultIsZeroes)))
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.zPool
+
+/--
+info: @[reducible] def Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry : Type :=
+Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 32#usize
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry
+
+/--
+info: @[reducible] def Tacenta.UnitLifecycleResponderFirstFrame.KemEntry : Type :=
+Aeneas.Std.U32 × tacenta_session_unit.tacenta_boundary.kem.KeyPair × Aeneas.Std.Array Aeneas.Std.U8 64#usize
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.KemEntry
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.storeIds : tacenta_session_unit.lifecycle.PrekeyStore →
+  List Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry → List Aeneas.Std.U32 :=
+fun store pool =>
+  store.signed_prekey_id ::
+    store.kem_id ::
+      ((Option.map (fun x => x.2.1) store.previous_signed_prekey).toList ++
+            (Option.map (fun x => x.2.1) store.previous_kem).toList ++
+          List.map (fun x => x.1) pool ++
+        List.map (fun x => x.1) ↑store.kem_one_time)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.storeIds
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct : tacenta_session_unit.lifecycle.PrekeyStore → Prop :=
+fun store =>
+  ∃ v,
+    tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref Tacenta.UnitLifecycleResponderFirstFrame.zPool
+          store.one_time =
+        Aeneas.Std.Result.ok v ∧
+      (Tacenta.UnitLifecycleResponderFirstFrame.storeIds store ↑v).Nodup ∧
+        tacenta_session_unit.serialization.ABSENT_ID ∉ Tacenta.UnitLifecycleResponderFirstFrame.storeIds store ↑v
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair : tacenta_session_unit.lifecycle.PrekeyStore →
+  Aeneas.Std.U32 → Option tacenta_session_unit.tacenta_boundary.kem.KeyPair :=
+fun store id =>
+  if id = store.kem_id then some store.kem
+  else Option.map (fun x => x.2.1) (List.find? (fun x => decide (x.1 = id)) ↑store.kem_one_time)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees : tacenta_session_unit.lifecycle.PrekeyStore →
+  Aeneas.Std.U32 → Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8 → Aeneas.Std.Array Aeneas.Std.U8 32#usize → Prop :=
+fun store id ct ss =>
+  ∃ pair,
+    Tacenta.UnitLifecycleResponderFirstFrame.heldKemPair store id = some pair ∧
+      tacenta_session_unit.tacenta_boundary.kem.decapsulate pair ct.deref =
+        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal : tacenta_session_unit.lifecycle.PrekeyStore →
+  Aeneas.Std.Array Aeneas.Std.U8 32#usize → tacenta_session_unit.lifecycle.Error → Prop :=
+fun store secret e =>
+  e = tacenta_session_unit.lifecycle.Error.LegacyLastResortRecord ∧ store.kem_id ∈ ↑store.legacy_last_resort_blocked ∨
+    (e = tacenta_session_unit.lifecycle.Error.ReplayedLastResort ∧
+        ∃ fp,
+          tacenta_session_unit.lifecycle.last_resort_fingerprint secret = Aeneas.Std.Result.ok fp ∧
+            ∃ x ∈ ↑store.last_resort_seen, x.2 = fp) ∨
+      e = tacenta_session_unit.lifecycle.Error.LastResortRecordFull ∧
+        ↑store.last_resort_seen ≠ [] ∧
+          ∃ n,
+            store.last_resort_seen_for store.kem_id = Aeneas.Std.Result.ok n ∧
+              tacenta_session_unit.lifecycle.MAX_LAST_RESORT_SEEN ≤ n
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal
+
+/--
+info: structure Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape (I : Tacenta.UnitSatisfiabilityJoint.Interp)
+  (kemPublic : I.KemKeyPair → Aeneas.Std.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8))
+  (isEmpty : {T : Type} → Type → Aeneas.Std.alloc.vec.Vec T → Aeneas.Std.Result Bool) : Prop
+number of parameters: 3
+fields:
+  Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape.key : ∃ sb k pkb a,
+      I.dhPrivFromBytes sb = Aeneas.Std.Result.ok k ∧
+        I.dhPrivPublicKey k = Aeneas.Std.Result.ok pkb ∧
+          I.dhPubAsBytes pkb = Aeneas.Std.Result.ok a ∧
+            Tacenta.SessionUnitT1.canonicalX25519 a = true ∧
+              I.dhIsPrimeOrderPublic pkb = Aeneas.Std.Result.ok true ∧
+                I.dhPubEq pkb pkb = Aeneas.Std.Result.ok true ∧
+                  (∀ (m : Aeneas.Std.Slice Aeneas.Std.U8),
+                      ∃ sig, I.xeddsaVerify pkb m sig = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())) ∧
+                    ∀ (k' : I.PrivateKey), ∃ x, I.dhPrivAgree k' pkb = Aeneas.Std.Result.ok (some x)
+  Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape.kem : ∃ kp kemPk stream ct ss rest,
+      kemPublic kp = Aeneas.Std.Result.ok kemPk ∧
+        (↑kemPk).length + 1 ≤ Aeneas.Std.Usize.max ∧
+          I.kemEncapsulate Tacenta.UnitLifecycleIntegrationScreen.byteRng Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                kemPk.deref stream =
+              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (ct, ss), rest) ∧
+            I.kemDecapsulate kp ct.deref = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss)
+  Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape.pool : ∃ z,
+      I.zDeref Tacenta.UnitLifecycleResponderFirstFrame.zPool z =
+        Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry)
+  Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape.empty : ∀ (T A : Type),
+      isEmpty A (Aeneas.Std.alloc.vec.Vec.new T) = Aeneas.Std.Result.ok true
+constructor:
+  Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape.mk {I : Tacenta.UnitSatisfiabilityJoint.Interp}
+    {kemPublic : I.KemKeyPair → Aeneas.Std.Result (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)}
+    {isEmpty : {T : Type} → Type → Aeneas.Std.alloc.vec.Vec T → Aeneas.Std.Result Bool}
+    (key :
+      ∃ sb k pkb a,
+        I.dhPrivFromBytes sb = Aeneas.Std.Result.ok k ∧
+          I.dhPrivPublicKey k = Aeneas.Std.Result.ok pkb ∧
+            I.dhPubAsBytes pkb = Aeneas.Std.Result.ok a ∧
+              Tacenta.SessionUnitT1.canonicalX25519 a = true ∧
+                I.dhIsPrimeOrderPublic pkb = Aeneas.Std.Result.ok true ∧
+                  I.dhPubEq pkb pkb = Aeneas.Std.Result.ok true ∧
+                    (∀ (m : Aeneas.Std.Slice Aeneas.Std.U8),
+                        ∃ sig, I.xeddsaVerify pkb m sig = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())) ∧
+                      ∀ (k' : I.PrivateKey), ∃ x, I.dhPrivAgree k' pkb = Aeneas.Std.Result.ok (some x))
+    (kem :
+      ∃ kp kemPk stream ct ss rest,
+        kemPublic kp = Aeneas.Std.Result.ok kemPk ∧
+          (↑kemPk).length + 1 ≤ Aeneas.Std.Usize.max ∧
+            I.kemEncapsulate Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc kemPk.deref stream =
+                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (ct, ss), rest) ∧
+              I.kemDecapsulate kp ct.deref = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ss))
+    (pool :
+      ∃ z,
+        I.zDeref Tacenta.UnitLifecycleResponderFirstFrame.zPool z =
+          Aeneas.Std.Result.ok (Aeneas.Std.alloc.vec.Vec.new Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry))
+    (empty : ∀ (T A : Type), isEmpty A (Aeneas.Std.alloc.vec.Vec.new T) = Aeneas.Std.Result.ok true) :
+    Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape I kemPublic isEmpty
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame : Tacenta.UnitSatisfiabilityJoint.Interp :=
+let __src := Tacenta.UnitLifecycleEstablishedEncrypt.Interp.modelEncrypt;
+{ PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
+  IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
+  dhPrivFromBytes := __src.dhPrivFromBytes,
+  dhPrivPublicKey := fun x => Aeneas.Std.Result.ok Tacenta.UnitLifecycleEstablishResponder.basePoint,
+  dhPrivAgree := fun x p =>
+    Aeneas.Std.Result.ok (if ↑p = ↑Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32 then none else some p),
+  dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic, aeadEncrypt := __src.aeadEncrypt,
+  aeadDecrypt := __src.aeadDecrypt, kemEncapsulate := @Tacenta.UnitSatisfiabilityJoint.Interp.kemEncapsulate __src,
+  kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
+  hmacSha256 := __src.hmacSha256, HEADER_LEN := __src.HEADER_LEN, EK_VECTOR_LEN := __src.EK_VECTOR_LEN,
+  CT1_LEN := __src.CT1_LEN, CT2_LEN := __src.CT2_LEN, ikpClone := __src.ikpClone,
+  ikpGenerate := @Tacenta.UnitSatisfiabilityJoint.Interp.ikpGenerate __src, ikpHeader := __src.ikpHeader,
+  ikpEkVector := __src.ikpEkVector, ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
+  encapsulate1 := @Tacenta.UnitSatisfiabilityJoint.Interp.encapsulate1 __src, encapsulate2 := __src.encapsulate2,
+  validateEk := __src.validateEk, blanketZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.blanketZeroize __src,
+  arrayZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.arrayZeroize __src,
+  tupleZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.tupleZeroize __src,
+  pairZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.pairZeroize __src,
+  vecZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.vecZeroize __src,
+  zNew := @Tacenta.UnitSatisfiabilityJoint.Interp.zNew __src,
+  zDeref := @Tacenta.UnitSatisfiabilityJoint.Interp.zDeref __src,
+  zDerefMut := @Tacenta.UnitSatisfiabilityJoint.Interp.zDerefMut __src,
+  vecPop := @Tacenta.UnitSatisfiabilityJoint.Interp.vecPop __src,
+  vecCapacity := @Tacenta.UnitSatisfiabilityJoint.Interp.vecCapacity __src,
+  vecTruncate := @Tacenta.UnitSatisfiabilityJoint.Interp.vecTruncate __src,
+  optionClone := @Tacenta.UnitSatisfiabilityJoint.Interp.optionClone __src,
+  optionAsMut := @Tacenta.UnitSatisfiabilityJoint.Interp.optionAsMut __src,
+  rangeFullIndex := @Tacenta.UnitSatisfiabilityJoint.Interp.rangeFullIndex __src, divCeil := __src.divCeil }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.InterpO.modelFirstFrame : Tacenta.UnitOracleShape.InterpO :=
+have __src := Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame;
+{ toInterp := __src, xeddsaSign := fun {R} => Tacenta.UnitOracleModel.signModelO }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.InterpO.modelFirstFrame
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.viewFirstFrame : Tacenta.UnitLifecycleDecryptRatchetScreen.DhViewShape
+  Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame :=
+{ privateKey := Tacenta.UnitLifecycleT3.arrayOf, publicKey := Tacenta.UnitLifecycleT3.arrayOf }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.viewFirstFrame
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.dhViewFirstFrame : Tacenta.UnitOracleShape.DhViewOf
+  Tacenta.UnitLifecycleResponderFirstFrame.InterpO.modelFirstFrame.toInterp :=
+{ privateKey := Tacenta.UnitLifecycleResponderFirstFrame.viewFirstFrame.privateKey,
+  publicKey := Tacenta.UnitLifecycleResponderFirstFrame.viewFirstFrame.publicKey }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.dhViewFirstFrame
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.kemViewFirstFrame : Tacenta.UnitOracleShape.KemViewOf
+  Tacenta.UnitLifecycleResponderFirstFrame.InterpO.modelFirstFrame.toInterp :=
+{ keyPair := fun x => [] }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.kemViewFirstFrame
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.reachStore : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes →
+  Aeneas.Std.Array Aeneas.Std.U8 32#usize →
+    Aeneas.Std.Array Aeneas.Std.U8 64#usize →
+      Aeneas.Std.Array Aeneas.Std.U8 64#usize →
+        tacenta_session_unit.zeroize.Zeroizing
+            (Aeneas.Std.alloc.vec.Vec Tacenta.UnitLifecycleResponderFirstFrame.PoolEntry) →
+          tacenta_session_unit.tacenta_boundary.kem.KeyPair → tacenta_session_unit.lifecycle.PrekeyStore :=
+fun pkb sb sig1 sig2 z kp =>
+  { identity_public := pkb, signed_prekey_secret := sb, signed_prekey_id := 1#u32, signed_prekey_sig := sig1,
+    one_time := z, kem := kp, kem_id := 2#u32, kem_sig := sig2,
+    kem_one_time :=
+      Aeneas.Std.alloc.vec.Vec.new
+        (Aeneas.Std.U32 × tacenta_session_unit.tacenta_boundary.kem.KeyPair × Aeneas.Std.Array Aeneas.Std.U8 64#usize),
+    previous_signed_prekey := none, previous_kem := none, next_id := 3#u32,
+    last_resort_seen := Aeneas.Std.alloc.vec.Vec.new (Aeneas.Std.U32 × Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+    legacy_last_resort_blocked := Aeneas.Std.alloc.vec.Vec.new Aeneas.Std.U32 }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.reachStore
+
+/--
+info: def Tacenta.UnitLifecycleResponderFirstFrame.reachBundle : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes →
+  Aeneas.Std.Array Aeneas.Std.U8 64#usize →
+    Aeneas.Std.Array Aeneas.Std.U8 64#usize →
+      Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8 → tacenta_session_unit.lifecycle.PublishedBundle :=
+fun pkb sig1 sig2 kemPk =>
+  {
+    bundle :=
+      { identity_key := pkb, signed_prekey := pkb, signed_prekey_signature := sig1, kem_prekey := kemPk,
+        kem_prekey_signature := sig2, one_time_prekey := none },
+    signed_prekey_id := 1#u32, one_time_prekey_id := tacenta_session_unit.serialization.ABSENT_ID,
+    kem_prekey_id := 2#u32 }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleResponderFirstFrame.reachBundle

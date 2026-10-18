@@ -19,8 +19,8 @@ and requires Lean to refuse it, at a named place, with an error that names what 
     for repeat-freedom and once for `ABSENT_ID`'s absence (refused in `distinct_kem_last` and
     `distinct_pool_last`);
   * the legacy refusal claimed when the marker does not list the key (refused in
-    `responder_first_frame_prepares`) and the full-record refusal claimed at an empty record (refused in
-    `replay_refusal_cause`);
+    `responder_first_frame_prepares`), and the full-record refusal claimed at an empty record and below the bound
+    (refused in `replay_refusal_cause`);
   * the parts' shared secret claimed to be the ratchet agreement, and their peer identity key claimed to be
     the initiator's ephemeral key (refused in `responder_first_frame_prepares`), and the last-resort flag
     inverted (same place);
@@ -33,13 +33,16 @@ and requires Lean to refuse it, at a named place, with an error that names what 
     `establish_initiator_for_secret`);
   * the reach's store with a legacy marker on its last-resort key (refused in
     `first_send_responder_reachable`: the call may then refuse);
-  * the composed statement's frame claimed to seal the empty plaintext whatever was sent (refused in
-    `first_send_responder_prepares`);
+  * the composed statement's frame claimed to seal the empty plaintext whatever was sent, and the responder fed
+    the plaintext instead of the bytes the first send returned (both refused in `first_send_responder_prepares`);
   * the agreement law weakened with the module's pins kept (refused at the pin of `DhAgreeSymmetricShape`).
 
-Every change is to a statement or a definition; none replaces a proof step.  So each refusal shows that the
-changed statement is false, or contradicts a value the proof supplies, or (for the last) that the pin holds
-the definition.
+Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage
+check at a named place: it shows that the proof there depends on what the change removed (or, for the last, that
+the pin holds the definition), not that the changed statement is false.  Two controls bear on the composition
+chain: the composed frame claimed for the empty plaintext, and the responder fed the plaintext instead of the
+bytes the first send returned (both refused in `first_send_responder_prepares`); none changes the bundle
+`publish` returned or the record `q` the premises name.
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not
 from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
@@ -113,9 +116,9 @@ MUTANTS = [
        '  (e = lifecycle.Error.LegacyLastResortRecord ∧ store.kem_id ∉ store.legacy_last_resort_blocked.val) ∨\n')],
      r'storeB\.kem_id ∈ ↑storeB\.legacy_last_resort_blocked\nbut is expected to have type\n  storeB\.kem_id ∉', ['responder_first_frame_prepares']),
     ('module', 'full-record-refusal-at-an-empty-record',
-     [('        (e = lifecycle.Error.LastResortRecordFull ∧ store.last_resort_seen.val ≠ [])) := by\n',
-       '        (e = lifecycle.Error.LastResortRecordFull ∧ store.last_resort_seen.val = [])) := by\n')],
-     r'↑store\.last_resort_seen ≠ \[\]\nbut is expected to have type\n  ↑store\.last_resort_seen = \[\]', ['replay_refusal_cause']),
+     [('        (e = lifecycle.Error.LastResortRecordFull ∧ store.last_resort_seen.val ≠ [] ∧\n',
+       '        (e = lifecycle.Error.LastResortRecordFull ∧ store.last_resort_seen.val = [] ∧\n')],
+     r'fun hseen => [\s\S]*but is expected to have type\n  ↑store\.last_resort_seen = \[\]', ['replay_refusal_cause']),
     ('module', 'shared-secret-claimed-the-ratchet-agreement',
      [(PREPARES_TAIL, PREPARES_TAIL.replace('p.shared = q.shared', 'p.shared = q.dhOut'))],
      r'p\.shared = q\.shared\nbut is expected to have type\n  p\.shared = q\.dhOut', ['responder_first_frame_prepares']),
@@ -151,6 +154,16 @@ MUTANTS = [
        '            Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracle (establishedModelOf dh s)\n'
        '              [] messageKey chunk ∧\n')],
      r'\(sliceOf plaintext\)\s+messageKey chunk[\s\S]*but is expected to have type[\s\S]*firstFrame view oracle \(establishedModelOf dh q\.session\) \[\]', ['first_send_responder_prepares']),
+    ('module', 'full-record-refusal-below-the-bound',
+     [('            lifecycle.MAX_LAST_RESORT_SEEN ≤ n)) := by\n',
+       '            n < lifecycle.MAX_LAST_RESORT_SEEN)) := by\n')],
+     r'hge\nhas type\n  i3 ≥ lifecycle\.MAX_LAST_RESORT_SEEN\nbut is expected to have type\n  i3 < lifecycle\.MAX_LAST_RESORT_SEEN', ['replay_refusal_cause']),
+    ('module', 'responder-fed-the-plaintext-not-the-sent-bytes',
+     [('          lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =\n',
+       '          lifecycle.establish_responder rcB crcB ourB storeB plaintext rngB =\n'),
+      ('        ∃ p : ResponderPreparedParts ourB storeB (alloc.vec.Vec.deref bytes),\n',
+       '        ∃ p : ResponderPreparedParts ourB storeB plaintext,\n')],
+     r'establish_responder rcB crcB ourB storeB bytes\.deref rngB[\s\S]*but is expected to have type[\s\S]*establish_responder rcB crcB ourB storeB plaintext rngB', ['first_send_responder_prepares']),
     ('pinned', 'agreement-law-with-itself-pinned', [SYM_DEF, SYM_IS],
      r'Docstring on `#guard_msgs` does not match generated message',
      ('pin', 'Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape')),
