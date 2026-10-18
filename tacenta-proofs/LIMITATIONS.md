@@ -2665,7 +2665,7 @@ one hypothesis about the store are new:
 | Statement | Kind | Says | Used for | Model, and when it would be false |
 |---|---|---|---|---|
 | `DhAgreeSymmetric` | law, ASSUMED (`DhAgreeSymmetricShape` at the real constants) | for private keys `a`, `b` whose public keys are `pa`, `pb`, `PrivateKey::agree a pb` returns what `agree b pa` returns | the responder's four agreements are the initiator's, so the two shared secrets are equal and the responder's contributory checks pass (`shared_secret_symmetric`) | `InterpO.modelFirstFrame` (`modelFirstFrame_symmetric`), whose public key is the base point for every private key and whose agreement returns the public key it was given unless it is the zero key: a toy. True of the boundary by reading (`tacenta-core/boundary/src/dh.rs`, X25519 through x25519-dalek: both sides compute the u-coordinate of the product of the two clamped scalars and the base point, and the boundary refuses the all-zero output on both sides); not checked in Lean. It would be false of a DH whose two directions differ, of a boundary that clamped or validated on one side only, and of one that refused a non-contributory result on one side only |
-| `FirstKemAgrees` | premise about the run, not a law | the KEM key pair the store holds under the identifier the bundle names decapsulates the initiator's ciphertext to the secret the initiator's encapsulation returned | the responder's decapsulated secret is the initiator's | holds in the reach's run (`first_send_responder_reachable`), from `FirstFrameSuccessShape`. Deliberately not a law: ML-KEM decapsulation of an honestly encapsulated ciphertext fails with a small probability (FIPS 203), and the wrapper's implicit rejection then returns another secret rather than an error, so a statement for every run would be false of the real primitive |
+| `FirstKemAgrees` | premise about the run, not a law | the KEM key pair the store holds under the identifier the bundle names decapsulates the initiator's ciphertext to the secret the initiator's encapsulation returned | the responder's decapsulated secret is the initiator's | holds in the reach's run (`first_send_responder_reachable`), from `FirstFrameSuccessShape`. Deliberately not a law: ML-KEM decapsulation of an honestly encapsulated ciphertext fails with a small probability (FIPS 203), and the wrapper's implicit rejection then returns another secret rather than an error, so a statement for every run would be false of the real primitive. Were it to fail, by reading the responder's inner receive would refuse `Aead`, not `Kem` (next paragraph); not shown |
 | `PrekeyIdsDistinct` | hypothesis about the store, named | the identifiers the store holds (signed prekey, KEM key, previous ones, the one-time curve and KEM entries) are distinct and none is `ABSENT_ID` | the KEM lookup and the one-time lookup find the entries `publish` named (`u32_index` and `peek_one_time` return the first occurrence; `ABSENT_ID` names no key) | holds at the reach's store (`reachStore_distinct`). It is what `PrekeyStore::invariant`'s identifier loop checks (with the bound by `next_id`), but that the invariant gives it is not checked: the invariant reads the pools through `IntoIterator for &Vec`, which the translation leaves opaque and for which no law is in the tree. It would be false of a store holding a repeated identifier (then the lookup can find another entry than the one published) |
 
 One more statement is assumed for inhabitation only, as `ResponderSuccessShape` above; no result about every input takes it:
@@ -2680,9 +2680,41 @@ laws, the six restore laws, the encrypt branch's size law and seeds, `DhAgreeSym
 together in `InterpO.modelFirstFrame` (`first_frame_laws_model`), a toy that shows nothing of the real primitives. The encrypt
 branch's joint model satisfies `DhAgreeSymmetricShape` too, but only because every public key there is the zero key and the
 agreement refuses it, so no establishment against a published bundle succeeds there; that is why the new interpretation changes
-the public key and the agreement. **Not shown:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext
-it returns (it needs the first message key to agree on both sides in the model, and an AEAD round trip); the responder's
-successor, its invariant and its draws; any later message; that `PrekeyStore::invariant` gives `PrekeyIdsDistinct`.
+the public key and the agreement. **Not shown there:** that the inner `decrypt_ratchet` succeeds on the first frame or which
+plaintext it returns (the next paragraph, under two further laws); the responder's successor, its invariant and its draws (the
+next paragraph relates the successor and pins the draws; the invariant is not shown); any later message; that `PrekeyStore::invariant` gives `PrekeyIdsDistinct`.
+
+*The responder's first receipt.* `UnitLifecycleResponderFirstReceipt.lean` continues on the same bytes. Past the store's
+refusals, the call returns exactly one of `Handshake(NonContributoryAgreement)` (the responder oracle refuses the agreement
+of its draw with the initiator's ratchet key), `Aead` (it refuses to open the initiator oracle's seal of the plaintext), each
+with the store as given and one draw taken, or what that open returns (`responder_first_frame_outcomes`,
+`initiator_first_send_responder_outcomes`). Under the two laws below it returns the plaintext the initiator encrypted, takes
+one draw and commits the store (`responder_first_frame_succeeds`, `initiator_first_send_responder_receives`; these four and
+the inner-receive results and the reach are compiler-trusted through the decrypt refinement's nine `native_decide` constants).
+The first message key agrees on both sides by computation over the model's key derivations; no law is used for it. Two laws
+and two premises about the run are new:
+
+| Statement | Kind | Says | Used for | Model, and when it would be false |
+|---|---|---|---|---|
+| `AeadRoundTrip` | law, ASSUMED (`AeadRoundTripShape` at the real constants) | for keys of 32, 32 and 16 bytes, a plaintext of at most `Usize.max - 48` bytes and associated data, if `aead::encrypt` returns a ciphertext then `aead::decrypt` of it with the same keys and associated data returns `Ok` of the plaintext | the responder's oracle opens the initiator's oracle's seal of the first frame to the plaintext (`aead_open_sealed`), so the inner receive succeeds | `InterpO.modelFirstReceipt` (`modelFirstReceipt_aeadRoundTrip`): the toy seal puts a zero byte in front and the toy open removes it; a toy that authenticates nothing. True of the boundary by reading (`tacenta-core/boundary/src/aead.rs`: AES-256-CBC with PKCS#7 padding, then HMAC-SHA256 over the associated data and the ciphertext, appended; open recomputes the tag over the same bytes, compares, decrypts and unpads); not checked in Lean. It would be false of an AEAD whose tag on opening covers other bytes than on sealing, of a padding the decrypter rejects, of a key-dependent or randomised tag that open cannot recompute, or of a seal that truncates. It says nothing about forged or altered ciphertexts: no authenticity law is assumed, so no theorem here shows a tampered frame refused |
+| `DhAgreeContributory` | law, ASSUMED (`DhAgreeContributoryShape` at the real constants) | for every private key `a` and every key `b` whose public key is `pb`, `PrivateKey::agree a pb` returns `some` | the responder's fresh ratchet key agrees with the initiator's ratchet key (`responder_candidate_agreement`), so the inner receive does not refuse `NonContributoryAgreement` | `InterpO.modelFirstReceipt` (`modelFirstReceipt_contributory`), whose public key is the base point and whose agreement refuses only the zero key: a toy. True of X25519 by reading (a clamped scalar is a multiple of the cofactor and not a multiple of the group order, and `public_key` returns a point of the prime-order subgroup, so the product is not the identity and the boundary's all-zero check in `boundary/src/dh.rs` passes); not checked in Lean. It would be false of an agreement that is all-zero against some honestly generated key, of a `public_key` that can return a small-order point, or of a boundary that refuses on another condition |
+| trace premise | premise about the run | the responder's source's trace is its oracle's draws and holds a draw | the inner receive's candidate draw (the refinement takes it); without it the model refuses `ceiling` | holds in the reach's run, at the byte-stream source with 64 bytes. A source with no state of its own, such as `OsRng`, is outside the statements about draws; a real `RngCore` does not run dry, so the empty trace is a property of the trace interpretation, not of the code |
+| `EstablishResponderHeadroom` | store bound, the premise of `establish_responder_no_panic` | the replay record has room for one more entry | the whole call's success (the commit's append on the last-resort path) | holds in the reach's run (an empty record); not derived from the store's invariant |
+
+The successor relation is to the model's step at a codeword view that reads the received codeword as the initiator's header
+source (`attributedView`); the proof shows that the received codeword is a codeword of that source (the codeword half of the
+chunk relation is derived), and the view constrains only the model session the successor is compared against, not the
+bytes, the store, the draws or the call's result. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt branch's law)
+gives that source its 96 bytes. The two oracles need not be equal; the later steps (the header's later chunks, the reply)
+need the two oracles' Braid KEMs to agree, which nothing here states. On `Kem`: `FirstKemAgrees` stays a premise. By reading,
+an honest-ciphertext decapsulation failure returns another secret under FIPS 203 implicit rejection rather than an error, so
+the two shared secrets would differ and the refusal observed would be the inner `Aead`, store as given and one draw taken,
+not `Kem`; this is argued from the reading only and is not shown. Every law of the premise lists, with the first-frame
+laws, holds together in `InterpO.modelFirstReceipt` (`first_receipt_laws_model`), the first-frame joint model with the toy
+seal and open (the first-frame model's seal returns the empty vector, so `AeadRoundTripShape` is false there); a toy that
+shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; the responder successor's
+`Session::invariant`; the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
+exhibited run; the model's own `establishResponder` equality.
 
 **What is not shown.**
 

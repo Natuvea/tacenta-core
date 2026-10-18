@@ -121,13 +121,13 @@ premise lists hold together with the decrypt, establishment and restored-session
 return is a refusal before the inner receive with the store and the source of randomness as given, an inner
 refusal with the store as given, or an inner success with the named store commit), derives
 `Session::invariant`, the four ceilings and the relation for the session it builds, and applies the
-`decrypt_ratchet` refinement to its inner call; no input at which the whole call succeeds is exhibited.
+`decrypt_ratchet` refinement to its inner call; that module exhibits no input at which the whole call succeeds.
 `UnitLifecycleResponderFirstFrame.lean` feeds the bytes a successful first `encrypt` at an
 `establish_initiator_for` output returns to `establish_responder`, at a store whose `publish` returned the bundle
 the initiator used: under a DH symmetry law, a per-run KEM premise and the store's distinct identifiers (named),
 the call refuses only with the three refusals the store decides, on the last-resort path, or reaches the inner
 receive with the initiator's shared secret, where the invariant, the ceilings and the relation hold; the laws
-hold in one interpretation and one run reaches the inner receive.  That the inner receive succeeds is not shown.
+hold in one interpretation and one run reaches the inner receive; that module does not show the inner receive succeeding.
 `UnitLifecycleResponderFirstReceipt.lean` continues on the same bytes: past the store's refusals the inner receive
 returns exactly one of a non-contributory candidate agreement, an AEAD refusal (store as given, one draw each) or
 what the open of the initiator's seal returns; under two further boundary laws (the AEAD opens what it sealed, and

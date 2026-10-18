@@ -106,8 +106,8 @@ this section says in one place what is not proved.
   `establish_initiator_for` output ...)"). Initial frames, a second `encrypt` and the next `decrypt` on the session that
   sent are not covered ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model relation at
   every successful `establish_initiator_for` output ...)"); `establish_responder` is covered for every input by its own
-  section, below, and on that first frame up to its inner receive (two sentences on), but not shown to accept it, so the
-  responder's receipt of that frame is not covered.
+  section, below, and on that first frame through its inner receive to the call's return value (later in this paragraph),
+  under further assumptions, so the responder's receipt of that one frame is covered, conditionally.
   For every responder identity, prekey store, initial message and source of randomness, `establish_responder` returns
   a refusal before its inner receive (one of nine named errors, the store and the random source as given), a refusal of
   its inner `decrypt_ratchet` (the store as given), or that receive's success with the store changed only in the two
@@ -123,8 +123,8 @@ this section says in one place what is not proved.
   store of a given shape (only `Decode` for every store), of which no value is derivable without the first shape. The
   premise list holds together at an input that reaches the inner receive, with every law and shape in one model
   interpretation.
-  No input at which the whole call succeeds is exhibited ("Proved (tier T3, session lifecycle: `establish_responder` over
-  every input ...)").
+  That section exhibits no input at which the whole call succeeds ("Proved (tier T3, session lifecycle: `establish_responder`
+  over every input ...)"); the initiator's first frame is one, under the further assumptions later in this paragraph.
   On the bytes that first `encrypt` returns, at a responder store whose `publish` returned the bundle the initiator used
   (with the store's identifiers distinct, a named hypothesis whose derivation from `PrekeyStore::invariant` is not
   checked), `establish_responder` refuses only with the legacy marker on the last-resort key, a handshake already
@@ -135,9 +135,23 @@ this section says in one place what is not proved.
   initiator's secret (`FirstKemAgrees`; ML-KEM decapsulation can fail with small probability, so it is not a law), and the
   establishment's, restore and decrypt laws named there; the composed statement is compiler-trusted through the encrypt
   wrapper. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
-  shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists. That the inner receive accepts the
-  frame, and with which plaintext, is not shown ("Proved (tier T3, session lifecycle: `establish_responder` on the frame the
-  initiator's first `encrypt` emits ...)").
+  shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists ("Proved (tier T3, session lifecycle:
+  `establish_responder` on the frame the initiator's first `encrypt` emits ...)").
+  Past the store's refusals, on those bytes, the call then returns exactly one of `Handshake(NonContributoryAgreement)` (the
+  responder oracle refuses the agreement of its draw with the initiator's ratchet key), `Aead` (it refuses to open the
+  initiator oracle's seal), each with the store as given and one draw taken, or what that open returns; under two more
+  assumed laws of the opaque boundary, that the AEAD opens what it sealed (`AeadRoundTrip`) and that an agreement with a key
+  `public_key` returned is not refused (`DhAgreeContributory`), with the encrypt branch's size law of the model KEM
+  (`KeyGenSizesOf`), the store bound of `establish_responder_no_panic` and per-run premises that the responder's source's
+  trace is its oracle's and holds a draw, it succeeds: it returns the plaintext the initiator encrypted, takes exactly one
+  draw from the responder's source, commits the store (on the last-resort path with the fingerprint of the initiator's
+  shared secret), and its session refines the model's step at a codeword view that attributes the received chunk to the
+  initiator's header source; the composed statements are compiler-trusted as the one above is. The first message key
+  agrees on both sides by computation over the model's key derivations, with no oracle assumption. The laws hold together in one interpretation, a
+  toy model, and at the real constants one run from `publish` through the first send reaches the success (last-resort path,
+  empty plaintext). That a tampered frame is refused is not shown (no AEAD authenticity law is assumed); the reply, its
+  receipt and the successor's invariant are not covered ("Proved (tier T3, session lifecycle: `establish_responder` accepts
+  the initiator's first frame ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -5014,11 +5028,13 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
 **What this establishes, and what it does not.** On the actual bytes the initiator's actual first `encrypt` returns, at a
 store that published the bundle used, every refusal of the responder's prepare phase other than the three the store decides
 is excluded, and the responder's shared secret is the initiator's, under the law, the run premise and the store hypothesis
-named above. **Not shown:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext it returns (that
-needs the first message key to agree on both sides in the model, and the AEAD round trip); the responder's successor, its
-invariant and the draws on success; any later message in either direction; that `PrekeyStore::invariant` gives
+named above. **Not shown here:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext it returns
+(the next section shows it, under two further laws: the first message key agreeing on both sides in the model, by
+computation, and the AEAD round trip as a law); the responder's successor, its invariant and the draws on success (the next
+section relates the successor and pins the draws; the invariant is not shown); any later message in either direction; that `PrekeyStore::invariant` gives
 `PrekeyIdsDistinct`; the model's `establishResponder` equality. The reach shows only that the second arm is not about an empty
-set under the assumptions it names; it does not show the inner receive accepts.
+set under the assumptions it names; it does not show the inner receive accepts (the next section's reach does, under two
+further laws).
 
 **Compiler trust and pins.** `first_send_responder_prepares` and `first_send_responder_reachable` are compiler-trusted: they
 apply `established_encrypt_outcomes` and list the encrypt wrapper's nine `native_decide` constants. Of the other 44 results, 6
@@ -5044,6 +5060,152 @@ with a legacy marker (refused in `first_send_responder_reachable`); the composed
 and the responder fed the plaintext instead of the bytes the first send returned (refused in
 `first_send_responder_prepares`); and the agreement law weakened with its pins kept (refused at the pin of
 `DhAgreeSymmetricShape`). An error that is not a refusal voids a run anywhere in the copy, compared without regard to case.
+
+## Proved (tier T3, session lifecycle: `establish_responder` accepts the initiator's first frame and returns its plaintext, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleResponderFirstReceipt.lean`.
+
+The section above stops at the inner receive: on the bytes the initiator's first `encrypt` returns, `establish_responder`
+refuses only as the store decides or reaches its inner `decrypt_ratchet` with the initiator's shared secret. These results
+continue on the same bytes, through the inner receive and the commit, to the whole call's return value.
+
+**The first message key, in the model.** The model's key derivations are concrete code, so no oracle assumption is needed
+for the two parties to derive the same first message key: from the sender pair form (`firstSenderTriple`, what the
+initiator's establishment leaves) the model Triple's first send returns the key `firstKey`, and at the receiver pair form
+(`firstReceiverTriple`, what the responder's preparation leaves) its first receive returns the same key, provided the
+receiver's classical root `ec` and the agreement `d` derive the sender's root and sending chain (`kdfRk ec d = (rkA,
+cksA)`). The code's two Triple initialisers, run on one secret, give exactly the pair form with that relation
+(`first_init_pair`: the same `split_secret` and the same `kdf_init` on the same slice; the responder's classical root is the
+split secret's first half, and the initiator's root and chain are `kdf_rk` of it and the ratchet agreement).
+
+**The outcomes past the store.** On the initiator's initial message, at a store as in the section above and with the store
+bound of `establish_responder_no_panic` (`EstablishResponderHeadroom`), for a responder source whose trace is its oracle's
+and holds a draw, `establish_responder` (`responder_first_frame_outcomes`, and composed with the first send,
+`initiator_first_send_responder_outcomes`) either refuses as the store decides (the section above), or reaches the inner
+receive and returns exactly one of:
+
+| Outcome | When (in the responder's oracle) | Result | Prekey store after | Random source after |
+| --- | --- | --- | --- | --- |
+| `Handshake(NonContributoryAgreement)` | the draw's agreement with the initiator's ratchet key is refused | that refusal | as given | one draw taken |
+| `Aead` | that agreement returns and the open of the initiator oracle's seal of the plaintext (first message key, first frame's associated data; `firstOpen`) is refused | that refusal | as given | one draw taken |
+| success | that open returns `x` | `Ok (session, bytes)` with the bytes `x` | `ResponderCommit` of the bundle's identifiers | one draw taken |
+
+No other refusal of the inner receive occurs on this frame (`AgreementFailed`, `Decode`, the first agreement, `Triple`): the
+first agreement is the initiator's `dh_out`, by `DhAgreeSymmetric` and the initiator's own check. The model's `ceiling` (an
+empty trace) is excluded by the per-run premise that the trace holds a draw, which the refinement takes. Each named refusal
+is the failure of one premise of the success theorem: `DhAgreeContributory` for the first, `AeadRoundTrip` (with the two
+oracles' records) for the second.
+
+**Success.** Under the two new laws as well (`responder_first_frame_succeeds`, and composed with the first send,
+`initiator_first_send_responder_receives`), on the bytes a successful first `encrypt` returned, `establish_responder` either
+refuses as the store decides, or **returns `Ok (session, bytes)` with the bytes equal to the plaintext the initiator
+encrypted**, takes exactly one draw from the responder's source, and commits the store: `ResponderCommit` of the bundle's
+KEM and one-time identifiers (on the one-time path no fingerprint; on the last-resort path the fingerprint of the
+initiator's shared secret). The initiator's source loses exactly its two draws. The session the call returns refines
+`firstReceiptSession`, the model's step on the frame at the session read off the code's intermediate session, at a codeword
+view that attributes the received codeword to the initiator's header source (`headerSource`, from the initiator's key
+generation at its two draws), of which the proof shows the received codeword is a codeword; that view enters only the model
+session compared against, not the bytes, the store, the draws or the call's result.
+
+**The laws and premises.** Two new laws of the opaque boundary, assumed (`LIMITATIONS.md`): `AeadRoundTrip` (the AEAD opens
+what it sealed, for a plaintext of at most `Usize.max - 48` bytes) and `DhAgreeContributory` (an agreement of any private
+key with a public key `public_key` returned is not refused). Per run: the responder's trace is its oracle's and holds a
+draw; the store bound of `establish_responder_no_panic`. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt
+branch's law) gives the header source its 96 bytes. Reused: every hypothesis of `first_send_responder_prepares`, with the
+decrypt agreements at the responder oracle's KEM. The two oracles need not be equal. A tampered or foreign frame being
+refused is **not** shown: no AEAD authenticity law is assumed, and the bytes are the initiator's throughout.
+
+- `first_send_key`, `first_receive_key`, `first_receive_with_eviction`: the model's first send from the sender pair form and
+  first receive at the receiver pair form give `firstKey`, the receive under the root relation; no other hypothesis.
+- `readBe64_be64_kernel`, `readBe16_be16_kernel`, `decode_encodeMessage`: the model's ratchet-message decoder inverts its
+  encoder for a header whose key is 32 canonical bytes and whose codeword carries 32 bytes; on the kernel alone (the model's
+  own counter round trips are `bv_decide` proofs).
+- `first_frame_model_outcomes`: every outcome of the model's `decryptRatchet` on the first frame at the receiver pair, the
+  four rows above with `ceiling` for an empty draw list; model only, with the first agreement, the root relation, the
+  associated data, the initial responder Braid and the decode side conditions as hypotheses.
+- `first_init_pair`: the two Triple initialisers on one secret give the pair form and the root relation; no hypothesis.
+- `established_triple_first`, `responder_triple_first`: the model Triples read off the code's two sessions are the pair
+  form; no hypothesis beyond the Triple equation.
+- `first_kdf_model`, `zeroized_eq`: the code's root-key step is the model's, under `HkdfAgrees` and the zeroizing round trip
+  (both in the decrypt agreements); a 32-byte array wrapped and unwrapped is itself, under the zeroizing round trip.
+- `parts_of_first_frame`: at the initiator's frame the parts' decoded identifiers are the bundle's, their ratchet key's
+  public key is the bundle's signed prekey and our key is the bundle's identity key, under the decode laws of
+  `decode_first_frame` and the zeroizing round trip.
+- `view_ratchet_public`, `responder_first_agreement`: the responder oracle's first agreement is the initiator's `dh_out`,
+  under `DhAgreeSymmetric`, the responder's oracle record and `DhCodecOf dh`.
+- `responder_candidate_agreement`: every draw of the responder's source agrees contributorily with the initiator's ratchet
+  key in the responder's oracle, under `DhAgreeContributory`, the oracle record and `DhCodecOf dh`.
+- `first_identityAd_eq`: the responder's associated data is the initiator's; no hypothesis beyond the two key equations.
+- `arrayOf_arrayOfBytes`, `aead_open_sealed`: the responder oracle opens the initiator oracle's seal to the plaintext, under
+  `AeadRoundTrip`, the initiator's seal clause and the responder's open clause.
+- `attributedView_send`, `firstFrame_attributedView`, `first_receipt_run_inputs`: the run inputs of the inner receive at the
+  attributed view (the chunk relation, `HonestChunk`, the draw); the codeword half derived from `held_encoder`'s codeword, the
+  attribution half by the view's construction.
+- `firstAd_length_le`: the first frame's associated data fits a slice, under `DhCodecTotal`.
+- `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`: the inner receive's three outcomes, and
+  its success with the plaintext under the two laws, under the decrypt refinement's hypotheses at the responder's oracle.
+- `establish_responder_commit_of_inner`, `establish_responder_refused_of_inner`: with parts in hand, the call returns the
+  inner refusal with the store as given, or the inner success with the committed store; no hypothesis.
+- `responder_first_frame_outcomes`, `responder_first_frame_succeeds`: the whole call on the initiator's initial message, the
+  outcomes and the success above.
+- `initiator_first_send_responder_outcomes`, `initiator_first_send_responder_receives`: the same composed with the success
+  arm of `established_encrypt_outcomes`, with the initiator's two draws, the message key and the header source pinned.
+- `aeadRoundTrip_is`, `dhAgreeContributory_is`: the two laws at the real constants are the statements about the real
+  functions; by `Iff.rfl`.
+- `first_receipt_laws_model`, `modelFirstReceipt_dhCodec`, `modelFirstReceipt_dhAgree`, `modelFirstReceipt_symmetric`,
+  `modelFirstReceipt_aeadOpen`, `modelFirstReceipt_aeadSeal`, `modelFirstReceipt_aeadRoundTrip`,
+  `modelFirstReceipt_contributory`: one interpretation, `InterpO.modelFirstReceipt` (the first-frame joint model with the toy
+  seal and open of `UnitOracleModel`), satisfies every law the first-frame joint model does together with `AeadRoundTripShape`
+  and `DhAgreeContributoryShape`, in the substitution sense of `LIMITATIONS.md`; not a statement that the real primitives
+  meet them.
+- `first_send_receive_reachable`: at the real constants, under the laws of `first_send_responder_reachable`, `KeyGenSizesOf`
+  and the two new laws, all assumed, for every initiator identity and every 64-byte source at whose bytes the model's key
+  generation answers, one run exists from a store's `publish` through the establishment and a first send of the empty
+  plaintext to the responder's success, every premise of `initiator_first_send_responder_receives` holding there, with a
+  responder oracle record for the byte-stream source holding the same 64 bytes. The run takes the last-resort path at a
+  store with one key as identity key and signed prekey and no one-time keys of either kind, so the one-time path has no
+  exhibited run.
+
+**What this establishes, and what it does not.** On the actual bytes the initiator's actual first `encrypt` returns, at a
+store that published the bundle used, the responder's whole `establish_responder` call either refuses as the store decides
+or succeeds with the initiator's plaintext, one draw and the committed store, under the laws and premises named above and
+in the section above. Without the two new laws, the only other refusals are the two named. **Not shown:** that a tampered or
+foreign frame is refused (no AEAD authenticity law); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees` is a
+premise; by reading, a decapsulation failure returns another secret under implicit rejection and would surface as `Aead`, not
+`Kem`, which is not shown); the responder successor's `Session::invariant`; the responder's reply, the initiator's receipt of
+it and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
+primitives meet the laws.
+
+**Compiler trust and pins.** `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`,
+`responder_first_frame_outcomes`, `responder_first_frame_succeeds`, `initiator_first_send_responder_outcomes`,
+`initiator_first_send_responder_receives` and `first_send_receive_reachable` are compiler-trusted: they apply the decrypt
+refinement (and the last three `established_encrypt_outcomes` too) and list the same nine `native_decide` constants. Of the
+other 35 results, 9 rest on `propext`, `Classical.choice` and `Quot.sound` alone, including `first_frame_model_outcomes` and
+`decode_encodeMessage`, and 26 on those three and opaque constants of the unit. Each of the 42 results carries an axiom pin
+and a statement pin, and each of the 21 definitions the section adds a `#print` pin (`firstSenderTriple`,
+`firstReceiverTriple`, `firstHeader`, `firstKey`, `senderAfterFirst`, `receiverAfterFirst`, `firstAd`, `firstOpen`,
+`firstReceiptSession`, `AeadRoundTripShape`, `AeadRoundTrip`, `DhAgreeContributoryShape`, `DhAgreeContributory`,
+`arrayOfBytes`, `attributedView`, `headerSource`, `Interp.modelFirstReceipt`, `InterpO.modelFirstReceipt`,
+`viewFirstReceipt`, `dhViewFirstReceipt`, `kemViewFirstReceipt`). `check-responder-receipt-negatives.py` plants twenty
+faults in a copy of the module, every one a change to a statement or a definition, and requires Lean to refuse each at a
+named declaration or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the
+changed statement is false): the receiver's sparse chains not swapped, the first receive without its root relation and the
+first header's sparse number 2 (refused in `first_receive_key`); the decoder round trip without its codeword-length condition
+(refused in `decode_encodeMessage`); the model's success keeping the oracle, the ratchet key always the draw, and a frame
+sealed under a caller-chosen key instead of the first key (refused in `first_frame_model_outcomes`); the AEAD law weakened to
+"opening returns" (refused in `aead_open_sealed`) and the contributory law to "the agreement does not return `none`"
+(refused in `responder_candidate_agreement`); the associated data with the two keys in the other order (refused in
+`first_identityAd_eq`); the responder's root claimed the initiator's derived root (refused in `first_init_pair`); the
+attributed source without its MAC (refused in `first_receipt_run_inputs`); the non-contributory refusal claimed when the
+agreement returns (refused in `responder_first_frame_inner_outcomes`); the store claimed unchanged on the one-time path
+(refused in `responder_first_frame_succeeds`); the composed success claimed for a caller-chosen plaintext, the responder fed
+the plaintext instead of the bytes the first send returned, the responder's draws claimed untouched and the header source
+without its MAC (refused in `initiator_first_send_responder_receives`); the joint model keeping the first-frame model's empty
+seal (refused in `modelFirstReceipt_aeadRoundTrip`); and the contributory law without its premise with its pins kept
+(refused at the pin of `DhAgreeContributoryShape`). The three on the composition chain (another plaintext, another key, the
+plaintext for the bytes) show that the composed proof uses the plaintext, the key and the bytes it names; they are not
+proofs that the responder refuses such inputs. An error that is not a refusal voids a run anywhere in the copy, compared
+without regard to case.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

@@ -210,19 +210,25 @@ generation does not refuse, by reading, so no refusal the shipping `encrypt` can
 successful send leaves passes `Session::invariant` and meets the ceilings. That is under the encrypt boundary records, the
 oracle record, three assumed laws (one new, that key generation reads the two draws the model counts; the establishment's
 ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; it is compiler-trusted, as the
-decrypt results are, and the responder's receipt of the frame is not covered.
+decrypt results are, and the responder's receipt of the frame is covered only as the next sentences say.
 For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
 given), an inner refusal (the store as given) or the inner success with the store changed only in the two one-time pools and,
 on the last-resort path, by one replay-record append (under the assumed wrapper model `DerivedKeysModel`; that the named
 entry is the one removed is not stated). At the session it builds the invariant (under assumed and recorded laws) and the
 four ceilings follow from the construction, so the restated form applies to its inner `decrypt_ratchet`, at a model session
 read off the code's session and not shown to be the model's own, for a frame whose agreement chunk, if any, meets the
-caller's chunk premises, with a draw left; no input at which the whole call succeeds is exhibited.
+caller's chunk premises, with a draw left; that result exhibits no input at which the whole call succeeds.
 On the bytes the initiator's first `encrypt` returns, at a responder store whose `publish` returned the bundle the initiator
 used, only the three refusals the store decides remain (on the last-resort path, store and random source as given), or the
 call reaches its inner receive with the initiator's shared secret; that is under an assumed X25519 symmetry law, a premise
 about the run that ML-KEM decapsulation returns the initiator's secret, a named hypothesis that the store's identifiers are
-distinct, and the laws above, and that the inner receive accepts the frame is not shown.
+distinct, and the laws above. Past those refusals the call returns exactly one of two named refusals (a non-contributory
+agreement of the responder's fresh key, or the AEAD refusing to open the initiator's seal; store as given, one draw) or
+what that open returns; under two more assumed boundary laws (the AEAD opens what it sealed; an agreement with a key
+`public_key` returned is not refused), the model KEM's size law, a store bound and per-run premises on the responder's
+source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
+the model's step at a view that attributes the received chunk to the initiator's header source. That a tampered frame is
+refused is not shown.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
