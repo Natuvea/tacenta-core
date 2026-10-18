@@ -177,6 +177,15 @@ report_time "decrypt_ratchet refinement proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-established-negatives.py || fail=1
 report_time "established initiator proof-dependency control" "$t"
+# `establish_responder` over every input (`UnitLifecycleEstablishResponder.lean`): a copy with a law or a
+# check the intermediate session's invariant rests on removed, the session's established ephemeral
+# dropped, the decoder bounds weakened, the ceilings or the relation asked of a wrong state, a refusal or a
+# store or random-source effect claimed otherwise than the generated code has it, a draw or the joint model
+# changed, and a copy of the commit with its pins kept must each be refused at a named declaration or pin,
+# with a message naming the change, after the unmodified copies are accepted.
+t=$SECONDS
+python3 scripts/check-responder-negatives.py || fail=1
+report_time "establish_responder proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
