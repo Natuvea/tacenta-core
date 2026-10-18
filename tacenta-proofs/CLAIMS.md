@@ -85,18 +85,24 @@ this section says in one place what is not proved.
   their whole premise list holds together in one interpretation. A copy of that session, exported before its first
   `encrypt` and restored after the responder replied, decrypts the reply in an honest run (a test on the seeds it tries,
   `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof). Initial frames, `encrypt`, `establish_responder`
-  and `import` are not covered ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model
-  relation at every successful `establish_initiator_for` output ...)").
+  and `import` are not covered by that section ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and
+  the model relation at every successful `establish_initiator_for` output ...)"); `establish_responder` is the next one's.
   For every responder identity, prekey store, initial message and source of randomness, `establish_responder` returns
   a refusal before its inner receive (one of nine named errors, the store and the random source as given), a refusal of
-  its inner `decrypt_ratchet` (the store as given), or that receive's success with a named store commit (only the named
-  one-time removals and, on the last-resort path, the replay-record append). At the session it builds, `Session::invariant`
-  (under `DhPublicValid`, `OptionEqU64Shape`, `DivCeilValue` and a length bound of the decrypt contracts) and the four
-  counter ceilings follow from the construction, and the relation to a model session read off it holds with the model's
-  initial responder Braid, so the `decrypt_ratchet` refinement applies to the inner call; that model session is not shown to
-  be the model's prepared session. Six refusals (three of them stated over every store) and an inner refusal are shown
-  reached at the real constants, and the premise list holds together at an input that reaches the inner receive; no input at which the whole call succeeds is
-  exhibited ("Proved (tier T3, session lifecycle: `establish_responder` over every input ...)").
+  its inner `decrypt_ratchet` (the store as given), or that receive's success with the store changed only in the two
+  one-time pools and, on the last-resort path, by one replay-record append (under the assumed wrapper model
+  `DerivedKeysModel`; that the named entry is the one removed is not stated). At the session it builds,
+  `Session::invariant` (under `DhPublicValid`, `OptionEqU64Shape`, `DivCeilValue` and a length bound of the decrypt
+  contracts) and the four counter ceilings follow from the construction, and the relation to a model session read off the
+  code's session holds with the model's initial responder Braid, so the `decrypt_ratchet` refinement applies to the inner
+  call, for a frame whose agreement chunk, if any, meets the caller's chunk premises (`IncomingChunkRefines`,
+  `HonestChunk`), with a draw left; that model session is not shown to be the model's prepared session. Under the
+  contracts and two assumed shapes recorded in `LIMITATIONS.md` (`ResponderSuccessShape`, `ZeroKeyShape`), six refusals
+  and an inner refusal are shown reached at the real constants, and the premise list holds together at an input that
+  reaches the inner receive, with every law and shape in one model interpretation. Three of the refusals are also stated
+  for every store of a given shape (`Decode` for every store), of which no value is derivable without the first shape.
+  No input at which the whole call succeeds is exhibited ("Proved (tier T3, session lifecycle: `establish_responder` over
+  every input ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -3568,8 +3574,8 @@ What these do not say.
   by moving the last entry into its slot, as the code and `session-persistence.md` do (`Model.swapRemove`;
   `GAP-REGISTER.md`, row `E2E-03`), so it can be the other side of such a theorem. The differential harness compares the real
   store bytes with `consumeOneTimeOk` for one entry that is not last, and an example in `Model/Lifecycle.lean` holds
-  `consumeResponderPrekeys` for a three-entry store. What the success commit of the translated function changes, and
-  that it changes nothing else, is now stated (`responderCommit_effects`, in "Proved (tier T3, session lifecycle:
+  `consumeResponderPrekeys` for a three-entry store. What the success commit of the translated function may change, and
+  that it changes nothing else, is now stated under the assumed wrapper model `DerivedKeysModel` (`responderCommit_effects`, in "Proved (tier T3, session lifecycle:
   `establish_responder` over every input ...)"); which entry a removal takes is still not proved of the code.
 - They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
   count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
@@ -4295,8 +4301,8 @@ abstraction functions.
 - `signed_prekey_err`, `kem_slot_err`, `curve_inputs_err`, `one_time_key_err`, `decapsulate_err`, `shared_secret_err`,
   `replay_err`, `contributory_break_err`: the refusals each helper of the prepare phase can return; no hypothesis.
 - `commit_kem_step`, `commit_one_time_step`, `take_one_time_kem_loop_frame`, `take_one_time_kem_frame`,
-  `take_one_time_loop_frame`, `take_one_time_frame`, `vec_push_ok`: the commit's steps read off the code; the two removals
-  change only their own pool (the curve one under `DerivedKeysModel`); no other hypothesis.
+  `take_one_time_loop_frame`, `take_one_time_frame`, `vec_push_ok`: the commit's steps read off the code; the two removal
+  steps change at most their own pool (the curve one under `DerivedKeysModel`); no other hypothesis.
 - `responder_prepared_invariant`: the session handed to `decrypt_ratchet` passes `Session::invariant`, for every input that
   reaches it, under `DhPublicValid`, `OptionEqU64Shape`, `DivCeilValue` and `HeaderLenTotal`, all assumed.
 - `responder_structural`, `responderTriple_invariant`, `fresh_decoder_invariant`, `hdr_decoder_checks`: its structural
@@ -4325,15 +4331,18 @@ abstraction functions.
 - `establish_responder_returns`: the call returns for every input under the contracts and the store bound of
   `establish_responder_no_panic`, so the outcome theorem speaks of every input there.
 - `establish_responder_short_message_refused`, `establish_responder_unknown_prekey_refused`: a message shorter than two bytes
-  is refused as `Decode(TooShort)`, and a well-formed message naming signed prekey 0 at a store whose signed prekey is
-  another with no previous one as `UnknownPrekeyId`, each with the store and the source as given; no hypothesis.
-- `establish_responder_legacy_refused`: at a store whose KEM key 0 carries the legacy marker the message is refused as
-  `LegacyLastResortRecord`, store and source as given, under the zeroizing round trip only.
+  is refused as `Decode(TooShort)` at every prekey store, and a well-formed message naming signed prekey 0 at every store
+  whose signed prekey is another with no previous one as `UnknownPrekeyId`, each with the store and the source as given;
+  no hypothesis. These are statements over stores; no store value is derivable in Lean without `ResponderSuccessShape`.
+- `establish_responder_legacy_refused`: at every store whose KEM key 0 carries the legacy marker (and whose signed prekey
+  is 0) the message is refused as `LegacyLastResortRecord`, store and source as given, under the zeroizing round trip only;
+  a statement over stores, as above.
 - `establish_responder_noncontributory_refused`, `establish_responder_replay_refused`, `establish_responder_record_full_refused`:
   under the contracts of `establish_responder_no_panic`, `ResponderSuccessShape` and, for the first, `ZeroKeyShape`, all
   assumed, the call is refused as `Handshake(NonContributoryAgreement)` at a message whose ephemeral key is the zero key, as
   `ReplayedLastResort` at a store whose record holds that handshake's fingerprint, and as `LastResortRecordFull` at a store
-  whose record holds 1024 other entries for the key, each with the store and the source as given.
+  whose record holds 1024 other entries for the key, each with the store and the source as given. All these premises hold
+  together in one model interpretation (`responder_route_laws_model`, with the contracts from its axiom part and laws).
 - `responder_prepared_inhabited`: under the same contracts and `ResponderSuccessShape`, for every identity and every frame of
   at most 4096 bytes, an input reaching the inner receive exists, at a store with an empty replay record and a last-resort KEM
   key.
@@ -4342,9 +4351,9 @@ abstraction functions.
   assumed, every field of `ResponderRouteHypotheses` holds together for every identity and codeword view, at an input that
   reaches the inner receive with the sample ratchet frame (no agreement chunk) and one draw.
 - `responder_route_inner_refusal_reachable`: there, with `ZeroKeyShape`, the call returns the inner refusal that maps to the
-  model's `NonContributoryAgreement`, with the store as given.
+  model's `NonContributoryAgreement`, with the store as given; its whole premise list holds in `responder_route_laws_model`.
 - `responder_route_laws_model`: one interpretation, `Interp.modelEstablished`, satisfies the shapes of the decrypt laws, the
-  responder contract axioms, `ResponderSuccessShape` and `DhPublicValidShape` together, in the substitution sense of
+  responder contract axioms, `ResponderSuccessShape`, `DhPublicValidShape` and `ZeroKeyShape` together, in the substitution sense of
   `LIMITATIONS.md`; not a statement that the real primitives meet them.
 - `readBe32_be32`, `takeSplit_append`, `decodeInitial_encodeInitial`: the model's initial-message decoder returns the fields its
   encoder wrote, for two canonical 33-byte keys and a ciphertext shorter than `2^32` bytes; no hypothesis.
@@ -4363,11 +4372,12 @@ abstraction functions.
 effects are proved of the translated function, and at the session it builds the `decrypt_ratchet` refinement applies, with its
 session premises derived. These were not stated before for this root: the earlier frame result
 (`establish_responder_err_leaves_store`) said nothing about the random source and no theorem stated the success store effect.
-Reached, at the real constants: a refusal before the inner receive with no hypothesis (`Decode`, `UnknownPrekeyId`), under one
-law (`LegacyLastResortRecord`), and under the shapes (`Handshake(NonContributoryAgreement)`, `ReplayedLastResort`,
-`LastResortRecordFull`); the inner receive; an inner refusal. The first three are stated of every identity, store and source
-(the prekey store has fields of the opaque key types, of which no value is derivable in Lean); a store value itself is exhibited
-only under `ResponderSuccessShape`, as in the other four. **Not shown:** a success of the whole call. No input is
+Reached, at the real constants, under the contracts and `ResponderSuccessShape` (and `ZeroKeyShape` for two of them),
+all in one model interpretation: the refusals `Handshake(NonContributoryAgreement)`, `ReplayedLastResort` and
+`LastResortRecordFull`, the inner receive, and an inner refusal. Stated over stores: `Decode(TooShort)` is returned, with no
+hypothesis, at every prekey store; `UnknownPrekeyId` (no hypothesis) and `LegacyLastResortRecord` (the zeroizing round trip)
+at every store of a stated shape. The prekey store has fields of the opaque key types, of which no value is derivable in Lean,
+so a store value at which these three are returned is exhibited only under `ResponderSuccessShape`. **Not shown:** a success of the whole call. No input is
 exhibited at which the inner `decrypt_ratchet` succeeds; `establish_responder_at_parts` makes the condition exact. Honest
 successes are tested only (`tacenta-core/tests/full_session.rs` and the other responder tests, `GAP-REGISTER.md`, row
 `E2E-07`). Not shown reached: `BadEncoding` (not reachable once `decode_initial` has accepted, by reading
@@ -4399,8 +4409,11 @@ success commit without its removals, and an inner refusal returning the given so
 the commit leaving the replay record unchanged with a fingerprint and the one-time KEM prekeys unchanged on the one-time path
 (refused in `responderCommit_effects`); an inner success giving a draw back (refused in `establish_responder_refines`); a model
 success keeping the oracle (refused in `decryptRatchet_oracle`); the joint model at the zero base point (refused in
-`responder_route_laws_model`); and the commit without its replay append with its pins kept (refused at the pin of
-`ResponderCommit`).
+`responder_route_laws_model`); and the commit recording key identifier 0 in the replay record with its pins kept (refused at
+the pin of `ResponderCommit`). The first three and the decoder check without the `HEADER_LEN` bound are proof-dependency
+controls: they replace a step of a proof and leave the statement unchanged, so they show the proof uses the fact, not that the
+statement needs it; the other fifteen change a statement or a definition. An error that is not a refusal (an unresolved name, a
+syntax error) voids a run anywhere in the copy, compared without regard to case.
 
 ## Proved (tier T3 witnesses, session lifecycle: invariant-passing session states that are not fresh, and the restated `decrypt_ratchet` hypotheses at stored keys, on the eight-leaf unit)
 

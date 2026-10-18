@@ -36,7 +36,9 @@ ceilings follow from the establishment, the relation to the model session read o
 `KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows and no
 proof does; for every input `establish_responder`'s outcomes, with their store and random-source effects, are stated, and at
 the session it builds the invariant, under assumed and recorded laws, and the ceilings follow from the construction, so the
-restated form applies to its inner `decrypt_ratchet`, with no input exhibited at which the whole call succeeds);
+restated form applies to its inner `decrypt_ratchet`, at a model session read off the code's session and not shown to be the
+model's own, for a frame meeting the caller's chunk premises with a draw left, with no input exhibited at which the whole call
+succeeds);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
