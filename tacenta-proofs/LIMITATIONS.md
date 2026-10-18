@@ -2605,7 +2605,9 @@ invariant, and nothing is shown of the initiator's frame, the plaintext or the r
   `Vec::pop`, `Vec::truncate`, `usize::div_ceil`, `Option::as_mut` and `Vec::capacity` as the real operations. The
   blanket `Zeroize`, `Array::zeroize`, `Vec::zeroize` and the tuple `Zeroize` are the identity, which is not what they do.
 - That the substitution step is sound inside Lean (above).
-- That the headroom records are met by a state the crate can reach, apart from a session `establish_initiator_for` returns.
+- That the headroom records are met by a state the crate can reach, apart from a session `establish_initiator_for` returns
+  and the session `establish_responder` builds before its inner receive (`counterHeadroom_responder_prepared`; that is not
+  the session the call returns, and no input at which the whole call succeeds is exhibited).
   The witness session has no pending initial message and no established ephemeral key, and it is not one that
   `establish_initiator` or `establish_responder` returns. A session `establish_initiator_for` returns holds a pending initial
   message and passes `Session::invariant` under `KemCiphertextLenOf` and `DhPublicValid` (above), so
