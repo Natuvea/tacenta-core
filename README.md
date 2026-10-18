@@ -211,6 +211,13 @@ successful send leaves passes `Session::invariant` and meets the ceilings. That 
 oracle record, three assumed laws (one new, that key generation reads the two draws the model counts; the establishment's
 ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; it is compiler-trusted, as the
 decrypt results are, and the responder's receipt of the frame is not covered.
+For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
+given), an inner refusal (the store as given) or the inner success with the store changed only in the two one-time pools and,
+on the last-resort path, by one replay-record append (under the assumed wrapper model `DerivedKeysModel`; that the named
+entry is the one removed is not stated). At the session it builds the invariant (under assumed and recorded laws) and the
+four ceilings follow from the construction, so the restated form applies to its inner `decrypt_ratchet`, at a model session
+read off the code's session and not shown to be the model's own, for a frame whose agreement chunk, if any, meets the
+caller's chunk premises, with a draw left; no input at which the whole call succeeds is exhibited.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
