@@ -204,6 +204,13 @@ responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receive
 the exported bytes returns that session unchanged, so the restated form applies to the restored copy (given the caller's
 boundary records, chunk relation and draw), is proved under nine assumed laws (six of its own, the establishment's two and
 the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
+At that established session the first `encrypt` is related to the model's step: the initial message wrapping the first
+ratchet frame, consuming two draws (and, for a model KEM whose key generation refuses, that refusal; the shipping key
+generation does not refuse, by reading, so no refusal the shipping `encrypt` can reach is covered), and the session a
+successful send leaves passes `Session::invariant` and meets the ceilings. That is under the encrypt boundary records, the
+oracle record, three assumed laws (one new, that key generation reads the two draws the model counts; the establishment's
+ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; it is compiler-trusted, as the
+decrypt results are, and the responder's receipt of the frame is not covered.
 For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
 given), an inner refusal (the store as given) or the inner success with the store changed only in the two one-time pools and,
 on the last-resort path, by one replay-record append (under the assumed wrapper model `DerivedKeysModel`; that the named

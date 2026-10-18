@@ -2554,6 +2554,59 @@ stored keys, a responder, and a Braid in any other state. `Session::invariant` a
 statement that names `export` or `import` lists one compiler-trust axiom from the `toStr` of a panic message in the
 generated `export` (`by decide +native`), not from the argument (`CLAIMS.md`).
 
+*The first `encrypt` at a session `establish_initiator_for` returned.* `UnitLifecycleEstablishedEncrypt.lean` composes the
+public `encrypt` with every establishment output, through the dispatch layer's encrypt route, and derives that route's state
+premises there: the relation (by definition at the `KeysUnsampled` agreement), `EncryptHeadroom` for every plaintext of at
+most `Usize.max - 65770` bytes (under `DhCodecTotal`, `KemCiphertextLenOf` and `KemCiphertextLenBound`), the two Triple
+condition records (no hypothesis) and the counted draw record of the Braid send. The result relates the call's result,
+post-state and draws left to the model's step (`established_initiator_encrypt_refines`) and names the two outcomes at that
+state, key generation refusing or the initial message wrapping the first ratchet frame, each consuming two draws
+(`established_encrypt_outcomes`). After a success the four counter ceilings hold, the session is related to the model's next
+session at a `KeysSampled` agreement (not by definition: its encoder half is derived from the code's send under `ErasureAgrees`, its key-pair half is the content of `KeyGenSeededFor`), and the session passes
+`Session::invariant` (`established_encrypt_successor_admissible`). The boundary records stay the caller's: the Braid and
+Triple send records, `AeadSealBounded`, `DhCodecTotal`, `DerivedKeysModel`, `OracleOf`, `DhCodecOf`, `CodewordViewSendOf`
+and three `zeroize` round trips, as for the conditional route; and the KEM agreements of the successor's invariant,
+`KemLenAgrees` and `ValidateEkAgrees`, which the `decrypt` refinement takes as well, with `DivCeilValue`. Two laws are new,
+ASSUMED:
+
+| Law | Statement | Used for | Satisfied by |
+|---|---|---|---|
+| `KeyGenSeededFor` | from every source state whose trace holds two draws, `IncrementalKeyPair::generate` leaves the trace without them and answers as the model's `K.keyGen` does at their little-endian value: either it returns a key pair whose `header` is the model's seed followed by the model's hash of it and the vector, whose `ek_vector` is the model's vector and whose `decapsulate` answers as the model's does for every ciphertext pair of the model's sizes, or it refuses and so does the model's key generation (`KeyGenSeededForShape` at the real constants; the key-generation clause of `KemAgreesFor` with its randomness fixed to the two draws the model counts, `braidSendDrawCount`) | the counted draw record's trace and post-state clauses, so the RNG relation of the first send rests on this law and the run's trace equation and two draws, not on a record about the run's Braid send; the successor's key pair having the header key generation returned | the joint model `InterpO.modelEncrypt`, whose key generation fills one 64-byte seed from the source and returns its little-endian value as the key pair (refusing 0), at the toy KEM `toyKemR`: `modelEncrypt_keyGenSeeded`. Of the real wrapper, by reading: `IncrementalKeyPair::generate` fills one 64-byte seed (`KEY_GENERATION_SEED_LEN`, `tacenta-core/kem/src/lib.rs`) and computes the pair from it alone, so a model KEM read off the wrapper at those bytes (as `wrapperKem` is, `UnitKemWrapperModel.lean`) is a candidate `K`; that `KeyGenSeededFor wrapperKem` follows from the wrapper laws together with `GenerateFillsOnce64` (one 64-byte fill and nothing else) and a 64-byte fill law of the caller's source is not checked (the wrapper laws alone give some 64-byte seed, not the source's first 64 bytes). It would be false of a key generation that read other than 64 bytes, read them in another order than the trace's, or depended on anything but those bytes; and for a model `K` whose key generation is not the code's at those bytes (then false for that `K`, not of the code) |
+| `KeyGenSizesOf` | the model KEM's key generation returns a 32-byte seed and a vector of `K.ekSize` bytes, and its hash of them is 32 bytes | the successor's `key_pair_valid` (the lengths `ValidateEkAgrees` asks for) and its encoder being sized for `HEADER_LEN + MAC_LEN` (96) bytes | `toyKemR`: `toyKemR_sizes`; and the KEM model read off the wrapper, under the wrapper laws `WrapperKemLaws` (assumed): `keyGenSizes_wrapperKem`. A statement about the model `K`, not about the code: true of a `K` with the layout of an ML-KEM-1024 header (seed and hash, 32 bytes each). It would be false of a model KEM of another layout, which then does not describe the wrapper's 64-byte header |
+
+The premise lists hold together at the real constants under the decrypt laws, the initiator contract axioms,
+`InitiatorSuccessShape`, `DhPublicValid`, `KemCiphertextLenOf`, the extra laws `EncryptExtraLaws` (the laws `OracleOf` is
+derived from, the axiom part of the encrypt contract record, `KeyGenSeededFor` at the byte-stream source, the message-key
+round trip, `KemCiphertextLenBound`) and, for the successor, `KeyGenSizesOf`
+(`established_encrypt_hypotheses_jointly_satisfiable`, `established_encrypt_successor_hypotheses_jointly_satisfiable`); and
+all of those laws, with the six laws of the restored session's round trip, hold in one interpretation,
+`InterpO.modelEncrypt` (`established_encrypt_laws_model`). `Interp.modelEstablished` does not serve, by reading its
+definition (not stated as a theorem): its key generation reads nothing from the source, so the trace clause of
+`KeyGenSeededFor` fails there (the planted fault that makes the new model's key generation leave the source is refused in
+`genFill_answers`), and its encapsulation does not have the form `OracleOf`'s KEM law asks for; the new interpretation changes
+those two fields, keeps the rest, and adds a signing function.
+Both arms of the first send are reached under those laws (`established_encrypt_success_reachable`,
+`established_encrypt_refusal_reachable`, `established_encrypt_successor_reachable`): the success arm where the model's key
+generation answers at the source's bytes, the refusal arm where it refuses; `toyKemR` refuses at the all-zero seed and
+answers elsewhere, so both happen in the model. **The refusal arm is not reachable through the shipping wrapper, by
+reading** (not checked in Lean): `IncrementalKeyPair::generate` maps only `inc::generate_key_pair`'s `Err` to its own
+(`tacenta-core/kem/src/lib.rs:93-105`), and in libcrux-ml-kem 0.0.10, the version `tacenta-core/Cargo.lock` pins, that
+function's only error is an output buffer shorter than the key pair: its documentation (`src/mlkem.rs:213-217`) says the
+buffer must be `key_pair_len()` bytes and the function errs otherwise, the serialised generation ends in `KeyPair::to_bytes`
+(`src/ind_cca/incremental.rs:148-178`), whose one check is `key.len() < Self::num_bytes()`
+(`src/ind_cca/incremental/types.rs:377-383`), and the wrapper always passes a buffer of exactly `inc::key_pair_len()` bytes.
+So under `KeyGenSeededFor` a `K` faithful to the shipping wrapper never refuses at the drawn value, the premise of
+`established_encrypt_refusal_reachable` cannot hold at such a `K`, and the refusal effects proved here belong to a path that
+is dead in the shipping code. The refusals `encrypt` can reach later in a session (the terminal guard at a `Failed`
+agreement, the Triple's `NoSendingChain` and `ChainExhausted`) are shown not to occur at this state and are not covered. The
+model is a toy and shows nothing of the real primitives.
+
+What these results do not cover: the responder's receipt of the frame (`establish_responder`'s inner receive is related to the model at
+the session it builds, below, but this frame is not shown to reach it; initial-frame `decrypt` is not covered anywhere), so send → receive stays open on the responder's side; a second `encrypt`
+or the next `decrypt` on the session that sent (its session-side premises are derived, the calls are not composed); a copy of
+the post-send session restored by `import` (its agreement holds a key pair, outside `RestoredScope`); a random source with
+no state of its own, such as `OsRng`.
+
 *At the session `establish_responder` hands to its inner receive.* `UnitLifecycleEstablishResponder.lean` composes the
 public `establish_responder` for every input: each return is a refusal before the inner receive (store and random source as
 given), a refusal of the inner `decrypt_ratchet` (store as given), or that receive's success with a named store commit
@@ -2606,6 +2659,9 @@ invariant, and nothing is shown of the initiator's frame, the plaintext or the r
   blanket `Zeroize`, `Array::zeroize`, `Vec::zeroize` and the tuple `Zeroize` are the identity, which is not what they do.
 - That the substitution step is sound inside Lean (above).
 - That the headroom records are met by a state the crate can reach, apart from a session `establish_initiator_for` returns
+  (and the encrypt record there, `encryptHeadroom_established`; the session its first successful `encrypt` leaves passes
+  `Session::invariant`, above, so the receive record holds there by `decryptHeadroom_of_invariant` under `DhCodecTotal` and
+  `Ct1LenTotal`, not stated as a theorem),
   and the session `establish_responder` builds before its inner receive (`counterHeadroom_responder_prepared`; that is not
   the session the call returns, and no input at which the whole call succeeds is exhibited).
   The witness session has no pending initial message and no established ephemeral key, and it is not one that

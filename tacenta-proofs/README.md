@@ -36,12 +36,16 @@ ceilings follow from the establishment, the relation to the model session read o
 `KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows; that
 `import` of the exported bytes returns that session unchanged, so the restated form applies to the copy given the caller's
 boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law), and
-every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it;
-for every input `establish_responder`'s outcomes, with their store and random-source effects, are stated, and at
-the session it builds the invariant, under assumed and recorded laws, and the ceilings follow from the construction, so the
-restated form applies to its inner `decrypt_ratchet`, at a model session read off the code's session and not shown to be the
-model's own, for a frame meeting the caller's chunk premises with a draw left, with no input exhibited at which the whole call
-succeeds);
+every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; at that established session
+the first `encrypt` is related to the model's step (its refusal arm only at a model KEM that refuses, since the shipping key
+generation does not refuse, by reading), and the session a successful send leaves passes the invariant and meets the
+ceilings, under the encrypt boundary records, the oracle record, three assumed laws (a new key-generation law, the
+establishment's ciphertext-length law and the ciphertext bound) and six more assumptions for that session, compiler-trusted,
+the responder's receipt of the frame not covered; for every input `establish_responder`'s outcomes, with their store and
+random-source effects, are stated, and at the session it builds the invariant, under assumed and recorded laws, and the
+ceilings follow from the construction, so the restated form applies to its inner `decrypt_ratchet`, at a model session read
+off the code's session and not shown to be the model's own, for a frame meeting the caller's chunk premises with a draw left,
+with no input exhibited at which the whole call succeeds);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
