@@ -5107,13 +5107,14 @@ KEM and one-time identifiers (on the one-time path no fingerprint; on the last-r
 initiator's shared secret). The initiator's source loses exactly its two draws. The session the call returns refines
 `firstReceiptSession`, the model's step on the frame at the session read off the code's intermediate session, at a codeword
 view that attributes the received codeword to the initiator's header source (`headerSource`, from the initiator's key
-generation at its two draws), of which the proof shows the received codeword is a codeword; that view enters only the model
+generation at its two draws), of which the proof shows the received codeword is a codeword; the erasure code is systematic, so codeword index 0 carries the source's first 32 bytes and the derived half fixes only those; the other 64 bytes of the source in the successor's model decoder (the hash and the header MAC) come from the attribution; that view enters only the model
 session compared against, not the bytes, the store, the draws or the call's result.
 
 **The laws and premises.** Two new laws of the opaque boundary, assumed (`LIMITATIONS.md`): `AeadRoundTrip` (the AEAD opens
 what it sealed, for a plaintext of at most `Usize.max - 48` bytes) and `DhAgreeContributory` (an agreement of any private
 key with a public key `public_key` returned is not refused). Per run: the responder's trace is its oracle's and holds a
-draw; the store bound of `establish_responder_no_panic`. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt
+draw; the store bound of `establish_responder_no_panic`. A source with no state of its own, such as `OsRng`, is outside the
+statements about draws. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt
 branch's law) gives the header source its 96 bytes. Reused: every hypothesis of `first_send_responder_prepares`, with the
 decrypt agreements at the responder oracle's KEM. The two oracles need not be equal. A tampered or foreign frame being
 refused is **not** shown: no AEAD authenticity law is assumed, and the bytes are the initiator's throughout.
@@ -5141,9 +5142,10 @@ refused is **not** shown: no AEAD authenticity law is assumed, and the bytes are
 - `first_identityAd_eq`: the responder's associated data is the initiator's; no hypothesis beyond the two key equations.
 - `arrayOf_arrayOfBytes`, `aead_open_sealed`: the responder oracle opens the initiator oracle's seal to the plaintext, under
   `AeadRoundTrip`, the initiator's seal clause and the responder's open clause.
-- `attributedView_send`, `firstFrame_attributedView`, `first_receipt_run_inputs`: the run inputs of the inner receive at the
-  attributed view (the chunk relation, `HonestChunk`, the draw); the codeword half derived from `held_encoder`'s codeword, the
-  attribution half by the view's construction.
+- `first_receipt_run_inputs`: the run inputs of the inner receive at the attributed view (the chunk relation, `HonestChunk`,
+  the draw); the codeword half derived from `held_encoder`'s codeword, the attribution half by the view's construction.
+- `attributedView_send`, `firstFrame_attributedView`: context lemmas, used by no proof on the route: the attributed view
+  keeps the send direction (`CodewordViewSendOf`), and the first frame is the same bytes at it.
 - `firstAd_length_le`: the first frame's associated data fits a slice, under `DhCodecTotal`.
 - `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`: the inner receive's three outcomes, and
   its success with the plaintext under the two laws, under the decrypt refinement's hypotheses at the responder's oracle.
@@ -5174,9 +5176,9 @@ store that published the bundle used, the responder's whole `establish_responder
 or succeeds with the initiator's plaintext, one draw and the committed store, under the laws and premises named above and
 in the section above. Without the two new laws, the only other refusals are the two named. **Not shown:** that a tampered or
 foreign frame is refused (no AEAD authenticity law); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees` is a
-premise; by reading, a decapsulation failure returns another secret under implicit rejection and would surface as `Aead`, not
-`Kem`, which is not shown); the responder successor's `Session::invariant`; the responder's reply, the initiator's receipt of
-it and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
+premise; by reading, a decapsulation failure returns another secret under implicit rejection and would, barring an HMAC collision,
+surface as `Aead`, not `Kem`, which is not shown); the responder successor's `Session::invariant` and its four counter ceilings; a second delivery
+of the same bytes (refused or not); the responder's reply, the initiator's receipt of it and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
 primitives meet the laws.
 
 **Compiler trust and pins.** `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`,
@@ -5205,9 +5207,12 @@ agreement returns (refused in `responder_first_frame_inner_outcomes`); the store
 the plaintext instead of the bytes the first send returned, the responder's draws claimed untouched and the header source
 without its MAC (refused in `initiator_first_send_responder_receives`); the joint model keeping the first-frame model's empty
 seal (refused in `modelFirstReceipt_aeadRoundTrip`); and the contributory law without its premise with its pins kept
-(refused at the pin of `DhAgreeContributoryShape`). The three on the composition chain (another plaintext, another key, the
-plaintext for the bytes) show that the composed proof uses the plaintext, the key and the bytes it names; they are not
-proofs that the responder refuses such inputs. An error that is not a refusal voids a run anywhere in the copy, compared
+(refused at the pin of `DhAgreeContributoryShape`). The two on the composition chain (another plaintext; the plaintext for the
+bytes) show that the composed proof uses the plaintext and the bytes it names; the other-key control sits on the model step
+the composition rests on and shows that step's proof uses the first key, not that the composition does. No control covers
+the chain's own key step (the initiator's message key rewritten to the first key and carried into the responder's frame
+premise): planted there, a key change exhausts Lean's heartbeats, which does not count as a refusal. None of these is a
+proof that the responder refuses such inputs. An error that is not a refusal voids a run anywhere in the copy, compared
 without regard to case.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)

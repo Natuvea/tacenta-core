@@ -2704,17 +2704,17 @@ and two premises about the run are new:
 
 The successor relation is to the model's step at a codeword view that reads the received codeword as the initiator's header
 source (`attributedView`); the proof shows that the received codeword is a codeword of that source (the codeword half of the
-chunk relation is derived), and the view constrains only the model session the successor is compared against, not the
+chunk relation is derived; the erasure code is systematic, so codeword index 0 carries the source's first 32 bytes and the derived half fixes only those; the other 64 bytes of the source in the successor's model decoder (the hash and the header MAC) come from the attribution), and the view constrains only the model session the successor is compared against, not the
 bytes, the store, the draws or the call's result. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt branch's law)
 gives that source its 96 bytes. The two oracles need not be equal; the later steps (the header's later chunks, the reply)
 need the two oracles' Braid KEMs to agree, which nothing here states. On `Kem`: `FirstKemAgrees` stays a premise. By reading,
 an honest-ciphertext decapsulation failure returns another secret under FIPS 203 implicit rejection rather than an error, so
-the two shared secrets would differ and the refusal observed would be the inner `Aead`, store as given and one draw taken,
+the two shared secrets would differ and the refusal observed would, barring an HMAC collision, be the inner `Aead`, store as given and one draw taken,
 not `Kem`; this is argued from the reading only and is not shown. Every law of the premise lists, with the first-frame
 laws, holds together in `InterpO.modelFirstReceipt` (`first_receipt_laws_model`), the first-frame joint model with the toy
 seal and open (the first-frame model's seal returns the empty vector, so `AeadRoundTripShape` is false there); a toy that
 shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; the responder successor's
-`Session::invariant`; the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
+`Session::invariant` and its four counter ceilings; a second delivery of the same bytes (refused or not); the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
 exhibited run; the model's own `establishResponder` equality.
 
 **What is not shown.**

@@ -227,8 +227,9 @@ agreement of the responder's fresh key, or the AEAD refusing to open the initiat
 what that open returns; under two more assumed boundary laws (the AEAD opens what it sealed; an agreement with a key
 `public_key` returned is not refused), the model KEM's size law, a store bound and per-run premises on the responder's
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
-the model's step at a view that attributes the received chunk to the initiator's header source. That a tampered frame is
-refused is not shown.
+the model's step at a view that attributes the received chunk to the initiator's header source; compiler-trusted, as the
+decrypt results are. That a tampered frame is refused is not shown, nor the successor's invariant, the reply or any later
+message.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
