@@ -2691,7 +2691,8 @@ with the store as given and one draw taken, or what that open returns (`responde
 `initiator_first_send_responder_outcomes`). Under the two laws below it returns the plaintext the initiator encrypted, takes
 one draw and commits the store (`responder_first_frame_succeeds`, `initiator_first_send_responder_receives`; these four and
 the inner-receive results and the reach are compiler-trusted through the decrypt refinement's nine `native_decide` constants).
-The first message key agrees on both sides by computation over the model's key derivations; no law is used for it. Two laws
+The first message key agrees on both sides by computation over the model's key derivations; no new law is used for it (the
+code's root-key step is related to the model's under the KDF agreement the decrypt refinement already takes, `HkdfAgrees`). Two laws
 and two premises about the run are new:
 
 | Statement | Kind | Says | Used for | Model, and when it would be false |

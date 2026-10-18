@@ -147,7 +147,8 @@ this section says in one place what is not proved.
   draw from the responder's source, commits the store (on the last-resort path with the fingerprint of the initiator's
   shared secret), and its session refines the model's step at a codeword view that attributes the received chunk to the
   initiator's header source; the composed statements are compiler-trusted as the one above is. The first message key
-  agrees on both sides by computation over the model's key derivations, with no oracle assumption. The laws hold together in one interpretation, a
+  agrees on both sides by computation over the model's key derivations, with no new law (the code's root-key step is
+  related to the model's under the KDF agreement the decrypt refinement already takes). The laws hold together in one interpretation, a
   toy model, and at the real constants one run from `publish` through the first send reaches the success (last-resort path,
   empty plaintext). That a tampered frame is refused is not shown (no AEAD authenticity law is assumed); the reply, its
   receipt and the successor's invariant are not covered ("Proved (tier T3, session lifecycle: `establish_responder` accepts
@@ -5070,13 +5071,15 @@ refuses only as the store decides or reaches its inner `decrypt_ratchet` with th
 continue on the same bytes, through the inner receive and the commit, to the whole call's return value.
 
 **The first message key, in the model.** The model's key derivations are concrete code, so no oracle assumption is needed
-for the two parties to derive the same first message key: from the sender pair form (`firstSenderTriple`, what the
+for the two parties to derive the same first message key in the model: from the sender pair form (`firstSenderTriple`, what the
 initiator's establishment leaves) the model Triple's first send returns the key `firstKey`, and at the receiver pair form
 (`firstReceiverTriple`, what the responder's preparation leaves) its first receive returns the same key, provided the
 receiver's classical root `ec` and the agreement `d` derive the sender's root and sending chain (`kdfRk ec d = (rkA,
 cksA)`). The code's two Triple initialisers, run on one secret, give exactly the pair form with that relation
 (`first_init_pair`: the same `split_secret` and the same `kdf_init` on the same slice; the responder's classical root is the
-split secret's first half, and the initiator's root and chain are `kdf_rk` of it and the ratchet agreement).
+split secret's first half, and the initiator's root and chain are `kdf_rk` of it and the ratchet agreement); the code's
+`kdf_rk` is related to the model's `kdfRk` under `HkdfAgrees` and the zeroizing round trip (`first_kdf_model`), both in
+the decrypt agreements.
 
 **The outcomes past the store.** On the initiator's initial message, at a store as in the section above and with the store
 bound of `establish_responder_no_panic` (`EstablishResponderHeadroom`), for a responder source whose trace is its oracle's
