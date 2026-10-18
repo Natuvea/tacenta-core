@@ -200,7 +200,10 @@ other three by reading of the Rust, not checked in Lean). At a session that `est
 `Session::invariant` (under two assumed laws about X25519 public keys and the KEM ciphertext length) and the four ceilings
 follow from the establishment, so the restated form applies there, to success and refusal alike; the relation to the model
 session read off it holds by definition at its `KeysUnsampled` Braid. A restored copy of that session decrypts the
-responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof).
+responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof); that `import` of
+the exported bytes returns that session unchanged, so the restated form applies to the restored copy (given the caller's
+boundary records, chunk relation and draw), is proved under nine assumed laws (six of its own, the establishment's two and
+the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
 For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
 given), an inner refusal (the store as given) or the inner success with the store changed only in the two one-time pools and,
 on the last-resort path, by one replay-record append (under the assumed wrapper model `DerivedKeysModel`; that the named

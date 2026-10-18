@@ -2511,6 +2511,49 @@ model step (`StepRefines`: result, post-state and draws left; on a refusal the m
 `IncomingChunkRefines`, with a draw left; that chunk premise excludes some frames a sender who is not honest can send
 (`CLAIMS.md`, the section on the established initiator).
 
+*A restored session: acceptance against continuation.* `UnitLifecycleRestoredSession.lean` starts from the bytes
+`Session::import` accepted. Of what the next operation consumes, acceptance gives only the invariant, proved with no
+hypothesis: every accepted session passes `Session::invariant` (`import_ok_gives_invariant`). What the next operation also
+consumes is not given by acceptance and stays a premise: the four counter ceilings (`CounterHeadroom`, stated for every
+session, so at every accepted import, as the decidable `headroomCheck`, `counterHeadroom_iff_check`; the parked classical clock passes the invariant,
+`invariant_does_not_give_counterHeadroom`, and `import` checks nothing about counters beyond the invariant, as its Rust
+documentation says, "a property whose check belongs at the use site"), and the scope `RestoredScope` (Braid in
+`KeysUnsampled` or `Failed`). Outside the scope no relation to a model session is claimed: a restored key pair or
+encapsulation state has no model value at the wrapper's KEM model, and a restored encoder or decoder has no history for
+`EncoderRefines`/`DecoderRefines`; so a restored Braid in any of the other ten states is not covered by the restored
+results. The scope is narrow in practice: the first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
+(`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived` (`lib.rs:420-428`), and a Braid returns to
+`KeysUnsampled` only on the side that sent the last ciphertext, when the next epoch begins (`lib.rs:1355-1368`). So the
+restored results cover a snapshot taken on the side holding `KeysUnsampled` before its first send in that epoch (at epoch
+1, the established initiator), and a failed session; most snapshots taken mid-conversation are out of scope. That `import` of the bytes `export` writes returns every established initiator session itself
+(`export_import_established`), so that the copy is in scope, meets the ceilings and receives under the model's step given
+the caller's boundary records, trace equation, chunk relation and draw (`restored_established_initiator_decrypt_refines`),
+takes six more laws besides the establishment's three, nine in all, ASSUMED:
+
+| Law | Statement | Used for | Satisfied by |
+|---|---|---|---|
+| `ZeroizingVecRoundTrip` | `Zeroizing::new` then `Zeroizing::deref` on a byte vector returns it (`ZeroizingVecRoundTripShape` at the real constants) | reading the leaf encoders' output back out of its wrapper | `Interp.model` (`model_zeroizingVecRoundTrip`). True of the `zeroize` crate by reading (`Zeroizing` is a transparent wrapper whose `deref` returns the wrapped value). It would be false of a wrapper that copied or transformed the value on construction or read |
+| `OptionBranchSome` | `Option::branch` on `Some x` continues with `x` (a shape over the constant, which the translation declares without a body) | the session-level `take_len_prefixed` and `PendingInitial::from_bytes` | `optionBranchImpl`, the standard library's definition (`restored_laws_model`). True of `core` by reading (`Some(v) => ControlFlow::Continue(v)`). It would be false only of a different `Try` implementation for `Option` |
+| `VecAsSlice` | `Vec::as_slice` returns the vector's slice view (a shape over the constant) | `import`'s canonical re-encode check | `vecAsSliceImpl` (`vecAsSliceImpl_shape`). True of `alloc` by reading. It would be false of an `as_slice` that returned anything other than the vector's elements in order |
+| `DhPrivateBytesRoundTrip` | `PrivateKey::to_bytes`, read out of its `Zeroizing`, then `PrivateKey::from_bytes` returns the key (`DhPrivateBytesRoundTripShape` at the real constants) | the ratchet private key comes back from the exported bytes | `Interp.model` (`model_dhPrivateBytesRoundTrip`). True of `tacenta-core/boundary/src/dh.rs` by reading (in x25519-dalek 2.0.1, the version `Cargo.lock` pins, `StaticSecret::from` stores the 32 bytes as given and `StaticSecret::to_bytes` returns them). It would be false if `to_bytes` returned something other than what `from_bytes` reads, and, as an equality of opaque values, it says the rebuilt key is the same key, which a Rust test can only check by its behaviour |
+| `DhPublicBytesRoundTrip` | `PublicKeyBytes::as_bytes` then `PublicKeyBytes::from_bytes` returns the key (`DhPublicBytesRoundTripShape` at the real constants) | the two identity keys and the pending ephemeral key come back; the associated data's length | `Interp.model` (`model_dhPublicBytesRoundTrip`). True by reading (`PublicKeyBytes` wraps its 32 bytes; `from_bytes` wraps, `as_bytes` unwraps). It would be false of a `from_bytes` that normalised its input |
+| `KemCiphertextLenBound` | `kem::ciphertext_len` returns at most 65536 (`KemCiphertextLenBoundShape` at the real constant) | with `KemCiphertextLenOf`, the pending ciphertext's length prefix and the size arithmetic of `export` do not wrap | `ok 0`, the constant of the established-initiator model (`model_kemCiphertextLenBound`). True by reading (`ciphertext_len` is the length of an ML-KEM-1024 ciphertext, 1568 bytes; `tacenta-core/boundary/src/kem.rs`). It would be false of a parameter set with ciphertexts over 64 KiB |
+
+The six laws hold together with `DhPublicValid`, `KemCiphertextLenOf` and `OptionEqU64Shape` in one interpretation
+(`restored_laws_model`). The whole premise list of the composition with `decrypt` (the decrypt laws, the initiator contract
+axioms, `InitiatorSuccessShape` and the nine laws) also holds in one interpretation, `Interp.modelEstablished`
+(`restored_decrypt_laws_model`), and at the real constants under those laws every field of `RestoredDecryptHypotheses` can
+be filled at once (`restored_decrypt_hypotheses_jointly_satisfiable`). Both are in the substitution sense above; they show
+nothing of the real functions. The round trip is proved
+for the shape an established initiator session has (`CodecShape`: Braid `KeysUnsampled` below epoch `u64::MAX`, no stored
+skipped key, one sparse chain-table entry with both chains, a pending initial message, no established ephemeral, both
+variable-length fields at most 65536 bytes); a session of another shape is not covered, including a later session with
+stored keys, a responder, and a Braid in any other state. `Session::invariant` alone does not give the epoch bound: a
+`KeysUnsampled` Braid at epoch `u64::MAX` passes the Braid's invariant (`epoch >= 1`) and is refused by its reader, as
+`session-persistence.md` states; the operations never reach that epoch, and the established session is at epoch 1. Every
+statement that names `export` or `import` lists one compiler-trust axiom from the `toStr` of a panic message in the
+generated `export` (`by decide +native`), not from the argument (`CLAIMS.md`).
+
 *At the session `establish_responder` hands to its inner receive.* `UnitLifecycleEstablishResponder.lean` composes the
 public `establish_responder` for every input: each return is a refusal before the inner receive (store and random source as
 given), a refusal of the inner `decrypt_ratchet` (store as given), or that receive's success with a named store commit

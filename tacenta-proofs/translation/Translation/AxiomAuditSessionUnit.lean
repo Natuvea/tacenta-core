@@ -63,6 +63,9 @@ import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
+import Translation.UnitLifecycleSessionCodec
+import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishResponder
 
 /-!
@@ -97,6 +100,12 @@ output, `Session::invariant` (under two assumed laws about X25519 public keys an
 length, with models) and the four counter ceilings, with no hypothesis for the ceilings, and the relation
 to the model session read off the output, which holds by definition at its `KeysUnsampled` Braid; `UnitLifecycleEstablishedDecrypt.lean` feeds them to the
 `decrypt_ratchet` refinement and, for ratchet-type frames, to the public `decrypt`.
+`UnitLifecycleRestoredSession.lean` shows every session `Session::import` accepts passes
+`Session::invariant` (no hypothesis), relates an accepted session whose Braid is `KeysUnsampled` or `Failed`
+to the model session read off it (by definition) and composes it with `decrypt` under the caller's boundary
+records, chunk relation and draw; with `UnitLifecycleSessionCodec.lean` and
+`UnitLifecycleSessionRoundTrip.lean` it proves that `import` of `export` returns every established initiator
+session unchanged, under nine assumed laws, which hold with the decrypt laws in one interpretation.
 `UnitLifecycleEstablishResponder.lean` composes the public `establish_responder` for every input (each
 return is a refusal before the inner receive with the store and the source of randomness as given, an inner
 refusal with the store as given, or an inner success with the named store commit), derives

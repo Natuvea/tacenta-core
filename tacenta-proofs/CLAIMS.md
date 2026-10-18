@@ -84,9 +84,15 @@ this section says in one place what is not proved.
   `decrypt_ratchet` refinement and the public `decrypt` for ratchet-type frames apply there, success and refusal alike, and
   their whole premise list holds together in one interpretation. A copy of that session, exported before its first
   `encrypt` and restored after the responder replied, decrypts the reply in an honest run (a test on the seeds it tries,
-  `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof). Initial frames, `encrypt`, `establish_responder`
-  and `import` are not covered by that section ("Proved (tier T3, session lifecycle: the invariant, the counter ceilings and
-  the model relation at every successful `establish_initiator_for` output ...)"); `establish_responder` is the next one's.
+  `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof). That `import` of the bytes `export` writes
+  returns that session itself, so that the same refinements apply to the restored copy (given the caller's boundary
+  records, chunk relation and draw, as for the session never copied), is proved under nine assumed laws (six of its own, the
+  establishment's two and the `Option::eq` law), which hold with the decrypt laws in one interpretation; every session `import` accepts passes `Session::invariant` (no hypothesis), but acceptance does not give
+  the counter ceilings, which stay a check on the accepted session, and the relation to a model session is claimed only
+  when the restored Braid holds no KEM value, encoder or decoder ("Proved (tier T3, session lifecycle: what an accepted
+  `Session::import` gives ...)"). Initial frames, `encrypt` and `establish_responder` are not covered by those two sections ("Proved (tier T3,
+  session lifecycle: the invariant, the counter ceilings and the model relation at every successful
+  `establish_initiator_for` output ...)"); `establish_responder` has its own.
   For every responder identity, prekey store, initial message and source of randomness, `establish_responder` returns
   a refusal before its inner receive (one of nine named errors, the store and the random source as given), a refusal of
   its inner `decrypt_ratchet` (the store as given), or that receive's success with the store changed only in the two
@@ -4218,7 +4224,7 @@ it is related to keeps the session on a refusal (`Model.Lifecycle.decryptRatchet
 post-state of a refusal refines the unchanged model session. "Every frame" is bounded by the caller's premises: a ratchet-type frame whose
 agreement chunk, if it has one, meets `IncomingChunkRefines`, with at least one draw left. The chunk premise is not benign for
 a frame from a sender who is not honest: a spliced or inconsistent chunk is outside the theorem whether the frame is refused
-or accepted. Initial-type frames, `encrypt`, `establish_responder` and `import` are not covered. The two laws `DhPublicValid`
+or accepted. Initial-type frames, `encrypt` and `establish_responder` are not covered; `import` is covered in the next section only. The two laws `DhPublicValid`
 and `KemCiphertextLenOf` are assumed, as are `OptionEqU64Shape`, the boundary records, the chunk relation and the draw. As for
 the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
 session lifecycle out.
@@ -4525,6 +4531,170 @@ sparse epoch off the Braid's relation (clause (b) alone), the Braid at an even e
 (clause (d) alone), the responder on the initiator's sparse direction, the pending ciphertext one byte longer than
 `kem::ciphertext_len`, the ephemeral's curve byte wrong) and requires Lean to refuse each at a named declaration. At the
 parked clock the invariant proofs still pass and `storedSession_counterHeadroom` is refused.
+
+## Proved (tier T3, session lifecycle: what an accepted `Session::import` gives, the restored session's relation and receive, and the round trip of an established initiator session, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleRestoredSession.lean`, `Translation/UnitLifecycleSessionRoundTrip.lean`, `Translation/UnitLifecycleSessionCodec.lean`.
+
+These results start from the bytes `Session::import` accepted: for every byte string `b` and every session `s` with
+`lifecycle.Session.import b = ok (.Ok s)` (`import` takes no randomness, so that is its success form). The model session is
+`restoredModelOf dh s`, a function of `s` and so of `b`: the same reading as `establishedModelOf` (Triple through
+`ratchetAbs`/`spqrAbs`, Braid through `unsampledModelOf`, the other fields through the DH view). It is not the model's own
+imported session, because `Model.Lifecycle` has none: the model's `Model.PersistedState.SessionState.ofBytes` returns the
+stored format, whose Braid is bytes. **Acceptance and continuation are kept apart.** Of what the next operation consumes,
+acceptance gives only `Session::invariant` (acceptance also means `export` writes the accepted bytes back unchanged, the
+`NonCanonical` check, which no theorem here uses); the next operation also consumes the scope and the four counter ceilings,
+which are premises, stated as such. The relation is claimed only in scope, `RestoredScope s`: the Braid is in `KeysUnsampled` or in `Failed` (which
+`Session::invariant` accepts: the failure is terminal and persists). It excludes the seven Braid states that hold a key
+pair or an encapsulation state, because a key pair restored by `IncrementalKeyPair::from_bytes` or a state restored by
+`EncapsState::from_bytes` has no model value at the wrapper's KEM model (`UnitKemWrapperModel.lean`), and the three that
+hold an erasure encoder or decoder and no KEM value (`Ct2Sampled`, `NoHeaderReceived`, `HeaderReceived`), because
+`EncoderRefines` and `DecoderRefines` record a history (a source slice and a number of steps; answers to future chunks
+against one source) that a restored value does not have and no law here supplies. In practice the scope is narrow. The first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
+(`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived` (`lib.rs:420-428`), and a Braid returns
+to `KeysUnsampled` only on the side that sent the last ciphertext, when it learns the next epoch has begun
+(`lib.rs:1355-1368`). So the restored relation covers a snapshot taken on the side holding `KeysUnsampled` before its first send in that
+epoch (at epoch 1, the established initiator, which the round trip below and the test cover), and a failed session; most
+snapshots taken mid-conversation are out of scope.
+
+- `import_ok_gives_invariant`: every session `import` accepts passes `Session::invariant`; no hypothesis (the generated
+  body reaches `Ok` only after `invariant` returned `true`; every other branch returns an `Err`).
+- `counterHeadroom_iff_check`: `CounterHeadroom s` holds exactly when the decidable
+  `headroomCheck s` does (the classical clock, the sparse epoch, every sparse chain counter and the Braid epoch, each below
+  its ceiling), for every session and so at every accepted import; no hypothesis. Acceptance does not give it:
+  `invariant_does_not_give_counterHeadroom` (previous sections) has a session with the classical clock parked at
+  `u32::MAX - 1` pass the invariant, and `import` checks nothing about counters beyond the invariant. That `import` accepts
+  such a session's bytes is not shown here.
+- `sessionRefines_restored`, `sessionRefines_restored_unique`: in scope, `SessionRefines dh K s (restoredModelOf dh s)` for
+  every DH view and KEM, and every related model session equals `restoredModelOf dh s`; no hypothesis. Both hold **by
+  definition**, as at an established session: each field of the relation is an equation through the abstraction functions,
+  the `KeysUnsampled` arm compares the epoch and the authenticator, and the `Failed` arm is `True`.
+- `honestChunk_restored`: in scope, `HonestChunk` of the model Braid holds for every model message; no hypothesis.
+- `RestoredDecryptHypotheses.ofInvariant`, `RestoredDecryptHypotheses.refines`, `restored_decrypt_refines`: the record
+  `RestoredDecryptHypotheses` packs the accepted import, the scope, `CounterHeadroom`, the boundary records
+  (`DecryptOracleOf`, `DhCodecOf`, `DecryptRatchetContracts`, `DerivedKeysModel`, `DecryptRatchetAgreements oracle.braidKem`),
+  the trace equation, the frame's ratchet type, the chunk relation and one draw, all of them the caller's and assumed; from it
+  `DecryptOfInvariantHypotheses` holds at `s` and `restoredModelOf dh s` (the invariant from acceptance, the relation and
+  `HonestChunk` from the scope), and the public `Session::decrypt` at `s` on that frame refines `Model.Lifecycle.decrypt` at
+  `restoredModelOf dh s`, refusals included (through `decrypt_ratchet_refines_of_invariant` and
+  `decrypt_ratchet_message_refines`).
+- `export_import_established`: for every success output `s` of `establish_initiator_for`, `export s` returns, and `import`
+  of the exported bytes accepts and returns `s` itself, every field equal; under nine assumed laws, the six below and the
+  establishment's `KemCiphertextLenOf`, `DhPublicValid` and `OptionEqU64Shape`. No field differs: the ratchet private key and the three public keys
+  come back through the byte-codec laws, everything else is read back by the translated decoders.
+- `restored_established_continues`, `restored_established_initiator_decrypt_refines`: under the same nine laws, that accepted
+  copy is in scope and meets `CounterHeadroom` (it is the establishment output), and `restored_decrypt_refines` applies to
+  it: the public `Session::decrypt` of the restored copy on every ratchet-type frame refines the model's `decrypt` at
+  `restoredModelOf dh s`, given the caller's boundary records, trace equation, chunk relation and draw, all assumed. This is
+  the theorem form of what `tacenta-core/tests/restored_initiator_receives_reply.rs` tests on the shipping crate (that a
+  restored copy decrypts the reply, a test on the seeds it tries); the theorem is about the translated session unit, says
+  nothing about what an honest peer sends, and nothing about whether restoring an older snapshot is safe.
+- `codecShape_parts`: the session an establishment's parts make has the shape the round trip covers (Braid `KeysUnsampled`
+  at epoch 1, no stored key in either ratchet, the one sparse chain-table entry with both chains, a pending initial
+  message, no established ephemeral, 66 bytes of associated data, a ciphertext of `kem::ciphertext_len` bytes), under
+  `DhPublicBytesRoundTrip`, `KemCiphertextLenOf` and `KemCiphertextLenBound`, all assumed.
+- `restored_established_inhabited`: under the axiom part of the initiator contract record and `InitiatorSuccessShape`
+  (which give a successful establishment, previous section) and the laws above, all assumed, such an established session
+  and its accepted copy exist for every identity and source state.
+- `restored_laws_model`, `model_kemCiphertextLenBound`: one interpretation satisfies the nine laws' shapes together
+  (`Interp.model` for the byte-codec laws, `optionBranchImpl` and `vecAsSliceImpl` for the two library functions,
+  `optionEqImpl`, and `ok 0` for `kem::ciphertext_len`), in the substitution sense of `LIMITATIONS.md`; not a statement that
+  the real functions meet them. It is not a model of the decrypt laws.
+- `restored_decrypt_hypotheses_jointly_satisfiable`: every field of `RestoredDecryptHypotheses` holds together at the real
+  constants, under the decrypt laws `DecryptJointLaws K dh` (which include `OptionEqU64Shape`), the axiom part of the
+  initiator contract record and `InitiatorSuccessShape` at the byte-stream source, `DhPublicValid`, `KemCiphertextLenOf` and
+  the six laws below, all assumed: for every identity and codeword view there are an oracle with `braidKem = K`, a session
+  and the bytes `export` writes for it, which `import` accepts with that session, in scope and with the ceilings, with every
+  boundary record, the trace equation, the frame type, the chunk relation and the draw, at the sample ratchet frame and
+  source. The session is the established one of `established_decrypt_hypotheses_jointly_satisfiable`, restored by
+  `restored_established_continues`.
+- `restored_decrypt_laws_model`, `restored_laws_model_established`: the whole premise list of that statement holds in one
+  interpretation, `Interp.modelEstablished` (previous section), with its view, `toyKem`, `optionEqImpl` and `ok 0` for
+  `kem::ciphertext_len` in both ciphertext laws: `established_decrypt_laws_model` for the decrypt laws, the contract axioms,
+  `InitiatorSuccessShape`, `DhPublicValid` and `KemCiphertextLenOf`, and `restored_laws_model_established` for the six laws
+  of the round trip at the same interpretation. In the substitution sense of `LIMITATIONS.md`; neither shows anything of the
+  real primitives.
+- `export_import_of_shape`, `export_spec`, `import_unchecked_spec`, `session_invariant_leaves`, `slice_ne_self`,
+  `identity_ad_length_of`: the round trip for every session with `CodecShape` that passes `Session::invariant`, under the
+  five laws of `UnitLifecycleSessionCodec.lean`, all assumed: `export` returns the bytes `sessionEnc` of the leaf encodings,
+  the field-by-field decode returns the session, the canonical re-encode compares a slice with itself, and the invariant is
+  the session's own; `Session::invariant` gives the Triple's and the Braid's own invariants (which the leaf decoders
+  re-check); the associated data is 66 bytes once the public-key byte view returns.
+- `ratchet_to_bytes_spec`, `ratchet_from_bytes_of`, `spqr_to_bytes_spec`, `spqr_from_bytes_of`, `triple_to_bytes_spec`,
+  `triple_from_bytes_of`, `braid_to_bytes_spec`, `braid_from_bytes_of`, `pending_to_bytes_spec`, `pending_from_bytes_of`:
+  for the classical ratchet with no stored key, the sparse ratchet with one chain-table entry (both chains present) and no
+  stored key, the Triple of the two, the Braid in `KeysUnsampled` below epoch `u64::MAX` (which its reader refuses) and the
+  pending initial message, the translated encoder writes the list `ratchetEnc`, `spqrEnc`, `tripleEnc`, `braidEnc`,
+  `pendEnc`, and the translated decoder reads that list back to the value, given the leaf's own invariant; the encoders under
+  `ZeroizingVecRoundTrip` (assumed) where they wrap their output, the session-level reader under `OptionBranchSome`
+  (assumed).
+- `read_key_of`, `read_u32_of`, `read_u64_of`, `read_epoch_of`, `read_auth_of`, `read_optional_key_of`,
+  `read_optional_key_loop_zero`, `index_usize_of`, `decode_chain_of`, `decode_chains_entry_of`,
+  `decode_state_unsampled_of`, `triple_take_len_prefixed_of`, `lifecycle_take_len_prefixed_of`, `auth_from_bytes_of`,
+  `direction_from_byte_dirByte`, `spqr_from_bytes_loop0_one`, `spqr_from_bytes_loop1_empty`, `triple_invariant_parts`:
+  each translated reading step returns the value written at the position it reads, stated through `List.drop`, with no
+  hypothesis (the session-level `take_len_prefixed` under `OptionBranchSome`, assumed); the Triple's invariant gives both
+  ratchets' invariants.
+- `push_optional_key_enc`, `push_optional_chain_some`, `lifecycle_push_len_prefixed_spec`, `auth_to_bytes_spec`,
+  `ratchet_to_bytes_loop_empty`, `ratchet_to_bytes_loop_empty_spec`, `spqr_to_bytes_loop0_one`, `spqr_to_bytes_loop1_empty`,
+  `spqr_encoded_len_eq`, `label_to_byte_spec`, `direction_to_byte_spec`, `efs_val`, `zeroizing_new_spec`: each translated
+  writing step appends the bytes stated; no hypothesis, except `zeroizing_new_spec` under `ZeroizingVecRoundTrip`.
+- `from_be32`, `from_be64`, `u32_eq_of_bv`, `u64_eq_of_bv`, `fromBEBytes_toBEBytes_toNat`, `fromBEBytes_toNat_congr`,
+  `fromLEBytes_toNat_congr`, `drop_next`, `slice_of_drop`, `length_of_drop`, `getElem_of_drop`, `from_slice_eq`,
+  `setSlice_app`, `usize_add_eq`, `usize_div_eq`, `slice_len_eq`, `cast_len_val`, `arr32_len`, `be32_length`,
+  `be64_length`, `optKeyEnc_length`, `ratchetEnc_length`, `chainEnc_length`, `spqrEnc_length`, `tripleEnc_length`,
+  `authEnc_length`, `braidEnc_length`, `lenEnc_length`, `pendEnc_length`, `chain_len_eq`, `chains_len_eq`,
+  `skipped_len_eq`, `fixed_prefix_eq`, `head_len_eq`, `epoch_and_auth_len_eq`: byte, list and length facts the steps use
+  (big-endian bytes read back to the integer written, lengths of the encodings, the codec length constants); no
+  hypothesis.
+- `dhPublicBytesRoundTrip_is`, `dhPrivateBytesRoundTrip_is`, `zeroizingVecRoundTrip_is`, `model_dhPublicBytesRoundTrip`,
+  `model_dhPrivateBytesRoundTrip`, `model_zeroizingVecRoundTrip`, `vecAsSliceImpl_shape`: each byte-codec law is its shape at
+  the real constants, and `Interp.model` (or `vecAsSliceImpl`) satisfies each shape.
+
+**The laws.** Six of the round trip's own, all assumed, none checked in Lean, each with a model (`LIMITATIONS.md`, "A
+restored session"), besides the three the establishment's invariant takes (`DhPublicValid`, `KemCiphertextLenOf`,
+`OptionEqU64Shape`), nine in all:
+`ZeroizingVecRoundTrip` (`Zeroizing::new` then `deref` on a byte vector gives it back), `OptionBranchSome`
+(`Option::branch` on `Some x` continues with `x`), `VecAsSlice` (`Vec::as_slice` is the slice view), `DhPrivateBytesRoundTrip`
+(`PrivateKey::to_bytes`, read out of its wrapper, then `PrivateKey::from_bytes` gives the key back),
+`DhPublicBytesRoundTrip` (`PublicKeyBytes::as_bytes` then `from_bytes` gives the key back), and `KemCiphertextLenBound`
+(`kem::ciphertext_len` is at most 65536, so the pending ciphertext's length prefix and the size arithmetic of `export` do not
+wrap). The first three are about `zeroize`, `core` and `alloc` functions the translation declares without a body, the next
+two about `tacenta-core/boundary/src/dh.rs`, the last about `tacenta-core/boundary/src/kem.rs` (1568 bytes, by reading).
+
+**What it does not show.** A restored Braid holding a KEM value, an encoder or a decoder (no relation is claimed there);
+any session shape other than the covered one in the round trip (stored skipped keys, another sparse table, an absent
+pending message, a present established ephemeral, any other Braid state); that a decoder refuses what it should; the
+model's own imported session; initial-type frames, `encrypt`, the responder, and the T3 refinement of establishment. As for
+the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
+session lifecycle out.
+
+**Compiler trust and pins.** Every statement that names `Session::export` or `Session::import` lists one compiler-trust
+axiom, carried by the `toStr` of a panic message in the generated `export` (Aeneas discharges its length bound
+`by decide +native`), not by the argument: `import_ok_gives_invariant`, `RestoredDecryptHypotheses.ofInvariant`,
+`export_import_established`, `restored_established_continues`, `restored_established_inhabited`,
+`restored_decrypt_hypotheses_jointly_satisfiable`, `export_spec` and `export_import_of_shape` list that one;
+`RestoredDecryptHypotheses.refines`, `restored_decrypt_refines` and `restored_established_initiator_decrypt_refines` list it
+and the nine `native_decide` constants of `decrypt_ratchet_refines_of_invariant`. These eleven are compiler-trusted. Of the
+other 96 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
+`model_kemCiphertextLenBound` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
+unit, which the types and definitions they mention refer to. Each of the 107 results carries an axiom pin and a statement
+pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants twelve faults in
+copies of the three modules and requires Lean to refuse each at a named declaration or pin, with a message that names the
+fact removed (an unsolved goal stating it, or the mismatch or pin text), not a failure of the proof script's shape: the
+invariant inversion against a copy of `import` with the `Inconsistent` refusal removed, with the proof adapted to that body
+(refused in `import_ok_gives_invariant`, the invariant goal unsolved); `headroomCheck` without its sparse-epoch clause, with
+the proof adapted (refused in `counterHeadroom_iff_check`, the sparse-epoch goal unsolved); `RestoredScope` widened to a
+`KeysSampled` Braid (refused in `sessionRefines_restored`); the round trip concluding a session with its associated data
+emptied, and without the `VecAsSlice` law (each refused in `export_import_of_shape`); the classical ratchet encoding with two
+counters swapped (refused in `ratchet_to_bytes_spec`); the Braid epoch reader without the hypothesis that the epoch is not
+`u64::MAX` (refused in `read_epoch_of`, that goal unsolved); `OptionBranchSomeShape` weakened to let `branch` on `Some x`
+break, with the proof adapted to both cases (refused in `lifecycle_take_len_prefixed_of`, the break cases unsolved); the
+established shape without the ciphertext bound (refused in `codecShape_parts`); the round-trip half of the joint model at an
+interpretation whose public-key reader drops the key (refused in `restored_laws_model_established`); `KemCiphertextLenBoundShape`
+without its bound, with the pins kept (refused at its `#print` pin); and the joint model of the composed premise list with
+its round-trip half at `Interp.model`, two interpretations, with the pins kept (it compiles, and is refused at the statement
+pin of `restored_decrypt_laws_model`).
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

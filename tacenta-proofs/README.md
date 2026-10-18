@@ -33,8 +33,11 @@ assumed sparse epoch ceiling, one the model, and four counter ceilings, assumed,
 each ceiling excludes a state the invariant accepts, the clock case shown in Lean and the other three by reading of the Rust,
 not checked in Lean; at a session `establish_initiator_for` returned, the invariant, under two assumed laws, and the four
 ceilings follow from the establishment, the relation to the model session read off it holds by definition at its
-`KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows and no
-proof does; for every input `establish_responder`'s outcomes, with their store and random-source effects, are stated, and at
+`KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows; that
+`import` of the exported bytes returns that session unchanged, so the restated form applies to the copy given the caller's
+boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law), and
+every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it;
+for every input `establish_responder`'s outcomes, with their store and random-source effects, are stated, and at
 the session it builds the invariant, under assumed and recorded laws, and the ceilings follow from the construction, so the
 restated form applies to its inner `decrypt_ratchet`, at a model session read off the code's session and not shown to be the
 model's own, for a frame meeting the caller's chunk premises with a draw left, with no input exhibited at which the whole call
