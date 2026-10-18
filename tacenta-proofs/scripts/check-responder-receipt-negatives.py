@@ -24,11 +24,11 @@ that names what the change removed:
     (refused in `first_receipt_run_inputs`, where `HonestChunk` asks for 96 bytes);
   * the outcomes: the non-contributory refusal claimed when the candidate agreement returns (refused in
     `responder_first_frame_inner_outcomes`);
+  * the model step the composition rests on: a frame sealed under a caller-chosen message key instead of the first
+    key of the sender's chains (refused in `first_frame_model_outcomes`, which decodes and opens the frame sealed
+    under the key the receiver derives);
   * the composition chain: the responder's success claimed to return a caller-chosen plaintext (refused in
-    `initiator_first_send_responder_receives`), the responder fed a frame sealed under a caller-chosen message key
-    instead of the first key of the initiator's chains (refused in `first_frame_model_outcomes`, the model step the
-    composition rests on, which decodes and opens the frame sealed under the key the receiver derives), the
-    responder fed the plaintext instead of the bytes the first
+    `initiator_first_send_responder_receives`), the responder fed the plaintext instead of the bytes the first
     send returned (refused in `initiator_first_send_responder_receives`), the store claimed unchanged on the
     one-time path (refused in `responder_first_frame_succeeds`), the responder's draws claimed untouched on
     success (refused in `initiator_first_send_responder_receives`), the header source without its MAC (refused
@@ -40,10 +40,14 @@ that names what the change removed:
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage
 check at a named place: it shows that the proof there depends on what the change removed (or, for the last, that
-the pin holds the definition), not that the changed statement is false.  In particular the three controls on the
-composition chain (a different plaintext claimed, a frame sealed under another key, the plaintext fed instead of
-the bytes) show that the composed proof uses the plaintext, the key and the bytes it names; they are not proofs
-that the responder refuses such inputs, which nothing here shows (no AEAD authenticity law is assumed).
+the pin holds the definition), not that the changed statement is false.  In particular the two controls on the
+composition chain (a different plaintext claimed, the plaintext fed instead of the bytes) show that the composed
+proof uses the plaintext and the bytes it names; the other-key control sits on the model step the composition rests
+on and shows that step's proof uses the first key, not that the composition does.  No control covers the chain's own
+key step (the initiator's message key rewritten to the first key and carried into the responder's frame premise):
+planted there, a key change makes Lean exhaust its heartbeats unifying the two frames, which is not counted as a
+refusal.  None of these is a proof that the responder refuses such inputs, which nothing here shows (no AEAD
+authenticity law is assumed).
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not
 from a pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a
