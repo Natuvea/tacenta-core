@@ -97,10 +97,11 @@ this section says in one place what is not proved.
   code's session holds with the model's initial responder Braid, so the `decrypt_ratchet` refinement applies to the inner
   call, for a frame whose agreement chunk, if any, meets the caller's chunk premises (`IncomingChunkRefines`,
   `HonestChunk`), with a draw left; that model session is not shown to be the model's prepared session. Under the
-  contracts and two assumed shapes recorded in `LIMITATIONS.md` (`ResponderSuccessShape`, `ZeroKeyShape`), six refusals
-  and an inner refusal are shown reached at the real constants, and the premise list holds together at an input that
-  reaches the inner receive, with every law and shape in one model interpretation. Three of the refusals are also stated
-  for every store of a given shape (`Decode` for every store), of which no value is derivable without the first shape.
+  contracts and two assumed shapes recorded in `LIMITATIONS.md` (`ResponderSuccessShape`, `ZeroKeyShape`), three
+  refusals and an inner refusal are reached at an exhibited store at the real constants; three more are stated for every
+  store of a given shape (only `Decode` for every store), of which no value is derivable without the first shape. The
+  premise list holds together at an input that reaches the inner receive, with every law and shape in one model
+  interpretation.
   No input at which the whole call succeeds is exhibited ("Proved (tier T3, session lifecycle: `establish_responder` over
   every input ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
