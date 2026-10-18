@@ -44,19 +44,25 @@ assumed).  No concrete input is chosen in the generic results.
   refusal leaves the draws unchanged or one shorter and an inner success takes exactly one.
 * Non-vacuity.  `establish_responder_returns`: the call returns for every input under the T1 contracts and their
   store bound.
-  `establish_responder_short_message_refused` and `establish_responder_unknown_prekey_refused` (no
-  hypothesis), `establish_responder_legacy_refused` (the zeroizing round trip),
-  `establish_responder_noncontributory_refused`, `establish_responder_replay_refused`,
-  `establish_responder_record_full_refused` (the T1 contracts, `ResponderSuccessShape`, and for the first
-  `ZeroKeyShape`): those refusals are reached, each with the store and the source as given.  The first three are
-  stated of every identity, store and source; a store value itself is exhibited only under `ResponderSuccessShape`.
+  `establish_responder_short_message_refused` (no hypothesis, every prekey store),
+  `establish_responder_unknown_prekey_refused` (no hypothesis, every store of a stated shape) and
+  `establish_responder_legacy_refused` (the zeroizing round trip, every store of a stated shape): those
+  refusals are returned, each with the store and the source as given, at every store they quantify over; no store
+  value is derivable in Lean without `ResponderSuccessShape`.  `establish_responder_noncontributory_refused`,
+  `establish_responder_replay_refused`, `establish_responder_record_full_refused` (the T1 contracts,
+  `ResponderSuccessShape`, and for the first `ZeroKeyShape`): those refusals are reached at an exhibited store.
   `responder_prepared_inhabited`: an input reaching the inner receive exists.
   `responder_route_hypotheses_jointly_satisfiable`: every premise of `establish_responder_refines` holds
   together at an input that reaches the inner receive (`ResponderRouteHypotheses`), under the decrypt laws,
   the responder contract axioms, `ResponderSuccessShape` and `DhPublicValid`;
   `responder_route_inner_refusal_reachable`: there, with `ZeroKeyShape`, the call returns the inner refusal
-  mapping to the model's `NonContributoryAgreement`; `responder_route_laws_model`: those laws hold together in
-  one interpretation, `Interp.modelEstablished`.
+  mapping to the model's `NonContributoryAgreement`; `responder_route_laws_model`: those laws and both shapes
+  hold together in one interpretation, `Interp.modelEstablished`.
+
+Six trivial byte-list lemmas (`wireKey_length` ... `ephKey_key`) are proved with `simp`, which uses `propext`,
+rather than by `decide`, which uses no axiom: `attest.py`'s pin reader reads only the form "depends on axioms:
+[...]" and not "does not depend on any axioms".  That is a limit of the tool, not a change to what the
+results trust.
 
 ## What it does not show
 
@@ -1625,9 +1631,9 @@ theorem establish_responder_returns {R : Type}
       headroom)
   exact ⟨out, hout⟩
 
-/-- **A refusal before the inner receive is reached, with no hypothesis**: for every identity, store and
-source, a message of fewer than two bytes is refused as `Decode(TooShort)`, with the store and the source
-as given. -/
+/-- **`Decode(TooShort)` is returned, with no hypothesis, at every prekey store**: for every identity, store
+and source, a message of fewer than two bytes is refused as `Decode(TooShort)`, with the store and the source
+as given.  A store value is exhibited only under `ResponderSuccessShape` (`responder_prepared_inhabited`). -/
 theorem establish_responder_short_message_refused {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (our : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8) (rng : R)
@@ -1694,9 +1700,10 @@ theorem establish_responder_at_parts {R : Type} (rngCore : rand_core_1.RngCore R
     rcases x with ⟨r, session, rng1⟩
     rcases r with pt | e <;> rfl
 
-/-- **`UnknownPrekeyId` is reached, with no hypothesis**: for every identity, source, ciphertext and frame
-of at most 4096 bytes each, and every store whose signed prekey identifier is not 0 and that holds no
-previous signed prekey, `successMessage` (which names signed prekey 0) is refused as `UnknownPrekeyId`, with
+/-- **`UnknownPrekeyId` is returned, with no hypothesis, at every store of this shape**: for every identity,
+source, ciphertext and frame of at most 4096 bytes each, and every store whose signed prekey identifier is
+not 0 and that holds no previous signed prekey (a store value is exhibited only under
+`ResponderSuccessShape`), `successMessage` (which names signed prekey 0) is refused as `UnknownPrekeyId`, with
 the store and the source as given. -/
 theorem establish_responder_unknown_prekey_refused {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -1716,9 +1723,10 @@ theorem establish_responder_unknown_prekey_refused {R : Type}
   simp only [Aeneas.Std.bind_tc_ok, hs, core.result.Result.Insts.CoreOpsTry.branch]
   rfl
 
-/-- **`LegacyLastResortRecord` is reached**, under the zeroizing round trip only: for every identity,
-source, ciphertext and frame, and every store whose signed prekey identifier and KEM key identifier are 0
-and whose legacy marker lists 0, `successMessage` is refused as `LegacyLastResortRecord`, with the store
+/-- **`LegacyLastResortRecord` is returned at every store of this shape**, under the zeroizing round trip
+only: for every identity, source, ciphertext and frame, and every store whose signed prekey identifier and
+KEM key identifier are 0 and whose legacy marker lists 0 (a store value is exhibited only under
+`ResponderSuccessShape`), `successMessage` is refused as `LegacyLastResortRecord`, with the store
 and the source as given. -/
 theorem establish_responder_legacy_refused {R : Type}
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
@@ -2371,11 +2379,13 @@ theorem responder_route_inner_refusal_reachable (K : Model.Braid.Kem) (dh : DhVi
 open Tacenta.UnitLifecycleEstablishedDecrypt (Interp.modelEstablished viewEstablished
   established_decrypt_laws_model)
 open Tacenta.UnitLifecycleDecryptRatchetScreen (modelDecrypt_allT1 modelDecrypt_zeroizingModel) in
-/-- **The decrypt laws, the axiom part of `EstablishResponderContracts`, `ResponderSuccessShape` and
-`DhPublicValidShape` hold together in one interpretation**, `Interp.modelEstablished` of
+/-- **The decrypt laws, the axiom part of `EstablishResponderContracts`, `ResponderSuccessShape`,
+`DhPublicValidShape` and `ZeroKeyShape` hold together in one interpretation**, `Interp.modelEstablished` of
 `UnitLifecycleEstablishedDecrypt`, with its view, the KEM model `toyKem`, `optionEqImpl` for `Option::eq`
-and the byte-stream source: the shapes of every hypothesis
-`responder_route_hypotheses_jointly_satisfiable` takes.  In the substitution sense of
+and the byte-stream source: the shapes of every hypothesis `responder_route_hypotheses_jointly_satisfiable`,
+`responder_route_inner_refusal_reachable` and the reached refusals take (the contracts of
+`establish_responder_no_panic` follow from the axiom part and the decrypt laws' `StdLaws`,
+`UnitSatisfiabilityRecords.responder_contracts_of_axiom_base`).  In the substitution sense of
 `UnitSatisfiabilityRecords`; not a statement that the real primitives meet them.  The model's public-key
 check accepts every key, its agreement refuses only the zero key (the base point is not), and its KEM
 decapsulation always returns. -/
@@ -2384,9 +2394,10 @@ theorem responder_route_laws_model :
         Model.Braid.toyKem @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
       Nonempty (ResponderAxiom Interp.modelEstablished byteRng) ∧
       ResponderSuccessShape Interp.modelEstablished ∧
-      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape Interp.modelEstablished := by
+      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape Interp.modelEstablished ∧
+      ZeroKeyShape Interp.modelEstablished := by
   obtain ⟨M, -, -, hpub, -⟩ := established_decrypt_laws_model
-  refine ⟨M, ⟨?_⟩, ?_, hpub⟩
+  refine ⟨M, ⟨?_⟩, ?_, hpub, ?_⟩
   · exact
       { decrypt := ⟨M.dhCodec, M.dhAgree, M.aeadOpen, fun _ _ _ => ⟨_, rfl⟩, M.braid, M.triple,
           M.messageKeyMaterial⟩
@@ -2405,6 +2416,10 @@ theorem responder_route_laws_model :
       ok (some k)
     have hne : basePoint.val ≠ Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val := by decide
     simp [hne]
+  · refine ⟨Tacenta.UnitSatisfiabilityBraidStates.zeros32, rfl, fun k => ?_⟩
+    show (ok (if Tacenta.UnitSatisfiabilityBraidStates.zeros32.val =
+        Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val then none else some k)) = ok none
+    simp [Tacenta.UnitSatisfiabilityBraidStates.zeros32, Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32]
 
 end Tacenta.UnitLifecycleEstablishResponder
 
@@ -5370,7 +5385,9 @@ info: Tacenta.UnitLifecycleEstablishResponder.responder_route_laws_model : Tacen
     Tacenta.UnitLifecycleEstablishResponder.ResponderSuccessShape
         Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
       Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape
-        Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished
+          Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished ∧
+        Tacenta.UnitLifecycleEstablishResponder.ZeroKeyShape
+          Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishResponder.responder_route_laws_model
