@@ -70,6 +70,7 @@ import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
+import Translation.UnitLifecycleResponderSuccessor
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -135,6 +136,10 @@ an agreement with a key `public_key` returned is not refused) and a per-run draw
 the initiator's plaintext and the whole call succeeds with the committed store and one draw, its session related
 to the model's step at a view that attributes the received chunk to the initiator's header source; the laws hold
 in one interpretation and one run reaches the success.  A tampered frame being refused is not shown.
+`UnitLifecycleResponderSuccessor.lean` shows, at the session that successful call returns, that `Session::invariant`
+returns `true` and the four counter ceilings hold, for this first receive only: the receive's success walk, the
+relation's fixing of the Triple and the agreement's state, and a walk of the agreement's receive for its decoder; no
+law is added, and the reach run's responder session meets both.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
