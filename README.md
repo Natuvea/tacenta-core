@@ -201,6 +201,10 @@ other three by reading of the Rust, not checked in Lean). At a session that `est
 follow from the establishment, so the restated form applies there, to success and refusal alike; the relation to the model
 session read off it holds by definition at its `KeysUnsampled` Braid. A restored copy of that session decrypts the
 responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receives_reply.rs`, not a proof).
+For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
+given), an inner refusal (the store as given) or the inner success with only the named store commit; at the session it builds
+the invariant (under assumed and recorded laws) and the four ceilings follow from the construction, so the restated form
+applies to its inner `decrypt_ratchet`; no input at which the whole call succeeds is exhibited.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,

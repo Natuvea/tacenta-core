@@ -34,7 +34,10 @@ each ceiling excludes a state the invariant accepts, the clock case shown in Lea
 not checked in Lean; at a session `establish_initiator_for` returned, the invariant, under two assumed laws, and the four
 ceilings follow from the establishment, the relation to the model session read off it holds by definition at its
 `KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows and no
-proof does); `decrypt_ratchet_refines_complete` is
+proof does; for every input `establish_responder`'s outcomes, with their store and random-source effects, are stated, and at
+the session it builds the invariant, under assumed and recorded laws, and the ceilings follow from the construction, so the
+restated form applies to its inner `decrypt_ratchet`, with no input exhibited at which the whole call succeeds);
+`decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than
