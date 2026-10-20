@@ -2135,6 +2135,30 @@ REQUIRED_PINS = frozenset(
         "first_receipt_laws_model",
         "first_send_receive_reachable",
     )]
+    # `Session::invariant` and the four counter ceilings at the session `establish_responder` returns on the
+    # initiator's first frame: the receive's success walk, the header decoder after one chunk, the Triple and the
+    # session after the first receive, the facts from the relation and the walk, the compositions and the reach
+    # (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "decrypt_ratchet_ok_parts",
+        "braid_receive_noHeader",
+        "one_chunk_loop",
+        "decoder_invariant_small",
+        "add_chunk_fresh_have",
+        "received_decoder_checks",
+        "triple_eq_received",
+        "receivedTriple_invariant",
+        "structural_received",
+        "received_invariant",
+        "first_receipt_successor_shape",
+        "received_counterHeadroom",
+        "first_receipt_successor_facts",
+        "responder_first_frame_successor",
+        "initiator_first_send_responder_successor_hypotheses",
+        "initiator_first_send_responder_successor_admissible",
+        "initiator_first_send_responder_successor_counterHeadroom",
+        "first_send_receive_successor_reachable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2255,6 +2279,13 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives",
         "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes",
         "Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable",
+        # The compositions apply `responder_first_frame_inner_succeeds` and, from the first send on,
+        # `established_encrypt_outcomes`, and list the same nine constants (`UnitLifecycleResponderSuccessor`).
+        "Tacenta.UnitLifecycleResponderSuccessor.responder_first_frame_successor",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_hypotheses",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_admissible",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_counterHeadroom",
+        "Tacenta.UnitLifecycleResponderSuccessor.first_send_receive_successor_reachable",
     }
 )
 
@@ -3867,6 +3898,31 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
     )]
+    # `Session::invariant` and the four ceilings at the responder's session after the first receipt
+    # (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "decrypt_ratchet_ok_parts",
+        "braid_receive_noHeader",
+        "one_chunk_loop",
+        "decoder_invariant_small",
+        "add_chunk_fresh_have",
+        "received_decoder_checks",
+        "triple_eq_received",
+        "receivedTriple_invariant",
+        "structural_received",
+        "received_invariant",
+        "first_receipt_successor_shape",
+        "received_counterHeadroom",
+        "first_receipt_successor_facts",
+        "responder_first_frame_successor",
+        "initiator_first_send_responder_successor_hypotheses",
+        "initiator_first_send_responder_successor_admissible",
+        "initiator_first_send_responder_successor_counterHeadroom",
+        "first_send_receive_successor_reachable",
+        "receivedChains",
+        "receivedTriple",
+        "receivedSession",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -4262,6 +4318,12 @@ REQUIRED_PRINT_FORM = frozenset(
         "viewFirstReceipt",
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
+    )]
+    # The three definitions of the responder's session after the first receipt (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "receivedChains",
+        "receivedTriple",
+        "receivedSession",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

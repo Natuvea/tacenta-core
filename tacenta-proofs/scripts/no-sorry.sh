@@ -225,6 +225,16 @@ report_time "first-frame responder proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-responder-receipt-negatives.py || fail=1
 report_time "first-receipt responder proof-dependency control" "$t"
+# `Session::invariant` and the four ceilings at the session `establish_responder` returns on the initiator's first
+# frame (`UnitLifecycleResponderSuccessor.lean`): a copy with the received Triple's counters, the clock, the sending
+# key's canonicity, the ratchet key's bytes or the agreement's epoch changed, the decoder lemma widened to two chunks
+# or without its chunk count, either walk claimed to keep what the code changes, the composition claimed of the
+# prepared model, the initiator's session or the plaintext, and a copy of the session definition with its pins kept
+# must each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
+# are accepted.
+t=$SECONDS
+python3 scripts/check-responder-successor-negatives.py || fail=1
+report_time "responder successor proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
