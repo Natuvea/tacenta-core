@@ -2694,7 +2694,9 @@ successor, its invariant and its draws; any later message; that `PrekeyStore::in
 - That the headroom records are met by a state the crate can reach, apart from a session `establish_initiator_for` returns
   (and the encrypt record there, `encryptHeadroom_established`; the session its first successful `encrypt` leaves passes
   `Session::invariant`, above, so the receive record holds there by `decryptHeadroom_of_invariant` under `DhCodecTotal` and
-  `Ct1LenTotal`, not stated as a theorem).
+  `Ct1LenTotal`, not stated as a theorem),
+  and the session `establish_responder` builds before its inner receive (`counterHeadroom_responder_prepared`; that is not
+  the session the call returns, and no input at which the whole call succeeds is exhibited).
   The witness session has no pending initial message and no established ephemeral key, and it is not one that
   `establish_initiator` or `establish_responder` returns. A session `establish_initiator_for` returns holds a pending initial
   message and passes `Session::invariant` under `KemCiphertextLenOf` and `DhPublicValid` (above), so
