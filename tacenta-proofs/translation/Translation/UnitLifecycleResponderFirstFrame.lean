@@ -9,8 +9,9 @@ The encrypt branch (`UnitLifecycleEstablishedEncrypt`) shows that the first publ
 (`initialWire`, `firstFrame`).  The generic responder route (`UnitLifecycleEstablishResponder`) shows, for
 every input, which outcomes `establish_responder` has and that the session it hands to its inner
 `decrypt_ratchet` meets that theorem's session-side hypotheses.  This module feeds the one into the other:
-the actual bytes of one party's actual call to the other party's actual call (category 2 of the maintainer's
-increment rule, composed across two public roots, at the category-1 states the two routes derive).
+the bytes one party's call returns become the input of the other party's call, so two public roots are composed
+in one run, each at the state its own route derives (the establishment output, the session the responder
+builds).
 
 ## What is shown
 

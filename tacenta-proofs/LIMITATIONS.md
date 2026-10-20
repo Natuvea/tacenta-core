@@ -2713,9 +2713,29 @@ the two shared secrets would differ and the refusal observed would, barring an H
 not `Kem`; this is argued from the reading only and is not shown. Every law of the premise lists, with the first-frame
 laws, holds together in `InterpO.modelFirstReceipt` (`first_receipt_laws_model`), the first-frame joint model with the toy
 seal and open (the first-frame model's seal returns the empty vector, so `AeadRoundTripShape` is false there); a toy that
-shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; the responder successor's
-`Session::invariant` and its four counter ceilings; a second delivery of the same bytes (refused or not); the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
-exhibited run; the model's own `establishResponder` equality.
+shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; a second delivery of the same bytes (refused or not); the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
+exhibited run; the model's own `establishResponder` equality. The responder successor's `Session::invariant` and its four
+counter ceilings are the next paragraph's.
+
+*The responder's session after the first receipt.* `UnitLifecycleResponderSuccessor.lean` shows that the session the
+successful call above returns passes `Session::invariant` and meets the four counter ceilings
+(`initiator_first_send_responder_successor_admissible`, `initiator_first_send_responder_successor_counterHeadroom`,
+`initiator_first_send_responder_successor_hypotheses`, with the relation; compiler-trusted as the results above). **No law
+and no premise about the run is added**: the statements take the hypotheses of `initiator_first_send_responder_receives`
+(or `responder_first_frame_succeeds`) without the store bound `EstablishResponderHeadroom`, which the call's success
+equation they add makes unnecessary. The invariant uses `DhPublicValid` and `OptionEqU64Shape`, already premises there, and
+`DivCeilValue` and the header-length bound, both fields of the responder's contracts; the responder's oracle record and the
+view's codec relation tie the drawn candidate's public key to the Triple's new sending key. It is proved for this one receive,
+the first at the responder's prepared session, not through a theorem that a receive keeps the invariant, which the tree does
+not have: from a walk of the successful `decrypt_ratchet` (what it writes), the relation of the section above (which fixes the
+Triple's counters and stores and the agreement's state, by injectivity of the byte reading) and a walk of `Braid::receive` at
+`NoHeaderReceived` (the relation does not fix the decoder: the decoder relation is behavioural). So the agreement's decoder is
+shown to be the fresh header decoder or one `add_chunk` of it, which passes `Decoder::invariant`. The reach's run of the section
+above meets both (`first_send_receive_successor_reachable`). **Not shown:** that a receive keeps the invariant in general or at
+any later message; the reply; a second delivery of the same bytes; the premises of the next decrypt that are not about the
+session (the next frame's chunk relation, `HonestChunk` for the next header chunk, the draw, the boundary records); that the
+model session the successor is related to holds only bytes the responder received (the relation is at the attributed view
+above; the invariant and the ceilings are about the code's session and do not mention the view).
 
 **What is not shown.**
 
