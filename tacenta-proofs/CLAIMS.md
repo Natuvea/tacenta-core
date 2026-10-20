@@ -153,7 +153,7 @@ this section says in one place what is not proved.
   empty plaintext). That a tampered frame is refused is not shown (no AEAD authenticity law is assumed); the reply and its
   receipt are not covered ("Proved (tier T3, session lifecycle: `establish_responder` accepts the initiator's first frame
   ...)"). At the session that successful call returns, `Session::invariant` holds and the four counter ceilings are met,
-  for this first receive only and with no further assumption, compiler-trusted ("Proved (tier T3, session lifecycle:
+  for this first receive only and with no assumption beyond the receipt's own premises (without its store bound), compiler-trusted ("Proved (tier T3, session lifecycle:
   `Session::invariant` and the four counter ceilings at the session `establish_responder` returns ...)").
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
@@ -5294,22 +5294,28 @@ four `established_encrypt_outcomes` too) and list the same nine `native_decide` 
 `propext`, `Classical.choice` and `Quot.sound` alone (`one_chunk_loop`, `add_chunk_fresh_have`, `triple_eq_received`,
 `receivedTriple_invariant`) and 9 on those three and opaque constants of the unit. Each of the 18 results carries an axiom pin
 and a statement pin, and each of the three definitions (`receivedChains`, `receivedTriple`, `receivedSession`) a `#print`
-pin. `check-responder-successor-negatives.py` plants fifteen faults in a copy of the module, every one a change to a statement
+pin. `check-responder-successor-negatives.py` plants seventeen faults in a copy of the module, every one a change to a statement
 or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false): the received Triple claimed to have
 received nothing and its sparse receiving counter claimed 0 (refused in `triple_eq_received`); the clock claimed parked at the
 last value (refused in `received_counterHeadroom`); the Triple's invariant without the sending key's canonicity (refused in
 `receivedTriple_invariant`); the structural invariant without the ratchet key's bytes being the sending key and the agreement
 claimed at epoch 2 (refused in `structural_received`); the decoder lemma for two chunks and without its chunk-count premise
-(refused in `decoder_invariant_small`); `Braid::receive` claimed to keep the decoder (refused in `braid_receive_noHeader`) and
-`decrypt_ratchet` claimed never to replace the ratchet key (refused in `decrypt_ratchet_ok_parts`); the returned session's
-relation claimed to the prepared model (refused in `responder_first_frame_successor`), the invariant claimed of the initiator's
-session and the responder's call taken on the plaintext (refused in `initiator_first_send_responder_successor_admissible`),
-the reach's invariant claimed of the initiator's session (refused in `first_send_receive_successor_reachable`); and the
-session definition without its ratchet key with its pins kept (refused at the pin of `receivedSession`). The four on the
-composition chain show that the composed proofs are about the responder's returned session, its relation to the model's
-step and the bytes the first send returned; several of the refusals are structural (a type mismatch at the named place), not
-an unprovable goal. None is a proof that another session fails the invariant. An error that is not a refusal voids a run
+(refused in `decoder_invariant_small`); `Braid::receive` claimed to keep the decoder or return nothing else (refused in
+`braid_receive_noHeader`, only at the branch that adds the chunk) and `decrypt_ratchet` claimed never to replace the ratchet
+key (refused in `decrypt_ratchet_ok_parts`); inside the composing proofs, the composed call taken on the plaintext instead of
+the sent bytes and the composed invariant claimed of the initiator's session (refused inside the proof of
+`initiator_first_send_responder_successor_hypotheses`, the first at the step where the encrypt's output fixes the message)
+and the returned session's relation claimed to the prepared model (refused inside the proof of
+`responder_first_frame_successor`); as statement-shape checks on the headline's own corollaries, the invariant claimed of the
+initiator's session and the call taken on the plaintext (refused in `initiator_first_send_responder_successor_admissible`)
+and the reach's invariant claimed of the initiator's session (refused in `first_send_receive_successor_reachable`); and the
+session definition without its ratchet key with its pins kept (refused at the pin of `receivedSession`). Only the three
+controls inside the composing proofs show that the composed proof uses what they name (the bytes the first send returned,
+the responder's returned session, its relation to the model's step); the three statement-shape checks are refused because
+their statements no longer match `initiator_first_send_responder_successor_hypotheses`, whatever its proof does, and show
+only that the corollaries and the reach project its statement. Several of the refusals are structural (a type mismatch at
+the named place), not an unprovable goal. None is a proof that another session fails the invariant. An error that is not a refusal voids a run
 anywhere in the copy, compared without regard to case.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
