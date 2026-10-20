@@ -67,6 +67,7 @@ import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
+import Translation.UnitLifecycleEstablishResponder
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -114,6 +115,11 @@ or the initial message wrapping the first ratchet frame) with their effects and 
 success, `Session::invariant`, the four counter ceilings and the relation to the model's next session under
 the establishment's laws, two KEM agreements, `DivCeilValue` and an assumed size law of the model KEM; the
 premise lists hold together with the decrypt, establishment and restored-session laws in one interpretation.
+`UnitLifecycleEstablishResponder.lean` composes the public `establish_responder` for every input (each
+return is a refusal before the inner receive with the store and the source of randomness as given, an inner
+refusal with the store as given, or an inner success with the named store commit), derives
+`Session::invariant`, the four ceilings and the relation for the session it builds, and applies the
+`decrypt_ratchet` refinement to its inner call; no input at which the whole call succeeds is exhibited.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
