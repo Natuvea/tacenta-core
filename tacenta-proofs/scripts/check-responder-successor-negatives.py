@@ -18,30 +18,36 @@ it, at a named place, with an error that names what the change removed:
     where the sparse epoch 0 must be one below the agreement's);
   * the decoder: the decoder lemma for two chunks instead of one (refused in `decoder_invariant_small`, whose loop
     computation covers at most one chunk) and without its chunk-count premise (same place);
-  * the walks: `Braid::receive` claimed to keep the decoder (refused in `braid_receive_noHeader`, where the chunk
-    is added) and `decrypt_ratchet` claimed never to replace the ratchet key (refused in
-    `decrypt_ratchet_ok_parts`);
-  * the composition chain: the returned session's relation claimed to the prepared session's model instead of the
-    step's (refused in `responder_first_frame_successor`), the invariant claimed of the initiator's session after its
-    send instead of the responder's (refused in `initiator_first_send_responder_successor_admissible`), the responder's
-    call taken on the plaintext instead of the bytes the first send returned (refused in the same theorem), and the
-    reach's invariant claimed of the initiator's session (refused in `first_send_receive_successor_reachable`);
+  * the walks: `Braid::receive` claimed to keep the decoder or return nothing else (`d' = d ∨ False`; refused in
+    `braid_receive_noHeader` only at the branch where the chunk is added) and `decrypt_ratchet` claimed never to
+    replace the ratchet key (refused in `decrypt_ratchet_ok_parts`);
+  * inside the composing proofs: the composed call taken on the plaintext instead of the bytes the first send returned
+    and the composed invariant claimed of the initiator's session after its send (both refused inside the proof of
+    `initiator_first_send_responder_successor_hypotheses`, the first at the step where the encrypt's output fixes the
+    message), and the returned session's relation claimed to the prepared session's model instead of the step's
+    (refused inside the proof of `responder_first_frame_successor`);
+  * statement-shape checks on the headline's own corollaries: the invariant claimed of the initiator's session and the
+    call taken on the plaintext in `initiator_first_send_responder_successor_admissible`, and the reach's invariant
+    claimed of the initiator's session in `first_send_receive_successor_reachable`; these are refused because their
+    statements no longer match `initiator_first_send_responder_successor_hypotheses`, and would be refused whatever
+    that theorem's proof did;
   * the definition of the session after the receive without its ratchet key, the module's pins kept (refused at the
     pin of `receivedSession`).
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
 a named place: it shows that the proof there depends on what the change removed (or, for the last, that the pin holds
-the definition), not that the changed statement is false.  The four controls on the composition chain show that the
-composed proofs are about the responder's returned session, its relation to the model's step and the bytes the first
-send returned; they are not proofs that any other session fails the invariant.
+the definition), not that the changed statement is false.  Only the three controls inside the composing proofs show
+that the composed proof uses what they name (the bytes the first send returned, the responder's returned session, its
+relation to the model's step); the three statement-shape checks show only that the corollaries and the reach project
+the headline's statement.  None is a proof that any other session fails the invariant.
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not from a
 pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a compiler that
 does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count; an
 error whose first line names a kind of failure that is not a refusal (an unresolved name, a syntax error) voids the
 run anywhere in the copy, compared without regard to case, and the script checks at start that this guard fires on
-the toolchain's own `Unknown identifier`.  These are controls on copies of the Lean; no source, olean or git state
-changes.
+the toolchain's own `Unknown identifier` and on the kernel's `unknown constant`, and not on an ordinary refusal.
+These are controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleResponderFirstReceipt`).
 """
@@ -62,6 +68,10 @@ MODULE = ROOT / 'translation/Translation/UnitLifecycleResponderSuccessor.lean'
 ADMISSIBLE_CALL = ("    (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =\n"
                    "      ok (core.result.Result.Ok (sB', ptB), storeB', rngB')) :\n"
                    "    lifecycle.Session.invariant sB' = ok true := by\n")
+
+HYPOTHESES_CALL = ("    (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =\n"
+                   "      ok (core.result.Result.Ok (sB', ptB), storeB', rngB')) :\n"
+                   "    ∃ (p : ResponderPreparedParts ourB storeB (alloc.vec.Vec.deref bytes)) (ec : Array U8 32#usize)\n")
 
 STEP_RELATION = ("      SessionRefines dh oracleB.braidKem sB'\n"
                  "        (firstReceiptSession (responderModelOf dh p) (sliceOf p.braidSecret) (modelChunkOf src c)\n"
@@ -114,12 +124,25 @@ MUTANTS = [
      r'⊢ \(do\n      let i2 ← tacenta_erasure\.chunk_count d\.size\n      if d\.needed = i2 then ok true else ok false\) =\n    ok true', ['decoder_invariant_small']),
     ('module', 'braid-receive-claimed-to-keep-the-decoder',
      [("    d' = d ∨ ∃ c r, tacenta_erasure.Decoder.add_chunk d c = ok (r, d') := by\n",
-       "    d' = d := by\n")],
-     r'Invalid `⟨\.\.\.⟩` notation: The expected type of this term could not be determined', ['braid_receive_noHeader']),
+       "    d' = d ∨ False := by\n")],
+     r'Invalid `⟨\.\.\.⟩` notation: The expected type `False` has no constructors', ['braid_receive_noHeader']),
     ('module', 'receive-claimed-never-to-replace-the-ratchet-key',
      [("          s' = { s with triple := s'.triple, braid := bc, ratchet_private := ck }) ∨\n",
        "          s' = { s with triple := s'.triple, braid := bc }) ∨\n")],
      r'ratchet_private := ck, identity_ad := s\.identity_ad,[\s\S]*?=\n    \{\n      triple :=[\s\S]*?braid := bc, ratchet_private := s\.ratchet_private', ['decrypt_ratchet_ok_parts']),
+    ('module', 'composed-call-on-the-plaintext-not-the-sent-bytes',
+     [(HYPOTHESES_CALL, HYPOTHESES_CALL.replace('storeB (alloc.vec.Vec.deref bytes) rngB =', 'storeB plaintext rngB =', 1))],
+     r'hcallB\nhas type\n  lifecycle\.establish_responder rcB crcB ourB storeB plaintext rngB =[\s\S]*?but is expected to have type\n  lifecycle\.establish_responder rcB crcB ourB storeB bytes\.deref rngB =[\s\S]*?in the application\n  responder_first_frame_successor ',
+     ['initiator_first_send_responder_successor_hypotheses']),
+    ('module', 'composed-invariant-claimed-of-the-initiator-session',
+     [("      lifecycle.Session.invariant sB' = ok true ∧\n"
+       "      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n"
+       "  obtain ⟨output, hcall', hdr, hcases⟩",
+       "      lifecycle.Session.invariant s' = ok true ∧\n"
+       "      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n"
+       "  obtain ⟨output, hcall', hdr, hcases⟩")],
+     r"hinv\nhas type\n  sB'\.invariant = ok true\nbut is expected to have type\n  s'\.invariant = ok true\nin the application\n  And\.intro hinv",
+     ['initiator_first_send_responder_successor_hypotheses']),
     ('module', 'relation-claimed-to-the-prepared-model',
      [(STEP_RELATION, "      SessionRefines dh oracleB.braidKem sB' (responderModelOf dh p) ∧\n")],
      r"has type\n  SessionRefines dh oracleB\.braidKem sB'\n    \(firstReceiptSession \(responderModelOf dh p\)[\s\S]*?but is expected to have type\n  SessionRefines dh oracleB\.braidKem sB' \(responderModelOf dh p\)", ['responder_first_frame_successor']),
@@ -167,6 +190,12 @@ def guard_self_test(guards):
               "/tmp/x.lean:4:2: error: unsolved goals\n")
     if not not_a_refusal(sample, guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on `Unknown identifier`')
+    kernel = ("/tmp/x.lean:5:8: error: (kernel) unknown constant 'Foo.bar'\n"
+              "/tmp/x.lean:6:2: error: unsolved goals\n")
+    if not not_a_refusal(kernel, guards):
+        raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on the kernel\'s `unknown constant`')
+    if not_a_refusal("/tmp/x.lean:4:2: error: unsolved goals\n", guards):
+        raise SystemExit('GUARD BROKEN: the not-a-refusal guard fires on an ordinary refusal')
 
 
 def run_lean(path, log, timeout):
