@@ -2184,6 +2184,43 @@ REQUIRED_PINS = frozenset(
         "initiator_first_send_responder_replies",
         "first_send_reply_reachable",
     )]
+    # The initiator's `decrypt` of the responder's reply at the session its first `encrypt` left: the model's
+    # receive and step on the reply, the bridges from the two runs, the composition on the run with every outcome
+    # and the success, the joint model whose public key varies with its law, and the reach run with its two arms
+    # (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "reply_receive_key",
+        "reply_receive_stale",
+        "replyFrame_messageType",
+        "replyFrame_decodeDetailed",
+        "reply_receipt_model_outcomes",
+        "fresh_public_of_draw",
+        "initiator_reply_agreement",
+        "initiator_candidate_agreement",
+        "first_send_model_session",
+        "replyAd_length_le",
+        "initiator_receives_reply_outcomes",
+        "initiator_receives_reply",
+        "replyPub_canonical",
+        "replyPub_ne_zero",
+        "replyPub_basePoint",
+        "replyPub_oneKey",
+        "replyPub_zeros",
+        "dhPublicNotConstant_is",
+        "modelReply_dhCodec",
+        "modelReply_dhAgree",
+        "modelReply_symmetric",
+        "modelReply_contributory",
+        "modelFirstReceipt_not_notConstant",
+        "modelReply_notConstant",
+        "reply_receipt_laws_model",
+        "byteTrace_one",
+        "byteTrace_seed_extra",
+        "two_draws_of_seed_extra",
+        "reply_receipt_reach_run",
+        "first_send_reply_receipt_reachable",
+        "first_send_reply_stale_reachable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2319,6 +2356,14 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_successor_keys",
         "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_replies",
         "Tacenta.UnitLifecycleResponderReply.first_send_reply_reachable",
+        # The initiator's receipt of the reply applies `initiator_first_send_responder_replies`,
+        # `established_encrypt_successor_hypotheses` and `decrypt_refines_ratchet_frame_of_counter_headroom`, and the
+        # reach runs apply the receipt; all list the same nine constants (`UnitLifecycleResponderReplyReceipt`).
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outcomes",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.reply_receipt_reach_run",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_receipt_reachable",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_stale_reachable",
     }
 )
 
@@ -3981,6 +4026,51 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "replyComposite",
         "replyFrame",
     )]
+    # The initiator's receipt of the responder's reply (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "reply_receive_key",
+        "reply_receive_stale",
+        "replyFrame_messageType",
+        "replyFrame_decodeDetailed",
+        "reply_receipt_model_outcomes",
+        "fresh_public_of_draw",
+        "initiator_reply_agreement",
+        "initiator_candidate_agreement",
+        "first_send_model_session",
+        "replyAd_length_le",
+        "initiator_receives_reply_outcomes",
+        "initiator_receives_reply",
+        "replyPub_canonical",
+        "replyPub_ne_zero",
+        "replyPub_basePoint",
+        "replyPub_oneKey",
+        "replyPub_zeros",
+        "dhPublicNotConstant_is",
+        "modelReply_dhCodec",
+        "modelReply_dhAgree",
+        "modelReply_symmetric",
+        "modelReply_contributory",
+        "modelFirstReceipt_not_notConstant",
+        "modelReply_notConstant",
+        "reply_receipt_laws_model",
+        "byteTrace_one",
+        "byteTrace_seed_extra",
+        "two_draws_of_seed_extra",
+        "reply_receipt_reach_run",
+        "first_send_reply_receipt_reachable",
+        "first_send_reply_stale_reachable",
+        "initiatorAfterReply",
+        "replyAd",
+        "replyReceiptSession",
+        "replyPub",
+        "Interp.modelReply",
+        "InterpO.modelReply",
+        "viewReply",
+        "dhViewReply",
+        "kemViewReply",
+        "DhPublicNotConstantShape",
+        "DhPublicNotConstant",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -4388,6 +4478,20 @@ REQUIRED_PRINT_FORM = frozenset(
         "replyKey",
         "replyComposite",
         "replyFrame",
+    )]
+    # The eleven definitions of the initiator's receipt of the reply (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "initiatorAfterReply",
+        "replyAd",
+        "replyReceiptSession",
+        "replyPub",
+        "Interp.modelReply",
+        "InterpO.modelReply",
+        "viewReply",
+        "dhViewReply",
+        "kemViewReply",
+        "DhPublicNotConstantShape",
+        "DhPublicNotConstant",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
