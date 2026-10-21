@@ -12,6 +12,8 @@
 #
 #   the genuine set of the `hosted` partition   accepted, with the final line the whole run prints
 #   the `single` partition (one part, `*`)      accepted, with the same line
+#   a build that fails, in the whole run and in a part   nonzero, no final line, nothing after it run, and the
+#                                               part refused by the combiner
 #   what the parts called                       each phase's script once over all parts, the prelude builds in
 #                                               every part, the dispatcher once per slice: the calls of the
 #                                               whole run and nothing else
@@ -155,6 +157,7 @@ case "$1" in
   build)
     echo "lake build $pkg" >> "$STUB_CALLS"
     [ -f "$STUB_LOGS/$pkg.log" ] && cat "$STUB_LOGS/$pkg.log"
+    [ "${STUB_BUILD_FAIL:-}" = "$pkg" ] && { echo "error: build failed as asked" >&2; exit 3; }
     exit 0 ;;
   env)
     echo "leanchecker $pkg $3" >> "$STUB_CALLS"
@@ -178,7 +181,7 @@ c0="$(git -C "$fx" rev-parse HEAD)"
 # The environment a case starts from: the caller's CI and NO_SORRY_* variables removed.
 clean_env=(env -u GITHUB_ACTIONS -u GITHUB_STEP_SUMMARY -u NO_SORRY_LIST -u NO_SORRY_PART -u NO_SORRY_PART_DIR
   -u NO_SORRY_PART_RUN -u NO_SORRY_PART_SELECTION -u NO_SORRY_COMBINE -u NO_SORRY_PARTITION
-  -u NO_SORRY_BUILD_CACHE -u REFUTED_RECORDS_BIN -u BRAIDNEG_FILTER -u HYPWIT_ROOT -u STUB_FAIL)
+  -u NO_SORRY_BUILD_CACHE -u REFUTED_RECORDS_BIN -u BRAIDNEG_FILTER -u HYPWIT_ROOT -u STUB_FAIL -u STUB_BUILD_FAIL)
 
 # run <name> [VAR=value ...]: no-sorry.sh in the fixture; output to out-<name>, status to rc-<name>, calls
 # to calls-<name>.
@@ -263,6 +266,29 @@ part single-all all "$work/single/translation-part-all"
 combine single "$work/single" single
 accepts single
 
+# A build that fails, in the whole run and in a part. A phase's body runs under the script's errexit, so the
+# failed build pipeline stops the run there: nonzero, no final line, nothing after it called. The parent of a
+# part still writes the manifest, with the child's status and only the phases that finished, and the combiner
+# refuses it. This is what the call of each phase's function must keep: called in a condition, with `|| true`
+# or under `set +e`, a body's failed command no longer stops it, and the build's scan reports it complete.
+for pkg in translation tacenta-model; do
+  run "build-fails-whole-$pkg" STUB_BUILD_FAIL="$pkg"
+  cases=$((cases + 1))
+  [ "$(cat "$work/rc-build-fails-whole-$pkg")" -ne 0 ] || wrong "build-fails-whole-$pkg" "a failed build exited 0"
+  if grep -qF -- "$full_line" "$work/out-build-fails-whole-$pkg"; then
+    wrong "build-fails-whole-$pkg" "a failed build printed the line of a full run"
+  fi
+  if grep -q '^check-kernel-replay-negative.sh' "$work/calls-build-fails-whole-$pkg"; then
+    wrong "build-fails-whole-$pkg" "the run went on past the failed build"
+  fi
+done
+part build-fails-part kernel "$work/build-fails-part" STUB_BUILD_FAIL=tacenta-model
+cases=$((cases + 1))
+[ "$(cat "$work/rc-build-fails-part")" -ne 0 ] || wrong build-fails-part "a part whose build failed exited 0"
+if grep -q '^leanchecker ' "$work/calls-build-fails-part"; then
+  wrong build-fails-part "the part went on past the failed build"
+fi
+
 # What the parts called, together: each phase script as often as the whole run calls it, the three
 # builds in every part, and the dispatcher once per slice with its slice (the whole run calls it once,
 # with no slice).
@@ -303,6 +329,11 @@ refused_copy() {  # name needle: combine the copy and require the refusal
   combine "$1" "$work/set-$1"
   refuses "$1" "$2"
 }
+
+# The part whose build failed, above, is refused.
+copy build-failed; rm -rf "$work/set-build-failed/translation-part-kernel"
+cp -R "$work/build-fails-part" "$work/set-build-failed/translation-part-kernel"
+refused_copy build-failed "exited with status"
 
 first="$(echo "$hosted_parts" | head -n 1)"
 copy missing; rm -rf "$work/set-missing/translation-part-$first"
@@ -363,7 +394,7 @@ grep -q "part kernel (translation-part-kernel) ran on commit" "$work/out-other-c
 part cache-kernel kernel "$work/cache-kernel" NO_SORRY_BUILD_CACHE=lean-build-key-2
 copy other-cache; rm -rf "$work/set-other-cache/translation-part-kernel"
 cp -R "$work/cache-kernel" "$work/set-other-cache/translation-part-kernel"
-refused_copy other-cache "the parts restored 2 different build caches"
+refused_copy other-cache 'the parts restored 2 different build caches (lean-build-key-1, lean-build-key-2), as when main saved a newer one while the parts were starting; "Re-run failed jobs" combines the same parts again, so use "Re-run all jobs" or push again'
 
 # A checkout with a change to a tracked file, made for the purpose.
 echo "# changed" >> "$proofs/scripts/check-audit-reach.sh"

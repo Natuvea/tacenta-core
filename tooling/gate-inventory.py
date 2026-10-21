@@ -4,6 +4,7 @@
     python3 tooling/gate-inventory.py --write     rewrite tacenta-proofs/GATE-INVENTORY.md
     python3 tooling/gate-inventory.py --check     fail unless that file is what this generates, and every
                                                   gate that CI runs has a row
+    python3 tooling/gate-inventory.py --print [--steps FILE]   print what it generates (from FILE's CI steps)
 
 Readiness gate 4 asks that every gate has been shown to fail when what it checks is broken, and that none
 reports green when it cannot run. Before this file the inventory of which gates have a control, where it
@@ -45,7 +46,17 @@ calls the control's path (an interpreter followed by the path), or calls a scrip
 the walk this file makes everywhere. A step that names the script without running it, or runs it through a
 variable, does not count, so a step repointed at another command fails. A Rust test file or a Python module
 is compiled into a test binary or imported, which the walk cannot see, so for those `ci_steps` stays a claim
-that only the step's existence backs.
+that only the step's existence backs. A row's own `ci_steps` are held the same way: for a gate that is a script,
+each named step must run it.
+
+Split runs. A step that runs a script in a mode that only reads what other jobs wrote is listed under
+`combining_steps`, with the files it really runs: the combining job of the attestation negatives runs
+`check-attest-negatives.sh` to read the slices, and the `translation` job runs `no-sorry.sh` to read the parts,
+neither running a case or a phase. The walk takes such a step to run only those files (each must be reached by
+its command), and a gate is shown at the step that runs it, the part or the slice, with the step that gives the
+verdict on the split run named in the row's `verdict_steps`. Where several steps run a file, a step that is not
+combining wins, then the most direct, then the first by name, so the inventory does not depend on the order of
+the jobs in the workflow.
 """
 import argparse
 import json
@@ -100,52 +111,63 @@ def resolve(mention, files):
     return sorted(f for f in files if f == mention or f.endswith("/" + mention))
 
 
-def reachability(steps, files):
-    """{file: first step that runs it, directly or through a script} by a walk from every CI step."""
-    reach = {}
-    queue = []
-    for job, ident, command in steps:
-        label = ident or f"{job} (unnamed step)"
-        for mention in CALL.findall(command):
-            for path in resolve(mention, files):
-                if path not in reach:
-                    reach[path] = (label, None)
-                    queue.append(path)
-    while queue:
-        path = queue.pop(0)
-        for mention in CALL.findall(script_text(path)):
-            for target in resolve(mention, files):
-                if target not in reach:
-                    reach[target] = (reach[path][0], path)
-                    queue.append(target)
-    return reach
-
-
-def step_reach(command, files):
-    """The tracked files one CI command runs, directly or through the scripts it runs: the same walk as
-    `reachability`, from one step."""
-    found = set()
-    queue = []
+def walk(command, files):
+    """{file: (depth, the script that calls it or None)} for what one CI command runs, directly or through the
+    scripts it runs. A call is followed by its text, so the walk is the same whatever order the steps come in."""
+    found = {}
+    frontier = []
     for mention in CALL.findall(command):
         for path in resolve(mention, files):
             if path not in found:
-                found.add(path)
-                queue.append(path)
-    while queue:
-        path = queue.pop(0)
-        for mention in CALL.findall(script_text(path)):
-            for target in resolve(mention, files):
-                if target not in found:
-                    found.add(target)
-                    queue.append(target)
+                found[path] = (0, None)
+                frontier.append(path)
+    depth = 0
+    while frontier:
+        depth += 1
+        following = []
+        for path in sorted(frontier):
+            for mention in CALL.findall(script_text(path)):
+                for target in resolve(mention, files):
+                    if target not in found:
+                        found[target] = (depth, path)
+                        following.append(target)
+        frontier = following
     return found
+
+
+def step_walk(ident, command, files, combining):
+    """What one step runs. A combining step (`combining_steps` in tooling/gate-inventory.json) runs a script in
+    a mode that reads the outputs of other jobs, so it runs only the files it lists, which must be among the
+    files its command reaches, and nothing those files call in their other modes."""
+    if ident in combining:
+        return {path: (0, None) for path in combining[ident]["runs"]}
+    return walk(command, files)
+
+
+def step_reach(command, files, ident=None, combining=None):
+    """The tracked files one CI command runs, directly or through the scripts it runs."""
+    return set(step_walk(ident, command, files, combining or {}))
+
+
+def reachability(steps, files, combining):
+    """{file: (step, the script that calls it or None)} over every CI step. Where several steps run a file, the
+    step that is not a combining step wins, then the one that runs it most directly, then the first by name:
+    the choice does not depend on the order of the jobs or steps in the workflow."""
+    best = {}
+    for job, ident, command in steps:
+        label = ident or f"{job} (unnamed step)"
+        for path, (depth, via) in step_walk(ident, command, files, combining).items():
+            key = (ident in combining, depth, label, via or "")
+            if path not in best or key < best[path][0]:
+                best[path] = (key, (label, via))
+    return {path: value for path, (_, value) in best.items()}
 
 
 def control_entry(control):
     return {"path": control} if isinstance(control, str) else dict(control)
 
 
-def build(rows, mutations, steps, files, reach):
+def build(rows, mutations, steps, files, reach, combining):
     problems = []
     by_file = {}
     for mutation in mutations:
@@ -157,6 +179,19 @@ def build(rows, mutations, steps, files, reach):
     row_files = set()
     step_ids = {ident for _, ident, _ in steps if ident}
     step_commands = {ident: command for _, ident, command in steps if ident}
+    for ident, entry in sorted(combining.items()):
+        if ident not in step_ids:
+            problems.append(f"combining step {ident} is not a step of the workflow")
+            continue
+        runs = entry.get("runs") if isinstance(entry, dict) else None
+        if not isinstance(runs, list) or not runs or not isinstance(entry.get("why"), str):
+            problems.append(f"combining step {ident} does not list the files it runs and why")
+            continue
+        reached = walk(step_commands[ident], files)
+        for path in runs:
+            if path not in reached:
+                problems.append(f"combining step {ident} lists {path}, which its command does not run")
+        claimed_ids.add(ident)
     for number, row in enumerate(rows, 1):
         gate = row["gate"]
         is_path = gate.endswith((".sh", ".py"))
@@ -173,6 +208,17 @@ def build(rows, mutations, steps, files, reach):
         for ident in row.get("ci_steps", []):
             if ident not in step_ids:
                 problems.append(f"row {number} ({gate}) names CI step {ident}, which the workflow does not have")
+            elif is_path and gate not in step_reach(step_commands[ident], files, ident, combining):
+                # A row's step runs its gate, directly or through a script; a step that only gives the verdict
+                # on a split run is named in `verdict_steps` instead.
+                problems.append(f"row {number} ({gate}) names CI step {ident}, whose command does not run it")
+        verdict = row.get("verdict_steps", [])
+        claimed_ids.update(verdict)
+        for ident in verdict:
+            if ident not in step_ids:
+                problems.append(f"row {number} ({gate}) names verdict step {ident}, which the workflow does not have")
+        if verdict:
+            run += "; verdict " + ", ".join(verdict)
         controls = []
         in_ci = False
         for raw in row.get("controls", []):
@@ -195,7 +241,8 @@ def build(rows, mutations, steps, files, reach):
                     if ident not in step_ids:
                         problems.append(f"row {number} ({gate}): control {path} names CI step {ident}, "
                                         "which the workflow does not have")
-                    elif path.endswith(".sh") and path not in step_reach(step_commands[ident], files):
+                    elif path.endswith(".sh") and path not in step_reach(step_commands[ident], files, ident,
+                                                                         combining):
                         problems.append(f"row {number} ({gate}): control {path} names CI step {ident}, "
                                         "whose command does not run it")
                 where = "CI" if control["ci_steps"] else "local"
@@ -287,14 +334,26 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--write", action="store_true")
     group.add_argument("--check", action="store_true")
+    # Print what the generator makes, from another copy of the steps if given, and write or compare nothing: its
+    # cases use it to show that the inventory does not depend on the order of the workflow's jobs.
+    group.add_argument("--print", action="store_true")
+    parser.add_argument("--steps", metavar="FILE", help="with --print: read the CI steps from FILE")
     args = parser.parse_args()
+    if args.steps and not args.print:
+        parser.error("--steps is for --print only")
 
     files = tracked()
-    rows = load("tooling/gate-inventory.json")["rows"]
+    inventory = load("tooling/gate-inventory.json")
+    rows = inventory["rows"]
+    combining = inventory.get("combining_steps", {})
     mutations = load("tooling/gate-mutations.json")["mutations"]
-    steps = ci_steps(load("tooling/required-steps.json"))
-    reach = reachability(steps, files)
-    table, problems = build(rows, mutations, steps, files, reach)
+    if args.steps:
+        with open(args.steps, encoding="utf-8") as handle:
+            steps = ci_steps(json.load(handle))
+    else:
+        steps = ci_steps(load("tooling/required-steps.json"))
+    reach = reachability(steps, files, combining)
+    table, problems = build(rows, mutations, steps, files, reach, combining)
     counts = {"rows": len(table), "control in CI": 0, "control local only": 0, "none": 0,
               "mutated": sum(1 for t in table if t["mutations"]),
               "mutations": len({i for t in table for i in t["mutations"]})}
@@ -306,6 +365,9 @@ def main():
         for problem in problems:
             print(f"gate-inventory: {problem}", file=sys.stderr)
         return 1
+    if args.print:
+        sys.stdout.write(text)
+        return 0
     path = os.path.join(ROOT, OUT)
     if args.write:
         with open(path, "w", encoding="utf-8") as handle:
