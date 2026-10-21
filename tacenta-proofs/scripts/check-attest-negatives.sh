@@ -1560,16 +1560,15 @@ expect_fail "definition-pin-check-form-DhPublicValidShape" "is \`#check @Tacenta
 make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleRestoredSession.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape\n'
 expect_fail "definition-pin-check-form-KemCiphertextLenBoundShape" "is \`#check @Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape\`, which prints the type and not the body" --check
+# The responder route's commit is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
+make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleEstablishResponder.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\n'
+expect_fail "definition-pin-check-form-ResponderCommit" "is \`#check @Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\`, which prints the type and not the body" --check
 
 # The established encrypt's key-generation law is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
 make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleEstablishedEncrypt.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededForShape\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededForShape\n'
 expect_fail "definition-pin-check-form-KeyGenSeededForShape" "is \`#check @Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededForShape\`, which prints the type and not the body" --check
-
-# The responder route's commit is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
-make_case
-replace_in "tacenta-proofs/translation/Translation/UnitLifecycleEstablishResponder.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\n'
-expect_fail "definition-pin-check-form-ResponderCommit" "is \`#check @Tacenta.UnitLifecycleEstablishResponder.ResponderCommit\`, which prints the type and not the body" --check
 
 # The first-frame route's per-run KEM premise is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
 make_case
