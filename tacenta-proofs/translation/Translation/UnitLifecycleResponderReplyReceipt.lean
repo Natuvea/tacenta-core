@@ -93,8 +93,8 @@ the agreement state, key pair included (`Braid::receive` clones `self.state`), w
 ## Trust
 
 `initiator_receives_reply_outcomes`, `initiator_receives_reply_two_outcomes`, `initiator_receives_reply`,
-`reply_receipt_reach_run` and the two reaches are compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements.  Every other
-result rests on the kernel and opaque constants only (pins below).
+`reply_receipt_reach_run` and the two reaches rest on the kernel and opaque constants, as every other
+result does (pins below); until 2026-10-21 they also rested on the nine `native_decide` constants of the encrypt and decrypt refinements, kernel proofs since.
 
 ## Non-vacuity
 
@@ -130,7 +130,7 @@ symmetric agreement is consistent with the other laws rests on reading X25519, n
 * That the real primitives meet the boundary records or the laws (`AeadRoundTrip`, `DhAgreeContributory`,
   `DhAgreeSymmetric`, `DhPublicValid`, `DhPublicNotConstant`), that ML-KEM decapsulation agrees on a run
   (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
-  equality.  The results are compiler-trusted through the nine `native_decide` constants.
+  equality.  The results list no compiler-trust axiom: the nine `native_decide` constants are kernel proofs since 2026-10-21.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -544,8 +544,8 @@ four arms the model's step lists:
   `replyReceiptSession`.
 No other outcome of the call occurs on these bytes.  This is the general analysis: the theorem's own premises
 `DhAgreeContributory` and `AeadRoundTrip` exclude the `Handshake` and `Aead` arms
-(`initiator_receives_reply_two_outcomes`).  Compiler-trusted through the nine `native_decide` constants of the
-encrypt and decrypt refinements. -/
+(`initiator_receives_reply_two_outcomes`).  No compiler-trust axiom (the pin): the nine `native_decide` constants of
+the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
 theorem initiator_receives_reply_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -771,8 +771,8 @@ takes exactly the draw `dA`, and
 * otherwise returns `Ok ptA` with `ptA` the bytes of `ptR`, clears the pending initial message, writes only the Triple
   Ratchet, the agreement and the ratchet key, and its session refines `replyReceiptSession`.
 The two agreements `dSend` and `x` the relation names are in the conclusion.  No premise is added to those of
-`initiator_receives_reply_outcomes`.  Compiler-trusted through the nine `native_decide` constants of the encrypt and
-decrypt refinements. -/
+`initiator_receives_reply_outcomes`.  No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and
+decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
 theorem initiator_receives_reply_two_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -901,8 +901,8 @@ exactly the draw `dA`, clears the pending initial message, writes only the Tripl
 ratchet key, and the session it returns refines `replyReceiptSession` of the model session the first send left
 (the Triple after one Diffie-Hellman step on the reply's ratchet key, the agreement unchanged).  The responder
 oracle's agreement `dSend` of its draw with the initiator's ratchet key and the initiator oracle's agreement `x` of
-its draw with the reply's ratchet key are the ones the relation names.  Compiler-trusted through the nine
-`native_decide` constants of the encrypt and decrypt refinements. -/
+its draw with the reply's ratchet key are the ones the relation names.  No compiler-trust axiom (the pin):
+the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
 theorem initiator_receives_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1378,7 +1378,7 @@ those bytes from the source its first send left
   draw is not the peer key the initiator holds, and
 * refuses `Triple(Classical(NoReceivingChain))` with the session unchanged when it is.
 It applies `initiator_receives_reply_two_outcomes` to that run; the two parties share
-the oracle up to its draws and the byte-stream source type.  Last-resort path only.  Compiler-trusted. -/
+the oracle up to its draws and the byte-stream source type.  Last-resort path only.  No compiler-trust axiom (the pin). -/
 theorem reply_receipt_reach_run (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
     (A : Nonempty (InitiatorAxiom Interp.real byteRng))
@@ -1585,7 +1585,7 @@ model's key generation answers, every 32 further bytes and every reply plaintext
 is a run (`reply_receipt_reach_run`) whose responder source is chosen by `DhPublicNotConstant` so that the responder's
 fresh public key is not the signed prekey's, in which `establish_responder` on the initiator's first-send bytes
 succeeds, the responder's `encrypt` of `ptR` returns bytes, and the initiator's `decrypt` of those bytes from the
-source its first send left returns `ptR` and clears the pending initial message.  Last-resort path only.  Compiler-trusted. -/
+source its first send left returns `ptR` and clears the pending initial message.  Last-resort path only.  No compiler-trust axiom (the pin). -/
 theorem first_send_reply_receipt_reachable (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
     (A : Nonempty (InitiatorAxiom Interp.real byteRng))
@@ -1639,7 +1639,7 @@ assumed; `DhPublicNotConstant` is not used), on the run of `reply_receipt_reach_
 32 bytes of its own signed prekey secret, the responder's fresh ratchet key is its signed prekey's, and the
 initiator's `decrypt` of the reply refuses `Triple(Classical(NoReceivingChain))` with its session unchanged, although
 `establish_responder` accepted the first send and the responder's `encrypt` returned bytes.  So the premise that the
-fresh key is not the peer key is needed by the success theorem, and its failure is reached.  Compiler-trusted. -/
+fresh key is not the peer key is needed by the success theorem, and its failure is reached.  No compiler-trust axiom (the pin). -/
 theorem first_send_reply_stale_reachable (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
     (A : Nonempty (InitiatorAxiom Interp.real byteRng))
