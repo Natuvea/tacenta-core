@@ -20,8 +20,8 @@ attribution only: it cannot tell a composing step from a projection (a corollary
 too).  That the syntactic form is the right standard, and that the three theorems named in `COMPOSING` compose rather
 than project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with
 the declaration it is refused in and with a composing theorem; no control carries two labels; a statement-shape check
-may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up and again
-at run time:
+may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up
+(at run time the script checks only that each change is refused at its labelled place):
 
   * in `initiator_first_send_responder_replies`: the call claimed to return the source `establish_responder` left
     (`rngB'`, the receipt's draw taken) instead of the source it was given (refused where the walk has fixed the

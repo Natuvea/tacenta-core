@@ -22,7 +22,7 @@ composing step from a projection (a corollary's statement-shape check passes it 
 right standard, and that the three theorems named in `COMPOSING` compose rather than project, is decided by reading.
 The labels are also held consistent (an inside control must be labelled with the declaration it is refused in and
 with a composing theorem; no control carries two labels; a statement-shape check may not be refused in a composing
-theorem, and the theorem it projects must be in `PROJECTED`), at start-up and again at run time:
+theorem, and the theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * inside `initiator_receives_reply_outcomes`: the reply's bytes claimed to carry the peer key the initiator holds
     instead of the fresh ratchet key (refused at the step that closes the bytes equation from the reply's run); the

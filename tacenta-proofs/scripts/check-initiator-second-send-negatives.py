@@ -21,7 +21,7 @@ it cannot tell a composing step from a projection.  That the syntactic form is t
 theorem named in `COMPOSING` composes rather than projects, is decided by reading.  The labels are also held
 consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; no
 control carries two labels; a statement-shape check may not be refused in a composing theorem, and the theorem it
-projects must be in `PROJECTED`), at start-up and again at run time:
+projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * inside: the model's second step claimed to take a draw (its oracle left with the draws after the first) (refused
     where the model step, rewritten to the receipt's associated data and a frame that reads no draw, is placed);

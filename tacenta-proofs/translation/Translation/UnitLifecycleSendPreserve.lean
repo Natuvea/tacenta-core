@@ -70,7 +70,12 @@ only, with no compiler-trust axiom (pins below).  The run results
 `native_decide` constants are kernel proofs since 2026-10-21.  The general lemma's premises are not all walks of
 translated code: the relation after the call carries the Triple half (the code Triple's invariant is read off the model
 Triple it relates to), the three Triple fields the structural clauses read and the budget, and only the agreement half
-is a walk of translated code; every instance gets that relation from the encrypt refinement.
+is a walk of translated code; every instance gets that relation from the encrypt refinement.  The statement pins of
+`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` are cut off by
+Lean's `⋯` after `AeadRoundTrip →`: each holds the binders up to the four laws, and the later hypotheses and the whole
+conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are held by the build and by reading
+only, as with every pin that ends in `⋯` (with this module, 16 modules hold such pins; a pin form that prints the whole
+statement is to be fixed separately).
 
 ## Where its premises are exhibited
 

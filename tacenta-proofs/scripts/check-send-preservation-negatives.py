@@ -24,7 +24,7 @@ from a projection.  That the syntactic form is the right standard, and that the 
 compose rather than project, is decided by reading.  The labels are also held consistent (an inside control must be
 labelled with the declaration it is refused in and with a composing theorem; no control carries two labels; a
 statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`),
-at start-up and again at run time:
+at start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `encrypt_keeps_invariant_no_draw`: the no-draw premise weakened to "takes no draw, or has not failed" (refused
     at the agreement walk, where the state is read as one whose send takes no draw); the key-pair clone record
