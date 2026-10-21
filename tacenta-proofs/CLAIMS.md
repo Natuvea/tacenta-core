@@ -5369,7 +5369,9 @@ bound `102 + (ptR.length + 48) ≤ Usize.max` is met by every plaintext of at mo
 source state is free: there is no draw premise. At this state the agreement's send reads neither randomness nor its
 oracle's Braid KEM, so no fact relating the two parties' KEMs is needed; the Braid send record still carries the KEM
 agreement `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state, and whether it could
-be dropped here is not checked.
+be dropped here is not checked. The headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the
+responder's Braid send records); each ties its KEM to the same translated code, so the premises carry an indirect, weak
+relation between the two KEMs.
 
 - `array_clone_u8`, `auth_clone_eq`: a byte array's clone, and an authenticator's, is itself; no hypothesis.
 - `braid_send_noHeader`: `Braid::send` at a `NoHeaderReceived` state leaves the source as given, returns the agreement as
@@ -5417,12 +5419,12 @@ records included, at the real constants under the laws.
 **What this establishes, and what it does not.** At the session the responder's whole `establish_responder` call returns on
 the initiator's first frame, the responder's `encrypt` of any plaintext within the bound returns the bare reply frame, takes no
 draw, keeps the agreement and refines the model's step, under the premises of the section above and two boundary records at
-the responder's source. **Not shown:** the initiator's receipt of the reply (the next section takes it); a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `ChainExhausted` and
+the responder's source, from every source state (the statement does not tie the source to the one `establish_responder`
+left; it holds for that one too, and the reach takes it). **Not shown:** the initiator's receipt of the reply (the next section takes it); a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `ChainExhausted` and
 `NoSendingChain`, reachable elsewhere in a session, are not covered); `Session::invariant` or the ceilings at `sB''`; a second
 reply, a second message from the initiator, the header's later chunks and the responder's first sampling send; a restored copy
 of `sB'`; that the model session the successor refines holds only bytes the responder received (the relation is at the
-attributed view of the receipt); that `rngR` is the source `establish_responder` left (the statement holds for every source
-state, the reach takes that one); that the real primitives meet the boundary records or the laws the receipt rests on, that
+attributed view of the receipt); that the real primitives meet the boundary records or the laws the receipt rests on, that
 ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own
 `establishResponder` equality; the one-time path in a run.
 
@@ -5436,8 +5438,12 @@ results carries an axiom pin and a statement pin, and each of the four definitio
 `replyComposite`, `replyFrame`) a `#print` pin. `check-responder-reply-negatives.py` plants sixteen faults in a copy of the
 module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
 against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
-Seven sit inside composing proofs, and for each the script also runs the changed copy with that proof replaced by `sorry` and
-requires Lean to accept the change there: in `initiator_first_send_responder_replies`, the call claimed to return the source
+Seven sit inside composing proofs: the script checks that each is refused in the declaration it is labelled with, one of
+the three composing theorems, and runs the changed copy with that proof replaced by `sorry`, requiring Lean to accept the
+change there. That check attributes the refusal to that proof but cannot tell a composing step from a projection (a
+corollary's statement-shape check passes it too); that the seven are refused by composition steps, and that the three
+theorems compose rather than project, is decided by reading, and the script only holds the inside and statement-shape labels
+consistent. The seven: in `initiator_first_send_responder_replies`, the call claimed to return the source
 `establish_responder` left instead of the one it was given, the reply claimed wrapped as an initial message, sealed on the
 sparse chain the responder receives on, or under the responder's prepared ratchet key instead of the fresh one, and its
 relation claimed with the Triple unchanged; in `responder_first_frame_successor_keys`, the root-key equation claimed with the
@@ -5449,7 +5455,8 @@ agreement send at `noHeaderReceived` claimed to output an epoch key (refused in 
 record claimed without the 102 bytes of header room (refused in `encryptHeadroom_reply`), and the composite claimed with
 agreement type `hdr` and the model step claimed without its pending premise (both refused in `reply_model_step`). One is a
 statement-shape check: the reach's call claimed to leave the byte-stream source (refused in `first_send_reply_reachable`
-because its statement no longer matches the headline's, whatever the headline's proof does). The last is the frame
+because its statement no longer matches the headline's, whatever the headline's proof does; the script refuses it again
+with the headline's proof emptied). The last is the frame
 definition without its associated data with its pins kept (refused at the pin of `replyFrame`). Several refusals are
 structural (a type mismatch at the named place), not an unprovable goal. None is a proof that the initiator accepts the reply
 or that `encrypt` refuses anything. An error that is not a refusal voids a run anywhere in the copy, compared without regard to

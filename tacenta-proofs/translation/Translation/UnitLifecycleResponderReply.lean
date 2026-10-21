@@ -64,7 +64,9 @@ the initiator's first send already takes; `Ct1LenTotal` is a field of the respon
 `102 + (ptR.length + 48) ≤ Usize.max` holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target.
 At this state the agreement's send reads neither randomness nor its oracle's Braid KEM, so no fact relating the two
 parties' KEMs is needed; the Braid send record still carries the KEM agreement `KemAgreesFor` at the responder oracle's
-KEM, as the generic route takes it for every state, and whether it could be dropped here is not checked.  The source
+KEM, as the generic route takes it for every state, and whether it could be dropped here is not checked.  The
+headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the responder's Braid send records); each
+ties its KEM to the same translated code, so the premises carry an indirect, weak relation between the two KEMs.  The source
 state `rngR` is free, with no draw premise.
 
 ## Trust
@@ -92,12 +94,13 @@ run's encrypt records, since the two parties share the oracle and the byte-strea
 * `Session::invariant` or the ceilings at `sB''`, a second reply, a second message from the initiator, the header's
   later chunks, the responder's first sampling send, a restored copy of `sB'`.
 * That the model session the successor refines holds only bytes the responder received (the receipt's relation is at
-  the view that attributes the received codeword); that `rngR` is the source `establish_responder` left (the statement
-  holds for every source state; the reach takes that one).
+  the view that attributes the received codeword).  (The statement does not tie `rngR` to the source
+  `establish_responder` left; it holds for every source state, that one included, and the reach takes it.)
 * That the real primitives meet the boundary records or the laws the receipt rests on (`AeadRoundTrip`,
   `DhAgreeContributory`, `DhAgreeSymmetric`), that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or
   `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path
-  in a run.  The results are compiler-trusted through the encrypt wrapper's nine `native_decide` constants.
+  in a run.  The results are compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt
+  refinements.
 -/
 
 open Aeneas Aeneas.Std Result

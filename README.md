@@ -231,8 +231,8 @@ the model's step at a view that attributes the received chunk to the initiator's
 decrypt results are. At the session that success returns, `Session::invariant` and the four counter ceilings hold, for that
 first receive only and with no assumption beyond the receipt's own premises (without its store bound) (compiler-trusted). The
 responder's `encrypt` at that same session, on the same run, has one outcome: the bare reply frame, no draw taken, the
-agreement kept, related to the model's step, under the receipt's premises and two boundary records at the responder's source
-(its full oracle record and its Braid send record), with no new law (compiler-trusted). The initiator's `decrypt` of that
+agreement kept, related to the model's step, under the successor's premises, with the responder's full oracle record, the
+Braid send contracts at its source and a plaintext-length bound, with no new law (compiler-trusted). The initiator's `decrypt` of that
 reply, at the session its first `encrypt` left, on the same run, has exactly four outcomes, and under a per-run premise that
 the responder's fresh ratchet key is not the peer key the initiator holds it returns the responder's plaintext with one draw,
 under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
