@@ -38,7 +38,9 @@ of a module and requires Lean to refuse it, at a named place:
 The changes are checked on copies without the modules' pins, so that the refusal comes from a proof and not
 from a pin, except the two kept with their pins.  The unmodified copies must be accepted first.  A timeout, a
 compiler that does not start, a syntax error, an unrelated failure, a refusal elsewhere than the named
-place and a refusal at the named place whose message does not match the control's reason never count.  These are proof-dependency controls on copies of the Lean; no source, olean or git
+place and a refusal at the named place whose message does not match the control's reason never count.  An error whose first line names a kind of failure that is not a refusal (an
+unresolved name, a syntax error) voids the run anywhere in the copy, compared without regard to case, and the
+script checks at start that this guard fires on the toolchain's own `Unknown identifier`.  These are proof-dependency controls on copies of the Lean; no source, olean or git
 state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleRestoredSession`).
@@ -205,6 +207,26 @@ NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "
                  'unknown namespace', 'does not contain')
 
 
+# Lean capitalises its error messages (`Unknown identifier`, `Unknown constant`, `Function expected`), so the
+# guard is matched case-insensitively, on the first line of each error, where Lean names the kind of failure.
+ERROR_HEAD = re.compile(r'^\S+\.lean:\d+:\d+: error(?:\([^)]*\))?: (.*)$', re.M)
+
+
+def not_a_refusal(output, guards):
+    """Whether an error of `output` is of a kind that is not a refusal (a name that does not resolve, a syntax
+    error, ...), compared without regard to case."""
+    heads = [head.lower() for head in ERROR_HEAD.findall(output)]
+    return any(bad in head for head in heads for bad in guards)
+
+
+def guard_self_test(guards):
+    """The guard must fire on the toolchain's own spelling of an unresolved name."""
+    sample = ("/tmp/x.lean:3:8: error(lean.unknownIdentifier): Unknown identifier `fooBar`\n"
+              "/tmp/x.lean:4:2: error: unsolved goals\n")
+    if not not_a_refusal(sample, guards):
+        raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on `Unknown identifier`')
+
+
 def run_lean(path, log, timeout):
     with log.open('w') as output:
         try:
@@ -280,7 +302,7 @@ def errors_of(output):
 
 def check_refused(name, status, output, marker, log, mutated, where):
     refused = (status != 0 and 'error' in output and re.search(marker, output)
-               and not any(bad in output for bad in NOT_A_REFUSAL))
+               and not not_a_refusal(output, NOT_A_REFUSAL))
     if not refused:
         raise SystemExit(f'FAILED control {name}: expected Lean to refuse it with `{marker}`, '
                          f'exit={status}; {log}')
@@ -305,6 +327,7 @@ def check_refused(name, status, output, marker, log, mutated, where):
 
 
 def main():
+    guard_self_test(NOT_A_REFUSAL)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)

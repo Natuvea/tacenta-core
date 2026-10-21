@@ -68,6 +68,7 @@ import Translation.UnitLifecycleSessionRoundTrip
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
+import Translation.UnitLifecycleResponderFirstFrame
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -120,6 +121,12 @@ return is a refusal before the inner receive with the store and the source of ra
 refusal with the store as given, or an inner success with the named store commit), derives
 `Session::invariant`, the four ceilings and the relation for the session it builds, and applies the
 `decrypt_ratchet` refinement to its inner call; no input at which the whole call succeeds is exhibited.
+`UnitLifecycleResponderFirstFrame.lean` feeds the bytes a successful first `encrypt` at an
+`establish_initiator_for` output returns to `establish_responder`, at a store whose `publish` returned the bundle
+the initiator used: under a DH symmetry law, a per-run KEM premise and the store's distinct identifiers (named),
+the call refuses only with the three refusals the store decides, on the last-resort path, or reaches the inner
+receive with the initiator's shared secret, where the invariant, the ceilings and the relation hold; the laws
+hold in one interpretation and one run reaches the inner receive.  That the inner receive succeeds is not shown.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

@@ -218,6 +218,11 @@ entry is the one removed is not stated). At the session it builds the invariant 
 four ceilings follow from the construction, so the restated form applies to its inner `decrypt_ratchet`, at a model session
 read off the code's session and not shown to be the model's own, for a frame whose agreement chunk, if any, meets the
 caller's chunk premises, with a draw left; no input at which the whole call succeeds is exhibited.
+On the bytes the initiator's first `encrypt` returns, at a responder store whose `publish` returned the bundle the initiator
+used, only the three refusals the store decides remain (on the last-resort path, store and random source as given), or the
+call reaches its inner receive with the initiator's shared secret; that is under an assumed X25519 symmetry law, a premise
+about the run that ML-KEM decapsulation returns the initiator's secret, a named hypothesis that the store's identifiers are
+distinct, and the laws above, and that the inner receive accepts the frame is not shown.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
