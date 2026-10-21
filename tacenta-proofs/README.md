@@ -51,8 +51,16 @@ initiator's shared secret, under an assumed X25519 symmetry law, a premise about
 the initiator's secret and a named hypothesis that the store's identifiers are distinct; past those refusals, two named
 refusals (a non-contributory agreement of the responder's fresh key, the AEAD refusing the initiator's seal) or success,
 and under two more assumed boundary laws (the AEAD round trip, contributory agreement), the model KEM's size law, a
-store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, compiler-trusted, a tampered
-frame being refused, the successor's invariant, the reply and later messages not covered);
+store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, compiler-trusted, and at the
+session it returns `Session::invariant` and the four counter ceilings, for that first receive only and with no assumption beyond the receipt's own
+premises (without its store bound), compiler-trusted, and the responder's `encrypt` at that same session, on the same run,
+with one outcome (the bare reply frame, no draw, the agreement kept) under the successor's premises, with the responder's
+full oracle record, the Braid send contracts at its source and a plaintext-length bound, with no new law, compiler-trusted, and the initiator's `decrypt` of that reply at the session its
+first `encrypt` left, on the same run, refusing `NoReceivingChain` exactly when the reply's ratchet key is the peer key the
+initiator holds and otherwise returning the responder's plaintext with one draw (two of the four arms of the general
+analysis excluded by the contributory and round-trip premises), under the receipt's laws with
+the two oracles' roles swapped and two decrypt boundary records at the initiator's source, compiler-trusted; a tampered frame
+being refused and later messages in either direction not covered);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two

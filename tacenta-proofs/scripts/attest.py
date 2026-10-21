@@ -2181,6 +2181,93 @@ REQUIRED_PINS = frozenset(
         "first_receipt_laws_model",
         "first_send_receive_reachable",
     )]
+    # `Session::invariant` and the four counter ceilings at the session `establish_responder` returns on the
+    # initiator's first frame: the receive's success walk, the header decoder after one chunk, the Triple and the
+    # session after the first receive, the facts from the relation and the walk, the compositions and the reach
+    # (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "decrypt_ratchet_ok_parts",
+        "braid_receive_noHeader",
+        "one_chunk_loop",
+        "decoder_invariant_small",
+        "add_chunk_fresh_have",
+        "received_decoder_checks",
+        "triple_eq_received",
+        "receivedTriple_invariant",
+        "structural_received",
+        "received_invariant",
+        "first_receipt_successor_shape",
+        "received_counterHeadroom",
+        "first_receipt_successor_facts",
+        "responder_first_frame_successor",
+        "initiator_first_send_responder_successor_hypotheses",
+        "initiator_first_send_responder_successor_admissible",
+        "initiator_first_send_responder_successor_counterHeadroom",
+        "first_send_receive_successor_reachable",
+    )]
+    # The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame: the
+    # agreement's send while it waits for the header, the model's reply, the route's providers and headroom, the
+    # refinement there, the derivations that keep the receipt's key equations, the composition on the run and the
+    # reach (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "array_clone_u8",
+        "auth_clone_eq",
+        "braid_send_noHeader",
+        "sendAgreement_noHeader_output",
+        "braidSendTraceCounted_of_noHeader",
+        "reply_send_key",
+        "replyFrame_with_draws",
+        "reply_model_step",
+        "sparseOutput_none_of_noHeader",
+        "encryptProviders_reply",
+        "encryptHeadroom_reply",
+        "oracleOf_with_draws",
+        "noHeader_of_receipt_refines",
+        "pendingInitial_none_of_receipt_refines",
+        "responder_reply_refines",
+        "responder_first_frame_successor_keys",
+        "initiator_first_send_responder_successor_keys",
+        "initiator_first_send_responder_replies",
+        "first_send_reply_reachable",
+    )]
+    # The initiator's `decrypt` of the responder's reply at the session its first `encrypt` left: the model's
+    # receive and step on the reply, the bridges from the two runs, the composition on the run with every outcome
+    # and the success, the joint model whose public key varies with its law, and the reach run with its two arms
+    # (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "reply_receive_key",
+        "reply_receive_stale",
+        "replyFrame_messageType",
+        "replyFrame_decodeDetailed",
+        "reply_receipt_model_outcomes",
+        "fresh_public_of_draw",
+        "initiator_reply_agreement",
+        "initiator_candidate_agreement",
+        "first_send_model_session",
+        "replyAd_length_le",
+        "initiator_receives_reply_outcomes",
+        "initiator_receives_reply_two_outcomes",
+        "initiator_receives_reply",
+        "replyPub_canonical",
+        "replyPub_ne_zero",
+        "replyPub_basePoint",
+        "replyPub_oneKey",
+        "replyPub_zeros",
+        "dhPublicNotConstant_is",
+        "modelReply_dhCodec",
+        "modelReply_dhAgree",
+        "modelReply_symmetric",
+        "modelReply_contributory",
+        "modelFirstReceipt_not_notConstant",
+        "modelReply_notConstant",
+        "reply_receipt_laws_model",
+        "byteTrace_one",
+        "byteTrace_seed_extra",
+        "two_draws_of_seed_extra",
+        "reply_receipt_reach_run",
+        "first_send_reply_receipt_reachable",
+        "first_send_reply_stale_reachable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2301,6 +2388,30 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives",
         "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes",
         "Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable",
+        # The compositions apply `responder_first_frame_inner_succeeds` and, from the first send on,
+        # `established_encrypt_outcomes`, and list the same nine constants (`UnitLifecycleResponderSuccessor`).
+        "Tacenta.UnitLifecycleResponderSuccessor.responder_first_frame_successor",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_hypotheses",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_admissible",
+        "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_counterHeadroom",
+        "Tacenta.UnitLifecycleResponderSuccessor.first_send_receive_successor_reachable",
+        # The encrypt route at the responder's session after the first receipt applies
+        # `public_session_encrypt_of_send_contracts`, and the compositions apply `responder_first_frame_inner_succeeds`
+        # and `established_encrypt_outcomes`; all list the same nine constants (`UnitLifecycleResponderReply`).
+        "Tacenta.UnitLifecycleResponderReply.responder_reply_refines",
+        "Tacenta.UnitLifecycleResponderReply.responder_first_frame_successor_keys",
+        "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_successor_keys",
+        "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_replies",
+        "Tacenta.UnitLifecycleResponderReply.first_send_reply_reachable",
+        # The initiator's receipt of the reply applies `initiator_first_send_responder_replies`,
+        # `established_encrypt_successor_hypotheses` and `decrypt_refines_ratchet_frame_of_counter_headroom`, and the
+        # reach runs apply the receipt; all list the same nine constants (`UnitLifecycleResponderReplyReceipt`).
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outcomes",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.reply_receipt_reach_run",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_receipt_reachable",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_stale_reachable",
     }
 )
 
@@ -3913,6 +4024,103 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
     )]
+    # `Session::invariant` and the four ceilings at the responder's session after the first receipt
+    # (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "decrypt_ratchet_ok_parts",
+        "braid_receive_noHeader",
+        "one_chunk_loop",
+        "decoder_invariant_small",
+        "add_chunk_fresh_have",
+        "received_decoder_checks",
+        "triple_eq_received",
+        "receivedTriple_invariant",
+        "structural_received",
+        "received_invariant",
+        "first_receipt_successor_shape",
+        "received_counterHeadroom",
+        "first_receipt_successor_facts",
+        "responder_first_frame_successor",
+        "initiator_first_send_responder_successor_hypotheses",
+        "initiator_first_send_responder_successor_admissible",
+        "initiator_first_send_responder_successor_counterHeadroom",
+        "first_send_receive_successor_reachable",
+        "receivedChains",
+        "receivedTriple",
+        "receivedSession",
+    )]
+    # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "array_clone_u8",
+        "auth_clone_eq",
+        "braid_send_noHeader",
+        "sendAgreement_noHeader_output",
+        "braidSendTraceCounted_of_noHeader",
+        "reply_send_key",
+        "replyFrame_with_draws",
+        "reply_model_step",
+        "sparseOutput_none_of_noHeader",
+        "encryptProviders_reply",
+        "encryptHeadroom_reply",
+        "oracleOf_with_draws",
+        "noHeader_of_receipt_refines",
+        "pendingInitial_none_of_receipt_refines",
+        "responder_reply_refines",
+        "responder_first_frame_successor_keys",
+        "initiator_first_send_responder_successor_keys",
+        "initiator_first_send_responder_replies",
+        "first_send_reply_reachable",
+        "replierAfterSend",
+        "replyKey",
+        "replyComposite",
+        "replyFrame",
+    )]
+    # The initiator's receipt of the responder's reply (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "reply_receive_key",
+        "reply_receive_stale",
+        "replyFrame_messageType",
+        "replyFrame_decodeDetailed",
+        "reply_receipt_model_outcomes",
+        "fresh_public_of_draw",
+        "initiator_reply_agreement",
+        "initiator_candidate_agreement",
+        "first_send_model_session",
+        "replyAd_length_le",
+        "initiator_receives_reply_outcomes",
+        "initiator_receives_reply_two_outcomes",
+        "initiator_receives_reply",
+        "replyPub_canonical",
+        "replyPub_ne_zero",
+        "replyPub_basePoint",
+        "replyPub_oneKey",
+        "replyPub_zeros",
+        "dhPublicNotConstant_is",
+        "modelReply_dhCodec",
+        "modelReply_dhAgree",
+        "modelReply_symmetric",
+        "modelReply_contributory",
+        "modelFirstReceipt_not_notConstant",
+        "modelReply_notConstant",
+        "reply_receipt_laws_model",
+        "byteTrace_one",
+        "byteTrace_seed_extra",
+        "two_draws_of_seed_extra",
+        "reply_receipt_reach_run",
+        "first_send_reply_receipt_reachable",
+        "first_send_reply_stale_reachable",
+        "initiatorAfterReply",
+        "replyAd",
+        "replyReceiptSession",
+        "replyPub",
+        "Interp.modelReply",
+        "InterpO.modelReply",
+        "viewReply",
+        "dhViewReply",
+        "kemViewReply",
+        "DhPublicNotConstantShape",
+        "DhPublicNotConstant",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -4308,6 +4516,33 @@ REQUIRED_PRINT_FORM = frozenset(
         "viewFirstReceipt",
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
+    )]
+    # The three definitions of the responder's session after the first receipt (`UnitLifecycleResponderSuccessor`).
+    + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
+        "receivedChains",
+        "receivedTriple",
+        "receivedSession",
+    )]
+    # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "replierAfterSend",
+        "replyKey",
+        "replyComposite",
+        "replyFrame",
+    )]
+    # The eleven definitions of the initiator's receipt of the reply (`UnitLifecycleResponderReplyReceipt`).
+    + ["Tacenta.UnitLifecycleResponderReplyReceipt." + n for n in (
+        "initiatorAfterReply",
+        "replyAd",
+        "replyReceiptSession",
+        "replyPub",
+        "Interp.modelReply",
+        "InterpO.modelReply",
+        "viewReply",
+        "dhViewReply",
+        "kemViewReply",
+        "DhPublicNotConstantShape",
+        "DhPublicNotConstant",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

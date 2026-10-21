@@ -27,7 +27,7 @@ that names what the change removed:
   * the model step the composition rests on: a frame sealed under a caller-chosen message key instead of the first
     key of the sender's chains (refused in `first_frame_model_outcomes`, which decodes and opens the frame sealed
     under the key the receiver derives);
-  * the composition chain: the responder's success claimed to return a caller-chosen plaintext (refused in
+  * the composition chain and its conclusion: the responder's success claimed to return a caller-chosen plaintext (refused in
     `initiator_first_send_responder_receives`), the responder fed the plaintext instead of the bytes the first
     send returned (refused in `initiator_first_send_responder_receives`), the store claimed unchanged on the
     one-time path (refused in `responder_first_frame_succeeds`), the responder's draws claimed untouched on

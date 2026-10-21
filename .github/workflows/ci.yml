@@ -384,7 +384,7 @@ jobs:
   # toolchain and one restored build cache, with every phase passed, and to run
   # every phase of the script once and every control of the sliced dispatcher
   # phase once; only then does it print the line a whole run prints. A pull
-  # request runs the `hosted` partition, fourteen parts on GitHub-hosted
+  # request runs the `hosted` partition, fifteen parts on GitHub-hosted
   # runners. A push to main runs the `single` partition, one part with every
   # phase, on the self-hosted runner group as before the split: a push builds cold
   # and saves the build for pull requests, and one part means one cold build.
@@ -440,7 +440,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(github.event_name == 'push' && '["all"]' || '["kernel", "satisfiability", "refuted", "braid", "decrypt", "responder", "dispatch-0", "dispatch-1", "dispatch-2", "dispatch-3", "dispatch-4", "dispatch-5", "dispatch-6", "dispatch-7"]') }}
+        part: ${{ fromJSON(github.event_name == 'push' && '["all"]' || '["kernel", "satisfiability", "refuted", "braid", "decrypt", "responder", "reply", "dispatch-0", "dispatch-1", "dispatch-2", "dispatch-3", "dispatch-4", "dispatch-5", "dispatch-6", "dispatch-7"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

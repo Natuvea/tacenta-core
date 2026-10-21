@@ -349,6 +349,46 @@ phase_responder_receipt() {
 python3 scripts/check-responder-receipt-negatives.py || fail=1
 }
 
+# `Session::invariant` and the four ceilings at the session `establish_responder` returns on the initiator's first
+# frame (`UnitLifecycleResponderSuccessor.lean`): a copy with the received Triple's counters, the clock, the sending
+# key's canonicity, the ratchet key's bytes or the agreement's epoch changed, the decoder lemma widened to two chunks
+# or without its chunk count, either walk claimed to keep what the code changes, the composition claimed of the
+# prepared model, the initiator's session or the plaintext, and a copy of the session definition with its pins kept
+# must each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
+# are accepted.
+phase_responder_successor() {
+python3 scripts/check-responder-successor-negatives.py || fail=1
+}
+
+# The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame
+# (`UnitLifecycleResponderReply.lean`): a copy with the call claimed to return another source, the reply claimed
+# wrapped, sealed on the other sparse chain or under the prepared ratchet key, its relation claimed with the Triple
+# unchanged, the receipt's root-key equation claimed with the sparse root or its call taken on the plaintext, the
+# agreement's send claimed to emit a header message or an output, the draw record claimed at a drawing state, the
+# reply header's sparse number, the headroom's header room, the composite's agreement type or the model step's
+# pending premise changed, the reach's source changed, and a copy of the frame definition with its pins kept must
+# each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
+# accepted; the seven changes inside composing proofs must be accepted there with that proof emptied.
+phase_responder_reply() {
+python3 scripts/check-responder-reply-negatives.py || fail=1
+}
+
+# The initiator's `decrypt` of the responder's reply at the session its first `encrypt` left
+# (`UnitLifecycleResponderReplyReceipt.lean`): a copy with the decrypt claimed from the source before the first send,
+# the reply claimed to carry the peer key, the stale-key refusal claimed as `Aead` or on a fresh key (in the outcomes
+# and the two-outcome theorem), the success claimed to keep the pending initial message or to take no draw, the
+# plaintext claimed to be the first message, the named agreement claimed of the responder's draw, the freshness
+# premise claimed against the initiator's own key, the model receive's premise, refusal or previous chain length
+# changed, the joint model's public key made constant, the fresh private key's reading, the first agreement's key, the
+# model's stale-key outcome or the first send's agreement epoch changed, the reach's decrypt claimed at the
+# responder's session, and a copy of the receipt session definition with its pins kept must each be refused at a
+# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the ten
+# changes labelled inside composing proofs must be accepted there with that proof emptied, and the statement-shape
+# check still refused with the projected proof emptied.
+phase_responder_reply_receipt() {
+python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
+}
+
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -536,6 +576,9 @@ phases() {
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
+  run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
+  run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
+  run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model
