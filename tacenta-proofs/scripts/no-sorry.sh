@@ -235,6 +235,18 @@ report_time "first-receipt responder proof-dependency control" "$t"
 t=$SECONDS
 python3 scripts/check-responder-successor-negatives.py || fail=1
 report_time "responder successor proof-dependency control" "$t"
+# The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame
+# (`UnitLifecycleResponderReply.lean`): a copy with the call claimed to return another source, the reply claimed
+# wrapped, sealed on the other sparse chain or under the prepared ratchet key, its relation claimed with the Triple
+# unchanged, the receipt's root-key equation claimed with the sparse root or its call taken on the plaintext, the
+# agreement's send claimed to emit a header message or an output, the draw record claimed at a drawing state, the
+# reply header's sparse number, the headroom's header room, the composite's agreement type or the model step's
+# pending premise changed, the reach's source changed, and a copy of the frame definition with its pins kept must
+# each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
+# accepted; the seven changes inside composing proofs must be accepted there with that proof emptied.
+t=$SECONDS
+python3 scripts/check-responder-reply-negatives.py || fail=1
+report_time "responder reply proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

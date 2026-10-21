@@ -2159,6 +2159,31 @@ REQUIRED_PINS = frozenset(
         "initiator_first_send_responder_successor_counterHeadroom",
         "first_send_receive_successor_reachable",
     )]
+    # The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame: the
+    # agreement's send while it waits for the header, the model's reply, the route's providers and headroom, the
+    # refinement there, the derivations that keep the receipt's key equations, the composition on the run and the
+    # reach (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "array_clone_u8",
+        "auth_clone_eq",
+        "braid_send_noHeader",
+        "sendAgreement_noHeader_output",
+        "braidSendTraceCounted_of_noHeader",
+        "reply_send_key",
+        "replyFrame_with_draws",
+        "reply_model_step",
+        "sparseOutput_none_of_noHeader",
+        "encryptProviders_reply",
+        "encryptHeadroom_reply",
+        "oracleOf_with_draws",
+        "noHeader_of_receipt_refines",
+        "pendingInitial_none_of_receipt_refines",
+        "responder_reply_refines",
+        "responder_first_frame_successor_keys",
+        "initiator_first_send_responder_successor_keys",
+        "initiator_first_send_responder_replies",
+        "first_send_reply_reachable",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -2286,6 +2311,14 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_admissible",
         "Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_counterHeadroom",
         "Tacenta.UnitLifecycleResponderSuccessor.first_send_receive_successor_reachable",
+        # The encrypt route at the responder's session after the first receipt applies
+        # `public_session_encrypt_of_send_contracts`, and the compositions apply `responder_first_frame_inner_succeeds`
+        # and `established_encrypt_outcomes`; all list the same nine constants (`UnitLifecycleResponderReply`).
+        "Tacenta.UnitLifecycleResponderReply.responder_reply_refines",
+        "Tacenta.UnitLifecycleResponderReply.responder_first_frame_successor_keys",
+        "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_successor_keys",
+        "Tacenta.UnitLifecycleResponderReply.initiator_first_send_responder_replies",
+        "Tacenta.UnitLifecycleResponderReply.first_send_reply_reachable",
     }
 )
 
@@ -3922,6 +3955,31 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "receivedChains",
         "receivedTriple",
         "receivedSession",
+    )]    # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "array_clone_u8",
+        "auth_clone_eq",
+        "braid_send_noHeader",
+        "sendAgreement_noHeader_output",
+        "braidSendTraceCounted_of_noHeader",
+        "reply_send_key",
+        "replyFrame_with_draws",
+        "reply_model_step",
+        "sparseOutput_none_of_noHeader",
+        "encryptProviders_reply",
+        "encryptHeadroom_reply",
+        "oracleOf_with_draws",
+        "noHeader_of_receipt_refines",
+        "pendingInitial_none_of_receipt_refines",
+        "responder_reply_refines",
+        "responder_first_frame_successor_keys",
+        "initiator_first_send_responder_successor_keys",
+        "initiator_first_send_responder_replies",
+        "first_send_reply_reachable",
+        "replierAfterSend",
+        "replyKey",
+        "replyComposite",
+        "replyFrame",
     )]
 )
 
@@ -4324,6 +4382,12 @@ REQUIRED_PRINT_FORM = frozenset(
         "receivedChains",
         "receivedTriple",
         "receivedSession",
+    )]    # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
+    + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
+        "replierAfterSend",
+        "replyKey",
+        "replyComposite",
+        "replyFrame",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
