@@ -52,7 +52,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-full_line='no-sorry: all 37 phases passed'
+full_line='no-sorry: all 39 phases passed'
 
 wrong() {  # name message...
   local name="$1"
