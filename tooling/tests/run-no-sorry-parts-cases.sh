@@ -52,7 +52,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-full_line='no-sorry: all 33 phases passed'
+full_line='no-sorry: all 34 phases passed'
 
 wrong() {  # name message...
   local name="$1"
@@ -113,7 +113,7 @@ for s in check-lifecycle-translation-coverage.py check-atomicity-negatives.py ch
   check-send-refusal-negatives.py check-sparse-store-full-negatives.py check-decrypt-ratchet-negatives.py \
   check-established-negatives.py check-restored-negatives.py check-encrypt-negatives.py \
   check-responder-negatives.py check-responder-frame-negatives.py check-responder-receipt-negatives.py \
-  attest.py; do
+  check-discharge-native-decide-negatives.py attest.py; do
   stub_py "$s"
 done
 # The dispatcher: ten controls over two sources, with the real script's options and result file.

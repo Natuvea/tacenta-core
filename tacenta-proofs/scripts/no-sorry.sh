@@ -349,6 +349,16 @@ phase_responder_receipt() {
 python3 scripts/check-responder-receipt-negatives.py || fail=1
 }
 
+# The Session unit's refinement constants, kernel proofs since 2026-10-21 (they were `native_decide`): a copy with a
+# label claimed with one byte changed, a bound claimed wrong, the `(1 : u64)` step claimed as two, the export panic
+# message claimed to fit 42 bytes, and `native_decide` restored under the constant's live pin must each be refused at
+# its own declaration or pin, with a message naming the change, after the unmodified copies are accepted; and
+# `export_message_fits` must state exactly the type of the compiler-trust axiom `export` carries, and a copy with a
+# word of the message dropped must not.
+phase_discharge_native_decide() {
+python3 scripts/check-discharge-native-decide-negatives.py || fail=1
+}
+
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -536,6 +546,7 @@ phases() {
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
+  run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model

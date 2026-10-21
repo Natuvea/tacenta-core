@@ -1665,6 +1665,108 @@ PY
   expect_fail "required-pin-deleted-trustedbase-$n" "\`$n\` is on REQUIRED_PINS and has no axiom pin" --check
 done
 
+# The sparse ratchet's and the Triple's refinement constants, kernel proofs since 2026-10-21 (they were
+# `native_decide`), and the results that rested on them: none is on COMPILER_TRUSTED_PINS any more, so a
+# compiler-trust axiom put back under one, in a multi-line or a one-line pin, is refused; the ceiling is exact,
+# so an entry whose pin lists no compiler-trust axiom (or that has no pin) is refused; and each newly required
+# pin, deleted, is refused.
+tr="tacenta-proofs/translation/Translation"
+plant_native() {  # file theorem axiom
+  python3 - "$work/$1" "$2" "$3" <<'PY'
+import pathlib, sys
+path, name, ax = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+text = path.read_text()
+multi = f"info: '{name}' depends on axioms: [propext,\n"
+one = f"info: '{name}' depends on axioms: [propext, Classical.choice, Quot.sound]"
+if text.count(multi) == 1:
+    text = text.replace(multi, multi + f" {ax},\n")
+else:
+    assert text.count(one) == 1, (name, text.count(one))
+    text = text.replace(one, f"info: '{name}' depends on axioms: [propext,\n Classical.choice,\n Quot.sound,\n {ax}]")
+path.write_text(text)
+PY
+}
+kernel_constant_plants=(
+  "SpqrT3.lean Tacenta.SpqrT3.receive_refines Tacenta.SpqrT3.receive_refines_continuation._native.native_decide.ax_1_29"
+  "SessionT3.lean Tacenta.SessionT3.shared_secret_refines_some Tacenta.SessionT3.fPrefix_agrees._native.native_decide.ax_1_1"
+  "UnitLifecycleDecryptRatchetCompleteT3.lean Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1"
+  "UnitLifecycleEstablishedEncrypt.lean Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1"
+  "UnitLifecycleResponderFirstReceipt.lean Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.protocol_info_agrees Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitTripleT3.combine_info_agrees Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1"
+)
+for spec in "${kernel_constant_plants[@]}"; do
+  read -r file name ax <<< "$spec"
+  make_case
+  plant_native "$tr/$file" "$name" "$ax"
+  expect_fail "kernel-constant-compiler-trust-returns-${name##*.}" "\`$name\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS" --check
+done
+make_case
+plant_native "$tr/AxiomAuditSessionUnit.lean" Tacenta.SessionUnitSpqrT3.max_skip_val Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1
+expect_fail "kernel-constant-compiler-trust-refused-by-refresh" "\`Tacenta.SessionUnitSpqrT3.max_skip_val\` is pinned as compiler-trusted and is not on COMPILER_TRUSTED_PINS"
+
+ceiling_add() {  # name
+  python3 - "$work/tacenta-proofs/scripts/attest.py" "$1" <<'PY'
+import pathlib, sys
+path, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+head = "COMPILER_TRUSTED_PINS = frozenset(\n    {\n"
+assert text.count(head) == 1
+path.write_text(text.replace(head, head + f'        "{name}",\n'))
+PY
+}
+make_case
+ceiling_add Tacenta.SpqrT3.receive_refines
+expect_fail "compiler-ceiling-stale-entry" "\`Tacenta.SpqrT3.receive_refines\` is on COMPILER_TRUSTED_PINS and its pin lists no compiler-trust axiom" --check
+expect_fail "compiler-ceiling-stale-entry-refused-by-refresh" "\`Tacenta.SpqrT3.receive_refines\` is on COMPILER_TRUSTED_PINS and its pin lists no compiler-trust axiom"
+make_case
+ceiling_add Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits
+expect_fail "compiler-ceiling-kernel-only-entry" "\`Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits\` is on COMPILER_TRUSTED_PINS and its pin lists no compiler-trust axiom" --check
+make_case
+ceiling_add Tacenta.NoSuchModule.no_such_theorem
+expect_fail "compiler-ceiling-unpinned-entry" "\`Tacenta.NoSuchModule.no_such_theorem\` is on COMPILER_TRUSTED_PINS and its pin lists no compiler-trust axiom" --check
+
+kernel_constant_required=(
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.protocol_info_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.chain_start_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.root_label_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.chain_label_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.max_skip_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.max_skip_val"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitSpqrT3.receive_refines_continuation"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitTripleT3.combine_info_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitTripleT3.split_info_agrees"
+  "AxiomAuditSessionUnit.lean Tacenta.SessionUnitTripleT3.split_secret_refines"
+  "UnitLifecycleSessionRoundTrip.lean Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits"
+  "SessionT3.lean Tacenta.SessionT3.shared_secret_refines_some"
+  "SpqrT3.lean Tacenta.SpqrT3.send_refines"
+  "SpqrT3.lean Tacenta.SpqrT3.receive_refines"
+  "UnitPins.lean Tacenta.UnitSpqrT3.send_refines"
+  "UnitPins.lean Tacenta.UnitSpqrT3.receive_refines"
+  "UnitPins.lean Tacenta.UnitTripleT3.send_refines_discharged"
+  "UnitPins.lean Tacenta.UnitTripleT3.receive_refines_discharged"
+  "UnitPins.lean Tacenta.UnitTripleT3.spqr_agrees_for"
+)
+for spec in "${kernel_constant_required[@]}"; do
+  read -r file name <<< "$spec"
+  make_case
+  python3 - "$work/$tr/$file" "$name" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-kernel-constant-${name#Tacenta.}" "\`$name\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys

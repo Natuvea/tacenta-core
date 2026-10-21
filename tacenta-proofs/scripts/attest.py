@@ -807,6 +807,21 @@ REQUIRED_PINS = frozenset(
     # `native_decide`: the pins that hold that, so that deleting one is refused. None is on
     # COMPILER_TRUSTED_PINS below, so a compiler-trust axiom under one is refused too.
     + ["Model.Gf65536." + n for n in ("mul_assoc", "mul_inv_cancel")]
+    # The constants of the Session unit's sparse ratchet and Triple refinements the lifecycle results
+    # inherit, kernel-only since 2026-10-21 (they were `native_decide`), pinned in
+    # `AxiomAuditSessionUnit.lean`, and the leaf and three-leaf refinements that rested on the same
+    # constants, kernel plus opaque since then: the pins that hold that, so that deleting one is
+    # refused. None is on COMPILER_TRUSTED_PINS, so a compiler-trust axiom under one is refused too.
+    + ["Tacenta.SessionUnitSpqrT3." + n for n in (
+        "protocol_info_agrees", "chain_start_agrees", "root_label_agrees", "chain_label_agrees",
+        "max_skip_agrees", "max_skipped_store_agrees", "max_skip_val", "receive_refines_continuation")]
+    + ["Tacenta.SessionUnitTripleT3." + n for n in (
+        "combine_info_agrees", "split_info_agrees", "split_secret_refines")]
+    + ["Tacenta.SessionT3.shared_secret_refines_some",
+       "Tacenta.SpqrT3.send_refines", "Tacenta.SpqrT3.receive_refines",
+       "Tacenta.UnitSpqrT3.send_refines", "Tacenta.UnitSpqrT3.receive_refines",
+       "Tacenta.UnitTripleT3.send_refines_discharged", "Tacenta.UnitTripleT3.receive_refines_discharged",
+       "Tacenta.UnitTripleT3.spqr_agrees_for"]
     # The Braid's send epoch accounting (Proofs/TrustedBase.lean), kernel-only: the pins that hold
     # it, so that deleting one is refused.
     + ["Model.Braid." + n for n in (
@@ -1908,6 +1923,7 @@ REQUIRED_PINS = frozenset(
         "session_invariant_leaves",
         "export_import_of_shape",
         "identity_ad_length_of",
+        "export_message_fits",
     )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).
@@ -2184,77 +2200,13 @@ REQUIRED_PINS = frozenset(
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
+        # The composite header's codec round trip rests on three `bv_decide` lemmas of the model.
         "Proofs.Serialization.decode_encode_composite",
-        "Tacenta.SessionT3.shared_secret_refines_some",
-        "Tacenta.SpqrT3.receive_refines",
-        "Tacenta.SpqrT3.send_refines",
-        "Tacenta.UnitSpqrT3.receive_refines",
-        "Tacenta.UnitSpqrT3.send_refines",
-        "Tacenta.UnitTripleT3.receive_refines_discharged",
-        "Tacenta.UnitTripleT3.send_refines_discharged",
-        "Tacenta.UnitTripleT3.spqr_agrees_for",
-        # The session contract integration (#203): the full-store failure correspondences rest on
-        # the same compiler-evaluated constants of the sparse ratchet as the receive theorems above.
-        "Tacenta.UnitSpqrT3.receive_store_full_refines",
-        "Tacenta.UnitTripleT3.receive_store_full_refines_discharged",
-        "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contracts",
-        "Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds",
-        # Package F: the retry loop and decrypt_ratchet compose the Session unit's discharged Triple
-        # receive refinement and rest on its compiler-evaluated constants, no others.
-        "Tacenta.UnitLifecycleRetryLoopT3.receive_with_eviction_loop_refines",
-        "Tacenta.UnitLifecycleRetryLoopT3.receive_with_eviction_refines",
-        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines",
-        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_statement",
-        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_sample",
-        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open",
-        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_at_eviction",
-        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes",
-        "Tacenta.UnitLifecycleDecryptRatchetScreen.decrypt_ratchet_refines_from_shapes_at_eviction",
-        # Package F, the refusal closure: the sparse refusal refinements rest on the sparse ratchet's
-        # compiler-evaluated constants, and the results that compose them on those of the discharged
-        # Triple receive refinement, no others.
-        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines",
-        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_continuation_refusal_refines",
-        "Tacenta.UnitLifecycleTripleRefusalT3.spqr_receive_refusal_refines",
-        "Tacenta.UnitLifecycleTripleRefusalT3.triple_receive_refusal_refines",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.concrete_receive_attempt_refusal_from_retry_bounds",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.openRefusal_closes",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.receive_with_eviction_refines_complete",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete_statement",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.ref_triple_refuses",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.decrypt_ratchet_refines_complete_at_refusal",
-        "Tacenta.UnitLifecycleDecryptRatchetCompleteScreen.generated_reaches_open_path",
-        "Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open",
-        # The joint hypothesis set applied to `decrypt_ratchet_refines_complete` inherits its constants.
-        "Tacenta.UnitLifecycleDecryptScreen.DecryptHypotheses.refines",
-        # The restated refinement and its hypothesis record apply `decrypt_ratchet_refines_complete`
-        # and inherit its constants (`UnitLifecycleDecryptRunBounds`).
-        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant",
-        "Tacenta.UnitLifecycleDecryptRunBounds.decrypt_ratchet_refines_of_invariant_statement",
-        "Tacenta.UnitLifecycleDecryptRunBounds.DecryptOfInvariantHypotheses.refines",
-        # The refinements at an established initiator session apply the restated refinement and
-        # inherit its constants (`UnitLifecycleEstablishedDecrypt`).
-        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_ratchet_refines",
-        "Tacenta.UnitLifecycleEstablishedDecrypt.established_initiator_decrypt_refines",
-        "Tacenta.UnitLifecycleEstablishedDecrypt.EstablishedDecryptHypotheses.refines",
-        # The public `decrypt` on frames that are not initial messages: the join composes
-        # `decrypt_ratchet_refines_complete` and rests on its compiler-evaluated constants, no others.
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_statement",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_counter_headroom",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_hypotheses",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_frame_at_invReal",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_refusal",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_at_sample",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_of_invariant_exists",
-        "Tacenta.UnitLifecycleDecryptT3.decrypt_refines_ratchet_frame_at_pending_success",
-        "Tacenta.UnitLifecycleDecryptT3.generated_clears_at_pending_success",
         # Every statement that names `Session::export` or `Session::import` inherits the compiler-trust
         # axiom of the `toStr` in `export`'s panic message (`... by decide +native` in the generated
-        # code); the decrypt refinements at a restored session also inherit the nine `native_decide`
-        # constants of `decrypt_ratchet_refines_of_invariant`.
+        # code, the axiom Lean made for the same text in `PrekeyStore::to_bytes` and shares), and no
+        # other: `UnitLifecycleSessionRoundTrip.export_message_fits` proves its proposition with the
+        # kernel alone, but the generated definition refers to the axiom.
         "Tacenta.UnitLifecycleSessionRoundTrip.export_spec",
         "Tacenta.UnitLifecycleSessionRoundTrip.export_import_of_shape",
         "Tacenta.UnitLifecycleRestoredSession.import_ok_gives_invariant",
@@ -2266,41 +2218,12 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleRestoredSession.restored_established_initiator_decrypt_refines",
         "Tacenta.UnitLifecycleRestoredSession.restored_established_inhabited",
         "Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable",
-        # The encrypt route at an established session inherits the nine `native_decide` constants of
-        # `public_session_encrypt_of_send_contracts`; every theorem through it is listed.
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_initiator_encrypt_refines",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_counterHeadroom",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_refines",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptHypotheses.refines",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes_at_witness",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_success_reachable",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_refusal_reachable",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_admissible",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_hypotheses",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_shape",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.EstablishedEncryptSuccessorHypotheses.successor",
-        "Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_reachable",
-        # The inner `decrypt_ratchet` of `establish_responder` refined, and the results that apply it,
-        # inherit the restated refinement's constants (`UnitLifecycleEstablishResponder`).
-        "Tacenta.UnitLifecycleEstablishResponder.responder_prepared_decrypt_refines",
-        "Tacenta.UnitLifecycleEstablishResponder.establish_responder_refines",
-        "Tacenta.UnitLifecycleEstablishResponder.ResponderRouteHypotheses.refines",
-        "Tacenta.UnitLifecycleEstablishResponder.responder_route_inner_refusal_reachable",
-        # The composition with the first send, and the reach through it, inherit the encrypt wrapper's nine
-        # `native_decide` constants through `established_encrypt_outcomes` (`UnitLifecycleResponderFirstFrame`).
-        "Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares",
-        "Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable",
-        # The inner receive and the whole call inherit the decrypt refinement's nine `native_decide` constants, and
-        # the compositions with the first send and the reach the same nine through `established_encrypt_outcomes`
-        # (`UnitLifecycleResponderFirstReceipt`).
-        "Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_outcomes",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_succeeds",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_receives",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder_outcomes",
-        "Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable",
+        # Until 2026-10-21 this list also held the 78 results that inherited the nine `native_decide`
+        # constants of the sparse ratchet and Triple refinements (labels, skip bounds, one step of
+        # `receive_refines_continuation`, the combine label) and `SessionT3.shared_secret_refines_some`
+        # with its two constant comparisons. Those constants are kernel proofs now, so none of those
+        # pins lists a compiler-trust axiom, and `check_pin_lists` refuses an entry here whose pin
+        # lists none (a stale entry would let a compiler-trust axiom return under it unnoticed).
     }
 )
 
@@ -2346,6 +2269,13 @@ REQUIRED_STATEMENT_PINS = frozenset(
     # and `Vec::zeroize`, printed in full in `UnitSatisfiabilityZeroizeScope.lean`.
     + ["Tacenta.SessionUnitSpqrT1.ZeroizeTotal", "Tacenta.SessionUnitSpqrT1.VecRetainTotal",
        "Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal"]
+    # The constants of the Session unit's sparse ratchet and Triple refinements, kernel-only since
+    # 2026-10-21, with their statements printed in `AxiomAuditSessionUnit.lean`.
+    + ["Tacenta.SessionUnitSpqrT3." + n for n in (
+        "protocol_info_agrees", "chain_start_agrees", "root_label_agrees", "chain_label_agrees",
+        "max_skip_agrees", "max_skipped_store_agrees", "max_skip_val", "receive_refines_continuation")]
+    + ["Tacenta.SessionUnitTripleT3." + n for n in (
+        "combine_info_agrees", "split_info_agrees", "split_secret_refines")]
     + ["Tacenta.UnitSatisfiabilitySession." + n for n in (
         "vec_pop_satisfiable",
     )]
@@ -3547,6 +3477,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "session_invariant_leaves",
         "export_import_of_shape",
         "identity_ad_length_of",
+        "export_message_fits",
         "CodecShape",
         "sessionEnc",
     )]
@@ -4314,7 +4245,7 @@ assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
 
 
 def check_pin_lists(pins):
-    """Refuse a lost required pin, an unlisted compiler-trusted pin and a repeat."""
+    """Refuse a lost required pin, an unlisted compiler-trusted pin, a stale ceiling entry and a repeat."""
     have = {p["theorem"] for p in pins}
     # `pinned_theorems` counts pin blocks, so a block copied under another
     # theorem's pin would keep the count while losing a pin.
@@ -4331,6 +4262,14 @@ def check_pin_lists(pins):
         "COMPILER_TRUSTED_PINS"
         for p in pins
         if p["trust"] == "compiler" and p["theorem"] not in COMPILER_TRUSTED_PINS
+    ]
+    # The ceiling is exact: an entry whose pin lists no compiler-trust axiom (or that has no pin)
+    # is refused, so a constant made kernel-checked leaves the list with it and cannot carry a
+    # compiler-trust axiom back in unnoticed.
+    compiler = {p["theorem"] for p in pins if p["trust"] == "compiler"}
+    problems += [
+        f"`{t}` is on COMPILER_TRUSTED_PINS and its pin lists no compiler-trust axiom"
+        for t in sorted(COMPILER_TRUSTED_PINS - compiler)
     ]
     return problems
 
