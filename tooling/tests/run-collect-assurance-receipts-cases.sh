@@ -38,7 +38,7 @@ write_one() {
 write_receipts() {
   local directory="$1" event="$2"
   mkdir -p "$directory"
-  for id in rust msrv armv7 vectors audit proofs translation checks; do
+  for id in rust msrv armv7 vectors audit proofs translation checks attest-negatives; do
     write_one "$directory" "$id" "$event"
   done
 }
@@ -116,7 +116,7 @@ assert [s for s in translation_push if s != "translation_seed"] == translation_p
 checks_push, checks_pr = table[("checks", "push")], table[("checks", "pull_request")]
 assert "checks_39" in checks_push and "checks_39" not in checks_pr
 assert table[("sign-off", "pull_request")] == ["signoff_check"] and ("sign-off", "push") not in table
-assert {receipt for receipt, _ in table} == {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks", "sign-off"}
+assert {receipt for receipt, _ in table} == {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks", "attest-negatives", "sign-off"}
 PY
 cases=$((cases + 1))
 
