@@ -5389,35 +5389,42 @@ axiom (until 2026-10-21 also the same nine `native_decide` constants, kernel pro
 `propext`, `Classical.choice` and `Quot.sound` alone (`one_chunk_loop`, `add_chunk_fresh_have`, `triple_eq_received`,
 `receivedTriple_invariant`) and 9 on those three and opaque constants of the unit. Each of the 18 results carries an axiom pin
 and a statement pin, and each of the three definitions (`receivedChains`, `receivedTriple`, `receivedSession`) a `#print`
-pin. `check-responder-successor-negatives.py` plants seventeen faults in a copy of the module, every one a change to a statement
-or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
-proof-breakage check at that place, not a proof that the changed statement is false). Three are labelled inside composing
-proofs: the script checks, at start-up and at run time, that each is refused in the declaration it is labelled with and that
-this is one of the two composing theorems, and runs each with that proof replaced by `sorry`, requiring Lean to accept the
-change there. That attributes the refusal to that proof but cannot tell a composing step from a projection: that the three
-are refused by composition steps, and that the two theorems compose rather than project, is decided by reading. In
-`initiator_first_send_responder_successor_hypotheses`: the composed call taken on the plaintext instead of the sent bytes
-(refused at the step where the encrypt's output fixes the message) and the composed invariant claimed of the initiator's
-session; in `responder_first_frame_successor`: the returned session's relation claimed to the prepared model. Ten are on the
-leaf lemmas: the received Triple claimed to have received nothing and its sparse receiving counter claimed 0 (refused in
-`triple_eq_received`); the clock claimed parked at the last value (refused in `received_counterHeadroom`); the Triple's
-invariant without the sending key's canonicity (refused in `receivedTriple_invariant`); the structural invariant without the
-ratchet key's bytes being the sending key and the agreement claimed at epoch 2 (refused in `structural_received`); the decoder
-lemma for two chunks and without its chunk-count premise (refused in `decoder_invariant_small`); `Braid::receive` claimed to
-keep the decoder or return nothing else (refused in `braid_receive_noHeader`, only at the branch that adds the chunk) and
-`decrypt_ratchet` claimed never to replace the ratchet key (refused in `decrypt_ratchet_ok_parts`). Three are statement-shape
-checks on the headline's own corollaries, each projecting `initiator_first_send_responder_successor_hypotheses`: the
-invariant claimed of the initiator's session and the call taken on the plaintext (refused in
-`initiator_first_send_responder_successor_admissible`) and the reach's invariant claimed of the initiator's session (refused
-in `first_send_receive_successor_reachable`); each is refused because its statement no longer matches the headline's, and the
-script runs it again with the headline's proof replaced by `sorry` and requires the same refusal, so it is refused whatever
-that proof does. The last is the session definition without its ratchet key with its pins kept (refused at the pin of
-`receivedSession`). Only the three controls inside the composing proofs show that the composed proof uses what they name (the
-bytes the first send returned, the responder's returned session, its relation to the model's step); the three statement-shape
-checks show only that the corollaries and the reach project the headline's statement. Several of the refusals are structural
-(a type mismatch at the named place), not an unprovable goal. None is a proof that another session fails the invariant. An
-error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic
-timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+pin. `check-responder-successor-negatives.py` plants seventeen faults in a copy of the module, every one a change to a
+statement or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change
+(a proof-breakage check at that place, not a proof that the changed statement is false). One sits inside a composing proof, two
+are projections of called theorems' conjuncts, and three are statement-shape checks. A control refused in a composing theorem
+is a projection when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a
+composition step otherwise; the script holds both labels, at start-up and at run time, to a syntactic form of that standard
+read off the module (the refusal names a hypothesis the proof binds by destructuring a called theorem's conclusion, never
+rewrites and places with a constructor) and requires every control refused in a composing theorem to carry one of them. That
+the syntactic form is the right standard, and that the two theorems compose rather than project, is decided by reading. The
+inside control, the composed call taken on the plaintext instead of the sent bytes (refused in
+`initiator_first_send_responder_successor_hypotheses` at the step where the encrypt's output fixes the message), is also run
+with that proof replaced by `sorry` and required to be accepted there; that probe verifies the refusal's attribution to that
+proof only. The two projections: the composed invariant claimed of the initiator's session (refused in
+`initiator_first_send_responder_successor_hypotheses` where the invariant conjunct of `responder_first_frame_successor` is
+placed unchanged) and the returned session's relation claimed to the prepared model (refused in
+`responder_first_frame_successor` where the relation conjunct of `responder_first_frame_inner_succeeds` is placed unchanged).
+Ten are on the leaf lemmas: the received Triple claimed to have received nothing and its sparse receiving counter claimed 0
+(refused in `triple_eq_received`); the clock claimed parked at the last value (refused in `received_counterHeadroom`); the
+Triple's invariant without the sending key's canonicity (refused in `receivedTriple_invariant`); the structural invariant
+without the ratchet key's bytes being the sending key and the agreement claimed at epoch 2 (refused in `structural_received`);
+the decoder lemma for two chunks and without its chunk-count premise (refused in `decoder_invariant_small`); `Braid::receive`
+claimed to keep the decoder or return nothing else (refused in `braid_receive_noHeader`, only at the branch that adds the
+chunk) and `decrypt_ratchet` claimed never to replace the ratchet key (refused in `decrypt_ratchet_ok_parts`). Three are
+statement-shape checks on the headline's own corollaries, each projecting
+`initiator_first_send_responder_successor_hypotheses`: the invariant claimed of the initiator's session and the call taken on
+the plaintext (refused in `initiator_first_send_responder_successor_admissible`) and the reach's invariant claimed of the
+initiator's session (refused in `first_send_receive_successor_reachable`); each is refused because its statement no longer
+matches the headline's, and the script runs it again with the headline's proof replaced by `sorry` and requires the same
+refusal, so it is refused whatever that proof does. The last is the session definition without its ratchet key with its pins
+kept (refused at the pin of `receivedSession`). Only the control inside the composing proof shows that the composed proof uses
+what it names (the bytes the first send returned); the two projections show only that the composed conclusions place the called
+theorems' invariant and relation unchanged, and the three statement-shape checks only that the corollaries and the reach
+project the headline's statement. Several of the refusals are structural (a type mismatch at the named place), not an
+unprovable goal. None is a proof that another session fails the invariant. An error that is not a refusal voids a run anywhere
+in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one
+elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame, on the eight-leaf unit)
 
@@ -5524,11 +5531,13 @@ results carries an axiom pin and a statement pin, and each of the four definitio
 `replyComposite`, `replyFrame`) a `#print` pin. `check-responder-reply-negatives.py` plants sixteen faults in a copy of the
 module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
 against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
-Seven are labelled inside composing proofs: the script checks, at start-up and at run time, that each is refused in the
-declaration it is labelled with and that this is one of the three composing theorems, and runs each with that proof replaced
-by `sorry`, requiring Lean to accept the change there. That attributes the refusal to that proof but cannot tell a composing
-step from a projection (a corollary's statement-shape check passes it too): that the seven are refused by composition steps,
-and that the three theorems compose rather than project, is decided by reading. The seven: in
+Seven are labelled inside composing proofs and none is a projection (a control refused where a composing proof places a
+conjunct of a called theorem's conclusion unchanged): the script checks, at start-up and at run time, that each is refused in
+the declaration it is labelled with and that this is one of the three composing theorems, that none is refused at a hypothesis
+the proof binds from a called theorem's conclusion, never rewrites and places with a constructor (a syntactic form of the
+projection standard read off the module), and runs each with that proof replaced by `sorry`, requiring Lean to accept the
+change there. That probe verifies the refusal's attribution to that proof only; that the syntactic form is the right
+standard, and that the three theorems compose rather than project, is decided by reading. The seven: in
 `initiator_first_send_responder_replies`, the call claimed to return the source `establish_responder` left instead of the one it was given, the reply claimed wrapped as an initial message, sealed on the
 sparse chain the responder receives on, or under the responder's prepared ratchet key instead of the fresh one, and its
 relation claimed with the Triple unchanged; in `responder_first_frame_successor_keys`, the root-key equation claimed with the
@@ -5702,19 +5711,26 @@ the unit. Each of the 32 results carries an axiom pin and a statement pin, and e
 `dhViewReply`, `kemViewReply`, `DhPublicNotConstantShape`, `DhPublicNotConstant`) a `#print` pin.
 `check-responder-reply-receipt-negatives.py` plants twenty-one faults in a copy of the module, every one a change to a
 statement or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change
-(a proof-breakage check at that place, not a proof that the changed statement is false). Ten are labelled inside composing
-proofs: the script checks, at start-up and at run time, that each is refused in the declaration it is labelled with and that
-this is one of the three composing theorems, and runs each with that proof replaced by `sorry`, requiring Lean to accept the
-change there. That attributes the refusal to that proof but cannot tell a composing step from a projection: that the ten are
-refused by composition steps, and that the three theorems compose rather than project, is decided by reading. In
-`initiator_receives_reply_outcomes`: the decrypt claimed from the source before the first send, the reply's bytes claimed to
-carry the peer key instead of the fresh ratchet key, the stale-key refusal claimed as `Aead`, the stale-key arm claimed on a
-fresh key, the success claimed to keep the pending initial message, and the call claimed to take no draw (refused where the
-model step's oracle fixes the draws); in `initiator_receives_reply_two_outcomes`: the stale-key arm claimed on a fresh key, the
-plaintext claimed to be the initiator's first plaintext, and the named agreement claimed of the responder's draw; in
-`initiator_receives_reply`: the freshness premise claimed against the initiator's own ratchet key instead of the peer key. One
-is a projection, labelled neither inside nor statement-shape: the success claimed to take no draw, refused in
-`initiator_receives_reply` where the two-outcome theorem's draw conjunct is passed through. Eight are on the leaf lemmas: the
+(a proof-breakage check at that place, not a proof that the changed statement is false). Seven sit inside composing proofs
+and four are projections of called theorems' conjuncts. A control refused in a composing theorem is a projection when it is
+refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition step otherwise; the
+script holds both labels, at start-up and at run time, to a syntactic form of that standard read off the module (the refusal
+names a hypothesis the proof binds by destructuring a called theorem's conclusion, never rewrites and places with a
+constructor), requires every control refused in a composing theorem to carry one of them, and checks that each inside control
+is refused in the declaration it is labelled with, one of the three composing theorems. Each inside control is also run with
+that proof replaced by `sorry` and required to be accepted there; that probe verifies the refusal's attribution to that proof
+only. That the syntactic form is the right standard, and that the three theorems compose rather than project, is decided by
+reading. Inside `initiator_receives_reply_outcomes`: the reply's bytes claimed to carry the peer key instead of the fresh
+ratchet key, the stale-key refusal claimed as `Aead`, the success claimed to keep the pending initial message, and the call
+claimed to take no draw (refused where the model step's oracle fixes the draws); inside
+`initiator_receives_reply_two_outcomes`: the plaintext claimed to be the initiator's first plaintext, and the named agreement
+claimed of the responder's draw; inside `initiator_receives_reply`: the freshness premise claimed against the initiator's own
+ratchet key instead of the peer key. The four projections: the decrypt claimed from the source before the first send
+(refused in `initiator_receives_reply_outcomes` where the call conjunct of the decrypt refinement is placed unchanged), the
+stale-key arm claimed on a fresh key (refused there where the stale arm of `reply_receipt_model_outcomes` is placed
+unchanged), the same arm claimed on a fresh key in `initiator_receives_reply_two_outcomes` (where the stale arm of the
+outcomes theorem is placed unchanged), and the success claimed to take no draw (refused in `initiator_receives_reply` where
+the two-outcome theorem's draw conjunct is placed unchanged). Eight are on the leaf lemmas: the
 model's fresh-key receive under a premise about the sender's own key (refused in `reply_receive_key`), the stale-key receive
 claimed to refuse `outOfOrder` (refused in `reply_receive_stale`), the Triple after the receipt claimed with previous chain
 length 0 (refused in `reply_receive_key`), the joint model's public key made constant again (refused in
