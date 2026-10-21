@@ -47,7 +47,8 @@ this section says in one place what is not proved.
   codeword of one source that fits the receiving decoder; it takes two laws about `Vec::pop` and `Option::as_mut`, assumed
   and not proved of the real functions, from which, with three contract fields, its proof derives the sparse ratchet's two
   agreements about translated functions (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`); it reads the random source as a function of its
-  state, which a source with no state of its own, such as `OsRng`, is not; and it is compiler-trusted (the section "Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet`
+  state, which a source with no state of its own, such as `OsRng`, is not; its pin lists the kernel's three axioms and the
+  unit's opaque constants, and no compiler-trust axiom (the section "Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet`
   on every path, on the eight-leaf unit)"). `decrypt_refines_ratchet_frame` carries that result through the public
   `Session::decrypt` on frames that are not initial messages, under the same hypotheses and one scope premise on the input,
   with the same limits; no claimed theorem covers an initial message (the conditional branch lemmas for its refusals in
@@ -133,8 +134,7 @@ this section says in one place what is not proved.
   the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
   (`DhAgreeSymmetric`), a premise about the run, that the store's KEM key decapsulates the initiator's ciphertext to the
   initiator's secret (`FirstKemAgrees`; ML-KEM decapsulation can fail with small probability, so it is not a law), and the
-  establishment's, restore and decrypt laws named there; the composed statement is compiler-trusted through the encrypt
-  wrapper. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
+  establishment's, restore and decrypt laws named there; the composed statement lists no compiler-trust axiom. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
   shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists ("Proved (tier T3, session lifecycle:
   `establish_responder` on the frame the initiator's first `encrypt` emits ...)").
   Past the store's refusals, on those bytes, the call then returns exactly one of `Handshake(NonContributoryAgreement)` (the
@@ -146,7 +146,7 @@ this section says in one place what is not proved.
   trace is its oracle's and holds a draw, it succeeds: it returns the plaintext the initiator encrypted, takes exactly one
   draw from the responder's source, commits the store (on the last-resort path with the fingerprint of the initiator's
   shared secret), and its session refines the model's step at a codeword view that attributes the received chunk to the
-  initiator's header source; the composed statements are compiler-trusted as the one above is. The first message key
+  initiator's header source; the composed statements list no compiler-trust axiom either. The first message key
   agrees on both sides by computation over the model's key derivations, with no new law (the code's root-key step is
   related to the model's under the KDF agreement the decrypt refinement already takes). The laws hold together in one interpretation, a
   toy model, and at the real constants one run from `publish` through the first send reaches the success (last-resort path,
@@ -400,6 +400,20 @@ this section says in one place what is not proved.
   erasure coder is translated, `step_receive_refines` and `Braid.receive_refines`
   take a third precondition, `State.decoders_bounded`, and their `DecoderMessageTotal` is stated for
   decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1 section).
+
+- **Kernel-checked is not kernel-only, and twelve pinned results still trust the compiler.** Since 2026-10-21 no
+  lifecycle result rests on a `native_decide` constant: the nine constants the sparse ratchet's and the Triple's
+  refinements on the session unit carried (four labels, the two skip bounds and `MAX_SKIP`'s value, one step of
+  `receive_refines_continuation`, the combine label) are proved by `simp`, `decide` and `rfl`, and their pins list the
+  kernel's three axioms (the section "Proved (the Session unit's refinement constants, by the kernel)"). The results that
+  inherited them are now kernel-checked over the unit's opaque constants, which is not the same as kernel-only: those
+  constants are the declarations of what the translation could not see, and a theorem about them says nothing about the
+  real primitives beyond its hypotheses. Eleven statements that name `Session::export` or `Session::import` still list one
+  compiler-trust axiom, the length bound of `toStr` on a panic message of the generated `export`, which Aeneas discharges
+  `by decide +native`; `export_message_fits` proves that same proposition with the kernel alone, so the trusted fact is
+  true, but the generated definition refers to the axiom, and removing it needs a change to the Rust message or to Aeneas
+  at a re-translation. `Proofs.Serialization.decode_encode_composite` rests on three `bv_decide` lemmas. `attest.py`'s
+  `COMPILER_TRUSTED_PINS` lists exactly these twelve and refuses an entry whose pin lists no compiler-trust axiom.
 
 The honest one-line summary: **the protocol core is proved to refine a model
 under stated assumptions; the code path a customer's message actually travels
@@ -1954,9 +1968,9 @@ the copy.
 
 Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
 twin prints, name for name, with `tacenta_triple_unit.` in front of every
-translated axiom, each `native_decide` axiom of the two sparse refinements named
-under the unit's copy of the lemma that carries it in the leaf, and nothing else
-changed. That is a statement about the printed lists. A leaf file opens its
+translated axiom, and nothing else changed. Neither sparse refinement lists a
+compiler-trust axiom since 2026-10-21, in the leaf or in the unit: the label and
+bound constants they rest on are kernel proofs. That is a statement about the printed lists. A leaf file opens its
 crate's namespace, so its pins print a translated axiom without the
 crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
 `tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
@@ -2035,10 +2049,11 @@ refinement. They carry two scopings worth reading literally.
   `Tacenta.UnitTripleT3.combine_refines`: proved outright against
   `Model.TripleRatchet.splitSecret`/`combine`, from the HKDF agreement and, for
   `split_secret`, the sixty-four-byte `zeroize` round trip, which on the unit are
-  the classical ratchet's own `HkdfAgrees` and `ZeroizingRoundTrips`. Both are
-  compiler-trusted: `combine_refines` carries `combine_info_agrees`'s
-  `native_decide` axiom, and `split_secret_refines` carries `split_info_agrees`'s
-  and one of its own.
+  the classical ratchet's own `HkdfAgrees` and `ZeroizingRoundTrips`. Neither
+  carries a compiler-trust axiom since 2026-10-21: `combine_info_agrees`,
+  `split_info_agrees` and the zero-array step of `split_secret_refines`, which
+  were `native_decide`, are proved by `simp` and `rfl` (read off `#print axioms` on
+  the Session unit's copies, whose pins `AxiomAuditSessionUnit.lean` holds).
 
 None of these five is pinned; the axiom bases stated for them here and below
 were read off `#print axioms` on 2026-09-10.
@@ -2047,12 +2062,13 @@ were read off `#print axioms` on 2026-09-10.
 the standalone `TripleT3.send_refines`, before its deletion, the sixteen opaque
 inner-crate declarations it rested on are absent, but that is the unit
 translation's doing: `UnitTripleT3.send_refines`, with the bundles still as
-hypotheses, already rests on none of them. What discharging the bundles adds at
-the axiom level is exactly the eight `native_decide` compiler-trust axioms
-`UnitSpqrT3.lean` carries, from its `chain_label_agrees`, `chain_start_agrees`,
-`max_skip_agrees`, `max_skip_val`, `max_skipped_store_agrees`,
-`protocol_info_agrees`, `receive_refines_continuation` and `root_label_agrees`.
-The same holds for `receive`.
+hypotheses, already rests on none of them. Until 2026-10-21 discharging the
+bundles added at the axiom level exactly nine `native_decide` compiler-trust
+axioms, the eight `UnitSpqrT3.lean` carried, from its `chain_label_agrees`,
+`chain_start_agrees`, `max_skip_agrees`, `max_skip_val`,
+`max_skipped_store_agrees`, `protocol_info_agrees`, `receive_refines_continuation`
+and `root_label_agrees`, and `combine_info_agrees`; those constants are kernel
+proofs now, so it adds none. The same holds for `receive`.
 
 **What the two discharged theorems assume**, beyond the numeric preconditions
 the bundle-taking theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
@@ -2661,17 +2677,16 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   `epoch = u64::MAX - 1` the two refusals differ. `u64::MAX - 1` is otherwise a fully usable epoch, so what
   the reservation costs these theorems is one step of lookahead and not a
   state they can no longer speak about.
-- **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
-  per-crate opaque-operation axioms, `send_refines` rests on three
-  `native_decide` reflection axioms, one per label agreement helper
-  (`chain_label_agrees`, `protocol_info_agrees`, `root_label_agrees`), and
-  `receive_refines` on seven: those three, the bound helpers
-  `max_skip_agrees`, `max_skipped_store_agrees` and `max_skip_val`, and one
-  step inside `receive_refines_continuation` (that `(1 : U64)` has value
-  one). `LIMITATIONS.md`'s count of `native_decide` uses in this file is one
-  higher because it includes `chain_start_agrees`, which neither entry point
-  depends on. Both are pinned under `#guard_msgs` at the end of the file with
-  exactly these lists.
+- **Axiom base:** `propext`, `Classical.choice`, `Quot.sound` and the
+  per-crate opaque-operation axioms, and no compiler-trust axiom. Until
+  2026-10-21 `send_refines` also rested on three `native_decide` reflection
+  axioms, one per label agreement helper (`chain_label_agrees`,
+  `protocol_info_agrees`, `root_label_agrees`), and `receive_refines` on seven:
+  those three, the bound helpers `max_skip_agrees`, `max_skipped_store_agrees`
+  and `max_skip_val`, and one step inside `receive_refines_continuation` (that
+  `(1 : U64)` has value one); the helpers and `chain_start_agrees` are now
+  proved by `simp` and `rfl` and that step by `decide`. Both are pinned under
+  `#guard_msgs` at the end of the file with exactly these lists.
 - **Carried over from T1 unchanged:** `Tacenta.SpqrT1.ZeroizeTotal` and
   `Tacenta.SpqrT1.OptionCloneTotal`, since neither the buffer wipe nor the
   direction clone is ever read back from, only required to complete.
@@ -3744,6 +3759,49 @@ the unmodified module and the unmodified lemma to be accepted, then makes one ch
 codeword, a claim of the old two-sided statement, a consistent-run definition without the codeword or without the fit, a weakened
 link between the draw and the candidate key) and requires Lean to refuse it.
 
+## Proved (the Session unit's refinement constants, by the kernel)
+
+Location: `Translation/SessionUnitSpqrT3.lean`, `Translation/SessionUnitTripleT3.lean` and
+`Translation/AxiomAuditSessionUnit.lean` (the pins).
+
+Every lifecycle result that composes the sparse ratchet's or the Triple's refinement on the eight-leaf unit rests on
+these facts about constants of the translated code. Until 2026-10-21 each was decided by `native_decide`, which put one
+compiler-trust axiom per fact under every such result (nine in all on the decrypt and encrypt paths). The translation marks
+the constants `@[global_simps, irreducible]`, which is why `rfl` and `decide` did not reach them; `simp` unfolds them, so
+each is now a kernel proof, and each pin lists `propext`, `Classical.choice` and `Quot.sound` only, except the two
+refinements, which list those and the unit's opaque constants.
+
+- `Tacenta.SessionUnitSpqrT3.protocol_info_agrees`, `Tacenta.SessionUnitSpqrT3.chain_start_agrees`,
+  `Tacenta.SessionUnitSpqrT3.root_label_agrees`, `Tacenta.SessionUnitSpqrT3.chain_label_agrees`: the four byte strings
+  the sparse ratchet's derivations take (12, 11, 4 and 5 bytes), read as lists, are `Model.SparseRatchet`'s
+  `protocolInfo`, `chainStart`, `rootLabel` and `chainLabel`. Proved by `simp` and `rfl`.
+- `Tacenta.SessionUnitSpqrT3.max_skip_agrees`, `Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees`,
+  `Tacenta.SessionUnitSpqrT3.max_skip_val`: `MAX_SKIP` is `Model.SparseRatchet.maxSkip` (1000), `MAX_SKIPPED_STORE` is
+  `maxSkippedStore` (2000), and `MAX_SKIP` has value 1000. Proved by `simp`.
+- `Tacenta.SessionUnitSpqrT3.receive_refines_continuation`: the sparse ratchet's receive continuation refines the model's
+  under the hypotheses its statement names; the one closed fact inside it that was `native_decide`, that `(1 : u64)` has
+  value one, is settled by `decide`. Its pin lists the kernel's three axioms and 12 of the unit's opaque constants.
+- `Tacenta.SessionUnitTripleT3.combine_info_agrees`, `Tacenta.SessionUnitTripleT3.split_info_agrees`: the Triple's
+  36-byte combine label and 42-byte split label are `Model.TripleRatchet`'s `combineInfo` and `splitInfo`. Proved by
+  `simp` and `rfl`.
+- `Tacenta.SessionUnitTripleT3.split_secret_refines`: `split_secret` refines the model's; its zero-array step, which was
+  `native_decide`, is settled by `simp`. No lifecycle result reaches it or `split_info_agrees`.
+
+The same edit holds in the hand-written leaf proofs these are generated from (`SpqrT3.lean`, `UnitTripleT3.lean`; the
+copies `UnitSpqrT3.lean`, `SessionUnitSpqrT3.lean` and `SessionUnitTripleT3.lean` are regenerated by
+`port-unit-proofs.sh` and `port-session-unit-proofs.sh`, whose `--check` holds them), and in `SessionT3.lean`, whose two
+constant comparisons (`fPrefix_agrees`, `skInfo_agrees`) were `native_decide` and are now `simp` and `rfl`. No statement
+changed. The pins of `SpqrT3.send_refines`/`receive_refines`, their three-leaf copies, the three-leaf Triple's discharged
+refinements and `SessionT3.shared_secret_refines_some` now list no compiler-trust axiom; all of these, and the eleven above,
+are on `REQUIRED_PINS`, and none is on `COMPILER_TRUSTED_PINS`, so a compiler-trust axiom returning under one is refused by
+`attest.py` (`check-attest-negatives.sh` plants one under each of several). `check-discharge-native-decide-negatives.py`
+holds the statements against a changed constant: each of the eleven claims with one value altered is refused at its own
+declaration.
+
+What this does not change: these are facts about the translated constants and the model's constants only. The results that
+used them still rest on the unit's opaque constants and on every hypothesis their statements name; kernel-checked over
+opaque constants is not kernel-only. Twelve pinned results still trust the compiler (the section "Read this first").
+
 ## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleInitialDispatch.lean` and
@@ -3774,12 +3832,13 @@ path, and do not prove public `Session::decrypt` end to end. The section
 on the eight-leaf unit)" below proves the first two from them.
 
 `concrete_receive_attempt_store_full_from_contracts` and
-`concrete_receive_attempt_store_full_from_retry_bounds` are compiler-trusted:
-their axiom lists include eight per-declaration `native_decide` axioms, seven
-from the Session unit's sparse ratchet refinement (its labels, its `MAX_SKIP`
-constants and one step of `receive_refines_continuation`) and one from the
-Triple's `combine_info_agrees`. `fullStoreOfReal_ne_of_generated_ne` is
-kernel-only.
+`concrete_receive_attempt_store_full_from_retry_bounds` rest on the kernel's
+three axioms and the unit's opaque constants. Until 2026-10-21 their axiom lists
+also held eight per-declaration `native_decide` axioms, seven from the Session
+unit's sparse ratchet refinement (its labels, its `MAX_SKIP` constants and one
+step of `receive_refines_continuation`) and one from the Triple's
+`combine_info_agrees`; those are kernel proofs now.
+`fullStoreOfReal_ne_of_generated_ne` is kernel-only.
 
 ## Proved (tier T3, session lifecycle `decrypt_ratchet` with the eviction retry loop, on the eight-leaf unit)
 
@@ -3937,16 +3996,13 @@ agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`). `
 **Compiler trust and pins.** `receive_with_eviction_loop_refines`, `receive_with_eviction_refines`, `decrypt_ratchet_refines`,
 `decrypt_ratchet_refines_statement`, `decrypt_ratchet_refines_unless_open`, `decrypt_ratchet_refines_at_sample`,
 `decrypt_ratchet_refines_at_eviction`, `decrypt_ratchet_refines_from_shapes` and
-`decrypt_ratchet_refines_from_shapes_at_eviction` are compiler-trusted. Their axiom lists include nine per-declaration
-`native_decide` axioms, the nine that `UnitTripleT3.receive_refines_discharged` lists for the three-leaf unit, under the
-Session unit's names (`SessionUnitTripleT3.receive_refines_discharged` has no axiom pin of its own): eight from the Session
-unit's sparse ratchet refinement (its four labels, its `MAX_SKIP` constants, its store cap and one step of
-`receive_refines_continuation`) and the Triple's `combine_info_agrees`. The two full-store correspondences of #203 list
-eight of the nine (all but `chain_start_agrees`, which the success path adds); that ninth fact, a closed fact about the
-sparse ratchet's chain-start label, is new to the pinned results of the Session unit. These nine results are on
-`COMPILER_TRUSTED_PINS`, which grows from 13 to 22 names: each composes the Session unit's discharged Triple receive
-refinement, directly or through the loop theorems, and so inherits its nine constants; no other constant is added. The
-other 32 results here rest on no compiler-evaluated constant: seven (`receiveWithEvictionLoopResult_stop`,
+`decrypt_ratchet_refines_from_shapes_at_eviction` rest on the kernel's three axioms and the Session unit's opaque
+constants, and on no compiler-trust axiom. Until 2026-10-21 they were compiler-trusted: their axiom lists included nine
+per-declaration `native_decide` axioms, the nine `UnitTripleT3.receive_refines_discharged` listed for the three-leaf unit,
+under the Session unit's names: eight from the Session unit's sparse ratchet refinement (its four labels, its `MAX_SKIP`
+constants, its store cap and one step of `receive_refines_continuation`) and the Triple's `combine_info_agrees`. Those nine
+constants are kernel proofs now, pinned in `AxiomAuditSessionUnit.lean` (the section "Proved (the Session unit's refinement
+constants, by the kernel)"). The other 32 results here rest on no compiler-evaluated constant either: seven (`receiveWithEvictionLoopResult_stop`,
 `shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
 `evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 25 each rest on between 1 and
 49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
@@ -4052,19 +4108,16 @@ senses stated here and in the previous section.
 
 **Compiler trust and pins.** `decrypt_ratchet_refines_complete`, `decrypt_ratchet_refines_complete_statement`,
 `decrypt_ratchet_refines_or_open`, `decrypt_ratchet_refines_complete_at_refusal` and `generated_reaches_open_path` have
-exactly the axioms of `decrypt_ratchet_refines`, including its nine `native_decide` constants.
-`receive_with_eviction_refines_complete` and `ref_triple_refuses` list the same nine. `triple_receive_refusal_refines`,
-`concrete_receive_attempt_refusal_from_retry_bounds` and `openRefusal_closes` list seven of them (three of the sparse
-ratchet's four labels, its two `MAX_SKIP` constants, its store cap and one step of `receive_refines_continuation`), and the
-three sparse refusal theorems five or six. These thirteen are compiler-trusted, each because it composes the Session
-unit's Triple receive refinement or the sparse ratchet's own refinement and inherits their constants; no other constant is
-added. The other thirteen results here rest on no compiler-evaluated constant: three (`ref_premises`,
+exactly the axioms of `decrypt_ratchet_refines`: the kernel's three and 49 of the Session unit's opaque constants.
+Until 2026-10-21 these, `receive_with_eviction_refines_complete`, `ref_triple_refuses`, `triple_receive_refusal_refines`,
+`concrete_receive_attempt_refusal_from_retry_bounds`, `openRefusal_closes` and the three sparse refusal theorems, thirteen
+in all, were compiler-trusted, each inheriting between five and nine of the `native_decide` constants of the Session
+unit's sparse and Triple refinements; those constants are kernel proofs now, and none of the thirteen lists a
+compiler-trust axiom. The other thirteen results here never did: three (`ref_premises`,
 `ref_model_triple_refuses` and `or_unless_closed`) are kernel-only, and ten each rest on between 4 and 49 of the Session
 unit's opaque-operation axioms. The count of compiler-trusted pinned results is `attest.py`'s
-(`counts.compiler_trusted` in the verification manifest); with this section and the previous one it is 35, against 13
-before package F. The compiler-trust class of these results is expected to change: if the nine constants are settled by
-the kernel rather than by the compiler, as is planned separately, these results become kernel-checked against the
-opaque operations and the count falls accordingly.
+(`counts.compiler_trusted` in the verification manifest): 12 on 2026-10-21, the export and import group and the
+composite header's round trip, against 90 before.
 
 Each result carries an axiom pin and a statement pin. The definitions this section adds carry `#print` pins
 (`TripleReceiveRefusalRefines`, `DecryptRatchetRefinesCompleteStatement`, `OpenRefusalCloses` and the screen's states
@@ -4155,8 +4208,9 @@ with the limits of the previous two sections. No proof here chooses a width of `
 reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a session lifecycle out.
 
 **Compiler trust and pins.** `decrypt_ratchet_refines_of_invariant`, `decrypt_ratchet_refines_of_invariant_statement` and
-`DecryptOfInvariantHypotheses.refines` are compiler-trusted: they apply `decrypt_ratchet_refines_complete` and list its nine
-`native_decide` constants, and their pins list three more opaque constants than its pin, `Option::eq`,
+`DecryptOfInvariantHypotheses.refines` apply `decrypt_ratchet_refines_complete` and list its axioms (no compiler-trust axiom
+since its nine `native_decide` constants became kernel proofs on 2026-10-21), and their pins list three more opaque
+constants than its pin, `Option::eq`,
 `is_prime_order_public` and `kem::ciphertext_len`, each of which occurs in `Session::invariant`. The other sixteen results
 rest on no compiler-evaluated constant: `classicalMatch_of_inv`, `sparseMatch_of_inv`, `sparseCounters_transport`,
 `retryRunBounds_of_triple_invariant` and `parkedTriple_invariant` on `propext`, `Classical.choice` and `Quot.sound` alone,
@@ -4275,9 +4329,10 @@ and `KemCiphertextLenOf` are assumed, as are `OptionEqU64Shape`, the boundary re
 the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a section whose heading names a
 session lifecycle out.
 
-**Compiler trust and pins.** `established_initiator_decrypt_ratchet_refines` and `established_initiator_decrypt_refines` are
-compiler-trusted, and so is `EstablishedDecryptHypotheses.refines`: they apply `decrypt_ratchet_refines_of_invariant` and list
-its nine `native_decide` constants and 57 opaque constants of the unit. Of the other 38 results, six rest on `propext`,
+**Compiler trust and pins.** `established_initiator_decrypt_ratchet_refines`, `established_initiator_decrypt_refines` and
+`EstablishedDecryptHypotheses.refines` apply `decrypt_ratchet_refines_of_invariant` and list the kernel's three axioms and 57
+opaque constants of the unit, and no compiler-trust axiom (they were compiler-trusted through its nine `native_decide`
+constants until 2026-10-21, when those became kernel proofs). Of the other 38 results, six rest on `propext`,
 `Classical.choice` and `Quot.sound` alone (`singleton_length_le`, `initiatorTriple_invariant`, `sampleMessage_real_type`,
 `oneKey_length`, `oneKey_canonical`, `oneKey_ne_zero`), and the other 32 on those three and between 1 and 57 opaque constants
 of the unit, which the types and definitions they mention refer to. Each of the 41 results carries an axiom pin and a statement
@@ -4444,8 +4499,9 @@ the inner receive at it) and the plaintext, the successor's invariant, the respo
 takes, and a source with no state of its own such as `OsRng`.
 
 **Compiler trust and pins.** `responder_prepared_decrypt_refines`, `establish_responder_refines`,
-`ResponderRouteHypotheses.refines` and `responder_route_inner_refusal_reachable` are compiler-trusted: they apply
-`decrypt_ratchet_refines_of_invariant` and list its nine `native_decide` constants and 57 opaque constants of the unit. Of the
+`ResponderRouteHypotheses.refines` and `responder_route_inner_refusal_reachable` apply
+`decrypt_ratchet_refines_of_invariant` and list the kernel's three axioms and 57 opaque constants of the unit, and no
+compiler-trust axiom (until 2026-10-21 also its nine `native_decide` constants, kernel proofs since). Of the
 other 76 results, 29 rest on `propext`, `Classical.choice` and `Quot.sound` alone (some on a subset of them), and 47 on those
 three and between 1 and 57 opaque constants of the unit, which the types and definitions they mention refer to. Each of the 80
 results carries an axiom pin and a statement pin, and each of the 22 definitions the section adds a `#print` pin (`z32`,
@@ -4667,6 +4723,9 @@ snapshots taken mid-conversation are out of scope.
   the field-by-field decode returns the session, the canonical re-encode compares a slice with itself, and the invariant is
   the session's own; `Session::invariant` gives the Triple's and the Braid's own invariants (which the leaf decoders
   re-check); the associated data is 66 bytes once the public-key byte view returns.
+- `export_message_fits`: the proposition of the one compiler-trust axiom the statements naming `export` or `import` list,
+  `decide ("the size arithmetic above drifted from the encoding".toByteArray.size ≤ U32.max) = true`, proved by the kernel
+  (its pin lists `propext` only). It shows the trusted fact true; it does not remove the dependency (below).
 - `ratchet_to_bytes_spec`, `ratchet_from_bytes_of`, `spqr_to_bytes_spec`, `spqr_from_bytes_of`, `triple_to_bytes_spec`,
   `triple_from_bytes_of`, `braid_to_bytes_spec`, `braid_from_bytes_of`, `pending_to_bytes_spec`, `pending_from_bytes_of`:
   for the classical ratchet with no stored key, the sparse ratchet with one chain-table entry (both chains present) and no
@@ -4721,12 +4780,21 @@ session lifecycle out.
 axiom, carried by the `toStr` of a panic message in the generated `export` (Aeneas discharges its length bound
 `by decide +native`), not by the argument: `import_ok_gives_invariant`, `RestoredDecryptHypotheses.ofInvariant`,
 `export_import_established`, `restored_established_continues`, `restored_established_inhabited`,
-`restored_decrypt_hypotheses_jointly_satisfiable`, `export_spec` and `export_import_of_shape` list that one;
-`RestoredDecryptHypotheses.refines`, `restored_decrypt_refines` and `restored_established_initiator_decrypt_refines` list it
-and the nine `native_decide` constants of `decrypt_ratchet_refines_of_invariant`. These eleven are compiler-trusted. Of the
-other 96 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
+`restored_decrypt_hypotheses_jointly_satisfiable`, `export_spec`, `export_import_of_shape`,
+`RestoredDecryptHypotheses.refines`, `restored_decrypt_refines` and `restored_established_initiator_decrypt_refines` list
+that one and no other (the last three also listed the nine `native_decide` constants of
+`decrypt_ratchet_refines_of_invariant` until 2026-10-21, when those became kernel proofs). These eleven are
+compiler-trusted, through that one axiom. `export_message_fits` proves its proposition,
+`decide ("the size arithmetic above drifted from the encoding".toByteArray.size ≤ U32.max) = true`, with the kernel alone
+(it depends on `propext` only): the fact the compiler is trusted with is true. The dependency stays, because the generated
+definition refers to the axiom and not to the theorem; Lean names the axiom after `PrekeyStore::to_bytes`, which carries the
+same check with the same text and is generated first, and shares it with `export`. `check-discharge-native-decide-negatives.py`
+checks that the theorem's statement and the axiom's type are the same expression. Removing the dependency needs the message
+dropped from the Rust `debug_assert_eq!` (whether Charon then emits no string literal is not checked) or an Aeneas `toStr`
+whose bound the kernel discharges, at a re-translation. Of the
+other 97 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
 `model_kemCiphertextLenBound` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
-unit, which the types and definitions they mention refer to. Each of the 107 results carries an axiom pin and a statement
+unit, which the types and definitions they mention refer to. Each of the 108 results carries an axiom pin and a statement
 pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants twelve faults in
 copies of the three modules and requires Lean to refuse each at a named declaration or pin, with a message that names the
 fact removed (an unsolved goal stating it, or the mismatch or pin text), not a failure of the proof script's shape: the
@@ -4884,9 +4952,10 @@ agreements (`KeyGenSizesOf` holds at the wrapper's KEM model under the wrapper l
 Triple's refusals, reachable later, do not occur here); a random source with no state of its own, such as `OsRng`. As for the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a
 section whose heading names a session lifecycle out.
 
-**Compiler trust and pins.** `public_session_encrypt_of_send_contracts` lists the nine `native_decide` constants of the
-sparse and Triple refinements (`SessionUnitSpqrT3` and `SessionUnitTripleT3`), so the thirteen results that go through it
-are compiler-trusted: `established_initiator_encrypt_refines`, `established_encrypt_outcomes`,
+**Compiler trust and pins.** Until 2026-10-21 `public_session_encrypt_of_send_contracts` listed the nine `native_decide`
+constants of the sparse and Triple refinements (`SessionUnitSpqrT3` and `SessionUnitTripleT3`), and the thirteen results
+that go through it were compiler-trusted; those constants are kernel proofs now, and none of the thirteen lists a
+compiler-trust axiom: `established_initiator_encrypt_refines`, `established_encrypt_outcomes`,
 `established_encrypt_successor_counterHeadroom`, `established_encrypt_successor_refines`,
 `established_encrypt_successor_admissible`, `established_encrypt_successor_hypotheses`,
 `established_encrypt_successor_shape`, `EstablishedEncryptHypotheses.refines`, `EstablishedEncryptSuccessorHypotheses.successor`,
@@ -5037,8 +5106,9 @@ section relates the successor and pins the draws; the invariant is not shown); a
 set under the assumptions it names; it does not show the inner receive accepts (the next section's reach does, under two
 further laws).
 
-**Compiler trust and pins.** `first_send_responder_prepares` and `first_send_responder_reachable` are compiler-trusted: they
-apply `established_encrypt_outcomes` and list the encrypt wrapper's nine `native_decide` constants. Of the other 44 results, 6
+**Compiler trust and pins.** `first_send_responder_prepares` and `first_send_responder_reachable` apply
+`established_encrypt_outcomes` and list no compiler-trust axiom (they listed the encrypt wrapper's nine `native_decide`
+constants until 2026-10-21, kernel proofs since). Of the other 44 results, 6
 rest on `propext`, `Classical.choice` and `Quot.sound` alone (some on a subset of them), and 38 on those three and opaque
 constants of the unit. Each of the 46 results carries an axiom pin and a statement pin, and each of the 20 definitions the
 section adds a `#print` pin (`InitiatorSecretParts`, `DhAgreeSymmetricShape`, `DhAgreeSymmetric`, `OneTimeMatches`, `zPool`,
@@ -5183,8 +5253,9 @@ primitives meet the laws.
 
 **Compiler trust and pins.** `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`,
 `responder_first_frame_outcomes`, `responder_first_frame_succeeds`, `initiator_first_send_responder_outcomes`,
-`initiator_first_send_responder_receives` and `first_send_receive_reachable` are compiler-trusted: they apply the decrypt
-refinement (and the last three `established_encrypt_outcomes` too) and list the same nine `native_decide` constants. Of the
+`initiator_first_send_responder_receives` and `first_send_receive_reachable` apply the decrypt refinement (and the last
+three `established_encrypt_outcomes` too) and list no compiler-trust axiom (until 2026-10-21 the same nine `native_decide`
+constants, kernel proofs since). Of the
 other 35 results, 9 rest on `propext`, `Classical.choice` and `Quot.sound` alone, including `first_frame_model_outcomes` and
 `decode_encodeMessage`, and 26 on those three and opaque constants of the unit. Each of the 42 results carries an axiom pin
 and a statement pin, and each of the 21 definitions the section adds a `#print` pin (`firstSenderTriple`,
@@ -5399,15 +5470,16 @@ the senses stated.
 
 **Compiler trust and pins.** `decrypt_refines_ratchet_frame`, `decrypt_refines_ratchet_frame_statement`,
 `decrypt_refines_ratchet_frame_at_refusal`, `decrypt_refines_ratchet_frame_at_pending_success` and
-`generated_clears_at_pending_success` have exactly the axioms of `decrypt_ratchet_refines_complete`, 61, including its
-nine `native_decide` constants; the generated `decrypt` and `message_type` add none.
+`generated_clears_at_pending_success` have exactly the axioms of `decrypt_ratchet_refines_complete`, 52, none of them a
+compiler-trust axiom (61 until 2026-10-21, with its nine `native_decide` constants, kernel proofs since); the generated
+`decrypt` and `message_type` add none.
 `decrypt_refines_ratchet_frame_of_invariant`, `decrypt_refines_ratchet_frame_of_counter_headroom`,
 `decrypt_refines_ratchet_frame_of_hypotheses` and `decrypt_refines_ratchet_frame_of_invariant_at_sample` add three opaque
-operations that `Session::invariant` mentions (`is_prime_order_public`, `kem::ciphertext_len` and `Option::eq`), 64 in all;
+operations that `Session::invariant` mentions (`is_prime_order_public`, `kem::ciphertext_len` and `Option::eq`), 55 in all;
 `decrypt_refines_ratchet_frame_of_invariant_exists` and `decrypt_frame_at_invReal` add five more that the real
-interpretation names (`aead::encrypt`, `kem::KeyPair`, `kem::encapsulate`, `kem::decapsulate` and `xeddsa::verify`), 69 in
-all; each has the same nine. These eleven are compiler-trusted; the class is expected to change as for the complete `decrypt_ratchet`
-refinement. Of the other ten, `succMessage_not_initial` and `sampleMessage_not_initial` are kernel-only, seven rest on
+interpretation names (`aead::encrypt`, `kem::KeyPair`, `kem::encapsulate`, `kem::decapsulate` and `xeddsa::verify`), 60 in
+all. None of these eleven lists a compiler-trust axiom; until 2026-10-21 each also listed the nine `native_decide`
+constants. Of the other ten, `succMessage_not_initial` and `sampleMessage_not_initial` are kernel-only, seven rest on
 between 4 and 22 of the Session unit's opaque-operation axioms, and `decrypt_frame_hypotheses_jointly_satisfiable` on 52
 (55 in all), those the laws and the witness name. Each result carries an axiom pin and a statement pin, and
 `DecryptRefinesRatchetFrameStatement`, `UnitLifecycleDecryptT3.invReal` and `pendReal` carry `#print` pins; `attest.py` requires them.
@@ -5753,7 +5825,8 @@ independent of the maintainer has.
   source is `sampleRng`, one 32-byte draw. `invReal_run` holds for every view and every oracle with that KEM model.
 - `DecryptHypotheses.refines`: `decrypt_ratchet_refines_complete` applies to every `DecryptHypotheses`, so the record is
   the theorem's hypothesis list and a hypothesis added to the theorem and not to the record stops the module building. It
-  is compiler-trusted: it lists the nine per-declaration `native_decide` axioms the theorem rests on.
+  lists the theorem's axioms, none a compiler-trust axiom (until 2026-10-21 the nine per-declaration `native_decide` axioms
+  the theorem rested on, kernel proofs since).
 - `decryptJointLaws_named`: the bundle at the real constants gives, by projection, `DhCodecTotal`, `DhAgreeTotal`,
   `AeadOpenTotal` and the DH view law (the four laws of `decryptOracleOf_of_laws`); `SessionUnitBraidT1.ArrayZeroizeTotal`,
   `SessionUnitSpqrT1.ZeroizeTotal` and `LawVecZeroize` (the three zeroize fields stated at the unit's instances);
@@ -5823,8 +5896,8 @@ by reading `tacenta-core/boundary/src/dh.rs` (`agree` returns `None` on a non-co
 gives) it does, and in the model interpretation it does too. So the witness does not exercise the Triple receive, the
 AEAD, an eviction round or a success. The substitution step, from a model of the laws to the hypotheses at the real
 constants, is an argument about derivations and not a theorem inside Lean (`LIMITATIONS.md`). Only the byte-stream source is
-covered. No proof chooses a width of `usize` (the bounds used, `usize_max_ge` and `cMax_usize`, hold at both) and only
-`DecryptHypotheses.refines` depends on a compiler-trust axiom, so each result holds at both widths; no hypothesis of the
+covered. No proof chooses a width of `usize` (the bounds used, `usize_max_ge` and `cMax_usize`, hold at both) and no
+result depends on a compiler-trust axiom, so each result holds at both widths; no hypothesis of the
 set is width-dependent at this witness. Each of the twenty-eight theorems has an axiom pin and a statement pin, and `invReal`,
 `DecryptJointLawsShape`, `DecryptJointLaws`, `DecryptHypotheses`, `DecryptHypothesesJointlySatisfiableStatement`,
 `shippedSizeKem`, `ekVecShipped`, `ct1Shipped`, `ct2Shipped`, `Interp.modelShipped` and `viewShipped` have `#print` pins;

@@ -204,13 +204,17 @@ responder's honest reply (a test, `tacenta-core/tests/restored_initiator_receive
 the exported bytes returns that session unchanged, so the restated form applies to the restored copy (given the caller's
 boundary records, chunk relation and draw), is proved under nine assumed laws (six of its own, the establishment's two and
 the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
+Every statement that names `export` or `import` is compiler-trusted for one fact, that a panic message in the generated
+`export` fits a `u32` length (`toStr`, `by decide +native`); the kernel proves that same proposition
+(`export_message_fits`), but the generated code refers to the compiler's axiom, so the dependency stays until a
+re-translation removes it.
 At that established session the first `encrypt` is related to the model's step: the initial message wrapping the first
 ratchet frame, consuming two draws (and, for a model KEM whose key generation refuses, that refusal; the shipping key
 generation does not refuse, by reading, so no refusal the shipping `encrypt` can reach is covered), and the session a
 successful send leaves passes `Session::invariant` and meets the ceilings. That is under the encrypt boundary records, the
 oracle record, three assumed laws (one new, that key generation reads the two draws the model counts; the establishment's
-ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; it is compiler-trusted, as the
-decrypt results are, and the responder's receipt of the frame is covered only as the next sentences say.
+ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; neither it nor the decrypt results
+list a compiler-trust axiom, and the responder's receipt of the frame is covered only as the next sentences say.
 For every input, `establish_responder` returns a refusal before its inner receive (the prekey store and the random source as
 given), an inner refusal (the store as given) or the inner success with the store changed only in the two one-time pools and,
 on the last-resort path, by one replay-record append (under the assumed wrapper model `DerivedKeysModel`; that the named
@@ -227,17 +231,18 @@ agreement of the responder's fresh key, or the AEAD refusing to open the initiat
 what that open returns; under two more assumed boundary laws (the AEAD opens what it sealed; an agreement with a key
 `public_key` returned is not refused), the model KEM's size law, a store bound and per-run premises on the responder's
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
-the model's step at a view that attributes the received chunk to the initiator's header source; compiler-trusted, as the
-decrypt results are. That a tampered frame is refused is not shown, nor the successor's invariant, the reply or any later
+the model's step at a view that attributes the received chunk to the initiator's header source; with no compiler-trust
+axiom, as for the decrypt results. That a tampered frame is refused is not shown, nor the successor's invariant, the reply or any later
 message.
-`decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
+`decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
+became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
 row `SESSION-SPARSE-AGREEMENTS`); the three fields of the contract record it takes that were stronger than the crate
 are now stated at the instances the unit passes, and that the real `zeroize` functions return there is assumed; not
 checked against the real functions.
 The same result is carried through the public `Session::decrypt` on frames that are not initial messages
-(`decrypt_refines_ratchet_frame`, compiler-trusted), under the same hypotheses and one premise on the input, also in a
+(`decrypt_refines_ratchet_frame`, on the same axioms), under the same hypotheses and one premise on the input, also in a
 form that takes `Session::invariant` and the four counter ceilings; no theorem covers an initial message.
 The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`). The Braid's four KEM refusals (key generation, both halves of encapsulation, decapsulation) are refined against the model's `Failed` transitions under agreements about the KEM wrapper that are assumed, not proved, and the state witnesses for those theorems additionally assume `KemDrawsSucceed` (the real key generation and first encapsulation each succeed for some random draw), which is tested only, by every Braid test that completes an agreement. The KEM wrapper refuses a restored encapsulation state whose coefficients lie outside the bound libcrux states, so the Braid fails closed; that is tested only (`GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, open), and no theorem relates a restored Braid state to the model.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
