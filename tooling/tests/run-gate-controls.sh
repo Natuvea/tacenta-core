@@ -12,6 +12,9 @@
 #                                  twice or lost, a shard that fails or is killed, and the seam that cannot reach CI
 #   run-attest-negatives-slice-cases.sh  the slices of that run in CI and their combiner: a slice missing, repeated,
 #                                  relabelled, of another commit or script, cut short, or with shards that do not add up
+#   run-no-sorry-parts-cases.sh  the parts of no-sorry.sh in CI and their combiner: a part missing, repeated,
+#                                  relabelled, of another commit, tree, script or cache, failed, or with a phase in
+#                                  no part or two; the dispatcher's slices; the committed parts file against the script
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
@@ -34,6 +37,7 @@ bash "$here/run-build-evidence-pack-build-cases.sh"
 bash "$root/tacenta-proofs/scripts/check-generation-negatives.sh"
 bash "$here/run-attest-negatives-shard-cases.sh"
 bash "$here/run-attest-negatives-slice-cases.sh"
+bash "$here/run-no-sorry-parts-cases.sh"
 bash "$here/run-gate-inventory-cases.sh"
 bash "$here/run-mutate-gates-cases.sh"
 bash "$here/run-regenerate-in-container-cases.sh"

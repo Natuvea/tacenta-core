@@ -217,7 +217,9 @@ The transcript was taken before three further controls were added to the script,
 lines: `check-audit-reach-negatives.sh` (an unwalked module and a wrong audit call, each refused), then
 `check-pin-negatives.sh` (Lean refuses a changed `#guard_msgs` pin) after the audit-reach line, and
 `check-kernel-replay-negative.sh` (`leanchecker` refuses a declaration added under
-`debug.skipKernelTC`) after the replays. Each prints one summary line beginning with its own name.
+`debug.skipKernelTC`) after the replays. Each prints one summary line beginning with its own name. It was also
+taken before the script printed a closing line: a run in which no phase failed now ends with
+`no-sorry: all N phases passed`, where N is the number of phases the script lists (`NO_SORRY_LIST=1`).
 
 ## Regenerating the translation on Linux x86_64, by hand
 
