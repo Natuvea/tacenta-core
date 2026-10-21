@@ -414,8 +414,10 @@ python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 # a plain-sum window, the reply's corollary claimed at the initiator's session, and a copy of the bridge's predicate
 # regrouped with its pins kept must each be refused at a named declaration or pin, with a message naming the change,
 # after the unmodified copies are accepted; the seven changes labelled inside composing proofs must be accepted there
-# with that proof emptied, the two projections must be refused in a composing proof, and the statement-shape check
-# still refused with the projected proof emptied.
+# with that proof emptied, the two projections must be refused where a composing proof places a conjunct of
+# `initiator_first_send_responder_replies` unchanged, every change refused in a composing proof must carry one of the
+# two labels, checked at start-up against the module's text, and the statement-shape check must still be refused with
+# the projected proof emptied.
 phase_send_preservation() {
 python3 scripts/check-send-preservation-negatives.py || fail=1
 }

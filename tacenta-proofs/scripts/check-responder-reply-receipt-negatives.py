@@ -80,9 +80,10 @@ refusal must be an error at the named place that matches the expected message.  
 kind of failure that is not a refusal (an unresolved name, a syntax error) voids the run anywhere in the copy,
 compared without regard to case.  A timeout (heartbeat or deterministic) never counts as the named refusal; one
 elsewhere in the copy is logged in the result and does not void a separate matching error at the named place.  The
-script checks at start that the guard fires on the toolchain's own `Unknown identifier` and on the kernel's `unknown
-constant` and not on an ordinary refusal, and that a heartbeat timeout is told apart from a refusal.  These are
-controls on copies of the Lean; no source, olean or git state changes.
+script checks at start that the guard fires on the toolchain's own `Unknown identifier`, on the kernel's `unknown
+constant`, on a parser's `unexpected token` and `expected '...'`, on `unknown namespace` and on `does not contain`,
+each from a sample holding that spelling alone, and not on an ordinary refusal, and that a heartbeat timeout is told
+apart from a refusal.  These are controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleResponderReply Translation.UnitLifecycleDecryptT3`).
 """
@@ -435,8 +436,9 @@ def is_timeout(head):
 
 
 def guard_self_test(guards):
-    """The guard must fire on the toolchain's own spelling of an unresolved name, and a timeout must be told apart
-    from a refusal."""
+    """The guard must fire on the toolchain's own spelling of an unresolved name, on each parser and namespace
+    spelling it lists, each from a sample holding that spelling alone, and a timeout must be told apart from a
+    refusal."""
     sample = ("/tmp/x.lean:3:8: error(lean.unknownIdentifier): Unknown identifier `fooBar`\n"
               "/tmp/x.lean:4:2: error: unsolved goals\n")
     if not not_a_refusal(sample, guards):
@@ -445,6 +447,20 @@ def guard_self_test(guards):
               "/tmp/x.lean:6:2: error: unsolved goals\n")
     if not not_a_refusal(kernel, guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on the kernel\'s `unknown constant`')
+    # every spelling the guard is meant to list, fixed here so that a spelling dropped from the guard is caught
+    spellings = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '", 'unknown namespace',
+                 'does not contain')
+    for spelling, line in (
+            ('unexpected token', "/tmp/x.lean:8:4: error: unexpected token 'at'; expected term\n"),
+            ("expected '", "/tmp/x.lean:9:0: error: unexpected end of input; expected ':='\n"),
+            ('unknown namespace', "/tmp/x.lean:2:5: error: unknown namespace 'Foo.Bar'\n"),
+            ('does not contain', "/tmp/x.lean:3:6: error: invalid field 'baz', the environment does not contain "
+                                 "'Foo.baz'\n")):
+        sample_one = line + "/tmp/x.lean:10:2: error: unsolved goals\n"
+        if spelling not in line.lower() or sum(other in line.lower() for other in spellings) != 1:
+            raise SystemExit(f'GUARD BROKEN: the self-test sample for `{spelling}` does not hold that spelling alone')
+        if not not_a_refusal(sample_one, guards):
+            raise SystemExit(f'GUARD BROKEN: the not-a-refusal guard does not fire on `{spelling}`')
     if not_a_refusal("/tmp/x.lean:4:2: error: unsolved goals\n", guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard fires on an ordinary refusal')
     timeout = ("/tmp/x.lean:7:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) "

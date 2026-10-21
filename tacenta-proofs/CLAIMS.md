@@ -6040,10 +6040,14 @@ the eight definitions (`ModelRatchetInv`, `ModelSpqrInv`, `ModelRolesAgree`, `Mo
 `ModelCounterRoom`, `SendsWithoutDraw`) a `#print` pin. `check-send-preservation-negatives.py` plants eighteen faults in
 copies of the two modules, every one a change to a statement or a definition, and requires Lean to refuse each at a named
 declaration or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the changed
-statement is false). Seven are labelled inside composing proofs: the script checks, at start-up and at run time, that each
-is refused in the declaration it is labelled with and that this is one of the three composing theorems, and runs each with
-that proof replaced by `sorry`, requiring Lean to accept the change there. That attributes the refusal to that proof but
-cannot tell a composing step from a projection: that the seven are refused at composition steps is decided by reading. In
+statement is false). Nine are refused in the three composing proofs: seven labelled inside them and two projections. A
+control refused there is a projection when it is refused where the proof places a conjunct of a called theorem's
+conclusion unchanged, and is labelled inside otherwise; the script holds both labels, at start-up and at run time, to the
+declaration each is refused in and to a syntactic form of that standard read off the module (the refusal names a
+hypothesis the proof binds by destructuring a called theorem's conclusion and never rewrites, simplifies or substitutes),
+requires every control refused in a composing proof to carry one of the two, and runs each inside control with that proof
+replaced by `sorry`, requiring Lean to accept the change there. That probe verifies attribution only; that the syntactic
+form is the right standard, and that the three theorems compose rather than project, is decided by reading. In
 `encrypt_keeps_invariant_no_draw`: the no-draw premise weakened to "takes no draw, or has not failed" (refused at the
 agreement walk), the key-pair clone record swapped for the erasure clone record (refused where the walk is applied), the
 budget claimed unspent (refused where the model's budget step is carried back), and the relation after the call claimed to
