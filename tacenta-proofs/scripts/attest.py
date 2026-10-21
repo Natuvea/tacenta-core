@@ -278,8 +278,8 @@ def lean_code(text, keep_names=False):
     string, a char literal or a guillemet identifier can start, and inside a
     block comment only at `/-` and `-/`; it gives the same output, character
     for character, which `tooling/tests/run-lean-code-differential-cases.sh`
-    holds by comparing the two (on every Lean file of the tree, on hand-written
-    hostile inputs and on seeded random ones). The result is kept per input,
+    holds by comparing the two (on every tracked Lean file, on hand-written
+    hostile inputs and on seeded random ones: a test on those inputs, not a proof). The result is kept per input,
     so a file read by several scans is stripped once a run."""
     key = (text, bool(keep_names))
     code = _LEAN_CODE_MEMO.get(key)
