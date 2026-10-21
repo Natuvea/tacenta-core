@@ -2771,13 +2771,17 @@ that one included, and the reach takes it.
 
 *The initiator's receipt of the reply.* `UnitLifecycleResponderReplyReceipt.lean` takes the reply's bytes to the initiator, on
 the same run: its public `Session::decrypt` at the session its own first `encrypt` left, from the source that `encrypt` left.
-The call returns, takes exactly one draw, and is exactly one of `Handshake(NonContributoryAgreement)` (the initiator oracle
-refuses the agreement of its draw with the reply's ratchet key), `Triple(Classical(NoReceivingChain))` (the reply's ratchet key
-is the peer key the initiator holds, so no Diffie-Hellman step is taken and it has no receiving chain), `Aead`, each with the
-session as given, or what the open returns, with the pending initial message cleared and the session related to the model's
-step (`initiator_receives_reply_outcomes`); under the premises below it returns the responder's plaintext
-(`initiator_receives_reply`). Both, the reach run `reply_receipt_reach_run` and the two reaches are compiler-trusted through the
-encrypt and decrypt refinements' nine `native_decide` constants. **No new law is used by the two headlines**: they use the
+The call returns, takes exactly one draw, and is one of the four arms of the model's step: `Handshake(NonContributoryAgreement)`
+(the initiator oracle refuses the agreement of its draw with the reply's ratchet key), `Triple(Classical(NoReceivingChain))`
+(the reply's ratchet key is the peer key the initiator holds, so no Diffie-Hellman step is taken and it has no receiving chain),
+`Aead` (the initiator's open of the responder's own seal refused, not a bad frame's refusal), each with the session as given, or
+what the open returns, with the pending initial message cleared and the session related to the model's step
+(`initiator_receives_reply_outcomes`). That is the general outcomes analysis. Under its own premises `DhAgreeContributory` and
+`AeadRoundTrip` the `Handshake` and `Aead` arms do not occur, so the call refuses `NoReceivingChain` exactly when the reply's
+ratchet key is the peer key and otherwise returns the responder's plaintext (`initiator_receives_reply_two_outcomes`, with no
+added premise); with `hfreshB` added it returns the plaintext (`initiator_receives_reply`). The three, the reach run
+`reply_receipt_reach_run` and the two reaches are compiler-trusted through the encrypt and decrypt refinements' nine
+`native_decide` constants. **No new law is used by the three headlines**: they use the
 receipt's `AeadRoundTrip`, `DhAgreeSymmetric` and `DhAgreeContributory` with the two oracles' roles swapped (the responder
 seals, the initiator opens; the initiator's first agreement is the responder's `dSend` by symmetry; the initiator's draw agrees
 with the reply's key by contributoriness), and `DhPublicValid` for the reply's ratchet key. They take two boundary records at
@@ -2802,10 +2806,13 @@ The laws of the premise lists hold together, with the reach's `DhPublicNotConsta
 (`reply_receipt_laws_model`, which proves every conjunct of `first_receipt_laws_model` again there): the first receipt's joint
 model with a public key that is the private key when that key is canonical and not all zero and the base point otherwise, and
 an agreement that refuses the all-zero key and otherwise returns the base point. A toy that shows nothing of the real
-primitives. It was needed because in `InterpO.modelFirstReceipt` every public key is the base point, so the responder's fresh
+primitives: its agreement ignores the private key, so symmetry and contributoriness hold degenerately and every agreement
+value is the same constant; it cannot tell which key sealed the reply, and that a non-degenerate symmetric agreement is
+consistent with the other laws rests on reading X25519. It was needed because in `InterpO.modelFirstReceipt` every public key is the base point, so the responder's fresh
 key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
-mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' empty plaintexts meet every
-bound at both widths. **Not shown:** a second message in either direction (a second reply, the initiator's next send, the
+mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
+plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed); a second
+message in either direction (a second reply, the initiator's next send, the
 header's later chunks, which do need the two parties' Braid KEMs to agree on a run, the responder's first sampling send);
 `Session::invariant` or the ceilings after the receipt of the reply or after the reply; that the code's agreement after the
 call equals the one before (it refines the same model agreement); that `hfreshB` holds under an honest random source; a

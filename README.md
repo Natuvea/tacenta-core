@@ -233,9 +233,10 @@ first receive only and with no assumption beyond the receipt's own premises (wit
 responder's `encrypt` at that same session, on the same run, has one outcome: the bare reply frame, no draw taken, the
 agreement kept, related to the model's step, under the successor's premises, with the responder's full oracle record, the
 Braid send contracts at its source and a plaintext-length bound, with no new law (compiler-trusted). The initiator's `decrypt` of that
-reply, at the session its first `encrypt` left, on the same run, has exactly four outcomes, and under a per-run premise that
-the responder's fresh ratchet key is not the peer key the initiator holds it returns the responder's plaintext with one draw,
-under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
+reply, at the session its first `encrypt` left, on the same run, refuses `NoReceivingChain` exactly when the reply's ratchet
+key is the peer key the initiator holds and otherwise returns the responder's plaintext with one draw (the general analysis
+has four arms; the handshake and `Aead` arms, the latter the responder's own seal failing to open, are excluded by the
+contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
 (compiler-trusted): exactly one reply received by the initiator. That a tampered frame is refused is not shown, nor any later
 message in either direction.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
