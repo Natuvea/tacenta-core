@@ -403,6 +403,23 @@ phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 }
 
+# The bridge between `Triple::invariant` and the model (`UnitTripleInvModel.lean`) and send preservation at an
+# agreement state that takes no draw (`UnitLifecycleSendPreserve.lean`): a copy with the no-draw premise weakened, the
+# key-pair clone record swapped for the erasure one, the budget claimed unspent or the relation after the call claimed
+# to the model before it (in the general step), the budget after the reply claimed beyond the clock or two operations
+# longer (in the run's headline), the establishment's law swapped (in the re-derivation), the reply's call or relation
+# changed where the headline forwards them, the sparse send's frame claimed with an agreement output, the budget claimed
+# kept with no unit to spend, `next_chunk` claimed to change the codewords, the key-generation state claimed to send
+# without a draw, the structural clauses claimed blind to the sparse epoch, the bridge without its roles clause or with
+# a plain-sum window, the reply's corollary claimed at the initiator's session, and a copy of the bridge's predicate
+# regrouped with its pins kept must each be refused at a named declaration or pin, with a message naming the change,
+# after the unmodified copies are accepted; the seven changes labelled inside composing proofs must be accepted there
+# with that proof emptied, the two projections must be refused in a composing proof, and the statement-shape check
+# still refused with the projected proof emptied.
+phase_send_preservation() {
+python3 scripts/check-send-preservation-negatives.py || fail=1
+}
+
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -594,6 +611,7 @@ phases() {
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model

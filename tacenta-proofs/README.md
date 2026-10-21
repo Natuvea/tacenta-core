@@ -62,7 +62,13 @@ first `encrypt` left, on the same run, refusing `NoReceivingChain` exactly when 
 initiator holds and otherwise returning the responder's plaintext with one draw (two of the four arms of the general
 analysis excluded by the contributory and round-trip premises), under the receipt's laws with
 the two oracles' roles swapped and two decrypt boundary records at the initiator's source, with no compiler-trust axiom; a tampered frame
-being refused and later messages in either direction not covered);
+being refused and later messages in either direction not covered; and a general step stating that a successful `encrypt`
+at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
+zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
+the compiler-trusted encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the
+responder's reply is sent, on that run, where it gives the invariant and the ceilings at the session the reply leaves,
+compiler-trusted; no `encrypt` whose agreement send draws, no refusal and no receive
+covered by a preservation result);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
