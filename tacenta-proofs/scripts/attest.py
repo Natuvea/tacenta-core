@@ -2204,7 +2204,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Proofs.Serialization.decode_encode_composite",
         # Every statement that names `Session::export` or `Session::import` inherits the compiler-trust
         # axiom of the `toStr` in `export`'s panic message (`... by decide +native` in the generated
-        # code, the axiom Lean made for the same text in `PrekeyStore::to_bytes` and shares), and no
+        # code; `#print axioms` lists the one named after `PrekeyStore::to_bytes`, same text), and no
         # other: `UnitLifecycleSessionRoundTrip.export_message_fits` proves its proposition with the
         # kernel alone, but the generated definition refers to the axiom.
         "Tacenta.UnitLifecycleSessionRoundTrip.export_spec",

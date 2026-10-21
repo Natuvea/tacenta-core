@@ -30,9 +30,9 @@ whose theorem drops one word of the message must print `same-type: false`, or th
 
 Every change is to a statement (for the `(1 : u64)` step, to the statement of the step); none replaces a proof step,
 except the pin control, which restores the old proof.  Each refusal is a proof-breakage check at a named place: it shows
-that the proof there decides the changed fact, not that the original statement is the only true one.  Not controlled:
-the zero-array step of `split_secret_refines`, which sits inside a `try`, so a changed step fails the theorem only as
-an unsolved goal elsewhere in it, and the leaf and three-leaf copies (`SpqrT3.lean`, `UnitSpqrT3.lean`,
+that the proof there decides the changed fact, not that the original statement is the only true one.  The zero-array
+step `split_secret_refines` once decided by `native_decide` is not controlled because it is gone: the proof never used
+it, and it is removed.  Not controlled: the leaf and three-leaf copies (`SpqrT3.lean`, `UnitSpqrT3.lean`,
 `UnitTripleT3.lean`), whose bodies the port scripts' `--check` holds byte for byte to the ones controlled here up to the
 renamings they list.
 
