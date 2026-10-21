@@ -59,9 +59,9 @@ The proof is `decrypt_ratchet_refines_or_open`, whose open case also carries the
 receive, and `UnitLifecycleDecryptRatchetCompleteT3` uses it to prove `OpenRefusalCloses` and the
 refinement without the disjunct (`decrypt_ratchet_refines_complete`).
 
-The theorem rests on the compiler-trusted constants the Session unit's sparse ratchet and Triple
-refinements rest on (the nine per-declaration `native_decide` axioms its pin lists), as the retry
-prerequisites of #203 do.
+The theorem rests on the kernel's three axioms and the opaque externals its pin lists, as the retry
+prerequisites of #203 do.  Until 2026-10-21 it also rested on nine per-declaration `native_decide` axioms, the
+constants of the Session unit's sparse ratchet and Triple refinements; those are now kernel proofs.
 -/
 
 namespace Tacenta.UnitLifecycleDecryptRatchetT3
@@ -1337,15 +1337,6 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines' depends on
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1403,15 +1394,6 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_statement' 
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1978,15 +1960,6 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_or_open' de
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -2103,15 +2076,6 @@ info: 'Tacenta.UnitLifecycleDecryptRatchetT3.decrypt_ratchet_refines_unless_open
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,

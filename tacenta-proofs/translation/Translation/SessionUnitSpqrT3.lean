@@ -148,16 +148,16 @@ The four wire-sensitive byte strings are struck once here, byte for byte,
 rather than left to `simp` to rediscover at every call site. -/
 
 theorem protocol_info_agrees : sliceOf PROTOCOL_INFO = Model.SparseRatchet.protocolInfo := by
-  native_decide
+  simp [sliceOf, PROTOCOL_INFO]; rfl
 
 theorem chain_start_agrees : sliceOf CHAIN_START_LABEL = Model.SparseRatchet.chainStart := by
-  native_decide
+  simp [sliceOf, CHAIN_START_LABEL]; rfl
 
 theorem root_label_agrees : sliceOf ROOT_LABEL = Model.SparseRatchet.rootLabel := by
-  native_decide
+  simp [sliceOf, ROOT_LABEL]; rfl
 
 theorem chain_label_agrees : sliceOf CHAIN_LABEL = Model.SparseRatchet.chainLabel := by
-  native_decide
+  simp [sliceOf, CHAIN_LABEL]; rfl
 
 theorem protocol_info_len : (PROTOCOL_INFO : Slice Std.U8).length = 12 := by
   simp only [global_simps, Array.length_to_slice]; scalar_tac
@@ -1783,15 +1783,18 @@ theorem skip_message_keys_loop0_from_empty_refines
   simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
 
 /-- The real forward-skip limit is the model's. -/
-theorem max_skip_agrees : MAX_SKIP.val = Model.SparseRatchet.maxSkip := by native_decide
+theorem max_skip_agrees : MAX_SKIP.val = Model.SparseRatchet.maxSkip := by
+  simp [MAX_SKIP, Model.SparseRatchet.maxSkip, Model.State.maxSkip]
 
 /-- The real skipped-store limit is the model's. -/
 theorem max_skipped_store_agrees :
-    MAX_SKIPPED_STORE.val = Model.SparseRatchet.maxSkippedStore := by native_decide
+    MAX_SKIPPED_STORE.val = Model.SparseRatchet.maxSkippedStore := by
+  simp [MAX_SKIPPED_STORE, Model.SparseRatchet.maxSkippedStore, Model.State.maxSkippedStore]
 
 /-- `MAX_SKIP`'s own value, stated as a literal rather than routed through the
 model, for the arithmetic that never needs the model side at all. -/
-theorem max_skip_val : MAX_SKIP.val = 1000 := by native_decide
+theorem max_skip_val : MAX_SKIP.val = 1000 := by
+  simp [MAX_SKIP]
 
 /-- What the copy loop keeps, read in the model: the entries that survive the
 purge of the keys the skip is about to store, which is `skipSurvivors`. The
@@ -2108,7 +2111,7 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
     have hnsub : (core.num.U64.saturating_sub n 1#u64).val = n.val - 1 := by
       unfold core.num.U64.saturating_sub UScalar.saturating_sub UScalar.val
       simp only [BitVec.toNat_ofNat]
-      have h1 : (1#u64 : Std.U64).bv.toNat = 1 := by native_decide
+      have h1 : (1#u64 : Std.U64).bv.toNat = 1 := by decide
       rw [h1]
       simp only [Nat.zero_max]
       have h2 : n.bv.toNat < 2 ^ UScalarTy.U64.numBits := n.bv.isLt
@@ -2492,9 +2495,10 @@ and `hcounter` as a premise the decoded-state chain does not discharge. (`hcb`
 and `hsb` follow from the invariant together with `hepoch`; in the standalone
 translation that is `DecodedStateDischarge.spqr_receive_premises`.) -/
 
--- The trust base of the two refinements, held by the build: three `native_decide`
--- label facts under `send_refines`, and those three, the three bound facts and
--- one step of `receive_refines_continuation` under `receive_refines`. The copy
+-- The trust base of the two refinements, held by the build: the kernel's three
+-- axioms and the opaque externals, and no compiler-trust axiom. Until 2026-10-21
+-- the label facts, the three bound facts and one step of
+-- `receive_refines_continuation` were `native_decide` and showed here. The copy
 -- of this file generated onto the three-leaf unit leaves these out;
 -- `UnitPins.lean` restates them against the unit's names.
 

@@ -41,8 +41,11 @@ leaf or in the unit. Until 2026-09-30 it carried a `native_decide` axiom for one
 closed numeric fact (that `(1 : U64)` has value one), which `decide` now
 settles; `LIMITATIONS.md` records it under "The proofs are trusted by
 evaluation, not only by the kernel". No panic-freedom pin below lists a
-compiler-trust axiom. The sparse ratchet's refinements and the Triple's
-discharged refinements do carry such axioms, each stated where it is pinned.
+compiler-trust axiom. Neither does any pin in this file since 2026-10-21: the sparse
+ratchet's refinements and the Triple's discharged refinements carried the `native_decide`
+axioms of the sparse ratchet's labels and bounds, one step of `receive_refines_continuation`
+and the Triple's combine label until those constants were proved by `simp`, `decide` and
+`rfl`.
 -/
 
 /--
@@ -349,8 +352,8 @@ info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
 `Translation/UnitSpqrT3.lean` is `SpqrT3.lean` generated onto the three-leaf
 unit. The two theorems `SpqrT3.lean` pins are pinned here, and each prints
 exactly the axioms its leaf twin prints, name for name: `tacenta_triple_unit.`
-in front of every translated axiom, and each `native_decide` axiom under the
-unit's copy of the lemma that carries it in the leaf. Nothing else changed. -/
+in front of every translated axiom. Nothing else changed. Neither lists a
+compiler-trust axiom: the label and bound constants they rest on are kernel proofs. -/
 
 /--
 info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
@@ -365,9 +368,6 @@ info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
@@ -388,13 +388,6 @@ info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
@@ -415,13 +408,6 @@ info: 'Tacenta.UnitSpqrT3.receive_store_full_refines' depends on axioms: [propex
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
@@ -476,9 +462,10 @@ base rather than hold one to an old one. Against the standalone
 `TripleT3.send_refines`, measured before its deletion, the sixteen opaque
 inner-crate declarations it rested on are absent, but that is the
 unit's doing: `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
-already rests on none of them. What discharging adds is the eight
-`native_decide` axioms `UnitSpqrT3.lean` carries; `LIMITATIONS.md` says what
-that trade is. -/
+already rests on none of them. Discharging the bundles adds no compiler-trust
+axiom: the nine `native_decide` axioms it added until 2026-10-21, the eight
+constants of `UnitSpqrT3.lean` and the Triple's combine label, are kernel proofs now;
+`LIMITATIONS.md` says what the trade is. -/
 
 /--
 info: 'Tacenta.UnitTripleT3.ratchet_agrees_for' depends on axioms: [propext,
@@ -513,14 +500,6 @@ info: 'Tacenta.UnitTripleT3.spqr_agrees_for' depends on axioms: [propext,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
@@ -542,15 +521,6 @@ info: 'Tacenta.UnitTripleT3.send_refines_discharged' depends on axioms: [propext
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
@@ -573,15 +543,6 @@ info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [prop
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
@@ -604,14 +565,6 @@ info: 'Tacenta.UnitTripleT3.receive_store_full_refines_discharged' depends on ax
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.core.option.Option.as_mut,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.UnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,

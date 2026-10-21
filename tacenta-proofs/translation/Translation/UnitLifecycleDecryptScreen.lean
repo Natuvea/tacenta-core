@@ -121,8 +121,9 @@ meets the agreements at the real constants; it is assumed.  In the models it is 
 ## Platform width
 
 No proof here chooses a width of `usize`: the bounds used hold at both (`usize_max_ge`, `cMax_usize`),
-and no result depends on a compiler-trust axiom other than `DecryptHypotheses.refines`, which inherits
-those of `decrypt_ratchet_refines_complete` (its pin).  So each result holds at both widths; no
+and no result depends on a compiler-trust axiom (the pins; `DecryptHypotheses.refines` inherited the nine
+`native_decide` constants of `decrypt_ratchet_refines_complete` until 2026-10-21, when they became kernel
+proofs).  So each result holds at both widths; no
 hypothesis of the set is width-dependent at this witness.
 -/
 
@@ -701,9 +702,8 @@ end Tacenta.UnitLifecycleDecryptScreen
 
 The axiom list and the statement of each result, and the bodies of the witness session, the law
 bundle, the hypothesis set, the statement, and the shipped-size model and its KEM, held by the build.  `attest.py` requires them
-(`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`).  `DecryptHypotheses.refines`
-lists the nine per-declaration `native_decide` axioms `decrypt_ratchet_refines_complete` rests on
-(compiler-trusted, `COMPILER_TRUSTED_PINS`); no other result here lists one. -/
+(`REQUIRED_PINS`, `REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FORM`).  No result here lists a compiler-trust
+axiom. -/
 
 /--
 info: 'Tacenta.UnitLifecycleDecryptScreen.invReal_sessionRefines' depends on axioms: [propext,
@@ -932,15 +932,6 @@ info: 'Tacenta.UnitLifecycleDecryptScreen.DecryptHypotheses.refines' depends on 
  tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,

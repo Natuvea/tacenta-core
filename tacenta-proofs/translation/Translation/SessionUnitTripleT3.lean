@@ -54,9 +54,10 @@ Three things are worth knowing about that trade.
   rather than opaque, so `send_refines` here, with the bundles still as
   hypotheses, already rests on none of them, and on the external primitives the
   inner refinements rest on instead. Discharging the bundles removes them as
-  hypotheses and adds one thing at the axiom level: the eight `native_decide`
-  compiler-trust axioms `UnitSpqrT3.lean` carries, on top of the one of this
-  file's three that they already rest on. `UnitPins.lean` pins the discharged
+  hypotheses and adds nothing at the axiom level beyond the opaque externals the
+  inner refinements rest on. Until 2026-10-21 it added nine `native_decide`
+  compiler-trust axioms, the eight `UnitSpqrT3.lean` carried and one of this
+  file's three; all of those constants are kernel proofs now. `UnitPins.lean` pins the discharged
   theorems' lists.
 * **Each bundle covers its ratchet's whole calling surface**, so
   `send_refines_discharged` assumes the receive path's boundary too.
@@ -213,10 +214,10 @@ theorem zeroizing_new_step (hz : ZeroizingRoundTrips)
 /-! ## The labels agree -/
 
 theorem split_info_agrees : sliceOf SPLIT_INFO = Model.TripleRatchet.splitInfo := by
-  native_decide
+  simp [sliceOf, SPLIT_INFO]; rfl
 
 theorem combine_info_agrees : sliceOf COMBINE_INFO = Model.TripleRatchet.combineInfo := by
-  native_decide
+  simp [sliceOf, COMBINE_INFO]; rfl
 
 theorem split_info_len : (SPLIT_INFO : Slice Std.U8).length = 42 := by
   simp only [SPLIT_INFO, global_simps, Array.length_to_slice]; scalar_tac
@@ -236,7 +237,7 @@ theorem split_secret_refines (h : TripleHkdfAgrees) (hz : ZeroizingRoundTrips) (
   all_goals (try (simp_all only []; scalar_tac))
   all_goals (try (
     have hzero : List.map u8 (Array.repeat 32#usize 0#u8 : Array Std.U8 32#usize).val
-        = List.replicate 32 (0 : UInt8) := by native_decide
+        = List.replicate 32 (0 : UInt8) := by simp [Array.repeat, u8]
     simp only [Model.TripleRatchet.splitSecret, ← split_info_agrees]
     simp_all [keyOf, sliceOf, u8, List.slice, List.map_take, List.map_drop]))
 
