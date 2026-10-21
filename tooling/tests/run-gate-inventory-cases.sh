@@ -145,6 +145,8 @@ check 'a named step that runs the control through a script' 0 'is current'
 reset
 write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "ci_steps": ["s2"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
 write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2", "run": "test \"$NEEDS_RESULT\" = success"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
+# Written first, so that only the check of the row's step can refuse it (a stale file would refuse it anyway).
+(cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null 2>&1) || true
 check 'a row named with a step that does not run its gate' 1 'names CI step s2, whose command does not run it'
 write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "verdict_steps": ["s9"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
 check 'a verdict step the workflow does not have' 1 'names verdict step s9, which the workflow does not have'
