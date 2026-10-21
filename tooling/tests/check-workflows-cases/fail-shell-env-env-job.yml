@@ -1,0 +1,13 @@
+# expect: sets ENV in `env` at the job level
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'ENV': '/tmp/x'
+    steps:
+      - id: j_run
+        run: make test

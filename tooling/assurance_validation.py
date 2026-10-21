@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-REQUIRED_CHECKS = {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks"}
+REQUIRED_CHECKS = {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks", "attest-negatives"}
 ALLOWED_STATUSES = {"pass", "fail", "missing", "skipped", "inconclusive", "not_applicable"}
 # The receipt that is conditional, not required: present for a pull request.
 CONDITIONAL_CHECKS = {"sign-off"}
