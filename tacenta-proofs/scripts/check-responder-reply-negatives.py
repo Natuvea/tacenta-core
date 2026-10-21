@@ -7,14 +7,15 @@ the initiator's first `encrypt` emitted and returns the session `sB'`, the respo
 Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one change to a copy of the
 module and requires Lean to refuse it, at a named place, with an error that names what the change removed.
 
-Seven controls sit inside the proofs that compose the run.  Each is a change to the composing theorem's statement,
-refused by a step of its proof.  The script checks that each is refused in the declaration it is labelled with, and
-runs each of the seven with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so
-the refusal is attributable to that proof.  That check cannot tell a composing step from a projection (a corollary's
-statement-shape check passes it too): that the seven are refused by composition steps, and that the three theorems
-named in `COMPOSING` compose rather than project, is decided by reading, and the script only holds the labels
+Seven controls are labelled inside the proofs that compose the run.  Each is a change to a composing theorem's
+statement, refused by a step of its proof.  The script checks that each is refused in the declaration it is labelled
+with, and runs each of the seven with that theorem's proof replaced by `sorry`, requiring Lean to accept the change
+there, so the refusal is attributable to that proof.  That check cannot tell a composing step from a projection (a
+corollary's statement-shape check passes it too): that the seven are refused by composition steps, and that the three
+theorems named in `COMPOSING` compose rather than project, is decided by reading, and the script only holds the labels
 consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; a
-control cannot be labelled both inside and statement-shape):
+control cannot be labelled both inside and statement-shape; a statement-shape check may not be refused in a composing
+theorem, and the theorem it projects must be in `PROJECTED`), at start-up and again at run time:
 
   * in `initiator_first_send_responder_replies`: the call claimed to return the source `establish_responder` left
     (`rngB'`, the receipt's draw taken) instead of the source it was given (refused where the walk has fixed the
@@ -210,6 +211,11 @@ INSIDE = {
     'receipt-call-on-the-plaintext-not-the-sent-bytes': 'initiator_first_send_responder_successor_keys',
 }
 
+# The theorems a statement-shape check may project: the composing theorems.  The reach `first_send_reply_reachable`
+# applies `initiator_first_send_responder_replies` directly to the run `first_send_receive_reachable` gives; there is
+# no separate reach run in this module for it to project, as there is in the reply receipt's.
+PROJECTED = set(COMPOSING)
+
 # The statement-shape checks, with the theorem each projects.  For each, the script also runs the changed copy with
 # that theorem's proof replaced by `sorry` and requires Lean still to refuse the change at its named place: the
 # refusal does not depend on the projected theorem's proof.
@@ -235,8 +241,9 @@ def check_labels():
     for name, decl in STATEMENT_SHAPE.items():
         if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
             raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
-        if decl not in COMPOSING:
-            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} projects {decl}, not a composing proof')
+        if decl not in PROJECTED:
+            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} projects {decl}, which is not in '
+                             f'PROJECTED')
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
                  'unknown namespace', 'does not contain')
