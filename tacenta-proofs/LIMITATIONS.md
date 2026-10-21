@@ -2743,7 +2743,7 @@ counter ceilings are the next paragraph's.
 *The responder's session after the first receipt.* `UnitLifecycleResponderSuccessor.lean` shows that the session the
 successful call above returns passes `Session::invariant` and meets the four counter ceilings
 (`initiator_first_send_responder_successor_admissible`, `initiator_first_send_responder_successor_counterHeadroom`,
-`initiator_first_send_responder_successor_hypotheses`, with the relation; compiler-trusted as the results above). **No law
+`initiator_first_send_responder_successor_hypotheses`, with the relation; no compiler-trust axiom, as for the results above). **No law
 and no premise about the run is added**: the statements take the hypotheses of `initiator_first_send_responder_receives`
 (or `responder_first_frame_succeeds`) without the store bound `EstablishResponderHeadroom`, which the call's success
 equation they add makes unnecessary. The invariant uses `DhPublicValid` and `OptionEqU64Shape`, already premises there, and
@@ -2765,8 +2765,9 @@ successful call above returns, on the same run (the same session, from the same 
 call has one outcome: it returns the bare reply frame (agreement type `none`, no chunk, no initial wrapper, sealed under the
 key of the receipt's classical sending chain and the sparse chain the initiator receives on), takes no draw, returns the
 session with only the Triple Ratchet replaced, and relates to the model's step (`initiator_first_send_responder_replies`;
-compiler-trusted, with `responder_reply_refines`, the two derivations that keep the receipt's key equations and the reach
-`first_send_reply_reachable`, through the encrypt and decrypt refinements' nine `native_decide` constants). **No law and no
+with `responder_reply_refines`, the two derivations that keep the receipt's key equations and the reach
+`first_send_reply_reachable`, it lists no compiler-trust axiom: the encrypt and decrypt refinements' nine `native_decide`
+constants are kernel proofs since 2026-10-21). **No law and no
 premise about the run is added.** The headline takes the hypotheses of `initiator_first_send_responder_successor_hypotheses`
 and two boundary records at the responder's source, both of kinds the initiator's first send already takes: the full oracle
 record `OracleOf` (in place of `DecryptOracleOf`) and the Braid send record `BraidSendRefinementContracts`. Like the
@@ -2800,8 +2801,8 @@ what the open returns, with the pending initial message cleared and the session 
 `AeadRoundTrip` the `Handshake` and `Aead` arms do not occur, so the call refuses `NoReceivingChain` exactly when the reply's
 ratchet key is the peer key and otherwise returns the responder's plaintext (`initiator_receives_reply_two_outcomes`, with no
 added premise); with `hfreshB` added it returns the plaintext (`initiator_receives_reply`). The three, the reach run
-`reply_receipt_reach_run` and the two reaches are compiler-trusted through the encrypt and decrypt refinements' nine
-`native_decide` constants. **No new law is used by the three headlines**: they use the
+`reply_receipt_reach_run` and the two reaches list no compiler-trust axiom (until 2026-10-21 they inherited the encrypt
+and decrypt refinements' nine `native_decide` constants, kernel proofs since). **No new law is used by the three headlines**: they use the
 receipt's `AeadRoundTrip`, `DhAgreeSymmetric` and `DhAgreeContributory` with the two oracles' roles swapped (the responder
 seals, the initiator opens; the initiator's first agreement is the responder's `dSend` by symmetry; the initiator's draw agrees
 with the reply's key by contributoriness), and `DhPublicValid` for the reply's ratchet key. They take two boundary records at

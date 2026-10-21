@@ -157,11 +157,11 @@ this section says in one place what is not proved.
   toy model, and at the real constants one run from `publish` through the first send reaches the success (last-resort path,
   empty plaintext). That a tampered frame is refused is not shown (no AEAD authenticity law is assumed) ("Proved (tier T3,
   session lifecycle: `establish_responder` accepts the initiator's first frame ...)"). At the session that successful call returns, `Session::invariant` holds and the four counter ceilings are met,
-  for this first receive only and with no assumption beyond the receipt's own premises (without its store bound), compiler-trusted ("Proved (tier T3, session lifecycle:
+  for this first receive only and with no assumption beyond the receipt's own premises (without its store bound), with no compiler-trust axiom ("Proved (tier T3, session lifecycle:
   `Session::invariant` and the four counter ceilings at the session `establish_responder` returns ...)").
   The responder's `encrypt` at that same session, on the same run, has one outcome: it returns the bare reply frame, takes
   no draw, keeps the agreement and refines the model's step, with no new law or per-run premise and two boundary records at
-  the responder's source (its full oracle record and its Braid send record), compiler-trusted ("Proved (tier T3, session
+  the responder's source (its full oracle record and its Braid send record), with no compiler-trust axiom ("Proved (tier T3, session
   lifecycle: the responder's `encrypt` at the session `establish_responder` returns ...)"). The initiator's public `decrypt`
   of those bytes, on the same run, at the session its first `encrypt` left and from the source that `encrypt` left, is
   analysed into the four arms of the model's step, with their effects; under the theorem's own premises (contributory
@@ -169,7 +169,7 @@ this section says in one place what is not proved.
   is the peer key the initiator holds and otherwise returns the responder's plaintext, takes one draw and clears the pending
   initial message; the headlines use no law beyond the receipt's (with the two oracles' roles swapped), one reach run, under one
   new law used only there, receives the reply, and another, whose responder draws its own signed prekey secret, is refused,
-  compiler-trusted ("Proved (tier T3, session
+  with no compiler-trust axiom ("Proved (tier T3, session
   lifecycle: the initiator's `decrypt` of the responder's reply ...)"). Exactly one reply received by the initiator on this
   route is covered; no later message in either direction is.
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
@@ -5383,8 +5383,9 @@ session and do not mention the view); that the real primitives meet the laws.
 
 **Compiler trust and pins.** `responder_first_frame_successor`, `initiator_first_send_responder_successor_hypotheses`,
 `initiator_first_send_responder_successor_admissible`, `initiator_first_send_responder_successor_counterHeadroom` and
-`first_send_receive_successor_reachable` are compiler-trusted: they apply `responder_first_frame_inner_succeeds` (and the last
-four `established_encrypt_outcomes` too) and list the same nine `native_decide` constants. Of the other 13 results, 4 rest on
+`first_send_receive_successor_reachable` apply `responder_first_frame_inner_succeeds` (and the last four
+`established_encrypt_outcomes` too) and list the kernel's three axioms and opaque constants of the unit, and no compiler-trust
+axiom (until 2026-10-21 also the same nine `native_decide` constants, kernel proofs since). Of the other 13 results, 4 rest on
 `propext`, `Classical.choice` and `Quot.sound` alone (`one_chunk_loop`, `add_chunk_fresh_have`, `triple_eq_received`,
 `receivedTriple_invariant`) and 9 on those three and opaque constants of the unit. Each of the 18 results carries an axiom pin
 and a statement pin, and each of the three definitions (`receivedChains`, `receivedTriple`, `receivedSession`) a `#print`
@@ -5507,9 +5508,10 @@ ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` 
 `establishResponder` equality; the one-time path in a run.
 
 **Compiler trust and pins.** `responder_reply_refines`, `responder_first_frame_successor_keys`,
-`initiator_first_send_responder_successor_keys`, `initiator_first_send_responder_replies` and `first_send_reply_reachable` are
-compiler-trusted: they apply the encrypt route or `responder_first_frame_inner_succeeds` (the last four also
-`established_encrypt_outcomes`) and list the same nine `native_decide` constants. Of the other 14 results, 6 rest on
+`initiator_first_send_responder_successor_keys`, `initiator_first_send_responder_replies` and `first_send_reply_reachable`
+apply the encrypt route or `responder_first_frame_inner_succeeds` (the last four also `established_encrypt_outcomes`) and list
+the kernel's three axioms and opaque constants of the unit, and no compiler-trust axiom (until 2026-10-21 also the same nine
+`native_decide` constants, kernel proofs since). Of the other 14 results, 6 rest on
 `propext`, `Classical.choice` and `Quot.sound` alone (`array_clone_u8`, `auth_clone_eq`, `sendAgreement_noHeader_output`,
 `reply_send_key`, `replyFrame_with_draws`, `reply_model_step`) and 8 on those and opaque constants of the unit. Each of the 19
 results carries an axiom pin and a statement pin, and each of the four definitions (`replierAfterSend`, `replyKey`,
@@ -5683,10 +5685,11 @@ ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` 
 
 **Compiler trust and pins.** `initiator_receives_reply_outcomes`, `initiator_receives_reply_two_outcomes`,
 `initiator_receives_reply`, `reply_receipt_reach_run`, `first_send_reply_receipt_reachable` and
-`first_send_reply_stale_reachable` are compiler-trusted: they apply
+`first_send_reply_stale_reachable` apply
 `initiator_first_send_responder_replies`, `established_encrypt_successor_hypotheses` and
-`decrypt_refines_ratchet_frame_of_counter_headroom` (the reaches through the first two) and list the same nine `native_decide`
-constants. Of the other 26 results, 13 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`reply_receive_key`,
+`decrypt_refines_ratchet_frame_of_counter_headroom` (the reaches through the first two) and list the kernel's three axioms
+and opaque constants of the unit, and no compiler-trust axiom (until 2026-10-21 also the same nine `native_decide`
+constants, kernel proofs since). Of the other 26 results, 13 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`reply_receive_key`,
 `reply_receive_stale`, `replyFrame_messageType`, `replyFrame_decodeDetailed`, `reply_receipt_model_outcomes`, the five
 `replyPub` lemmas, `byteTrace_one`, `byteTrace_seed_extra`, `two_draws_of_seed_extra`) and 13 on those and opaque constants of
 the unit. Each of the 32 results carries an axiom pin and a statement pin, and each of the eleven definitions

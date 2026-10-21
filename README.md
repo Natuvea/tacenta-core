@@ -233,15 +233,15 @@ what that open returns; under two more assumed boundary laws (the AEAD opens wha
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
 the model's step at a view that attributes the received chunk to the initiator's header source; with no compiler-trust
 axiom, as for the decrypt results. At the session that success returns, `Session::invariant` and the four counter ceilings hold, for that
-first receive only and with no assumption beyond the receipt's own premises (without its store bound) (compiler-trusted). The
+first receive only and with no assumption beyond the receipt's own premises (without its store bound), with no compiler-trust axiom. The
 responder's `encrypt` at that same session, on the same run, has one outcome: the bare reply frame, no draw taken, the
 agreement kept, related to the model's step, under the successor's premises, with the responder's full oracle record, the
-Braid send contracts at its source and a plaintext-length bound, with no new law (compiler-trusted). The initiator's `decrypt` of that
+Braid send contracts at its source and a plaintext-length bound, with no new law and no compiler-trust axiom. The initiator's `decrypt` of that
 reply, at the session its first `encrypt` left, on the same run, refuses `NoReceivingChain` exactly when the reply's ratchet
 key is the peer key the initiator holds and otherwise returns the responder's plaintext with one draw (the general analysis
 has four arms; the handshake and `Aead` arms, the latter the responder's own seal failing to open, are excluded by the
 contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
-(compiler-trusted): exactly one reply received by the initiator. That a tampered frame is refused is not shown, nor any later
+(no compiler-trust axiom): exactly one reply received by the initiator. That a tampered frame is refused is not shown, nor any later
 message in either direction.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes

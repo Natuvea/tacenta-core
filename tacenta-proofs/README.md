@@ -55,13 +55,13 @@ refusals (a non-contributory agreement of the responder's fresh key, the AEAD re
 and under two more assumed boundary laws (the AEAD round trip, contributory agreement), the model KEM's size law, a
 store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, with no compiler-trust axiom, and at the
 session it returns `Session::invariant` and the four counter ceilings, for that first receive only and with no assumption beyond the receipt's own
-premises (without its store bound), compiler-trusted, and the responder's `encrypt` at that same session, on the same run,
+premises (without its store bound), with no compiler-trust axiom, and the responder's `encrypt` at that same session, on the same run,
 with one outcome (the bare reply frame, no draw, the agreement kept) under the successor's premises, with the responder's
-full oracle record, the Braid send contracts at its source and a plaintext-length bound, with no new law, compiler-trusted, and the initiator's `decrypt` of that reply at the session its
+full oracle record, the Braid send contracts at its source and a plaintext-length bound, with no new law or compiler-trust axiom, and the initiator's `decrypt` of that reply at the session its
 first `encrypt` left, on the same run, refusing `NoReceivingChain` exactly when the reply's ratchet key is the peer key the
 initiator holds and otherwise returning the responder's plaintext with one draw (two of the four arms of the general
 analysis excluded by the contributory and round-trip premises), under the receipt's laws with
-the two oracles' roles swapped and two decrypt boundary records at the initiator's source, compiler-trusted; a tampered frame
+the two oracles' roles swapped and two decrypt boundary records at the initiator's source, with no compiler-trust axiom; a tampered frame
 being refused and later messages in either direction not covered);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
