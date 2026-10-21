@@ -673,14 +673,16 @@ jobs:
   # of its shards on one machine: every shard exited 0 with no WRONG line,
   # the unmodified tree accepted in each shard's worktree, one list of cases,
   # and each case run once, by the shard it is assigned to. Only then does it
-  # print the line of a full run, and only for a walk that reaches the case
-  # floor. The job runs whatever the matrix gave (`always()`), so that a
-  # slice that failed, timed out or was cancelled makes this job fail rather
-  # than be skipped: a required check accepts a skipped job. Its first step
+  # print the line of a full run, and only for a walk of the number of cases
+  # pinned in tacenta-proofs/scripts/attest-negatives-case-count.txt. The job
+  # runs whatever the matrix gave (`always()`), and is designed so that a
+  # slice that failed, timed out or was cancelled makes it fail rather than be
+  # skipped, since a required check accepts a skipped job: its first step
   # fails unless every slice succeeded, and the steps after it then do not
   # run, so the receipt is missing and the collector refuses the set too.
-  # `tooling/check-workflows.sh` allows this `always()` only with that first
-  # step (rule 8).
+  # That is held by the controls of `tooling/check-workflows.sh`, which allows
+  # this `always()` only with that first step (rule 8); it has not yet been
+  # seen on a hosted run with a failed slice.
   attest-negatives:
     needs: [attest-negatives-slice]
     if: always()

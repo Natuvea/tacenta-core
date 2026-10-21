@@ -132,9 +132,9 @@ splits the same run over sixteen machines (`ATTEST_NEGATIVES_SLICE`), and a
 combiner (`ATTEST_NEGATIVES_COMBINE`) prints that final line only when the sixteen
 slices are the slices of one run of the commit under test and their shards
 together pass the same check.  A full run, on one machine or split, prints
-its final line only when the walk has at least the number of cases in
-`tacenta-proofs/scripts/attest-negatives-case-floor.txt`, which catches a walk
-cut short but not a case replaced by another.  It first requires
+its final line only when the walk has exactly the number of cases pinned in
+`tacenta-proofs/scripts/attest-negatives-case-count.txt`, which catches a walk
+cut short or padded but not a case replaced by another.  It first requires
 that the unmodified tree is accepted, in every shard's worktree.  It then
 requires these fault classes, each with its own diagnostic: a ledger theorem
 not declared by Lean, a missing generated verification manifest, a stale
