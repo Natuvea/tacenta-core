@@ -674,37 +674,39 @@ default_jobs_for absent 6 6
 
 # ---------------------------------------------------------------------------
 # A signal to the parent mid-run: the shards and what they started stop, and nothing is left behind. The
-# attest.py call sleeps, so that the signal arrives while every shard is inside it. The parent is started
-# by Python, which does not make it ignore SIGINT as a background job of a shell would.
+# attest.py call writes a probe file for its shard and then sleeps for ten minutes; the signal is sent once
+# every shard's probe exists, so it arrives while every shard is inside the call. Nothing here waits a fixed
+# time: each wait polls its condition and fails only when a bound (two minutes, or one for the processes to
+# go) passes, so a loaded machine is slower and not red. A process that outlives the run by a minute is a
+# leak, since the sleep it would be in lasts ten. The parent is started by Python, which does not make it
+# ignore SIGINT as a background job of a shell would.
 # ---------------------------------------------------------------------------
 
 signal_case() {  # name signal expected-exit-status
   local name="$1" signal="$2" want="$3" rc
   fresh "$name"
   stub "$name"
-  plant "$name" 'echo "stub: attest.py $*"' 'sleep 60; echo "stub: attest.py $*"'
-  mkdir -p "$work/tmp-$name"
+  plant "$name" 'echo "stub: attest.py $*"' 'touch "$SIGNAL_PROBE/$shard"; sleep 600; echo "stub: attest.py $*"'
+  mkdir -p "$work/tmp-$name" "$work/probe-$name"
   set +e
-  python3 - "$tree" "$plants/$name.sh" "$work/tmp-$name" "$work/out-$name" "$signal" <<'PY'
+  python3 - "$tree" "$plants/$name.sh" "$work/tmp-$name" "$work/out-$name" "$signal" "$work/probe-$name" <<'PY'
 import os, signal, subprocess, sys, time
-tree, script, tmp, out, sig = sys.argv[1:6]
+tree, script, tmp, out, sig, probe = sys.argv[1:7]
 env = {k: v for k, v in os.environ.items() if not k.startswith("ATTEST_NEGATIVES_") and k != "GITHUB_ACTIONS"}
-env.update(TMPDIR=tmp, ATTEST_NEGATIVES_JOBS="4", ATTEST_NEGATIVES_ONLY="4", ATTEST_NEGATIVES_SEAM="tests-only")
+env.update(TMPDIR=tmp, ATTEST_NEGATIVES_JOBS="4", ATTEST_NEGATIVES_ONLY="4", ATTEST_NEGATIVES_SEAM="tests-only",
+           SIGNAL_PROBE=probe)
 # A control started in the background of a shell inherits SIGINT as ignored, and an ignored signal cannot be
 # trapped by the script it is passed to; the parent under test gets the default disposition.
 child = subprocess.Popen(["bash", script], cwd=tree, env=env, stdout=open(out, "w"), stderr=subprocess.STDOUT,
                          preexec_fn=lambda: [signal.signal(s, signal.SIG_DFL) for s in (signal.SIGINT, signal.SIGTERM)])
 deadline = time.time() + 120
 while time.time() < deadline:
-    listing = subprocess.run(["git", "-C", tree, "worktree", "list", "--porcelain"],
-                             capture_output=True, text=True).stdout
-    if listing.count("worktree " + tmp + "/") >= 4:
+    if len(os.listdir(probe)) >= 4:   # every shard is inside its first call of attest.py
         break
     time.sleep(0.2)
 else:
     child.kill()
-    sys.exit("control: the four shards never registered their worktrees")
-time.sleep(3)   # every shard is inside its first call of attest.py
+    sys.exit("control: the four shards never reached their first call of attest.py")
 child.send_signal(getattr(signal, sig))
 try:
     code = child.wait(timeout=120)
@@ -723,9 +725,14 @@ PY
     wrong "$name" "the parent exited with status $(cat "$work/out-$name.rc"), expected $want"
   fi
   left_nothing "$name"
-  if pgrep -f "$plants/$name.sh" >/dev/null 2>&1; then
-    wrong "$name" "a process of the run is still alive"
-  fi
+  local waited=0
+  while pgrep -f "$plants/$name.sh" >/dev/null 2>&1; do
+    if [ "$waited" -ge 600 ]; then
+      wrong "$name" "a process of the run is still alive a minute after the parent exited"
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
 }
 
 signal_case sigterm SIGTERM 143
