@@ -92,8 +92,8 @@ the agreement state, key pair included (`Braid::receive` clones `self.state`), w
 
 ## Trust
 
-`initiator_receives_reply_outcomes`, `initiator_receives_reply`, `reply_receipt_reach_run` and the two reaches are
-compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements.  Every other
+`initiator_receives_reply_outcomes`, `initiator_receives_reply_two_outcomes`, `initiator_receives_reply`,
+`reply_receipt_reach_run` and the two reaches are compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements.  Every other
 result rests on the kernel and opaque constants only (pins below).
 
 ## Non-vacuity
