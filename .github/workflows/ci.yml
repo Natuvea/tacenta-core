@@ -386,7 +386,7 @@ jobs:
   # phase once; only then does it print the line a whole run prints. A pull
   # request runs the `hosted` partition, fourteen parts on GitHub-hosted
   # runners. A push to main runs the `single` partition, one part with every
-  # phase, on the self-hosted runner as before the split: a push builds cold
+  # phase, on the self-hosted runner group as before the split: a push builds cold
   # and saves the build for pull requests, and one part means one cold build.
   # The job runs whatever the matrix gave (`always()`), so that a part that
   # failed, timed out or was cancelled makes this job fail rather than be
@@ -394,9 +394,7 @@ jobs:
   # unless every part succeeded, and the steps after it then do not run, so the
   # receipt is missing and the collector refuses the set too.
   # `tooling/check-workflows.sh` allows this `always()` only with that first
-  # step (rule 8). This job comes before the matrix in this file so that the
-  # gate inventory names this job's step, the verdict, as the one that runs
-  # `no-sorry.sh`.
+  # step (rule 8).
   translation:
     needs: [translation-part]
     if: always()
@@ -432,9 +430,9 @@ jobs:
   # One part of `no-sorry.sh` per job (see the job above). The list of parts is
   # the partition's: the job above refuses a set that is not exactly that list.
   # A pull request's parts run on GitHub-hosted runners; a push to main runs
-  # the one part `all` on the self-hosted runner, as the whole script ran
+  # the one part `all` on the self-hosted runner group, as the whole script ran
   # before the split, so a push never queues more than one job of this matrix
-  # for that runner. The parts give no verdict and emit no receipt.
+  # for that group. The parts give no verdict and emit no receipt.
   translation-part:
     # GitHub-hosted for a pull request, self-hosted for a push to main (see the
     # header).
