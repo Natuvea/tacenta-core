@@ -53,7 +53,10 @@ refusals (a non-contributory agreement of the responder's fresh key, the AEAD re
 and under two more assumed boundary laws (the AEAD round trip, contributory agreement), the model KEM's size law, a
 store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, compiler-trusted, and at the
 session it returns `Session::invariant` and the four counter ceilings, for that first receive only and with no assumption beyond the receipt's own
-premises (without its store bound), compiler-trusted; a tampered frame being refused, the reply and later messages not covered);
+premises (without its store bound), compiler-trusted, and the responder's `encrypt` at that same session, on the same run,
+with one outcome (the bare reply frame, no draw, the agreement kept) under the receipt's premises and two boundary records
+at the responder's source, with no new law, compiler-trusted; a tampered frame being refused, the initiator's receipt of the
+reply and later messages not covered);
 `decrypt_ratchet_refines_complete` is
 compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two

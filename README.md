@@ -229,8 +229,11 @@ what that open returns; under two more assumed boundary laws (the AEAD opens wha
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
 the model's step at a view that attributes the received chunk to the initiator's header source; compiler-trusted, as the
 decrypt results are. At the session that success returns, `Session::invariant` and the four counter ceilings hold, for that
-first receive only and with no assumption beyond the receipt's own premises (without its store bound) (compiler-trusted). That a tampered frame is refused is not shown, nor the
-reply or any later message.
+first receive only and with no assumption beyond the receipt's own premises (without its store bound) (compiler-trusted). The
+responder's `encrypt` at that same session, on the same run, has one outcome: the bare reply frame, no draw taken, the
+agreement kept, related to the model's step, under the receipt's premises and two boundary records at the responder's source
+(its full oracle record and its Braid send record), with no new law (compiler-trusted). That a tampered frame is refused is
+not shown, nor the initiator's receipt of the reply or any later message.
 `decrypt_ratchet_refines_complete` is compiler-trusted (nine `native_decide` constants); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,

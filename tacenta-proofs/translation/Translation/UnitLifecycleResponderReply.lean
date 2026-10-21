@@ -62,8 +62,10 @@ oracle's KEM.  The encrypt route's other records (`TripleSendRefinementContracts
 `DhCodecOf`, `CodewordViewSendOf`, the three `zeroize` round trips) do not depend on the source and are the hypotheses
 the initiator's first send already takes; `Ct1LenTotal` is a field of the responder's contracts.  The plaintext bound
 `102 + (ptR.length + 48) ≤ Usize.max` holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target.
-No KEM fact is used: the reply round consults neither oracle's Braid KEM.  The source state `rngR` is free, with no
-draw premise.
+At this state the agreement's send reads neither randomness nor its oracle's Braid KEM, so no fact relating the two
+parties' KEMs is needed; the Braid send record still carries the KEM agreement `KemAgreesFor` at the responder oracle's
+KEM, as the generic route takes it for every state, and whether it could be dropped here is not checked.  The source
+state `rngR` is free, with no draw premise.
 
 ## Trust
 
