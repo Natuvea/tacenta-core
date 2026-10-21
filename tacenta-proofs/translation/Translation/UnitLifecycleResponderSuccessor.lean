@@ -80,6 +80,10 @@ path, empty plaintext) whose responder session passes the invariant and meets th
 * That the model session the successor refines holds only bytes the responder received: the relation is the receipt
   module's, at the view that attributes the received codeword.  The invariant and the ceilings are statements about
   the code's session and do not mention the view.
+* That the real primitives meet the laws the receipt rests on (`AeadRoundTrip`, `DhAgreeContributory`,
+  `DhAgreeSymmetric`), that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from
+  `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a run.  The results are
+  compiler-trusted through the encrypt wrapper's nine `native_decide` constants.
 -/
 
 open Aeneas Aeneas.Std Result
