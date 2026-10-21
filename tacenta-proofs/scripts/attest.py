@@ -2200,6 +2200,7 @@ REQUIRED_PINS = frozenset(
         "first_send_model_session",
         "replyAd_length_le",
         "initiator_receives_reply_outcomes",
+        "initiator_receives_reply_two_outcomes",
         "initiator_receives_reply",
         "replyPub_canonical",
         "replyPub_ne_zero",
@@ -2360,6 +2361,7 @@ COMPILER_TRUSTED_PINS = frozenset(
         # `established_encrypt_successor_hypotheses` and `decrypt_refines_ratchet_frame_of_counter_headroom`, and the
         # reach runs apply the receipt; all list the same nine constants (`UnitLifecycleResponderReplyReceipt`).
         "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outcomes",
+        "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes",
         "Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply",
         "Tacenta.UnitLifecycleResponderReplyReceipt.reply_receipt_reach_run",
         "Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_receipt_reachable",
@@ -4040,6 +4042,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "first_send_model_session",
         "replyAd_length_le",
         "initiator_receives_reply_outcomes",
+        "initiator_receives_reply_two_outcomes",
         "initiator_receives_reply",
         "replyPub_canonical",
         "replyPub_ne_zero",

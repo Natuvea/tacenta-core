@@ -53,11 +53,14 @@ a named place: it shows that the proof there depends on what the change removed 
 the definition), not that the changed statement is false.
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not from a
-pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a compiler that
-does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count; an
-error whose first line names a kind of failure that is not a refusal (an unresolved name, a syntax error) voids the
-run anywhere in the copy, compared without regard to case, and the script checks at start that this guard fires on
-the toolchain's own `Unknown identifier` and on the kernel's `unknown constant`, and not on an ordinary refusal.
+pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A compiler that does not
+start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count: the named
+refusal must be an error at the named place that matches the expected message.  An error whose first line names a
+kind of failure that is not a refusal (an unresolved name, a syntax error) voids the run anywhere in the copy,
+compared without regard to case.  A timeout (heartbeat or deterministic) never counts as the named refusal; one
+elsewhere in the copy is logged in the result and does not void a separate matching error at the named place.  The
+script checks at start that the guard fires on the toolchain's own `Unknown identifier` and on the kernel's `unknown
+constant` and not on an ordinary refusal, and that a heartbeat timeout is told apart from a refusal.
 These are controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleResponderSuccessor`).
@@ -238,10 +241,16 @@ def check_labels():
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
                  'unknown namespace', 'does not contain')
 
+# A timeout (a heartbeat or deterministic timeout) is never a refusal: it never counts as the named refusal, and one
+# elsewhere in the copy is logged.  It does not void a run whose named refusal is a separate error at the named place
+# that matches the expected message.
+TIMEOUT = ('timeout', 'maxheartbeats', 'heartbeats', 'deterministic')
+
 
 # Lean capitalises its error messages (`Unknown identifier`, `Unknown constant`, `Function expected`), so the
 # guard is matched case-insensitively, on the first line of each error, where Lean names the kind of failure.
 ERROR_HEAD = re.compile(r'^\S+\.lean:\d+:\d+: error(?:\([^)]*\))?: (.*)$', re.M)
+MESSAGE = re.compile(r'^\S+\.lean:(\d+):\d+: (error|warning|info|information)(?:\([^)]*\))?: (.*)$', re.M)
 
 
 def not_a_refusal(output, guards):
@@ -251,8 +260,24 @@ def not_a_refusal(output, guards):
     return any(bad in head for head in heads for bad in guards)
 
 
+def error_blocks(output):
+    """Each error of `output` as (line, first line, whole text)."""
+    found = list(MESSAGE.finditer(output))
+    blocks = []
+    for k, m in enumerate(found):
+        end = found[k + 1].start() if k + 1 < len(found) else len(output)
+        if m.group(2) == 'error':
+            blocks.append((int(m.group(1)), m.group(3), output[m.start():end]))
+    return blocks
+
+
+def is_timeout(head):
+    return any(t in head.lower() for t in TIMEOUT)
+
+
 def guard_self_test(guards):
-    """The guard must fire on the toolchain's own spelling of an unresolved name."""
+    """The guard must fire on the toolchain's own spelling of an unresolved name, and a timeout must be told apart
+    from a refusal."""
     sample = ("/tmp/x.lean:3:8: error(lean.unknownIdentifier): Unknown identifier `fooBar`\n"
               "/tmp/x.lean:4:2: error: unsolved goals\n")
     if not not_a_refusal(sample, guards):
@@ -263,6 +288,13 @@ def guard_self_test(guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on the kernel\'s `unknown constant`')
     if not_a_refusal("/tmp/x.lean:4:2: error: unsolved goals\n", guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard fires on an ordinary refusal')
+    timeout = ("/tmp/x.lean:7:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) "
+               "has been reached\nUse `set_option maxHeartbeats <num>` to set the limit.\n")
+    blocks = error_blocks(timeout)
+    if len(blocks) != 1 or not is_timeout(blocks[0][1]):
+        raise SystemExit('GUARD BROKEN: a heartbeat timeout is not recognised as a timeout')
+    if any(is_timeout(h) for _, h, _ in error_blocks("/tmp/x.lean:4:2: error: unsolved goals\nx : T\n")):
+        raise SystemExit('GUARD BROKEN: an ordinary refusal is taken for a timeout')
 
 
 def run_lean(path, log, timeout):
@@ -351,28 +383,32 @@ def check_inside(name, decl, status, output, log, emptied):
 
 
 def check_refused(name, status, output, marker, log, mutated, where):
-    refused = (status != 0 and 'error' in output and re.search(marker, output)
-               and not not_a_refusal(output, NOT_A_REFUSAL))
-    if not refused:
+    """Refused at the named place, by an error there that is not a timeout and that matches the expected message;
+    an error that is not a refusal voids the run anywhere in the copy; a timeout elsewhere is returned for the log."""
+    if status == 0 or not_a_refusal(output, NOT_A_REFUSAL):
         raise SystemExit(f'FAILED control {name}: expected Lean to refuse it with `{marker}`, '
                          f'exit={status}; {log}')
-    errors = {int(n) for n in ERROR_AT.findall(output)}
+    blocks = error_blocks(output)
     if isinstance(where, tuple):
         line = pin_line(mutated, where[1])
         if line is None:
             raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` pin, so '
                              f'its refusal cannot be the pin\'s; {log}')
-        if line not in errors:
-            raise SystemExit(f'FAILED control {name}: refused, but not at the pin of {where[1]} '
-                             f'(line {line}); {log}')
-        return f'the pin of {where[1]}'
-    for decl in where:
-        span = declaration_lines(mutated, decl)
-        if span is None:
-            raise SystemExit(f'Target changed for {name}: no declaration {decl} in the copy')
-        if any(span[0] <= e <= span[1] for e in errors):
-            return decl
-    raise SystemExit(f'FAILED control {name}: refused, but in none of {", ".join(where)}; {log}')
+        spans = [(where[1], (line, line))]
+    else:
+        spans = []
+        for decl in where:
+            span = declaration_lines(mutated, decl)
+            if span is None:
+                raise SystemExit(f'Target changed for {name}: no declaration {decl} in the copy')
+            spans.append((decl, span))
+    for decl, (lo, hi) in spans:
+        if any(lo <= ln <= hi and not is_timeout(head) and re.search(marker, text) for ln, head, text in blocks):
+            place = decl if not isinstance(where, tuple) else f'the pin of {where[1]}'
+            timeouts = sorted(ln for ln, head, _ in blocks if is_timeout(head))
+            return place, timeouts
+    raise SystemExit(f'FAILED control {name}: no error at the named place ({", ".join(d for d, _ in spans)}) that is '
+                     f'not a timeout matches `{marker}`; {log}')
 
 
 def main():
@@ -418,8 +454,11 @@ def main():
             path.write_text(mutated)
             log = logs / f'{label}_{name}.log'
             status, output = run_lean(path, log, args.timeout)
-            place = check_refused(name, status, output, marker, log, mutated, where)
+            place, timeouts = check_refused(name, status, output, marker, log, mutated, where)
             results['rejected'][f'{label}/{name}'] = {'exit': status, 'marker': marker, 'at': place}
+            if timeouts:
+                results['rejected'][f'{label}/{name}']['timeouts_elsewhere'] = timeouts
+                print(f'NOTE: {label}/{name} also has a timeout at line(s) {timeouts}, not counted', flush=True)
             print(f'PASS: {label}/{name} refused by Lean in {place}', flush=True)
             if name in INSIDE:
                 decl = INSIDE[name]

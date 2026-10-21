@@ -3,28 +3,41 @@
 
 `Translation/UnitLifecycleResponderReplyReceipt.lean` shows that, on the run in which the responder's `encrypt` at the
 session `establish_responder` returned emits the bare reply frame, the initiator's public `Session::decrypt` of those
-bytes, at the session its own first `encrypt` left and from the source that `encrypt` left, has exactly four outcomes,
-and returns the responder's plaintext when the responder's fresh ratchet key is not the peer key the initiator holds.
-A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one change to
-a copy of the module and requires Lean to refuse it, at a named place, with an error that names what the change
-removed.
+bytes, at the session its own first `encrypt` left and from the source that `encrypt` left, has the four arms the model
+step lists, that under that theorem's own premises it has two (a stale-key refusal exactly when the reply's ratchet key
+is the peer key the initiator holds, otherwise the responder's plaintext), and that it returns the responder's
+plaintext when the responder's fresh ratchet key is not that peer key.  A proof that Lean accepts after the fact it
+rests on is removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to
+refuse it, at a named place, with an error that names what the change removed.
 
-Eight controls sit inside the proofs that compose the run.  Each is a change to the composing theorem's statement,
-refused by a step of its proof; the script checks this by also running each of the eight with that theorem's proof
-replaced by `sorry` and requiring Lean to accept the change there:
+Ten controls are labelled inside the proofs that compose the run.  Each is a change to a composing theorem's
+statement, refused by a step of its proof.  The script checks that each is refused in the declaration it is labelled
+with, and runs each of the ten with that theorem's proof replaced by `sorry`, requiring Lean to accept the change
+there, so the refusal is attributable to that proof.  That check cannot tell a composing step from a projection (a
+corollary's statement-shape check passes it too): that the ten are refused by composition steps, and that the three
+theorems named in `COMPOSING` compose rather than project, is decided by reading, and the script only holds the labels
+consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; a
+control cannot be labelled both inside and statement-shape; a statement-shape check may not be refused in a composing
+theorem), at start-up and again at run time:
 
   * in `initiator_receives_reply_outcomes`: the decrypt claimed from the source before the first send (whose draws
     that send took) instead of the source it left (refused where the refinement's call is placed); the reply's bytes
-    claimed sealed under the key of the sparse chain `k1` the initiator sends on instead of `k2` (refused at the step
-    that closes the bytes equation from the reply's run); the refusal on a stale ratchet key claimed to be `Aead`
-    instead of `Triple(Classical(NoReceivingChain))` (refused where the model's refusal fixes the code's error); the
+    claimed to carry the peer key the initiator holds instead of the fresh ratchet key (refused at the step that
+    closes the bytes equation from the reply's run); the refusal on a stale ratchet key claimed to be `Aead` instead
+    of `Triple(Classical(NoReceivingChain))` (refused where the model's refusal fixes the code's error); the
     stale-key arm claimed on a fresh key (refused where the model's case split fixes the key); the session after a
     success claimed to keep the pending initial message (refused where the walk of the public `decrypt` fixes what the
-    call writes);
-  * in `initiator_receives_reply`: the call claimed to take no draw (refused where the refinement fixes the source the
-    call leaves); the freshness premise claimed against the initiator's own ratchet key instead of the peer key it
-    holds (refused where the stale-key arm is excluded); the plaintext claimed to be the initiator's first plaintext
-    instead of the responder's (refused where the open's plaintext is placed).
+    call writes); the call claimed to take no draw (refused where the model step's oracle fixes the draws the call
+    leaves);
+  * in `initiator_receives_reply_two_outcomes`: the stale-key arm claimed on a fresh key (refused where the outcomes
+    theorem's stale arm is placed); the plaintext claimed to be the initiator's first plaintext instead of the
+    responder's (refused where the open's plaintext is placed); the agreement the relation names claimed of the
+    responder's draw instead of the initiator's (refused where the contributory agreement is placed);
+  * in `initiator_receives_reply`: the freshness premise claimed against the initiator's own ratchet key instead of
+    the peer key it holds (refused where the stale-key arm is excluded).
+
+One is a projection, labelled neither inside nor statement-shape: the success claimed to take no draw (refused in
+`initiator_receives_reply`, where the two-outcome theorem's draw conjunct is passed through).
 
 Eight are on the leaf lemmas:
 
@@ -44,21 +57,25 @@ Eight are on the leaf lemmas:
     `first_send_model_session`).
 
 One is a statement-shape check: the reach's decrypt claimed at the responder's session instead of the initiator's
-(refused in `first_send_reply_receipt_reachable` because its statement no longer matches `reply_receipt_reach_run`; it
-would be refused whatever that theorem's proof did).  One holds a definition: the model session after the reply's
-receipt keeping the pending initial message, the module's pins kept (refused at the pin of `replyReceiptSession`).
+(refused in `first_send_reply_receipt_reachable` because its statement no longer matches `reply_receipt_reach_run`;
+the script runs it again with that theorem's proof replaced by `sorry` and requires the same refusal, so it is refused
+whatever that proof does).  One holds a definition: the model session after the reply's receipt keeping the pending
+initial message, the module's pins kept (refused at the pin of `replyReceiptSession`).
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
 a named place: it shows that the proof there depends on what the change removed (or, for the last, that the pin holds
 the definition), not that the changed statement is false.
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not from a
-pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A timeout, a compiler that
-does not start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count; an
-error whose first line names a kind of failure that is not a refusal (an unresolved name, a syntax error) voids the
-run anywhere in the copy, compared without regard to case, and the script checks at start that this guard fires on
-the toolchain's own `Unknown identifier` and on the kernel's `unknown constant`, and not on an ordinary refusal.
-These are controls on copies of the Lean; no source, olean or git state changes.
+pin, except the one kept with its pins.  The unmodified copies must be accepted first.  A compiler that does not
+start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count: the named
+refusal must be an error at the named place that matches the expected message.  An error whose first line names a
+kind of failure that is not a refusal (an unresolved name, a syntax error) voids the run anywhere in the copy,
+compared without regard to case.  A timeout (heartbeat or deterministic) never counts as the named refusal; one
+elsewhere in the copy is logged in the result and does not void a separate matching error at the named place.  The
+script checks at start that the guard fires on the toolchain's own `Unknown identifier` and on the kernel's `unknown
+constant` and not on an ordinary refusal, and that a heartbeat timeout is told apart from a refusal.  These are
+controls on copies of the Lean; no source, olean or git state changes.
 
 Dependencies must be built (`lake build Translation.UnitLifecycleResponderReply Translation.UnitLifecycleDecryptT3`).
 """
@@ -76,19 +93,32 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / 'translation/Translation/UnitLifecycleResponderReplyReceipt.lean'
 
-OUTCOMES_CALL = ("      lifecycle.Session.decrypt rc crc s' (alloc.vec.Vec.deref bytesR) rng' = ok (res, s'', rngA') ∧\n")
+OUTCOMES_CALL = ("      lifecycle.Session.decrypt rc crc s' (alloc.vec.Vec.deref bytesR) rng' = ok (res, s'', rngA') ∧\n"
+                 "      trace rngA' = restA ∧\n"
+                 "      ((res = core.result.Result.Err (lifecycle.Error.Handshake SessionError.NonContributoryAgreement) ∧\n")
 
-OUTCOMES_BYTES = ("        (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2 (arrayOf q.sparseReceive)) (sliceOf ptR) ∧\n"
-                  "      lifecycle.Session.decrypt rc crc s' (alloc.vec.Vec.deref bytesR) rng' = ok (res, s'', rngA') ∧\n")
+OUTCOMES_BYTES = ("      vecOf bytesR = replyFrame oracleB (vecOf q.identityAd) (oracleB.dhPublic dB)\n"
+                  "        (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2 (arrayOf q.sparseReceive)) (sliceOf ptR) ∧\n"
+                  + OUTCOMES_CALL)
 
 STALE_ERROR = ("        (res = core.result.Result.Err (lifecycle.Error.Triple\n"
                "            (tacenta_triple.TripleError.Classical tacenta_ratchet.RatchetError.NoReceivingChain)) ∧\n")
 
 STALE_KEY = "          oracleB.dhPublic dB = arrayOf q.peerRatchetBytes ∧ s'' = s') ∨\n"
 
-OUTCOMES_WRITES = ("          s'' = { s' with\n"
+OUTCOMES_WRITES = ("          vecOf ptA = y ∧\n"
+                   "          s'' = { s' with\n"
                    "            triple := s''.triple, braid := s''.braid, ratchet_private := s''.ratchet_private,\n"
                    "            pending_initial := none } ∧\n")
+
+TWO_STALE = ("      ((oracleB.dhPublic dB = arrayOf q.peerRatchetBytes ∧\n"
+             "          res = core.result.Result.Err (lifecycle.Error.Triple\n")
+
+TWO_OK = "          ∃ ptA : alloc.vec.Vec Std.U8, res = core.result.Result.Ok ptA ∧ ptA.val = ptR.val ∧\n"
+
+TWO_AGREE = ("      (res : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error) (s'' : lifecycle.Session) (rngA' : R),\n"
+             "      oracleB.dhAgree dB (arrayOf q.ratchetBytes) = some dSend ∧\n"
+             "      oracle.dhAgree dA (oracleB.dhPublic dB) = some x ∧\n")
 
 SUCCESS_TAIL = "      ptA.val = ptR.val ∧ trace rngA' = restA ∧ s''.pending_initial = none ∧\n"
 
@@ -105,9 +135,9 @@ MUTANTS = [
     ('module', 'decrypt-claimed-from-the-source-before-the-first-send',
      [(OUTCOMES_CALL, OUTCOMES_CALL.replace("bytesR) rng' = ok (res", "bytesR) rng = ok (res"))],
      r"hcallA\nhas type\n  lifecycle\.Session\.decrypt rc crc s' bytesR\.deref rng' = ok \(res, s'', rngA'\)\nbut is expected to have type\n  lifecycle\.Session\.decrypt rc crc s' bytesR\.deref rng = ok \(res, s'', rngA'\)", ['initiator_receives_reply_outcomes']),
-    ('module', 'reply-claimed-on-the-sparse-chain-k1',
-     [(OUTCOMES_BYTES, OUTCOMES_BYTES.replace("(arrayOf q.sparseReceive)) (sliceOf ptR)", "(arrayOf q.sparseSend)) (sliceOf ptR)"))],
-     r"⊢ replyFrame oracleB \(vecOf q\.identityAd\) \(oracleB\.dhPublic dB\)\n      \(firstKey \(Model\.State\.kdfRk \(arrayOf q\.rootKey\) dSend Model\.State\.LabelSet\.tacenta\)\.2 \(arrayOf q\.sparseReceive\)\)\n      \(sliceOf ptR\) =\n    replyFrame oracleB \(vecOf q\.identityAd\) \(oracleB\.dhPublic dB\)\n      \(firstKey \(Model\.State\.kdfRk \(arrayOf q\.rootKey\) dSend Model\.State\.LabelSet\.tacenta\)\.2 \(arrayOf q\.sparseSend\)\)", ['initiator_receives_reply_outcomes']),
+    ('module', 'reply-claimed-under-the-peer-ratchet-key',
+     [(OUTCOMES_BYTES, OUTCOMES_BYTES.replace("(vecOf q.identityAd) (oracleB.dhPublic dB)", "(vecOf q.identityAd) (arrayOf q.peerRatchetBytes)"))],
+     r"⊢ replyFrame oracleB \(vecOf q\.identityAd\) \(oracleB\.dhPublic dB\)\n[\s\S]*?=\n    replyFrame oracleB \(vecOf q\.identityAd\) \(arrayOf q\.peerRatchetBytes\)", ['initiator_receives_reply_outcomes']),
     ('module', 'stale-key-refusal-claimed-as-aead',
      [(STALE_ERROR, "        (res = core.result.Result.Err lifecycle.Error.Aead ∧\n")],
      r"⊢ core\.result\.Result\.Err\n      \(lifecycle\.Error\.Triple \(tacenta_triple\.TripleError\.Classical tacenta_ratchet\.RatchetError\.NoReceivingChain\)\) =\n    core\.result\.Result\.Err lifecycle\.Error\.Aead", ['initiator_receives_reply_outcomes']),
@@ -117,15 +147,26 @@ MUTANTS = [
     ('module', 'success-claimed-to-keep-the-pending-initial-message',
      [(OUTCOMES_WRITES, OUTCOMES_WRITES.replace("pending_initial := none }", "pending_initial := s'.pending_initial }"))],
      r"decrypt_ok_writes rc crc s' bytesR\.deref rng' ptA s'' rngA' hcallA\nhas type\n[\s\S]*?pending_initial := none, [\s\S]*?but is expected to have type\n[\s\S]*?pending_initial := s'\.pending_initial, ", ['initiator_receives_reply_outcomes']),
-    ('module', 'success-claimed-without-a-draw',
-     [(SUCCESS_TAIL, SUCCESS_TAIL.replace("trace rngA' = restA", "trace rngA' = dA :: restA"))],
-     r"hdr\nhas type\n  trace rngA' = restA\nbut is expected to have type\n  trace rngA' = dA :: restA", ['initiator_receives_reply']),
+    ('module', 'decrypt-claimed-to-take-no-draw',
+     [(OUTCOMES_CALL, OUTCOMES_CALL.replace("trace rngA' = restA", "trace rngA' = dA :: restA"))],
+     r"hdr\nhas type\n  trace \(res, s'', rngA'\)\.2\.2 =\n[\s\S]*?draws := restA,[\s\S]*?but is expected to have type\n  trace rngA' = dA :: restA", ['initiator_receives_reply_outcomes']),
+    ('module', 'two-outcome-stale-arm-claimed-on-a-fresh-key',
+     [(TWO_STALE, TWO_STALE.replace("dB = arrayOf q.peerRatchetBytes", "dB ≠ arrayOf q.peerRatchetBytes"))],
+     r"hpeer\nhas type\n  oracleB\.dhPublic dB = arrayOf q\.peerRatchetBytes\nbut is expected to have type\n  oracleB\.dhPublic dB ≠ arrayOf q\.peerRatchetBytes\nin the application\n  And\.intro hpeer", ['initiator_receives_reply_two_outcomes']),
+    ('module', 'plaintext-claimed-to-be-the-first-message',
+     [(TWO_OK, TWO_OK.replace("ptA.val = ptR.val", "ptA.val = plaintext.val"))],
+     r"hvec\nhas type\n  vecOf ptA = sliceOf ptR\nbut is expected to have type\n  List\.map SessionUnitBraidT3\.u8 ↑ptA = List\.map SessionUnitBraidT3\.u8 ↑plaintext\nin the application\n  UnitLifecycleEstablishResponder\.map_u8_inj hvec", ['initiator_receives_reply_two_outcomes']),
+    ('module', 'candidate-agreement-claimed-with-the-responder-draw',
+     [(TWO_AGREE, TWO_AGREE.replace("oracle.dhAgree dA (oracleB.dhPublic dB)", "oracle.dhAgree dB (oracleB.dhPublic dB)"))],
+     r"hx0\nhas type\n[\s\S]*?\.dhAgree\n      dA \(oracleB\.dhPublic dB\) =\n    some x0\nbut is expected to have type\n  oracle\.dhAgree dB \(oracleB\.dhPublic dB\) = some x0", ['initiator_receives_reply_two_outcomes']),
     ('module', 'fresh-premise-claimed-against-the-initiator-own-key',
      [(FRESH, FRESH.replace("arrayOf q.peerRatchetBytes", "arrayOf q.ratchetBytes"))],
      r"hfreshB\nhas type\n  oracleB\.dhPublic dB ≠ arrayOf q\.ratchetBytes\nbut is expected to have type\n  ¬oracleB\.dhPublic dB = arrayOf q\.peerRatchetBytes\nin the application\n  absurd hpeer hfreshB", ['initiator_receives_reply']),
-    ('module', 'plaintext-claimed-to-be-the-first-message',
-     [(SUCCESS_TAIL, SUCCESS_TAIL.replace("ptA.val = ptR.val", "ptA.val = plaintext.val"))],
-     r"hvec\nhas type\n  vecOf ptA = sliceOf ptR\nbut is expected to have type\n  List\.map SessionUnitBraidT3\.u8 ↑ptA = List\.map SessionUnitBraidT3\.u8 ↑plaintext", ['initiator_receives_reply']),
+    # a projection of the two-outcome theorem's draw conjunct, refused in a composing theorem: neither inside nor
+    # statement-shape
+    ('module', 'success-claimed-without-a-draw',
+     [(SUCCESS_TAIL, SUCCESS_TAIL.replace("trace rngA' = restA", "trace rngA' = dA :: restA"))],
+     r"hdr\nhas type\n  trace rngA' = restA\nbut is expected to have type\n  trace rngA' = dA :: restA", ['initiator_receives_reply']),
     # leaf lemmas
     ('module', 'fresh-key-receive-claimed-under-the-own-key-premise',
      [("theorem reply_receive_key (a4 peer rkA cksA prk k1 k2 dSend x newPub candPub : Key) (hne : newPub ≠ peer) :\n",
@@ -159,7 +200,7 @@ MUTANTS = [
      [("          braid := .keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector encoder } := by\n",
        "          braid := .keysSampled 0 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector encoder } := by\n")],
      r"hsess\nhas type\n[\s\S]*?braid := Model\.Braid\.BraidState\.keysSampled 1 \(SessionUnitBraidT3\.AuthOf q\.auth\) dk ekVector encoder,[\s\S]*?but is expected to have type\n[\s\S]*?braid := Model\.Braid\.BraidState\.keysSampled 0 \(SessionUnitBraidT3\.AuthOf q\.auth\) dk ekVector encoder,", ['first_send_model_session']),
-    # statement-shape check
+    # statement-shape check (projects `reply_receipt_reach_run`)
     ('module', 'reach-decrypt-claimed-at-the-responder-session',
      [(REACH_CALL, REACH_CALL.replace("byteCrc s' (alloc", "byteCrc sB' (alloc"))],
      r"hcallA\nhas type\n  lifecycle\.Session\.decrypt byteRng byteCrc s' bytesR\.deref rng' = ok \(core\.result\.Result\.Ok ptA, s'', rngA'\)\nbut is expected to have type\n  lifecycle\.Session\.decrypt byteRng byteCrc sB' bytesR\.deref rng' = ok \(core\.result\.Result\.Ok ptA, s'', rngA'\)", ['first_send_reply_receipt_reachable']),
@@ -170,27 +211,73 @@ MUTANTS = [
      ('pin', 'Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession')),
 ]
 
-# The controls that sit inside a composing proof.  For each, the script also runs the changed copy with that
-# theorem's proof replaced by `sorry` and requires Lean to accept the change there: the refusal must come from the
-# proof, not from a statement it no longer matches.
+COMPOSING = {
+    'initiator_receives_reply_outcomes',
+    'initiator_receives_reply_two_outcomes',
+    'initiator_receives_reply',
+}
+
+# The controls labelled inside a composing proof, with the declaration each is refused in.  For each, the script also
+# runs the changed copy with that theorem's proof replaced by `sorry` and requires Lean to accept the change there:
+# the refusal is attributable to that proof.
 INSIDE = {
     'decrypt-claimed-from-the-source-before-the-first-send': 'initiator_receives_reply_outcomes',
-    'reply-claimed-on-the-sparse-chain-k1': 'initiator_receives_reply_outcomes',
+    'reply-claimed-under-the-peer-ratchet-key': 'initiator_receives_reply_outcomes',
     'stale-key-refusal-claimed-as-aead': 'initiator_receives_reply_outcomes',
     'stale-key-arm-claimed-on-a-fresh-key': 'initiator_receives_reply_outcomes',
     'success-claimed-to-keep-the-pending-initial-message': 'initiator_receives_reply_outcomes',
-    'success-claimed-without-a-draw': 'initiator_receives_reply',
+    'decrypt-claimed-to-take-no-draw': 'initiator_receives_reply_outcomes',
+    'two-outcome-stale-arm-claimed-on-a-fresh-key': 'initiator_receives_reply_two_outcomes',
+    'plaintext-claimed-to-be-the-first-message': 'initiator_receives_reply_two_outcomes',
+    'candidate-agreement-claimed-with-the-responder-draw': 'initiator_receives_reply_two_outcomes',
     'fresh-premise-claimed-against-the-initiator-own-key': 'initiator_receives_reply',
-    'plaintext-claimed-to-be-the-first-message': 'initiator_receives_reply',
 }
+
+# The theorems a statement-shape check may project: the composing theorems and the reach run the two reaches apply.
+PROJECTED = COMPOSING | {'reply_receipt_reach_run'}
+
+# The statement-shape checks, with the theorem each projects.  For each, the script also runs the changed copy with
+# that theorem's proof replaced by `sorry` and requires Lean still to refuse the change at its named place: the
+# refusal does not depend on the projected theorem's proof.
+STATEMENT_SHAPE = {
+    'reach-decrypt-claimed-at-the-responder-session': 'reply_receipt_reach_run',
+}
+
+
+def check_labels():
+    """The inside and statement-shape labels are consistent with each other and with where each control is refused."""
+    wheres = {name: where for _, name, _, _, where in MUTANTS}
+    for name, decl in list(INSIDE.items()) + list(STATEMENT_SHAPE.items()):
+        if name not in wheres:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled but is not a control')
+    both = set(INSIDE) & set(STATEMENT_SHAPE)
+    if both:
+        raise SystemExit(f'LABELS BROKEN: {", ".join(sorted(both))} labelled both inside and statement-shape')
+    for name, decl in INSIDE.items():
+        if isinstance(wheres[name], tuple) or decl not in wheres[name]:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not where it is refused')
+        if decl not in COMPOSING:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not a composing proof')
+    for name, decl in STATEMENT_SHAPE.items():
+        if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
+            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
+        if decl not in PROJECTED:
+            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} projects {decl}, which is not in '
+                             f'PROJECTED')
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
                  'unknown namespace', 'does not contain')
+
+# A timeout (a heartbeat or deterministic timeout) is never a refusal: it never counts as the named refusal, and one
+# elsewhere in the copy is logged.  It does not void a run whose named refusal is a separate error at the named place
+# that matches the expected message.
+TIMEOUT = ('timeout', 'maxheartbeats', 'heartbeats', 'deterministic')
 
 
 # Lean capitalises its error messages (`Unknown identifier`, `Unknown constant`, `Function expected`), so the
 # guard is matched case-insensitively, on the first line of each error, where Lean names the kind of failure.
 ERROR_HEAD = re.compile(r'^\S+\.lean:\d+:\d+: error(?:\([^)]*\))?: (.*)$', re.M)
+MESSAGE = re.compile(r'^\S+\.lean:(\d+):\d+: (error|warning|info|information)(?:\([^)]*\))?: (.*)$', re.M)
 
 
 def not_a_refusal(output, guards):
@@ -200,8 +287,24 @@ def not_a_refusal(output, guards):
     return any(bad in head for head in heads for bad in guards)
 
 
+def error_blocks(output):
+    """Each error of `output` as (line, first line, whole text)."""
+    found = list(MESSAGE.finditer(output))
+    blocks = []
+    for k, m in enumerate(found):
+        end = found[k + 1].start() if k + 1 < len(found) else len(output)
+        if m.group(2) == 'error':
+            blocks.append((int(m.group(1)), m.group(3), output[m.start():end]))
+    return blocks
+
+
+def is_timeout(head):
+    return any(t in head.lower() for t in TIMEOUT)
+
+
 def guard_self_test(guards):
-    """The guard must fire on the toolchain's own spelling of an unresolved name."""
+    """The guard must fire on the toolchain's own spelling of an unresolved name, and a timeout must be told apart
+    from a refusal."""
     sample = ("/tmp/x.lean:3:8: error(lean.unknownIdentifier): Unknown identifier `fooBar`\n"
               "/tmp/x.lean:4:2: error: unsolved goals\n")
     if not not_a_refusal(sample, guards):
@@ -212,6 +315,13 @@ def guard_self_test(guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard does not fire on the kernel\'s `unknown constant`')
     if not_a_refusal("/tmp/x.lean:4:2: error: unsolved goals\n", guards):
         raise SystemExit('GUARD BROKEN: the not-a-refusal guard fires on an ordinary refusal')
+    timeout = ("/tmp/x.lean:7:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) "
+               "has been reached\nUse `set_option maxHeartbeats <num>` to set the limit.\n")
+    blocks = error_blocks(timeout)
+    if len(blocks) != 1 or not is_timeout(blocks[0][1]):
+        raise SystemExit('GUARD BROKEN: a heartbeat timeout is not recognised as a timeout')
+    if any(is_timeout(h) for _, h, _ in error_blocks("/tmp/x.lean:4:2: error: unsolved goals\nx : T\n")):
+        raise SystemExit('GUARD BROKEN: an ordinary refusal is taken for a timeout')
 
 
 def run_lean(path, log, timeout):
@@ -300,32 +410,37 @@ def check_inside(name, decl, status, output, log, emptied):
 
 
 def check_refused(name, status, output, marker, log, mutated, where):
-    refused = (status != 0 and 'error' in output and re.search(marker, output)
-               and not not_a_refusal(output, NOT_A_REFUSAL))
-    if not refused:
+    """Refused at the named place, by an error there that is not a timeout and that matches the expected message;
+    an error that is not a refusal voids the run anywhere in the copy; a timeout elsewhere is returned for the log."""
+    if status == 0 or not_a_refusal(output, NOT_A_REFUSAL):
         raise SystemExit(f'FAILED control {name}: expected Lean to refuse it with `{marker}`, '
                          f'exit={status}; {log}')
-    errors = {int(n) for n in ERROR_AT.findall(output)}
+    blocks = error_blocks(output)
     if isinstance(where, tuple):
         line = pin_line(mutated, where[1])
         if line is None:
             raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` pin, so '
                              f'its refusal cannot be the pin\'s; {log}')
-        if line not in errors:
-            raise SystemExit(f'FAILED control {name}: refused, but not at the pin of {where[1]} '
-                             f'(line {line}); {log}')
-        return f'the pin of {where[1]}'
-    for decl in where:
-        span = declaration_lines(mutated, decl)
-        if span is None:
-            raise SystemExit(f'Target changed for {name}: no declaration {decl} in the copy')
-        if any(span[0] <= e <= span[1] for e in errors):
-            return decl
-    raise SystemExit(f'FAILED control {name}: refused, but in none of {", ".join(where)}; {log}')
+        spans = [(where[1], (line, line))]
+    else:
+        spans = []
+        for decl in where:
+            span = declaration_lines(mutated, decl)
+            if span is None:
+                raise SystemExit(f'Target changed for {name}: no declaration {decl} in the copy')
+            spans.append((decl, span))
+    for decl, (lo, hi) in spans:
+        if any(lo <= ln <= hi and not is_timeout(head) and re.search(marker, text) for ln, head, text in blocks):
+            place = decl if not isinstance(where, tuple) else f'the pin of {where[1]}'
+            timeouts = sorted(ln for ln, head, _ in blocks if is_timeout(head))
+            return place, timeouts
+    raise SystemExit(f'FAILED control {name}: no error at the named place ({", ".join(d for d, _ in spans)}) that is '
+                     f'not a timeout matches `{marker}`; {log}')
 
 
 def main():
     guard_self_test(NOT_A_REFUSAL)
+    check_labels()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)
@@ -366,11 +481,16 @@ def main():
             path.write_text(mutated)
             log = logs / f'{label}_{name}.log'
             status, output = run_lean(path, log, args.timeout)
-            place = check_refused(name, status, output, marker, log, mutated, where)
+            place, timeouts = check_refused(name, status, output, marker, log, mutated, where)
             results['rejected'][f'{label}/{name}'] = {'exit': status, 'marker': marker, 'at': place}
+            if timeouts:
+                results['rejected'][f'{label}/{name}']['timeouts_elsewhere'] = timeouts
+                print(f'NOTE: {label}/{name} also has a timeout at line(s) {timeouts}, not counted', flush=True)
             print(f'PASS: {label}/{name} refused by Lean in {place}', flush=True)
             if name in INSIDE:
                 decl = INSIDE[name]
+                if place != decl:
+                    raise SystemExit(f'FAILED inside check {name}: refused in {place}, labelled inside {decl}; {log}')
                 emptied = gutted(mutated, decl)
                 epath = tmp / f'{label}_{name}_emptied.lean'
                 epath.write_text(emptied)
@@ -379,11 +499,23 @@ def main():
                 check_inside(name, decl, status, output, elog, emptied)
                 results['rejected'][f'{label}/{name}']['inside'] = decl
                 print(f'PASS: {label}/{name} accepted in {decl} with its proof emptied', flush=True)
+            if name in STATEMENT_SHAPE:
+                decl = STATEMENT_SHAPE[name]
+                emptied = gutted(mutated, decl)
+                epath = tmp / f'{label}_{name}_projected_emptied.lean'
+                epath.write_text(emptied)
+                elog = logs / f'{label}_{name}_projected_emptied.log'
+                status, output = run_lean(epath, elog, args.timeout)
+                check_refused(name, status, output, marker, elog, emptied, where)
+                results['rejected'][f'{label}/{name}']['projects'] = decl
+                print(f'PASS: {label}/{name} still refused with the proof of {decl} emptied', flush=True)
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
     inside = sum(1 for r in results['rejected'].values() if 'inside' in r)
+    shape = sum(1 for r in results['rejected'].values() if 'projects' in r)
     print(f'{len(results["accepted"])} unmodified copies accepted, {len(results["rejected"])} changes '
-          f'refused at their named places, {inside} of them inside a composing proof (accepted there with '
-          f'that proof emptied); logs: {logs}', flush=True)
+          f'refused at their named places, {inside} of them labelled inside a composing proof (accepted there with '
+          f'that proof emptied) and {shape} labelled statement-shape (still refused with the projected proof '
+          f'emptied); logs: {logs}', flush=True)
 
 
 if __name__ == '__main__':

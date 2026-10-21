@@ -249,14 +249,16 @@ python3 scripts/check-responder-reply-negatives.py || fail=1
 report_time "responder reply proof-dependency control" "$t"
 # The initiator's `decrypt` of the responder's reply at the session its first `encrypt` left
 # (`UnitLifecycleResponderReplyReceipt.lean`): a copy with the decrypt claimed from the source before the first send,
-# the reply claimed sealed on the other sparse chain, the stale-key refusal claimed as `Aead` or on a fresh key, the
-# success claimed to keep the pending initial message or to take no draw, the freshness premise claimed against the
-# initiator's own key, the plaintext claimed to be the first message, the model receive's premise, refusal or
-# previous chain length changed, the joint model's public key made constant, the fresh private key's reading, the
-# first agreement's key, the model's stale-key outcome or the first send's agreement epoch changed, the reach's
-# decrypt claimed at the responder's session, and a copy of the receipt session definition with its pins kept must
-# each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
-# accepted; the eight changes inside composing proofs must be accepted there with that proof emptied.
+# the reply claimed to carry the peer key, the stale-key refusal claimed as `Aead` or on a fresh key (in the outcomes
+# and the two-outcome theorem), the success claimed to keep the pending initial message or to take no draw, the
+# plaintext claimed to be the first message, the named agreement claimed of the responder's draw, the freshness
+# premise claimed against the initiator's own key, the model receive's premise, refusal or previous chain length
+# changed, the joint model's public key made constant, the fresh private key's reading, the first agreement's key, the
+# model's stale-key outcome or the first send's agreement epoch changed, the reach's decrypt claimed at the
+# responder's session, and a copy of the receipt session definition with its pins kept must each be refused at a
+# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the ten
+# changes labelled inside composing proofs must be accepted there with that proof emptied, and the statement-shape
+# check still refused with the projected proof emptied.
 t=$SECONDS
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 report_time "responder reply receipt proof-dependency control" "$t"
