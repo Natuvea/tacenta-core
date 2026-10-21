@@ -26,7 +26,8 @@
 #                                                    that names a seam is refused
 #   a dispatcher slice that selected other controls, recorded fewer, or lost a baseline, a log or a file,
 #   or holds a link or another file                  refused
-#   a manifest with a repeated key, a field more, a status that is a boolean   refused
+#   a manifest with a repeated key, a field more, a status that is a boolean, a byte outside printable
+#   ASCII (in a dispatcher result too)             refused
 #   a stray file or link in the directory or in a part   refused
 #   the parts file: a phase in no part (the script given a phase the file does not assign, made for the
 #   purpose: every part refuses before it runs, and so does the combiner), a phase in two parts, a slice
@@ -396,6 +397,17 @@ copy seam-named; edit seam-named braid "m['seam'] = ['BRAIDNEG_FILTER']"
 refused_copy seam-named "ran with the test seam"
 copy field-more; edit field-more braid "m['note'] = 'x'"
 refused_copy field-more "does not hold exactly the fields"
+copy not-ascii
+python3 - "$work/set-not-ascii/translation-part-braid/part.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+m["toolchain"] = "Lean (v\u00e9rsion stub)"
+open(sys.argv[1], "w", encoding="utf-8").write(json.dumps(m, indent=2, ensure_ascii=False) + "\n")
+PY
+refused_copy not-ascii "holds a byte that is not printable ASCII or a newline"
+copy result-cr; sed -i.bak 's/"slice"/"slice"\r/' "$work/set-result-cr/translation-part-dispatch-0/initial-dispatch/result.json"
+rm -f "$work/set-result-cr/translation-part-dispatch-0/initial-dispatch/result.json.bak"
+refused_copy result-cr "holds a byte that is not printable ASCII or a newline"
 copy repeated-key
 sed -i.bak 's/"exit": 0,/"exit": 0, "exit": 0,/' "$work/set-repeated-key/translation-part-braid/part.json"
 rm -f "$work/set-repeated-key/translation-part-braid/part.json.bak"

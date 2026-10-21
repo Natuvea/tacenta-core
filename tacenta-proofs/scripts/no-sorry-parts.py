@@ -85,11 +85,19 @@ def no_repeats(pairs):
     return seen
 
 
+# A manifest and a result file are written by `json.dumps`, which escapes everything outside printable
+# ASCII; anything else in one was not written by the script.
+PRINTABLE = re.compile(rb'[\x20-\x7e\n]*')
+
+
 def read_json(path):
     if path.is_symlink() or not path.is_file():
         refuse(f'{path} is not a regular file')
+    data = path.read_bytes()
+    if not PRINTABLE.fullmatch(data):
+        refuse(f'{path} holds a byte that is not printable ASCII or a newline')
     try:
-        return json.loads(path.read_bytes().decode('utf-8'), object_pairs_hook=no_repeats)
+        return json.loads(data.decode('ascii'), object_pairs_hook=no_repeats)
     except (UnicodeDecodeError, ValueError) as error:
         refuse(f'{path} is not a JSON document: {error}')
 
