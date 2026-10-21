@@ -10,34 +10,41 @@ plaintext when the responder's fresh ratchet key is not that peer key.  A proof 
 rests on is removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to
 refuse it, at a named place, with an error that names what the change removed.
 
-Ten controls are labelled inside the proofs that compose the run.  Each is a change to a composing theorem's
-statement, refused by a step of its proof.  The script checks that each is refused in the declaration it is labelled
-with, and runs each of the ten with that theorem's proof replaced by `sorry`, requiring Lean to accept the change
-there, so the refusal is attributable to that proof.  That check cannot tell a composing step from a projection (a
-corollary's statement-shape check passes it too): that the ten are refused by composition steps, and that the three
-theorems named in `COMPOSING` compose rather than project, is decided by reading, and the script only holds the labels
-consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; a
-control cannot be labelled both inside and statement-shape; a statement-shape check may not be refused in a composing
-theorem), at start-up and again at run time:
+Seven controls are labelled inside the proofs that compose the run and four are projections.  A control refused in a
+composing theorem is a projection when it is refused where that proof places a conjunct of a called theorem's
+conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two labels to
+a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the proof
+binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
+constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside
+control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the
+change there, so the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a
+composing step from a projection (a corollary's statement-shape check passes it too).  That the syntactic form is the
+right standard, and that the three theorems named in `COMPOSING` compose rather than project, is decided by reading.
+The labels are also held consistent (an inside control must be labelled with the declaration it is refused in and
+with a composing theorem; no control carries two labels; a statement-shape check may not be refused in a composing
+theorem, and the theorem it projects must be in `PROJECTED`), at start-up and again at run time:
 
-  * in `initiator_receives_reply_outcomes`: the decrypt claimed from the source before the first send (whose draws
-    that send took) instead of the source it left (refused where the refinement's call is placed); the reply's bytes
-    claimed to carry the peer key the initiator holds instead of the fresh ratchet key (refused at the step that
-    closes the bytes equation from the reply's run); the refusal on a stale ratchet key claimed to be `Aead` instead
-    of `Triple(Classical(NoReceivingChain))` (refused where the model's refusal fixes the code's error); the
-    stale-key arm claimed on a fresh key (refused where the model's case split fixes the key); the session after a
-    success claimed to keep the pending initial message (refused where the walk of the public `decrypt` fixes what the
-    call writes); the call claimed to take no draw (refused where the model step's oracle fixes the draws the call
-    leaves);
-  * in `initiator_receives_reply_two_outcomes`: the stale-key arm claimed on a fresh key (refused where the outcomes
-    theorem's stale arm is placed); the plaintext claimed to be the initiator's first plaintext instead of the
-    responder's (refused where the open's plaintext is placed); the agreement the relation names claimed of the
-    responder's draw instead of the initiator's (refused where the contributory agreement is placed);
-  * in `initiator_receives_reply`: the freshness premise claimed against the initiator's own ratchet key instead of
-    the peer key it holds (refused where the stale-key arm is excluded).
-
-One is a projection, labelled neither inside nor statement-shape: the success claimed to take no draw (refused in
-`initiator_receives_reply`, where the two-outcome theorem's draw conjunct is passed through).
+  * inside `initiator_receives_reply_outcomes`: the reply's bytes claimed to carry the peer key the initiator holds
+    instead of the fresh ratchet key (refused at the step that closes the bytes equation from the reply's run); the
+    refusal on a stale ratchet key claimed to be `Aead` instead of `Triple(Classical(NoReceivingChain))` (refused
+    where the model's refusal fixes the code's error); the session after a success claimed to keep the pending
+    initial message (refused where the walk of the public `decrypt` fixes what the call writes); the call claimed to
+    take no draw (refused where the model step's oracle fixes the draws the call leaves);
+  * inside `initiator_receives_reply_two_outcomes`: the plaintext claimed to be the initiator's first plaintext
+    instead of the responder's (refused where the open's plaintext is placed); the agreement the relation names
+    claimed of the responder's draw instead of the initiator's (refused where the contributory agreement, rewritten
+    to the reply's key, is placed);
+  * inside `initiator_receives_reply`: the freshness premise claimed against the initiator's own ratchet key instead
+    of the peer key it holds (refused where the stale-key arm is excluded);
+  * projections: the decrypt claimed from the source before the first send (whose draws that send took) instead of
+    the source it left (refused in `initiator_receives_reply_outcomes` where the call conjunct of
+    `decrypt_refines_ratchet_frame_of_counter_headroom` is placed unchanged); the stale-key arm claimed on a fresh key
+    (refused in `initiator_receives_reply_outcomes` where the key conjunct of the stale arm of
+    `reply_receipt_model_outcomes` is placed unchanged); the stale-key arm claimed on a fresh key in the two-outcome
+    theorem (refused in `initiator_receives_reply_two_outcomes` where the stale arm of
+    `initiator_receives_reply_outcomes` is placed unchanged); the success claimed to take no draw (refused in
+    `initiator_receives_reply`, where the draw conjunct of `initiator_receives_reply_two_outcomes` is placed
+    unchanged).
 
 Eight are on the leaf lemmas:
 
@@ -131,7 +138,7 @@ REACH_CALL = ("      lifecycle.Session.decrypt byteRng byteCrc s' (alloc.vec.Vec
 #  output must contain, where the refusal must be: declarations one of whose lines holds an error, or
 #  ('pin', name) for the `#guard_msgs` line of the `#print` pin of `name`)
 MUTANTS = [
-    # inside the composing proofs
+    # in the composing proofs: inside, except the projections in `PROJECTION`
     ('module', 'decrypt-claimed-from-the-source-before-the-first-send',
      [(OUTCOMES_CALL, OUTCOMES_CALL.replace("bytesR) rng' = ok (res", "bytesR) rng = ok (res"))],
      r"hcallA\nhas type\n  lifecycle\.Session\.decrypt rc crc s' bytesR\.deref rng' = ok \(res, s'', rngA'\)\nbut is expected to have type\n  lifecycle\.Session\.decrypt rc crc s' bytesR\.deref rng = ok \(res, s'', rngA'\)", ['initiator_receives_reply_outcomes']),
@@ -162,8 +169,7 @@ MUTANTS = [
     ('module', 'fresh-premise-claimed-against-the-initiator-own-key',
      [(FRESH, FRESH.replace("arrayOf q.peerRatchetBytes", "arrayOf q.ratchetBytes"))],
      r"hfreshB\nhas type\n  oracleB\.dhPublic dB ≠ arrayOf q\.ratchetBytes\nbut is expected to have type\n  ¬oracleB\.dhPublic dB = arrayOf q\.peerRatchetBytes\nin the application\n  absurd hpeer hfreshB", ['initiator_receives_reply']),
-    # a projection of the two-outcome theorem's draw conjunct, refused in a composing theorem: neither inside nor
-    # statement-shape
+    # a projection of the two-outcome theorem's draw conjunct, refused in a composing theorem
     ('module', 'success-claimed-without-a-draw',
      [(SUCCESS_TAIL, SUCCESS_TAIL.replace("trace rngA' = restA", "trace rngA' = dA :: restA"))],
      r"hdr\nhas type\n  trace rngA' = restA\nbut is expected to have type\n  trace rngA' = dA :: restA", ['initiator_receives_reply']),
@@ -221,16 +227,24 @@ COMPOSING = {
 # runs the changed copy with that theorem's proof replaced by `sorry` and requires Lean to accept the change there:
 # the refusal is attributable to that proof.
 INSIDE = {
-    'decrypt-claimed-from-the-source-before-the-first-send': 'initiator_receives_reply_outcomes',
     'reply-claimed-under-the-peer-ratchet-key': 'initiator_receives_reply_outcomes',
     'stale-key-refusal-claimed-as-aead': 'initiator_receives_reply_outcomes',
-    'stale-key-arm-claimed-on-a-fresh-key': 'initiator_receives_reply_outcomes',
     'success-claimed-to-keep-the-pending-initial-message': 'initiator_receives_reply_outcomes',
     'decrypt-claimed-to-take-no-draw': 'initiator_receives_reply_outcomes',
-    'two-outcome-stale-arm-claimed-on-a-fresh-key': 'initiator_receives_reply_two_outcomes',
     'plaintext-claimed-to-be-the-first-message': 'initiator_receives_reply_two_outcomes',
     'candidate-agreement-claimed-with-the-responder-draw': 'initiator_receives_reply_two_outcomes',
     'fresh-premise-claimed-against-the-initiator-own-key': 'initiator_receives_reply',
+}
+
+# The controls refused in a composing proof where it places a conjunct of a called theorem's conclusion unchanged,
+# with that called theorem: projections, labelled neither inside nor statement-shape and not probed.  Every other
+# control refused in a composing proof must be labelled inside; `check_labels` holds both labels to the syntactic
+# form of that standard (`passed_through`).
+PROJECTION = {
+    'decrypt-claimed-from-the-source-before-the-first-send': 'decrypt_refines_ratchet_frame_of_counter_headroom',
+    'stale-key-arm-claimed-on-a-fresh-key': 'reply_receipt_model_outcomes',
+    'two-outcome-stale-arm-claimed-on-a-fresh-key': 'initiator_receives_reply_outcomes',
+    'success-claimed-without-a-draw': 'initiator_receives_reply_two_outcomes',
 }
 
 # The theorems a statement-shape check may project: the composing theorems and the reach run the two reaches apply.
@@ -244,26 +258,144 @@ STATEMENT_SHAPE = {
 }
 
 
-def check_labels():
-    """The inside and statement-shape labels are consistent with each other and with where each control is refused."""
+BINDER = re.compile(r'\s*(?:· )?(obtain|rcases|have)\b')
+PLACING = {'And.intro', 'Or.inl', 'Or.inr', 'Exists.intro'}
+
+
+def mentions(name):
+    return re.compile(r'(?<![\w.\'])' + re.escape(name) + r'(?![\w\'])')
+
+
+def binding(lines, name):
+    """The tactic of `lines` that binds `name` at its first mention, as (source, end), where `source` is the term the
+    tactic destructures (`obtain pattern := source`, `rcases source with pattern`, `have name := source`) and `end` the
+    index of the line after the tactic; None when the first mention is not in such a tactic's pattern."""
+    word = mentions(name)
+    first = next((k for k, line in enumerate(lines) if word.search(line)), None)
+    if first is None:
+        return None
+    j = first
+    while j >= 0 and not BINDER.match(lines[j]):
+        j -= 1
+    if j < 0:
+        return None
+    indent = len(lines[j]) - len(lines[j].lstrip())
+    end = j + 1
+    while end < len(lines) and (not lines[end].strip() or len(lines[end]) - len(lines[end].lstrip()) > indent):
+        end += 1
+    if first >= end:
+        return None
+    tactic = ' '.join(line.strip() for line in lines[j:end])
+    if BINDER.match(lines[j]).group(1) == 'rcases':
+        m = re.match(r'(?:· )?rcases (.*?) with (.*)$', tactic)
+        if not m:
+            return None
+        source, pattern = m.group(1), m.group(2)
+    else:
+        pattern, sep, source = tactic.partition(':=')
+        if not sep:
+            return None
+    if not word.search(pattern):
+        return None
+    return source.strip(), end
+
+
+def called_theorem(lines, premises, name):
+    """The called theorem whose conclusion the proof `lines` destructures to bind `name`, directly or through local
+    hypotheses bound the same way, with the index of the line after the binding tactic; None when `name` is a premise
+    or is bound otherwise (a tactic block, a field of a premise)."""
+    found = binding(lines, name)
+    if found is None:
+        return None
+    source, end = found
+    m = re.match(r'@?([\w.\']+)', source)
+    if not m or m.group(1) == 'by':
+        return None
+    head = m.group(1)
+    local = head.split('.')[0]
+    if local in premises:
+        return None
+    start = next(k for k, line in enumerate(lines) if mentions(name).search(line))
+    if binding(lines[:start], local) is not None:
+        inner = called_theorem(lines[:start], premises, local)
+        return None if inner is None else (inner[0], end)
+    return head.split('.')[-1], end
+
+
+def passed_through(text, decl, marker):
+    """The called theorem a conjunct of whose conclusion the composing proof `decl` places unchanged where the refusal
+    `marker` is, or None.  A syntactic form of the projection standard: the refusal names a hypothesis (`h\\nhas type`)
+    that the proof binds by destructuring a called theorem's conclusion, that no later tactic rewrites, simplifies or
+    substitutes (`at ... h`, `subst h`), and that the message places with a constructor or in no named application.
+    Any other refusal in a composing proof is read as a composition step."""
+    m = re.match(r'([\w\']+)\\nhas type', marker)
+    if not m:
+        return None
+    app = re.search(r'in the application\\n  ([\w\\.\']+)', marker)
+    if app and app.group(1).replace('\\', '') not in PLACING:
+        return None
+    span = declaration_lines(text, decl)
+    if span is None:
+        return None
+    lines = text.split('\n')[span[0] - 1:span[1]]
+    start = next((k for k, line in enumerate(lines) if line.rstrip().endswith(':= by')), None)
+    if start is None:
+        return None
+    signature, proof = '\n'.join(lines[:start + 1]), lines[start + 1:]
+    premises = {n for group in re.findall(r'[({\[]([^(){}\[\]:]*?) :', signature) for n in group.split()}
+    found = called_theorem(proof, premises, m.group(1))
+    if found is None:
+        return None
+    called, end = found
+    word = re.escape(m.group(1)) + r'(?![\w\'])'
+    for line in proof[end:]:
+        if re.search(r'\b(?:at|subst)\b[^\n]*(?<![\w.\'])' + word, line):
+            return None
+    return called
+
+
+def check_labels(text):
+    """The inside, projection and statement-shape labels are consistent with each other, with where each control is
+    refused, and, for the controls refused in a composing proof, with the syntactic form of the projection standard
+    (`passed_through`) read off `text`, the module without its pins."""
     wheres = {name: where for _, name, _, _, where in MUTANTS}
-    for name, decl in list(INSIDE.items()) + list(STATEMENT_SHAPE.items()):
+    markers = {name: marker for _, name, _, marker, _ in MUTANTS}
+    for name, _ in list(INSIDE.items()) + list(PROJECTION.items()) + list(STATEMENT_SHAPE.items()):
         if name not in wheres:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled but is not a control')
-    both = set(INSIDE) & set(STATEMENT_SHAPE)
-    if both:
-        raise SystemExit(f'LABELS BROKEN: {", ".join(sorted(both))} labelled both inside and statement-shape')
+    for first, second, kinds in ((INSIDE, STATEMENT_SHAPE, 'inside and statement-shape'),
+                                 (INSIDE, PROJECTION, 'inside and projection'),
+                                 (PROJECTION, STATEMENT_SHAPE, 'projection and statement-shape')):
+        both = set(first) & set(second)
+        if both:
+            raise SystemExit(f'LABELS BROKEN: {", ".join(sorted(both))} labelled both {kinds}')
     for name, decl in INSIDE.items():
         if isinstance(wheres[name], tuple) or decl not in wheres[name]:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not where it is refused')
         if decl not in COMPOSING:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not a composing proof')
+        called = passed_through(text, decl, markers[name])
+        if called is not None:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, but is refused where {decl} places a '
+                             f'conjunct of {called} unchanged, a projection')
+    for name, called in PROJECTION.items():
+        places = [] if isinstance(wheres[name], tuple) else [d for d in wheres[name] if d in COMPOSING]
+        if not places:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection but is not refused in a composing proof')
+        if passed_through(text, places[0], markers[name]) != called:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection of {called}, but is not refused where '
+                             f'{places[0]} places a conjunct of {called} unchanged')
     for name, decl in STATEMENT_SHAPE.items():
         if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
             raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
         if decl not in PROJECTED:
             raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} projects {decl}, which is not in '
                              f'PROJECTED')
+    for name, where in wheres.items():
+        if not isinstance(where, tuple) and any(d in COMPOSING for d in where) and name not in INSIDE \
+                and name not in PROJECTION:
+            raise SystemExit(f'LABELS BROKEN: {name} is refused in a composing proof but labelled neither inside nor '
+                             f'a projection')
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
                  'unknown namespace', 'does not contain')
@@ -440,7 +572,7 @@ def check_refused(name, status, output, marker, log, mutated, where):
 
 def main():
     guard_self_test(NOT_A_REFUSAL)
-    check_labels()
+    check_labels(without_pins(MODULE.read_text(), MODULE))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)
@@ -499,6 +631,12 @@ def main():
                 check_inside(name, decl, status, output, elog, emptied)
                 results['rejected'][f'{label}/{name}']['inside'] = decl
                 print(f'PASS: {label}/{name} accepted in {decl} with its proof emptied', flush=True)
+            if name in PROJECTION:
+                places = [d for d in where if d in COMPOSING]
+                if place != places[0]:
+                    raise SystemExit(f'FAILED projection check {name}: refused in {place}, labelled a projection in '
+                                     f'{places[0]}; {log}')
+                results['rejected'][f'{label}/{name}']['projection_of'] = PROJECTION[name]
             if name in STATEMENT_SHAPE:
                 decl = STATEMENT_SHAPE[name]
                 emptied = gutted(mutated, decl)
@@ -512,9 +650,10 @@ def main():
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
     inside = sum(1 for r in results['rejected'].values() if 'inside' in r)
     shape = sum(1 for r in results['rejected'].values() if 'projects' in r)
+    projection = sum(1 for r in results['rejected'].values() if 'projection_of' in r)
     print(f'{len(results["accepted"])} unmodified copies accepted, {len(results["rejected"])} changes '
           f'refused at their named places, {inside} of them labelled inside a composing proof (accepted there with '
-          f'that proof emptied) and {shape} labelled statement-shape (still refused with the projected proof '
+          f'that proof emptied), {projection} labelled projections and {shape} labelled statement-shape (still refused with the projected proof '
           f'emptied); logs: {logs}', flush=True)
 
 

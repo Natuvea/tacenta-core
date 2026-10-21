@@ -365,7 +365,9 @@ python3 scripts/check-discharge-native-decide-negatives.py || fail=1
 # or without its chunk count, either walk claimed to keep what the code changes, the composition claimed of the
 # prepared model, the initiator's session or the plaintext, and a copy of the session definition with its pins kept
 # must each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
-# are accepted.
+# are accepted; the one change inside a composing proof must be accepted there with that proof emptied, the two
+# projections refused where the proof places a called theorem's conjunct unchanged, and the three statement-shape
+# checks still refused with the projected proof emptied.
 phase_responder_successor() {
 python3 scripts/check-responder-successor-negatives.py || fail=1
 }
@@ -378,7 +380,8 @@ python3 scripts/check-responder-successor-negatives.py || fail=1
 # reply header's sparse number, the headroom's header room, the composite's agreement type or the model step's
 # pending premise changed, the reach's source changed, and a copy of the frame definition with its pins kept must
 # each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
-# accepted; the seven changes inside composing proofs must be accepted there with that proof emptied.
+# accepted; the seven changes inside composing proofs, none a projection, must be accepted there with that proof
+# emptied.
 phase_responder_reply() {
 python3 scripts/check-responder-reply-negatives.py || fail=1
 }
@@ -392,9 +395,10 @@ python3 scripts/check-responder-reply-negatives.py || fail=1
 # changed, the joint model's public key made constant, the fresh private key's reading, the first agreement's key, the
 # model's stale-key outcome or the first send's agreement epoch changed, the reach's decrypt claimed at the
 # responder's session, and a copy of the receipt session definition with its pins kept must each be refused at a
-# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the ten
-# changes labelled inside composing proofs must be accepted there with that proof emptied, and the statement-shape
-# check still refused with the projected proof emptied.
+# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the seven
+# changes labelled inside composing proofs must be accepted there with that proof emptied, the four projections
+# refused where the proof places a called theorem's conjunct unchanged, and the statement-shape check still refused
+# with the projected proof emptied.
 phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 }
