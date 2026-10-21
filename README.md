@@ -332,14 +332,23 @@ job prints the line a whole run ends with (`no-sorry: all N phases passed`) only
 exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
 clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
 phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
-request runs fourteen parts on GitHub-hosted machines; a push to main runs one part with every phase on the
-self-hosted runner, as the job did before the split, and only that part saves the build outputs pull requests
-restore. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
+request runs fourteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
+on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
+pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
+they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
+needs "Re-run all jobs" or a new push. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
 fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
-the shape, and none of this matrix has yet run on GitHub. Each part writes its own manifest, so a part
-directory made to look right by something other than the script is not detected; the hosted run of the matrix
+the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
+combiner; the steps of each part (the elan install, the Mathlib fetch and, on the self-hosted runner, the
+clone from local mirrors) are in no receipt and no manifest: a failed one fails its part, which the guard
+refuses, and which of them ran is in that job's log. Each part writes its own manifest and its own log, and
+the combiner checks the log for consistency with the manifest (one closing line per phase, each with status
+0, and no `::error::` or `WRONG` line), not that it is the log of that run: like a manifest, a part directory
+made to look right by something other than the script is not detected; the hosted run of the matrix
 and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
-combiner's refusals on stubbed phases). So a green local run is the gate above less the
+combiner's refusals on stubbed phases). One pull-request run starts about 38 jobs at once (sixteen attestation
+slices, fourteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
+this was written, runs 60 hosted jobs at once, so two runs at the same time queue. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 
