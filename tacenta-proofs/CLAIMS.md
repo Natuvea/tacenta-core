@@ -3795,8 +3795,10 @@ changed. The pins of `SpqrT3.send_refines`/`receive_refines`, their three-leaf c
 refinements and `SessionT3.shared_secret_refines_some` now list no compiler-trust axiom; all of these, and the eleven above,
 are on `REQUIRED_PINS`, and none is on `COMPILER_TRUSTED_PINS`, so a compiler-trust axiom returning under one is refused by
 `attest.py` (`check-attest-negatives.sh` plants one under each of several). `check-discharge-native-decide-negatives.py`
-holds the statements against a changed constant: each of the eleven claims with one value altered is refused at its own
-declaration.
+holds the statements against a changed constant: each of the six labels and three bounds claimed with one value altered,
+and the `(1 : u64)` step of `receive_refines_continuation` claimed as two, is refused at its own declaration, and
+`native_decide` restored under the live pin of `protocol_info_agrees` is refused at the pin; the zero-array step of
+`split_secret_refines` is not controlled (it sits inside a `try`).
 
 What this does not change: these are facts about the translated constants and the model's constants only. The results that
 used them still rest on the unit's opaque constants and on every hypothesis their statements name; kernel-checked over
