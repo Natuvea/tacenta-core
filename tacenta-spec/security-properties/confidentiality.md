@@ -151,8 +151,9 @@ the result.
 - **Status: assumed (ASM-05).** Proved beneath it: the code computes the
   combination as the model does. That is `Tacenta.UnitTripleT3.combine_refines`
   (T3, CLAIMS.md, "Proved (tier T3, the Triple Ratchet's composed session on
-  the unit, with both inner bundles discharged)"); it is compiler-trusted and
-  not pinned. The vectors in
+  the unit, with both inner bundles discharged)"); it is not pinned, and the
+  constant it used to trust the compiler for is proved by the kernel. The
+  vectors in
   `tacenta-test-vectors/vectors/post-quantum/triple.json` pin the derivation.
 - **Does not cover:** an adversary that knows both message keys.
 
