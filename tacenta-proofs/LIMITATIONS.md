@@ -2854,9 +2854,10 @@ and meets the four counter ceilings, the call returns those bytes, leaves its so
 (`initiator_second_send_after_reply`); neither premise is derived here, and no run is exhibited at which they hold, so that
 part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
 the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
-results are compiler-trusted through the nine `native_decide` constants. The headline's statement pin is cut off by Lean's
+results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
+2026-10-21. The headline's statement pin is cut off by Lean's
 `⋯` after the binder `crcB`, so the headline's later binders and its whole conclusion are held by the build and by reading
-only, not by a pin (with this module, 15 modules hold such cut-off pins, 36 pins; a pin form that prints the whole
+only, not by a pin (with this module, 16 modules hold such cut-off pins, 38 pins; a pin form that prints the whole
 statement is to be fixed separately). **No new law and no new per-run premise**: beyond
 the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
 which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
@@ -2883,8 +2884,9 @@ general step (`encrypt_keeps_invariant_no_draw`) rests on the kernel and opaque 
 two) and takes the relation after the call as a hypothesis. That relation carries the Triple half (the code Triple's
 invariant is read off the model Triple it relates to), the three Triple fields the structural clauses read and the
 budget; only the agreement half is a walk of translated code, and the code's Triple send is never walked. Every instance
-gets the relation from the encrypt refinement, so the run results inherit its nine `native_decide` constants and the
-kernel-and-opaque label of the general step does not extend to any instance. Its statement covers the nine agreement
+gets the relation from the encrypt refinement, which rests on the kernel and opaque constants since its nine
+`native_decide` constants became kernel proofs on 2026-10-21, so the run results list no compiler-trust axiom either.
+Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
 only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after
 the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at those states). It does

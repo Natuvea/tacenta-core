@@ -173,18 +173,18 @@ this section says in one place what is not proved.
   lifecycle: the initiator's `decrypt` of the responder's reply ...)"). At the session that receipt returns, the model's step
   for the initiator's next `encrypt` has one outcome (the bare second frame, carrying the header's chunk at index 1, no
   draw); if that session passes `Session::invariant` and meets the four counter ceilings, which is not shown, the public
-  `encrypt` there returns those bytes, takes no draw and refines that step, with no new law or per-run premise,
-  compiler-trusted ("Proved (tier T3, session lifecycle: the initiator's second `encrypt` ...)"). Exactly one reply
+  `encrypt` there returns those bytes, takes no draw and refines that step, with no new law or per-run premise and no
+  compiler-trust axiom ("Proved (tier T3, session lifecycle: the initiator's second `encrypt` ...)"). Exactly one reply
   received by the initiator and, under that condition, exactly one further send by the initiator on this route are
   covered; the responder's receipt of that send and every later message in either direction are not.
   A successful `encrypt` at a session that passes `Session::invariant` and refines a model session whose agreement's send
   takes no draw (the statement covers nine of the twelve agreement states) keeps `Session::invariant` and spends one unit
   of a counter budget whose zero is the four ceilings, given the relation after the call and one boundary record
   (`KemCloneAgrees`), resting on the kernel and opaque constants only. The relation after the call carries the Triple
-  half, the Triple fields the structural clauses read and the budget, and every instance gets it from the
-  compiler-trusted encrypt refinement; the premises are exhibited together only at `NoHeaderReceived`, on the run above,
-  where it gives `Session::invariant` and the four ceilings at the session the responder's reply leaves, under the
-  reply's hypotheses and no other, compiler-trusted. At the other eight states no run exhibits them. `Triple::invariant` holds of a code Triple exactly when the model predicate `ModelTripleInv` holds of
+  half, the Triple fields the structural clauses read and the budget, and every instance gets it from the encrypt
+  refinement; the premises are exhibited together only at `NoHeaderReceived`, on the run above, where it gives
+  `Session::invariant` and the four ceilings at the session the responder's reply leaves, under the reply's hypotheses
+  and no other, with no compiler-trust axiom. At the other eight states no run exhibits them. `Triple::invariant` holds of a code Triple exactly when the model predicate `ModelTripleInv` holds of
   the model Triple it refines, kernel only. An `encrypt` whose agreement send draws, a refused `encrypt`, and every receive
   are not covered by any preservation result ("Proved (tier T3, session lifecycle: `Session::encrypt` keeps
   `Session::invariant` where the agreement's send takes no draw ...)").
@@ -5865,18 +5865,19 @@ or the laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPubl
 a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
 equality.
 
-**Compiler trust and pins.** `initiator_second_send_refines` and `initiator_second_send_after_reply` are compiler-trusted:
-they apply `public_session_encrypt_of_send_contracts` (the second through the first, `initiator_receives_reply` and
-`established_encrypt_outcomes`) and list the same nine `native_decide` constants. Of the other nine results, four rest on at most
-`propext`, `Classical.choice` and `Quot.sound` (`send_output_none_of_no_draw`, `second_send_key`,
-`secondFrame_with_draws`, `second_model_step`) and five on those and opaque constants of the unit
-(`sparseOutput_none_of_no_draw`, `encryptProviders_of_invariant`, `braid_send_keysSampled`,
-`braidSendTraceCounted_of_keysSampled`, `first_send_model_session_encoder`). Each of the eleven results carries an axiom pin
+**Compiler trust and pins.** No result here lists a compiler-trust axiom. `initiator_second_send_refines` and
+`initiator_second_send_after_reply` apply `public_session_encrypt_of_send_contracts` (the second through the first,
+`initiator_receives_reply` and `established_encrypt_outcomes`), whose nine `native_decide` constants are kernel proofs
+since 2026-10-21. Of the eleven results, four rest on at most `propext`, `Classical.choice` and `Quot.sound`
+(`send_output_none_of_no_draw`, `second_send_key`, `secondFrame_with_draws`, `second_model_step`) and seven on those and
+opaque constants of the unit (`sparseOutput_none_of_no_draw`, `encryptProviders_of_invariant`, `braid_send_keysSampled`,
+`braidSendTraceCounted_of_keysSampled`, `first_send_model_session_encoder`, `initiator_second_send_refines`,
+`initiator_second_send_after_reply`). Each of the eleven results carries an axiom pin
 and a statement pin, and each of the five definitions (`initiatorAfterSecond`, `secondHeader`, `secondKey`,
 `secondComposite`, `secondFrame`) a `#print` pin. The headline's statement pin is cut off by Lean's `⋯` after the binder
 `crcB`: it holds the binders up to the contracts and not the rest, so the headline's remaining binders and its whole
 conclusion (the model step and the code-level implication) are held by the build and by reading only, as with every pin
-that ends in `⋯`; with this module, 15 modules hold such cut-off pins (36 pins), and a pin form that prints the whole
+that ends in `⋯`; with this module, 16 modules hold such cut-off pins (38 pins), and a pin form that prints the whole
 statement is to be fixed separately. `check-initiator-second-send-negatives.py` plants sixteen faults in a copy
 of the module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration
 or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement
@@ -6013,9 +6014,9 @@ those states.
 **What this establishes, and what it does not.** The general step states that, at every agreement state whose send
 takes no draw, a successful `encrypt` keeps `Session::invariant` and spends one unit of the budget, given the relation
 after the call; it is used, and its premises exhibited, only at `NoHeaderReceived`, on the run of the initiator's first
-send, where the session the responder's reply leaves passes `Session::invariant` and meets the four ceilings. The
-kernel-and-opaque label of the general step does not extend to that use, which rests on the compiler-trusted encrypt
-refinement. **Not shown:** the general step on a run at any of the other eight states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
+send, where the session the responder's reply leaves passes `Session::invariant` and meets the four ceilings. That use
+rests on the encrypt refinement, which supplies the relation after the call, and, like the general step, on the kernel
+and opaque constants only. **Not shown:** the general step on a run at any of the other eight states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
 with an agreement output (`advance`, a new chain pair, `clearOldEpochs`): the initiator's first send is not an instance,
 only its Triple leaf is re-derived; any statement about the session a refused `encrypt` returns; `decrypt` or
 `decrypt_ratchet` keeping the invariant (no receive is covered); that the ceilings are kept or refused at (false of the code,
@@ -6025,15 +6026,16 @@ direction, the header's later chunks, the responder's first sampling send, a res
 primitives meet `KemCloneAgrees` or the records and laws the run rests on; that `Session::invariant` says a session is
 reachable (it is a predicate on fields).
 
-**Compiler trust and pins.** `initiator_first_send_responder_reply_successor`,
-`initiator_first_send_responder_reply_admissible` and `established_encrypt_triple_invariant_via_preservation` are
-compiler-trusted: they apply `initiator_first_send_responder_replies`, `initiator_first_send_responder_successor_admissible`
-and `established_encrypt_outcomes` and list the same nine `native_decide` constants. Of the other 37 results, 26 rest on
-`propext`, `Classical.choice` and `Quot.sound` alone (the eleven results of the bridge, and `ratchet_send_frame`,
-`modelRatchetInv_send`, `findChains_mem`, `spqr_send_frame`, `mem_sent_chains`, `modelSpqrInv_send`, `modelTripleInv_send`,
-`braid_send_no_draw_model`, `encrypt_session_cases`, `modelCounterRoom_encrypt`, `vec_clone_u8`, `encoder_clone_eq`,
-`decoder_clone_eq`, `next_chunk_keeps`, `modelCounterRoom_firstReceipt`) and 11 on those and opaque constants of the unit,
-`encrypt_keeps_invariant_no_draw` among them. Each of the 40 results carries an axiom pin and a statement pin, and each of
+**Compiler trust and pins.** No result here lists a compiler-trust axiom.
+`initiator_first_send_responder_reply_successor`, `initiator_first_send_responder_reply_admissible` and
+`established_encrypt_triple_invariant_via_preservation` apply `initiator_first_send_responder_replies`,
+`initiator_first_send_responder_successor_admissible` and `established_encrypt_outcomes`, whose nine `native_decide`
+constants are kernel proofs since 2026-10-21. Of the 40 results, 26 rest on `propext`, `Classical.choice` and
+`Quot.sound` alone (the eleven results of the bridge, and `ratchet_send_frame`, `modelRatchetInv_send`, `findChains_mem`,
+`spqr_send_frame`, `mem_sent_chains`, `modelSpqrInv_send`, `modelTripleInv_send`, `braid_send_no_draw_model`,
+`encrypt_session_cases`, `modelCounterRoom_encrypt`, `vec_clone_u8`, `encoder_clone_eq`, `decoder_clone_eq`,
+`next_chunk_keeps`, `modelCounterRoom_firstReceipt`) and 14 on those and opaque constants of the unit,
+`encrypt_keeps_invariant_no_draw` and the three results above among them. Each of the 40 results carries an axiom pin and a statement pin, and each of
 the eight definitions (`ModelRatchetInv`, `ModelSpqrInv`, `ModelRolesAgree`, `ModelTripleInv`, `RolesAgree`, `CounterRoom`,
 `ModelCounterRoom`, `SendsWithoutDraw`) a `#print` pin. `check-send-preservation-negatives.py` plants eighteen faults in
 copies of the two modules, every one a change to a statement or a definition, and requires Lean to refuse each at a named

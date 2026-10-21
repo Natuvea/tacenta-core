@@ -118,8 +118,8 @@ symmetric agreement is consistent with the other laws rests on reading X25519, n
 * A second message in either direction: a second reply, the header's third chunk and the responder's first sampling
   send.  The initiator's next send is taken in `UnitLifecycleInitiatorSecondSend`, under a condition on the session this
   receipt returns, and its emission of the header's second chunk uses no fact relating the two parties' Braid KEMs.
-* `Session::invariant` or the ceilings at the session the receipt of the reply returns, or at the responder's session
-  after its reply.
+* `Session::invariant` or the ceilings at the session the receipt of the reply returns (those at the responder's
+  session after its reply are derived in `UnitLifecycleSendPreserve`).
 * That the code's agreement after the call equals the one before: it refines the same model agreement
   (`keysSampled`), and code-level equality is not checked.
 * That `hfreshB` holds of a run with an honest random source: it is a premise, and no probability is claimed.
