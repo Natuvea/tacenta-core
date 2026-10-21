@@ -334,8 +334,9 @@ clean checkout, on one toolchain and one restored build cache, with every phase 
 phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
 request runs fourteen parts on GitHub-hosted machines; a push to main runs one part with every phase on the
 self-hosted runner, as the job did before the split, and only that part saves the build outputs pull requests
-restore. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and fails at its
-first step when a part failed, rather than being skipped. Each part writes its own manifest, so a part
+restore. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
+fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
+the shape, and none of this matrix has yet run on GitHub. Each part writes its own manifest, so a part
 directory made to look right by something other than the script is not detected; the hosted run of the matrix
 and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
 combiner's refusals on stubbed phases). So a green local run is the gate above less the
