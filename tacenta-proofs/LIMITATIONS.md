@@ -105,7 +105,8 @@ refinement that composes the sparse or the Triple receive, the encrypt route and
 results). Each was a closed numeric or byte-string fact. The translation marks the constants `@[global_simps,
 irreducible]`, so `rfl` and `decide` do not unfold them and `native_decide` evaluated them instead; `simp` with the
 constant's name unfolds them, and each is now proved by `simp` and `rfl`, by `simp`, or (the `(1 : U64)` step) by
-`decide`, with the same statement. Every pin that listed one of their axioms lost exactly that axiom, and the Session
+`decide`, with the same statement; the zero-array step of `split_secret_refines`, which the proof never used, is
+removed. Every pin that listed one of their axioms lost exactly that axiom, and the Session
 unit's eleven are pinned in `Translation/AxiomAuditSessionUnit.lean` with the kernel's three axioms (the two that are
 refinements, `receive_refines_continuation` and `split_secret_refines`, with the unit's opaque constants too).
 Two earlier uses were removed on 2026-09-30, in `Translation.SpqrT1.receive_no_panic` (settled by `decide`) and in
@@ -134,19 +135,7 @@ string-length bound with `by decide +native`, so every generated `Debug`
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
 U32.max) = true` for a string literal. No pinned theorem depends on one of those -- a
 `Debug` formatter is on no proof's path -- and `attest.py` would classify a
-pin that did as compiler-trusted rather than kernel-only. One axiom of the same kind does reach pinned theorems: the
-message of the size check `debug_assert_eq!(out.len(), capacity, "the size arithmetic above drifted from the
-encoding")` in `Session::export` (and, with the same text, in `PrekeyStore::to_bytes`, which is generated first, so
-the Session unit's one axiom, `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`, is shared by
-both). Every statement that names `export` or `import` lists it, eleven pinned results in all, and they are the
-compiler-trusted pins of the lifecycle. Its proposition is true and the kernel shows it:
-`UnitLifecycleSessionRoundTrip.export_message_fits` states it (the same expression as the axiom's type, which
-`scripts/check-discharge-native-decide-negatives.py` checks) and is proved with `propext` only (`String.size_toByteArray`
-and a `decide` on the literal's byte size; plain `decide` does not reduce it). The dependency stays: the generated
-definition refers to the axiom, not to the theorem, and no proof can redirect it. **Retained blocker:** removing it needs
-the message dropped from that `debug_assert_eq!` (a verified-zone change; whether Charon then emits no string literal is
-not checked) or an Aeneas `toStr` whose default bound proof the kernel can check, then a re-translation and a pin
-refresh. They are not
+pin that did as compiler-trusted rather than kernel-only. They are not
 opaque externals and are not in `manifests/translation-attestation.json`;
 the axiom audit accepts them under the same shape rule as the hand-written
 `native_decide` uses (name, statement, a parent in the same module, and
@@ -154,6 +143,21 @@ that parent's own value applying the axiom -- here through the `_proof_n`
 auxiliary the elaborator splits out of a `fmt` body) and prints them apart
 from the externals, as `audit-native:` lines in the translation build log,
 so the count is visible rather than folded in.
+
+One axiom of the same kind does reach pinned theorems. The size checks
+`debug_assert_eq!(out.len(), capacity, "the size arithmetic above drifted from the encoding")` in `Session::export` and,
+with the same text, in `PrekeyStore::to_bytes` give the Session unit two axioms with that proposition and the same type,
+`tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` and
+`tacenta_session_unit.lifecycle.Session.export._native.decide.ax_1`; `#print axioms` of `Session.export` itself, and of
+every pinned statement that names `export` or `import`, lists only the first (the export check reaches it through the
+auxiliary proof the two definitions share). Those statements, eleven pinned results in all, are the compiler-trusted pins
+of the lifecycle. The proposition is true and the kernel shows it: `UnitLifecycleSessionRoundTrip.export_message_fits`
+states it (the same expression as the axiom's type, which `scripts/check-discharge-native-decide-negatives.py` checks)
+and is proved with `propext` only (`String.size_toByteArray` and a `decide` on the literal's byte size; plain `decide`
+does not reduce it). The dependency stays: the generated definition refers to the axiom, not to the theorem, and no proof
+can redirect it. **Retained blocker:** removing it needs the message dropped from that `debug_assert_eq!` (a verified-zone
+change; whether Charon then emits no string literal is not checked) or an Aeneas `toStr` whose default bound proof the
+kernel can check, then a re-translation and a pin refresh.
 
 Eleven of them (counted on an earlier generation and not recounted) meet every part of that rule except the last, and
 the audit waives it for them. All eleven are in the three-leaf translation unit
@@ -2027,10 +2031,11 @@ bundles discharged. What that does and does not buy:
   defined, so `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
   already rests on none of them, and on the external primitives the inner
   refinements rest on instead (HMAC, the `zeroize` wrapper and trait, `Vec::pop`,
-  `Vec::capacity` and `Vec::zeroize`, `Option`'s clone), with the same one `native_decide` axiom.
-  Discharging the bundles added exactly the eight `native_decide` axioms
-  `UnitSpqrT3.lean` carried, and nothing else; the same held for `receive`. Since 2026-10-21 all nine are kernel
-  proofs, and neither discharged theorem lists a compiler-trust axiom.
+  `Vec::capacity` and `Vec::zeroize`, `Option`'s clone), with the same one `native_decide` axiom (the Triple's combine
+  label's). Discharging the bundles added exactly the eight `native_decide` axioms
+  `UnitSpqrT3.lean` carried, and nothing else, so the discharged theorems listed nine; the same held for `receive`.
+  Since 2026-10-21 all nine are kernel proofs, and none of the four theorems, undischarged or discharged, lists a
+  compiler-trust axiom.
   `UnitPins.lean` pins all four new theorems.
 * **There are more hypotheses, not fewer**, because the standalone theorems hid
   the inner boundary inside the bundles, as the standalone file's header said. One
