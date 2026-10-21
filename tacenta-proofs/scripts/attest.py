@@ -3955,7 +3955,8 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "receivedChains",
         "receivedTriple",
         "receivedSession",
-    )]    # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
+    )]
+    # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
         "array_clone_u8",
         "auth_clone_eq",
@@ -4382,7 +4383,8 @@ REQUIRED_PRINT_FORM = frozenset(
         "receivedChains",
         "receivedTriple",
         "receivedSession",
-    )]    # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
+    )]
+    # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
         "replierAfterSend",
         "replyKey",

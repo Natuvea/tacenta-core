@@ -8,8 +8,13 @@ Lean accepts after the fact it rests on is removed would hold nothing, so this s
 module and requires Lean to refuse it, at a named place, with an error that names what the change removed.
 
 Seven controls sit inside the proofs that compose the run.  Each is a change to the composing theorem's statement,
-refused by a step of its proof; the script checks this by also running each of the seven with that theorem's proof
-replaced by `sorry` and requiring Lean to accept the change there:
+refused by a step of its proof.  The script checks that each is refused in the declaration it is labelled with, and
+runs each of the seven with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so
+the refusal is attributable to that proof.  That check cannot tell a composing step from a projection (a corollary's
+statement-shape check passes it too): that the seven are refused by composition steps, and that the three theorems
+named in `COMPOSING` compose rather than project, is decided by reading, and the script only holds the labels
+consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; a
+control cannot be labelled both inside and statement-shape):
 
   * in `initiator_first_send_responder_replies`: the call claimed to return the source `establish_responder` left
     (`rngB'`, the receipt's draw taken) instead of the source it was given (refused where the walk has fixed the
@@ -38,8 +43,9 @@ Seven are on the leaf lemmas:
     `reply_model_step`, which then cannot decide whether the frame is wrapped).
 
 One is a statement-shape check: the reach's call claimed to leave the byte-stream source `seed` (refused in
-`first_send_reply_reachable` because its statement no longer matches `initiator_first_send_responder_replies`; it
-would be refused whatever that theorem's proof did).  One holds a definition: the reply frame without the session's
+`first_send_reply_reachable` because its statement no longer matches `initiator_first_send_responder_replies`; the
+script runs it again with that theorem's proof replaced by `sorry` and requires the same refusal, so it is refused
+whatever that proof does).  One holds a definition: the reply frame without the session's
 associated data, the module's pins kept (refused at the pin of `replyFrame`).
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
@@ -178,9 +184,19 @@ MUTANTS = [
      ('pin', 'Tacenta.UnitLifecycleResponderReply.replyFrame')),
 ]
 
-# The controls that sit inside a composing proof.  For each, the script also runs the changed copy with that
-# theorem's proof replaced by `sorry` and requires Lean to accept the change there: the refusal must come from the
-# proof, not from a statement it no longer matches.
+# The theorems whose proofs compose the run.  Which theorem is a composing step and which only projects another's
+# statement is decided by reading; the script holds the labels to each other (below), not to the proofs.
+COMPOSING = {
+    'initiator_first_send_responder_replies',
+    'responder_first_frame_successor_keys',
+    'initiator_first_send_responder_successor_keys',
+}
+
+# The controls that sit inside a composing proof, with the declaration where each is refused.  For each, the script
+# also runs the changed copy with that theorem's proof replaced by `sorry` and requires Lean to accept the change
+# there: the refusal must be attributable to that proof.  That is all the emptied-proof check shows; it cannot tell a
+# composing step from a projection (a corollary's statement-shape check passes it too), which is why the entries must
+# name a declaration in `COMPOSING`.
 INSIDE = {
     'reply-claimed-to-return-the-receipt-source': 'initiator_first_send_responder_replies',
     'reply-claimed-wrapped-as-an-initial-message': 'initiator_first_send_responder_replies',
@@ -190,6 +206,34 @@ INSIDE = {
     'root-key-equation-claimed-with-the-sparse-root': 'responder_first_frame_successor_keys',
     'receipt-call-on-the-plaintext-not-the-sent-bytes': 'initiator_first_send_responder_successor_keys',
 }
+
+# The statement-shape checks, with the theorem each projects.  For each, the script also runs the changed copy with
+# that theorem's proof replaced by `sorry` and requires Lean still to refuse the change at its named place: the
+# refusal does not depend on the projected theorem's proof.
+STATEMENT_SHAPE = {
+    'reach-call-claimed-to-leave-the-seed': 'initiator_first_send_responder_replies',
+}
+
+
+def check_labels():
+    """The inside and statement-shape labels are consistent with each other and with where each control is refused."""
+    wheres = {name: where for _, name, _, _, where in MUTANTS}
+    for name, decl in list(INSIDE.items()) + list(STATEMENT_SHAPE.items()):
+        if name not in wheres:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled but is not a control')
+    both = set(INSIDE) & set(STATEMENT_SHAPE)
+    if both:
+        raise SystemExit(f'LABELS BROKEN: {", ".join(sorted(both))} labelled both inside and statement-shape')
+    for name, decl in INSIDE.items():
+        if isinstance(wheres[name], tuple) or decl not in wheres[name]:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not where it is refused')
+        if decl not in COMPOSING:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, which is not a composing proof')
+    for name, decl in STATEMENT_SHAPE.items():
+        if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
+            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
+        if decl not in COMPOSING:
+            raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} projects {decl}, not a composing proof')
 
 NOT_A_REFUSAL = ('unknown identifier', 'unknown constant', 'unexpected token', "expected '",
                  'unknown namespace', 'does not contain')
@@ -333,6 +377,7 @@ def check_refused(name, status, output, marker, log, mutated, where):
 
 def main():
     guard_self_test(NOT_A_REFUSAL)
+    check_labels()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)
@@ -378,6 +423,8 @@ def main():
             print(f'PASS: {label}/{name} refused by Lean in {place}', flush=True)
             if name in INSIDE:
                 decl = INSIDE[name]
+                if place != decl:
+                    raise SystemExit(f'FAILED inside check {name}: refused in {place}, labelled inside {decl}; {log}')
                 emptied = gutted(mutated, decl)
                 epath = tmp / f'{label}_{name}_emptied.lean'
                 epath.write_text(emptied)
@@ -386,11 +433,23 @@ def main():
                 check_inside(name, decl, status, output, elog, emptied)
                 results['rejected'][f'{label}/{name}']['inside'] = decl
                 print(f'PASS: {label}/{name} accepted in {decl} with its proof emptied', flush=True)
+            if name in STATEMENT_SHAPE:
+                decl = STATEMENT_SHAPE[name]
+                emptied = gutted(mutated, decl)
+                epath = tmp / f'{label}_{name}_projected_emptied.lean'
+                epath.write_text(emptied)
+                elog = logs / f'{label}_{name}_projected_emptied.log'
+                status, output = run_lean(epath, elog, args.timeout)
+                check_refused(name, status, output, marker, elog, emptied, where)
+                results['rejected'][f'{label}/{name}']['projects'] = decl
+                print(f'PASS: {label}/{name} still refused with the proof of {decl} emptied', flush=True)
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
     inside = sum(1 for r in results['rejected'].values() if 'inside' in r)
+    shape = sum(1 for r in results['rejected'].values() if 'projects' in r)
     print(f'{len(results["accepted"])} unmodified copies accepted, {len(results["rejected"])} changes '
-          f'refused at their named places, {inside} of them inside a composing proof (accepted there with '
-          f'that proof emptied); logs: {logs}', flush=True)
+          f'refused at their named places, {inside} of them labelled inside a composing proof (accepted there with '
+          f'that proof emptied) and {shape} labelled statement-shape (still refused with the projected proof '
+          f'emptied); logs: {logs}', flush=True)
 
 
 if __name__ == '__main__':
