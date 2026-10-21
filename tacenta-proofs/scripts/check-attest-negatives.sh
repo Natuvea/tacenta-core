@@ -53,10 +53,10 @@
 # So does a check that a refused run left a file alone (`expect_unchanged`): it
 # is a case of its own, listed and counted, and goes to the shard of the run
 # before it. That puts the check inside the counting: the per-case lists and the
-# totals cover it, and a shard that skips it is refused. It does not make the
-# check required: deleting one of the two calls lowers the count of a full run
-# by one and passes, as deleting any case does, because the count
-# is not pinned (see below). The script before the sharding was the same.
+# totals cover it, and a shard that skips it is refused. Deleting one of the
+# two calls lowers the count of a full run by one, which the case floor (see
+# below) refuses, as it refuses deleting any case, unless the same change
+# lowers the floor.
 #
 # A case may read what the case before it wrote into the worktree: a `--check`
 # of what a regeneration has just rewritten. Another shard's worktree holds
@@ -84,9 +84,9 @@
 # and when a shard was killed. A second signal while it is cleaning up ends the
 # parent at once, and so does KILL; either can leave shards running (each
 # carries on with its walk until it ends), their worktrees and the logs
-# directory. A shard started by hand (`ATTEST_NEGATIVES_SHARD=i/N`, for a run
-# split over machines) prints only its report lines; combining those is then
-# the caller's job, and CI refuses it.
+# directory. A shard started by hand (`ATTEST_NEGATIVES_SHARD=i/N`, for a split
+# the caller combines by hand) prints only its report lines; combining those is
+# then the caller's job, and CI refuses it. CI splits a run with the slices below.
 #
 # Only a shard reads ATTEST_NEGATIVES_WORKTREE, ATTEST_NEGATIVES_REV and
 # ATTEST_NEGATIVES_RESULTS; the single run and the parent ignore them and say so,
@@ -141,11 +141,20 @@
 # run, and CI refuses the variable (GITHUB_ACTIONS is set), so a partial run
 # cannot stand for the gate.
 #
-# The number of cases of a full run is not pinned, and no file in this
-# repository states it. A walk that ends early, a block moved below `finish`,
-# or a deleted call of `expect_unchanged` prints a smaller count and passes;
-# the only check is a person who compares the count in the final line with the
-# count before the change (684 when this was written).
+# The floor. The number of cases of a full run must be at least the number in
+# `tacenta-proofs/scripts/attest-negatives-case-floor.txt` (one whole number),
+# which the single run, the parent and the combiner read from the tree they
+# check before they print the final line; a run under the test seam does not
+# read it. A walk that ends early, a block moved below `finish`, or a deleted
+# case then fails, unless the same change lowers the floor, which is a diff of
+# that file. The floor catches a walk cut short, not a case replaced by another:
+# a change that removes one case and adds another keeps the count. When a change
+# adds cases it raises the floor to the new count, which
+#
+#   ATTEST_NEGATIVES_COUNT=1 bash tacenta-proofs/scripts/check-attest-negatives.sh
+#
+# prints: it walks every case and makes its mutation in one process, runs no
+# tool, and prints only the count, never a line of a run.
 set -euo pipefail
 
 self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -177,6 +186,18 @@ default_jobs() {
   fi
   echo "$n"
 }
+
+floor_file="$root/tacenta-proofs/scripts/attest-negatives-case-floor.txt"
+
+count_only=0
+if [ -n "${ATTEST_NEGATIVES_COUNT:-}" ]; then
+  [ "$ATTEST_NEGATIVES_COUNT" = 1 ] || usage_error "ATTEST_NEGATIVES_COUNT is 1 or unset, not '$ATTEST_NEGATIVES_COUNT'"
+  for variable in ATTEST_NEGATIVES_SHARD ATTEST_NEGATIVES_SLICE ATTEST_NEGATIVES_COMBINE ATTEST_NEGATIVES_JOBS; do
+    [ -z "${!variable:-}" ] \
+      || usage_error "ATTEST_NEGATIVES_COUNT walks the cases in one process and runs none, so it does not take $variable"
+  done
+  count_only=1
+fi
 
 only=""
 if [ -n "${ATTEST_NEGATIVES_ONLY:-}" ]; then
@@ -254,6 +275,11 @@ elif [ -n "${ATTEST_NEGATIVES_JOBS:-}" ]; then
 elif [ -z "$combine_dir" ]; then
   jobs="$(default_jobs)"
 fi
+if [ "$count_only" -eq 1 ]; then
+  # One process that owns no case: every case is walked and none is run.
+  jobs=1
+  shard=-1
+fi
 if [ "$is_slice" -eq 0 ]; then
   shard_count=$jobs
 fi
@@ -274,8 +300,28 @@ if [ -z "$combine_dir" ] && [ -n "${ATTEST_NEGATIVES_SLICES:-}" ]; then
   echo "check-attest-negatives: ignoring ATTEST_NEGATIVES_SLICES, which only the combiner reads" >&2
 fi
 
-# The line a run that holds the gate ends in. The seam never prints the first form.
+# The floor: exit 1 unless a full walk had at least the number of cases the floor file names.
+check_floor() {  # count
+  local floor
+  floor="$(cat "$floor_file" 2>/dev/null)" \
+    || { echo "check-attest-negatives: cannot read the case floor $floor_file" >&2; exit 1; }
+  if ! [[ "$floor" =~ ^[1-9][0-9]{0,6}$ ]]; then
+    echo "check-attest-negatives: the case floor $floor_file does not hold one whole number" >&2
+    exit 1
+  fi
+  if [ "$1" -lt "$floor" ]; then
+    echo "check-attest-negatives: the walk has $1 cases, fewer than the floor of $floor in $floor_file;" \
+      "a walk that ends early or a deleted case is refused, and a change that removes cases on purpose lowers the floor" >&2
+    exit 1
+  fi
+}
+
+# The line a run that holds the gate ends in. The seam never prints the first form, and the first form is
+# printed only for a walk that reaches the floor.
 final_line() {
+  if [ -z "$only" ]; then
+    check_floor "$1"
+  fi
   if [ -n "$only" ]; then
     echo "check-attest-negatives: PARTIAL RUN, not the gate (seam ATTEST_NEGATIVES_ONLY=$only): the first $1 cases passed"
   else
@@ -366,15 +412,27 @@ import sys
 logs = pathlib.Path(sys.argv[1])
 jobs = int(sys.argv[2])
 problems = []
-REPORT = re.compile(r"^shard (\d+)/(\d+): ran (\d+) of (\d+)$", re.M)
-PREMISE = re.compile(r"^shard (\d+)/(\d+): premise (\d+) of (\d+)$", re.M)
+# The files are read strictly, because a slice's files cross a job boundary as artifacts before they reach the
+# combiner: ASCII digits only (`\d` and `str.isdigit` take other scripts' digits), an exit status that is a plain
+# number, no carriage return, and a WRONG line in any case and after any indentation.
+REPORT = re.compile(r"^shard ([0-9]+)/([0-9]+): ran ([0-9]+) of ([0-9]+)$", re.M)
+PREMISE = re.compile(r"^shard ([0-9]+)/([0-9]+): premise ([0-9]+) of ([0-9]+)$", re.M)
+NUMBER = re.compile(r"[0-9]+")
+WRONG_LINE = re.compile(r"\s*wrong", re.I)
 
 
 def read(path):
+    # newline="": a carriage return is kept as it is, not turned into a newline, so that it can be refused.
     try:
-        return path.read_text(errors="replace")
+        with open(path, encoding="utf-8", errors="replace", newline="") as handle:
+            return handle.read()
     except OSError:
         return None
+
+
+def lines_of(text):
+    """The lines of a file, split on newlines only (`splitlines` also splits on other separators)."""
+    return text[:-1].split("\n") if text.endswith("\n") else (text.split("\n") if text else [])
 
 
 reported = {}   # shard -> (cases it ran, cases it saw)
@@ -383,15 +441,17 @@ walks = {}      # shard -> [(index, ran or skip, verdict, seconds, shard the cas
 for i in range(jobs):
     label = f"shard {i}/{jobs}"
     status = read(logs / f"rc-{i}")
-    try:
-        code = int(status.strip())
-    except (AttributeError, ValueError):
+    if status is None:
         problems.append(f"{label} left no exit status")
-    else:
-        if code != 0:
-            problems.append(f"{label} exited with status {code}")
+    elif not re.fullmatch(r"[0-9]{1,3}\n?", status):
+        problems.append(f"{label} left an exit status that is not a number: {status!r}")
+    elif int(status) != 0:
+        problems.append(f"{label} exited with status {int(status)}")
     log = read(logs / f"shard-{i}.log") or ""
-    wrong = [line for line in log.splitlines() if line.startswith("WRONG")]
+    for name, content in (("log", log), ("list of cases", read(logs / f"results-{i}") or "")):
+        if "\r" in content:
+            problems.append(f"{label}: its {name} holds a carriage return")
+    wrong = [line for line in lines_of(log) if WRONG_LINE.match(line)]
     if wrong:
         problems.append(f"{label} printed {len(wrong)} WRONG line(s)")
     reports = REPORT.findall(log)
@@ -415,10 +475,12 @@ for i in range(jobs):
         problems.append(f"{label} left no list of the cases it walked")
         continue
     rows = []
-    for number, line in enumerate(text.splitlines(), 1):
+    for number, line in enumerate(lines_of(text), 1):
         parts = line.split("\t", 6)
-        if (len(parts) != 7 or not parts[0].isdigit() or parts[1] not in ("ran", "skip")
-                or not parts[4].isdigit() or parts[5] not in ("plain", "follows")):
+        if (len(parts) != 7 or not NUMBER.fullmatch(parts[0]) or parts[1] not in ("ran", "skip")
+                or parts[2] not in (("ok", "wrong") if parts[1] == "ran" else ("-",))
+                or not NUMBER.fullmatch(parts[3]) or not NUMBER.fullmatch(parts[4])
+                or parts[5] not in ("plain", "follows")):
             problems.append(f"{label}: line {number} of its list of cases is not a case")
             break
         # index, ran or skip, verdict, seconds, the shard the case belongs to, plain or follows, name
@@ -890,6 +952,10 @@ flush_case() {
 # The end of the walk, or the seam. A shard reports to its parent; the single run prints the final line.
 finish() {
   flush_case
+  if [ "$count_only" -eq 1 ]; then
+    echo "check-attest-negatives: the walk has $seen cases (ATTEST_NEGATIVES_COUNT: none was run, so this is not the gate)"
+    exit 0
+  fi
   if [ "$is_shard" -eq 1 ]; then
     echo "shard $shard/$jobs: premise $premise of $premise_reached"
     echo "shard $shard/$jobs: ran $ran of $seen"
@@ -1069,6 +1135,9 @@ premise_pass() {
   local out rc owned=0
   if begin_case "$name" "" premise; then
     owned=1
+  fi
+  if [ "$count_only" -eq 1 ]; then
+    return 0
   fi
   set +e
   out="$(attest "$@")"
