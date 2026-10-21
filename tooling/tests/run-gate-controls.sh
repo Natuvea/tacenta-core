@@ -3,6 +3,7 @@
 #
 #   run-source-gate-cases.sh     conflict markers, proof hygiene, the authentication-boundary registry
 #   run-proof-script-cases.sh    no-sorry.sh, verify.sh, check-translation-coverage.sh (stubbed Lean)
+#   run-lean-code-differential-cases.sh  attest.py's Lean stripper against the character loop it replaced
 #   run-build-evidence-pack-build-cases.sh  the build direction of the evidence-pack builder
 #   run-install-script-cases.sh  the digest and revision checks of the elan, actionlint and Lake installers
 #   check-generation-negatives.sh  the --check mode of the eleven assemble and port scripts
@@ -24,6 +25,7 @@ root="$(cd "$here/../.." && pwd)"
 bash "$here/run-source-gate-cases.sh"
 bash "$here/run-proof-script-cases.sh"
 bash "$here/run-lean-constructs-cases.sh"
+bash "$here/run-lean-code-differential-cases.sh"
 bash "$here/run-check-refuted-records-cases.sh"
 bash "$here/run-install-script-cases.sh"
 bash "$here/run-build-evidence-pack-build-cases.sh"
