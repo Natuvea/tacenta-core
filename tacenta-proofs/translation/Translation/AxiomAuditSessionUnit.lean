@@ -194,14 +194,6 @@ info: 'Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contract
  tacenta_session_unit.alloc.vec.Vec.pop,
  tacenta_session_unit.core.option.Option.as_mut,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
@@ -312,14 +304,6 @@ info: 'Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bo
  tacenta_session_unit.alloc.vec.Vec.pop,
  tacenta_session_unit.core.option.Option.as_mut,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
@@ -371,5 +355,298 @@ info: Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bou
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds
+
+
+/-!
+The constants of the Session unit's sparse ratchet and Triple refinements that the lifecycle results
+inherit: the four label byte strings, the two skip bounds and `MAX_SKIP`'s value, the fact that
+`(1 : u64)` has value one inside `receive_refines_continuation`, and the Triple's combine label (with its
+split label and `split_secret_refines`, which no lifecycle result reaches).  Each was decided by
+`native_decide` until 2026-10-21, which put a compiler-trust axiom under every lifecycle result through
+them; each is now proved by `simp`, `decide` and `rfl`, so its pin names the kernel's three axioms, and
+the two refinements' pins name those and the opaque externals only.
+-/
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.protocol_info_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.protocol_info_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.protocol_info_agrees : Tacenta.SessionUnitSpqrT3.sliceOf
+    tacenta_session_unit.tacenta_spqr.PROTOCOL_INFO =
+  Model.SparseRatchet.protocolInfo
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.protocol_info_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.chain_start_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.chain_start_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.chain_start_agrees : Tacenta.SessionUnitSpqrT3.sliceOf
+    tacenta_session_unit.tacenta_spqr.CHAIN_START_LABEL =
+  Model.SparseRatchet.chainStart
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.chain_start_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.root_label_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.root_label_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.root_label_agrees : Tacenta.SessionUnitSpqrT3.sliceOf
+    tacenta_session_unit.tacenta_spqr.ROOT_LABEL =
+  Model.SparseRatchet.rootLabel
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.root_label_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.chain_label_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.chain_label_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.chain_label_agrees : Tacenta.SessionUnitSpqrT3.sliceOf
+    tacenta_session_unit.tacenta_spqr.CHAIN_LABEL =
+  Model.SparseRatchet.chainLabel
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.chain_label_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.max_skip_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.max_skip_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.max_skip_agrees : ↑tacenta_session_unit.tacenta_spqr.MAX_SKIP = Model.SparseRatchet.maxSkip
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.max_skip_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees
+
+/--
+info: Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees : ↑tacenta_session_unit.tacenta_spqr.MAX_SKIPPED_STORE =
+  Model.SparseRatchet.maxSkippedStore
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.max_skip_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.max_skip_val
+
+/--
+info: Tacenta.SessionUnitSpqrT3.max_skip_val : ↑tacenta_session_unit.tacenta_spqr.MAX_SKIP = 1000
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.max_skip_val
+
+/--
+info: 'Tacenta.SessionUnitSpqrT3.receive_refines_continuation' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitSpqrT3.receive_refines_continuation
+
+/--
+info: Tacenta.SessionUnitSpqrT3.receive_refines_continuation : Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees →
+  Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64 →
+    Tacenta.SessionUnitSpqrT3.VecRetainAgrees →
+      Tacenta.SessionUnitSpqrT1.VecRetainTotal →
+        Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees →
+          Tacenta.SessionUnitSpqrT1.ZeroizeTotal →
+            Tacenta.SessionUnitSpqrT1.OptionCloneTotal →
+              ∀ {self1 : tacenta_session_unit.tacenta_spqr.State} {m1 : Model.SparseRatchet.State},
+                Tacenta.SessionUnitSpqrT3.StateRefines self1 m1 →
+                  ∀ (receiving_epoch n : Aeneas.Std.U64),
+                    (↑self1.chains).length + 1 < Aeneas.Std.Usize.max →
+                      (↑self1.skipped).length + ↑tacenta_session_unit.tacenta_spqr.MAX_SKIP ≤ Aeneas.Std.Usize.max →
+                        (List.filter (fun x => x.1 == ↑receiving_epoch && x.2.1 == ↑n) m1.skipped).length ≤ 1 →
+                          Tacenta.SessionUnitSpqrT3.ChainCounterBounded m1.chains →
+                            Aeneas.Std.WP.spec
+                              (do
+                                let (o, self2) ← self1.try_skipped receiving_epoch n
+                                match o with
+                                  | none => do
+                                    let i ← Aeneas.Std.lift (Aeneas.Std.core.num.U64.saturating_sub n 1#u64)
+                                    let (r1, self3) ← self2.skip_message_keys receiving_epoch i
+                                    let cf1 ← Aeneas.Std.core.result.Result.Insts.CoreOpsTry.branch r1
+                                    match cf1 with
+                                      | Aeneas.Std.core.ops.control_flow.ControlFlow.Continue a => do
+                                        let o1 ← self3.find_chains receiving_epoch
+                                        match o1 with
+                                          | none =>
+                                            Aeneas.Std.Result.ok
+                                              (Aeneas.Std.core.result.Result.Err
+                                                  tacenta_session_unit.tacenta_spqr.SpqrError.NoChain,
+                                                self3)
+                                          | some cs => do
+                                            let cs1 ←
+                                              tacenta_session_unit.tacenta_spqr.Chains.Insts.CoreCloneClone.clone cs
+                                            match cs1.receive with
+                                              | none =>
+                                                Aeneas.Std.Result.ok
+                                                  (Aeneas.Std.core.result.Result.Err
+                                                      tacenta_session_unit.tacenta_spqr.SpqrError.ChainRetired,
+                                                    self3)
+                                              | some ch => do
+                                                let ch1 ←
+                                                  tacenta_session_unit.tacenta_spqr.Chain.Insts.CoreCloneClone.clone ch
+                                                let o2 ← Aeneas.Std.lift (ch1.n.checked_add 1#u64)
+                                                match o2 with
+                                                  | none =>
+                                                    Aeneas.Std.Result.ok
+                                                      (Aeneas.Std.core.result.Result.Err
+                                                          tacenta_session_unit.tacenta_spqr.SpqrError.ChainExhausted,
+                                                        self3)
+                                                  | some expected =>
+                                                    if (n != expected) = true then
+                                                      Aeneas.Std.Result.ok
+                                                        (Aeneas.Std.core.result.Result.Err
+                                                            tacenta_session_unit.tacenta_spqr.SpqrError.OutOfOrder,
+                                                          self3)
+                                                    else do
+                                                      let (next, mk) ← tacenta_session_unit.tacenta_spqr.kdf_ck ch1.ck n
+                                                      let o3 ←
+                                                        tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone
+                                                            tacenta_session_unit.tacenta_spqr.Chain.Insts.CoreCloneClone
+                                                            cs1.send
+                                                      let self4 ←
+                                                        self3.set_chains receiving_epoch
+                                                            { send := o3, receive := some { ck := next, n := n } }
+                                                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok mk, self4)
+                                      | Aeneas.Std.core.ops.control_flow.ControlFlow.Break residual => do
+                                        let r2 ←
+                                          Aeneas.Std.core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                              (Aeneas.Std.Array Aeneas.Std.U8 32#usize)
+                                              (Aeneas.Std.core.convert.FromSame
+                                                tacenta_session_unit.tacenta_spqr.SpqrError)
+                                              residual
+                                        Aeneas.Std.Result.ok (r2, self3)
+                                  | some k => Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok k, self2))
+                              fun r =>
+                              (match
+                                  match Model.SparseRatchet.trySkipped m1 ↑receiving_epoch ↑n with
+                                  | some res => some res
+                                  | none =>
+                                    match Model.SparseRatchet.skipMessageKeys m1 (↑receiving_epoch) (↑n - 1) with
+                                    | none => none
+                                    | some st2 =>
+                                      match Model.SparseRatchet.findChains st2 ↑receiving_epoch with
+                                      | none => none
+                                      | some cs =>
+                                        match cs.receive with
+                                        | none => none
+                                        | some ch =>
+                                          if ch.n < Model.SparseRatchet.u64Max then
+                                            if ↑n = ch.n + 1 then
+                                              some
+                                                (Model.SparseRatchet.setChains st2 ↑receiving_epoch
+                                                    { send := cs.send,
+                                                      receive :=
+                                                        some
+                                                          { ck := (Model.SparseRatchet.kdfCk ch.ck ↑n).1, n := ↑n } },
+                                                  (Model.SparseRatchet.kdfCk ch.ck ↑n).2)
+                                            else none
+                                          else none with
+                                | none => ∃ err, r.1 = Aeneas.Std.core.result.Result.Err err
+                                | some (m', k) =>
+                                  ∃ key,
+                                    r.1 = Aeneas.Std.core.result.Result.Ok key ∧
+                                      Tacenta.SessionUnitSpqrT3.keyOf key = k ∧
+                                        Tacenta.SessionUnitSpqrT3.StateRefines r.2 m') ∧
+                                (r.1 =
+                                    Aeneas.Std.core.result.Result.Err
+                                      tacenta_session_unit.tacenta_spqr.SpqrError.SkippedStoreFull →
+                                  Model.SparseRatchet.receiveDetailed m1 (↑receiving_epoch) none ↑n =
+                                    Except.error Model.SparseRatchet.ReceiveRefusal.skippedStoreFull)
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitSpqrT3.receive_refines_continuation
+
+/--
+info: 'Tacenta.SessionUnitTripleT3.combine_info_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitTripleT3.combine_info_agrees
+
+/--
+info: Tacenta.SessionUnitTripleT3.combine_info_agrees : Tacenta.SessionUnitTripleT3.sliceOf
+    tacenta_session_unit.tacenta_triple.COMBINE_INFO =
+  Model.TripleRatchet.combineInfo
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitTripleT3.combine_info_agrees
+
+/--
+info: 'Tacenta.SessionUnitTripleT3.split_info_agrees' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitTripleT3.split_info_agrees
+
+/--
+info: Tacenta.SessionUnitTripleT3.split_info_agrees : Tacenta.SessionUnitTripleT3.sliceOf
+    tacenta_session_unit.tacenta_triple.SPLIT_INFO =
+  Model.TripleRatchet.splitInfo
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitTripleT3.split_info_agrees
+
+/--
+info: 'Tacenta.SessionUnitTripleT3.split_secret_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.SessionUnitTripleT3.split_secret_refines
+
+/--
+info: Tacenta.SessionUnitTripleT3.split_secret_refines : Tacenta.SessionUnitTripleT3.TripleHkdfAgrees →
+  Tacenta.SessionUnitTripleT3.ZeroizingRoundTrips →
+    ∀ (sk : Aeneas.Std.Slice Aeneas.Std.U8),
+      Aeneas.Std.WP.spec (tacenta_session_unit.tacenta_triple.split_secret sk) fun r =>
+        (Tacenta.SessionUnitTripleT3.keyOf r.1, Tacenta.SessionUnitTripleT3.keyOf r.2) =
+          Model.TripleRatchet.splitSecret (Tacenta.SessionUnitTripleT3.sliceOf sk)
+-/
+#guard_msgs in
+#check @Tacenta.SessionUnitTripleT3.split_secret_refines
 
 run_cmd _root_.Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

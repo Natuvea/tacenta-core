@@ -49,7 +49,8 @@ receiver's classical root `ec` and the agreement `d` derive the sender's root an
 * `initiator_first_send_responder_receives` (the composed statement) and `initiator_first_send_responder_outcomes`:
   from a successful first `encrypt` at an establishment output (`established_encrypt_outcomes`), the two arms
   above on the bytes it returned, with the initiator's two draws, the message key and the header source pinned.
-  Compiler-trusted through the nine `native_decide` constants the encrypt and decrypt refinements carry.
+  Kernel-checked over the opaque externals their pins list; the nine `native_decide` constants the encrypt
+  and decrypt refinements carried until 2026-10-21 are kernel proofs now.
 
 ## The laws and premises
 
@@ -71,7 +72,7 @@ receiver's classical root `ec` and the agreement `d` derive the sender's root an
 * `first_receipt_laws_model`: every law above, with the decrypt, establishment, restore, encrypt and first-frame
   laws, holds in one interpretation, `InterpO.modelFirstReceipt` (the first-frame joint model with the toy seal and
   open of `UnitOracleModel`).
-* `first_send_receive_reachable` (compiler-trusted): at the real constants, under those laws, one run from
+* `first_send_receive_reachable`: at the real constants, under those laws, one run from
   `publish` through the establishment and the first send to the responder's **success** exists (last-resort path,
   empty plaintext).
 
@@ -1342,7 +1343,7 @@ generation at its two draws (`headerSource`).  Under the hypotheses of `first_se
 decrypt agreements at the responder's oracle's KEM, the laws `AeadRoundTrip`, `DhAgreeContributory` and
 `KeyGenSizesOf` of the initiator's oracle's KEM, the responder's oracle record, the store bound of
 `establish_responder_no_panic`, and the per-run premises that the responder's trace is its oracle's and holds a
-draw.  Compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements. -/
+draw.  No compiler-trust axiom (the pin): the constants of the encrypt and decrypt refinements are kernel proofs. -/
 theorem initiator_first_send_responder_receives [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1471,7 +1472,7 @@ receive with parts carrying the initiator's secrets and returns exactly one of `
 returns and the responder oracle's open of the initiator oracle's seal of the plaintext is refused), each with the
 store as given and exactly one draw taken, or `Ok` of what that open returned, with the store committed and the
 session related as in `initiator_first_send_responder_receives`.  The refusals are the named premises' failures; a
-tampered frame is not considered (the bytes are the initiator's).  Compiler-trusted as that theorem is. -/
+tampered frame is not considered (the bytes are the initiator's).  Its axioms are that theorem's (the pin). -/
 theorem initiator_first_send_responder_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -2757,15 +2758,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_ou
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -2831,15 +2823,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_inner_su
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -3017,15 +3000,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_outcomes
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -3093,15 +3067,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.responder_first_frame_succeeds
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -3170,15 +3135,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -3247,15 +3203,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.initiator_first_send_responder
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -3400,15 +3347,6 @@ info: 'Tacenta.UnitLifecycleResponderFirstReceipt.first_send_receive_reachable' 
  tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,

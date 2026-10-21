@@ -349,6 +349,16 @@ phase_responder_receipt() {
 python3 scripts/check-responder-receipt-negatives.py || fail=1
 }
 
+# The Session unit's refinement constants, kernel proofs since 2026-10-21 (they were `native_decide`): a copy with a
+# label claimed with one byte changed, a bound claimed wrong, the `(1 : u64)` step claimed as two, the export panic
+# message claimed to fit 42 bytes, and `native_decide` restored under the constant's live pin must each be refused at
+# its own declaration or pin, with a message naming the change, after the unmodified copies are accepted; and
+# `export_message_fits` must state exactly the type of the compiler-trust axiom `export` carries, and a copy with a
+# word of the message dropped must not.
+phase_discharge_native_decide() {
+python3 scripts/check-discharge-native-decide-negatives.py || fail=1
+}
+
 # `Session::invariant` and the four ceilings at the session `establish_responder` returns on the initiator's first
 # frame (`UnitLifecycleResponderSuccessor.lean`): a copy with the received Triple's counters, the clock, the sending
 # key's canonicity, the ratchet key's bytes or the agreement's epoch changed, the decoder lemma widened to two chunks
@@ -576,6 +586,7 @@ phases() {
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
+  run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt

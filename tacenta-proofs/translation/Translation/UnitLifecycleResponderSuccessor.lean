@@ -59,9 +59,9 @@ Triple's new sending key.
 
 ## Trust
 
-The four composed results and the reach are compiler-trusted through the nine `native_decide` constants of the encrypt
-and decrypt refinements, which they reach through `responder_first_frame_inner_succeeds` and
-`established_encrypt_outcomes`.  Every lemma before them rests on the kernel and opaque constants only (pins below).
+The four composed results and the reach rest on the kernel and opaque constants, like every lemma before them (pins below);
+until 2026-10-21 they also rested on the nine `native_decide` constants of the encrypt and decrypt refinements, which
+they reach through `responder_first_frame_inner_succeeds` and `established_encrypt_outcomes`, kernel proofs since.
 
 ## Non-vacuity
 
@@ -83,8 +83,8 @@ path, empty plaintext) whose responder session passes the invariant and meets th
   the code's session and do not mention the view.
 * That the real primitives meet the laws the receipt rests on (`AeadRoundTrip`, `DhAgreeContributory`,
   `DhAgreeSymmetric`), that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from
-  `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a run.  The results are
-  compiler-trusted through the encrypt wrapper's nine `native_decide` constants.
+  `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a run.  The results list
+  no compiler-trust axiom: the encrypt wrapper's nine `native_decide` constants are kernel proofs since 2026-10-21.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -701,7 +701,7 @@ open Tacenta.UnitSatisfiabilityJoint (Interp Interp.real)
 /-- **The session `establish_responder` returns on the initiator's first frame passes `Session::invariant` and meets the
 four ceilings**: under the hypotheses of `responder_first_frame_succeeds` without the store bound, at every return of
 the call that is `Ok (sB', ptB)`, `sB'` refines `firstReceiptSession` (as in that theorem), passes the invariant and
-meets `CounterHeadroom`.  Compiler-trusted through the nine `native_decide` constants of the decrypt refinement. -/
+meets `CounterHeadroom`.  No compiler-trust axiom (the pin): the nine `native_decide` constants of the decrypt refinement, inherited until 2026-10-21, are kernel proofs. -/
 theorem responder_first_frame_successor [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type}
     (rcB : rand_core_1.RngCore E) (crcB : rand_core_1.CryptoRng E)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
@@ -768,8 +768,8 @@ open Tacenta.UnitLifecycleT3 (OracleOf BraidSendRefinementContracts TripleSendRe
 initiator's first send**: under the hypotheses of `initiator_first_send_responder_receives` without the store bound,
 at every successful return `(Ok (sB', ptB), storeB', rngB')` of `establish_responder` on the bytes the initiator's
 first `encrypt` emitted, `sB'` refines `firstReceiptSession` (at the header source of the initiator's key generation at
-its two draws), passes `Session::invariant` and meets `CounterHeadroom`.  Compiler-trusted through the nine
-`native_decide` constants of the encrypt and decrypt refinements. -/
+its two draws), passes `Session::invariant` and meets `CounterHeadroom`.  No compiler-trust axiom (the pin):
+the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
 theorem initiator_first_send_responder_successor_hypotheses [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -876,7 +876,7 @@ theorem initiator_first_send_responder_successor_hypotheses [Tacenta.SessionUnit
 
 open Tacenta.UnitLifecycleT3 (OracleOf BraidSendRefinementContracts TripleSendRefinementContracts KemView) in
 /-- **`Session::invariant` at the responder's session after the initiator's first send**: the invariant conjunct of
-`initiator_first_send_responder_successor_hypotheses`, under its hypotheses.  Compiler-trusted as that theorem is. -/
+`initiator_first_send_responder_successor_hypotheses`, under its hypotheses.  Its axioms are that theorem's (the pin). -/
 theorem initiator_first_send_responder_successor_admissible [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -936,7 +936,7 @@ theorem initiator_first_send_responder_successor_admissible [Tacenta.SessionUnit
 open Tacenta.UnitLifecycleT3 (OracleOf BraidSendRefinementContracts TripleSendRefinementContracts KemView) in
 /-- **The four counter ceilings at the responder's session after the initiator's first send**: the `CounterHeadroom`
 conjunct of `initiator_first_send_responder_successor_hypotheses`, under its hypotheses.
-Compiler-trusted as that theorem is. -/
+Its axioms are that theorem's (the pin). -/
 theorem initiator_first_send_responder_successor_counterHeadroom [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1009,7 +1009,7 @@ open Tacenta.UnitLifecycleEstablishedEncrypt (EncryptExtraLaws emptyPlaintext) i
 `first_send_receive_reachable`, for every initiator identity and every 64-byte source at whose bytes the model's key
 generation answers, there is a run from `publish` through the establishment and a first send of the empty plaintext to
 a successful `establish_responder` whose session passes `Session::invariant` and meets `CounterHeadroom`.  It applies
-`initiator_first_send_responder_successor_hypotheses` to that run.  Last-resort path only.  Compiler-trusted. -/
+`initiator_first_send_responder_successor_hypotheses` to that run.  Last-resort path only.  No compiler-trust axiom (the pin). -/
 theorem first_send_receive_successor_reachable (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
     (A : Nonempty (InitiatorAxiom Interp.real byteRng))
@@ -1582,15 +1582,6 @@ info: 'Tacenta.UnitLifecycleResponderSuccessor.responder_first_frame_successor' 
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1659,15 +1650,6 @@ info: 'Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_su
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1736,15 +1718,6 @@ info: 'Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_su
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1813,15 +1786,6 @@ info: 'Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_su
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1890,15 +1854,6 @@ info: 'Tacenta.UnitLifecycleResponderSuccessor.first_send_receive_successor_reac
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,

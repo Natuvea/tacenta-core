@@ -374,8 +374,13 @@ depends on.
 - **The compiler.** Where a proof uses `native_decide`, `bv_decide` or
   `decide +native`, the Lean compiler's evaluation is trusted as well.
   LIMITATIONS.md, "The proofs are trusted by evaluation, not only by the
-  kernel", lists where. For example, the sparse ratchet's receive theorems and
-  the Triple Ratchet's discharged refinements are compiler-trusted.
+  kernel", lists where. For example, the composite header's big-endian round
+  trips are proved by `bv_decide`, and the statements about exporting and
+  importing a session reach the length bound of a debug-assertion message in
+  the generated `export` (Aeneas's `toStr`, discharged by `decide +native`);
+  both are compiler-trusted. The sparse ratchet's receive theorems and the
+  Triple Ratchet's refinements are not: they rest on the kernel and the
+  translation's opaque runtime constants (ASM-16).
 - **Mathlib.** The prebuilt Mathlib artefacts fetched for the pinned commit are
   trusted.
 - **No planted declarations.** No elaboration-time code plants a declaration.

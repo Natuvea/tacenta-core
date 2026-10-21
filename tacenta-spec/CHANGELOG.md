@@ -640,6 +640,16 @@ is SemVer against the specified protocol (not the implementation).
   sending, receiving or advancing, or across a sequence of them. The page now
   names the theorem, says what it proves, and says that over a session the
   bound is tested rather than proved (register item J-14).
+- `threat-model/assumptions.md`, ASM-17, `security-properties/limitations.md`,
+  LIM-10, and `security-properties/confidentiality.md`, REQ-CONF-05: the three
+  passages described the sparse ratchet's receive theorems and the Triple
+  Ratchet's refinements as trusting the Lean compiler's evaluation. The
+  constants those results used `native_decide` for are now proved by the
+  kernel, so the passages say they rest on the kernel and the translation's
+  opaque runtime constants, and they name what still trusts the compiler: the
+  composite header's `bv_decide` round trips and the export and import
+  statements, through the length bound of a debug-assertion message in the
+  generated `export`. No rule, byte or constant changes.
 
 ## [0.2.0] - 2026-09-11
 

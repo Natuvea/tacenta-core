@@ -35,12 +35,14 @@ not checked in Lean; at a session `establish_initiator_for` returned, the invari
 ceilings follow from the establishment, the relation to the model session read off it holds by definition at its
 `KeysUnsampled` Braid, and a restored copy of that session decrypts the responder's honest reply, which a test shows; that
 `import` of the exported bytes returns that session unchanged, so the restated form applies to the copy given the caller's
-boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law), and
+boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law)
+and trusts the compiler for one fact, a panic message's length in the generated `export`, which the kernel also proves
+(`export_message_fits`), and
 every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; at that established session
 the first `encrypt` is related to the model's step (its refusal arm only at a model KEM that refuses, since the shipping key
 generation does not refuse, by reading), and the session a successful send leaves passes the invariant and meets the
 ceilings, under the encrypt boundary records, the oracle record, three assumed laws (a new key-generation law, the
-establishment's ciphertext-length law and the ciphertext bound) and six more assumptions for that session, compiler-trusted,
+establishment's ciphertext-length law and the ciphertext bound) and six more assumptions for that session, with no compiler-trust axiom,
 the responder's receipt of the frame covered only as below; for every input `establish_responder`'s outcomes, with their store and
 random-source effects, are stated, and at the session it builds the invariant, under assumed and recorded laws, and the
 ceilings follow from the construction, so the restated form applies to its inner `decrypt_ratchet`, at a model session read
@@ -51,25 +53,25 @@ initiator's shared secret, under an assumed X25519 symmetry law, a premise about
 the initiator's secret and a named hypothesis that the store's identifiers are distinct; past those refusals, two named
 refusals (a non-contributory agreement of the responder's fresh key, the AEAD refusing the initiator's seal) or success,
 and under two more assumed boundary laws (the AEAD round trip, contributory agreement), the model KEM's size law, a
-store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, compiler-trusted, and at the
+store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, with no compiler-trust axiom, and at the
 session it returns `Session::invariant` and the four counter ceilings, for that first receive only and with no assumption beyond the receipt's own
-premises (without its store bound), compiler-trusted, and the responder's `encrypt` at that same session, on the same run,
+premises (without its store bound), with no compiler-trust axiom, and the responder's `encrypt` at that same session, on the same run,
 with one outcome (the bare reply frame, no draw, the agreement kept) under the successor's premises, with the responder's
-full oracle record, the Braid send contracts at its source and a plaintext-length bound, with no new law, compiler-trusted, and the initiator's `decrypt` of that reply at the session its
+full oracle record, the Braid send contracts at its source and a plaintext-length bound, with no new law or compiler-trust axiom, and the initiator's `decrypt` of that reply at the session its
 first `encrypt` left, on the same run, refusing `NoReceivingChain` exactly when the reply's ratchet key is the peer key the
 initiator holds and otherwise returning the responder's plaintext with one draw (two of the four arms of the general
 analysis excluded by the contributory and round-trip premises), under the receipt's laws with
-the two oracles' roles swapped and two decrypt boundary records at the initiator's source, compiler-trusted; a tampered frame
+the two oracles' roles swapped and two decrypt boundary records at the initiator's source, with no compiler-trust axiom; a tampered frame
 being refused and later messages in either direction not covered);
 `decrypt_ratchet_refines_complete` is
-compiler-trusted, it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
+kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than
 the crate are now stated at the instances the unit passes (that the real `zeroize`
 functions return there is assumed; not checked against the real functions); the same
 result is carried through the public `Session::decrypt` on frames that are not initial
 messages, under the same hypotheses and one premise on the input
-(`decrypt_refines_ratchet_frame`, also in compiler-trusted forms that take `Session::invariant`
+(`decrypt_refines_ratchet_frame`, also in forms that take `Session::invariant`
 and the counter ceilings), and no theorem covers an initial message, so nothing
 here proves `Session::encrypt` or `Session::decrypt` end to end. `Proofs/` carries the
 model-layer work.
@@ -78,8 +80,8 @@ Read [CLAIMS.md](CLAIMS.md) for what is established and
 [LIMITATIONS.md](LIMITATIONS.md) for what is not. `scripts/attest.py --check`
 runs on every push and checks that every theorem CLAIMS.md names exists in the
 file it names, that every axiom-pinned theorem is claimed, that the pins named in
-`REQUIRED_PINS` exist as live code and that no pin is labelled compiler-trusted unless
-`COMPILER_TRUSTED_PINS` names it, and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
+`REQUIRED_PINS` exist as live code and that a pin is labelled compiler-trusted exactly when
+`COMPILER_TRUSTED_PINS` names it (twelve since 2026-10-21), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
 not compare theorem *statements* to the prose, which is a reviewer's job
 (REPRODUCING.md says what a green `attest` does and does not establish).
 [REPRODUCING.md](REPRODUCING.md) is the toolchain and the steps.

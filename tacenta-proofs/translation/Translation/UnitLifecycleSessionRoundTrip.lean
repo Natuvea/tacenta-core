@@ -313,6 +313,29 @@ theorem identity_ad_length_of (hpub : DhPublicBytesRoundTrip) (a b : tacenta_bou
   cases hw
   exact hl
 
+/-! ## The one compiler-evaluated fact under `export`
+
+Every statement here that names `Session::export` lists one compiler-trust axiom,
+`tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`.  It is not a proof step of this
+file: the generated `Session.export` passes the message of its `debug_assert_eq!(out.len(), capacity, ...)`
+to Aeneas's `toStr`, whose length bound is discharged by `decide +native` in the generated definition.
+`PrekeyStore::to_bytes` carries the same check with the same text.  The unit holds two axioms with that
+proposition, one named after each function, and `#print axioms` of `Session.export` lists only the one named
+after `PrekeyStore.to_bytes`.  The axiom states `decide (<message>.toByteArray.size ≤ U32.max) = true`.
+
+`export_message_fits` proves that same proposition (syntactically the axiom's type) with the kernel alone, so
+the fact the compiler is trusted with is true.  The dependency itself stays: the generated definition refers to
+the axiom, not to this theorem, and removing it needs a change to the Rust message or to Aeneas's `toStr`,
+at a re-translation. -/
+
+/-- The panic message of the two size checks in `PrekeyStore::to_bytes` and `Session::export` fits a `u32`
+length: the proposition of the compiler-trust axiom those definitions carry, proved by the kernel. -/
+theorem export_message_fits :
+    decide ("the size arithmetic above drifted from the encoding".toByteArray.size ≤ U32.max) = true := by
+  rw [decide_eq_true_iff, String.size_toByteArray]
+  simp only [U32.max, U32.numBits, UScalarTy.numBits]
+  decide
+
 end Tacenta.UnitLifecycleSessionRoundTrip
 
 /-! ## Pins
@@ -529,6 +552,12 @@ info: 'Tacenta.UnitLifecycleSessionRoundTrip.identity_ad_length_of' depends on a
 #print axioms Tacenta.UnitLifecycleSessionRoundTrip.identity_ad_length_of
 
 /--
+info: 'Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits
+
+/--
 info: Tacenta.UnitLifecycleSessionRoundTrip.export_spec : Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTrip →
   ∀ (s : tacenta_session_unit.lifecycle.Session) (epoch : Aeneas.Std.U64)
     (auth : tacenta_session_unit.tacenta_braid.Auth) (e : Aeneas.Std.U64)
@@ -632,6 +661,14 @@ info: Tacenta.UnitLifecycleSessionRoundTrip.identity_ad_length_of : Tacenta.Unit
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSessionRoundTrip.identity_ad_length_of
+
+/--
+info: Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits : decide
+    ("the size arithmetic above drifted from the encoding".toByteArray.size ≤ Aeneas.Std.U32.max) =
+  true
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleSessionRoundTrip.export_message_fits
 
 /--
 info: structure Tacenta.UnitLifecycleSessionRoundTrip.CodecShape (s : tacenta_session_unit.lifecycle.Session)

@@ -183,11 +183,20 @@ translation unit is an eighth zone, and it ships to nobody".
 Every proved requirement rests on the Lean kernel (ASM-17) and every T1 or T3
 requirement on the translation toolchain (ASM-16).
 
-Several cited theorems also trust the Lean compiler's evaluation:
-- the sparse ratchet's `receive_refines`;
-- `Tacenta.UnitTripleT3.send_refines_discharged` and
-  `receive_refines_discharged`;
-- `Tacenta.UnitTripleT3.combine_refines` and `split_secret_refines`.
+Some cited results also trust the Lean compiler's evaluation:
+- the composite header's big-endian round trips (`bv_decide`);
+- the statements about exporting and importing a session, through the length
+  bound of a debug-assertion message in the generated `export` (Aeneas's
+  `toStr`, discharged by `decide +native`). The kernel also proves that
+  length bound; the generated definition still refers to the compiler-trusted
+  axiom.
+
+The sparse ratchet's `receive_refines`,
+`Tacenta.UnitTripleT3.send_refines_discharged` and
+`receive_refines_discharged`, `combine_refines` and `split_secret_refines` no
+longer trust it: the constants they used to trust it for are proved by the
+kernel, and they rest on the translation's opaque runtime constants (ASM-16).
+`combine_refines` is not pinned.
 
 See LIMITATIONS.md, "The proofs are trusted by evaluation, not only by the
 kernel", and "Trusted, not verified".
