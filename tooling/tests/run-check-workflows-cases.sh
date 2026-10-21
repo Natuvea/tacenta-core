@@ -329,7 +329,37 @@ manifest_edits = [
      "does not describe .github/workflows/ci.yml"),
 ]
 
+# The combining job of the attestation negatives runs `always()` after its matrix and starts with a guard on
+# the matrix's result, so a failed slice turns it red instead of skipping it. Each edit below drops the guard,
+# the `always()` or both, and rewrites `tooling/required-steps.json` to match, as the person making the edit
+# would: rule 8 itself must still refuse it.
+def drop_guard(w):
+    job = w["jobs"]["attest-negatives"]
+    del job["steps"][step_index(w, "attest-negatives", "negatives_slices_passed")]
+    r = receipt(w, "attest-negatives")["with"]
+    r["required-outcomes"] = drop_outcome(r["required-outcomes"], "negatives_slices_passed")
+def drop_always(w): del w["jobs"]["attest-negatives"]["if"]
+def drop_both(w): drop_guard(w); drop_always(w)
+def mask_guard(w): step(w, "attest-negatives", "negatives_slices_passed")["run"] += " || true"
+
+rule_edits = [("needs-guard-%02d" % i, fn) for i, fn in enumerate([drop_guard, drop_always, drop_both, mask_guard], 1)]
+
+
+def build_rewritten(name, change):
+    repo = build(name, change, False)
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_ACTIONS"}
+    subprocess.run(["bash", str(checker), "--write-required-steps"], cwd=repo, env=env, check=True,
+                   stdout=subprocess.DEVNULL)
+    return repo
+
+
 wrong = 0
+for name, change in rule_edits:
+    rc, out = check(build_rewritten(name, change))
+    needle = "emits a required receipt and needs another job"
+    if rc == 0 or needle not in out:
+        print("WRONG  real-tree %s: expected a refusal naming '%s':\n%s" % (name, needle, out), file=sys.stderr)
+        wrong += 1
 for name, edit, needle in manifest_edits:
     rc, out = check(build_manifest_edit(name, edit))
     if rc == 0 or needle not in out:
@@ -355,7 +385,7 @@ for name, change in cases:
         wrong += 1
 if wrong:
     sys.exit(1)
-print(len(cases) + len(accepted) + len(manifest_edits))
+print(len(cases) + len(accepted) + len(manifest_edits) + len(rule_edits))
 PY
 real_total="$(python3 "$work/real-tree-cases.py" "$root" "$work" "$checker")" || {
   echo "check-workflows-cases: the changes to the repository's own workflow gave the wrong result" >&2

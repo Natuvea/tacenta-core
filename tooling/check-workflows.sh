@@ -68,7 +68,14 @@
 #    have no job-level `if` or `continue-on-error` at all, with two named
 #    exceptions: the PR-only sign-off job and the collector's exact
 #    `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
-#    constants too, even though they are expressions.
+#    constants too, even though they are expressions. A third shape is
+#    allowed and, for such a job that `needs` another, required: a job that
+#    needs a job whose failure would otherwise skip it, and a required check
+#    accepts a skipped job. It needs exactly one job, has `if: always()`, and
+#    its first step is the guard `test "$NEEDS_RESULT" = success` with only
+#    `NEEDS_RESULT: ${{ needs.<that job>.result }}` in its `env` and no `if`,
+#    so that a needed job that failed, timed out or was cancelled makes it fail
+#    before anything else runs.
 # 9. A step is the receipt action when its `uses` resolves to
 #    `.github/actions/assurance-receipt` once the path is normalised, however
 #    it is spelled. Its `id`, `classification` and `command` are literals (no
@@ -446,6 +453,27 @@ ALLOWED_JOB_IF = {
     "assurance-receipts": "always()",
 }
 
+# Rule 8's third shape: the first step of a required job that runs `always()`
+# after the one job it needs, and fails unless that job succeeded.
+NEEDS_GUARD_RUN = 'test "$NEEDS_RESULT" = success'
+
+def guarded_needs(job):
+    """Whether a job needs exactly one job and starts with the guard on its result."""
+    needs = job.get("needs")
+    needed = [needs] if isinstance(needs, str) else needs
+    if not isinstance(needed, list) or len(needed) != 1 or not isinstance(needed[0], str):
+        return False
+    steps = job.get("steps")
+    if not isinstance(steps, list) or not steps or not isinstance(steps[0], dict):
+        return False
+    first = steps[0]
+    env = first.get("env")
+    return (set(first) <= {"name", "id", "env", "run"}
+            and first.get("run") == NEEDS_GUARD_RUN
+            and isinstance(env, dict) and list(env) == ["NEEDS_RESULT"]
+            and normalized_expression(env["NEEDS_RESULT"])
+            == "${{needs.%s.result}}" % needed[0].lower())
+
 # A job that uses the receipt action may have a conditional setup or action
 # step (a cache restore, say), but a command step may not be conditionally
 # skipped. This is the whole list of exceptions, keyed by job and step id and
@@ -734,7 +762,14 @@ for f in files:
                 required_receipt = True
                 required_receipts.append((step, required_outcome_ids(
                     inputs.get("required-outcomes"), f, name)))
-        if "if" in job:
+        guarded = (required_receipt and normalized_expression(job.get("if")) == "always()"
+                   and guarded_needs(job))
+        if required_receipt and "needs" in job and not guarded:
+            complain("%s job '%s' emits a required receipt and needs another job, whose "
+                     "failure would skip it, and a required check accepts a skipped job -- "
+                     "need one job, run `if: always()`, and make the first step `%s` with "
+                     "`NEEDS_RESULT: ${{ needs.<job>.result }}` in its env" % (f, name, NEEDS_GUARD_RUN))
+        if "if" in job and not guarded:
             actual_if = normalized_expression(job.get("if"))
             expected_if = ALLOWED_JOB_IF.get(name)
             if expected_if is None:

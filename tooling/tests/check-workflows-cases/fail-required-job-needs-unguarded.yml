@@ -1,0 +1,26 @@
+# expect: emits a required receipt and needs another job
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo first
+  other:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo other
+  j:
+    needs: [first]
+    runs-on: ubuntu-latest
+    steps:
+      - id: work
+        run: echo work
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: test
+          required-outcomes: "work=${{ steps.work.outcome }}"

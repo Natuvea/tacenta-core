@@ -116,6 +116,7 @@ assert [s for s in translation_push if s != "translation_seed"] == translation_p
 checks_push, checks_pr = table[("checks", "push")], table[("checks", "pull_request")]
 assert "checks_39" in checks_push and "checks_39" not in checks_pr
 assert table[("sign-off", "pull_request")] == ["signoff_check"] and ("sign-off", "push") not in table
+assert table[("attest-negatives", "push")] == table[("attest-negatives", "pull_request")] == ["negatives_slices_passed", "negatives_combine"]
 assert {receipt for receipt, _ in table} == {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks", "attest-negatives", "sign-off"}
 PY
 cases=$((cases + 1))
@@ -265,6 +266,10 @@ expect_fail unknown 'unexpected check receipt other' "$work/unknown" push
 cp -R "$work/pass-push" "$work/missing"
 rm "$work/missing/proofs.json"
 expect_fail missing 'missing required check receipts: proofs' "$work/missing" push
+# A slice of the attestation negatives that failed: the combining job stops at its guard and writes no receipt.
+cp -R "$work/pass-pull_request" "$work/missing-negatives"
+rm "$work/missing-negatives/attest-negatives.json"
+expect_fail missing-negatives 'missing required check receipts: attest-negatives' "$work/missing-negatives" pull_request
 
 expect_fail no-directory 'input directory does not exist' "$work/no-such-directory" push
 
@@ -282,6 +287,7 @@ refuse not-applicable 'required receipt rust must be an applicable required chec
 refuse outcome-failed 'receipt rust records command steps that did not succeed: rust_test=failure' rust "data['step_outcomes']['rust_test'] = 'failure'"
 refuse outcome-skipped 'receipt vectors records command steps that did not succeed: vectors_reader=skipped' vectors "data['step_outcomes']['vectors_reader'] = 'skipped'"
 refuse outcome-cancelled 'receipt audit records command steps that did not succeed: audit_run=cancelled' audit "data['step_outcomes']['audit_run'] = 'cancelled'"
+refuse outcome-guard-failed 'receipt attest-negatives records command steps that did not succeed: negatives_slices_passed=failure' attest-negatives "data['step_outcomes']['negatives_slices_passed'] = 'failure'"
 refuse outcome-missing 'receipt rust does not record the command steps: rust_clippy' rust "del data['step_outcomes']['rust_clippy']"
 refuse outcome-extra 'receipt msrv records steps the workflow does not run for push: msrv_extra' msrv "data['step_outcomes']['msrv_extra'] = 'success'"
 refuse outcome-none 'receipt armv7 records no command step outcomes' armv7 "del data['step_outcomes']"

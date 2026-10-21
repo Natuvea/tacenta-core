@@ -709,9 +709,17 @@
           "needs": [
             "attest-negatives-slice"
           ],
+          "if": "always()",
           "runs-on": "ubuntu-latest",
           "timeout-minutes": 20,
           "steps": [
+            {
+              "id": "negatives_slices_passed",
+              "env": {
+                "NEEDS_RESULT": "${{ needs.attest-negatives-slice.result }}"
+              },
+              "run": "test \"$NEEDS_RESULT\" = success"
+            },
             {
               "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "with": {
@@ -740,7 +748,7 @@
                 "id": "attest-negatives",
                 "classification": "required",
                 "command": "attest-negatives-slices-combined",
-                "required-outcomes": "negatives_combine=${{ steps.negatives_combine.outcome }}"
+                "required-outcomes": "negatives_slices_passed=${{ steps.negatives_slices_passed.outcome }},negatives_combine=${{ steps.negatives_combine.outcome }}"
               }
             }
           ]

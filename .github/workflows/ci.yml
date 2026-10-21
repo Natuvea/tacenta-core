@@ -673,13 +673,25 @@ jobs:
   # of its shards on one machine: every shard exited 0 with no WRONG line,
   # the unmodified tree accepted in each shard's worktree, one list of cases,
   # and each case run once, by the shard it is assigned to. Only then does it
-  # print the line of a full run. A slice that failed or did not run skips
-  # this job, and the collector then refuses the missing receipt.
+  # print the line of a full run, and only for a walk that reaches the case
+  # floor. The job runs whatever the matrix gave (`always()`), so that a
+  # slice that failed, timed out or was cancelled makes this job fail rather
+  # than be skipped: a required check accepts a skipped job. Its first step
+  # fails unless every slice succeeded, and the steps after it then do not
+  # run, so the receipt is missing and the collector refuses the set too.
+  # `tooling/check-workflows.sh` allows this `always()` only with that first
+  # step (rule 8).
   attest-negatives:
     needs: [attest-negatives-slice]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Every slice of the matrix succeeded
+        id: negatives_slices_passed
+        env:
+          NEEDS_RESULT: ${{ needs.attest-negatives-slice.result }}
+        run: test "$NEEDS_RESULT" = success
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -699,7 +711,7 @@ jobs:
           id: attest-negatives
           classification: required
           command: attest-negatives-slices-combined
-          required-outcomes: "negatives_combine=${{ steps.negatives_combine.outcome }}"
+          required-outcomes: "negatives_slices_passed=${{ steps.negatives_slices_passed.outcome }},negatives_combine=${{ steps.negatives_combine.outcome }}"
 
   # Every commit a pull request adds is signed off by its author under the
   # Developer Certificate of Origin (CONTRIBUTING.md). Only pull requests: a
