@@ -2753,14 +2753,20 @@ initiator's, they are assumed and not shown of the real primitives; the reach me
 because there the two parties share the oracle and the byte-stream source type. The Braid send record carries the KEM
 agreement `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state, although the
 agreement's send at this state reads neither randomness nor the KEM; whether it could be dropped here is not checked. The
+headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the responder's Braid send records); each ties
+its KEM to the same translated code, so the premises carry an indirect, weak relation between the two KEMs. The
 source state is free, with no draw premise, and the plaintext bound `102 + (ptR.length + 48) ≤ Usize.max` holds of every plaintext of at most `2^32 - 151`
 bytes on a 32-bit target. No refusal is possible at this state: the terminal guard is false, the agreement's send at
 `NoHeaderReceived` does not refuse, and the model's Triple send from the receipt's Triple succeeds (counters 0, a sending
 chain), so the statement has one outcome and not a refused arm; the refusals `encrypt` can reach elsewhere in a session (the
 terminal guard, the Triple's `ChainExhausted` and `NoSendingChain`) are not covered. **Not shown:** the initiator's receipt of
 the reply (whether the initiator accepts these bytes is not checked, in any model); `Session::invariant` or the ceilings
-after the reply; a second reply, the header's later chunks and the responder's first sampling send; that the source state is
-the one `establish_responder` left (the statement holds for every source state; the reach takes that one).
+after the reply; a second reply, a second message from the initiator, the header's later chunks and the responder's first
+sampling send; a restored copy of the session; that the model session the successor refines holds only bytes the responder
+received (the relation is at the receipt's attributed view); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`);
+`PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a
+run. The statement does not tie the source state to the one `establish_responder` left; it holds for every source state,
+that one included, and the reach takes it.
 
 **What is not shown.**
 
