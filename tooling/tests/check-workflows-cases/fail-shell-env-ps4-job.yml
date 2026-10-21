@@ -1,0 +1,13 @@
+# expect: sets PS4 in `env` at the job level
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'PS4': '$(true)'
+    steps:
+      - id: j_run
+        run: make test

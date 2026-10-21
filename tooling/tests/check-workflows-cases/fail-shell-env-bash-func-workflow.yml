@@ -1,0 +1,13 @@
+# expect: sets BASH_FUNC_test%% in `env` at the workflow level
+name: t
+on: push
+permissions:
+  contents: read
+env:
+  'BASH_FUNC_test%%': '() { return 0; }'
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test

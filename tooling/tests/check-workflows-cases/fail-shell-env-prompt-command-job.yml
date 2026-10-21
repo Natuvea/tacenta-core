@@ -1,0 +1,13 @@
+# expect: sets PROMPT_COMMAND in `env` at the job level
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'PROMPT_COMMAND': 'true'
+    steps:
+      - id: j_run
+        run: make test

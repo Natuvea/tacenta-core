@@ -1,0 +1,13 @@
+# expect: sets PROMPT_COMMAND in `env` at the workflow level
+name: t
+on: push
+permissions:
+  contents: read
+env:
+  'PROMPT_COMMAND': 'true'
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test

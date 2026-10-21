@@ -1,0 +1,10 @@
+# expect: sets BASH_ENV in `env` on a step
+name: a
+description: d
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        BASH_ENV: /tmp/x
+      run: make test

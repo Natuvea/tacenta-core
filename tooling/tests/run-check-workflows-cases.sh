@@ -332,7 +332,8 @@ manifest_edits = [
 # The combining job of the attestation negatives runs `always()` after its matrix and starts with a guard on
 # the matrix's result, so a failed slice turns it red instead of skipping it. Each edit below drops the guard,
 # the `always()` or both, and rewrites `tooling/required-steps.json` to match, as the person making the edit
-# would: rule 8 itself must still refuse it.
+# would: rule 8 itself must still refuse it. Three more set a shell variable that would make the guard pass
+# from outside its step, at the job or the workflow level: rule 11 refuses them.
 def drop_guard(w):
     job = w["jobs"]["attest-negatives"]
     del job["steps"][step_index(w, "attest-negatives", "negatives_slices_passed")]
@@ -341,8 +342,17 @@ def drop_guard(w):
 def drop_always(w): del w["jobs"]["attest-negatives"]["if"]
 def drop_both(w): drop_guard(w); drop_always(w)
 def mask_guard(w): step(w, "attest-negatives", "negatives_slices_passed")["run"] += " || true"
+# The guard neutered from outside the step: bash sources a file, or imports a function, before the step runs.
+def job_bash_env(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_ENV": "/tmp/bypass"}
+def workflow_bash_env(w): w["env"]["BASH_ENV"] = "/tmp/bypass"
+def job_bash_func(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_FUNC_test%%": "() { return 0; }"}
 
-rule_edits = [("needs-guard-%02d" % i, fn) for i, fn in enumerate([drop_guard, drop_always, drop_both, mask_guard], 1)]
+guard_needle = "emits a required receipt and needs another job"
+rule_edits = [("needs-guard-%02d" % i, fn, guard_needle)
+              for i, fn in enumerate([drop_guard, drop_always, drop_both, mask_guard], 1)]
+rule_edits += [("shell-env-01", job_bash_env, "sets BASH_ENV in `env` at the job level"),
+               ("shell-env-02", workflow_bash_env, "sets BASH_ENV in `env` at the workflow level"),
+               ("shell-env-03", job_bash_func, "sets BASH_FUNC_test%% in `env` at the job level")]
 
 
 def build_rewritten(name, change):
@@ -354,9 +364,8 @@ def build_rewritten(name, change):
 
 
 wrong = 0
-for name, change in rule_edits:
+for name, change, needle in rule_edits:
     rc, out = check(build_rewritten(name, change))
-    needle = "emits a required receipt and needs another job"
     if rc == 0 or needle not in out:
         print("WRONG  real-tree %s: expected a refusal naming '%s':\n%s" % (name, needle, out), file=sys.stderr)
         wrong += 1

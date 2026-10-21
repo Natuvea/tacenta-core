@@ -1,0 +1,16 @@
+name: t
+on: push
+permissions:
+  contents: read
+env:
+  'MY_ENV': '1'
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'BASH_ENVIRONMENT_NOTE': 'x'
+    steps:
+      - id: j_run
+        env:
+          'NEEDS_RESULT': 'success'
+        run: make test
