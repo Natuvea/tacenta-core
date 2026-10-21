@@ -5391,27 +5391,33 @@ axiom (until 2026-10-21 also the same nine `native_decide` constants, kernel pro
 and a statement pin, and each of the three definitions (`receivedChains`, `receivedTriple`, `receivedSession`) a `#print`
 pin. `check-responder-successor-negatives.py` plants seventeen faults in a copy of the module, every one a change to a statement
 or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
-proof-breakage check at that place, not a proof that the changed statement is false): the received Triple claimed to have
-received nothing and its sparse receiving counter claimed 0 (refused in `triple_eq_received`); the clock claimed parked at the
-last value (refused in `received_counterHeadroom`); the Triple's invariant without the sending key's canonicity (refused in
-`receivedTriple_invariant`); the structural invariant without the ratchet key's bytes being the sending key and the agreement
-claimed at epoch 2 (refused in `structural_received`); the decoder lemma for two chunks and without its chunk-count premise
-(refused in `decoder_invariant_small`); `Braid::receive` claimed to keep the decoder or return nothing else (refused in
-`braid_receive_noHeader`, only at the branch that adds the chunk) and `decrypt_ratchet` claimed never to replace the ratchet
-key (refused in `decrypt_ratchet_ok_parts`); inside the composing proofs, the composed call taken on the plaintext instead of
-the sent bytes and the composed invariant claimed of the initiator's session (refused inside the proof of
-`initiator_first_send_responder_successor_hypotheses`, the first at the step where the encrypt's output fixes the message)
-and the returned session's relation claimed to the prepared model (refused inside the proof of
-`responder_first_frame_successor`); as statement-shape checks on the headline's own corollaries, the invariant claimed of the
-initiator's session and the call taken on the plaintext (refused in `initiator_first_send_responder_successor_admissible`)
-and the reach's invariant claimed of the initiator's session (refused in `first_send_receive_successor_reachable`); and the
-session definition without its ratchet key with its pins kept (refused at the pin of `receivedSession`). Only the three
-controls inside the composing proofs show that the composed proof uses what they name (the bytes the first send returned,
-the responder's returned session, its relation to the model's step); the three statement-shape checks are refused because
-their statements no longer match `initiator_first_send_responder_successor_hypotheses`, whatever its proof does, and show
-only that the corollaries and the reach project its statement. Several of the refusals are structural (a type mismatch at
-the named place), not an unprovable goal. None is a proof that another session fails the invariant. An error that is not a refusal voids a run
-anywhere in the copy, compared without regard to case.
+proof-breakage check at that place, not a proof that the changed statement is false). Three are labelled inside composing
+proofs: the script checks, at start-up and at run time, that each is refused in the declaration it is labelled with and that
+this is one of the two composing theorems, and runs each with that proof replaced by `sorry`, requiring Lean to accept the
+change there. That attributes the refusal to that proof but cannot tell a composing step from a projection: that the three
+are refused by composition steps, and that the two theorems compose rather than project, is decided by reading. In
+`initiator_first_send_responder_successor_hypotheses`: the composed call taken on the plaintext instead of the sent bytes
+(refused at the step where the encrypt's output fixes the message) and the composed invariant claimed of the initiator's
+session; in `responder_first_frame_successor`: the returned session's relation claimed to the prepared model. Ten are on the
+leaf lemmas: the received Triple claimed to have received nothing and its sparse receiving counter claimed 0 (refused in
+`triple_eq_received`); the clock claimed parked at the last value (refused in `received_counterHeadroom`); the Triple's
+invariant without the sending key's canonicity (refused in `receivedTriple_invariant`); the structural invariant without the
+ratchet key's bytes being the sending key and the agreement claimed at epoch 2 (refused in `structural_received`); the decoder
+lemma for two chunks and without its chunk-count premise (refused in `decoder_invariant_small`); `Braid::receive` claimed to
+keep the decoder or return nothing else (refused in `braid_receive_noHeader`, only at the branch that adds the chunk) and
+`decrypt_ratchet` claimed never to replace the ratchet key (refused in `decrypt_ratchet_ok_parts`). Three are statement-shape
+checks on the headline's own corollaries, each projecting `initiator_first_send_responder_successor_hypotheses`: the
+invariant claimed of the initiator's session and the call taken on the plaintext (refused in
+`initiator_first_send_responder_successor_admissible`) and the reach's invariant claimed of the initiator's session (refused
+in `first_send_receive_successor_reachable`); each is refused because its statement no longer matches the headline's, and the
+script runs it again with the headline's proof replaced by `sorry` and requires the same refusal, so it is refused whatever
+that proof does. The last is the session definition without its ratchet key with its pins kept (refused at the pin of
+`receivedSession`). Only the three controls inside the composing proofs show that the composed proof uses what they name (the
+bytes the first send returned, the responder's returned session, its relation to the model's step); the three statement-shape
+checks show only that the corollaries and the reach project the headline's statement. Several of the refusals are structural
+(a type mismatch at the named place), not an unprovable goal. None is a proof that another session fails the invariant. An
+error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic
+timeout never counts as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame, on the eight-leaf unit)
 
@@ -5518,13 +5524,12 @@ results carries an axiom pin and a statement pin, and each of the four definitio
 `replyComposite`, `replyFrame`) a `#print` pin. `check-responder-reply-negatives.py` plants sixteen faults in a copy of the
 module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
 against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
-Seven sit inside composing proofs: the script checks that each is refused in the declaration it is labelled with, one of
-the three composing theorems, and runs the changed copy with that proof replaced by `sorry`, requiring Lean to accept the
-change there. That check attributes the refusal to that proof but cannot tell a composing step from a projection (a
-corollary's statement-shape check passes it too); that the seven are refused by composition steps, and that the three
-theorems compose rather than project, is decided by reading, and the script only holds the inside and statement-shape labels
-consistent. The seven: in `initiator_first_send_responder_replies`, the call claimed to return the source
-`establish_responder` left instead of the one it was given, the reply claimed wrapped as an initial message, sealed on the
+Seven are labelled inside composing proofs: the script checks, at start-up and at run time, that each is refused in the
+declaration it is labelled with and that this is one of the three composing theorems, and runs each with that proof replaced
+by `sorry`, requiring Lean to accept the change there. That attributes the refusal to that proof but cannot tell a composing
+step from a projection (a corollary's statement-shape check passes it too): that the seven are refused by composition steps,
+and that the three theorems compose rather than project, is decided by reading. The seven: in
+`initiator_first_send_responder_replies`, the call claimed to return the source `establish_responder` left instead of the one it was given, the reply claimed wrapped as an initial message, sealed on the
 sparse chain the responder receives on, or under the responder's prepared ratchet key instead of the fresh one, and its
 relation claimed with the Triple unchanged; in `responder_first_frame_successor_keys`, the root-key equation claimed with the
 initiator's sparse root; in `initiator_first_send_responder_successor_keys`, the receipt's call taken on the plaintext instead
@@ -5540,7 +5545,7 @@ with the headline's proof emptied). The last is the frame
 definition without its associated data with its pins kept (refused at the pin of `replyFrame`). Several refusals are
 structural (a type mismatch at the named place), not an unprovable goal. None is a proof that the initiator accepts the reply
 or that `encrypt` refuses anything. An error that is not a refusal voids a run anywhere in the copy, compared without regard to
-case.
+case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the initiator's `decrypt` of the responder's reply, at the session its first `encrypt` left, on the eight-leaf unit)
 
