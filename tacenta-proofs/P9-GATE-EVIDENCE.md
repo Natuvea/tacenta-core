@@ -127,7 +127,11 @@ worktree, resets it between cases, and runs the production attestation script
 in it.  By default it runs its cases in shards, one per CPU and at most 16,
 each with its own worktree; the parent accepts the run only if every shard
 exited cleanly and the shards together ran each case once, and prints the same
-final line as the single run (`ATTEST_NEGATIVES_JOBS=1`).  It first requires
+final line as the single run (`ATTEST_NEGATIVES_JOBS=1`).  The public workflow
+splits the same run over sixteen machines (`ATTEST_NEGATIVES_SLICE`), and a
+combiner (`ATTEST_NEGATIVES_COMBINE`) prints that final line only when the sixteen
+slices are the slices of one run of the commit under test and their shards
+together pass the same check.  It first requires
 that the unmodified tree is accepted, in every shard's worktree.  It then
 requires these fault classes, each with its own diagnostic: a ledger theorem
 not declared by Lean, a missing generated verification manifest, a stale

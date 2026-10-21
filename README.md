@@ -309,7 +309,12 @@ script does not: the SPQR erasure regression (`rust_spqr_erasure`), the KEM, Bra
 lifecycle tests on libcrux's portable backend (`rust_portable_kem`), the 32-bit run of
 `tacenta-core/tests/decrypt_premises.rs` on `i686-unknown-linux-gnu` (`i686_premises`, in the
 `armv7` job), the receipt writers and the aggregation job, which downloads the evidence pack it uploaded and
-verifies that copy against the commit. So a green local run is the gate above less the
+verifies that copy against the commit. Both run the negative cases of the attestation check
+(`tacenta-proofs/scripts/check-attest-negatives.sh`), but in different shapes: the script runs them on one
+machine's cores, and the workflow splits them over sixteen machines (the `attest-negatives-slice` matrix), with
+a further job (`attest-negatives`) that prints the script's final line only when the sixteen slices are the
+slices of one run of the commit under test and their shards together pass the check the script makes on one
+machine. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 
