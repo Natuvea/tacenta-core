@@ -115,6 +115,7 @@ start() {
     set +e
     env -u GITHUB_ACTIONS -u ATTEST_NEGATIVES_JOBS -u ATTEST_NEGATIVES_ONLY -u ATTEST_NEGATIVES_SHARD \
       -u ATTEST_NEGATIVES_RESULTS -u ATTEST_NEGATIVES_WORKTREE -u ATTEST_NEGATIVES_REV -u ATTEST_NEGATIVES_PARENT -u ATTEST_NEGATIVES_TEST_ONLY -u ATTEST_NEGATIVES_SEAM \
+      -u ATTEST_NEGATIVES_SLICE -u ATTEST_NEGATIVES_SLICE_DIR -u ATTEST_NEGATIVES_COMBINE -u ATTEST_NEGATIVES_SLICES \
       TMPDIR="$work/tmp-$name" ATTEST_NEGATIVES_JOBS="$jobs" ATTEST_NEGATIVES_ONLY="$only" \
       ATTEST_NEGATIVES_SEAM=tests-only "$@" \
       bash "$plants/$name.sh" > "$work/out-$name" 2>&1
@@ -433,8 +434,8 @@ plant no-total '    total="$(cat "$parent_logs/total")"' '    total="$(cat "$par
 start no-total 2 2
 fresh list-unwritable
 stub list-unwritable
-plant list-unwritable '      ATTEST_NEGATIVES_RESULTS="$parent_logs/results-$i" \' \
-  '      ATTEST_NEGATIVES_RESULTS="$([ "$i" -eq 1 ] && echo "$parent_logs" || echo "$parent_logs/results-$i")" \'
+plant list-unwritable '      ATTEST_NEGATIVES_RESULTS="$parent_logs/results-$g" \' \
+  '      ATTEST_NEGATIVES_RESULTS="$([ "$g" -eq 1 ] && echo "$parent_logs" || echo "$parent_logs/results-$g")" \'
 start list-unwritable 2 2
 
 # A refused run must leave a file alone, and the check of that is a case of its own that follows the run: it
