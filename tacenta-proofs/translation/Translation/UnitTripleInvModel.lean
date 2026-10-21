@@ -38,7 +38,7 @@ through injectivity of the byte reading and of the scalar values; the epoch wind
 ## Trust
 
 Every result here rests on the kernel alone (`propext`, `Classical.choice`, `Quot.sound`; the pins below); none calls a
-refinement theorem, so none inherits the `native_decide` constants of the encrypt and decrypt refinements.
+refinement theorem and none rests on an opaque constant of the unit.
 
 ## What it does not show
 

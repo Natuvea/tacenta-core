@@ -63,13 +63,14 @@ and 64-bit targets.
 
 ## Trust
 
-`initiator_first_send_responder_reply_successor`, `initiator_first_send_responder_reply_admissible` and
-`established_encrypt_triple_invariant_via_preservation` are compiler-trusted through the nine `native_decide`
-constants of the encrypt and decrypt refinements they apply.  Every other result here, the general lemma included,
-rests on the kernel and opaque constants only (pins below).  That label does not extend to any instance of the general
-lemma: the relation after the call carries the Triple half (the code Triple's invariant is read off the model Triple
-it relates to), the three Triple fields the structural clauses read and the budget, and only the agreement half is a
-walk of translated code; every instance gets that relation from the encrypt refinement, which is compiler-trusted.
+Every result here, the general lemma and the three run results included, rests on the kernel and opaque constants
+only, with no compiler-trust axiom (pins below).  The run results
+(`initiator_first_send_responder_reply_successor`, `initiator_first_send_responder_reply_admissible` and
+`established_encrypt_triple_invariant_via_preservation`) apply the encrypt and decrypt refinements, whose nine
+`native_decide` constants are kernel proofs since 2026-10-21.  The general lemma's premises are not all walks of
+translated code: the relation after the call carries the Triple half (the code Triple's invariant is read off the model
+Triple it relates to), the three Triple fields the structural clauses read and the budget, and only the agreement half
+is a walk of translated code; every instance gets that relation from the encrypt refinement.
 
 ## Where its premises are exhibited
 
@@ -959,7 +960,8 @@ room for every `j` with `j + 3 < u32::MAX` further operations (`CounterRoom`), a
 the receipt with the Triple `replierAfterSend`.  Derived on the run: `sB'`, its relation and its invariant are the
 successor results' at the same call, the call and the relation after it are the reply's, and
 `encrypt_keeps_invariant_no_draw` composes them at the agreement state `NoHeaderReceived`, whose send takes no draw.
-Compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements. -/
+No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and decrypt refinements it applies
+are kernel proofs since 2026-10-21. -/
 theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1062,7 +1064,7 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
 
 /-- **`Session::invariant` and the four ceilings at the session the responder's reply leaves**: the invariant and
 ceiling conjuncts of `initiator_first_send_responder_reply_successor`, at every successful return of the reply's
-`encrypt` at `sB'`, under its hypotheses.  Compiler-trusted as that theorem is. -/
+`encrypt` at `sB'`, under its hypotheses.  No compiler-trust axiom (the pin), as that theorem. -/
 theorem initiator_first_send_responder_reply_admissible [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1134,8 +1136,8 @@ every successful return of the first `encrypt` at the session `establish_initiat
 `Triple::invariant`.  The same leaf `established_encrypt_successor_admissible` gets by fixing the Triple's shape;
 here it comes from the establishment's invariant through the bridge and the model's send (`modelTripleInv_send`),
 with no shape.  The agreement's send there draws (`KeysUnsampled`), so the session-level preservation above does not
-apply; only the Triple leaf is re-derived.  Compiler-trusted through the nine `native_decide` constants of the encrypt
-refinement. -/
+apply; only the Triple leaf is re-derived.  No compiler-trust axiom (the pin): the nine `native_decide` constants of
+the encrypt refinement are kernel proofs since 2026-10-21. -/
 theorem established_encrypt_triple_invariant_via_preservation [Tacenta.SessionUnitT1.DerivedKeysModel]
     {R E : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -1598,15 +1600,6 @@ info: 'Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_su
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1675,15 +1668,6 @@ info: 'Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_ad
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1750,15 +1734,6 @@ info: 'Tacenta.UnitLifecycleSendPreserve.established_encrypt_triple_invariant_vi
  tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,

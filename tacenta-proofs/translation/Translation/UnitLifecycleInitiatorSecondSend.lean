@@ -71,11 +71,11 @@ could be dropped here is not checked.
 
 ## Trust
 
-`initiator_second_send_refines` and `initiator_second_send_after_reply` are compiler-trusted through the nine
-`native_decide` constants of the encrypt and decrypt refinements.  Every other result rests on the kernel and opaque
-constants only (pins below).  The headline's statement pin is cut off by Lean's `⋯` after the binder `crcB`: it holds
+Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below);
+`initiator_second_send_refines` and `initiator_second_send_after_reply` apply the encrypt and decrypt refinements, whose
+nine `native_decide` constants are kernel proofs since 2026-10-21.  The headline's statement pin is cut off by Lean's `⋯` after the binder `crcB`: it holds
 the binders up to the contracts, and the later binders and the whole conclusion are held by the build and by reading
-only, as with every pin that ends in `⋯` (with this module, 15 modules hold such pins; a pin form that prints the whole
+only, as with every pin that ends in `⋯` (with this module, 16 modules hold such pins; a pin form that prints the whole
 statement is to be fixed separately).
 
 ## Non-vacuity
@@ -105,7 +105,8 @@ meets `CounterHeadroom` is not shown, so the code-level part of the statement is
 * That the real primitives meet the boundary records or the laws the run rests on (`AeadRoundTrip`,
   `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`), that ML-KEM decapsulation agrees on a run
   (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
-  equality.  The two compiler-trusted results rest on the nine `native_decide` constants.
+  equality.  The results list no compiler-trust axiom: the nine `native_decide` constants are kernel proofs since
+  2026-10-21.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -528,7 +529,8 @@ by applying the receipt again but are not carried here, with the key generation 
   that model session.
 
 The invariant and the ceilings at `s''` are not shown here: they are the implication's premises.
-Compiler-trusted through the nine `native_decide` constants of the encrypt and decrypt refinements. -/
+No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and decrypt refinements it applies
+are kernel proofs since 2026-10-21. -/
 theorem initiator_second_send_after_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -955,15 +957,6 @@ info: 'Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_refines' d
  tacenta_boundary.dh.PublicKeyBytes.as_bytes,
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
@@ -1066,15 +1059,6 @@ info: 'Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_after_repl
  tacenta_boundary.dh.PublicKeyBytes.from_bytes,
  tacenta_boundary.kem.KeyPair.public_key,
  zeroize.Zeroize.Blanket.zeroize,
- Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
- Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
- Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
  tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
  tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
