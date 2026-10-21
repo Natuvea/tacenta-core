@@ -1,0 +1,29 @@
+# The parts of a split run of no-sorry.sh: `<partition> <part>: <phase>[@k/S] ...`, or `*` for every phase.
+#
+# Every part also runs the prelude (the translation, proofs and model builds and their scans), which every
+# other phase reads. Each partition must give each other phase of the script to exactly one part, or each
+# slice k/S of a sliceable phase to exactly one part; `scripts/no-sorry-parts.py` refuses this file
+# otherwise, and refuses it when the script has a phase that no part of a partition names. Part names are
+# unique over the file; CI names its matrix jobs and their artifacts after them.
+#
+# `hosted` is what a pull request runs, one part per GitHub-hosted job. The groups are made so that each
+# job's phases took at most about nine minutes in a hosted run of the whole script (run 39533849612); the
+# initial dispatcher's 50 controls took 3024 s there and are split eight ways.
+hosted kernel: kernel-replay-translation kernel-replay-proofs kernel-replay-model kernel-replay-negative
+hosted satisfiability: session-satisfiability
+hosted refuted: translation-coverage lifecycle-coverage refuted-records precondition-witnesses port-negatives axiom-comparison lean-constructs audit-reach hypothesis-witnesses audit-reach-negatives pin-negatives
+hosted braid: braid-agreement atomicity repair send-refusal sparse-store-full established
+hosted decrypt: decrypt-ratchet responder-receipt audit-negatives
+hosted responder: restored encrypt responder responder-frame
+hosted dispatch-0: initial-dispatch@0/8
+hosted dispatch-1: initial-dispatch@1/8
+hosted dispatch-2: initial-dispatch@2/8
+hosted dispatch-3: initial-dispatch@3/8
+hosted dispatch-4: initial-dispatch@4/8
+hosted dispatch-5: initial-dispatch@5/8
+hosted dispatch-6: initial-dispatch@6/8
+hosted dispatch-7: initial-dispatch@7/8
+#
+# `single` is what a push to main runs: one part with every phase, on the one self-hosted runner, as the
+# job did before the split, and the run whose build outputs are saved for pull requests to restore.
+single all: *
