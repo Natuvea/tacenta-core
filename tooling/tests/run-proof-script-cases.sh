@@ -71,7 +71,8 @@ py_controls=(check-lifecycle-translation-coverage.py
   check-repair-negatives.py check-send-refusal-negatives.py check-sparse-store-full-negatives.py
   check-decrypt-ratchet-negatives.py check-established-negatives.py check-restored-negatives.py
   check-encrypt-negatives.py check-responder-negatives.py check-responder-frame-negatives.py
-  check-responder-receipt-negatives.py check-discharge-native-decide-negatives.py attest.py)
+  check-responder-receipt-negatives.py check-responder-successor-negatives.py
+  check-responder-reply-negatives.py check-responder-reply-receipt-negatives.py check-discharge-native-decide-negatives.py attest.py)
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
 for s in "${py_controls[@]}"; do stub_py "$s"; done
 # check-translation-coverage.sh is the real script in the no-sorry cases (its fixture is complete below).
@@ -139,6 +140,8 @@ for called in check-translation-coverage.sh check-lifecycle-translation-coverage
   check-send-refusal-negatives.py check-sparse-store-full-negatives.py check-decrypt-ratchet-negatives.py \
   check-established-negatives.py check-restored-negatives.py check-encrypt-negatives.py \
   check-responder-negatives.py check-responder-frame-negatives.py check-responder-receipt-negatives.py \
+  check-responder-successor-negatives.py check-responder-reply-negatives.py \
+  check-responder-reply-receipt-negatives.py \
   check-discharge-native-decide-negatives.py \
   'lake build translation' 'lake build tacenta-proofs' 'lake build tacenta-model' \
   'leanchecker translation Translation.Alpha' 'leanchecker translation Translation.Beta' \

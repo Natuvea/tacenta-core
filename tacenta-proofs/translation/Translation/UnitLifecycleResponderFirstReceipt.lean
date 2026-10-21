@@ -7,8 +7,9 @@ import Translation.UnitLifecycleResponderFirstFrame
 `establish_responder` and shows that only the three refusals the store decides remain before the inner receive.
 This module finishes that route with the success outcome and its effects: on the same bytes, the inner
 `decrypt_ratchet` returns the plaintext the initiator encrypted, and the whole call succeeds with its exact return
-value, the store after `ResponderCommit`, and one draw from the responder's source (category 2 of the maintainer's
-increment rule, composed across two public roots, at the category-1 states the two routes derive).
+value, the store after `ResponderCommit`, and one draw from the responder's source.  Two public roots are composed
+in one run: the bytes the initiator's `encrypt` returns are the input of the responder's `establish_responder`, each
+at the state its own route derives.
 
 ## Auxiliary specification (the model alone)
 
@@ -78,12 +79,16 @@ receiver's classical root `ec` and the agreement `d` derive the sender's root an
 ## What it does not show
 
 * That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.
-* The responder's reply, the initiator's receipt of it, any later message; the successor's `Session::invariant`.
-* That the real primitives meet the laws, that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`; a
-  decapsulation failure would, by reading the wrapper's implicit rejection, surface as `Aead`, not `Kem`; not
-  shown), `PrekeyIdsDistinct` from `PrekeyStore::invariant`, the one-time path in a run, the model's own
-  `establishResponder` equality.  A source with no state of its own, such as `OsRng`, is outside the statements
-  about draws.
+* The successor's `Session::invariant` and its four counter ceilings: not here (`UnitLifecycleResponderSuccessor`
+  derives both at the session the call returns).
+* A second delivery of the same bytes (refused or not); the responder's reply (its `encrypt` is
+  `UnitLifecycleResponderReply`'s), the initiator's receipt of it (`UnitLifecycleResponderReplyReceipt`'s), any later
+  message.
+* That the real primitives meet the laws, that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`; by reading the
+  wrapper's implicit rejection, a decapsulation failure returns another secret and would, barring an HMAC collision,
+  surface as `Aead`, not `Kem`; not shown), `PrekeyIdsDistinct` from `PrekeyStore::invariant`, the one-time path in a
+  run, the model's own `establishResponder` equality.  A source with no state of its own, such as `OsRng`, is outside
+  the statements about draws.
 -/
 
 namespace Tacenta.UnitLifecycleResponderFirstReceipt

@@ -9,9 +9,9 @@ The responder's public root `establish_responder` decodes the initial message, l
 names, computes the shared secret, checks the last-resort replay record, builds a session, and only then
 runs `decrypt_ratchet` on the ratchet frame the message carries; on success it commits the prekey store.
 This module composes that root for every responder identity, prekey store, initial message and source of
-randomness (category 2 of the maintainer's increment rule), and derives the hypotheses of the
-`decrypt_ratchet` refinement at the session it builds (category 1: from the actual construction, not
-assumed).  No concrete input is chosen in the generic results.
+randomness, with every outcome and its effects, and derives the session-side hypotheses of the
+`decrypt_ratchet` refinement at the session it builds from the code's own construction of that session, not
+as assumptions.  No concrete input is chosen in the generic results.
 
 ## What is shown
 

@@ -416,7 +416,7 @@
           "strategy": {
             "fail-fast": false,
             "matrix": {
-              "part": "${{ fromJSON(github.event_name == 'push' && '[\"all\"]' || '[\"kernel\", \"satisfiability\", \"refuted\", \"braid\", \"decrypt\", \"responder\", \"dispatch-0\", \"dispatch-1\", \"dispatch-2\", \"dispatch-3\", \"dispatch-4\", \"dispatch-5\", \"dispatch-6\", \"dispatch-7\"]') }}"
+              "part": "${{ fromJSON(github.event_name == 'push' && '[\"all\"]' || '[\"kernel\", \"satisfiability\", \"refuted\", \"braid\", \"decrypt\", \"responder\", \"reply\", \"dispatch-0\", \"dispatch-1\", \"dispatch-2\", \"dispatch-3\", \"dispatch-4\", \"dispatch-5\", \"dispatch-6\", \"dispatch-7\"]') }}"
             }
           },
           "steps": [

@@ -52,7 +52,7 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-full_line='no-sorry: all 34 phases passed'
+full_line='no-sorry: all 37 phases passed'
 
 wrong() {  # name message...
   local name="$1"
@@ -113,7 +113,8 @@ for s in check-lifecycle-translation-coverage.py check-atomicity-negatives.py ch
   check-send-refusal-negatives.py check-sparse-store-full-negatives.py check-decrypt-ratchet-negatives.py \
   check-established-negatives.py check-restored-negatives.py check-encrypt-negatives.py \
   check-responder-negatives.py check-responder-frame-negatives.py check-responder-receipt-negatives.py \
-  check-discharge-native-decide-negatives.py attest.py; do
+  check-responder-successor-negatives.py check-responder-reply-negatives.py \
+  check-responder-reply-receipt-negatives.py check-discharge-native-decide-negatives.py attest.py; do
   stub_py "$s"
 done
 # The dispatcher: ten controls over two sources, with the real script's options and result file.
@@ -337,14 +338,14 @@ refused_copy build-failed "exited with status"
 
 first="$(echo "$hosted_parts" | head -n 1)"
 copy missing; rm -rf "$work/set-missing/translation-part-$first"
-refused_copy missing "holds 13 part directories, not the 14"
+refused_copy missing "holds 14 part directories, not the 15"
 
 copy repeated; rm -rf "$work/set-repeated/translation-part-refuted"
 cp -R "$work/set-repeated/translation-part-kernel" "$work/set-repeated/translation-part-kernel-again"
 refused_copy repeated "are both part kernel"
 
 copy one-more; cp -R "$work/single/translation-part-all" "$work/set-one-more/translation-part-all"
-refused_copy one-more "holds 15 part directories"
+refused_copy one-more "holds 16 part directories"
 
 copy other-partition; rm -rf "$work/set-other-partition/translation-part-refuted"
 cp -R "$work/single/translation-part-all" "$work/set-other-partition/translation-part-all"
@@ -536,7 +537,7 @@ refuses partition-without-combine "NO_SORRY_PARTITION is set without NO_SORRY_CO
 combine no-such-partition "$genuine" no-such-partition
 refuses no-such-partition "has no partition 'no-such-partition'"
 combine hosted-as-single "$genuine" single
-refuses hosted-as-single "holds 14 part directories, not the 1 of partition single"
+refuses hosted-as-single "holds 15 part directories, not the 1 of partition single"
 run list-other NO_SORRY_LIST=yes
 refuses list-other "NO_SORRY_LIST takes the value 1"
 run run-without-part NO_SORRY_PART_RUN="$work/z"

@@ -2726,16 +2726,117 @@ The successor relation is to the model's step at a codeword view that reads the 
 source (`attributedView`); the proof shows that the received codeword is a codeword of that source (the codeword half of the
 chunk relation is derived; the erasure code is systematic, so codeword index 0 carries the source's first 32 bytes and the derived half fixes only those; the other 64 bytes of the source in the successor's model decoder (the hash and the header MAC) come from the attribution), and the view constrains only the model session the successor is compared against, not the
 bytes, the store, the draws or the call's result. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt branch's law)
-gives that source its 96 bytes. The two oracles need not be equal; the later steps (the header's later chunks, the reply)
-need the two oracles' Braid KEMs to agree, which nothing here states. On `Kem`: `FirstKemAgrees` stays a premise. By reading,
+gives that source its 96 bytes. The two oracles need not be equal; the header's later chunks and the steps after them
+need the two oracles' Braid KEMs to agree, which nothing here states. The responder's `encrypt` of its reply does not:
+its agreement waits for the header, and neither the code's send nor the model's reads randomness or the KEM there (the
+reply paragraph below), and neither does the initiator's receipt of the reply: at its `KeysSampled` agreement the code's
+receive (by reading) and the model's change state only on a `Ct1` chunk (the reply receipt paragraph below). On `Kem`: `FirstKemAgrees` stays a premise. By reading,
 an honest-ciphertext decapsulation failure returns another secret under FIPS 203 implicit rejection rather than an error, so
 the two shared secrets would differ and the refusal observed would, barring an HMAC collision, be the inner `Aead`, store as given and one draw taken,
 not `Kem`; this is argued from the reading only and is not shown. Every law of the premise lists, with the first-frame
 laws, holds together in `InterpO.modelFirstReceipt` (`first_receipt_laws_model`), the first-frame joint model with the toy
 seal and open (the first-frame model's seal returns the empty vector, so `AeadRoundTripShape` is false there); a toy that
-shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; the responder successor's
-`Session::invariant` and its four counter ceilings; a second delivery of the same bytes (refused or not); the responder's reply, the initiator's receipt of it and any later message; the one-time path in an
-exhibited run; the model's own `establishResponder` equality.
+shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; a second delivery of the same bytes (refused or not); the responder's reply (its `encrypt`: two paragraphs below), the initiator's receipt of it (three paragraphs below) and any later message; the one-time path in an
+exhibited run; the model's own `establishResponder` equality. The responder successor's `Session::invariant` and its four
+counter ceilings are the next paragraph's.
+
+*The responder's session after the first receipt.* `UnitLifecycleResponderSuccessor.lean` shows that the session the
+successful call above returns passes `Session::invariant` and meets the four counter ceilings
+(`initiator_first_send_responder_successor_admissible`, `initiator_first_send_responder_successor_counterHeadroom`,
+`initiator_first_send_responder_successor_hypotheses`, with the relation; compiler-trusted as the results above). **No law
+and no premise about the run is added**: the statements take the hypotheses of `initiator_first_send_responder_receives`
+(or `responder_first_frame_succeeds`) without the store bound `EstablishResponderHeadroom`, which the call's success
+equation they add makes unnecessary. The invariant uses `DhPublicValid` and `OptionEqU64Shape`, already premises there, and
+`DivCeilValue` and the header-length bound, both fields of the responder's contracts; the responder's oracle record and the
+view's codec relation tie the drawn candidate's public key to the Triple's new sending key. It is proved for this one receive,
+the first at the responder's prepared session, not through a theorem that a receive keeps the invariant, which the tree does
+not have: from a walk of the successful `decrypt_ratchet` (what it writes), the relation of the section above (which fixes the
+Triple's counters and stores and the agreement's state, by injectivity of the byte reading) and a walk of `Braid::receive` at
+`NoHeaderReceived` (the relation does not fix the decoder: the decoder relation is behavioural). So the agreement's decoder is
+shown to be the fresh header decoder or one `add_chunk` of it, which passes `Decoder::invariant`. The reach's run of the section
+above meets both (`first_send_receive_successor_reachable`). **Not shown:** that a receive keeps the invariant in general or at
+any later message; the reply (its `encrypt` is the next paragraph's); a second delivery of the same bytes; the premises of the next decrypt that are not about the
+session (the next frame's chunk relation, `HonestChunk` for the next header chunk, the draw, the boundary records); that the
+model session the successor is related to holds only bytes the responder received (the relation is at the attributed view
+above; the invariant and the ceilings are about the code's session and do not mention the view).
+
+*The responder's reply.* `UnitLifecycleResponderReply.lean` takes the responder's public `Session::encrypt` at the session the
+successful call above returns, on the same run (the same session, from the same call on the same bytes). At that session the
+call has one outcome: it returns the bare reply frame (agreement type `none`, no chunk, no initial wrapper, sealed under the
+key of the receipt's classical sending chain and the sparse chain the initiator receives on), takes no draw, returns the
+session with only the Triple Ratchet replaced, and relates to the model's step (`initiator_first_send_responder_replies`;
+compiler-trusted, with `responder_reply_refines`, the two derivations that keep the receipt's key equations and the reach
+`first_send_reply_reachable`, through the encrypt and decrypt refinements' nine `native_decide` constants). **No law and no
+premise about the run is added.** The headline takes the hypotheses of `initiator_first_send_responder_successor_hypotheses`
+and two boundary records at the responder's source, both of kinds the initiator's first send already takes: the full oracle
+record `OracleOf` (in place of `DecryptOracleOf`) and the Braid send record `BraidSendRefinementContracts`. Like the
+initiator's, they are assumed and not shown of the real primitives; the reach meets them with the run's own encrypt records
+because there the two parties share the oracle and the byte-stream source type. The Braid send record carries the KEM
+agreement `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state, although the
+agreement's send at this state reads neither randomness nor the KEM; whether it could be dropped here is not checked. The
+headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the responder's Braid send records); each ties
+its KEM to the same translated code, so the premises carry an indirect, weak relation between the two KEMs. The
+source state is free, with no draw premise, and the plaintext bound `102 + (ptR.length + 48) ≤ Usize.max` holds of every plaintext of at most `2^32 - 151`
+bytes on a 32-bit target. No refusal is possible at this state: the terminal guard is false, the agreement's send at
+`NoHeaderReceived` does not refuse, and the model's Triple send from the receipt's Triple succeeds (counters 0, a sending
+chain), so the statement has one outcome and not a refused arm; the refusals `encrypt` can reach elsewhere in a session (the
+terminal guard, the Triple's `ChainExhausted` and `NoSendingChain`) are not covered. **Not shown:** the initiator's receipt of
+the reply (the next paragraph); `Session::invariant` or the ceilings
+after the reply; a second reply, a second message from the initiator, the header's later chunks and the responder's first
+sampling send; a restored copy of the session; that the model session the successor refines holds only bytes the responder
+received (the relation is at the receipt's attributed view); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`);
+`PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a
+run. The statement does not tie the source state to the one `establish_responder` left; it holds for every source state,
+that one included, and the reach takes it.
+
+*The initiator's receipt of the reply.* `UnitLifecycleResponderReplyReceipt.lean` takes the reply's bytes to the initiator, on
+the same run: its public `Session::decrypt` at the session its own first `encrypt` left, from the source that `encrypt` left.
+The call returns, takes exactly one draw, and is one of the four arms of the model's step: `Handshake(NonContributoryAgreement)`
+(the initiator oracle refuses the agreement of its draw with the reply's ratchet key), `Triple(Classical(NoReceivingChain))`
+(the reply's ratchet key is the peer key the initiator holds, so no Diffie-Hellman step is taken and it has no receiving chain),
+`Aead` (the initiator's open of the responder's own seal refused, not a bad frame's refusal), each with the session as given, or
+what the open returns, with the pending initial message cleared and the session related to the model's step
+(`initiator_receives_reply_outcomes`). That is the general outcomes analysis. Under its own premises `DhAgreeContributory` and
+`AeadRoundTrip` the `Handshake` and `Aead` arms do not occur, so the call refuses `NoReceivingChain` exactly when the reply's
+ratchet key is the peer key and otherwise returns the responder's plaintext (`initiator_receives_reply_two_outcomes`, with no
+added premise); with `hfreshB` added it returns the plaintext (`initiator_receives_reply`). The three, the reach run
+`reply_receipt_reach_run` and the two reaches are compiler-trusted through the encrypt and decrypt refinements' nine
+`native_decide` constants. **No new law is used by the three headlines**: they use the
+receipt's `AeadRoundTrip`, `DhAgreeSymmetric` and `DhAgreeContributory` with the two oracles' roles swapped (the responder
+seals, the initiator opens; the initiator's first agreement is the responder's `dSend` by symmetry; the initiator's draw agrees
+with the reply's key by contributoriness), and `DhPublicValid` for the reply's ratchet key. They take two boundary records at
+the initiator's source, of kinds the decrypt refinement already takes: `DecryptRatchetContracts` and `DecryptRatchetAgreements`
+at the initiator oracle's KEM (which also gives the `KemLenAgrees` and `ValidateEkAgrees` that the invariant at the session
+after the first send needs). Like the others, they are assumed and not shown of the real primitives; the reach meets them with
+the responder contracts' decrypt record and the decrypt agreements, because there the two parties share the source type and the
+oracle's KEM. At the initiator's `KeysSampled` agreement the translated `Braid::step_receive` returns the state it was given
+unless the message is a `Ct1` chunk (by reading the generated code; no theorem states it), and the model's receive likewise, so the receipt runs no encapsulation, decapsulation or
+key generation and needs no fact relating the two parties' KEMs (it does clone the key pair, under `KemCloneAgrees`);
+`DecryptRatchetAgreements` still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every
+state, and whether it could be dropped here is not checked. One law, used only by a reach, and two premises about the run are
+new:
+
+| Statement | Kind | Says | Used for | Model, and when it would be false |
+|---|---|---|---|---|
+| `DhPublicNotConstant` | law, ASSUMED (`DhPublicNotConstantShape` at the real constants) | for every 32 bytes `pa` there are 32 bytes from which `from_bytes` makes a private key whose public key's bytes are not `pa` | the reach chooses the responder's 32-byte source so that its fresh ratchet key is not the signed prekey's (`first_send_reply_receipt_reachable`); no headline takes it | `InterpO.modelReply` (`modelReply_notConstant`): the base point and the key `1` are their own toy public keys, and they differ. False in `InterpO.modelFirstReceipt` (`modelFirstReceipt_not_notConstant`), whose public key is the base point for every key. True of X25519 by reading (`tacenta-core/boundary/src/dh.rs`: the public key is the base point multiplied by the clamped scalar, so two scalars `s`, `t` with `s ≢ ±t` modulo the group order give different public keys, and the public key takes more than one value); not checked in Lean. It would be false of a `public_key` that ignores its argument or of a `from_bytes` that maps every input to one key |
+| initiator draw premise | premise about the run | the initiator's source after its first send holds a draw | the receipt's candidate draw (the refinement takes it); without it the model refuses `ceiling` | holds in the reach's run, whose initiator source is a 64-byte seed followed by 32 bytes. As for the responder's trace premise, a real `RngCore` does not run dry; the empty trace is a property of the trace interpretation |
+| `hfreshB` | premise about the run, success theorem only | the responder oracle's public key of its draw is not the peer key the initiator holds (the bytes of the signed prekey) | the reply's ratchet key is fresh, so the initiator takes a Diffie-Hellman step and has a receiving chain | holds in the reach's run with the responder's source chosen by `DhPublicNotConstant`, and fails in `first_send_reply_stale_reachable`, whose responder draws its own signed prekey secret: there the initiator refuses `Triple(Classical(NoReceivingChain))` with its session unchanged. A condition on the run, not a law: it fails exactly when the responder's draw gives the signed prekey's public key. That it holds under an honest random source is not shown, and no probability is claimed |
+
+The laws of the premise lists hold together, with the reach's `DhPublicNotConstant`, in `InterpO.modelReply`
+(`reply_receipt_laws_model`, which proves every conjunct of `first_receipt_laws_model` again there): the first receipt's joint
+model with a public key that is the private key when that key is canonical and not all zero and the base point otherwise, and
+an agreement that refuses the all-zero key and otherwise returns the base point. A toy that shows nothing of the real
+primitives: its agreement ignores the private key, so symmetry and contributoriness hold degenerately and every agreement
+value is the same constant; it cannot tell which key sealed the reply, and that a non-degenerate symmetric agreement is
+consistent with the other laws rests on reading X25519. It was needed because in `InterpO.modelFirstReceipt` every public key is the base point, so the responder's fresh
+key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
+mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
+plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed); a second
+message in either direction (a second reply, the initiator's next send, the
+header's later chunks, which do need the two parties' Braid KEMs to agree on a run, the responder's first sampling send);
+`Session::invariant` or the ceilings after the receipt of the reply or after the reply; that the code's agreement after the
+call equals the one before (it refines the same model agreement); that `hfreshB` holds under an honest random source; a
+restored copy of either session; the one-time path in a run.
 
 **What is not shown.**
 
@@ -2749,12 +2850,16 @@ exhibited run; the model's own `establishResponder` equality.
   `Session::invariant`, above, so the receive record holds there by `decryptHeadroom_of_invariant` under `DhCodecTotal` and
   `Ct1LenTotal`, not stated as a theorem),
   and the session `establish_responder` builds before its inner receive (`counterHeadroom_responder_prepared`; that is not
-  the session the call returns, and no input at which the whole call succeeds is exhibited).
+  the session the call returns; the first receipt's reach, `first_send_receive_reachable`, exhibits one input at which the whole
+  call succeeds).
   The witness session has no pending initial message and no established ephemeral key, and it is not one that
   `establish_initiator` or `establish_responder` returns. A session `establish_initiator_for` returns holds a pending initial
   message and passes `Session::invariant` under `KemCiphertextLenOf` and `DhPublicValid` (above), so
-  `decryptHeadroom_of_invariant` gives it `DecryptRatchetHeadroom` under `DhCodecTotal` and `Ct1LenTotal`; no state `establish_responder` returns is shown to pass
-  the invariant (the session it hands to its inner `decrypt_ratchet` is, `responder_prepared_invariant`, above). No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
+  `decryptHeadroom_of_invariant` gives it `DecryptRatchetHeadroom` under `DhCodecTotal` and `Ct1LenTotal`; the one state
+  `establish_responder` returns that is shown to pass the invariant is the session it returns on the initiator's first frame
+  (the responder successor paragraph above; the session it hands to its inner `decrypt_ratchet` passes it too,
+  `responder_prepared_invariant`, above), and the encrypt record holds there (`encryptHeadroom_reply`, the reply paragraph
+  above). No theorem shows that a `PrekeyStore` passes `PrekeyStore::invariant`
   or that the invariant bounds `last_resort_seen`, so `EstablishResponderHeadroom` is shown only as a bound on a vector length,
   with a key pair (`HeadroomInhabitants`) as a value. The Braid in the witness is in `KeysUnsampled`,
   which holds no decoder, ciphertext or KEM value; for the other states the receive record holds of every state that passes

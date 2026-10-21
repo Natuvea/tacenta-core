@@ -232,8 +232,17 @@ what that open returns; under two more assumed boundary laws (the AEAD opens wha
 `public_key` returned is not refused), the model KEM's size law, a store bound and per-run premises on the responder's
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
 the model's step at a view that attributes the received chunk to the initiator's header source; with no compiler-trust
-axiom, as for the decrypt results. That a tampered frame is refused is not shown, nor the successor's invariant, the reply or any later
-message.
+axiom, as for the decrypt results. At the session that success returns, `Session::invariant` and the four counter ceilings hold, for that
+first receive only and with no assumption beyond the receipt's own premises (without its store bound) (compiler-trusted). The
+responder's `encrypt` at that same session, on the same run, has one outcome: the bare reply frame, no draw taken, the
+agreement kept, related to the model's step, under the successor's premises, with the responder's full oracle record, the
+Braid send contracts at its source and a plaintext-length bound, with no new law (compiler-trusted). The initiator's `decrypt` of that
+reply, at the session its first `encrypt` left, on the same run, refuses `NoReceivingChain` exactly when the reply's ratchet
+key is the peer key the initiator holds and otherwise returns the responder's plaintext with one draw (the general analysis
+has four arms; the handshake and `Aead` arms, the latter the responder's own seal failing to open, are excluded by the
+contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
+(compiler-trusted): exactly one reply received by the initiator. That a tampered frame is refused is not shown, nor any later
+message in either direction.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
@@ -337,7 +346,7 @@ job prints the line a whole run ends with (`no-sorry: all N phases passed`) only
 exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
 clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
 phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
-request runs fourteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
+request runs fifteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
 on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
 pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
 they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
@@ -351,8 +360,8 @@ the combiner checks the log for consistency with the manifest (one closing line 
 0, and no `::error::` or `WRONG` line), not that it is the log of that run: like a manifest, a part directory
 made to look right by something other than the script is not detected; the hosted run of the matrix
 and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
-combiner's refusals on stubbed phases). One pull-request run starts about 38 jobs at once (sixteen attestation
-slices, fourteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
+combiner's refusals on stubbed phases). One pull-request run starts about 39 jobs at once (sixteen attestation
+slices, fifteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
 this was written, runs 60 hosted jobs at once, so two runs at the same time queue. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
