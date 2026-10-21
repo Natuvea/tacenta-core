@@ -82,8 +82,9 @@ run's encrypt records, since the two parties share the oracle and the byte-strea
 
 ## What it does not show
 
-* The initiator's receipt of the reply (its `decrypt` at the session after its first send): not shown, and whether
-  the initiator accepts these bytes is not checked in any model here.
+* The initiator's receipt of the reply (its `decrypt` at the session after its first send): not shown here;
+  `UnitLifecycleResponderReplyReceipt` takes it, on the same run, under a per-run premise that the fresh ratchet key is
+  not the peer key the initiator holds.
 * A refusal `encrypt` can reach: at this state none occurs (the terminal guard is false, the agreement's send cannot
   fail at `NoHeaderReceived`, the Triple's send succeeds from counters 0 with a sending chain, the composite header is
   defined); the refusals reachable elsewhere in a session (the terminal guard, `ChainExhausted`, `NoSendingChain`)

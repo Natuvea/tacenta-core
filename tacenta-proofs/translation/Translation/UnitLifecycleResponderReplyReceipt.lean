@@ -73,7 +73,8 @@ a private key from 32 bytes whose public key's bytes differ from them) is used o
 `first_send_reply_receipt_reachable`, to choose the responder's source.
 
 At the session `s'` the agreement is at `KeysSampled`.  The translated `Braid::step_receive` there returns the state
-it was given unless the message is a `Ct1` chunk, and the model's receive likewise, so the reply's receipt runs no
+it was given unless the message is a `Ct1` chunk (by reading the generated code; no theorem here states it), and the
+model's receive likewise, so the reply's receipt runs no
 encapsulation, decapsulation or key generation and no fact relating the two parties' KEMs is used.  The call does clone
 the agreement state, key pair included (`Braid::receive` clones `self.state`), which the route covers through
 `KemCloneAgrees`.  `DecryptRatchetAgreements` also carries the KEM agreements `KemAgreesFor`, `KemLenAgrees` and

@@ -81,7 +81,8 @@ receiver's classical root `ec` and the agreement `d` derive the sender's root an
 * The successor's `Session::invariant` and its four counter ceilings: not here (`UnitLifecycleResponderSuccessor`
   derives both at the session the call returns).
 * A second delivery of the same bytes (refused or not); the responder's reply (its `encrypt` is
-  `UnitLifecycleResponderReply`'s), the initiator's receipt of it, any later message.
+  `UnitLifecycleResponderReply`'s), the initiator's receipt of it (`UnitLifecycleResponderReplyReceipt`'s), any later
+  message.
 * That the real primitives meet the laws, that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`; by reading the
   wrapper's implicit rejection, a decapsulation failure returns another secret and would, barring an HMAC collision,
   surface as `Aead`, not `Kem`; not shown), `PrekeyIdsDistinct` from `PrekeyStore::invariant`, the one-time path in a
