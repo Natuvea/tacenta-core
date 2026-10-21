@@ -37,7 +37,7 @@ through injectivity of the byte reading and of the scalar values; the epoch wind
 
 ## Trust
 
-Every result here rests on the kernel alone (`propext`, `Classical.choice`, `Quot.sound`; the pins below); none calls a
+Every result here rests on the kernel alone (at most `propext`, `Classical.choice` and `Quot.sound`; the pins below list which); none calls a
 refinement theorem and none rests on an opaque constant of the unit.
 
 ## What it does not show
