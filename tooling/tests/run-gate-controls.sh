@@ -13,8 +13,8 @@
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
-# Each runner plants its changes in a disposable worktree of the commit under test and needs no Lean
-# toolchain. They are run one after another; the first failure stops the run. The shard runner runs
+# Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
+# only reads the tree) and needs no Lean toolchain. They are run one after another; the first failure stops the run. The shard runner runs
 # check-attest-negatives.sh itself on a few of its cases, with the real attest.py, so it is the one that
 # takes a minute or more.
 set -euo pipefail

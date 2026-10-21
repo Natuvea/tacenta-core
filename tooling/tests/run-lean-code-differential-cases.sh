@@ -7,7 +7,7 @@
 # literals. It was rewritten for speed (a scan that copies ordinary code a stretch at a time, and a
 # per-run memo of its results); `lean-code-differential.py` holds the rewrite to the old loop, kept
 # there verbatim, on every tracked Lean file, on hand-written hostile inputs and on seeded random ones,
-# and shows it can fail by telling eleven single edits of the new scan from the old loop. It reads
+# and shows it can fail by telling thirteen single edits of the new stripper from the old loop. It reads
 # the tree and writes nothing. It needs python3 and git, no Lean toolchain.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

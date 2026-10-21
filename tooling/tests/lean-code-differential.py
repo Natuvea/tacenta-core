@@ -8,30 +8,43 @@ result so a file read by several scans is stripped once. Neither change may alte
 of the output, since every scan of the attestation reads it. This compares the two:
 
   * `reference_lean_code` below is the character loop, copied verbatim from `attest.py` as it was
-    before the change (with the two patterns it used), and is not to be edited;
+    before the change (with the two patterns it used), and is not to be edited: the block is pinned by
+    its sha256 (`REFERENCE_SHA256`), so an edit to it, or its replacement by the new scan (which would
+    agree with the new scan on every input), fails here, and the self-check shows the replacement is
+    refused;
   * the stripper of `tacenta-proofs/scripts/check-lean-constructs.sh` (`strip_lean`, its default
     reading), which is a second copy of the same character loop, is read out of that script and
-    compared with the reference too, so the reference cannot drift from a copy that is in use;
+    compared with the reference with `keep_names` off (the scanner has no `keep_names`), so for that
+    reading the reference is also tied to a copy that is in use;
   * the inputs are every tracked `*.lean` file of the tree, with `keep_names` off and on; a list of
     hand-written hostile inputs (nested and unterminated comments, comment openers and quotes in
-    strings, in char literals and in guillemet names, raw strings, `r` and `'` after identifier
-    characters, `!`, `?`, `λ`, CRLF, tabs, non-ASCII text, the empty input); and some thousands of
-    strings drawn from an alphabet of the characters the stripper reacts to, and of slices of real
-    files with such characters inserted and deleted, from a fixed seed, so every run sees the same
-    ones;
-  * `lean_code` is called twice on each input, so the second answer comes from what the first kept.
+    strings, in char literals and in guillemet names, raw strings with and without hashes and with a
+    backslash in them, `r` and `'` after identifier characters, `!`, `?`, `λ`, CRLF, tabs, non-ASCII
+    text, the empty input), each also with code after it; and some thousands of strings drawn from an
+    alphabet of the characters the stripper reacts to, and of slices of real files with such
+    characters inserted and deleted, from a fixed seed, so every run sees the same ones. Each group
+    has a floor, so a shrunken corpus fails;
+  * `lean_code` is called on a fresh copy of each input and again on another fresh copy, so the
+    second answer comes from what the first kept, and a memo that keyed on the object rather than on
+    the text would be seen returning another input's result.
 
-It then shows it can fail: it applies each of several single edits to the source of the new scan,
-each a plausible slip (a nested comment not counted, the character after a top-level `/-` not
-consumed, a backslash escape not read, a raw string not seen, a newline not kept, the identifier rule
-at `!` dropped, a guillemet name kept, the first character's predecessor read from the end of the
-text), and requires that the inputs above tell each edited scan from the reference. An edit that no
-longer applies to the source is a failure too, so the self-check cannot go stale silently.
+It then shows it can fail: it applies each of thirteen single edits to the live source of the new
+stripper, each a plausible slip (a nested comment not counted, the character after a top-level `/-`
+not consumed, a backslash escape in a string not read, a raw string not seen or read with escapes, a
+newline not kept, the identifier rule at `!` dropped, a guillemet name kept, the first character's
+predecessor read from the end of the text, a memo keyed on the object), and requires that the inputs
+above tell each edited stripper from the reference; the raw-string escape edit must be told by the
+hostile inputs alone and by the generated inputs alone. An edit that no longer applies to the source is
+a failure too, so the self-check cannot go stale silently.
+
+The comparison is over these inputs only: it is a test, not a proof that the two agree on every
+input.
 
 Not checked here: that the reference reads Lean as Lean does. That is the business of the scans'
 own cases (`check-attest-negatives.sh`, `run-lean-constructs-cases.sh`); this holds only that the
 new scan says what the old loop said.
 """
+import hashlib
 import importlib.util
 import os
 import random
@@ -43,6 +56,14 @@ ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.pat
 ATTEST = os.path.join(ROOT, "tacenta-proofs", "scripts", "attest.py")
 CONSTRUCTS = os.path.join(ROOT, "tacenta-proofs", "scripts", "check-lean-constructs.sh")
 SEED = 20261021
+# Floors on the inputs, so that a shrunken corpus fails rather than passes on less.
+MIN_FILES, MIN_HOSTILE, MIN_GENERATED = 200, 240, 7000
+# The sha256 of the reference block below, from its first marker line to the end of its last. The block
+# is the old loop and is not edited; if a reviewed change must touch it, the failure message prints the
+# new digest to put here.
+REFERENCE_SHA256 = "86fd7832c0e830033860020a42d4bd75228320ed01f3168f1b5efa11cf3c8cbf"
+REFERENCE_START = "# ---- The reference: verbatim from attest.py before the change."
+REFERENCE_END = "# ---- End of the reference. -----------------------------------------------------------------------\n"
 
 
 # ---- The reference: verbatim from attest.py before the change. Do not edit. ----------------------
@@ -200,6 +221,11 @@ HOSTILE = [
     "theorem x : a = b := by\n  /-- doc -/\n  simp -- done\n",
     "/-- a docstring with \"quotes\" and 'chars' and -- dashes -/\ndef x := 1",
     "set_option warn.sorry false -- x\n", "#guard_msgs in\n#check @x -- pin\n",
+    # A raw string reads no escape: a backslash in it is a character, and its first `"` (followed
+    # by its hashes) ends it, so the code after is code.
+    "def p := r\"C:\\\" \naxiom bad : False -- \"",
+    "r\"\\\" x -- \"", "r\"a\\\"", "r\"\\\\\" y", "r#\"\\\"#\"# z", "r##\"\\\"#\"## z", "r\"\\\"", "r#\"\\\"#",
+    "r\"\\\"\nx -- \"", "r\"a\\\"\ny", "r\"\\\\\"\ny", "r#\"\\\"#\"#\nz", "r##\"\\\"#\"##\nz",
 ]
 # Each again with code after it, on the same line and the next, so that an input whose stripped text is
 # all blank either way (`/--/` read as one comment or as two) shows whether the code after it is hidden.
@@ -207,7 +233,7 @@ HOSTILE = HOSTILE + [h + " code «a» 'b'\nmore -- x" for h in HOSTILE]
 
 ALPHABET = ["-", "-", "/", "/", "\"", "'", "r", "r", "#", "«", "»", "\\", "\n", " ", "\t", "\r",
             "a", "x", "_", "!", "?", ".", "λ", "Π", "é", "u", "0", "4", "(", ")", "-/", "/-", "--",
-            "\\x41", "\\u0041", "r#\"", "\"#"]
+            "\\x41", "\\u0041", "r#\"", "\"#", "r\"\\", "\\\"", "r#\"\\"]
 
 
 def random_inputs(texts, rng):
@@ -231,10 +257,10 @@ def random_inputs(texts, rng):
     return out
 
 
-# Single edits to the new scan, each a slip the comparison must catch: (name, where, old text, new
-# text). `where` is the function edited (`_lean_code_scan` or `_blank`), or the name of a module
-# pattern that the edit replaces, in which case the new text is the replacement pattern. Each edit
-# keeps the scan moving forward, so an edited scan ends on every input.
+# Single edits to the new stripper, each a slip the comparison must catch: (name, where, old text, new
+# text). `where` is the function edited (`lean_code`, `_lean_code_scan` or `_blank`), or the name of a
+# module pattern that the edit replaces, in which case the new text is the replacement pattern. Each
+# edit keeps the scan moving forward, so an edited scan ends on every input.
 MUTANTS = [
     ("nested comment not counted", "_lean_code_scan", 'depth += 1 if text[p] == "/" else -1', "depth -= 1"),
     ("top-level /- takes two characters", "_lean_code_scan", "k = 3 if i + 2 < n else 2", "k = 2"),
@@ -250,14 +276,24 @@ MUTANTS = [
     ("backslash escape not read", "_STRING_BODY", None, r'"[^"]*'),
     ("raw string not seen", "_TOP_STOP", None, r'--|/-|["\'«]'),
     ("nested opener not seen", "_BLOCK_STOP", None, r"-/"),
+    ("raw string reads escapes", "_lean_code_scan", "j = text.find(close, raw.end())",
+     "j = text.find(close, raw.end()) if raw.group(1) else (lambda e: e if e < n and text[e] == '\"' else -1)"
+     "(_STRING_BODY.match(text, raw.end() - 1).end())"),
+    ("memo keyed on the object, not the text", "lean_code", "key = (text, bool(keep_names))",
+     "key = (id(text), bool(keep_names))"),
 ]
+# The edit above that only inputs with a backslash in a raw string can tell; the hostile inputs and
+# the generated ones must each tell it on their own.
+RAW_ESCAPE_MUTANT = "raw string reads escapes"
 
 
-def mutant_scans(attest):
-    """(name, scan) for each edit, the scan built from the live source of attest.py with that edit."""
+def mutant_strippers(attest):
+    """(name, lean_code) for each edit: `lean_code` with an empty memo, built from the live source of
+    attest.py with that edit applied."""
     import inspect
     for name, where, old, new in MUTANTS:
         namespace = dict(vars(attest))
+        namespace["_LEAN_CODE_MEMO"] = {}
         if old is None:
             if not isinstance(namespace.get(where), type(re.compile(""))):
                 fail("the self-check edit %r names %s, which is no longer a pattern of attest.py" % (name, where))
@@ -267,21 +303,70 @@ def mutant_scans(attest):
             if source.count(old) != 1:
                 fail("the self-check edit %r no longer applies once to %s" % (name, where))
             exec(compile(source.replace(old, new), "<mutant: %s>" % name, "exec"), namespace)
-        # The scan reads `_blank` and the patterns from its globals, so it is rebuilt in the edited namespace.
-        if where != "_lean_code_scan":
-            exec(compile(inspect.getsource(attest._lean_code_scan), "<mutant: %s>" % name, "exec"), namespace)
-        yield name, namespace["_lean_code_scan"]
+        # The functions read each other, the memo and the patterns from their globals, so the ones not
+        # edited are rebuilt in the edited namespace.
+        for other in ("_blank", "_lean_code_scan", "lean_code"):
+            if other != where:
+                exec(compile(inspect.getsource(getattr(attest, other)), "<mutant: %s>" % name, "exec"), namespace)
+        yield name, namespace["lean_code"]
+
+
+def fresh(text):
+    """An equal string that is a new object (for any text of two characters or more), so that a call
+    on it shares nothing with an earlier call on the same text but its content, and the object is
+    freed when the call returns, as a scan's temporary would be."""
+    return (text + " ")[:-1]
+
+
+def stripped_twice(lean_code, text, keep):
+    """`lean_code` on a fresh copy of `text`, then on another: the second answer comes from what the
+    first kept."""
+    return lean_code(fresh(text), keep_names=keep), lean_code(fresh(text), keep_names=keep)
+
+
+def reference_block():
+    with open(os.path.abspath(__file__), encoding="utf-8") as fh:
+        source = fh.read()
+    # At the start of a line, so the constants above, which spell the markers, are not taken for them.
+    start = source.find("\n" + REFERENCE_START) + 1
+    end = source.find("\n" + REFERENCE_END, start) + 1
+    if start <= 0 or end <= start:
+        fail("cannot find the reference block in %s" % __file__)
+    return source[start:end + len(REFERENCE_END)]
+
+
+def reference_pinned(block):
+    return hashlib.sha256(block.encode("utf-8")).hexdigest() == REFERENCE_SHA256
 
 
 def main():
+    block = reference_block()
+    if not reference_pinned(block):
+        fail("the reference block (the old character loop) has changed: its sha256 is now %s, not the "
+             "pinned %s. It is the loop lean_code is held to and is not edited; a change to it is a change "
+             "to what this control checks, for review, that also updates REFERENCE_SHA256"
+             % (hashlib.sha256(block.encode("utf-8")).hexdigest(), REFERENCE_SHA256))
     attest = load_attest()
+    # The pin is what stops the reference being replaced by the new scan, which would agree with it on
+    # every input: show that such a replacement is refused.
+    import inspect
+    swapped = re.sub(r"(?s)\ndef lean_code\(.*?\n    return \"\"\.join\(out\)\n",
+                     lambda _: "\n" + inspect.getsource(attest._lean_code_scan).replace(
+                         "def _lean_code_scan(text, keep_names):", "def lean_code(text, keep_names=False):"),
+                     block, count=1)
+    if swapped == block or reference_pinned(swapped):
+        fail("the self-check that replaces the reference by the new scan was not refused by the pin")
     strip_lean = load_constructs_stripper()
     texts = lean_files()
-    if len(texts) < 100:
-        fail("found only %d tracked Lean files under %s" % (len(texts), ROOT))
     rng = random.Random(SEED)
     generated = random_inputs(texts, rng)
+    for what, have, floor in (("tracked Lean files", len(texts), MIN_FILES),
+                              ("hostile inputs", len(HOSTILE), MIN_HOSTILE),
+                              ("generated inputs", len(generated), MIN_GENERATED)):
+        if have < floor:
+            fail("only %d %s, fewer than the floor of %d" % (have, what, floor))
     corpus = [t for _, t in texts] + HOSTILE + generated
+    kinds = ["file"] * len(texts) + ["hostile"] * len(HOSTILE) + ["generated"] * len(generated)
     names = [p for p, _ in texts] + ["hostile #%d" % k for k in range(len(HOSTILE))] + \
         ["generated #%d" % k for k in range(len(generated))]
 
@@ -291,8 +376,7 @@ def main():
         for keep in (False, True):
             want = reference_lean_code(text, keep_names=keep)
             references[(name, keep)] = want
-            for attempt in ("first", "kept"):
-                got = attest.lean_code(text, keep_names=keep)
+            for attempt, got in zip(("first", "kept"), stripped_twice(attest.lean_code, text, keep)):
                 if got != want:
                     at = next((k for k in range(min(len(got), len(want))) if got[k] != want[k]),
                               min(len(got), len(want)))
@@ -303,24 +387,30 @@ def main():
                 fail("check-lean-constructs.sh's strip_lean differs from the reference on %s" % name)
 
     caught = []
-    for mutant_name, scan in mutant_scans(attest):
-        differs = 0
-        for name, text in zip(names, corpus):
+    for mutant_name, stripper in mutant_strippers(attest):
+        differs = {"file": 0, "hostile": 0, "generated": 0}
+        for name, kind, text in zip(names, kinds, corpus):
             for keep in (False, True):
                 try:
-                    got = scan(text, keep)
+                    got = stripped_twice(stripper, text, keep)
                 except Exception:
-                    got = None
-                if got != references[(name, keep)]:
-                    differs += 1
-        if differs == 0:
+                    got = (None, None)
+                want = references[(name, keep)]
+                if got[0] != want or got[1] != want:
+                    differs[kind] += 1
+        if sum(differs.values()) == 0:
             fail("the self-check edit %r is not told from the reference by any input" % mutant_name)
-        caught.append("%s (%d)" % (mutant_name, differs))
+        if mutant_name == RAW_ESCAPE_MUTANT and not (differs["hostile"] and differs["generated"]):
+            fail("the self-check edit %r is not told from the reference by the hostile inputs alone and by "
+                 "the generated inputs alone (%d and %d)" % (mutant_name, differs["hostile"], differs["generated"]))
+        caught.append("%s (%d)" % (mutant_name, sum(differs.values())))
 
     print("lean-code-differential: lean_code matches the reference character loop on %d inputs "
-          "(%d tracked Lean files, %d hostile, %d generated from seed %d), each with keep_names off and on "
-          "and once more from what it kept (%d comparisons), and check-lean-constructs.sh's strip_lean "
-          "matches it too; the inputs tell each of %d edited scans from the reference: %s"
+          "(%d tracked Lean files, %d hostile, %d generated from seed %d), each with keep_names off and on, "
+          "on a fresh copy and again on another from what it kept (%d comparisons); check-lean-constructs.sh's "
+          "strip_lean matches the reference with keep_names off; the reference block matches its pinned "
+          "sha256, and a reference replaced by the new scan is refused; the inputs tell each of %d edited "
+          "strippers from the reference: %s"
           % (len(corpus), len(texts), len(HOSTILE), len(generated), SEED, compared, len(caught),
              "; ".join(caught)))
 
