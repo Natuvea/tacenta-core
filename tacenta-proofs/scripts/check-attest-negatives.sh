@@ -53,10 +53,10 @@
 # So does a check that a refused run left a file alone (`expect_unchanged`): it
 # is a case of its own, listed and counted, and goes to the shard of the run
 # before it. That puts the check inside the counting: the per-case lists and the
-# totals cover it, and a shard that skips it is refused. It does not make the
-# check required: deleting one of the two calls lowers the count of a full run
-# by one and passes, as deleting any case does, because the count
-# is not pinned (see below). The script before the sharding was the same.
+# totals cover it, and a shard that skips it is refused. Deleting one of the
+# two calls lowers the count of a full run by one, which the pinned case count
+# (see below) refuses, as it refuses deleting any case, unless the same change
+# updates the count.
 #
 # A case may read what the case before it wrote into the worktree: a `--check`
 # of what a regeneration has just rewritten. Another shard's worktree holds
@@ -84,14 +84,54 @@
 # and when a shard was killed. A second signal while it is cleaning up ends the
 # parent at once, and so does KILL; either can leave shards running (each
 # carries on with its walk until it ends), their worktrees and the logs
-# directory. A shard started by hand (`ATTEST_NEGATIVES_SHARD=i/N`, for a run
-# split over machines) prints only its report lines; combining those is then
-# the caller's job, and CI refuses it.
+# directory. A shard started by hand (`ATTEST_NEGATIVES_SHARD=i/N`, for a split
+# the caller combines by hand) prints only its report lines; combining those is
+# then the caller's job, and CI refuses it. CI splits a run with the slices below.
 #
 # Only a shard reads ATTEST_NEGATIVES_WORKTREE, ATTEST_NEGATIVES_REV and
 # ATTEST_NEGATIVES_RESULTS; the single run and the parent ignore them and say so,
 # and a shard refuses a worktree directory that is not empty. The script removes
 # only directories it made, or that it found empty.
+#
+# Slices. CI splits the run over machines, and does it through two modes of this
+# script rather than through shards started by hand:
+#
+#   ATTEST_NEGATIVES_SLICE=k/K      slice k of K (k from 0). It is a parent of L
+#   ATTEST_NEGATIVES_SLICE_DIR=d    shards (ATTEST_NEGATIVES_JOBS, or the default
+#                                   above), and those are the shards k*L to
+#                                   k*L+L-1 of a run of N = K*L shards, so that a
+#                                   case goes to the shard `index % N` as in a
+#                                   run on one machine. It gives no verdict on
+#                                   the gate: it fails when one of its shards
+#                                   exited nonzero or printed a WRONG line, and
+#                                   otherwise writes into d, which must be empty
+#                                   or absent, each shard's exit status, log and
+#                                   list of cases, named by the shard's index in
+#                                   the run, and `slice.json`: k, K, L, N, the
+#                                   first shard, the commit and tree it ran on,
+#                                   the sha256 of this script, and the length of
+#                                   the walk when the test seam cut it.
+#   ATTEST_NEGATIVES_COMBINE=d      the combiner: d holds exactly K slice
+#   ATTEST_NEGATIVES_SLICES=K       directories, one per slice. It requires one K,
+#                                   one L, every slice from 0 to K-1 once, each
+#                                   with exactly the files of its own shards, the
+#                                   commit and tree the combiner has checked out,
+#                                   this script's sha256, and the walk length of
+#                                   the combiner (a full walk, unless the seam is
+#                                   set for both). It then gathers the shards'
+#                                   files and holds them to `verify_shards`, the
+#                                   check the parent above makes, with N shards,
+#                                   and prints the final line of a full run only
+#                                   if that holds too. It refuses
+#                                   ATTEST_NEGATIVES_JOBS: N comes from the slices.
+#
+# CI may run both modes (a slice starts its own shards, so their parent check
+# passes) and still refuses a shard started by hand and the test seam. The
+# manifest is written by the slice about itself: the combiner can tell a slice
+# of another commit, script or split, a slice missing, repeated, cut short or
+# relabelled, but not a slice directory written to look right by something
+# other than this script. The workflow runs the slices and the combiner in one
+# run of one workflow, and the combiner downloads only that run's artifacts.
 #
 # Test seam. `ATTEST_NEGATIVES_ONLY=n` stops the walk after the first n cases,
 # so that tooling/tests/run-attest-negatives-shard-cases.sh can exercise the
@@ -101,11 +141,22 @@
 # run, and CI refuses the variable (GITHUB_ACTIONS is set), so a partial run
 # cannot stand for the gate.
 #
-# The number of cases of a full run is not pinned, and no file in this
-# repository states it. A walk that ends early, a block moved below `finish`,
-# or a deleted call of `expect_unchanged` prints a smaller count and passes;
-# the only check is a person who compares the count in the final line with the
-# count before the change (684 when this was written).
+# The case count. The number of cases of a full run must equal the number in
+# `tacenta-proofs/scripts/attest-negatives-case-count.txt` (one whole number),
+# which the single run, the parent and the combiner read from the tree they
+# check before they print the final line; a run under the test seam does not
+# read it. A walk that ends early, a block moved below `finish`, a deleted case
+# or a case added without the count then fails, so every change to the number
+# of cases carries a one-line diff of that file: **a change that adds or
+# removes negative cases updates it.** The count catches a walk cut short and a
+# walk padded, not a case replaced by another: a change that removes one case
+# and adds another keeps the count. The number to write is what
+#
+#   ATTEST_NEGATIVES_COUNT=1 bash tacenta-proofs/scripts/check-attest-negatives.sh
+#
+# prints: it walks every case and makes its mutation in one process, runs no
+# tool, and prints only the count, never a line of a run. CI refuses it, as it
+# refuses the test seam, because it runs no case.
 set -euo pipefail
 
 self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -138,6 +189,19 @@ default_jobs() {
   echo "$n"
 }
 
+count_file="$root/tacenta-proofs/scripts/attest-negatives-case-count.txt"
+
+count_only=0
+if [ -n "${ATTEST_NEGATIVES_COUNT:-}" ]; then
+  [ "$ATTEST_NEGATIVES_COUNT" = 1 ] || usage_error "ATTEST_NEGATIVES_COUNT is 1 or unset, not '$ATTEST_NEGATIVES_COUNT'"
+  [ -z "${GITHUB_ACTIONS:-}" ] || usage_error "ATTEST_NEGATIVES_COUNT walks the cases and runs none, so CI refuses it"
+  for variable in ATTEST_NEGATIVES_SHARD ATTEST_NEGATIVES_SLICE ATTEST_NEGATIVES_COMBINE ATTEST_NEGATIVES_JOBS; do
+    [ -z "${!variable:-}" ] \
+      || usage_error "ATTEST_NEGATIVES_COUNT walks the cases in one process and runs none, so it does not take $variable"
+  done
+  count_only=1
+fi
+
 only=""
 if [ -n "${ATTEST_NEGATIVES_ONLY:-}" ]; then
   only="$(whole_number ATTEST_NEGATIVES_ONLY "$ATTEST_NEGATIVES_ONLY")"
@@ -151,7 +215,53 @@ fi
 is_shard=0
 shard=0
 jobs=1
-if [ -n "${ATTEST_NEGATIVES_SHARD:-}" ]; then
+is_slice=0      # this run is one slice of a run split over machines
+slice=0
+slices=0
+slice_dir=""
+combine_dir=""  # this run is the combiner of the slices in this directory
+shard_first=0   # the global index of the first shard this parent starts
+shard_count=0   # how many shards it starts: all of them, or a slice's
+if [ -n "${ATTEST_NEGATIVES_SLICE:-}" ] || [ -n "${ATTEST_NEGATIVES_COMBINE:-}" ]; then
+  [ -z "${ATTEST_NEGATIVES_SHARD:-}" ] \
+    || usage_error "ATTEST_NEGATIVES_SHARD is set by the parent of a shard; a slice or the combiner does not take it"
+  { [ -z "${ATTEST_NEGATIVES_SLICE:-}" ] || [ -z "${ATTEST_NEGATIVES_COMBINE:-}" ]; } \
+    || usage_error "a run is a slice (ATTEST_NEGATIVES_SLICE) or the combiner (ATTEST_NEGATIVES_COMBINE), not both"
+fi
+if [ -n "${ATTEST_NEGATIVES_SLICE:-}" ]; then
+  [[ "$ATTEST_NEGATIVES_SLICE" =~ ^([0-9]{1,6})/([0-9]{1,6})$ ]] \
+    || usage_error "ATTEST_NEGATIVES_SLICE must look like 2/8, not '$ATTEST_NEGATIVES_SLICE'"
+  slice=$((10#${BASH_REMATCH[1]}))
+  slices=$((10#${BASH_REMATCH[2]}))
+  { [ "$slices" -ge 1 ] && [ "$slice" -lt "$slices" ]; } \
+    || usage_error "ATTEST_NEGATIVES_SLICE=$ATTEST_NEGATIVES_SLICE is not a slice of a run"
+  slice_dir="${ATTEST_NEGATIVES_SLICE_DIR:-}"
+  [ -n "$slice_dir" ] || usage_error "a slice writes its shards' reports to ATTEST_NEGATIVES_SLICE_DIR, which is not set"
+  if [ -e "$slice_dir" ] && { [ ! -d "$slice_dir" ] || [ -n "$(ls -A "$slice_dir" 2>/dev/null)" ]; }; then
+    usage_error "ATTEST_NEGATIVES_SLICE_DIR=$slice_dir is not an empty directory"
+  fi
+  if [ -n "${ATTEST_NEGATIVES_JOBS:-}" ]; then
+    shard_count="$(whole_number ATTEST_NEGATIVES_JOBS "$ATTEST_NEGATIVES_JOBS")"
+    { [ "$shard_count" -ge 1 ] && [ "$shard_count" -le 64 ]; } || usage_error "ATTEST_NEGATIVES_JOBS must be from 1 to 64"
+  else
+    shard_count="$(default_jobs)"
+  fi
+  # The shards of all the slices are the shards of one run: slice k starts the global shards k*L to k*L+L-1 of
+  # N = K*L, so the rule that a case goes to the shard `index % N` is the rule of a run on one machine.
+  jobs=$((slices * shard_count))
+  [ "$jobs" -le 1024 ] || usage_error "ATTEST_NEGATIVES_SLICE and ATTEST_NEGATIVES_JOBS make $jobs shards, more than 1024"
+  shard_first=$((slice * shard_count))
+  is_slice=1
+elif [ -n "${ATTEST_NEGATIVES_COMBINE:-}" ]; then
+  combine_dir="$ATTEST_NEGATIVES_COMBINE"
+  [ -d "$combine_dir" ] || usage_error "ATTEST_NEGATIVES_COMBINE=$combine_dir is not a directory"
+  [ -n "${ATTEST_NEGATIVES_SLICES:-}" ] \
+    || usage_error "the combiner is told how many slices there are by ATTEST_NEGATIVES_SLICES, which is not set"
+  slices="$(whole_number ATTEST_NEGATIVES_SLICES "$ATTEST_NEGATIVES_SLICES")"
+  [ "$slices" -ge 1 ] || usage_error "ATTEST_NEGATIVES_SLICES must be at least 1"
+  [ -z "${ATTEST_NEGATIVES_JOBS:-}" ] \
+    || usage_error "the combiner takes the number of shards from the slices, so it refuses ATTEST_NEGATIVES_JOBS"
+elif [ -n "${ATTEST_NEGATIVES_SHARD:-}" ]; then
   [[ "$ATTEST_NEGATIVES_SHARD" =~ ^([0-9]{1,6})/([0-9]{1,6})$ ]] \
     || usage_error "ATTEST_NEGATIVES_SHARD must look like 2/8, not '$ATTEST_NEGATIVES_SHARD'"
   shard=$((10#${BASH_REMATCH[1]}))
@@ -165,8 +275,16 @@ if [ -n "${ATTEST_NEGATIVES_SHARD:-}" ]; then
 elif [ -n "${ATTEST_NEGATIVES_JOBS:-}" ]; then
   jobs="$(whole_number ATTEST_NEGATIVES_JOBS "$ATTEST_NEGATIVES_JOBS")"
   { [ "$jobs" -ge 1 ] && [ "$jobs" -le 64 ]; } || usage_error "ATTEST_NEGATIVES_JOBS must be from 1 to 64"
-else
+elif [ -z "$combine_dir" ]; then
   jobs="$(default_jobs)"
+fi
+if [ "$count_only" -eq 1 ]; then
+  # One process that owns no case: every case is walked and none is run.
+  jobs=1
+  shard=-1
+fi
+if [ "$is_slice" -eq 0 ]; then
+  shard_count=$jobs
 fi
 
 # What a shard is given by its parent. Nothing else reads these, so that a value left in the environment cannot
@@ -178,9 +296,36 @@ if [ "$is_shard" -eq 0 ]; then
     fi
   done
 fi
+if [ "$is_slice" -eq 0 ] && [ -n "${ATTEST_NEGATIVES_SLICE_DIR:-}" ]; then
+  echo "check-attest-negatives: ignoring ATTEST_NEGATIVES_SLICE_DIR, which only a slice reads" >&2
+fi
+if [ -z "$combine_dir" ] && [ -n "${ATTEST_NEGATIVES_SLICES:-}" ]; then
+  echo "check-attest-negatives: ignoring ATTEST_NEGATIVES_SLICES, which only the combiner reads" >&2
+fi
 
-# The line a run that holds the gate ends in. The seam never prints the first form.
+# The case count: exit 1 unless a full walk had exactly the number of cases the count file names.
+check_case_count() {  # count
+  local pinned
+  pinned="$(cat "$count_file" 2>/dev/null)" \
+    || { echo "check-attest-negatives: cannot read the case count $count_file" >&2; exit 1; }
+  if ! [[ "$pinned" =~ ^[1-9][0-9]{0,6}$ ]]; then
+    echo "check-attest-negatives: the case count $count_file does not hold one whole number" >&2
+    exit 1
+  fi
+  if [ "$1" -ne "$pinned" ]; then
+    echo "check-attest-negatives: the walk has $1 cases, not the $pinned in $count_file;" \
+      "a walk cut short or padded is refused, and a change that adds or removes cases updates that file" \
+      "to what ATTEST_NEGATIVES_COUNT=1 prints" >&2
+    exit 1
+  fi
+}
+
+# The line a run that holds the gate ends in. The seam never prints the first form, and the first form is
+# printed only for a walk of the pinned number of cases.
 final_line() {
+  if [ -z "$only" ]; then
+    check_case_count "$1"
+  fi
   if [ -n "$only" ]; then
     echo "check-attest-negatives: PARTIAL RUN, not the gate (seam ATTEST_NEGATIVES_ONLY=$only): the first $1 cases passed"
   else
@@ -197,12 +342,12 @@ shard_works=()
 parent_logs=""
 ticker=""
 
-kill_tree() {  # pid: stop a process and everything it started
+kill_tree() {  # pid [signal]: stop a process and everything it started (TERM unless a signal is given)
   local child
   for child in $(pgrep -P "$1" 2>/dev/null || true); do
-    kill_tree "$child"
+    kill_tree "$child" "${2:-TERM}"
   done
-  kill -TERM "$1" 2>/dev/null || true
+  kill -"${2:-TERM}" "$1" 2>/dev/null || true
 }
 
 parent_cleanup() {
@@ -234,8 +379,9 @@ parent_cleanup() {
   done
   i=0
   while [ "$i" -lt "${#shard_pids[@]}" ]; do
+    # The tree again: a process the shard started after the first walk of its tree would outlive the shard.
     if [ -n "${shard_pids[$i]}" ]; then
-      kill -KILL "${shard_pids[$i]}" 2>/dev/null || true
+      kill_tree "${shard_pids[$i]}" KILL
     fi
     i=$((i + 1))
   done
@@ -253,8 +399,8 @@ parent_cleanup() {
 # The cases walked so far by each shard, one number per shard.
 shard_progress() {
   local i=0 line=""
-  while [ "$i" -lt "$jobs" ]; do
-    line="$line $({ wc -l < "$parent_logs/results-$i"; } 2>/dev/null | tr -d ' ' || true)"
+  while [ "$i" -lt "$shard_count" ]; do
+    line="$line $({ wc -l < "$parent_logs/results-$((shard_first + i))"; } 2>/dev/null | tr -d ' ' || true)"
     i=$((i + 1))
   done
   echo "$line"
@@ -271,15 +417,29 @@ import sys
 logs = pathlib.Path(sys.argv[1])
 jobs = int(sys.argv[2])
 problems = []
-REPORT = re.compile(r"^shard (\d+)/(\d+): ran (\d+) of (\d+)$", re.M)
-PREMISE = re.compile(r"^shard (\d+)/(\d+): premise (\d+) of (\d+)$", re.M)
+# The files are read strictly, because a slice's files cross a job boundary as artifacts before they reach the
+# combiner: printable ASCII, tabs and newlines only (no carriage return, NUL, byte-order mark or other invisible
+# character), numbers in canonical decimal (`\d` and `str.isdigit` take other scripts' digits; no leading zero),
+# an exit status that is such a number and a newline, and a WRONG line in any case and after any indentation.
+REPORT = re.compile(r"^shard ([0-9]+)/([0-9]+): ran ([0-9]+) of ([0-9]+)$", re.M)
+PREMISE = re.compile(r"^shard ([0-9]+)/([0-9]+): premise ([0-9]+) of ([0-9]+)$", re.M)
+NUMBER = re.compile(r"0|[1-9][0-9]*")  # a canonical decimal: no sign, no leading zero
+WRONG_LINE = re.compile(r"\s*wrong", re.I)
+PRINTABLE = re.compile(r"[\t\n -~]*")  # a NUL, a byte-order mark or a zero-width space would hide a WRONG line
 
 
 def read(path):
+    # newline="": a carriage return is kept as it is, not turned into a newline, so that it can be refused.
     try:
-        return path.read_text(errors="replace")
+        with open(path, encoding="utf-8", errors="replace", newline="") as handle:
+            return handle.read()
     except OSError:
         return None
+
+
+def lines_of(text):
+    """The lines of a file, split on newlines only (`splitlines` also splits on other separators)."""
+    return text[:-1].split("\n") if text.endswith("\n") else (text.split("\n") if text else [])
 
 
 reported = {}   # shard -> (cases it ran, cases it saw)
@@ -288,15 +448,19 @@ walks = {}      # shard -> [(index, ran or skip, verdict, seconds, shard the cas
 for i in range(jobs):
     label = f"shard {i}/{jobs}"
     status = read(logs / f"rc-{i}")
-    try:
-        code = int(status.strip())
-    except (AttributeError, ValueError):
+    if status is None:
         problems.append(f"{label} left no exit status")
-    else:
-        if code != 0:
-            problems.append(f"{label} exited with status {code}")
+    elif not re.fullmatch(r"(0|[1-9][0-9]{0,2})\n", status):
+        problems.append(f"{label} left an exit status that is not a number: {status!r}")
+    elif int(status) != 0:
+        problems.append(f"{label} exited with status {int(status)}")
     log = read(logs / f"shard-{i}.log") or ""
-    wrong = [line for line in log.splitlines() if line.startswith("WRONG")]
+    for name, content in (("log", log), ("list of cases", read(logs / f"results-{i}") or "")):
+        if "\r" in content:
+            problems.append(f"{label}: its {name} holds a carriage return")
+        elif not PRINTABLE.fullmatch(content):
+            problems.append(f"{label}: its {name} holds a character other than printable ASCII, a tab or a newline")
+    wrong = [line for line in lines_of(log) if WRONG_LINE.match(line)]
     if wrong:
         problems.append(f"{label} printed {len(wrong)} WRONG line(s)")
     reports = REPORT.findall(log)
@@ -320,10 +484,12 @@ for i in range(jobs):
         problems.append(f"{label} left no list of the cases it walked")
         continue
     rows = []
-    for number, line in enumerate(text.splitlines(), 1):
+    for number, line in enumerate(lines_of(text), 1):
         parts = line.split("\t", 6)
-        if (len(parts) != 7 or not parts[0].isdigit() or parts[1] not in ("ran", "skip")
-                or not parts[4].isdigit() or parts[5] not in ("plain", "follows")):
+        if (len(parts) != 7 or not NUMBER.fullmatch(parts[0]) or parts[1] not in ("ran", "skip")
+                or parts[2] not in (("ok", "wrong") if parts[1] == "ran" else ("-",))
+                or not NUMBER.fullmatch(parts[3]) or not NUMBER.fullmatch(parts[4])
+                or parts[5] not in ("plain", "follows")):
             problems.append(f"{label}: line {number} of its list of cases is not a case")
             break
         # index, ran or skip, verdict, seconds, the shard the case belongs to, plain or follows, name
@@ -418,7 +584,7 @@ PY
 }
 
 run_parent() {
-  local i pid rc start rev total
+  local i g pid rc start rev total
   parent_logs="$(mktemp -d "$tmp_base/attest-negatives-logs.XXXXXX")"
   trap parent_cleanup EXIT
   trap 'exit 130' INT
@@ -426,16 +592,24 @@ run_parent() {
   start=$SECONDS
   # One revision for every shard, read once, in case HEAD moves while they start.
   rev="$(git -C "$root" rev-parse HEAD)"
-  echo "check-attest-negatives: $jobs shards on ${rev:0:7}"
+  if [ "$is_slice" -eq 1 ]; then
+    echo "check-attest-negatives: slice $slice/$slices, shards $shard_first to $((shard_first + shard_count - 1)) of $jobs, on ${rev:0:7}"
+  else
+    echo "check-attest-negatives: $jobs shards on ${rev:0:7}"
+  fi
+  # Shard i of this parent is shard g of the run: the same number unless this run is a slice. Its files are named
+  # by g, which is what the combiner of the slices reads.
   i=0
-  while [ "$i" -lt "$jobs" ]; do
+  while [ "$i" -lt "$shard_count" ]; do
+    g=$((shard_first + i))
     shard_works[$i]="$(mktemp -d "$tmp_base/attest-negatives-wt.XXXXXX")"
-    ATTEST_NEGATIVES_SHARD="$i/$jobs" \
+    env -u ATTEST_NEGATIVES_SLICE -u ATTEST_NEGATIVES_SLICE_DIR \
+      ATTEST_NEGATIVES_SHARD="$g/$jobs" \
       ATTEST_NEGATIVES_PARENT="$$" \
       ATTEST_NEGATIVES_REV="$rev" \
       ATTEST_NEGATIVES_WORKTREE="${shard_works[$i]}" \
-      ATTEST_NEGATIVES_RESULTS="$parent_logs/results-$i" \
-      "$BASH" "$self" > "$parent_logs/shard-$i.log" 2>&1 &
+      ATTEST_NEGATIVES_RESULTS="$parent_logs/results-$g" \
+      "$BASH" "$self" > "$parent_logs/shard-$g.log" 2>&1 &
     shard_pids[$i]=$!
     i=$((i + 1))
   done
@@ -448,16 +622,21 @@ run_parent() {
   ) 2>/dev/null &
   ticker=$!
   disown "$ticker"
-  i=0
-  while [ "$i" -lt "$jobs" ]; do
-    pid="${shard_pids[$i]}"
+  # i counts the shards of the run that this parent started; their pids are kept from index 0.
+  i=$shard_first
+  while [ "$i" -lt "$((shard_first + shard_count))" ]; do
+    pid="${shard_pids[$((i - shard_first))]}"
     wait "$pid" && rc=0 || rc=$?
-    shard_pids[$i]=""
+    shard_pids[$((i - shard_first))]=""
     echo "$rc" > "$parent_logs/rc-$i"
     i=$((i + 1))
   done
   kill_tree "$ticker"
   ticker=""
+  if [ "$is_slice" -eq 1 ]; then
+    finish_slice "$rev" "$((SECONDS - start))"
+    exit 1  # finish_slice ends in an exit of its own
+  fi
   if verify_shards; then
     echo "check-attest-negatives: the shards took $((SECONDS - start)) s"
     total="$(cat "$parent_logs/total")"
@@ -475,7 +654,209 @@ run_parent() {
   exit 1
 }
 
-if [ "$is_shard" -eq 0 ] && [ "$jobs" -gt 1 ]; then
+# ---------------------------------------------------------------------------
+# A run split over machines: slices, and the combiner that accepts what they show together.
+# ---------------------------------------------------------------------------
+
+# The sha256 of this script, which every slice records and the combiner compares with its own.
+script_sha256() {
+  python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$self"
+}
+
+# The end of a slice. A slice gives no verdict on the gate: it stops its own job, with the logs, when one of its
+# shards exited nonzero or printed a WRONG line, and otherwise writes its shards' files (named by their index in
+# the whole run) and a manifest to the slice directory. Whether the cases were all run, each once and by the
+# shard it is assigned to, is asked of all the slices together by the combiner, with the parent's own check.
+finish_slice() {  # revision seconds
+  local i failed=0 last=$((shard_first + shard_count - 1))
+  i=$shard_first
+  while [ "$i" -le "$last" ]; do
+    if [ "$(cat "$parent_logs/rc-$i")" != 0 ] || grep -q '^WRONG' "$parent_logs/shard-$i.log"; then
+      failed=1
+    fi
+    i=$((i + 1))
+  done
+  if [ "$failed" -eq 1 ]; then
+    i=$shard_first
+    while [ "$i" -le "$last" ]; do
+      echo "check-attest-negatives: ---- log of shard $i/$jobs (exit status $(cat "$parent_logs/rc-$i")) ----" >&2
+      cat "$parent_logs/shard-$i.log" >&2
+      i=$((i + 1))
+    done
+    echo "check-attest-negatives: slice $slice/$slices failed: a shard exited nonzero or printed a WRONG line" >&2
+    exit 1
+  fi
+  if [ -e "$slice_dir" ] && { [ ! -d "$slice_dir" ] || [ -n "$(ls -A "$slice_dir" 2>/dev/null)" ]; }; then
+    echo "check-attest-negatives: ATTEST_NEGATIVES_SLICE_DIR=$slice_dir was filled while the slice ran" >&2
+    exit 1
+  fi
+  mkdir -p "$slice_dir"
+  i=$shard_first
+  while [ "$i" -le "$last" ]; do
+    cp "$parent_logs/rc-$i" "$parent_logs/shard-$i.log" "$parent_logs/results-$i" "$slice_dir/"
+    i=$((i + 1))
+  done
+  python3 - "$slice_dir/slice.json" "$slice" "$slices" "$shard_count" "$jobs" "$shard_first" \
+      "$1" "$(git -C "$root" rev-parse "$1^{tree}")" "$(script_sha256)" "$only" <<'PY'
+import json, pathlib, sys
+path, slice_, slices, local, shards, first, commit, tree, script, only = sys.argv[1:]
+manifest = {
+    "format": 1,
+    "slice": int(slice_), "slices": int(slices), "local_shards": int(local), "shards": int(shards),
+    "first": int(first), "commit": commit, "tree": tree, "script_sha256": script,
+    "partial": int(only) if only else None,
+}
+pathlib.Path(path).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+PY
+  echo "check-attest-negatives: slice $slice/$slices wrote the reports of shards $shard_first to $last of $jobs" \
+    "to $slice_dir in $2 s; a slice is not the gate, which is the combination of all $slices slices"
+  exit 0
+}
+
+# The combiner. It reads the K slice directories, requires that they are the K slices of one run (one K, one
+# number of shards each, every slice once, the commit and tree it has checked out itself, this script's hash,
+# and the same walk length), gathers their shards' files into one directory, and then holds them to
+# `verify_shards`, the same check the parent of a run on one machine makes. It prints the final line of a full
+# run only if all of that holds.
+run_combine() {
+  local rev tree total
+  parent_logs="$(mktemp -d "$tmp_base/attest-negatives-logs.XXXXXX")"
+  trap parent_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  rev="$(git -C "$root" rev-parse HEAD)"
+  tree="$(git -C "$root" rev-parse 'HEAD^{tree}')"
+  echo "check-attest-negatives: combining $slices slice(s) on ${rev:0:7}"
+  if ! python3 - "$combine_dir" "$slices" "$rev" "$tree" "$(script_sha256)" "$only" "$parent_logs" <<'PY'
+import json
+import pathlib
+import shutil
+import sys
+
+source = pathlib.Path(sys.argv[1])
+want = int(sys.argv[2])
+commit, tree, script = sys.argv[3], sys.argv[4], sys.argv[5]
+only = int(sys.argv[6]) if sys.argv[6] else None
+out = pathlib.Path(sys.argv[7])
+problems = []
+FIELDS = {"format", "slice", "slices", "local_shards", "shards", "first", "commit", "tree", "script_sha256",
+          "partial"}
+NUMBERS = ("format", "slice", "slices", "local_shards", "shards", "first")
+
+
+def walked(value):
+    return "every case" if value is None else f"the first {value} cases (seam ATTEST_NEGATIVES_ONLY={value})"
+
+
+entries = sorted(source.iterdir())
+directories = [entry for entry in entries if entry.is_dir() and not entry.is_symlink()]
+for entry in entries:
+    if entry not in directories:
+        problems.append(f"{entry.name} in {source} is not a slice directory")
+if len(directories) != want:
+    problems.append(f"{source} holds {len(directories)} slice directories, not the {want} the run is split into")
+
+found = {}  # slice -> (directory, manifest)
+for directory in directories:
+    try:
+        manifest = json.loads((directory / "slice.json").read_text())
+    except (OSError, ValueError) as exc:
+        problems.append(f"{directory.name} has no readable slice.json: {exc}")
+        continue
+    if not isinstance(manifest, dict) or set(manifest) != FIELDS:
+        problems.append(f"{directory.name}/slice.json does not have the fields of a slice manifest")
+        continue
+    if (any(type(manifest[key]) is not int for key in NUMBERS)
+            or not (manifest["partial"] is None or type(manifest["partial"]) is int)
+            or not all(isinstance(manifest[key], str) for key in ("commit", "tree", "script_sha256"))):
+        problems.append(f"{directory.name}/slice.json has a field of the wrong type")
+        continue
+    k, of, local = manifest["slice"], manifest["slices"], manifest["local_shards"]
+    label = f"slice {k}/{of} ({directory.name})"
+    if manifest["format"] != 1:
+        problems.append(f"{label} has manifest format {manifest['format']}, not 1")
+    if of != want:
+        problems.append(f"{label} is a slice of a run split {of} ways, not {want}")
+    if not 0 <= k < want:
+        problems.append(f"{label} is not one of the slices 0 to {want - 1}")
+    if local < 1 or manifest["shards"] != of * local or manifest["first"] != k * local:
+        problems.append(f"{label} says it started shards {manifest['first']} to {manifest['first'] + local - 1} "
+                        f"of {manifest['shards']}, which are not the shards of slice {k} of {of} with {local} each")
+    if manifest["commit"] != commit:
+        problems.append(f"{label} ran on commit {manifest['commit']}, not on {commit}, which the combiner has checked out")
+    if manifest["tree"] != tree:
+        problems.append(f"{label} ran on tree {manifest['tree']}, not on {tree}, which the combiner has checked out")
+    if manifest["script_sha256"] != script:
+        problems.append(f"{label} was made by a check-attest-negatives.sh with sha256 {manifest['script_sha256']}, "
+                        f"not by this one ({script})")
+    if manifest["partial"] != only:
+        problems.append(f"{label} walked {walked(manifest['partial'])}, and the combiner requires {walked(only)}")
+    if k in found:
+        problems.append(f"two directories are slice {k}/{of}: {found[k][0].name} and {directory.name}")
+        continue
+    found[k] = (directory, manifest)
+
+missing = [k for k in range(want) if k not in found]
+if missing:
+    problems.append("no directory is slice " + ", ".join(f"{k}/{want}" for k in missing))
+sizes = sorted({manifest["local_shards"] for _, manifest in found.values()})
+if len(sizes) > 1:
+    problems.append("the slices start different numbers of shards: "
+                    + ", ".join(f"slice {k} starts {m['local_shards']}" for k, (_, m) in sorted(found.items())))
+
+# Each slice holds the three files of each of its shards and its manifest, and nothing else.
+for k, (directory, manifest) in sorted(found.items()):
+    label = f"slice {k}/{want} ({directory.name})"
+    expected = {"slice.json"}
+    for g in range(manifest["first"], manifest["first"] + manifest["local_shards"]):
+        expected |= {f"rc-{g}", f"shard-{g}.log", f"results-{g}"}
+    present = {}
+    for entry in directory.iterdir():
+        present[entry.name] = entry
+    for name in sorted(expected - set(present)):
+        problems.append(f"{label} has no {name}")
+    for name in sorted(set(present) - expected):
+        problems.append(f"{label} holds {name}, which is not a file of its own shards")
+    for name in sorted(expected & set(present)):
+        if present[name].is_symlink() or not present[name].is_file():
+            problems.append(f"{label}: {name} is not a regular file")
+
+if problems:
+    for problem in problems:
+        print(f"check-attest-negatives: {problem}", file=sys.stderr)
+    sys.exit(1)
+
+for k, (directory, manifest) in sorted(found.items()):
+    for g in range(manifest["first"], manifest["first"] + manifest["local_shards"]):
+        for name in (f"rc-{g}", f"shard-{g}.log", f"results-{g}"):
+            shutil.copyfile(directory / name, out / name)
+shards = sizes[0] * want
+(out / "jobs").write_text(f"{shards}\n")
+print(f"check-attest-negatives: {want} slice(s) of {sizes[0]} shard(s) make one run of {shards} shards")
+PY
+  then
+    echo "check-attest-negatives: the slices are not the slices of one run, so they do not hold the gate" >&2
+    exit 1
+  fi
+  jobs="$(cat "$parent_logs/jobs")"
+  if verify_shards; then
+    total="$(cat "$parent_logs/total" 2>/dev/null || true)"
+    if ! [[ "$total" =~ ^[1-9][0-9]*$ ]]; then
+      echo "check-attest-negatives: the verification of the slices left no count of cases" >&2
+      exit 1
+    fi
+    final_line "$total"
+    exit 0
+  fi
+  echo "check-attest-negatives: the combined slices do not hold the gate" >&2
+  exit 1
+}
+
+if [ -n "$combine_dir" ]; then
+  run_combine
+  exit 1  # run_combine ends in an exit of its own; reaching here is a fault
+fi
+if [ "$is_shard" -eq 0 ] && { [ "$jobs" -gt 1 ] || [ "$is_slice" -eq 1 ]; }; then
   run_parent
   exit 1  # run_parent ends in an exit of its own; reaching here is a fault
 fi
@@ -580,6 +961,10 @@ flush_case() {
 # The end of the walk, or the seam. A shard reports to its parent; the single run prints the final line.
 finish() {
   flush_case
+  if [ "$count_only" -eq 1 ]; then
+    echo "check-attest-negatives: the walk has $seen cases (ATTEST_NEGATIVES_COUNT: none was run, so this is not the gate)"
+    exit 0
+  fi
   if [ "$is_shard" -eq 1 ]; then
     echo "shard $shard/$jobs: premise $premise of $premise_reached"
     echo "shard $shard/$jobs: ran $ran of $seen"
@@ -759,6 +1144,9 @@ premise_pass() {
   local out rc owned=0
   if begin_case "$name" "" premise; then
     owned=1
+  fi
+  if [ "$count_only" -eq 1 ]; then
+    return 0
   fi
   set +e
   out="$(attest "$@")"

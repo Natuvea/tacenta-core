@@ -329,7 +329,46 @@ manifest_edits = [
      "does not describe .github/workflows/ci.yml"),
 ]
 
+# The combining job of the attestation negatives runs `always()` after its matrix and starts with a guard on
+# the matrix's result, so a failed slice turns it red instead of skipping it. Each edit below drops the guard,
+# the `always()` or both, and rewrites `tooling/required-steps.json` to match, as the person making the edit
+# would: rule 8 itself must still refuse it. Three more set a shell variable that would make the guard pass
+# from outside its step, at the job or the workflow level: rule 11 refuses them.
+def drop_guard(w):
+    job = w["jobs"]["attest-negatives"]
+    del job["steps"][step_index(w, "attest-negatives", "negatives_slices_passed")]
+    r = receipt(w, "attest-negatives")["with"]
+    r["required-outcomes"] = drop_outcome(r["required-outcomes"], "negatives_slices_passed")
+def drop_always(w): del w["jobs"]["attest-negatives"]["if"]
+def drop_both(w): drop_guard(w); drop_always(w)
+def mask_guard(w): step(w, "attest-negatives", "negatives_slices_passed")["run"] += " || true"
+# The guard neutered from outside the step: bash sources a file, or imports a function, before the step runs.
+def job_bash_env(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_ENV": "/tmp/bypass"}
+def workflow_bash_env(w): w["env"]["BASH_ENV"] = "/tmp/bypass"
+def job_bash_func(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_FUNC_test%%": "() { return 0; }"}
+
+guard_needle = "emits a required receipt and needs another job"
+rule_edits = [("needs-guard-%02d" % i, fn, guard_needle)
+              for i, fn in enumerate([drop_guard, drop_always, drop_both, mask_guard], 1)]
+rule_edits += [("shell-env-01", job_bash_env, "sets BASH_ENV in `env` at the job level"),
+               ("shell-env-02", workflow_bash_env, "sets BASH_ENV in `env` at the workflow level"),
+               ("shell-env-03", job_bash_func, "sets BASH_FUNC_test%% in `env` at the job level")]
+
+
+def build_rewritten(name, change):
+    repo = build(name, change, False)
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_ACTIONS"}
+    subprocess.run(["bash", str(checker), "--write-required-steps"], cwd=repo, env=env, check=True,
+                   stdout=subprocess.DEVNULL)
+    return repo
+
+
 wrong = 0
+for name, change, needle in rule_edits:
+    rc, out = check(build_rewritten(name, change))
+    if rc == 0 or needle not in out:
+        print("WRONG  real-tree %s: expected a refusal naming '%s':\n%s" % (name, needle, out), file=sys.stderr)
+        wrong += 1
 for name, edit, needle in manifest_edits:
     rc, out = check(build_manifest_edit(name, edit))
     if rc == 0 or needle not in out:
@@ -355,7 +394,7 @@ for name, change in cases:
         wrong += 1
 if wrong:
     sys.exit(1)
-print(len(cases) + len(accepted) + len(manifest_edits))
+print(len(cases) + len(accepted) + len(manifest_edits) + len(rule_edits))
 PY
 real_total="$(python3 "$work/real-tree-cases.py" "$root" "$work" "$checker")" || {
   echo "check-workflows-cases: the changes to the repository's own workflow gave the wrong result" >&2

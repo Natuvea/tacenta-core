@@ -1,0 +1,30 @@
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo first
+  other:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo other
+  j:
+    needs: [first]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - id: guard
+        env:
+          NEEDS_RESULT: ${{ needs.first.result }}
+        run: test "$NEEDS_RESULT" = success
+      - id: work
+        run: echo work
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: test
+          required-outcomes: "guard=${{ steps.guard.outcome }},work=${{ steps.work.outcome }}"

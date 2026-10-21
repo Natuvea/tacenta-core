@@ -1,0 +1,20 @@
+# expect: emits a required receipt but has a job-level `if`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - id: guard
+        env:
+          NEEDS_RESULT: ${{ needs.first.result }}
+        run: test "$NEEDS_RESULT" = success
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: test
+          required-outcomes: "guard=${{ steps.guard.outcome }}"

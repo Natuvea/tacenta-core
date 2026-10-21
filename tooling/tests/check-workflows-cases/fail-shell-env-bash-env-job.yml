@@ -1,0 +1,13 @@
+# expect: sets BASH_ENV in `env` at the job level
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'BASH_ENV': '/tmp/x'
+    steps:
+      - id: j_run
+        run: make test

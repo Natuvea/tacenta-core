@@ -273,70 +273,116 @@ def lean_code(text, keep_names=False):
     character, so an offset in one is an offset in the other.
 
     The same stripper as `scripts/check-lean-constructs.sh`, which keeps its
-    own copy."""
+    own copy, written there one character at a time. This one copies each
+    stretch of ordinary code in one slice and stops only where a comment, a
+    string, a char literal or a guillemet identifier can start, and inside a
+    block comment only at `/-` and `-/`; it gives the same output, character
+    for character, which `tooling/tests/run-lean-code-differential-cases.sh`
+    holds by comparing the two (on every tracked Lean file, on hand-written
+    hostile inputs and on seeded random ones: a test on those inputs, not a proof). The result is kept per input,
+    so a file read by several scans is stripped once a run."""
+    key = (text, bool(keep_names))
+    code = _LEAN_CODE_MEMO.get(key)
+    if code is None:
+        code = _LEAN_CODE_MEMO[key] = _lean_code_scan(text, bool(keep_names))
+    return code
+
+
+_LEAN_CODE_MEMO = {}
+# Where the scan at the top level stops: the only places where it does anything
+# but copy a character. Each alternative starts with a different character, so
+# at a stop exactly one applies.
+_TOP_STOP = re.compile(r'--|/-|["\'«]|r#*"')
+# Where it stops inside a block comment: a nested opener or a closer.
+_BLOCK_STOP = re.compile(r"/-|-/")
+# A string literal from its opening quote up to, not including, the closing
+# one: anything but a quote or a backslash, or a backslash and the character
+# after it, whatever that is.
+_STRING_BODY = re.compile(r'"[^"\\]*(?:\\[\s\S][^"\\]*)*')
+_RAW_OPEN = re.compile(r'r(#*)"')
+_NOT_NAME_MARK = re.compile(r"[^«»\n]")
+
+
+def _blank(segment):
+    """`segment` with every character but a newline replaced by a space."""
+    if "\n" not in segment:
+        return " " * len(segment)
+    return "\n".join(" " * len(line) for line in segment.split("\n"))
+
+
+def _lean_code_scan(text, keep_names):
     out = []
     i, n, depth = 0, len(text), 0
     while i < n:
+        if depth > 0:
+            stop = _BLOCK_STOP.search(text, i)
+            if stop is None:
+                out.append(_blank(text[i:]))
+                break
+            p = stop.start()
+            out.append(_blank(text[i:p]))
+            # Inside a comment Lean reads `/-` then whatever follows, so a
+            # nested opener takes two characters, as a closer does.
+            depth += 1 if text[p] == "/" else -1
+            out.append("  ")
+            i = p + 2
+            continue
+        stop = _TOP_STOP.search(text, i)
+        if stop is None:
+            out.append(text[i:])
+            break
+        out.append(text[i:stop.start()])
+        i = stop.start()
         ch = text[i]
-        two = text[i:i + 2]
-        if depth == 0 and two == "--":
+        if ch == "-":  # `--`
             j = text.find("\n", i)
             j = n if j < 0 else j
             out.append(" " * (j - i))
             i = j
             continue
-        if two == "/-":
+        if ch == "/":  # `/-`
             # At the top level Lean consumes the character after `/-` without
-            # reading it (see check-lean-constructs.sh); inside a comment it
-            # reads `/-` then whatever follows.
-            k = 3 if depth == 0 and i + 2 < n else 2
-            depth += 1
-            out.append("".join("\n" if c == "\n" else " " for c in text[i:i + k]))
+            # reading it (see check-lean-constructs.sh).
+            k = 3 if i + 2 < n else 2
+            depth = 1
+            out.append(_blank(text[i:i + k]))
             i += k
             continue
-        if depth > 0 and two == "-/":
-            depth -= 1
-            out.append("  ")
-            i += 2
-            continue
-        if depth > 0:
-            out.append("\n" if ch == "\n" else " ")
-            i += 1
-            continue
-        prev = text[i - 1] if i else " "
-        # A `!` or `?` continues an identifier only when it ends one; alone it
-        # is an operator and a char literal or raw string may follow it.
-        in_ident = bool(_IDENT_CHARS.match(prev)) and (
-            prev not in "!?" or (i >= 2 and bool(_IDENT_CHARS.match(text[i - 2])) and text[i - 2] not in "!?"))
         if ch == "«":
             j = text.find("»", i)
             j = n if j < 0 else j + 1
             inner = text[i:j]
-            out.append(inner if keep_names else "".join(
-                c if c in "«»\n" else "_" for c in inner))
+            out.append(inner if keep_names else _NOT_NAME_MARK.sub("_", inner))
             i = j
             continue
         if ch == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            j = min(j + 1, n)
-            out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+            j = _STRING_BODY.match(text, i).end()
+            # The body stops at the closing quote, at the end of the text, or
+            # at a backslash that is the last character (which the escape
+            # would step past): the literal then runs to the end.
+            j = j + 1 if j < n and text[j] == '"' else n
+            out.append(_blank(text[i:j]))
             i = j
             continue
-        if ch == "r" and not in_ident:
-            raw = re.compile(r'r(#*)"').match(text, i)
-            if raw:
+        # `r#*"` or `'`: a literal only when the character before does not
+        # continue an identifier. A `!` or `?` continues one only when it ends
+        # one; alone it is an operator and a char literal or raw string may
+        # follow it.
+        prev = text[i - 1] if i else " "
+        in_ident = bool(_IDENT_CHARS.match(prev)) and (
+            prev not in "!?" or (i >= 2 and bool(_IDENT_CHARS.match(text[i - 2])) and text[i - 2] not in "!?"))
+        if not in_ident:
+            if ch == "r":
+                raw = _RAW_OPEN.match(text, i)
                 close = '"' + raw.group(1)
                 j = text.find(close, raw.end())
                 j = n if j < 0 else j + len(close)
-                out.append("".join("\n" if c == "\n" else " " for c in text[i:j]))
+                out.append(_blank(text[i:j]))
                 i = j
                 continue
-        if ch == "'" and not in_ident:
             lit = _CHAR_LITERAL.match(text, i)
             if lit:
-                out.append("".join("\n" if c == "\n" else " " for c in text[i:lit.end()]))
+                out.append(_blank(text[i:lit.end()]))
                 i = lit.end()
                 continue
         out.append(ch)

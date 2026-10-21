@@ -1,0 +1,13 @@
+# expect: sets SHELLOPTS in `env` at the job level
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    env:
+      'SHELLOPTS': 'xtrace'
+    steps:
+      - id: j_run
+        run: make test

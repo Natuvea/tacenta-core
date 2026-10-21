@@ -68,7 +68,14 @@
 #    have no job-level `if` or `continue-on-error` at all, with two named
 #    exceptions: the PR-only sign-off job and the collector's exact
 #    `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
-#    constants too, even though they are expressions.
+#    constants too, even though they are expressions. A third shape is
+#    allowed and, for such a job that `needs` another, required: a job that
+#    needs a job whose failure would otherwise skip it, and a required check
+#    accepts a skipped job. It needs exactly one job, has `if: always()`, and
+#    its first step is the guard `test "$NEEDS_RESULT" = success` with only
+#    `NEEDS_RESULT: ${{ needs.<that job>.result }}` in its `env` and no `if`,
+#    so that a needed job that failed, timed out or was cancelled makes it fail
+#    before anything else runs.
 # 9. A step is the receipt action when its `uses` resolves to
 #    `.github/actions/assurance-receipt` once the path is normalised, however
 #    it is spelled. Its `id`, `classification` and `command` are literals (no
@@ -94,6 +101,13 @@
 #    the file from the tree; the diff of the file is what a reader reviews.
 #    Another workflow in the root workflow directory may not have a job with the
 #    name of one of those jobs, since a check is known by that name.
+# 11. No `env:` at the workflow, job or step level, in any workflow or
+#    composite action, sets a variable that changes how bash runs a step's
+#    script before it runs: `BASH_ENV` and `ENV` (a file bash sources first),
+#    a `BASH_FUNC_*` function import, `SHELLOPTS`, `BASHOPTS`, `PS4` or
+#    `PROMPT_COMMAND`. Any of them could make a step such as rule 8's guard
+#    succeed without testing anything. This is a deny-list of the variables
+#    known to do that, not a proof that no environment can change a script.
 #
 # What this script does not do, said plainly. It runs from the tree it is
 # checking. A pull request runs its own copy of the workflow, of this script and
@@ -446,6 +460,27 @@ ALLOWED_JOB_IF = {
     "assurance-receipts": "always()",
 }
 
+# Rule 8's third shape: the first step of a required job that runs `always()`
+# after the one job it needs, and fails unless that job succeeded.
+NEEDS_GUARD_RUN = 'test "$NEEDS_RESULT" = success'
+
+def guarded_needs(job):
+    """Whether a job needs exactly one job and starts with the guard on its result."""
+    needs = job.get("needs")
+    needed = [needs] if isinstance(needs, str) else needs
+    if not isinstance(needed, list) or len(needed) != 1 or not isinstance(needed[0], str):
+        return False
+    steps = job.get("steps")
+    if not isinstance(steps, list) or not steps or not isinstance(steps[0], dict):
+        return False
+    first = steps[0]
+    env = first.get("env")
+    return (set(first) <= {"name", "id", "env", "run"}
+            and first.get("run") == NEEDS_GUARD_RUN
+            and isinstance(env, dict) and list(env) == ["NEEDS_RESULT"]
+            and normalized_expression(env["NEEDS_RESULT"])
+            == "${{needs.%s.result}}" % needed[0].lower())
+
 # A job that uses the receipt action may have a conditional setup or action
 # step (a cache restore, say), but a command step may not be conditionally
 # skipped. This is the whole list of exceptions, keyed by job and step id and
@@ -482,6 +517,20 @@ def check_shell(f, name, where, shell):
     if shell is not None and shell != "bash":
         complain("%s job '%s' sets `shell` to %r%s -- a required command runs "
                  "under the runner's own bash" % (f, name, shell, where))
+
+# Rule 11: the variables that change how bash runs a script before it runs.
+SHELL_ENV_DENY = {"BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "PS4", "PROMPT_COMMAND"}
+
+def check_env(f, name, where, env):
+    if not isinstance(env, dict):
+        return
+    for key in env:
+        if not isinstance(key, str):
+            continue
+        if key in SHELL_ENV_DENY or key.startswith("BASH_FUNC_"):
+            complain("%s job '%s' sets %s in `env`%s -- it changes how bash runs a "
+                     "step's script, and could make a step pass without running its "
+                     "command" % (f, name, key, where))
 
 def check_default_shell(f, name, defaults, where):
     run = defaults.get("run") if isinstance(defaults, dict) else None
@@ -696,6 +745,7 @@ for f in files:
                  "token scope the jobs hold (usually `contents: read`)" % f)
 
     check_default_shell(f, "(workflow)", doc.get("defaults"), " in `defaults.run`")
+    check_env(f, "(workflow)", " at the workflow level", doc.get("env"))
 
     jobs = doc.get("jobs")
     if not isinstance(jobs, dict) or not jobs:
@@ -710,6 +760,7 @@ for f in files:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
         check_default_shell(f, name, job.get("defaults"), " in `defaults.run`")
+        check_env(f, name, " at the job level", job.get("env"))
 
         steps = job.get("steps") or []
 
@@ -734,7 +785,14 @@ for f in files:
                 required_receipt = True
                 required_receipts.append((step, required_outcome_ids(
                     inputs.get("required-outcomes"), f, name)))
-        if "if" in job:
+        guarded = (required_receipt and normalized_expression(job.get("if")) == "always()"
+                   and guarded_needs(job))
+        if required_receipt and "needs" in job and not guarded:
+            complain("%s job '%s' emits a required receipt and needs another job, whose "
+                     "failure would skip it, and a required check accepts a skipped job -- "
+                     "need one job, run `if: always()`, and make the first step `%s` with "
+                     "`NEEDS_RESULT: ${{ needs.<job>.result }}` in its env" % (f, name, NEEDS_GUARD_RUN))
+        if "if" in job and not guarded:
             actual_if = normalized_expression(job.get("if"))
             expected_if = ALLOWED_JOB_IF.get(name)
             if expected_if is None:
@@ -857,6 +915,8 @@ for f in files:
                         complain("%s job '%s' checks out without "
                                  "`persist-credentials: false`" % (f, name))
 
+            check_env(f, name, " on a step", step.get("env"))
+
             # Rules 4 and 6.
             run = step.get("run")
             if isinstance(run, str):
@@ -966,6 +1026,7 @@ while index < len(action_files):
                         or with_.get("persist-credentials") is not False:
                     complain("%s composite action checks out without "
                              "`persist-credentials: false`" % f)
+        check_env(f, "composite action", " on a step", step.get("env"))
         run = step.get("run")
         if isinstance(run, str):
             check_run(f, "composite action", run)
