@@ -2731,7 +2731,7 @@ not need their Braid KEMs to agree (the second-send paragraph below). By reading
 receipt of the initiator's later chunks) checks only its MAC under the shared authenticator and needs no KEM relation; the
 first step at which both parties' KEMs act on one key pair is the responder's first sampling send, whose `encapsulate1`
 (model `encaps1`) takes the initiator's header seed and hash and can refuse; the hash check of the completed encapsulation
-key follows; no theorem states either. The responder's `encrypt` of its reply does not:
+key follows; no theorem states either. The responder's `encrypt` of its reply needs no KEM relation either:
 its agreement waits for the header, and neither the code's send nor the model's reads randomness or the KEM there (the
 reply paragraph below), and neither does the initiator's receipt of the reply: at its `KeysSampled` agreement the code's
 receive (by reading) and the model's change state only on a `Ct1` chunk (the reply receipt paragraph below). On `Kem`: `FirstKemAgrees` stays a premise. By reading,
@@ -2886,6 +2886,11 @@ invariant is read off the model Triple it relates to), the three Triple fields t
 budget; only the agreement half is a walk of translated code, and the code's Triple send is never walked. Every instance
 gets the relation from the encrypt refinement, which rests on the kernel and opaque constants since its nine
 `native_decide` constants became kernel proofs on 2026-10-21, so the run results list no compiler-trust axiom either.
+The statement pins of the two run headlines, `initiator_first_send_responder_reply_successor` and
+`initiator_first_send_responder_reply_admissible`, are cut off by Lean's `⋯` after the binder `AeadRoundTrip →`, so each
+headline's later hypotheses and its whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are
+held by the build and by reading only, not by a pin (these two are among the 38 cut-off pins in 16 modules; a pin form that
+prints the whole statement is to be fixed separately).
 Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
 only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after

@@ -5412,7 +5412,7 @@ statement or a definition, and requires Lean to refuse each at a named declarati
 (a proof-breakage check at that place, not a proof that the changed statement is false). One sits inside a composing proof, two
 are projections of called theorems' conjuncts, and three are statement-shape checks. A control refused in a composing theorem
 is a projection when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a
-composition step otherwise; the script holds both labels, at start-up and at run time, to a syntactic form of that standard
+composition step otherwise; the script holds both labels, once at start-up (at run time it checks only that each change is refused at its labelled place), to a syntactic form of that standard
 read off the module (the refusal names a hypothesis the proof binds by destructuring a called theorem's conclusion, never
 rewrites and places with a constructor) and requires every control refused in a composing theorem to carry one of them. That
 the syntactic form is the right standard, and that the two theorems compose rather than project, is decided by reading. The
@@ -5552,10 +5552,9 @@ results carries an axiom pin and a statement pin, and each of the four definitio
 module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
 against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
 Seven are labelled inside composing proofs and none is a projection (a control refused where a composing proof places a
-conjunct of a called theorem's conclusion unchanged): the script checks, at start-up and at run time, that each is refused in
-the declaration it is labelled with and that this is one of the three composing theorems, that none is refused at a hypothesis
+conjunct of a called theorem's conclusion unchanged): the script checks once at start-up that the declaration each is labelled with is one of the three composing theorems and that none is refused at a hypothesis
 the proof binds from a called theorem's conclusion, never rewrites and places with a constructor (a syntactic form of the
-projection standard read off the module), and runs each with that proof replaced by `sorry`, requiring Lean to accept the
+projection standard read off the module), checks at run time only that each is refused in the declaration it is labelled with, and runs each with that proof replaced by `sorry`, requiring Lean to accept the
 change there. That probe verifies the refusal's attribution to that proof only; that the syntactic form is the right
 standard, and that the three theorems compose rather than project, is decided by reading. The seven: in
 `initiator_first_send_responder_replies`, the call claimed to return the source `establish_responder` left instead of the one it was given, the reply claimed wrapped as an initial message, sealed on the
@@ -5740,7 +5739,7 @@ statement or a definition, and requires Lean to refuse each at a named declarati
 (a proof-breakage check at that place, not a proof that the changed statement is false). Seven sit inside composing proofs
 and four are projections of called theorems' conjuncts. A control refused in a composing theorem is a projection when it is
 refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition step otherwise; the
-script holds both labels, at start-up and at run time, to a syntactic form of that standard read off the module (the refusal
+script holds both labels, once at start-up (at run time it checks only that each change is refused at its labelled place), to a syntactic form of that standard read off the module (the refusal
 names a hypothesis the proof binds by destructuring a called theorem's conclusion, never rewrites and places with a
 constructor), requires every control refused in a composing theorem to carry one of them, and checks that each inside control
 is refused in the declaration it is labelled with, one of the three composing theorems. Each inside control is also run with
@@ -5883,8 +5882,7 @@ of the module, every one a change to a statement or a definition, and requires L
 or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement
 is false). Seven are refused in the composing proof `initiator_second_send_after_reply`: six labelled inside it and one a
 projection. A control refused there is a projection when it is refused where the proof places a conjunct of a called
-theorem's conclusion unchanged, and is labelled inside otherwise; the script holds both labels, at start-up and at run
-time, to a syntactic form of that standard read off the module (the refusal names a hypothesis the proof binds by
+theorem's conclusion unchanged, and is labelled inside otherwise; the script holds both labels, once at start-up (at run time it checks only that each change is refused at its labelled place), to a syntactic form of that standard read off the module (the refusal names a hypothesis the proof binds by
 destructuring a called theorem's conclusion and never rewrites, simplifies or substitutes), requires every control refused
 in the composing proof to carry one of the two, and runs each inside control with that proof replaced by `sorry`,
 requiring Lean to accept the change there. That probe verifies attribution only; that the syntactic form is the right
@@ -6030,19 +6028,24 @@ reachable (it is a predicate on fields).
 `initiator_first_send_responder_reply_successor`, `initiator_first_send_responder_reply_admissible` and
 `established_encrypt_triple_invariant_via_preservation` apply `initiator_first_send_responder_replies`,
 `initiator_first_send_responder_successor_admissible` and `established_encrypt_outcomes`, whose nine `native_decide`
-constants are kernel proofs since 2026-10-21. Of the 40 results, 26 rest on `propext`, `Classical.choice` and
-`Quot.sound` alone (the eleven results of the bridge, and `ratchet_send_frame`, `modelRatchetInv_send`, `findChains_mem`,
+constants are kernel proofs since 2026-10-21. Of the 40 results, 26 rest on at most `propext`, `Classical.choice` and
+`Quot.sound` (the eleven results of the bridge, and `ratchet_send_frame`, `modelRatchetInv_send`, `findChains_mem`,
 `spqr_send_frame`, `mem_sent_chains`, `modelSpqrInv_send`, `modelTripleInv_send`, `braid_send_no_draw_model`,
 `encrypt_session_cases`, `modelCounterRoom_encrypt`, `vec_clone_u8`, `encoder_clone_eq`, `decoder_clone_eq`,
 `next_chunk_keeps`, `modelCounterRoom_firstReceipt`) and 14 on those and opaque constants of the unit,
-`encrypt_keeps_invariant_no_draw` and the three results above among them. Each of the 40 results carries an axiom pin and a statement pin, and each of
+`encrypt_keeps_invariant_no_draw` and the three results above among them. Each of the 40 results carries an axiom pin and a statement pin, except that the statement pins of
+`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` are cut off by Lean's `⋯`
+after `AeadRoundTrip →`: each holds the binders up to and including the four laws and not the rest, so the headline's remaining
+hypotheses and its whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are held by the build and
+by reading only, as with every pin that ends in `⋯` (these two are among the 38 cut-off pins in 16 modules counted in the
+second-send section above; a pin form that prints the whole statement is to be fixed separately). Each of
 the eight definitions (`ModelRatchetInv`, `ModelSpqrInv`, `ModelRolesAgree`, `ModelTripleInv`, `RolesAgree`, `CounterRoom`,
 `ModelCounterRoom`, `SendsWithoutDraw`) a `#print` pin. `check-send-preservation-negatives.py` plants eighteen faults in
 copies of the two modules, every one a change to a statement or a definition, and requires Lean to refuse each at a named
 declaration or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the changed
 statement is false). Nine are refused in the three composing proofs: seven labelled inside them and two projections. A
 control refused there is a projection when it is refused where the proof places a conjunct of a called theorem's
-conclusion unchanged, and is labelled inside otherwise; the script holds both labels, at start-up and at run time, to the
+conclusion unchanged, and is labelled inside otherwise; the script holds both labels, once at start-up (at run time it checks only that each change is refused at its labelled place), to the
 declaration each is refused in and to a syntactic form of that standard read off the module (the refusal names a
 hypothesis the proof binds by destructuring a called theorem's conclusion and never rewrites, simplifies or substitutes),
 requires every control refused in a composing proof to carry one of the two, and runs each inside control with that proof

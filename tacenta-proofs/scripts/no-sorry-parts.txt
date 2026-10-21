@@ -7,7 +7,9 @@
 # unique over the file; CI names its matrix jobs and their artifacts after them.
 #
 # `hosted` is what a pull request runs, one part per GitHub-hosted job. The groups are made so that each
-# job's phases took at most about nine minutes in a hosted run of the whole script (run 39533849612); the
+# job's phases took at most about nine minutes in a hosted run of the whole script (run 39533849612), before the
+# `reply` part took on `send-preservation` and `initiator-second-send`; its five phases took 340 s locally and are
+# estimated at about eleven to thirteen minutes hosted (an estimate, not a hosted measurement); the
 # initial dispatcher's 50 controls took 3024 s there and are split eight ways.
 hosted kernel: kernel-replay-translation kernel-replay-proofs kernel-replay-model kernel-replay-negative
 hosted satisfiability: session-satisfiability
