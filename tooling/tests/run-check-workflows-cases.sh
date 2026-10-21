@@ -329,20 +329,25 @@ manifest_edits = [
      "does not describe .github/workflows/ci.yml"),
 ]
 
-# The combining job of the attestation negatives runs `always()` after its matrix and starts with a guard on
-# the matrix's result, so a failed slice turns it red instead of skipping it. Each edit below drops the guard,
-# the `always()` or both, and rewrites `tooling/required-steps.json` to match, as the person making the edit
-# would: rule 8 itself must still refuse it.
-def drop_guard(w):
-    job = w["jobs"]["attest-negatives"]
-    del job["steps"][step_index(w, "attest-negatives", "negatives_slices_passed")]
-    r = receipt(w, "attest-negatives")["with"]
-    r["required-outcomes"] = drop_outcome(r["required-outcomes"], "negatives_slices_passed")
-def drop_always(w): del w["jobs"]["attest-negatives"]["if"]
-def drop_both(w): drop_guard(w); drop_always(w)
-def mask_guard(w): step(w, "attest-negatives", "negatives_slices_passed")["run"] += " || true"
+# The two combining jobs, of the attestation negatives and of the translation's parts, run `always()` after
+# their matrix and start with a guard on the matrix's result, so a failed slice or part turns them red instead
+# of skipping them. Each edit below drops the guard, the `always()` or both, or masks the guard, and rewrites
+# `tooling/required-steps.json` to match, as the person making the edit would: rule 8 itself must still
+# refuse it.
+def guard_edits(job_name, guard):
+    def drop_guard(w):
+        job = w["jobs"][job_name]
+        del job["steps"][step_index(w, job_name, guard)]
+        r = receipt(w, job_name)["with"]
+        r["required-outcomes"] = drop_outcome(r["required-outcomes"], guard)
+    def drop_always(w): del w["jobs"][job_name]["if"]
+    def drop_both(w): drop_guard(w); drop_always(w)
+    def mask_guard(w): step(w, job_name, guard)["run"] += " || true"
+    return [drop_guard, drop_always, drop_both, mask_guard]
 
-rule_edits = [("needs-guard-%02d" % i, fn) for i, fn in enumerate([drop_guard, drop_always, drop_both, mask_guard], 1)]
+rule_edits = [("needs-guard-%02d" % i, fn) for i, fn in enumerate(
+    guard_edits("attest-negatives", "negatives_slices_passed")
+    + guard_edits("translation", "translation_parts_passed"), 1)]
 
 
 def build_rewritten(name, change):

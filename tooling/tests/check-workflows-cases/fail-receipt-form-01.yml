@@ -1,21 +1,21 @@
-# expect: pull-request receipt lists command step 'translation_seed', which cannot run there
+# expect: pull-request receipt lists command step 'checks_39', which cannot run there
 name: t
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
-  translation:
+  checks:
     runs-on: ubuntu-latest
     steps:
-      - id: translation_seed
-        if: runner.environment == 'self-hosted'
-        run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
-      - id: translation_run
+      - id: checks_39
+        if: github.event_name == 'push'
+        run: bash tooling/check-signoff.sh "$BASE_SHA"
+      - id: checks_run
         run: make test
       - if: github.event_name == 'pull_request'
         uses: ./.github/actions/assurance-receipt
         with:
-          id: translation
+          id: checks
           classification: required
           command: c
-          required-outcomes: "translation_seed=${{ steps.translation_seed.outcome }},translation_run=${{ steps.translation_run.outcome }}"
+          required-outcomes: "checks_39=${{ steps.checks_39.outcome }},checks_run=${{ steps.checks_run.outcome }}"

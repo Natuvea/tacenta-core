@@ -482,10 +482,6 @@ def guarded_needs(job):
 # named here is left out of the pull-request receipt when its condition cannot
 # hold there.
 ALLOWED_REQUIRED_STEP_IF = {
-    ("translation", "translation_seed"): (
-        "runner.environment=='self-hosted'",
-        "bash tooling/seed-lake-packages.sh tacenta-proofs/translation",
-    ),
     ("checks", "checks_39"): (
         "github.event_name=='push'",
         'bash tooling/check-signoff.sh "$BASE_SHA"',
@@ -901,9 +897,9 @@ for f in files:
         # event that receipt represents, and for nothing else. The rule is that
         # the receipt is the list of what ran, so a command added to the job
         # without a line in the receipt, or a line for a command the job does
-        # not have, is a difference. The two steps `ALLOWED_REQUIRED_STEP_IF`
-        # names are the only steps left out of a pull-request receipt on
-        # purpose: each is guarded by its own condition and cannot run there.
+        # not have, is a difference. The step `ALLOWED_REQUIRED_STEP_IF`
+        # names is the only step left out of a pull-request receipt on
+        # purpose: it is guarded by its own condition and cannot run there.
         for receipt_step, declared in required_receipts:
             receipt_if = normalized_expression(receipt_step.get("if"))
             receipt_event = None
