@@ -32,6 +32,15 @@
 #   the test seam in CI                      refused for a slice and for the combiner
 #   a slice and the combiner in CI           accepted: the shards a slice starts are its own
 #   the real attest.py                       two slices of the first cases, combined, accepted
+#   files read strictly                      refused: an exit status of `+0` or `0_0` or with a carriage return,
+#                                            a WRONG line indented or in lower case, a verdict that is not
+#                                            `ok`, `wrong` or `-`, a digit of another script, a carriage return
+#   the case floor                           a walk cut short refused by the single run, the parent and the
+#                                            combiner; a walk at the floor accepted, one below it refused; a
+#                                            floor missing, not a number, zero, two numbers or with a carriage
+#                                            return refused
+#   the count of cases                       printed without running a tool or a line of a run; refused with
+#                                            another mode or value
 #
 # Most slices are made by a copy of the script whose attest.py and script calls are stubs that accept and
 # whose judge of an expected refusal accepts too, so that a slice of the first cases takes seconds; that copy
@@ -54,6 +63,7 @@ cleanup() {
     sleep 2
   fi
   git -C "$root" worktree remove --force "$tree" >/dev/null 2>&1 || true
+  git -C "$root" worktree remove --force "$work/floor-tree" >/dev/null 2>&1 || true
   git -C "$root" worktree prune >/dev/null 2>&1 || true
   rm -rf "$work"
 }
@@ -107,7 +117,7 @@ judge_acceptance_saying_unused() {'
 clean_env=(env -u GITHUB_ACTIONS -u ATTEST_NEGATIVES_JOBS -u ATTEST_NEGATIVES_ONLY -u ATTEST_NEGATIVES_SHARD
   -u ATTEST_NEGATIVES_RESULTS -u ATTEST_NEGATIVES_WORKTREE -u ATTEST_NEGATIVES_REV -u ATTEST_NEGATIVES_PARENT
   -u ATTEST_NEGATIVES_TEST_ONLY -u ATTEST_NEGATIVES_SEAM -u ATTEST_NEGATIVES_SLICE -u ATTEST_NEGATIVES_SLICE_DIR
-  -u ATTEST_NEGATIVES_COMBINE -u ATTEST_NEGATIVES_SLICES)
+  -u ATTEST_NEGATIVES_COMBINE -u ATTEST_NEGATIVES_SLICES -u ATTEST_NEGATIVES_COUNT)
 
 # run <name> <script> [VAR=value ...]: run a copy in the tree (or in $case_dir), output to out-<name>, status to
 # rc-<name>.
@@ -538,6 +548,140 @@ if ! grep -qx "check-attest-negatives: 2 shards ran 2 + 1 = 3 cases.*" "$work/ou
   wrong real "the two shards did not run 2 + 1 cases"
 fi
 
+# ---------------------------------------------------------------------------
+# The shards' files are read strictly: they cross a job boundary before the combiner reads them.
+# ---------------------------------------------------------------------------
+
+dir="$(variant rc-plus)"
+printf '+0\n' > "$dir/s1/rc-3"
+combine rc-plus fast "$dir" "$K" "$only"
+refuses rc-plus "shard 3/6 left an exit status that is not a number: '+0\n'"
+dir="$(variant rc-underscore)"
+printf '0_0\n' > "$dir/s1/rc-3"
+combine rc-underscore fast "$dir" "$K" "$only"
+refuses rc-underscore "shard 3/6 left an exit status that is not a number: '0_0\n'"
+dir="$(variant rc-cr)"
+printf '0\r\n' > "$dir/s1/rc-3"
+combine rc-cr fast "$dir" "$K" "$only"
+refuses rc-cr "shard 3/6 left an exit status that is not a number"
+dir="$(variant wrong-indented)"
+echo " WRONG  planted: an indented WRONG line" >> "$dir/s1/shard-2.log"
+combine wrong-indented fast "$dir" "$K" "$only"
+refuses wrong-indented "shard 2/6 printed 1 WRONG line(s)"
+dir="$(variant wrong-lower)"
+echo "wrong  planted: a WRONG line in lower case" >> "$dir/s1/shard-2.log"
+combine wrong-lower fast "$dir" "$K" "$only"
+refuses wrong-lower "shard 2/6 printed 1 WRONG line(s)"
+dir="$(variant verdict-upper)"
+edit "$dir/s0/results-0" 'text = text.replace("0\tran\tok\t", "0\tran\tWRONG\t", 1)'
+combine verdict-upper fast "$dir" "$K" "$only"
+refuses verdict-upper "shard 0/6: line 1 of its list of cases is not a case"
+dir="$(variant verdict-skip)"
+edit "$dir/s0/results-1" 'text = text.replace("0\tskip\t-\t", "0\tskip\tok\t", 1)'
+combine verdict-skip fast "$dir" "$K" "$only"
+refuses verdict-skip "shard 1/6: line 1 of its list of cases is not a case"
+dir="$(variant digit-other-script)"
+edit "$dir/s1/results-2" 'text = text.replace("0\tskip", "٠\tskip", 1)'
+combine digit-other-script fast "$dir" "$K" "$only"
+refuses digit-other-script "shard 2/6: line 1 of its list of cases is not a case"
+dir="$(variant results-crlf)"
+edit "$dir/s2/results-4" 'text = text.replace("\n", "\r\n")'
+combine results-crlf fast "$dir" "$K" "$only"
+refuses results-crlf "shard 4/6: its list of cases holds a carriage return"
+dir="$(variant log-cr)"
+edit "$dir/s2/shard-5.log" 'text = text.replace("\n", "\r\n", 1)'
+combine log-cr fast "$dir" "$K" "$only"
+refuses log-cr "shard 5/6: its log holds a carriage return"
+
+# ---------------------------------------------------------------------------
+# The case floor. A copy whose walk ends after the two premise checks is refused wherever a full run would
+# print its final line; in a worktree whose floor is 2 it is accepted, and with 3 refused. The floor is read
+# from the tree under test, so the floor cases run in a worktree of their own.
+# ---------------------------------------------------------------------------
+
+floor_file="tacenta-proofs/scripts/attest-negatives-case-floor.txt"
+real_floor="$(cat "$tree/$floor_file")"
+fresh cut
+fast cut
+plant cut 'premise_pass "unmodified-translation" --check-translation
+' 'premise_pass "unmodified-translation" --check-translation
+finish
+'
+run cut-single cut ATTEST_NEGATIVES_JOBS=1
+refuses cut-single "the walk has 2 cases, fewer than the floor of $real_floor"
+run cut-parent cut ATTEST_NEGATIVES_JOBS=2
+refuses cut-parent "the walk has 2 cases, fewer than the floor of $real_floor"
+mkdir -p "$work/cut-set"
+for k in 0 1; do
+  slice "cut-slice-$k" cut "$k/2" 1 "" "$work/cut-set/s$k"
+done
+wait
+for k in 0 1; do
+  sliced "cut-slice-$k" "$work/cut-set/s$k"
+done
+combine cut-combine cut "$work/cut-set" 2 ""
+refuses cut-combine "the walk has 2 cases, fewer than the floor of $real_floor"
+
+floor_tree="$work/floor-tree"
+git -C "$root" worktree add -q --detach "$floor_tree" HEAD >/dev/null
+floor_case() {  # name floor-file-content (absent: no file) expected: accepts or a needle
+  local name="$1" content="$2" want="$3"
+  if [ "$content" = absent ]; then
+    rm -f "$floor_tree/$floor_file"
+  else
+    printf '%b' "$content" > "$floor_tree/$floor_file"
+  fi
+  case_dir="$floor_tree" run "$name" cut ATTEST_NEGATIVES_JOBS=1
+  if [ "$want" = accepts ]; then
+    cases=$((cases + 1))
+    if [ "$(cat "$work/rc-$name")" -ne 0 ] \
+       || ! grep -qx "check-attest-negatives: 2 cases gave the expected result.*" "$work/out-$name"; then
+      wrong "$name" "a walk at the floor was not accepted with the line of a full run"
+    fi
+    left_nothing "$name"
+  else
+    refuses "$name" "$want"
+  fi
+}
+floor_case floor-at-count '2\n' accepts
+floor_case floor-above-count '3\n' "the walk has 2 cases, fewer than the floor of 3"
+floor_case floor-missing absent "cannot read the case floor"
+floor_case floor-not-a-number 'many\n' "does not hold one whole number"
+floor_case floor-zero '0\n' "does not hold one whole number"
+floor_case floor-two-numbers '2 3\n' "does not hold one whole number"
+floor_case floor-cr '2\r\n' "does not hold one whole number"
+git -C "$root" worktree remove --force "$floor_tree" >/dev/null 2>&1
+
+# ---------------------------------------------------------------------------
+# The count of cases: walked in one process, with no tool run and no line of a run.
+# ---------------------------------------------------------------------------
+
+fresh count-probe
+plant count-probe '  (cd "$work" && env -u GITHUB_ACTIONS python3 tacenta-proofs/scripts/attest.py "$@" 2>&1)' \
+  '  { echo attest >> "$work_probe"; } 2>&1'
+plant count-probe '  (cd "$work" && env -u GITHUB_ACTIONS bash "tacenta-proofs/scripts/$1" 2>&1)' \
+  '  { echo script >> "$work_probe"; } 2>&1'
+plant count-probe 'set -euo pipefail
+' 'set -euo pipefail
+work_probe="${COUNT_PROBE:?}"
+'
+run count count-probe ATTEST_NEGATIVES_COUNT=1 ATTEST_NEGATIVES_ONLY=5 ATTEST_NEGATIVES_SEAM=tests-only \
+  COUNT_PROBE="$work/count-probe-calls"
+cases=$((cases + 1))
+if [ "$(cat "$work/rc-count")" -ne 0 ] || ! grep -qx "check-attest-negatives: the walk has 5 cases (ATTEST_NEGATIVES_COUNT: none was run, so this is not the gate)" "$work/out-count"; then
+  wrong count "the count of the first five cases was not printed"
+fi
+if [ -e "$work/count-probe-calls" ] || grep -q 'PARTIAL RUN\|cases gave the expected result' "$work/out-count"; then
+  wrong count "the count ran a tool or printed a line of a run"
+fi
+left_nothing count
+run count-with-jobs fast ATTEST_NEGATIVES_COUNT=1 ATTEST_NEGATIVES_JOBS=2
+refuses count-with-jobs "so it does not take ATTEST_NEGATIVES_JOBS"
+run count-with-slice fast ATTEST_NEGATIVES_COUNT=1 ATTEST_NEGATIVES_SLICE=0/2 ATTEST_NEGATIVES_SLICE_DIR="$work/unused-3"
+refuses count-with-slice "so it does not take ATTEST_NEGATIVES_SLICE"
+run count-other-value fast ATTEST_NEGATIVES_COUNT=yes
+refuses count-other-value "ATTEST_NEGATIVES_COUNT is 1 or unset"
+
 # Every worktree these cases registered is gone: only the repository's own and this control's remain.
 leftover="$(git -C "$tree" worktree list --porcelain | grep -F "worktree $work/" | grep -vF "worktree $tree" || true)"
 if [ -n "$leftover" ]; then
@@ -545,4 +689,4 @@ if [ -n "$leftover" ]; then
   exit 1
 fi
 
-echo "attest-negatives-slice-cases: $cases cases (the genuine set accepted with the count of one process, and as the gate refused for its seam; a slice missing, repeated or one more, manifests swapped, slices relabelled with their files, another commit, tree or script, another K, L, N or walk length, a shard that ran nothing, a sum that is wrong, a case run twice or by none, another walk, a WRONG line, an exit status, a premise skipped, a file missing, extra or a link, a manifest missing, a stray entry, the variables combined wrongly, a failing shard, the seam in CI, a slice and the combiner in CI, the real attest.py) gave the expected result"
+echo "attest-negatives-slice-cases: $cases cases (the genuine set accepted with the count of one process, and as the gate refused for its seam; a slice missing, repeated or one more, manifests swapped, slices relabelled with their files, another commit, tree or script, another K, L, N or walk length, a shard that ran nothing, a sum that is wrong, a case run twice or by none, another walk, a WRONG line, an exit status, a premise skipped, a file missing, extra or a link, a manifest missing, a stray entry, the variables combined wrongly, a failing shard, the seam in CI, a slice and the combiner in CI, the real attest.py, files read strictly, the case floor, the count of cases) gave the expected result"

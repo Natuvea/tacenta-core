@@ -12,6 +12,7 @@
 #   a step that runs a listed script and an unlisted one      refused: no row names the unlisted one
 #   a control that is not a file, one that does not mention its gate, a gate that is not a file   refused
 #   a control marked local that a CI step runs                refused: a hand flag cannot contradict the walk
+#   a control or row that names a CI step the workflow does not have   refused (accepted while it has it)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -105,5 +106,16 @@ check 'a gate that is not a file' 1 'is not in the tree'
 reset
 write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "controls": [{"path": "tooling/tests/run-check-x-cases.sh", "ci": false}]}]'
 check 'a control marked local that a CI step runs' 1 'is marked local but CI step'
+# A control named with the step that gives its verdict: accepted while the step exists, refused once it is gone,
+# as when the job that combines a split run is deleted and the step that only produces its inputs is left.
+reset
+write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "controls": [{"path": "tooling/tests/run-check-x-cases.sh", "ci_steps": ["s2"]}]}]'
+(cd "$repo" && python3 tooling/gate-inventory.py --write >/dev/null)
+check 'a control named with a step the workflow has' 0 'is current'
+write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2b", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
+check 'a control named with a step the workflow no longer has' 1 'names CI step s2, which the workflow does not have'
+reset
+write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "ci_steps": ["s9"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
+check 'a row named with a step the workflow does not have' 1 'names CI step s9, which the workflow does not have'
 
-echo "gate-inventory-cases: $cases cases (a stale file, row or mutation; a step with or without an id that runs an unlisted script; a control or gate that is not a file; a hand flag against the walk) gave the expected result"
+echo "gate-inventory-cases: $cases cases (a stale file, row or mutation; a step with or without an id that runs an unlisted script; a control or gate that is not a file; a hand flag against the walk; a named verdict step that is gone) gave the expected result"

@@ -115,7 +115,7 @@ start() {
     set +e
     env -u GITHUB_ACTIONS -u ATTEST_NEGATIVES_JOBS -u ATTEST_NEGATIVES_ONLY -u ATTEST_NEGATIVES_SHARD \
       -u ATTEST_NEGATIVES_RESULTS -u ATTEST_NEGATIVES_WORKTREE -u ATTEST_NEGATIVES_REV -u ATTEST_NEGATIVES_PARENT -u ATTEST_NEGATIVES_TEST_ONLY -u ATTEST_NEGATIVES_SEAM \
-      -u ATTEST_NEGATIVES_SLICE -u ATTEST_NEGATIVES_SLICE_DIR -u ATTEST_NEGATIVES_COMBINE -u ATTEST_NEGATIVES_SLICES \
+      -u ATTEST_NEGATIVES_SLICE -u ATTEST_NEGATIVES_SLICE_DIR -u ATTEST_NEGATIVES_COMBINE -u ATTEST_NEGATIVES_SLICES -u ATTEST_NEGATIVES_COUNT \
       TMPDIR="$work/tmp-$name" ATTEST_NEGATIVES_JOBS="$jobs" ATTEST_NEGATIVES_ONLY="$only" \
       ATTEST_NEGATIVES_SEAM=tests-only "$@" \
       bash "$plants/$name.sh" > "$work/out-$name" 2>&1
@@ -289,11 +289,12 @@ plant wrong-exit-0 "$report_line" "$report_line"'
 plant wrong-exit-0 '      verdict=wrong' '      verdict=ok'
 start wrong-exit-0 2 2
 
-# (e'') The same, with the WRONG label lost instead of the verdict: only the list of cases marks it.
+# (e'') The same, with the WRONG label lost instead of the verdict: only the list of cases marks it. (A label
+# respelled in lower case or indented is still a WRONG line; the label is replaced here.)
 fresh wrong-unlabelled
 stub wrong-unlabelled
 plant wrong-unlabelled "$stub_call" '  { (cd "$work" && echo "stub: attest.py $*" && [ "$shard" -ne 1 ]); } 2>&1'
-plant wrong-unlabelled 'echo "WRONG  $1: expected acceptance, was refused:" >&2' 'echo "wrong  $1: expected acceptance, was refused:" >&2'
+plant wrong-unlabelled 'echo "WRONG  $1: expected acceptance, was refused:" >&2' 'echo "planted  $1: expected acceptance, was refused:" >&2'
 plant wrong-unlabelled "$report_line" "$report_line"'
     if [ "$shard" -eq 1 ]; then exit 0; fi'
 start wrong-unlabelled 2 2

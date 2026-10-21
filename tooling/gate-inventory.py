@@ -35,8 +35,11 @@ nobody has seen fail.
 
 `--check` also fails when a step of the required workflow that runs a command is claimed by no row (so a
 new gate cannot be added without saying what holds it), when a row names a control or a gate that is not a
-file, when a control script does not mention the gate it claims to hold, and when a mutation names a file
-that is not in the tree.
+file, when a control script does not mention the gate it claims to hold, when a mutation names a file
+that is not in the tree, and when a row or a control names a CI step (`ci_steps`) that the workflow does not
+have. A control is named with its step when the step that reaches it textually is not the one that gives its
+verdict: `check-attest-negatives.sh` runs in the slices (`negatives_slice`), and only the combining step
+(`negatives_combine`) says whether they hold the gate.
 """
 import argparse
 import json
@@ -126,6 +129,7 @@ def build(rows, mutations, steps, files, reach):
     table = []
     claimed_ids = set()
     row_files = set()
+    step_ids = {ident for _, ident, _ in steps if ident}
     for number, row in enumerate(rows, 1):
         gate = row["gate"]
         is_path = gate.endswith((".sh", ".py"))
@@ -139,6 +143,9 @@ def build(rows, mutations, steps, files, reach):
         else:
             run = ", ".join(row.get("ci_steps", [])) or "no CI step"
         claimed_ids.update(row.get("ci_steps", []))
+        for ident in row.get("ci_steps", []):
+            if ident not in step_ids:
+                problems.append(f"row {number} ({gate}) names CI step {ident}, which the workflow does not have")
         controls = []
         in_ci = False
         for raw in row.get("controls", []):
@@ -154,6 +161,11 @@ def build(rows, mutations, steps, files, reach):
                 if os.path.basename(gate) not in text:
                     problems.append(f"row {number} ({gate}): control {path} does not mention the gate")
             if "ci_steps" in control:
+                # A control's named step is the one that gives its verdict; a workflow without it fails here.
+                for ident in control["ci_steps"]:
+                    if ident not in step_ids:
+                        problems.append(f"row {number} ({gate}): control {path} names CI step {ident}, "
+                                        "which the workflow does not have")
                 where = "CI" if control["ci_steps"] else "local"
                 note = ", ".join(control["ci_steps"])
                 runs = bool(control["ci_steps"])
