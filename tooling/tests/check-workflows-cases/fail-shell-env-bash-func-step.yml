@@ -1,0 +1,13 @@
+# expect: sets BASH_FUNC_test%% in `env` on a step
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        env:
+          'BASH_FUNC_test%%': '() { return 0; }'
+        run: make test

@@ -37,9 +37,15 @@ nobody has seen fail.
 new gate cannot be added without saying what holds it), when a row names a control or a gate that is not a
 file, when a control script does not mention the gate it claims to hold, when a mutation names a file
 that is not in the tree, and when a row or a control names a CI step (`ci_steps`) that the workflow does not
-have. A control is named with its step when the step that reaches it textually is not the one that gives its
-verdict: `check-attest-negatives.sh` runs in the slices (`negatives_slice`), and only the combining step
-(`negatives_combine`) says whether they hold the gate.
+have, or names one for a control whose command does not run that control. A control is named with its step
+when the step that reaches it textually is not the one that gives its verdict: `check-attest-negatives.sh`
+runs in the slices (`negatives_slice`), and only the combining step (`negatives_combine`) says whether they
+hold the gate. For a control that is a shell script (`.sh`), the named step must also run it: its `run` text
+calls the control's path (an interpreter followed by the path), or calls a script whose text does, and so on,
+the walk this file makes everywhere. A step that names the script without running it, or runs it through a
+variable, does not count, so a step repointed at another command fails. A Rust test file or a Python module
+is compiled into a test binary or imported, which the walk cannot see, so for those `ci_steps` stays a claim
+that only the step's existence backs.
 """
 import argparse
 import json
@@ -115,6 +121,26 @@ def reachability(steps, files):
     return reach
 
 
+def step_reach(command, files):
+    """The tracked files one CI command runs, directly or through the scripts it runs: the same walk as
+    `reachability`, from one step."""
+    found = set()
+    queue = []
+    for mention in CALL.findall(command):
+        for path in resolve(mention, files):
+            if path not in found:
+                found.add(path)
+                queue.append(path)
+    while queue:
+        path = queue.pop(0)
+        for mention in CALL.findall(script_text(path)):
+            for target in resolve(mention, files):
+                if target not in found:
+                    found.add(target)
+                    queue.append(target)
+    return found
+
+
 def control_entry(control):
     return {"path": control} if isinstance(control, str) else dict(control)
 
@@ -130,6 +156,7 @@ def build(rows, mutations, steps, files, reach):
     claimed_ids = set()
     row_files = set()
     step_ids = {ident for _, ident, _ in steps if ident}
+    step_commands = {ident: command for _, ident, command in steps if ident}
     for number, row in enumerate(rows, 1):
         gate = row["gate"]
         is_path = gate.endswith((".sh", ".py"))
@@ -161,11 +188,16 @@ def build(rows, mutations, steps, files, reach):
                 if os.path.basename(gate) not in text:
                     problems.append(f"row {number} ({gate}): control {path} does not mention the gate")
             if "ci_steps" in control:
-                # A control's named step is the one that gives its verdict; a workflow without it fails here.
+                # A control's named step is the one that gives its verdict. It must exist, and for a shell
+                # script its command must run the control, directly or through a script it runs (the walk
+                # `reachability` makes, from that one step), so a step repointed at another command fails too.
                 for ident in control["ci_steps"]:
                     if ident not in step_ids:
                         problems.append(f"row {number} ({gate}): control {path} names CI step {ident}, "
                                         "which the workflow does not have")
+                    elif path.endswith(".sh") and path not in step_reach(step_commands[ident], files):
+                        problems.append(f"row {number} ({gate}): control {path} names CI step {ident}, "
+                                        "whose command does not run it")
                 where = "CI" if control["ci_steps"] else "local"
                 note = ", ".join(control["ci_steps"])
                 runs = bool(control["ci_steps"])

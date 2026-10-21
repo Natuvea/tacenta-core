@@ -101,6 +101,13 @@
 #    the file from the tree; the diff of the file is what a reader reviews.
 #    Another workflow in the root workflow directory may not have a job with the
 #    name of one of those jobs, since a check is known by that name.
+# 11. No `env:` at the workflow, job or step level, in any workflow or
+#    composite action, sets a variable that changes how bash runs a step's
+#    script before it runs: `BASH_ENV` and `ENV` (a file bash sources first),
+#    a `BASH_FUNC_*` function import, `SHELLOPTS`, `BASHOPTS`, `PS4` or
+#    `PROMPT_COMMAND`. Any of them could make a step such as rule 8's guard
+#    succeed without testing anything. This is a deny-list of the variables
+#    known to do that, not a proof that no environment can change a script.
 #
 # What this script does not do, said plainly. It runs from the tree it is
 # checking. A pull request runs its own copy of the workflow, of this script and
@@ -507,6 +514,20 @@ def check_shell(f, name, where, shell):
         complain("%s job '%s' sets `shell` to %r%s -- a required command runs "
                  "under the runner's own bash" % (f, name, shell, where))
 
+# Rule 11: the variables that change how bash runs a script before it runs.
+SHELL_ENV_DENY = {"BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "PS4", "PROMPT_COMMAND"}
+
+def check_env(f, name, where, env):
+    if not isinstance(env, dict):
+        return
+    for key in env:
+        if not isinstance(key, str):
+            continue
+        if key in SHELL_ENV_DENY or key.startswith("BASH_FUNC_"):
+            complain("%s job '%s' sets %s in `env`%s -- it changes how bash runs a "
+                     "step's script, and could make a step pass without running its "
+                     "command" % (f, name, key, where))
+
 def check_default_shell(f, name, defaults, where):
     run = defaults.get("run") if isinstance(defaults, dict) else None
     if isinstance(run, dict) and "shell" in run:
@@ -720,6 +741,7 @@ for f in files:
                  "token scope the jobs hold (usually `contents: read`)" % f)
 
     check_default_shell(f, "(workflow)", doc.get("defaults"), " in `defaults.run`")
+    check_env(f, "(workflow)", " at the workflow level", doc.get("env"))
 
     jobs = doc.get("jobs")
     if not isinstance(jobs, dict) or not jobs:
@@ -734,6 +756,7 @@ for f in files:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
         check_default_shell(f, name, job.get("defaults"), " in `defaults.run`")
+        check_env(f, name, " at the job level", job.get("env"))
 
         steps = job.get("steps") or []
 
@@ -888,6 +911,8 @@ for f in files:
                         complain("%s job '%s' checks out without "
                                  "`persist-credentials: false`" % (f, name))
 
+            check_env(f, name, " on a step", step.get("env"))
+
             # Rules 4 and 6.
             run = step.get("run")
             if isinstance(run, str):
@@ -997,6 +1022,7 @@ while index < len(action_files):
                         or with_.get("persist-credentials") is not False:
                     complain("%s composite action checks out without "
                              "`persist-credentials: false`" % f)
+        check_env(f, "composite action", " on a step", step.get("env"))
         run = step.get("run")
         if isinstance(run, str):
             check_run(f, "composite action", run)
