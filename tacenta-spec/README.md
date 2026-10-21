@@ -24,15 +24,17 @@ confidentiality, forward secrecy and post-compromise security as numbered
 requirements, each marked proved, assumed or tested only, and its
 limitations.md lists the known gaps. group-messaging.md is an outline ahead of
 the code, and that work is not yet scheduled. identities-and-devices.md is
-partly written: it specifies the identity key's secret, how that key signs
-(XEdDSA) and how a verifier checks a signature against it, and application
-signatures, and devices remain a scaffold. key-registration.md,
-multi-device.md and terminology.md are scaffolds -- a title and a one-line
-scope, marked "Status: scaffold" -- kept as the table of contents for what is
-still to be written. Until a scaffold is written, its topic is unspecified:
-what the implementation does there is neither a precedent for this
-specification nor a conformance target, and tacenta-proofs/CLAIMS.md and
-LIMITATIONS.md record only what is and is not proven about that code.
+partly written: it specifies the identity key's secret, the rule for which
+keys are identity keys, how that key signs (XEdDSA) and how a verifier checks
+a signature against it, application signatures, the identity pair digest,
+and the hosted inventory statement profile; general device management remains
+a scaffold. key-registration.md, multi-device.md and terminology.md are
+scaffolds -- a title and a one-line scope, marked "Status: scaffold" -- kept
+as the table of contents for what is still to be written. Until a scaffold
+is written, its topic is unspecified: what the implementation does there is
+neither a precedent for this specification nor a conformance target, and
+tacenta-proofs/CLAIMS.md and LIMITATIONS.md record only what is and is not
+proven about that code.
 
 [CONSTANTS.md](CONSTANTS.md) records every constant this engine emits or
 accepts with the source that authorises it, at one of three tiers; every

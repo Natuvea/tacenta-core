@@ -45,7 +45,11 @@ fact that it was sent.
   - Metadata, and the length of a plaintext (EX-01).
   - An adversary that has taken a party's state (forward-secrecy.md,
     post-compromise-security.md).
-  - A substituted identity key that nobody catches (ASM-14).
+  - A substituted identity key that nobody catches (ASM-14; REQ-AUTH-02,
+    REQ-AUTH-15, REQ-AUTH-16).
+  - That the peer of a session that is no contact's, such as an unattributed
+    first-contact session, is the person the user believes. Its messages are
+    confidential against everyone but whoever holds its peer key (ASM-14).
   - Persisted state (EX-07).
 
 ### REQ-CONF-02: the key schedule is the specified one

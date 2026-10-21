@@ -11,16 +11,16 @@ Nothing here narrows a requirement; it says how far the evidence for one goes.
 
 ## How the requirements stand
 
-Of the 32 requirements:
+Of the 34 requirements:
 - **12 are proved.** Five of them are proved in the model, against the symbolic
   attacker (LIM-01).
-- **9 are assumed.**
-- **11 are tested only.**
+- **10 are assumed.**
+- **12 are tested only.**
 
 | Requirement | Status |
 |---|---|
 | REQ-AUTH-01: prekey signatures are verified before use | Tested only |
-| REQ-AUTH-02: a named identity is enforced | Tested only |
+| REQ-AUTH-02: the initiator's expectation is enforced | Tested only |
 | REQ-AUTH-03: the shared secret binds both identities | Assumed |
 | REQ-AUTH-04: the associated data determines both identities | Proved (T2, T3) |
 | REQ-AUTH-05: every message's associated data covers the whole header | Tested only |
@@ -33,6 +33,8 @@ Of the 32 requirements:
 | REQ-AUTH-12: an initial message is not accepted twice | Tested only |
 | REQ-AUTH-13: unauthenticated input changes nothing durable | Tested only |
 | REQ-AUTH-14: an authenticator failure ends the agreement | Proved (T3) |
+| REQ-AUTH-15: keys are classified and looked up as specified | Tested only |
+| REQ-AUTH-16: the identity pair digest binds the pair | Assumed; order independence and refusals tested only |
 | REQ-CONF-01: messages are confidential against an outsider | Assumed |
 | REQ-CONF-02: the key schedule is the specified one | Proved (T3) |
 | REQ-CONF-03: PQXDH's derivation input is unambiguous | Proved (T2) |
@@ -272,9 +274,17 @@ and exclusions.md, EX-03.
 
 - REQ-AUTH-06 and REQ-AUTH-07 rest on the AEAD's unforgeability (ASM-06).
 - Nothing proves that an identity key belongs to the person a user means
-  (ASM-14; EX-09).
+  (ASM-14; EX-09). The verification number lets two people check that they
+  hold the same keys, at about 2^100 attacker work if they compare all 60
+  digits and much less if they compare fewer. Whether they compare is
+  theirs.
+- Whether an initiator sends an initial message after a bundle shows
+  whoever served it whether her expectation accepts that key. Under
+  *first contact*, that means whether the key is unattributed in her
+  records. It is free, silent and repeatable, and a probe she accepts is a
+  working substitution (EX-09).
 - An attacker holding a responder's signed prekey secret can make initial
-  messages that responder accepts as coming from any identity, until the
+  messages that responder accepts as coming from any identity key, until the
   prekey is deleted (REQ-AUTH-03).
 - One-time curve prekeys are not signed (REQ-AUTH-01).
 - `EncodeKEM(PQPKB)` is left out of the associated data, which relies on

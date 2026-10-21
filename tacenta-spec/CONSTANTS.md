@@ -64,6 +64,7 @@ a peer's constant does not belong in them.
 | `LAST_RESORT_HANDSHAKE_LABEL` (session) | `tacenta last-resort handshake v2`: 32 ASCII bytes, no terminator | ours | The HMAC-SHA256 key of the last-resort replay identity, which is computed over the agreed `SK` rather than public initial-message bytes (session-establishment.md, The replay identity; `sessions/lifecycle.rs`; registered in `tacenta-core/LABELS.md`). Not secret: it separates the identity from other digests over overlapping bytes. Changing it changes every identity, so v1-v4 stores fail closed for live last-resort keys until rotation. The published specifications have no such record. Free choice. |
 | `INVENTORY_SIGNING_LABEL` | `Tacenta:inventory-statement:v1\xff` | ours | Prefix of the XEdDSA input for a hosted device-inventory statement (`identities-and-devices.md`, Hosted device-inventory statements; `groups/inventory.rs`; registered in `tacenta-core/LABELS.md`). |
 | `BINDING_COMMITMENT_LABEL` | `Tacenta:inventory-binding-commitment:v1\xff` | ours | Prefix of the SHA-256 input for the exact canonical binding a replacement retires (`identities-and-devices.md`, Hosted device-inventory statements; `groups/inventory.rs`; registered in `tacenta-core/LABELS.md`). |
+| `PAIR_DIGEST_LABEL` | `Tacenta:identity:pair-digest:v1\xff`: 31 ASCII bytes, no NUL, then `0xFF`; hex `546163656e74613a6964656e746974793a706169722d6469676573743a7631ff`. Capital `T`, unlike the lowercase application-signature label | ours | Prefix of the SHA-256 input of the identity pair digest (identities-and-devices.md). No other fixed-label SHA-256 input in this specification begins with these 32 bytes. Not secret. Free choice. |
 
 ## Signatures
 
@@ -126,6 +127,7 @@ output path can be written.
 | `MAX_FIELD_NUMBER` | 15 | ours | The largest field number a tag may carry. Field 0 and anything above 15 are refused, not skipped (`maxFieldNumber`; protobuf-profile.md, Tags). A profile limit we chose. `MAX_FIELD_NUMBER` must cover the external profile's field 8, which it does. |
 | `MAX_FIELDS` | 32 | ours | The most fields one parse reads, and the most field numbers it records (`maxFields`; protobuf-profile.md, Fields in a message). A profile limit we chose. Neither message type reaches it: fields are distinct, and number five and eight. |
 | `MAX_VARINT_BYTES` | 5 | ours | The longest varint. A varint is also refused if not minimal or above 2^32 − 1 (`maxVarintBytes`; protobuf-profile.md, Varints). A profile limit we chose. |
+| Verification number length | 60 ASCII decimal digits, most significant first | ours | `int_be(digest) mod 10^60`, zero-padded (identities-and-devices.md). Comparing k digits costs a claw search about 10^(k/2) (ASM-07). Free choice. |
 
 ## Three protocol identifiers
 

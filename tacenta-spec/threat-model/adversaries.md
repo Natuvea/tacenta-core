@@ -99,8 +99,16 @@ It can:
 It cannot make a bundle whose prekey signatures verify under an honest party's
 identity key without that key's secret (ASM-03). Whether the identity key in a
 bundle is the one the initiator means to reach is not something the protocol
-can check: that is ASM-14, and, where the initiator names the key she expects,
-REQ-AUTH-02.
+can check: that is ASM-14.
+- An initiator's expectation refuses a bundle built around a key it retires
+  or does not accept, under *known*. Under *first contact*, it refuses a key
+  her records find a contact's, ambiguous or a retired key (REQ-AUTH-02).
+- Two parties who compare all 60 digits of the verification number, each
+  computed from the party's own key and the key it vouches for (the
+  session's peer key, or a key it is about to record), over a channel the
+  adversary does not control, detect a substitution of the keys they
+  compared, including at first contact, at about 2^100 attacker work
+  (REQ-AUTH-16).
 
 Proofs: none.
 

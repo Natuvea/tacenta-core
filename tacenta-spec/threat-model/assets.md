@@ -118,7 +118,9 @@ is a store writer's (ADV-05), which is outside this specification (EX-07).
 
 ### AS-10: authenticity of a conversation
 
-That a session is bound to the identity key it was established with. That a
+That a session is bound to the identity key it was established with. For a
+party, that a session it treats as a contact's is one whose key its records
+accept for that contact (threat-model/assumptions.md, ASM-14). That a
 message a session accepts was made by that peer, for that session, and at that
 position in it. And that a message is accepted at most once. Loss lets an
 attacker be believed as the peer, move a message between sessions or positions,
@@ -130,8 +132,8 @@ That a signed curve prekey and a KEM prekey in a bundle were published by the
 holder of the bundle's identity key, and that every curve public key has one
 encoding and so one identity (message-format.md, Curve public keys). Loss lets
 a directory or network attacker substitute prekeys, or give one key two
-identities in a signature, the associated data, a fingerprint or the
-skipped-key store.
+identities in a signature, the associated data, a replay identity or
+fingerprint, an identity pair digest or the skipped-key store.
 
 ### AS-12: state integrity against unauthenticated input
 

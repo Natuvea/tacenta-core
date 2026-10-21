@@ -267,6 +267,7 @@ python3 - "$work/assumption-inverse-extra/tacenta-spec/threat-model/assumptions.
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+assert text.count("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.") == 1, "ASM-03's relied-on line has changed; re-target this case"
 text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-03.", 1)
 path.write_text(text)
 PY
@@ -277,6 +278,7 @@ python3 - "$work/assumption-inverse-missing/tacenta-spec/threat-model/assumption
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+assert text.count("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.") == 1, "ASM-03's relied-on line has changed; re-target this case"
 text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01.", 1)
 path.write_text(text)
 PY

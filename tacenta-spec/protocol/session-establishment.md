@@ -128,8 +128,7 @@ prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy. She verifies them only under an `IKB` that is an identity key,
 which she checks before either signature (below).
 
-She also refuses a bundle before encapsulating when its identity key is not the
-one she set out to reach (when she names one), when its one-time curve prekey
+She also refuses a bundle before encapsulating when its one-time curve prekey
 and that prekey's identifier disagree about whether one is present
 (message-format.md), or when its identity key, signed prekey or one-time curve
 prekey is not the canonical encoding of a curve public key (message-format.md,
@@ -139,13 +138,22 @@ every curve public key her session stores canonical (session-persistence.md,
 Session, Semantic rules). Both sides refuse a Diffie-Hellman output that is not
 contributory, which a low-order public key produces.
 
+She checks the bundle's identity key against her expectation (Records,
+expectations and attribution, below) after the bundle's presence and
+canonical-key checks, and before the identity-key rule, the signature checks,
+the KEM prekey's input checks and anything that draws randomness or computes
+an agreement.
+
 A bundle whose canonical `IKB` is not an identity key (identities-and-devices.md,
 Identity keys) is refused as an invalid identity key. She makes that check after
-the presence, pinning and canonical checks above and before she verifies either
-signature, draws a random value or encapsulates, so nothing is spent on the
-bundle and nothing changes. The other keys of the bundle are not held to it:
-`SPKB` and a one-time curve prekey need the canonical encoding and a
-contributory result, and no more.
+the presence and canonical checks above and the check against her expectation,
+and before she verifies either signature, draws a random value or encapsulates,
+so nothing is spent on the bundle and nothing changes. The check against her
+expectation applies the same rule to the key first (Records, expectations and
+attribution, Classification), so such a bundle is refused as an invalid
+identity key either way, unless her expectation is itself malformed. The other
+keys of the bundle are not held to it: `SPKB` and a one-time curve prekey need
+the canonical encoding and a contributory result, and no more.
 
 She then generates `EKA`, encapsulates `(CT, SS) = PQKEM-ENC(PQPKB)`, and
 computes:
@@ -340,17 +348,18 @@ one. What happens next is the recipient's decision, not the session's:
   or, on the last-resort path, its replay identity is in the record.
 
 For the two cases message-format.md names (Message type), and for
-simultaneous initiation, the specification requires the refusal and nothing
-after it:
+simultaneous initiation, the specification requires the refusal, and after it
+only the attribution rules of Records, expectations and attribution:
 
 - **A session reset, or a changed identity.** A peer that starts a new session
   with a party that still holds one sends an initial message with a new
   `ephemeral`, and, after a changed identity, a new `identity`. The existing
   session refuses it (`NotARepeatedInitial`). A session established from it
-  holds the identity key the message carried, and `tacenta-core` reports that
-  key (`Session::peer_identity`) for the application to compare with the one
-  it holds for the contact. Whether the new session replaces the old one is
-  the application's decision.
+  holds the identity key the message carried, which `tacenta-core` reports as
+  `Session::peer_identity`. The session is attributed by a lookup (Records,
+  expectations and attribution). It replaces a contact's session only if it
+  is that contact's. Whether it then replaces the old one is the
+  application's decision.
 - **Simultaneous initiation.** Two parties that each establish a session from
   the other's bundle, before either receives the other's initial message, both
   hold an initiator's session. Each refuses the other's initial message
@@ -361,6 +370,246 @@ after it:
   on the session it is paired with, and the recipient's other session refuses
   it. Neither the specification nor `tacenta-core` chooses between the two
   pairs. Settling on one is left to the application.
+
+## Records, expectations and attribution
+
+Which identity key belongs to which contact is a party's own knowledge,
+kept in records it holds (threat-model/assumptions.md, ASM-14). This section
+fixes how a key is classified against those records, when a session belongs
+to a contact, and what an initiator expects. It adds no state to a session
+or a prekey store.
+
+**Records.** For each contact, a party's record is two finite sets of
+32-byte keys, each the canonical encoding of a curve public key
+(message-format.md, Curve public keys):
+- *current*, the keys it accepts for the contact;
+- *retired*, keys it no longer accepts for the contact, such as a key the
+  contact replaced or a lost device's key.
+
+A party *holds a record* for a contact when either set is non-empty. A
+contact whose two sets are both empty is one it holds no record for.
+
+A list given for a set denotes the set of its members, and duplicates are
+ignored. How keys enter and leave a record is the party's act (exclusions.md,
+EX-09). An inventory statement is not an authority over either set
+(identities-and-devices.md, Hosted device-inventory statements). A key in
+both sets is *retired*. To accept it again, the party removes it from
+*retired*. This specification fixes no bound on the sets.
+
+A member is held to the canonical encoding only, not to the identity-key rule
+(identities-and-devices.md, Identity keys): a canonical member that is not an
+identity key is not malformed, and it matches no presented key, since a
+presented key must be an identity key.
+
+**Classification.** A presented key `k` is classified against one record.
+Before anything else, `k` must be an identity key:
+- if `k` is not the canonical encoding of a curve public key
+  (message-format.md, Curve public keys), the classification refuses it as
+  `DecodeEC` refuses such a key (a decode failure);
+- if `k` is canonical but not an identity key, the classification refuses it
+  as an invalid identity key (identities-and-devices.md, Identity keys).
+
+It then checks every member of both sets. If any of them is not a canonical
+encoding, it refuses the classification as a malformed record
+(`MalformedRecord`), even if `k` matches another member. That refusal reports
+the party's own record, never a peer's bytes. Otherwise `k` is:
+- *retired*, if it is in the retired set;
+- otherwise *same*, if it is in the current set;
+- otherwise *new*.
+
+Membership is equality of the 32 bytes. An identity key has one canonical
+spelling (identities-and-devices.md, Identity keys), so two equal identity
+keys are equal bytes.
+
+An implementation provides this classification, under any name.
+
+**Lookup.** A key is looked up by classifying it against every record the
+party holds. A key the classification refuses as a decode failure or as an
+invalid identity key refuses the lookup in the same way, whether or not the
+party holds any record, and the lookup reports no record. A record whose
+classification is refused as a malformed record is skipped: it attributes
+nothing, and it is reported. The others decide:
+- *same* for exactly one contact: the key is that contact's;
+- *same* for more than one contact: the key is *ambiguous*, and is no
+  contact's;
+- *same* for none and *retired* for one or more: the key is a *retired key*
+  of those contacts, and is no contact's;
+- *same* for none and *retired* for none: the key is *unattributed*.
+
+Wherever a lookup finds the key *retired* for a contact, that is reported
+alongside its result. An implementation provides this lookup, under any
+name.
+
+The classification and the lookup are required of an implementation, unlike
+its error types (error-handling.md), because two implementations must reach
+the same attribution from the same records. Their results are fixed here;
+their names and signatures are not.
+
+**Attribution.** A session is a contact's only when a lookup of its peer
+identity key finds it that contact's. This specification fixes only whether
+a session is a contact's now, against the records as they stand. How an
+application shows a plaintext, including one it has already shown, is the
+application's (exclusions.md, EX-09).
+- **The records as they stand.** Attribution is decided against the records
+  as they stand whenever a plaintext is shown or the session is used. This
+  includes plaintexts already shown:
+  - moving a key to *retired* withdraws attribution from every session under
+    it, past plaintexts included, even after an ordinary key change;
+  - recording a key attributes that session's earlier plaintexts, including
+    any received before a comparison.
+
+  An application may show a plaintext as having been a contact's when it
+  arrived. No session is ended by this specification.
+- **Labels.** A sender label, handle, address or anything else a bundle, a
+  message or the transport supplies never selects the record a session is
+  classified against, and never chooses among contacts for an ambiguous key.
+  Recording a key under a contact is the party's own choice (EX-09).
+
+A session whose key the lookup finds ambiguous, a retired key (*same* for
+no contact), or unattributed is no contact's. A session's peer identity key
+is available to the party. Every plaintext and control payload a session
+yields is attributed exactly as the session is, and no more. What a party
+sends on a session that is no contact's reaches whoever holds its peer key.
+
+**The initiator** establishes only with an expectation. An implementation
+offers initiator establishment under both forms:
+- *known*: the record of the contact she means to reach, which she selects
+  herself. The record is non-empty: a contact she holds no record for is
+  reached under *first contact*.
+- *first contact*: for a peer she holds no record for. It carries all her
+  records.
+
+Stating *first contact* for a contact she holds a record for, or leaving some
+of her records out of it, is the party's own failure, which no implementation
+can see (ASM-14).
+
+She refuses an expectation as a malformed record (`MalformedRecord`), before
+any check of Sending the initial message, when it holds a non-canonical key,
+in the record under *known* or in any of her records under *first contact*,
+or when it is *known* with a record whose two sets are both empty.
+
+Then, after the bundle's presence and canonical-key checks, and before the
+identity-key rule, the signature checks, the KEM prekey's input checks and
+anything that draws randomness or computes an agreement, she checks the
+bundle's identity key:
+- **under *known*,** by classifying it against that record. *Retired* is
+  refused as a retired identity (`RetiredIdentity`). *New* is refused as an
+  unexpected identity (`UnexpectedIdentity`). *Same* goes on.
+- **under *first contact*,** by looking it up in her records:
+  - a key the lookup finds a contact's, or ambiguous, is refused as an
+    unexpected identity (`UnexpectedIdentity`). It is a recorded contact's
+    key, served under another name. That holds even when it is also
+    *retired* for another contact.
+  - a retired key (*same* for no contact) is refused as a retired identity
+    (`RetiredIdentity`).
+  - an unattributed key goes on.
+
+Either way the check applies the identity-key rule to the key first, so a
+key that is not an identity key is refused as an invalid identity key, as the
+rule's own check would refuse it (Sending the initial message).
+
+A bundle refused for its identity key is refused as such, even if a later
+check would also have failed. Nothing is verified, drawn, computed or sent
+for it.
+
+The order is fixed for three reasons:
+- **Nothing is spent on a key she already refuses.** The check needs only
+  her own records and the key. Made ahead of the signatures, as the identity
+  check against a named key was made before it, it costs no signature
+  verification, no random value and no agreement for a bundle she will
+  refuse.
+- **Refusals by key are reported as such.** A bundle under a key her
+  expectation refuses is reported as that refusal, even when a signature
+  would fail, its KEM prekey would fail the input checks, or one of its
+  prekeys would give a non-contributory agreement.
+- **Malformed input is reported as such.** A bundle that fails decoding, the
+  presence check or the canonical-key check is reported as that, and a key
+  that is not an identity key as an invalid identity key, never as a refused
+  identity.
+
+Her session is then attributed by a lookup, like any other. Under *known*,
+a key that is *same* in her record and also *same* in another contact's
+record goes on, and the session is ambiguous: no contact's (ASM-14).
+
+**A contact she holds a record for is never a first contact.** To accept a
+new key for it, she records the key in its current set and establishes under
+*known*. That covers:
+- an ordinary key change, refused as an unexpected identity under *known*;
+- a contact whose keys are all retired;
+- a contact whose recorded key the identity-key rule refuses, such as one a
+  release admitted before the rule (identities-and-devices.md, A stored key
+  the rule refuses). She records the new key, retires the refused one, and
+  establishes under *known*.
+
+She can take the key from the refused bundle. That refusal came before the
+bundle's signatures, so it verifies nothing about the key. The recommended
+way is to record it after the two people compare the verification number
+computed from that key and her own (identities-and-devices.md, The identity
+pair digest).
+
+**The responder** establishes as Receiving the initial message states.
+Whatever key the message carries, provided it passes the identity-key rule
+there, once the message authenticates:
+- the one-time prekeys it names are removed;
+- on the last-resort path, its replay identity is recorded.
+
+The session is attributed only by a lookup. A malformed record is skipped
+and reported there; it does not refuse. This section adds no responder
+refusal beyond the identity-key rule of Receiving the initial message.
+
+**First contact, in either role,** gives a session whose key is in no
+record: an unattributed session. The party may use it, as the paragraph on
+attribution states. It attributes the session by recording the peer key in
+a contact's current set. The recommended way is after the two people compare
+the verification number computed from that session's keys. Recording a key
+without that comparison is the party's policy, and a session attributed that
+way rests on the directory's word for the key.
+
+**Discarding a session** is the party's choice, and it is final for that
+handshake. Its prekeys are consumed, or its replay identity recorded, so
+neither the message nor any later delivery of it establishes again, and the
+peer goes on sending into a session nobody holds. Keeping sessions that are
+no contact's costs storage, and anyone can open them under fresh keys
+(threat-model/adversaries.md, ADV-01). Discarding those whose key is in no
+record is a legitimate bound, and loses only those handshakes.
+
+**What a refusal, a classification or a lookup shows.**
+- It compares a key with records, and shows nothing about when the key was
+  made or why it differs.
+- An initiator's refusal by her expectation comes before the bundle's
+  signatures are verified, so it shows nothing about who signed the bundle.
+- A session shows more. For the initiator, the holder of its peer key signed
+  the bundle's prekeys at some time. For the responder, the initial
+  message's author held that key's secret or the responder's signed-prekey
+  secret (security-properties/authentication.md, REQ-AUTH-03).
+- It does not show who delivered it. A directory or network attacker can
+  relay another party's genuine bundle or message.
+- A bundle carries no date (REQ-AUTH-01). A directory can present a key a
+  contact has stopped using, which is *retired* only if a record says so.
+- At the protocol level, a contact's new device cannot be told apart from a
+  substituted key: both are *new*.
+
+**What is sent.** No message carries an expectation, a classification or a
+lookup's result. Whether an initiator sends an initial message after a
+bundle does depend on her expectation, since a refusal sends nothing. So
+for each bundle it serves, whoever served it learns whether her expectation
+accepts that key:
+- under *known*, whether the key is *same* in that record;
+- under *first contact*, whether the key is unattributed in her records.
+
+That costs the server nothing, is silent, and can be repeated on every
+fetch. A probe she accepts is a working substitution (exclusions.md, EX-09;
+security-properties/limitations.md, LIM-15).
+
+**When a key differs.** A session's peer identity key is fixed for the
+session's life. An existing session accepts a repeat of its initial message
+only if its `identity` equals the session's, and then decrypts it as part of
+that session (Receiving the initial message). So a different key reaches a
+party only as a new session. It does not differ when the peer's identity
+secret is copied, restored or taken. A further delivery of a handshake that
+already established a session forms no new session: the existing session
+takes it as a repeat, or, without that session, it is refused (Replay, and
+why the ratchet must follow).
 
 ## Replay, and why the ratchet must follow
 
@@ -528,7 +777,8 @@ depends on that choice.
   - `ByteEncode12(ByteDecode12(ek[0:1536]))` equals `ek[0:1536]`.
 
   Alice refuses a bundle whose key fails either check. She has then computed no
-  agreement and sent nothing.
+  agreement and sent nothing. Whether she has drawn `EKA` before these checks
+  is not fixed.
 - **Encapsulation** draws 32 random bytes `m` and runs
   `ML-KEM.Encaps_internal(ek, m)` (Algorithm 17). That is `ML-KEM.Encaps`, with
   `m` taken from the caller's random source. It produces a 1,568-byte `CT` and
@@ -580,7 +830,8 @@ from deleting ephemeral and one-time private keys once used. Resistance to
 harvest-now-decrypt-later comes from `SS`. These are stated as numbered
 requirements in security-properties/, each with the assumptions it rests on and
 its status:
-- authentication.md: REQ-AUTH-01 to REQ-AUTH-04, REQ-AUTH-10 and REQ-AUTH-12;
+- authentication.md: REQ-AUTH-01 to REQ-AUTH-04, REQ-AUTH-10, REQ-AUTH-12
+  and REQ-AUTH-15;
 - confidentiality.md: REQ-CONF-03 and REQ-CONF-06;
 - forward-secrecy.md: REQ-FS-05.
 

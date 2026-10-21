@@ -108,6 +108,27 @@ is SemVer against the specified protocol (not the implementation).
     - REQ-AUTH-02 has no test (LIM-13);
     - tests hold erasure in place only for the classical ratchet's state, the
       KEM key pair, the identity and the prekey store (LIM-11).
+- `protocol/identities-and-devices.md`: the identity pair digest
+  (`PAIR_DIGEST_LABEL`) and the verification number. The pages had left
+  identity-key comparison to the application (EX-09). The key order, the
+  comparator, the encoding and the treatment of keys that are not identity
+  keys each give different bytes, and the page fixes each of them: the
+  digest takes identity keys only, under the identity-key rule. The number's
+  bound is stated with the digits it needs.
+- `protocol/session-establishment.md`, Records, expectations and
+  attribution:
+  - records, the classification and the lookup, which every implementation
+    provides. A presented key is held to the identity-key rule; a record's
+    members are held to the canonical encoding only;
+  - attribution by lookup, against the records as they stand, with labels
+    never selecting a record;
+  - keys the lookup finds ambiguous or retired (*same* for no contact)
+    attributed to nobody;
+  - unattributed first-contact sessions in both roles;
+  - initiator expectations, *known* and *first contact*, the latter checked
+    by a lookup over her records.
+
+  Also REQ-AUTH-15 and REQ-AUTH-16. No persisted format changes.
 
 ### Changed
 - `protocol/group-messaging.md`: the page no longer lists or relies on one
@@ -612,6 +633,53 @@ is SemVer against the specified protocol (not the implementation).
   composite header's `bv_decide` round trips and the export and import
   statements, through the length bound of a debug-assertion message in the
   generated `export`. No rule, byte or constant changes.
+- `protocol/session-establishment.md`:
+  - the initiator establishes only with an expectation, which replaces the
+    named identity the page let her state;
+  - she refuses a malformed one (`MalformedRecord`) before any check of
+    Sending the initial message. A *known* expectation with an empty record
+    is malformed;
+  - she checks the bundle's identity key against her expectation after the
+    bundle's presence and canonical-key checks, and before the identity-key
+    rule, the signature checks, the KEM prekey's input checks and anything
+    that draws randomness or computes an agreement. That is where the page
+    placed the named identity, before the identity-key rule and the
+    signatures, so that order is kept. The page had left the named identity
+    unordered against the presence and canonical-key checks; it now follows
+    them. The check applies the identity-key rule to the key itself, so a key
+    that is not an identity key is refused as an invalid identity key either
+    way. One outcome changes: a bundle whose key is not an identity key and
+    differs from the named key was refused as an unexpected identity, since
+    the named identity came first, and is now refused as an invalid identity
+    key;
+  - whether `EKA` is drawn before the KEM prekey's input checks is stated
+    as not fixed;
+  - also changed: the lead-in to the session-reset and
+    simultaneous-initiation cases, the "changed identity" bullet, and the
+    Security properties list.
+
+  **Conformance:** an implementation that offers initiator establishment
+  without an expectation, or with a named key in place of a record, does not
+  conform.
+- `protocol/error-handling.md`: the conditions list; the orders the pages
+  fix, among them the initiator's; and the closing remark on one check order.
+- `protocol/identities-and-devices.md`: the status line; where the
+  identity-key rule applies, now including the digest and a presented key;
+  and the way forward from a stored key the rule refuses, which now goes
+  through an expectation.
+- `CONSTANTS.md`: the label row and the Bounds row.
+- `threat-model/assumptions.md`: the ASM-07 lead-in and SHA-256 bullet;
+  ASM-14; the "Relied on by" lines of ASM-07, ASM-14 and ASM-19.
+- `threat-model/exclusions.md`: EX-05, EX-09 with the probe, and EX-10.
+- `threat-model/adversaries.md`: ADV-04.
+- `threat-model/assets.md`: AS-10 and AS-11.
+- `security-properties/authentication.md`: the intro, and REQ-AUTH-02
+  amended.
+- `security-properties/confidentiality.md`: REQ-CONF-01.
+- `security-properties/limitations.md`: the counts, the table and LIM-15.
+- `security-properties/evidence-index.json`: entries for REQ-AUTH-15 and
+  -16; REQ-AUTH-02's property and the reasons of its missing evidence.
+- `README.md`.
 
 ### Fixed
 - `protocol/session-establishment.md`: the repeated-initial rule names the key
@@ -652,6 +720,9 @@ is SemVer against the specified protocol (not the implementation).
   commits instead of silently excluding them. A production-script case runner
   pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
   refusals. This closes hostile-lens item SC-10.
+
+### Decided
+- `decisions/ADR-0009-identity-verification.md` (proposed).
 
 ## [0.2.0] - 2026-09-11
 

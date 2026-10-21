@@ -3,9 +3,9 @@
 Identity keys, devices, and how they relate.
 
 Status: partial. The identity key's secret, XEdDSA signing and verification
-under it, application signatures, and the bounded hosted inventory statement
-profile are specified below. General device management remains outside this
-document.
+under it, application signatures, the identity pair digest, and the bounded
+hosted inventory statement profile are specified below. General device
+management remains outside this document.
 
 ## The identity key's secret
 
@@ -51,7 +51,13 @@ applies the rule to it before relying on the key for anything else:
 - a verifier of a signature, to the key the signature is checked under
   (Verifying a signature, step 3; Application signatures, below);
 - a verifier of a signed inventory statement, to every `identity_public_key`
-  in it (Accepting a signed statement, check 6).
+  in it (Accepting a signed statement, check 6);
+- a party computing the identity pair digest, to both keys (The identity
+  pair digest, below);
+- a party classifying a key against its records, or looking one up, to the
+  presented key. The members of its records are held to the canonical
+  encoding only (session-establishment.md, Records, expectations and
+  attribution).
 
 An identity key read from any other encoding, such as the identity key field of
 the protobuf profile's prekey envelope, is held to the same rule by the party
@@ -91,7 +97,11 @@ from corruption, or from a release that admitted the key when it was first
 presented; an honest party's own operations do not produce one. What follows is
 the caller's: the bytes are refused, not deleted, and the way forward is a new
 session with that peer, established from a bundle whose identity key passes the
-rule.
+rule. An initiator establishes that session under an expectation. If her
+record for the peer holds the refused key, she records the bundle's key,
+retires the refused one and establishes under *known*. *First contact* is
+not for a contact she holds a record for (session-establishment.md, Records,
+expectations and attribution).
 
 ## Signing
 
@@ -217,6 +227,78 @@ the published identity key. It first applies the identity-key rule to that key
 Prekey signatures carry no label (session-establishment.md, Publishing keys).
 The label is what keeps the two uses of the one key apart: a signature made
 for one is not accepted for the other.
+
+## The identity pair digest
+
+Two parties check that they hold the same pair of identity keys by each
+computing one value from the two keys and comparing the values. This section
+fixes that value. How and whether people compare it is outside this
+specification (exclusions.md, EX-09).
+
+The digest takes two identity keys, each the 32 bytes the identity key is
+published as (The identity key's secret, above), and applies the identity-key
+rule to both (Identity keys, above):
+- a key whose bit 255 is set, or whose value, read little-endian, is at least
+  p = 2^255 - 19, is refused as `DecodeEC` refuses it
+  (session-establishment.md): a decode failure;
+- a canonical key that is not an identity key is refused as an invalid
+  identity key.
+
+It refuses nothing else. When both keys would be refused, either refusal
+conforms.
+
+```
+PAIR_DIGEST_LABEL = "Tacenta:identity:pair-digest:v1" || 0xFF     -- 32 bytes
+
+identity_pair_digest(k1, k2):
+    refuse unless k1 and k2 are identity keys
+    (lo, hi) = (k1, k2) if k1 <= k2, else (k2, k1)
+    return SHA-256(PAIR_DIGEST_LABEL || lo || hi)                 -- 96 bytes in, 32 out
+```
+
+- **Order.** `k1 <= k2` compares the keys as strings of unsigned bytes, byte
+  0 first, and the first byte that differs decides. It is not the order of
+  the keys' values, which are little-endian. Both parties compute the same
+  digest, whichever of them computes it and whichever initiated.
+- **Equal keys** are allowed.
+- **One spelling.** An identity key has one canonical spelling (Identity
+  keys, above), so a pair of keys has one digest.
+- **Which keys.** A comparison vouches for a key only when each party
+  computes the digest from its own identity key and that key, which is
+  either the session's peer identity key or a key it is about to record. It
+  vouches for a session only when the session's peer key is the compared
+  key, byte for byte. Another key in the same record, such as another
+  device's, is not vouched for (session-establishment.md, Records,
+  expectations and attribution).
+- **What is bound.** The two keys, and nothing else: no name, address,
+  device or session. Equal digests mean that the two parties hold the same
+  unordered pair of keys. They do not mean that the keys belong to the people
+  the parties mean to reach (threat-model/assumptions.md, ASM-14). A key
+  verified with one contact gives the same digest when it is presented as
+  another.
+
+### The verification number
+
+An implementation that renders the digest as digits renders the
+verification number:
+
+```
+verification_number(digest):
+    n = digest read as an unsigned big-endian integer
+    return n mod 10^60, as the ASCII digits 0 to 9, most significant first,
+           left-padded with '0' to 60 digits
+```
+
+The digits may be laid out in twelve groups of five. A comparison of fewer
+than 60 digits is not a comparison of the verification number.
+
+**What the length buys.** An attacker between two parties chooses the key
+each sees for the other, so it needs `identity_pair_digest(A, M1)` and
+`identity_pair_digest(M2, B)` to agree in the digits compared, with `M1` and
+`M2` both its own. That is a collision search. Comparing k digits costs it
+about 10^(k/2) evaluations: about 2^100 for all 60, and about 2^33 for 20.
+Making two whole digests agree costs about 2^128. These figures rest on
+ASM-07. No stretching is used.
 
 ## Hosted device-inventory statements
 
@@ -442,3 +524,4 @@ checks it itself:
 - RFC 7748, section 5, for X25519's clamping and the u-coordinate encoding.
 - RFC 8032, section 5.1, for edwards25519's base point, group order and point
   encoding.
+- FIPS 180-4, for SHA-256 in the identity pair digest.
