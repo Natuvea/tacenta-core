@@ -14,6 +14,13 @@
 #   a control marked local that a CI step runs                refused: a hand flag cannot contradict the walk
 #   a control or row that names a CI step the workflow does not have   refused (accepted while it has it)
 #   a shell-script control whose named step does not run it             refused (accepted through a script)
+#   a row's own step that does not run its gate, a verdict step that is gone   refused; a verdict step shown
+#   two steps that run one script, in either order    the same inventory
+#   a combining step                                  the gate shown at the step that runs it, not at the
+#                                                     combining one, in either order; a combining step that
+#                                                     lists a file its command does not run, or is not a step,
+#                                                     refused
+#   the real tree's workflow with its jobs reversed   the same inventory as the committed one
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -38,10 +45,13 @@ json.dump({"files": {".github/workflows/ci.yml": {"jobs": {"checks": {"steps": j
           open(sys.argv[1], "w"))
 PY
 }
-write_rows() {  # JSON array of rows
-  python3 - "$repo/tooling/gate-inventory.json" "$1" <<'PY'
+write_rows() {  # JSON array of rows [, JSON object of combining steps]
+  python3 - "$repo/tooling/gate-inventory.json" "$1" "${2:-}" <<'PY'
 import json, sys
-json.dump({"rows": json.loads(sys.argv[2])}, open(sys.argv[1], "w"))
+doc = {"rows": json.loads(sys.argv[2])}
+if sys.argv[3]:
+    doc["combining_steps"] = json.loads(sys.argv[3])
+json.dump(doc, open(sys.argv[1], "w"))
 PY
 }
 steps='[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
@@ -131,4 +141,60 @@ write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2", "run"
 (cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null)
 check 'a named step that runs the control through a script' 0 'is current'
 
-echo "gate-inventory-cases: $cases cases (a stale file, row or mutation; a step with or without an id that runs an unlisted script; a control or gate that is not a file; a hand flag against the walk; a named verdict step that is gone or repointed) gave the expected result"
+# A row's own step must run its gate; the step that only gives a verdict is a verdict step.
+reset
+write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "ci_steps": ["s2"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
+write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2", "run": "test \"$NEEDS_RESULT\" = success"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
+# Written first, so that only the check of the row's step can refuse it (a stale file would refuse it anyway).
+(cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null 2>&1) || true
+check 'a row named with a step that does not run its gate' 1 'names CI step s2, whose command does not run it'
+write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "verdict_steps": ["s9"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
+check 'a verdict step the workflow does not have' 1 'names verdict step s9, which the workflow does not have'
+write_rows '[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "verdict_steps": ["s2"], "controls": ["tooling/tests/run-check-x-cases.sh"]}]'
+(cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null)
+check 'a verdict step' 0 'is current'
+grep -qF '| s1; verdict s2 |' "$repo/tacenta-proofs/GATE-INVENTORY.md" \
+  || { echo "WRONG  gate-inventory a verdict step: not shown beside the step that runs the gate" >&2; exit 1; }
+
+# Two steps run one script: the inventory is the same in either order.
+reset
+write_steps '[{"id": "s2", "run": "bash tooling/check-x.sh"}, {"id": "s1", "run": "bash tooling/check-x.sh --again"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
+(cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null)
+check 'two steps that run one script' 0 'is current'
+write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh --again"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}, {"id": "s2", "run": "bash tooling/check-x.sh"}]'
+check 'the same steps in another order' 0 'is current'
+
+# A combining step runs only what it lists: the gate is shown at the step that runs it, whichever comes first.
+reset
+printf '#!/usr/bin/env bash\nbash tooling/check-x.sh\n' > "$repo/tooling/run-all.sh"
+combining='{"s0": {"runs": ["tooling/check-x.sh"], "why": "reads what s1 wrote"}}'
+rows_c='[{"gate": "tooling/check-x.sh", "kind": "script", "what": "x holds", "verdict_steps": ["s0"], "controls": ["tooling/tests/run-check-x-cases.sh"]}, {"gate": "tooling/run-all.sh", "kind": "script", "what": "runs x", "controls": []}]'
+write_rows "$rows_c" "$combining"
+write_steps '[{"id": "s0", "run": "bash tooling/check-x.sh --combine"}, {"id": "s1", "run": "bash tooling/run-all.sh"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}]'
+(cd "$repo" && git add -A && python3 tooling/gate-inventory.py --write >/dev/null)
+check 'a combining step' 0 'is current'
+grep -qF '| s1 (through run-all.sh); verdict s0 |' "$repo/tacenta-proofs/GATE-INVENTORY.md" \
+  || { echo "WRONG  gate-inventory a combining step: the gate is not shown at the step that runs it" >&2; exit 1; }
+write_steps '[{"id": "s1", "run": "bash tooling/run-all.sh"}, {"id": "s3", "run": "bash tooling/tests/run-check-x-cases.sh"}, {"id": "s0", "run": "bash tooling/check-x.sh --combine"}]'
+check 'a combining step after the step that runs the gate' 0 'is current'
+write_rows "$rows_c" '{"s0": {"runs": ["tooling/new-gate.sh"], "why": "reads what s1 wrote"}}'
+check 'a combining step that lists a file its command does not run' 1 'combining step s0 lists tooling/new-gate.sh, which its command does not run'
+write_rows "$rows_c" '{"s7": {"runs": ["tooling/check-x.sh"], "why": "reads what s1 wrote"}}'
+check 'a combining step that is not a step' 1 'combining step s7 is not a step of the workflow'
+
+# The real tree: its workflow's jobs reversed give the same inventory.
+cases=$((cases + 1))
+python3 - "$root/tooling/required-steps.json" "$work/reversed-steps.json" <<'PY'
+import json, sys
+doc = json.load(open(sys.argv[1]))
+workflow = doc["files"][".github/workflows/ci.yml"]
+workflow["jobs"] = dict(reversed(list(workflow["jobs"].items())))
+json.dump(doc, open(sys.argv[2], "w"))
+PY
+(cd "$root" && python3 tooling/gate-inventory.py --print) > "$work/inventory-as-is.md"
+(cd "$root" && python3 tooling/gate-inventory.py --print --steps "$work/reversed-steps.json") > "$work/inventory-reversed.md"
+cmp -s "$work/inventory-as-is.md" "$work/inventory-reversed.md" \
+  || { echo "WRONG  gate-inventory the real tree with its jobs reversed: another inventory" >&2
+       diff "$work/inventory-as-is.md" "$work/inventory-reversed.md" | head -n 20 >&2; exit 1; }
+
+echo "gate-inventory-cases: $cases cases (a stale file, row or mutation; a step with or without an id that runs an unlisted script; a control or gate that is not a file; a hand flag against the walk; a named verdict step that is gone or repointed; a row's own step and its verdict steps; the order of steps and jobs, a combining step, the real tree with its jobs reversed) gave the expected result"

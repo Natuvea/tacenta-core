@@ -364,7 +364,61 @@
           ]
         },
         "translation": {
+          "needs": [
+            "translation-part"
+          ],
+          "if": "always()",
+          "runs-on": "ubuntu-latest",
+          "timeout-minutes": 20,
+          "steps": [
+            {
+              "id": "translation_parts_passed",
+              "env": {
+                "NEEDS_RESULT": "${{ needs.translation-part.result }}"
+              },
+              "run": "test \"$NEEDS_RESULT\" = success"
+            },
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+              "with": {
+                "pattern": "translation-part-*",
+                "path": "${{ runner.temp }}/translation-parts"
+              }
+            },
+            {
+              "id": "translation_no_sorry",
+              "env": {
+                "NO_SORRY_COMBINE": "${{ runner.temp }}/translation-parts",
+                "NO_SORRY_PARTITION": "${{ github.event_name == 'push' && 'single' || 'hosted' }}"
+              },
+              "run": "bash tacenta-proofs/scripts/no-sorry.sh"
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "translation",
+                "classification": "required",
+                "command": "translation-proofs-and-no-sorry",
+                "required-outcomes": "translation_parts_passed=${{ steps.translation_parts_passed.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+              }
+            }
+          ]
+        },
+        "translation-part": {
           "runs-on": "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('[\"self-hosted\", \"tacenta-core\"]') || 'ubuntu-latest' }}",
+          "strategy": {
+            "fail-fast": false,
+            "matrix": {
+              "part": "${{ fromJSON(github.event_name == 'push' && '[\"all\"]' || '[\"kernel\", \"satisfiability\", \"refuted\", \"braid\", \"decrypt\", \"responder\", \"reply\", \"dispatch-0\", \"dispatch-1\", \"dispatch-2\", \"dispatch-3\", \"dispatch-4\", \"dispatch-5\", \"dispatch-6\", \"dispatch-7\"]') }}"
+            }
+          },
           "steps": [
             {
               "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
@@ -398,7 +452,7 @@
               "run": "export MATHLIB_CACHE_DIR=\"$GITHUB_WORKSPACE/.cache/tacenta-mathlib\"\nlake exe cache get\n"
             },
             {
-              "if": "github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'",
+              "if": "github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'",
               "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
               "with": {
                 "path": "${{ github.workspace }}/.cache/tacenta-mathlib",
@@ -406,6 +460,7 @@
               }
             },
             {
+              "id": "lean-build",
               "if": "github.event_name == 'pull_request'",
               "uses": "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
               "with": {
@@ -415,12 +470,17 @@
               }
             },
             {
-              "id": "translation_no_sorry",
+              "id": "translation_part",
               "shell": "bash",
+              "env": {
+                "NO_SORRY_PART": "${{ matrix.part }}",
+                "NO_SORRY_PART_DIR": "${{ runner.temp }}/translation-part",
+                "NO_SORRY_BUILD_CACHE": "${{ steps.lean-build.outputs.cache-matched-key }}"
+              },
               "run": "bash tacenta-proofs/scripts/no-sorry.sh"
             },
             {
-              "if": "github.event_name == 'push'",
+              "if": "github.event_name == 'push' && matrix.part == 'all'",
               "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
               "with": {
                 "path": "tacenta-model/.lake/build\ntacenta-proofs/.lake/build\ntacenta-proofs/translation/.lake/build\ntacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build\n",
@@ -428,23 +488,12 @@
               }
             },
             {
-              "if": "github.event_name == 'pull_request'",
-              "uses": "./.github/actions/assurance-receipt",
+              "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
               "with": {
-                "id": "translation",
-                "classification": "required",
-                "command": "translation-proofs-and-no-sorry",
-                "required-outcomes": "translation_elan=${{ steps.translation_elan.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
-              }
-            },
-            {
-              "if": "github.event_name == 'push'",
-              "uses": "./.github/actions/assurance-receipt",
-              "with": {
-                "id": "translation",
-                "classification": "required",
-                "command": "translation-proofs-and-no-sorry",
-                "required-outcomes": "translation_elan=${{ steps.translation_elan.outcome }},translation_seed=${{ steps.translation_seed.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+                "name": "translation-part-${{ matrix.part }}",
+                "path": "${{ runner.temp }}/translation-part",
+                "if-no-files-found": "error",
+                "retention-days": 7
               }
             }
           ]

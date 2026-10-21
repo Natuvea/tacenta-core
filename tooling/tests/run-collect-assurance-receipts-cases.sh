@@ -110,11 +110,10 @@ from assurance_validation import expected_step_outcomes
 table = expected_step_outcomes()
 assert table[("rust", "push")] == table[("rust", "pull_request")], "rust runs the same commands for both events"
 assert table[("rust", "push")][0] == "rust_fmt"
-translation_push, translation_pr = table[("translation", "push")], table[("translation", "pull_request")]
-assert "translation_seed" in translation_push and "translation_seed" not in translation_pr
-assert [s for s in translation_push if s != "translation_seed"] == translation_pr
+assert table[("translation", "push")] == table[("translation", "pull_request")] == ["translation_parts_passed", "translation_no_sorry"]
 checks_push, checks_pr = table[("checks", "push")], table[("checks", "pull_request")]
 assert "checks_39" in checks_push and "checks_39" not in checks_pr
+assert [s for s in checks_push if s != "checks_39"] == checks_pr
 assert table[("sign-off", "pull_request")] == ["signoff_check"] and ("sign-off", "push") not in table
 assert table[("attest-negatives", "push")] == table[("attest-negatives", "pull_request")] == ["negatives_slices_passed", "negatives_combine"]
 assert {receipt for receipt, _ in table} == {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks", "attest-negatives", "sign-off"}
@@ -185,10 +184,10 @@ python3 "$root/tooling/collect-assurance-receipts.py" --event pull_request --inp
 cases=$((cases + 2))
 
 # The writer records the outcomes it was given.
-python3 - "$work/pass-push/translation.json" <<'PY'
+python3 - "$work/pass-push/checks.json" <<'PY'
 import json, sys
 receipt = json.load(open(sys.argv[1]))
-assert receipt["step_outcomes"]["translation_seed"] == "success"
+assert receipt["step_outcomes"]["checks_39"] == "success"
 assert set(receipt["step_outcomes"].values()) == {"success"}
 PY
 
@@ -221,9 +220,9 @@ expect_writer_fail writer-no-outcomes "required checks must assert command step 
 expect_writer_fail writer-unknown-event "receipt rust names event 'local'" \
   env GITHUB_EVENT_NAME=local GITHUB_RUN_ID=control python3 "$root/tooling/write-assurance-receipt.py" --id rust \
   --classification required --command c --required-outcomes "$(outcomes rust push)" --output "$work/writer.json"
-expect_writer_fail writer-step-list-for-the-other-event "receipt translation records steps the workflow does not run for pull_request: translation_seed" \
-  env GITHUB_EVENT_NAME=pull_request GITHUB_RUN_ID=control python3 "$root/tooling/write-assurance-receipt.py" --id translation \
-  --classification required --command c --required-outcomes "$(outcomes translation push)" --output "$work/writer.json"
+expect_writer_fail writer-step-list-for-the-other-event "receipt checks records steps the workflow does not run for pull_request: checks_39" \
+  env GITHUB_EVENT_NAME=pull_request GITHUB_RUN_ID=control python3 "$root/tooling/write-assurance-receipt.py" --id checks \
+  --classification required --command c --required-outcomes "$(outcomes checks push)" --output "$work/writer.json"
 
 # The workflow runs the writer with `python3 -I`; an interpreter setting in the
 # environment must not reach it. The first run shows the setting is a real
@@ -270,6 +269,9 @@ expect_fail missing 'missing required check receipts: proofs' "$work/missing" pu
 cp -R "$work/pass-pull_request" "$work/missing-negatives"
 rm "$work/missing-negatives/attest-negatives.json"
 expect_fail missing-negatives 'missing required check receipts: attest-negatives' "$work/missing-negatives" pull_request
+cp -R "$work/pass-push" "$work/missing-translation"
+rm "$work/missing-translation/translation.json"
+expect_fail missing-translation 'missing required check receipts: translation' "$work/missing-translation" push
 
 expect_fail no-directory 'input directory does not exist' "$work/no-such-directory" push
 
@@ -288,14 +290,15 @@ refuse outcome-failed 'receipt rust records command steps that did not succeed: 
 refuse outcome-skipped 'receipt vectors records command steps that did not succeed: vectors_reader=skipped' vectors "data['step_outcomes']['vectors_reader'] = 'skipped'"
 refuse outcome-cancelled 'receipt audit records command steps that did not succeed: audit_run=cancelled' audit "data['step_outcomes']['audit_run'] = 'cancelled'"
 refuse outcome-guard-failed 'receipt attest-negatives records command steps that did not succeed: negatives_slices_passed=failure' attest-negatives "data['step_outcomes']['negatives_slices_passed'] = 'failure'"
+refuse outcome-parts-guard-failed 'receipt translation records command steps that did not succeed: translation_parts_passed=failure' translation "data['step_outcomes']['translation_parts_passed'] = 'failure'"
 refuse outcome-missing 'receipt rust does not record the command steps: rust_clippy' rust "del data['step_outcomes']['rust_clippy']"
 refuse outcome-extra 'receipt msrv records steps the workflow does not run for push: msrv_extra' msrv "data['step_outcomes']['msrv_extra'] = 'success'"
 refuse outcome-none 'receipt armv7 records no command step outcomes' armv7 "del data['step_outcomes']"
 refuse outcome-empty 'receipt proofs records no command step outcomes' proofs "data['step_outcomes'] = {}"
 refuse outcome-not-a-mapping 'receipt checks records no command step outcomes' checks "data['step_outcomes'] = ['checks_01']"
 refuse outcome-only-one-step 'receipt checks does not record the command steps: checks_01' checks "data['step_outcomes'] = {'checks_40': 'success'}"
-refuse outcome-list-for-the-other-event 'receipt translation records steps the workflow does not run for pull_request: translation_seed' translation "data['step_outcomes']['translation_seed'] = 'success'" pull_request
-refuse outcome-missing-seed-on-push 'receipt translation does not record the command steps: translation_seed' translation "del data['step_outcomes']['translation_seed']"
+refuse outcome-list-for-the-other-event 'receipt checks records steps the workflow does not run for pull_request: checks_39' checks "data['step_outcomes']['checks_39'] = 'success'" pull_request
+refuse outcome-missing-push-step-on-push 'receipt checks does not record the command steps: checks_39' checks "del data['step_outcomes']['checks_39']"
 
 write_receipts "$work/pull-request-alone" pull_request
 expect_fail missing-signoff 'missing required conditional check receipt: sign-off' "$work/pull-request-alone" pull_request

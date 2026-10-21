@@ -91,27 +91,9 @@ def run_lean(path, log, timeout):
     return status, log.read_text()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--log-dir', type=Path)
-    parser.add_argument('--timeout', type=int, default=180)
-    parser.add_argument(
-        '--mutation', action='append', metavar='NAME',
-        help='run only the named mutation (repeatable); default: run all',
-    )
-    args = parser.parse_args()
-    logs = args.log_dir or Path(tempfile.mkdtemp(prefix='initial-dispatch-logs-'))
-    logs.mkdir(parents=True, exist_ok=True)
-    sources = {name: path.read_text() for name, path in SOURCES.items()}
-    results = {
-        'source_sha256': hashlib.sha256(sources['lifecycle'].encode()).hexdigest(),
-        'source_sha256s': {
-            name: hashlib.sha256(source.encode()).hexdigest()
-            for name, source in sources.items()
-        },
-        'mutations': {},
-    }
-    mutants = [
+def mutant_table():
+    """Every control, in the order it is run and counted: (name, before, after, premise)."""
+    return [
         ('drop-retry-batch-cap',
          'def RetryBatchAgrees (concrete : Std.Usize) (model : Nat) : Prop :=\n'
          '  concrete.val = min Usize.max model',
@@ -331,20 +313,92 @@ def main():
          'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
          'hdraw'),
     ]
+
+
+# The source each control edits; every control not named here edits the lifecycle dispatcher.
+MUTATION_SOURCES = {
+    'change-classical-full-store-refusal-to-too-many': 'classical',
+    'change-sparse-full-store-refusal-to-too-many': 'sparse',
+    'swap-triple-classical-full-store-family': 'triple',
+    **{name: 'agreement' for name in AGREEMENT_MUTANTS},
+}
+
+
+def select_slice(mutants, k, count):
+    """The controls of slice k of count: those whose place in the list is k modulo count."""
+    return [mutant for index, mutant in enumerate(mutants) if index % count == k]
+
+
+def parse_slice(text):
+    """`k/S` in ASCII digits with 0 <= k < S, or a refusal."""
+    found = re.fullmatch(r'([0-9]{1,3})/([0-9]{1,3})', text)
+    if not found or int(found.group(2)) < 1 or int(found.group(1)) >= int(found.group(2)):
+        raise SystemExit(f'--slice must be k/S with 0 <= k < S, not {text!r}')
+    return int(found.group(1)), int(found.group(2))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--log-dir', type=Path)
+    parser.add_argument('--timeout', type=int, default=180)
+    parser.add_argument(
+        '--mutation', action='append', metavar='NAME',
+        help='run only the named mutation (repeatable); default: run all',
+    )
+    # `no-sorry.sh` splits this script's run over CI machines: `--list` prints every control with the
+    # source it edits, in the order they are counted, and runs nothing; `--slice k/S` runs the controls
+    # whose place in that order is k modulo S, after the unmodified copies of their sources. The result
+    # file then names the slice and the controls it selected, so the slices of one run can be required to
+    # select every control once between them.
+    parser.add_argument('--list', action='store_true',
+                        help='print each control and the source it edits, in order, and run nothing')
+    parser.add_argument('--slice', metavar='k/S',
+                        help='run the controls whose index is k modulo S')
+    args = parser.parse_args()
+    mutants = mutant_table()
+    names = [name for name, _, _, _ in mutants]
+    if len(set(names)) != len(names):
+        raise SystemExit('two controls have one name')
+    if args.list:
+        if args.mutation or args.slice or args.log_dir:
+            raise SystemExit('--list takes no other option')
+        for name in names:
+            print(f"{name}\t{MUTATION_SOURCES.get(name, 'lifecycle')}")
+        return
+    if args.mutation and args.slice:
+        raise SystemExit('--mutation and --slice select controls two ways; give one')
+    selected_slice = None
+    if args.slice:
+        k, count = parse_slice(args.slice)
+        if not select_slice(names, k, count):
+            raise SystemExit(f'slice {k}/{count} selects no control of the {len(names)}')
+        selected_slice = (k, count)
+    logs = args.log_dir or Path(tempfile.mkdtemp(prefix='initial-dispatch-logs-'))
+    logs.mkdir(parents=True, exist_ok=True)
+    sources = {name: path.read_text() for name, path in SOURCES.items()}
+    results = {
+        'source_sha256': hashlib.sha256(sources['lifecycle'].encode()).hexdigest(),
+        'source_sha256s': {
+            name: hashlib.sha256(source.encode()).hexdigest()
+            for name, source in sources.items()
+        },
+        'mutations': {},
+    }
     if args.mutation:
         requested = set(args.mutation)
-        known = {name for name, _, _, _ in mutants}
+        known = set(names)
         unknown = requested - known
         if unknown:
             raise SystemExit('Unknown mutation(s): ' + ', '.join(sorted(unknown)))
         mutants = [mutant for mutant in mutants if mutant[0] in requested]
+    results['slice'] = None
+    if selected_slice:
+        k, count = selected_slice
+        mutants = select_slice(mutants, k, count)
+        results['slice'] = f'{k}/{count}'
     results['requested_mutations'] = args.mutation or 'all'
-    mutation_sources = {
-        'change-classical-full-store-refusal-to-too-many': 'classical',
-        'change-sparse-full-store-refusal-to-too-many': 'sparse',
-        'swap-triple-classical-full-store-family': 'triple',
-        **{name: 'agreement' for name in AGREEMENT_MUTANTS},
-    }
+    results['selected'] = [name for name, _, _, _ in mutants]
+    mutation_sources = MUTATION_SOURCES
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
         tmp = Path(tmp)
         source_names = list(dict.fromkeys(

@@ -3,7 +3,7 @@
 # This runs the steps of `tooling/ci.sh`, split into jobs so a failure names
 # its cause. No job holds a secret. Pull requests run every job on
 # GitHub-hosted runners. A push to main runs the two Lean jobs, `proofs` and
-# `translation`, on a self-hosted runner instead: an organisation runner group
+# `translation-part`, on a self-hosted runner instead: an organisation runner group
 # that GitHub lets only this file, as it is on main, use, running as an
 # unprivileged account that holds no keys. A pull request runs its own copy of
 # this file, so nothing written here could keep one off that runner; the
@@ -17,7 +17,8 @@
 # constant-time disassembly gate (the `rust` job adds the aarch64 target
 # beside its x86_64 host), and the committed translation built with its
 # T1/T3 proofs and scanned for `sorry` by `tacenta-proofs/scripts/no-sorry.sh`
-# (the `translation` job, the heavy one). Two of the script's steps do not
+# (the `translation-part` jobs, the heavy ones, and the `translation` job that
+# combines them). Two of the script's steps do not
 # run here at all: the interoperability harness, which is not in this tree,
 # and the fuzz smoke run. What runs outside this repository altogether, and
 # why, is stated in the root README under "Building and checking":
@@ -310,8 +311,9 @@ jobs:
   # `genvectors` (all default targets); `verify.sh` builds the proofs and
   # refuses `sorry`; then the vectors are regenerated from the model and must
   # match what is committed. The `sorry` scan over the translation package is
-  # `scripts/no-sorry.sh`, which the `translation` job runs (it needs the
-  # translation's Mathlib cache first).
+  # `scripts/no-sorry.sh`, which the `translation-part` jobs run in parts and
+  # the `translation` job combines (it needs the translation's Mathlib cache
+  # first).
   proofs:
     # GitHub-hosted for a pull request, self-hosted for a push to main (see the
     # header).
@@ -324,9 +326,9 @@ jobs:
       - id: proofs_elan
         name: Install the pinned elan release
         run: bash tooling/install-elan.sh
-      # The Lean build outputs, restored on pull requests only. The `translation`
-      # job below saves them and says why a restored build is still checked in
-      # full. The path list must match that job's exactly: a cache is looked up
+      # The Lean build outputs, restored on pull requests only. The
+      # `translation-part` job below saves them and says why a restored build is
+      # still checked in full. The path list must match that job's exactly: a cache is looked up
       # by its paths as well as its key.
       - name: Restore the Lean build outputs (pull requests only)
         if: github.event_name == 'pull_request'
@@ -371,10 +373,74 @@ jobs:
   # the Rust: that needs the pinned Charon and Aeneas binaries and runs
   # outside this repository; `tacenta-proofs/CLAIMS.md` states the release
   # and its digest.
+  #
+  # The script's run is split over machines. Each job of the `translation-part`
+  # matrix below runs one part of `tacenta-proofs/scripts/no-sorry-parts.txt`:
+  # the three package builds and their scans, which every part needs, and the
+  # part's own phases, and uploads the part's log and manifest. This job is the
+  # verdict: the combiner (`NO_SORRY_COMBINE`) requires the part directories of
+  # this run to be exactly the parts of the partition, each made on this commit
+  # and tree by this script and parts file, from a clean checkout, on one
+  # toolchain and one restored build cache, with every phase passed, and to run
+  # every phase of the script once and every control of the sliced dispatcher
+  # phase once; only then does it print the line a whole run prints. A pull
+  # request runs the `hosted` partition, fifteen parts on GitHub-hosted
+  # runners. A push to main runs the `single` partition, one part with every
+  # phase, on the self-hosted runner group as before the split: a push builds cold
+  # and saves the build for pull requests, and one part means one cold build.
+  # The job runs whatever the matrix gave (`always()`), so that a part that
+  # failed, timed out or was cancelled makes this job fail rather than be
+  # skipped: a required check accepts a skipped job. Its first step fails
+  # unless every part succeeded, and the steps after it then do not run, so the
+  # receipt is missing and the collector refuses the set too.
+  # `tooling/check-workflows.sh` allows this `always()` only with that first
+  # step (rule 8).
   translation:
+    needs: [translation-part]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Every part of the matrix succeeded
+        id: translation_parts_passed
+        env:
+          NEEDS_RESULT: ${{ needs.translation-part.result }}
+        run: test "$NEEDS_RESULT" = success
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: translation-part-*
+          path: ${{ runner.temp }}/translation-parts
+      - name: The parts together ran every phase of no-sorry.sh once, and every phase passed
+        id: translation_no_sorry
+        env:
+          NO_SORRY_COMBINE: ${{ runner.temp }}/translation-parts
+          NO_SORRY_PARTITION: ${{ github.event_name == 'push' && 'single' || 'hosted' }}
+        run: bash tacenta-proofs/scripts/no-sorry.sh
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation-proofs-and-no-sorry
+          required-outcomes: "translation_parts_passed=${{ steps.translation_parts_passed.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+
+  # One part of `no-sorry.sh` per job (see the job above). The list of parts is
+  # the partition's: the job above refuses a set that is not exactly that list.
+  # A pull request's parts run on GitHub-hosted runners; a push to main runs
+  # the one part `all` on the self-hosted runner group, as the whole script ran
+  # before the split, so a push never queues more than one job of this matrix
+  # for that group. The parts give no verdict and emit no receipt.
+  translation-part:
     # GitHub-hosted for a pull request, self-hosted for a push to main (see the
     # header).
     runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('["self-hosted", "tacenta-core"]') || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(github.event_name == 'push' && '["all"]' || '["kernel", "satisfiability", "refuted", "braid", "decrypt", "responder", "reply", "dispatch-0", "dispatch-1", "dispatch-2", "dispatch-3", "dispatch-4", "dispatch-5", "dispatch-6", "dispatch-7"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -413,8 +479,10 @@ jobs:
         run: |
           export MATHLIB_CACHE_DIR="$GITHUB_WORKSPACE/.cache/tacenta-mathlib"
           lake exe cache get
+      # Saved by the push's one part only: a matrix must not have several jobs
+      # save one key.
       - name: Save Mathlib's downloaded cache files (pushes to main only)
-        if: github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/.cache/tacenta-mathlib
@@ -426,7 +494,9 @@ jobs:
       # Only a push to main saves this cache, only when its build succeeded,
       # and a push to main never restores it: what is cached is always the cold
       # build of a main commit. A pull request restores the newest one with the
-      # same toolchain and dependency pins. Lake compares each module's inputs
+      # same toolchain and dependency pins, in every part, and the combiner
+      # requires every part to have restored the same one (the key it matched is
+      # in each part's manifest). Lake compares each module's inputs
       # by hash, so a module whose sources or imports changed is rebuilt and
       # re-elaborated. A module whose inputs hash the same is not: its tactics,
       # `#guard_msgs` pins, `example`s and axiom audit do not run again on the
@@ -439,6 +509,7 @@ jobs:
       # the Mathlib fetch because the Aeneas path sits inside a package that
       # step clones.
       - name: Restore the Lean build outputs (pull requests only)
+        id: lean-build
         if: github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -450,12 +521,17 @@ jobs:
           key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.event.pull_request.base.sha }}
           restore-keys: |
             lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-
-      - id: translation_no_sorry
-        name: The translation, proofs and model build with no incomplete declaration
+      - id: translation_part
+        name: One part of the translation, proofs and model build with no incomplete declaration
         shell: bash
+        env:
+          NO_SORRY_PART: ${{ matrix.part }}
+          NO_SORRY_PART_DIR: ${{ runner.temp }}/translation-part
+          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}
         run: bash tacenta-proofs/scripts/no-sorry.sh
+      # Saved by the push's one part only, as above.
       - name: Save the Lean build outputs (pushes to main only)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && matrix.part == 'all'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -464,23 +540,12 @@ jobs:
             tacenta-proofs/translation/.lake/build
             tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
           key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.sha }}
-      # The local-mirror seed is a required command only on the self-hosted
-      # push runner. A hosted pull request must omit that inapplicable step
-      # from its receipt rather than recording `skipped` as a pass.
-      - if: github.event_name == 'pull_request'
-        uses: ./.github/actions/assurance-receipt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          id: translation
-          classification: required
-          command: translation-proofs-and-no-sorry
-          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
-      - if: github.event_name == 'push'
-        uses: ./.github/actions/assurance-receipt
-        with:
-          id: translation
-          classification: required
-          command: translation-proofs-and-no-sorry
-          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_seed=${{ steps.translation_seed.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+          name: translation-part-${{ matrix.part }}
+          path: ${{ runner.temp }}/translation-part
+          if-no-files-found: error
+          retention-days: 7
 
   # The repository's own consistency checks: the ones `tooling/ci.sh` runs
   # before building anything, plus the attestation gate.

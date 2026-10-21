@@ -294,7 +294,8 @@ of the lifecycle dispatch layer that are recorded as false or empty (this does n
 show the remaining records satisfiable: `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, stays open). In the workflow a pull request reuses the Lean build outputs of the
 newest successful push to main with the same toolchain and dependency pins, and
-rebuilds only what its changes invalidate. A module that did not change is not
+rebuilds only what its changes invalidate (each part of the translation's check restores the same outputs and
+rebuilds for itself). A module that did not change is not
 re-elaborated on the pull request: the messages main's build logged for it, which
 the `sorry` scan and the axiom comparison read, are replayed. Every push to main
 builds from nothing, and every run replays the modules under `Translation/`,
@@ -331,7 +332,32 @@ the matrix gave and is designed to fail at its first step when a slice failed, r
 controls of the workflow checker confirm the shape, and a hosted run with a failed slice has not yet been
 observed. It is not one of the contexts branch
 protection requires on main, and making it one is a repository setting; until then a failed slice blocks a merge
-through the required `assurance-receipts` job, whose collector refuses the missing receipt. So a green local run is the gate above less the
+through the required `assurance-receipts` job, whose collector refuses the missing receipt. The translation's
+`tacenta-proofs/scripts/no-sorry.sh` likewise runs whole in the script and in parts in the workflow. The script
+is a list of named phases; each job of the `translation-part` matrix runs one part of
+`tacenta-proofs/scripts/no-sorry-parts.txt`, that is the three package builds with their `sorry` scans (which
+every part runs, since every other phase reads what they built) and the part's own phases, and the `translation`
+job prints the line a whole run ends with (`no-sorry: all N phases passed`) only when the part directories are
+exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
+clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
+phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
+request runs fifteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
+on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
+pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
+they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
+needs "Re-run all jobs" or a new push. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
+fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
+the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
+combiner; the steps of each part (the elan install, the Mathlib fetch and, on the self-hosted runner, the
+clone from local mirrors) are in no receipt and no manifest: a failed one fails its part, which the guard
+refuses, and which of them ran is in that job's log. Each part writes its own manifest and its own log, and
+the combiner checks the log for consistency with the manifest (one closing line per phase, each with status
+0, and no `::error::` or `WRONG` line), not that it is the log of that run: like a manifest, a part directory
+made to look right by something other than the script is not detected; the hosted run of the matrix
+and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
+combiner's refusals on stubbed phases). One pull-request run starts about 39 jobs at once (sixteen attestation
+slices, fifteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
+this was written, runs 60 hosted jobs at once, so two runs at the same time queue. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 

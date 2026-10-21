@@ -19,10 +19,12 @@ run every acceptance criterion of every closed gap row. `GAP-REGISTER.md` and
 `ASSURANCE-OBLIGATIONS.md` carry their own stamps. The pin counts in practice 2, the Session row, the readiness section and the Gate 2 count, and the trust-base sentences beside them, are those of the tree after #215, the `SessionBraidReceiveVacuity` change, the repair of the decoder hypothesis, the inhabitation modules and the `DispatchEvidenceVacuity` change, not of `dea57eaf`. The pin counts and the rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-01`, `E2E-04` and `E2E-04-SAME-EPHEMERAL-MODEL` are those of the tree after the integration of the session contract branch (2026-10-02), not of `dea57eaf`, and the pin counts are those of this branch's head after the derivation of the `decrypt_ratchet` run bounds (2026-10-16); on main they were those of the tree after the joint decision of the clauses of `OracleOf` and the merge of #242 (2026-10-14). The reads of those rows were made by the author, and no reviewer independent of the maintainer has read them. Pull request #210 (a
 specification page) merged after `dea57eaf`, and neither it nor pull request #211
 is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. So is the closure of `HL-R1-SPARSE-TRANSLATION`, made on 2026-10-03 on one Linux x86_64 regeneration (an emulated run by the maintainer's tool-assisted session, not independent), whose record is in `tacenta-proofs/REPRODUCING.md`, and so is the row `HL-R1-SPARSE-READER`, added the same day. In this record, "hosted" means run by GitHub
-Actions. On a push to `main`, the `proofs` and `translation` jobs run on the
-project's self-hosted runners and every other job on GitHub-hosted machines; a
-pull request's `proofs` and `translation` jobs run on GitHub-hosted machines and
-replay the messages that `main`'s build logged for unchanged modules.
+Actions. On a push to `main`, the `proofs` job and the one job of the
+`translation-part` matrix (the whole of `no-sorry.sh`) run on the project's
+self-hosted runners and every other job, `translation` included, on GitHub-hosted
+machines; a pull request's `proofs` and `translation-part` jobs run on
+GitHub-hosted machines and replay the messages that `main`'s build logged for
+unchanged modules.
 
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
