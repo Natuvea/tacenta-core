@@ -313,8 +313,12 @@ verifies that copy against the commit. Both run the negative cases of the attest
 (`tacenta-proofs/scripts/check-attest-negatives.sh`), but in different shapes: the script runs them on one
 machine's cores, and the workflow splits them over sixteen machines (the `attest-negatives-slice` matrix), with
 a further job (`attest-negatives`) that prints the script's final line only when the sixteen slices are the
-slices of one run of the commit under test and their shards together pass the check the script makes on one
-machine. So a green local run is the gate above less the
+slices of one run of the commit under test, their shards together pass the check the script makes on one
+machine, and the walk has at least the number of cases in `tacenta-proofs/scripts/attest-negatives-case-floor.txt`
+(the floor catches a walk cut short, not a case replaced by another). That job runs whatever the matrix gave and
+fails at its first step when a slice failed, rather than being skipped. It is not one of the contexts branch
+protection requires on main, and making it one is a repository setting; until then a failed slice blocks a merge
+through the required `assurance-receipts` job, whose collector refuses the missing receipt. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 
