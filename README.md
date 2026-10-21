@@ -285,7 +285,8 @@ of the lifecycle dispatch layer that are recorded as false or empty (this does n
 show the remaining records satisfiable: `GAP-REGISTER.md`, row
 `DISPATCH-EVIDENCE-VACUITY`, stays open). In the workflow a pull request reuses the Lean build outputs of the
 newest successful push to main with the same toolchain and dependency pins, and
-rebuilds only what its changes invalidate. A module that did not change is not
+rebuilds only what its changes invalidate (each part of the translation's check restores the same outputs and
+rebuilds for itself). A module that did not change is not
 re-elaborated on the pull request: the messages main's build logged for it, which
 the `sorry` scan and the axiom comparison read, are replayed. Every push to main
 builds from nothing, and every run replays the modules under `Translation/`,
@@ -318,7 +319,22 @@ machine, and the walk has at least the number of cases in `tacenta-proofs/script
 (the floor catches a walk cut short, not a case replaced by another). That job runs whatever the matrix gave and
 fails at its first step when a slice failed, rather than being skipped. It is not one of the contexts branch
 protection requires on main, and making it one is a repository setting; until then a failed slice blocks a merge
-through the required `assurance-receipts` job, whose collector refuses the missing receipt. So a green local run is the gate above less the
+through the required `assurance-receipts` job, whose collector refuses the missing receipt. The translation's
+`tacenta-proofs/scripts/no-sorry.sh` likewise runs whole in the script and in parts in the workflow. The script
+is a list of named phases; each job of the `translation-part` matrix runs one part of
+`tacenta-proofs/scripts/no-sorry-parts.txt`, that is the three package builds with their `sorry` scans (which
+every part runs, since every other phase reads what they built) and the part's own phases, and the `translation`
+job prints the line a whole run ends with (`no-sorry: all N phases passed`) only when the part directories are
+exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
+clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
+phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
+request runs fourteen parts on GitHub-hosted machines; a push to main runs one part with every phase on the
+self-hosted runner, as the job did before the split, and only that part saves the build outputs pull requests
+restore. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and fails at its
+first step when a part failed, rather than being skipped. Each part writes its own manifest, so a part
+directory made to look right by something other than the script is not detected; the hosted run of the matrix
+and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
+combiner's refusals on stubbed phases). So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.
 
