@@ -148,10 +148,10 @@ receipt's sending chain and the sparse chain the initiator receives on, takes no
 relates to the model's step; the receipt's root-key and agreement equations and the equal associated data are kept
 on that route.  No law is added; one reach run's responder encrypts after the receipt.
 `UnitLifecycleResponderReplyReceipt.lean` takes those bytes to the initiator, on the same run: its public
-`Session::decrypt` at the session its first `encrypt` left has exactly four outcomes (the draw's agreement refused, the
-reply's ratchet key the peer key it already holds, the open refused, or success), and when the responder's fresh ratchet
-key is not that peer key (a per-run premise) it returns the responder's plaintext, takes one draw, clears the pending
-initial message and relates to the model's step.  The laws are the receipt's, with the roles swapped; a new joint model
+`Session::decrypt` at the session its first `encrypt` left is analysed into the four arms of the model's step, of which
+the theorem's own premises (contributory agreement, AEAD round trip) exclude two: it refuses `NoReceivingChain` exactly
+when the reply's ratchet key is the peer key it already holds, and otherwise returns the responder's plaintext, takes
+one draw, clears the pending initial message and relates to the model's step.  The laws are the receipt's, with the roles swapped; a new joint model
 with a public key that varies holds them all, and the reach's law `DhPublicNotConstant` with them.  One reach run's
 initiator receives the reply, and another, whose responder draws its own signed prekey secret, refuses it.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions

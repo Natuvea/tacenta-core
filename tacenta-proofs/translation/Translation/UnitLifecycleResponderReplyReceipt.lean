@@ -29,7 +29,9 @@ the responder's receipt of `bytes` (`sB'`), the responder's reply (`bytesR`), th
   from `initiator_first_send_responder_replies`, the invariant, relation, counter ceilings and honest chunks at `s'`
   from `established_encrypt_successor_hypotheses` on the same first send, the refinement of the public `decrypt`
   from `decrypt_refines_ratchet_frame_of_counter_headroom` at the initiator's oracle with the source's draws, and the
-  model's step from `reply_receipt_model_outcomes`.  `initiator_receives_reply` takes the success arm.
+  model's step from `reply_receipt_model_outcomes`.  `initiator_receives_reply_two_outcomes` excludes two of its four
+  arms under its own premises (`DhAgreeContributory`, `AeadRoundTrip`), and `initiator_receives_reply` takes the success
+  arm.
 
 ## The statements
 
@@ -37,13 +39,20 @@ the responder's receipt of `bytes` (`sB'`), the responder's reply (`bytesR`), th
   records `DecryptRatchetContracts` and `DecryptRatchetAgreements` at the initiator's source and oracle, and the
   per-run premise that the initiator's source after its first send holds a draw `dA`: the responder's `encrypt`
   returns `bytesR` (the reply frame under the key the initiator's receiving chain derives) and the initiator's
-  `decrypt` of `bytesR` at `s'` from `rng'` returns, takes exactly `dA`, and is exactly one of
+  `decrypt` of `bytesR` at `s'` from `rng'` returns, takes exactly `dA`, and is one of four arms:
   `Handshake(NonContributoryAgreement)` (the initiator's draw's agreement with the reply's key refused),
   `Triple(Classical(NoReceivingChain))` (the reply's ratchet key is the peer key the initiator holds), `Aead` (the
-  open refused) with the session unchanged, or `Ok` of what the open returned with the session related to
+  initiator's open of the responder's own seal refused) with the session unchanged, or `Ok` of what the open returned
+  with the session related to `replyReceiptSession`.  This is the general outcomes analysis: the `Handshake` and `Aead`
+  arms are those the model step lists, and under the theorem's own premises they do not occur (next item).  The `Aead`
+  arm is not the refusal of a bad frame: the frame here is the responder's own.
+* `initiator_receives_reply_two_outcomes`: under exactly the same hypotheses, `DhAgreeContributory` and `AeadRoundTrip`
+  exclude the `Handshake` and `Aead` arms, so the `decrypt` either refuses `Triple(Classical(NoReceivingChain))` with
+  the session unchanged, exactly when the reply's ratchet key is the peer key the initiator holds, or returns `Ok ptA`
+  with `ptA` the bytes of the responder's plaintext, the pending initial message cleared and the session related to
   `replyReceiptSession`.
-* `initiator_receives_reply`: with `DhAgreeContributory`, `AeadRoundTrip` and the per-run premise `hfreshB` that the
-  responder's fresh ratchet public key is not the peer key the initiator holds, the `decrypt` returns `Ok ptA` with
+* `initiator_receives_reply`: adding only the per-run premise `hfreshB` to those hypotheses (that the responder's fresh
+  ratchet public key is not the peer key the initiator holds), the `decrypt` returns `Ok ptA` with
   `ptA` the bytes of the responder's plaintext, takes exactly `dA`, clears the pending initial message, writes only
   the Triple Ratchet, the agreement and the ratchet key, and the session refines `replyReceiptSession` of the model
   session the first send left (Triple `initiatorAfterReply`, agreement unchanged, no pending initial message).
@@ -53,8 +62,8 @@ the responder's receipt of `bytes` (`sB'`), the responder's reply (`bytesR`), th
   the base point, so the responder's fresh key always equals its signed prekey's and the receipt refuses).
 * `reply_receipt_reach_run`, `first_send_reply_receipt_reachable`, `first_send_reply_stale_reachable`: at the real
   constants under the reach's laws, one run from `publish` through the first send, the responder's receipt and reply,
-  for every 32-byte responder source; with a source chosen by `DhPublicNotConstant` the initiator's `decrypt` returns
-  the empty plaintext, and with the responder's own signed prekey secret as its source it refuses
+  for every 32-byte responder source and every reply plaintext of at most 4096 bytes; with a source chosen by
+  `DhPublicNotConstant` the initiator's `decrypt` returns that plaintext, and with the responder's own signed prekey secret as its source it refuses
   `Triple(Classical(NoReceivingChain))`.
 
 ## Laws and premises
@@ -94,12 +103,18 @@ result rests on the kernel and opaque constants only (pins below).
 canonical and not all zero and the base point otherwise, and an agreement that refuses the all-zero key and otherwise
 returns the base point.  It is a toy: nothing about X25519 is modelled beyond these shapes.  Every conjunct of
 `first_receipt_laws_model` is proved again there.  `first_send_reply_receipt_reachable` exhibits, at the real constants
-under the reach's laws, one run (last-resort path, empty plaintexts, the initiator's source the 64-byte seed and 32
-further bytes, the responder's source chosen by `DhPublicNotConstant`) at which every premise of
-`initiator_receives_reply` holds, `hfreshB` included, and the initiator's `decrypt` returns the plaintext.
+under the reach's laws, one run for every reply plaintext of at most 4096 bytes (last-resort path, the initiator's
+first plaintext empty, the initiator's source the 64-byte seed and 32 further bytes, the responder's source chosen by
+`DhPublicNotConstant`) at which every premise of `initiator_receives_reply` holds, `hfreshB` included, and the
+initiator's `decrypt` returns the responder's plaintext.  The toy's agreement ignores the private key: it returns the
+base point for every key that is not all zero, so symmetry and contributoriness hold degenerately and every agreement
+value (`dSend`, `x`) is the same constant; the toy cannot tell which key sealed the reply, and that a non-degenerate
+symmetric agreement is consistent with the other laws rests on reading X25519, not on this model.
 
 ## What it does not show
 
+* That a tampered or foreign reply frame is refused: no AEAD authenticity law is assumed, and the `Aead` arm above is
+  the open of the responder's own seal, excluded by `AeadRoundTrip`.
 * A second message in either direction: a second reply, the initiator's next send and the header's later chunks
   (which do need a per-run premise relating the two parties' Braid KEMs), the responder's first sampling send.
 * `Session::invariant` or the ceilings at the session the receipt of the reply returns, or at the responder's session
@@ -515,20 +530,22 @@ per-run premise that the initiator's source after its first send holds a draw `d
 `Usize.max - 150` bytes and every source state `rngR` of the responder, the responder's `encrypt` at `sB'` returns
 bytes `bytesR` (the bare reply frame under the key the initiator's receiving chain will derive: the root `rootKey`
 after the agreement `dSend`), and the initiator's public `decrypt` of those bytes at the session `s'` its first
-send left, from the source `rng'` that send left, returns, takes exactly the draw `dA`, and its result is exactly
-one of
+send left, from the source `rng'` that send left, returns, takes exactly the draw `dA`, and its result is one of the
+four arms the model's step lists:
 * `Handshake(NonContributoryAgreement)`, exactly when the initiator oracle's agreement of `dA` with the reply's
   ratchet key is refused; the session unchanged;
 * `Triple(Classical(NoReceivingChain))`, when that agreement returns and the reply's ratchet key is the peer key
   the initiator holds (the responder's fresh public key is its signed prekey's): no Diffie-Hellman step; the
   session unchanged;
-* `Aead`, when the reply's ratchet key is fresh and the initiator oracle's open of the responder oracle's seal is
-  refused; the session unchanged;
+* `Aead`, when the reply's ratchet key is fresh and the initiator oracle's open of the responder oracle's own seal is
+  refused (not the refusal of a bad frame); the session unchanged;
 * `Ok` of bytes that are what that open returned, the session with only the Triple Ratchet, the agreement and the
   ratchet key written and the pending initial message cleared, related to the model session
   `replyReceiptSession`.
-No other outcome of the call occurs on these bytes.  Compiler-trusted through the nine `native_decide` constants of
-the encrypt and decrypt refinements. -/
+No other outcome of the call occurs on these bytes.  This is the general analysis: the theorem's own premises
+`DhAgreeContributory` and `AeadRoundTrip` exclude the `Handshake` and `Aead` arms
+(`initiator_receives_reply_two_outcomes`).  Compiler-trusted through the nine `native_decide` constants of the
+encrypt and decrypt refinements. -/
 theorem initiator_receives_reply_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -743,9 +760,139 @@ theorem initiator_receives_reply_outcomes [Tacenta.SessionUnitT1.DerivedKeysMode
       exact ⟨ptA, x, y, rfl, hsome, hpeer, hopen, hres,
         Tacenta.UnitLifecycleAtomicity.decrypt_ok_writes rc crc _ _ _ ptA s'' rngA' hcallA, hsess⟩
 
+/-- **The initiator's `decrypt` of the reply has two outcomes, told apart by the reply's ratchet key**, on the run of
+the initiator's first send.  Under exactly the hypotheses of `initiator_receives_reply_outcomes`, whose
+`DhAgreeContributory` and `AeadRoundTrip` exclude its `Handshake(NonContributoryAgreement)` and `Aead` arms (the
+initiator's draw agrees with the reply's ratchet key; the initiator oracle opens the responder oracle's own seal): the
+responder's `encrypt` at `sB'` returns `bytesR`, and the initiator's `decrypt` of `bytesR` at `s'` from `rng'` returns,
+takes exactly the draw `dA`, and
+* refuses `Triple(Classical(NoReceivingChain))` with the session unchanged exactly when the reply's ratchet key is the
+  peer key the initiator holds, and
+* otherwise returns `Ok ptA` with `ptA` the bytes of `ptR`, clears the pending initial message, writes only the Triple
+  Ratchet, the agreement and the ratchet key, and its session refines `replyReceiptSession`.
+The two agreements `dSend` and `x` the relation names are in the conclusion.  No premise is added to those of
+`initiator_receives_reply_outcomes`.  Compiler-trusted through the nine `native_decide` constants of the encrypt and
+decrypt refinements. -/
+theorem initiator_receives_reply_two_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (braid : BraidSendRefinementContracts rc oracle.braidKem)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (oracleOf : OracleOf rc crc dh kem trace oracle) (codec : DhCodecOf dh)
+    (codewordView : CodewordViewSendOf view)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hgen : Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace)
+    (hsizes : Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf oracle.braidKem)
+    (hct : Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf)
+    (hbound : Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound)
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E) (ourA : lifecycle.Identity)
+    (bundleA : lifecycle.PublishedBundle) (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E)
+    (s : lifecycle.Session)
+    (h : lifecycle.establish_initiator_for rcE crcE ourA bundleA expected rng0 =
+      ok (core.result.Result.Ok s, rng1))
+    (q : InitiatorSecretParts rcE crcE ourA bundleA) (hq : s = q.session)
+    (plaintext : Slice Std.U8) (hroom : plaintext.val.length + 65770 ≤ Usize.max)
+    (rng : R) (htrace : trace rng = oracle.draws) (d1 d2 : Model.Lifecycle.Key)
+    (rest : List Model.Lifecycle.Key) (hdraws : trace rng = d1 :: d2 :: rest)
+    (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok bytes, s', rng'))
+    (contractsA : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (agreementsA : DecryptRatchetAgreements oracle.braidKem)
+    (dA : Model.Lifecycle.Key) (restA : List Model.Lifecycle.Key) (hdrawA : trace rng' = dA :: restA)
+    (rcB : rand_core_1.RngCore F) (crcB : rand_core_1.CryptoRng F)
+    (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
+    (hpub : DhPublicValid) (hsym : DhAgreeSymmetric) (hcon : DhAgreeContributory) (haead : AeadRoundTrip)
+    (hrt : Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip)
+    (hoeq : Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+      (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    (traceB : F → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle)
+    (oracleOfB : OracleOf rcB crcB dh kem traceB oracleB)
+    (braidB : BraidSendRefinementContracts rcB oracleB.braidKem)
+    (agreements : DecryptRatchetAgreements oracleB.braidKem)
+    (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore)
+    (hpublish : lifecycle.PrekeyStore.publish storeB = ok bundleA)
+    (hidentity : lifecycle.Identity.public ourB = ok storeB.identity_public)
+    (hdistinct : PrekeyIdsDistinct storeB)
+    (hkem : FirstKemAgrees storeB bundleA.kem_prekey_id q.kemCiphertext q.kemSecret)
+    (rngB : F) (htraceB : traceB rngB = oracleB.draws) (dB : Model.Lifecycle.Key)
+    (restB : List Model.Lifecycle.Key) (hdrawB : traceB rngB = dB :: restB)
+    (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : F)
+    (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =
+      ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
+    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max) (rngR : F) :
+    ∃ (dSend x : Model.Lifecycle.Key) (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session)
+      (res : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error) (s'' : lifecycle.Session) (rngA' : R),
+      oracleB.dhAgree dB (arrayOf q.ratchetBytes) = some dSend ∧
+      oracle.dhAgree dA (oracleB.dhPublic dB) = some x ∧
+      lifecycle.Session.encrypt rcB crcB sB' ptR rngR = ok (core.result.Result.Ok bytesR, sB'', rngR) ∧
+      vecOf bytesR = replyFrame oracleB (vecOf q.identityAd) (oracleB.dhPublic dB)
+        (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2 (arrayOf q.sparseReceive)) (sliceOf ptR) ∧
+      lifecycle.Session.decrypt rc crc s' (alloc.vec.Vec.deref bytesR) rng' = ok (res, s'', rngA') ∧
+      trace rngA' = restA ∧
+      ((oracleB.dhPublic dB = arrayOf q.peerRatchetBytes ∧
+          res = core.result.Result.Err (lifecycle.Error.Triple
+            (tacenta_triple.TripleError.Classical tacenta_ratchet.RatchetError.NoReceivingChain)) ∧ s'' = s') ∨
+        (oracleB.dhPublic dB ≠ arrayOf q.peerRatchetBytes ∧
+          ∃ ptA : alloc.vec.Vec Std.U8, res = core.result.Result.Ok ptA ∧ ptA.val = ptR.val ∧
+          s''.pending_initial = none ∧
+          s'' = { s' with
+            triple := s''.triple, braid := s''.braid, ratchet_private := s''.ratchet_private,
+            pending_initial := none } ∧
+          SessionRefines dh oracle.braidKem s''
+            (replyReceiptSession
+              (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session
+              (arrayOf q.rootKey) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive) dSend x
+              (oracleB.dhPublic dB) (oracle.dhPublic dA) dA))) := by
+  obtain ⟨dSend, bytesR, sB'', res, s'', rngA', hagreeB, hcallR, hbytes, hcallA, hdr, hcases⟩ :=
+    initiator_receives_reply_outcomes rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec
+      codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
+      plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall contractsA agreementsA dA restA hdrawA rcB
+      crcB contracts hpub hsym hcon haead hrt hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish
+      hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR
+  -- the candidate agreement returns (contributory), and the responder's seal opens (round trip)
+  obtain ⟨-, k, pk, b, -, -, -, hpk, -, -, hpkb, hnew⟩ :=
+    fresh_public_of_draw hpub codec (DecryptOracleOf.of_oracleOf oracleOfB) rngB dB restB hdrawB
+  have oracleOfA : DecryptOracleOf rc crc dh trace oracle := DecryptOracleOf.of_oracleOf oracleOf
+  obtain ⟨x0, hx0⟩ := initiator_candidate_agreement hcon codec
+    (DecryptOracleOf.of_oracleOf (oracleOf_with_draws oracleOf (trace rng'))) rng' dA restA hdrawA k pk hpk
+  rw [hpkb, ← hnew] at hx0
+  have hlen : (oracleB.dhPublic dB).length = 32 := by rw [hnew]; simp [arrayOf]
+  subst hq
+  have hopen := aead_open_sealed haead oracleOfB.aeadSeal oracleOfA
+    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
+      (arrayOf q.sparseReceive)) .tacenta).1
+    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
+      (arrayOf q.sparseReceive)) .tacenta).2.1
+    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
+      (arrayOf q.sparseReceive)) .tacenta).2.2
+    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length])
+    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length])
+    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length]) ptR (by omega)
+    (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB))
+    (replyAd_length_le dhCodec q.toInitiatorOutputParts _ hlen)
+  rcases hcases with ⟨-, hnone, -⟩ | ⟨hres, -, hpeer, hs⟩ | ⟨-, -, -, hopen', -⟩ |
+    ⟨ptA, x, y, hres, hsome, hne, hopen', hvec, hs'', hsess⟩
+  · rw [hx0] at hnone; cases hnone
+  · exact ⟨dSend, x0, bytesR, sB'', res, s'', rngA', hagreeB, hx0, hcallR, hbytes, hcallA, hdr,
+      Or.inl ⟨hpeer, hres, hs⟩⟩
+  · simp only [firstOpen] at hopen'
+    rw [hopen] at hopen'
+    cases hopen'
+  · simp only [firstOpen] at hopen'
+    rw [hopen] at hopen'
+    cases hopen'
+    exact ⟨dSend, x, bytesR, sB'', res, s'', rngA', hagreeB, hsome, hcallR, hbytes, hcallA, hdr,
+      Or.inr ⟨hne, ptA, hres, Tacenta.UnitLifecycleEstablishResponder.map_u8_inj hvec, by rw [hs''], hs'', hsess⟩⟩
+
 /-- **The initiator receives the responder's reply, on the run of the initiator's first send.**  Under the
 hypotheses of `initiator_receives_reply_outcomes` and the per-run premise that the responder's fresh ratchet public
-key (`oracleB.dhPublic dB`, from its draw) is not the peer key the initiator holds (its signed prekey's bytes): at
+key (`oracleB.dhPublic dB`, from its draw) is not the peer key the initiator holds (its signed prekey's bytes), the
+only premise added (`initiator_receives_reply_two_outcomes` with its stale-key arm excluded): at
 every successful return of `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every
 plaintext `ptR` of at most `Usize.max - 150` bytes and every source state `rngR` of the responder, the responder's
 `encrypt` at `sB'` returns bytes `bytesR`, and the initiator's public `decrypt` of those bytes at the session `s'`
@@ -827,46 +974,18 @@ theorem initiator_receives_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F
           (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session
           (arrayOf q.rootKey) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive) dSend x
           (oracleB.dhPublic dB) (oracle.dhPublic dA) dA) := by
-  obtain ⟨dSend, bytesR, sB'', res, s'', rngA', hagreeB, hcallR, hbytes, hcallA, hdr, hcases⟩ :=
-    initiator_receives_reply_outcomes rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec
+  obtain ⟨dSend, x, bytesR, sB'', res, s'', rngA', hagreeB, hx, hcallR, hbytes, hcallA, hdr, hcases⟩ :=
+    initiator_receives_reply_two_outcomes rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec
       codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall contractsA agreementsA dA restA hdrawA rcB
       crcB contracts hpub hsym hcon haead hrt hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish
       hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR
-  -- the candidate agreement returns (contributory), and the responder's seal opens (round trip)
-  obtain ⟨-, k, pk, b, -, -, -, hpk, -, -, hpkb, hnew⟩ :=
-    fresh_public_of_draw hpub codec (DecryptOracleOf.of_oracleOf oracleOfB) rngB dB restB hdrawB
-  have oracleOfA : DecryptOracleOf rc crc dh trace oracle := DecryptOracleOf.of_oracleOf oracleOf
-  obtain ⟨x0, hx0⟩ := initiator_candidate_agreement hcon codec
-    (DecryptOracleOf.of_oracleOf (oracleOf_with_draws oracleOf (trace rng'))) rng' dA restA hdrawA k pk hpk
-  rw [hpkb, ← hnew] at hx0
-  have hlen : (oracleB.dhPublic dB).length = 32 := by rw [hnew]; simp [arrayOf]
-  subst hq
-  have hopen := aead_open_sealed haead oracleOfB.aeadSeal oracleOfA
-    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-      (arrayOf q.sparseReceive)) .tacenta).1
-    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-      (arrayOf q.sparseReceive)) .tacenta).2.1
-    (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-      (arrayOf q.sparseReceive)) .tacenta).2.2
-    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length])
-    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length])
-    (by simp [Model.State.messageKeys, Model.Kdf.hkdf_length]) ptR (by omega)
-    (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB))
-    (replyAd_length_le dhCodec q.toInitiatorOutputParts _ hlen)
-  rcases hcases with ⟨-, hnone, -⟩ | ⟨-, -, hpeer, -⟩ | ⟨-, -, -, hopen', -⟩ |
-    ⟨ptA, x, y, hres, hsome, -, hopen', hvec, hs'', hsess⟩
-  · rw [hx0] at hnone; cases hnone
+  -- the fresh-key premise excludes the stale-key refusal
+  rcases hcases with ⟨hpeer, -, -⟩ | ⟨-, ptA, hres, hpt, hpend, hs'', hsess⟩
   · exact absurd hpeer hfreshB
-  · simp only [firstOpen] at hopen'
-    rw [hopen] at hopen'
-    cases hopen'
   · subst hres
-    simp only [firstOpen] at hopen'
-    rw [hopen] at hopen'
-    cases hopen'
-    refine ⟨dSend, x, bytesR, sB'', ptA, s'', rngA', hagreeB, hsome, hcallR, hbytes, hcallA,
-      Tacenta.UnitLifecycleEstablishResponder.map_u8_inj hvec, hdr, by rw [hs''], hs'', hsess⟩
+    exact ⟨dSend, x, bytesR, sB'', ptA, s'', rngA', hagreeB, hx, hcallR, hbytes, hcallA, hpt, hdr, hpend, hs'',
+      hsess⟩
 
 end Comp
 
@@ -1248,17 +1367,17 @@ open Tacenta.UnitLifecycleEstablishedEncrypt (EstablishedEncryptHypotheses Encry
 /-- **One run from `publish` to the responder's reply, for every 32-byte responder source, with the initiator's
 receipt of the reply**: at the real constants, under the laws of `first_send_receive_reachable` (all assumed), for
 every initiator identity, every 64-byte seed at whose bytes the model's key generation answers and every 32 further
-bytes, there are a prekey store, its owner and the bundle it publishes (the store's signed prekey secret gives,
-through `from_bytes`, `public_key` and `as_bytes`, the peer key bytes the initiator holds), a successful
-establishment against that bundle and a first send of the empty plaintext from the seed followed by the 32 bytes,
-such that the oracle's public key of any 32 bytes is the bytes of the boundary's public key of them, and for every
-32-byte responder source `establish_responder` on the first send's bytes succeeds, the responder's `encrypt` of the
-empty plaintext from the source it left returns bytes, and the initiator's `decrypt` of those bytes from the source
-its first send left
-* returns the empty plaintext and clears the pending initial message when the oracle's public key of the responder's
+bytes, and every reply plaintext `ptR` of at most 4096 bytes, there are a prekey store, its owner and the bundle it
+publishes (the store's signed prekey secret gives, through `from_bytes`, `public_key` and `as_bytes`, the peer key
+bytes the initiator holds), a successful establishment against that bundle and a first send of the empty plaintext
+from the seed followed by the 32 bytes, such that the oracle's public key of any 32 bytes is the bytes of the
+boundary's public key of them, and for every 32-byte responder source `establish_responder` on the first send's bytes
+succeeds, the responder's `encrypt` of `ptR` from the source it left returns bytes, and the initiator's `decrypt` of
+those bytes from the source its first send left
+* returns `ptR` and clears the pending initial message when the oracle's public key of the responder's
   draw is not the peer key the initiator holds, and
 * refuses `Triple(Classical(NoReceivingChain))` with the session unchanged when it is.
-It applies `initiator_receives_reply` and `initiator_receives_reply_outcomes` to that run; the two parties share
+It applies `initiator_receives_reply_two_outcomes` to that run; the two parties share
 the oracle up to its draws and the byte-stream source type.  Last-resort path only.  Compiler-trusted. -/
 theorem reply_receipt_reach_run (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
@@ -1273,7 +1392,8 @@ theorem reply_receipt_reach_run (K : Model.Braid.Kem) (dh : DhView)
     (hcon : DhAgreeContributory) (haead : AeadRoundTrip)
     (ourA : lifecycle.Identity) (seed : List Std.U8) (hseed : seed.length = 64)
     (extra : List Std.U8) (hextra : extra.length = 32)
-    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none) :
+    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none)
+    (ptR : Slice Std.U8) (hptR : ptR.val.length ≤ 4096) :
     ∃ (oracle : Model.Lifecycle.Oracle) (bundle : lifecycle.PublishedBundle)
       (q : InitiatorSecretParts byteRng byteCrc ourA bundle) (bytes : alloc.vec.Vec Std.U8)
       (s' : lifecycle.Session) (rng' : List Std.U8) (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore)
@@ -1294,13 +1414,13 @@ theorem reply_receipt_reach_run (K : Model.Braid.Kem) (dh : DhView)
           (rngB' : List Std.U8) (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session),
           lifecycle.establish_responder byteRng byteCrc ourB storeB (alloc.vec.Vec.deref bytes) seedB =
             ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-          lifecycle.Session.encrypt byteRng byteCrc sB' emptyPlaintext rngB' =
+          lifecycle.Session.encrypt byteRng byteCrc sB' ptR rngB' =
             ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
           (oracle.dhPublic (seedB.map Tacenta.SessionUnitBraidT3.u8) ≠ arrayOf q.peerRatchetBytes →
             ∃ (ptA : alloc.vec.Vec Std.U8) (s'' : lifecycle.Session) (rngA' : List Std.U8),
               lifecycle.Session.decrypt byteRng byteCrc s' (alloc.vec.Vec.deref bytesR) rng' =
                 ok (core.result.Result.Ok ptA, s'', rngA') ∧
-              ptA.val = emptyPlaintext.val ∧ s''.pending_initial = none) ∧
+              ptA.val = ptR.val ∧ s''.pending_initial = none) ∧
           (oracle.dhPublic (seedB.map Tacenta.SessionUnitBraidT3.u8) = arrayOf q.peerRatchetBytes →
             ∃ rngA' : List Std.U8,
               lifecycle.Session.decrypt byteRng byteCrc s' (alloc.vec.Vec.deref bytesR) rng' =
@@ -1436,52 +1556,36 @@ theorem reply_receipt_reach_run (K : Model.Braid.Kem) (dh : DhView)
     · simp [storeB, reachStore] at hleg
     · simp [storeB, reachStore] at hx
     · exact hne' (by simp [storeB, reachStore])
-  -- every outcome of the initiator's receipt of the reply on this run
-  obtain ⟨dSend', bytesR, sB'', res, s'', rngA', -, hcallR, -, hcallA, -, hcases⟩ :=
-    initiator_receives_reply_outcomes byteRng byteCrc byteTrace dh kem Tacenta.UnitLifecycleRepair.witnessView oracle
-      H.braid H.triple H.aead H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32
+  -- the two outcomes of the initiator's receipt of the reply on this run
+  obtain ⟨_dSend, _x, bytesR, sB'', res, s'', rngA', -, -, hcallR, -, hcallA, -, hcases⟩ :=
+    initiator_receives_reply_two_outcomes byteRng byteCrc byteTrace dh kem Tacenta.UnitLifecycleRepair.witnessView
+      oracle H.braid H.triple H.aead H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32
       H.zeroizingKeys H.keyGen hsizes H.kemCiphertextLen H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1
       q.session H.established q rfl emptyPlaintext H.room (seed ++ extra) H.trace_eq _ _ _ htr bytes s' rng' hcall
       contracts.decrypt ag _ [] hdrawA byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq byteTrace
       oracleB oracleOfB H.braid ag ourB storeB hpublish hidentity hdistinct hkem seedB rfl _ [] hdrB ptB sB'
-      storeB' rngB' hcallB emptyPlaintext (by simp [emptyPlaintext]; omega) rngB'
+      storeB' rngB' hcallB ptR (by omega) rngB'
   refine ⟨sB', ptB, storeB', rngB', bytesR, sB'', hcallB, hcallR, ?_, ?_⟩
   · intro hfresh
-    obtain ⟨-, -, bytesR2, sB2, ptA, sA2, rngA2, -, -, hcallR2, -, hcallA2, hpt, -, hpend, -⟩ :=
-      initiator_receives_reply byteRng byteCrc byteTrace dh kem Tacenta.UnitLifecycleRepair.witnessView oracle
-        H.braid H.triple H.aead H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32
-        H.zeroizingKeys H.keyGen hsizes H.kemCiphertextLen H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1
-        q.session H.established q rfl emptyPlaintext H.room (seed ++ extra) H.trace_eq _ _ _ htr bytes s' rng'
-        hcall contracts.decrypt ag _ [] hdrawA byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq
-        byteTrace oracleB oracleOfB H.braid ag ourB storeB hpublish hidentity hdistinct hkem seedB rfl _ [] hdrB
-        ptB sB' storeB' rngB' hcallB emptyPlaintext (by simp [emptyPlaintext]; omega) rngB' hfresh
-    rw [hcallR] at hcallR2
-    simp only [ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hcallR2
-    obtain ⟨rfl, rfl, -⟩ := hcallR2
-    exact ⟨ptA, sA2, rngA2, hcallA2, hpt, hpend⟩
+    rcases hcases with ⟨hpeer, -, -⟩ | ⟨-, ptA, hres, hpt, hpend, -, -⟩
+    · exact absurd hpeer hfresh
+    · subst hres
+      exact ⟨ptA, s'', rngA', hcallA, hpt, hpend⟩
   · intro hstale
-    -- the candidate agreement returns (contributory), so the refusing arm is the stale one
-    obtain ⟨-, k, pk, b, -, -, -, hpk, -, -, hpkb, hnew⟩ :=
-      fresh_public_of_draw hpub H.codec (DecryptOracleOf.of_oracleOf oracleOfB) seedB _ [] hdrB
-    obtain ⟨x0, hx0⟩ := initiator_candidate_agreement hcon H.codec
-      (DecryptOracleOf.of_oracleOf (oracleOf_with_draws H.oracleOf (byteTrace rng'))) rng' _ [] hdrawA k pk hpk
-    rw [hpkb, ← hnew] at hx0
-    rcases hcases with ⟨-, hnone, -⟩ | ⟨hres, -, -, hs⟩ | ⟨-, -, hne, -⟩ | ⟨-, -, -, -, -, hne, -⟩
-    · rw [hnone] at hx0; cases hx0
+    rcases hcases with ⟨-, hres, hs⟩ | ⟨hne, -⟩
     · subst hres hs
       exact ⟨rngA', hcallA⟩
-    · exact absurd hstale hne
     · exact absurd hstale hne
 
 open Tacenta.UnitSatisfiabilityJoint (InitiatorAxiom ResponderAxiom) in
 open Tacenta.UnitLifecycleEstablishedEncrypt (EncryptExtraLaws emptyPlaintext) in
 /-- **The reach of the reply's receipt**: at the real constants, under the laws of `first_send_receive_reachable`
 (all assumed) and the law `DhPublicNotConstant`, for every initiator identity, every 64-byte seed at whose bytes the
-model's key generation answers and every 32 further bytes: there is a run (`reply_receipt_reach_run`) whose
-responder source is chosen by `DhPublicNotConstant` so that the responder's fresh public key is not the signed
-prekey's, in which `establish_responder` on the initiator's first-send bytes succeeds, the responder's `encrypt` of
-the empty plaintext returns bytes, and the initiator's `decrypt` of those bytes from the source its first send left
-returns the empty plaintext and clears the pending initial message.  Last-resort path only.  Compiler-trusted. -/
+model's key generation answers, every 32 further bytes and every reply plaintext `ptR` of at most 4096 bytes: there
+is a run (`reply_receipt_reach_run`) whose responder source is chosen by `DhPublicNotConstant` so that the responder's
+fresh public key is not the signed prekey's, in which `establish_responder` on the initiator's first-send bytes
+succeeds, the responder's `encrypt` of `ptR` returns bytes, and the initiator's `decrypt` of those bytes from the
+source its first send left returns `ptR` and clears the pending initial message.  Last-resort path only.  Compiler-trusted. -/
 theorem first_send_reply_receipt_reachable (K : Model.Braid.Kem) (dh : DhView)
     (kem : Tacenta.UnitLifecycleT3.KemView) (L : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLaws K dh)
     (A : Nonempty (InitiatorAxiom Interp.real byteRng))
@@ -1495,7 +1599,8 @@ theorem first_send_reply_receipt_reachable (K : Model.Braid.Kem) (dh : DhView)
     (hcon : DhAgreeContributory) (haead : AeadRoundTrip) (hnc : DhPublicNotConstant)
     (ourA : lifecycle.Identity) (seed : List Std.U8) (hseed : seed.length = 64)
     (extra : List Std.U8) (hextra : extra.length = 32)
-    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none) :
+    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none)
+    (ptR : Slice Std.U8) (hptR : ptR.val.length ≤ 4096) :
     ∃ (oracle : Model.Lifecycle.Oracle) (bundle : lifecycle.PublishedBundle)
       (q : InitiatorSecretParts byteRng byteCrc ourA bundle) (bytes : alloc.vec.Vec Std.U8)
       (s' : lifecycle.Session) (rng' : List Std.U8) (ourB : lifecycle.Identity)
@@ -1508,14 +1613,14 @@ theorem first_send_reply_receipt_reachable (K : Model.Braid.Kem) (dh : DhView)
       lifecycle.PrekeyStore.publish storeB = ok bundle ∧
       lifecycle.establish_responder byteRng byteCrc ourB storeB (alloc.vec.Vec.deref bytes) seedB =
         ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-      lifecycle.Session.encrypt byteRng byteCrc sB' emptyPlaintext rngB' =
+      lifecycle.Session.encrypt byteRng byteCrc sB' ptR rngB' =
         ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
       lifecycle.Session.decrypt byteRng byteCrc s' (alloc.vec.Vec.deref bytesR) rng' =
         ok (core.result.Result.Ok ptA, s'', rngA') ∧
-      ptA.val = emptyPlaintext.val ∧ s''.pending_initial = none := by
+      ptA.val = ptR.val ∧ s''.pending_initial = none := by
   obtain ⟨oracle, bundle, q, bytes, s', rng', ourB, storeB, -, -, hK, hcall, hpublish, -, -, -, hpubOf, hrun⟩ :=
     reply_receipt_reach_run K dh kem L A S hpub hct X RA hsym hrt FS hsizes hcon haead ourA seed hseed extra hextra
-      hkg
+      hkg ptR hptR
   -- the responder's 32-byte source: a key whose public key is not the peer key the initiator holds
   obtain ⟨sbB, kF, pkF, bF, hkF, hpkF, hbF, hne⟩ := (dhPublicNotConstant_is.mp hnc) q.peerRatchetBytes
   obtain ⟨sB', ptB, storeB', rngB', bytesR, sB'', hcallB, hcallR, hok, -⟩ := hrun sbB.val (by simp)
@@ -1548,7 +1653,8 @@ theorem first_send_reply_stale_reachable (K : Model.Braid.Kem) (dh : DhView)
     (hcon : DhAgreeContributory) (haead : AeadRoundTrip)
     (ourA : lifecycle.Identity) (seed : List Std.U8) (hseed : seed.length = 64)
     (extra : List Std.U8) (hextra : extra.length = 32)
-    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none) :
+    (hkg : K.keyGen (Model.Lifecycle.braidRandomness (seed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none)
+    (ptR : Slice Std.U8) (hptR : ptR.val.length ≤ 4096) :
     ∃ (oracle : Model.Lifecycle.Oracle) (bundle : lifecycle.PublishedBundle)
       (q : InitiatorSecretParts byteRng byteCrc ourA bundle) (bytes : alloc.vec.Vec Std.U8)
       (s' : lifecycle.Session) (rng' : List Std.U8) (ourB : lifecycle.Identity)
@@ -1562,14 +1668,14 @@ theorem first_send_reply_stale_reachable (K : Model.Braid.Kem) (dh : DhView)
       lifecycle.establish_responder byteRng byteCrc ourB storeB (alloc.vec.Vec.deref bytes)
           storeB.signed_prekey_secret.val =
         ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-      lifecycle.Session.encrypt byteRng byteCrc sB' emptyPlaintext rngB' =
+      lifecycle.Session.encrypt byteRng byteCrc sB' ptR rngB' =
         ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
       lifecycle.Session.decrypt byteRng byteCrc s' (alloc.vec.Vec.deref bytesR) rng' =
         ok (core.result.Result.Err (lifecycle.Error.Triple
           (tacenta_triple.TripleError.Classical tacenta_ratchet.RatchetError.NoReceivingChain)), s', rngA') := by
   obtain ⟨oracle, bundle, q, bytes, s', rng', ourB, storeB, kB, pkb, hK, hcall, hpublish, hkB, hpkb, hpeer, hpubOf,
     hrun⟩ := reply_receipt_reach_run K dh kem L A S hpub hct X RA hsym hrt FS hsizes hcon haead ourA seed hseed extra
-      hextra hkg
+      hextra hkg ptR hptR
   obtain ⟨sB', ptB, storeB', rngB', bytesR, sB'', hcallB, hcallR, -, hstale⟩ :=
     hrun storeB.signed_prekey_secret.val (by simp)
   have hsame : oracle.dhPublic (storeB.signed_prekey_secret.val.map Tacenta.SessionUnitBraidT3.u8) =
@@ -1940,6 +2046,83 @@ info: 'Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outco
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outcomes
+
+/--
+info: 'Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.aead.encrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_boundary.dh.is_prime_order_public,
+ tacenta_boundary.kem.KeyPair,
+ tacenta_boundary.kem.ciphertext_len,
+ tacenta_boundary.kem.decapsulate,
+ tacenta_boundary.kem.encapsulate,
+ tacenta_boundary.xeddsa.sign,
+ tacenta_boundary.xeddsa.verify,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.is_empty,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_boundary.kem.KeyPair.public_key,
+ zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.SessionUnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.chain_start_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.SessionUnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.SessionUnitTripleT3.combine_info_agrees._native.native_decide.ax_1_1,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes
 
 /--
 info: 'Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply' depends on axioms: [propext,
@@ -2745,6 +2928,57 @@ info: @Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outco
 #check @Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_outcomes
 
 /--
+info: @Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes : ∀
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+  (trace : R → List Model.Lifecycle.Key) (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView)
+  (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle),
+  Tacenta.UnitLifecycleT3.BraidSendRefinementContracts rc oracle.braidKem →
+    Tacenta.UnitLifecycleT3.TripleSendRefinementContracts →
+      Tacenta.UnitLifecycleT1.AeadSealBounded →
+        Tacenta.UnitLifecycleT1.DhCodecTotal →
+          Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+            Tacenta.UnitLifecycleT3.DhCodecOf dh →
+              Tacenta.UnitLifecycleT3.CodewordViewSendOf view →
+                Tacenta.SessionUnitT3.ZeroizingRoundTrips80 →
+                  Tacenta.UnitLifecycleT3.ZeroizingRoundTrips (Std.Array U8 32#usize) →
+                    Tacenta.UnitLifecycleT3.ZeroizingRoundTrips
+                        (Std.Array U8 32#usize × Std.Array U8 32#usize × Std.Array U8 16#usize) →
+                      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSeededFor oracle.braidKem rc crc trace →
+                        Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf oracle.braidKem →
+                          Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+                            Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                              ∀ (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E)
+                                (ourA : lifecycle.Identity) (bundleA : lifecycle.PublishedBundle)
+                                (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E) (s : lifecycle.Session),
+                                lifecycle.establish_initiator_for rcE crcE ourA bundleA expected rng0 =
+                                    ok (core.result.Result.Ok s, rng1) →
+                                  ∀
+                                    (q :
+                                      Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcE crcE ourA
+                                        bundleA),
+                                    s = q.session →
+                                      ∀ (plaintext : Slice U8),
+                                        (↑plaintext).length + 65770 ≤ Usize.max →
+                                          ∀ (rng : R),
+                                            trace rng = oracle.draws →
+                                              ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                                                trace rng = d1 :: d2 :: rest →
+                                                  ∀ (bytes : alloc.vec.Vec U8) (s' : lifecycle.Session) (rng' : R),
+                                                    lifecycle.Session.encrypt rc crc s plaintext rng =
+                                                        ok (core.result.Result.Ok bytes, s', rng') →
+                                                      Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc →
+                                                        Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+                                                            oracle.braidKem →
+                                                          ∀ (dA : Model.Lifecycle.Key)
+                                                            (restA : List Model.Lifecycle.Key),
+                                                            trace rng' = dA :: restA →
+                                                              ∀ (rcB : rand_core_1.RngCore F)
+                                                                (crcB : rand_core_1.CryptoRng F), ⋯
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply_two_outcomes
+
+/--
 info: @Tacenta.UnitLifecycleResponderReplyReceipt.initiator_receives_reply : ∀ [Tacenta.SessionUnitT1.DerivedKeysModel]
   {R E F : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
   (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView) (view : Model.Lifecycle.CodewordView)
@@ -3006,52 +3240,46 @@ info: Tacenta.UnitLifecycleResponderReplyReceipt.reply_receipt_reach_run : ∀ (
                                           (Model.Lifecycle.braidRandomness
                                             (List.map Tacenta.SessionUnitBraidT3.u8 seed)) ≠
                                         none →
-                                      ∃ oracle bundle q bytes s' rng' ourB storeB kB pkb,
-                                        oracle.braidKem = K ∧
-                                          lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
-                                                Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext (seed ++ extra) =
-                                              ok (core.result.Result.Ok bytes, s', rng') ∧
-                                            storeB.publish = ok bundle ∧
-                                              tacenta_boundary.dh.PrivateKey.from_bytes storeB.signed_prekey_secret =
-                                                  ok kB ∧
-                                                kB.public_key = ok pkb ∧
-                                                  pkb.as_bytes = ok q.peerRatchetBytes ∧
-                                                    (∀ (sb : Std.Array U8 32#usize) (k : tacenta_boundary.dh.PrivateKey)
-                                                        (pk : tacenta_boundary.dh.PublicKeyBytes)
-                                                        (b : Std.Array U8 32#usize),
-                                                        tacenta_boundary.dh.PrivateKey.from_bytes sb = ok k →
-                                                          k.public_key = ok pk →
-                                                            pk.as_bytes = ok b →
-                                                              oracle.dhPublic (Tacenta.UnitLifecycleT3.arrayOf sb) =
-                                                                Tacenta.UnitLifecycleT3.arrayOf b) ∧
-                                                      ∀ (seedB : List U8),
-                                                        seedB.length = 32 →
-                                                          ∃ sB' ptB storeB' rngB' bytesR sB'',
-                                                            lifecycle.establish_responder
-                                                                  Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB
-                                                                  storeB bytes.deref seedB =
-                                                                ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-                                                              lifecycle.Session.encrypt
-                                                                    Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc sB'
-                                                                    Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
-                                                                    rngB' =
-                                                                  ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
-                                                                (⋯ → ⋯) ∧
-                                                                  (⋯ →
-                                                                    ∃ rngA',
-                                                                      lifecycle.Session.decrypt
-                                                                          Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc
-                                                                          s' bytesR.deref rng' =
-                                                                        ok
-                                                                          (core.result.Result.Err
-                                                                              (lifecycle.Error.Triple
-                                                                                (tacenta_triple.TripleError.Classical
-                                                                                  tacenta_ratchet.RatchetError.NoReceivingChain)),
-                                                                            s', rngA'))
+                                      ∀ (ptR : Slice U8),
+                                        (↑ptR).length ≤ 4096 →
+                                          ∃ oracle bundle q bytes s' rng' ourB storeB kB pkb,
+                                            oracle.braidKem = K ∧
+                                              lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
+                                                    Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
+                                                    (seed ++ extra) =
+                                                  ok (core.result.Result.Ok bytes, s', rng') ∧
+                                                storeB.publish = ok bundle ∧
+                                                  tacenta_boundary.dh.PrivateKey.from_bytes
+                                                        storeB.signed_prekey_secret =
+                                                      ok kB ∧
+                                                    kB.public_key = ok pkb ∧
+                                                      pkb.as_bytes = ok q.peerRatchetBytes ∧
+                                                        (∀ (sb : Std.Array U8 32#usize)
+                                                            (k : tacenta_boundary.dh.PrivateKey)
+                                                            (pk : tacenta_boundary.dh.PublicKeyBytes)
+                                                            (b : Std.Array U8 32#usize),
+                                                            tacenta_boundary.dh.PrivateKey.from_bytes sb = ok k →
+                                                              k.public_key = ok pk →
+                                                                pk.as_bytes = ok b →
+                                                                  oracle.dhPublic (Tacenta.UnitLifecycleT3.arrayOf sb) =
+                                                                    Tacenta.UnitLifecycleT3.arrayOf b) ∧
+                                                          ∀ (seedB : List U8),
+                                                            seedB.length = 32 →
+                                                              ∃ sB' ptB storeB' rngB' bytesR sB'',
+                                                                lifecycle.establish_responder
+                                                                      Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                                                      ourB storeB bytes.deref seedB =
+                                                                    ok
+                                                                      (core.result.Result.Ok (sB', ptB), storeB',
+                                                                        rngB') ∧
+                                                                  lifecycle.Session.encrypt
+                                                                        Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc
+                                                                        sB' ptR rngB' =
+                                                                      ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
+                                                                    ⋯
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderReplyReceipt.reply_receipt_reach_run
@@ -3088,32 +3316,33 @@ info: Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_receipt_reacha
                                             (Model.Lifecycle.braidRandomness
                                               (List.map Tacenta.SessionUnitBraidT3.u8 seed)) ≠
                                           none →
-                                        ∃ oracle bundle q bytes s' rng' ourB storeB seedB sB' ptB storeB' rngB' bytesR
-                                          sB'' ptA s'' rngA',
-                                          oracle.braidKem = K ∧
-                                            lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                  Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
-                                                  Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
-                                                  (seed ++ extra) =
-                                                ok (core.result.Result.Ok bytes, s', rng') ∧
-                                              storeB.publish = ok bundle ∧
-                                                lifecycle.establish_responder
-                                                      Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB storeB
-                                                      bytes.deref seedB =
-                                                    ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-                                                  lifecycle.Session.encrypt
-                                                        Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc sB'
-                                                        Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext rngB' =
-                                                      ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
-                                                    lifecycle.Session.decrypt
+                                        ∀ (ptR : Slice U8),
+                                          (↑ptR).length ≤ 4096 →
+                                            ∃ oracle bundle q bytes s' rng' ourB storeB seedB sB' ptB storeB' rngB'
+                                              bytesR sB'' ptA s'' rngA',
+                                              oracle.braidKem = K ∧
+                                                lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
+                                                      Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
+                                                      (seed ++ extra) =
+                                                    ok (core.result.Result.Ok bytes, s', rng') ∧
+                                                  storeB.publish = ok bundle ∧
+                                                    lifecycle.establish_responder
                                                           Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc s' bytesR.deref
-                                                          rng' =
-                                                        ok (core.result.Result.Ok ptA, s'', rngA') ∧
-                                                      ↑ptA = ↑Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext ∧
-                                                        s''.pending_initial = none
+                                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB storeB
+                                                          bytes.deref seedB =
+                                                        ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
+                                                      lifecycle.Session.encrypt
+                                                            Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                            Tacenta.UnitLifecycleIntegrationScreen.byteCrc sB' ptR
+                                                            rngB' =
+                                                          ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
+                                                        lifecycle.Session.decrypt
+                                                              Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                              Tacenta.UnitLifecycleIntegrationScreen.byteCrc s'
+                                                              bytesR.deref rng' =
+                                                            ok (core.result.Result.Ok ptA, s'', rngA') ∧
+                                                          ↑ptA = ↑ptR ∧ s''.pending_initial = none
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_receipt_reachable
@@ -3149,33 +3378,36 @@ info: Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_stale_reachabl
                                           (Model.Lifecycle.braidRandomness
                                             (List.map Tacenta.SessionUnitBraidT3.u8 seed)) ≠
                                         none →
-                                      ∃ oracle bundle q bytes s' rng' ourB storeB sB' ptB storeB' rngB' bytesR sB''
-                                        rngA',
-                                        oracle.braidKem = K ∧
-                                          lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
-                                                Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext (seed ++ extra) =
-                                              ok (core.result.Result.Ok bytes, s', rng') ∧
-                                            storeB.publish = ok bundle ∧
-                                              lifecycle.establish_responder
-                                                    Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB storeB
-                                                    bytes.deref ↑storeB.signed_prekey_secret =
-                                                  ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
-                                                lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc sB'
-                                                      Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext rngB' =
-                                                    ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
-                                                  lifecycle.Session.decrypt
-                                                      Tacenta.UnitLifecycleIntegrationScreen.byteRng
-                                                      Tacenta.UnitLifecycleIntegrationScreen.byteCrc s' bytesR.deref
-                                                      rng' =
-                                                    ok
-                                                      (core.result.Result.Err
-                                                          (lifecycle.Error.Triple
-                                                            (tacenta_triple.TripleError.Classical
-                                                              tacenta_ratchet.RatchetError.NoReceivingChain)),
-                                                        s', rngA')
+                                      ∀ (ptR : Slice U8),
+                                        (↑ptR).length ≤ 4096 →
+                                          ∃ oracle bundle q bytes s' rng' ourB storeB sB' ptB storeB' rngB' bytesR sB''
+                                            rngA',
+                                            oracle.braidKem = K ∧
+                                              lifecycle.Session.encrypt Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                    Tacenta.UnitLifecycleIntegrationScreen.byteCrc q.session
+                                                    Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext
+                                                    (seed ++ extra) =
+                                                  ok (core.result.Result.Ok bytes, s', rng') ∧
+                                                storeB.publish = ok bundle ∧
+                                                  lifecycle.establish_responder
+                                                        Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                        Tacenta.UnitLifecycleIntegrationScreen.byteCrc ourB storeB
+                                                        bytes.deref ↑storeB.signed_prekey_secret =
+                                                      ok (core.result.Result.Ok (sB', ptB), storeB', rngB') ∧
+                                                    lifecycle.Session.encrypt
+                                                          Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc sB' ptR rngB' =
+                                                        ok (core.result.Result.Ok bytesR, sB'', rngB') ∧
+                                                      lifecycle.Session.decrypt
+                                                          Tacenta.UnitLifecycleIntegrationScreen.byteRng
+                                                          Tacenta.UnitLifecycleIntegrationScreen.byteCrc s' bytesR.deref
+                                                          rng' =
+                                                        ok
+                                                          (core.result.Result.Err
+                                                              (lifecycle.Error.Triple
+                                                                (tacenta_triple.TripleError.Classical
+                                                                  tacenta_ratchet.RatchetError.NoReceivingChain)),
+                                                            s', rngA')
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderReplyReceipt.first_send_reply_stale_reachable
