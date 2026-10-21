@@ -319,9 +319,9 @@ Every statement here that names `Session::export` lists one compiler-trust axiom
 `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`.  It is not a proof step of this
 file: the generated `Session.export` passes the message of its `debug_assert_eq!(out.len(), capacity, ...)`
 to Aeneas's `toStr`, whose length bound is discharged by `decide +native` in the generated definition.
-`PrekeyStore::to_bytes` carries the same check with the same text and is generated first, so Lean reuses the
-axiom it made there for the identical proposition, and the axiom carries that function's name.  The axiom
-states `decide (<message>.toByteArray.size ≤ U32.max) = true`.
+`PrekeyStore::to_bytes` carries the same check with the same text.  The unit holds two axioms with that
+proposition, one named after each function, and `#print axioms` of `Session.export` lists only the one named
+after `PrekeyStore.to_bytes`.  The axiom states `decide (<message>.toByteArray.size ≤ U32.max) = true`.
 
 `export_message_fits` proves that same proposition (syntactically the axiom's type) with the kernel alone, so
 the fact the compiler is trusted with is true.  The dependency itself stays: the generated definition refers to

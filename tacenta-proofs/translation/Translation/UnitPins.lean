@@ -463,8 +463,9 @@ base rather than hold one to an old one. Against the standalone
 inner-crate declarations it rested on are absent, but that is the
 unit's doing: `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
 already rests on none of them. Discharging the bundles adds no compiler-trust
-axiom: the nine `native_decide` axioms it added until 2026-10-21, the eight
-constants of `UnitSpqrT3.lean` and the Triple's combine label, are kernel proofs now;
+axiom: until 2026-10-21 it added the eight `native_decide` axioms of the
+constants of `UnitSpqrT3.lean`, on top of the Triple's combine label that
+`send_refines` already rested on, and all nine are kernel proofs now;
 `LIMITATIONS.md` says what the trade is. -/
 
 /--

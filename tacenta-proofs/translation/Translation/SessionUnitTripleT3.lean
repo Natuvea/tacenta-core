@@ -236,8 +236,6 @@ theorem split_secret_refines (h : TripleHkdfAgrees) (hz : ZeroizingRoundTrips) (
   step*
   all_goals (try (simp_all only []; scalar_tac))
   all_goals (try (
-    have hzero : List.map u8 (Array.repeat 32#usize 0#u8 : Array Std.U8 32#usize).val
-        = List.replicate 32 (0 : UInt8) := by simp [Array.repeat, u8]
     simp only [Model.TripleRatchet.splitSecret, ← split_info_agrees]
     simp_all [keyOf, sliceOf, u8, List.slice, List.map_take, List.map_drop]))
 
