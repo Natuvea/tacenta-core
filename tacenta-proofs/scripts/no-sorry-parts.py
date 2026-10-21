@@ -462,7 +462,11 @@ def cmd_combine(args):
     if len(toolchains) != 1:
         refuse(f'the parts ran on {len(toolchains)} toolchains: {sorted(toolchains)}')
     if len(caches) != 1:
-        refuse(f'the parts restored {len(caches)} different build caches: {sorted(caches)}')
+        # A leg that succeeded keeps its artifact, so "Re-run failed jobs" re-runs only the combining job and
+        # meets the same set again; every leg has to run again, and restore again.
+        refuse(f'the parts restored {len(caches)} different build caches ({", ".join(sorted(caches))}), as when '
+               f'main saved a newer one while the parts were starting; "Re-run failed jobs" combines the same '
+               f'parts again, so use "Re-run all jobs" or push again')
     for phase in phases:
         if kinds[phase] != 'sliceable':
             continue

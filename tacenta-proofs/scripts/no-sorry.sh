@@ -555,8 +555,8 @@ final_line() {
   echo "no-sorry: all $1 phases passed"
 }
 
-# The phase table and the parts file, read together; prints the part's selection to stdout.
-helper="scripts/no-sorry-parts.py"
+# The phase table and the parts file are read together by scripts/no-sorry-parts.py, named in full below so that
+# the gate inventory's walk sees each call.
 parts_file="scripts/no-sorry-parts.txt"
 
 case "$mode" in
@@ -575,7 +575,7 @@ case "$mode" in
     part_dir="$(cd "$part_dir" && pwd -P)"
     work="$(mktemp -d)"
     (mode=list; phases) > "$work/table"
-    python3 "$helper" resolve --table "$work/table" --parts "$parts_file" --part "$NO_SORRY_PART" \
+    python3 scripts/no-sorry-parts.py resolve --table "$work/table" --parts "$parts_file" --part "$NO_SORRY_PART" \
       > "$work/selection" || { rm -rf "$work"; exit 2; }
     start="$(git rev-parse HEAD) $(git rev-parse 'HEAD^{tree}') $(
       [ -z "$(git status --porcelain --untracked-files=no)" ] && echo clean || echo changed)"
@@ -588,7 +588,7 @@ case "$mode" in
     rc=${PIPESTATUS[0]}
     set -e
     toolchain="$(cd translation && lean --version 2>/dev/null)" || toolchain=""
-    python3 "$helper" manifest --table "$work/table" --parts "$parts_file" --part "$NO_SORRY_PART" \
+    python3 scripts/no-sorry-parts.py manifest --table "$work/table" --parts "$parts_file" --part "$NO_SORRY_PART" \
       --dir "$part_dir" --status "$work/status" --script scripts/no-sorry.sh --start "$start" \
       --toolchain "${toolchain:-unknown}" --build-cache "${NO_SORRY_BUILD_CACHE:-none}" --exit "$rc"
     rm -rf "$work"
@@ -600,7 +600,7 @@ case "$mode" in
     echo "no-sorry: combining the parts of partition $NO_SORRY_PARTITION on $(git rev-parse --short HEAD)"
     work="$(mktemp -d)"
     (mode=list; phases) > "$work/table"
-    if ! python3 "$helper" combine --table "$work/table" --parts "$parts_file" \
+    if ! python3 scripts/no-sorry-parts.py combine --table "$work/table" --parts "$parts_file" \
         --partition "$NO_SORRY_PARTITION" --dir "$NO_SORRY_COMBINE" --script scripts/no-sorry.sh; then
       rm -rf "$work"
       exit 1

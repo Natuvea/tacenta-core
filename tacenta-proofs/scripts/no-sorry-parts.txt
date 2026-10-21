@@ -24,6 +24,6 @@ hosted dispatch-5: initial-dispatch@5/8
 hosted dispatch-6: initial-dispatch@6/8
 hosted dispatch-7: initial-dispatch@7/8
 #
-# `single` is what a push to main runs: one part with every phase, on the one self-hosted runner, as the
-# job did before the split, and the run whose build outputs are saved for pull requests to restore.
+# `single` is what a push to main runs: one part with every phase, as one job on the self-hosted runner group,
+# as the job did before the split, and the run whose build outputs are saved for pull requests to restore.
 single all: *
