@@ -2331,6 +2331,22 @@ REQUIRED_PINS = frozenset(
         "initiator_first_send_responder_reply_admissible",
         "established_encrypt_triple_invariant_via_preservation",
     )]
+    # The initiator's second `encrypt` at the session its receipt of the reply returns: the providers of the encrypt
+    # route from the invariant and the ceilings, the agreement's send at `KeysSampled` and its draw record, the model's
+    # second send and step, the refinement there and the composition on the run (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "send_output_none_of_no_draw",
+        "sparseOutput_none_of_no_draw",
+        "encryptProviders_of_invariant",
+        "braid_send_keysSampled",
+        "braidSendTraceCounted_of_keysSampled",
+        "second_send_key",
+        "secondFrame_with_draws",
+        "second_model_step",
+        "initiator_second_send_refines",
+        "first_send_model_session_encoder",
+        "initiator_second_send_after_reply",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -4129,6 +4145,25 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "ModelCounterRoom",
         "SendsWithoutDraw",
     )]
+    # The initiator's second send (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "send_output_none_of_no_draw",
+        "sparseOutput_none_of_no_draw",
+        "encryptProviders_of_invariant",
+        "braid_send_keysSampled",
+        "braidSendTraceCounted_of_keysSampled",
+        "second_send_key",
+        "secondFrame_with_draws",
+        "second_model_step",
+        "initiator_second_send_refines",
+        "first_send_model_session_encoder",
+        "initiator_second_send_after_reply",
+        "initiatorAfterSecond",
+        "secondHeader",
+        "secondKey",
+        "secondComposite",
+        "secondFrame",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -4565,6 +4600,14 @@ REQUIRED_PRINT_FORM = frozenset(
         "CounterRoom",
         "ModelCounterRoom",
         "SendsWithoutDraw",
+    )]
+    # The five definitions of the initiator's second send (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "initiatorAfterSecond",
+        "secondHeader",
+        "secondKey",
+        "secondComposite",
+        "secondFrame",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS

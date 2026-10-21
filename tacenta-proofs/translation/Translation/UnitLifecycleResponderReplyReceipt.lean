@@ -115,8 +115,9 @@ symmetric agreement is consistent with the other laws rests on reading X25519, n
 
 * That a tampered or foreign reply frame is refused: no AEAD authenticity law is assumed, and the `Aead` arm above is
   the open of the responder's own seal, excluded by `AeadRoundTrip`.
-* A second message in either direction: a second reply, the initiator's next send and the header's later chunks
-  (which do need a per-run premise relating the two parties' Braid KEMs), the responder's first sampling send.
+* A second message in either direction: a second reply, the header's third chunk and the responder's first sampling
+  send.  The initiator's next send is taken in `UnitLifecycleInitiatorSecondSend`, under a condition on the session this
+  receipt returns, and its emission of the header's second chunk uses no fact relating the two parties' Braid KEMs.
 * `Session::invariant` or the ceilings at the session the receipt of the reply returns, or at the responder's session
   after its reply.
 * That the code's agreement after the call equals the one before: it refines the same model agreement

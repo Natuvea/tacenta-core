@@ -2726,10 +2726,12 @@ The successor relation is to the model's step at a codeword view that reads the 
 source (`attributedView`); the proof shows that the received codeword is a codeword of that source (the codeword half of the
 chunk relation is derived; the erasure code is systematic, so codeword index 0 carries the source's first 32 bytes and the derived half fixes only those; the other 64 bytes of the source in the successor's model decoder (the hash and the header MAC) come from the attribution), and the view constrains only the model session the successor is compared against, not the
 bytes, the store, the draws or the call's result. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt branch's law)
-gives that source its 96 bytes. The two oracles need not be equal. By reading the generated code and the model, the
-header's later chunks need no KEM operation (completing the header checks only its MAC under the shared authenticator); the
-two oracles' Braid KEMs must agree, which nothing here states, from the responder's check of the completed key vector
-against the header's hash (after its sampling send) and the initiator's decapsulation of the responder's ciphertext on. The responder's `encrypt` of its reply needs no such agreement:
+gives that source its 96 bytes. The two oracles need not be equal. The initiator's emission of the header's second chunk does
+not need their Braid KEMs to agree (the second-send paragraph below). By reading, completing the header (the responder's
+receipt of the initiator's later chunks) checks only its MAC under the shared authenticator and needs no KEM relation; the
+first step at which both parties' KEMs act on one key pair is the responder's first sampling send, whose `encapsulate1`
+(model `encaps1`) takes the initiator's header seed and hash and can refuse; the hash check of the completed encapsulation
+key follows; no theorem states either. The responder's `encrypt` of its reply does not:
 its agreement waits for the header, and neither the code's send nor the model's reads randomness or the KEM there (the
 reply paragraph below), and neither does the initiator's receipt of the reply: at its `KeysSampled` agreement the code's
 receive (by reading) and the model's change state only on a `Ct1` chunk (the reply receipt paragraph below). On `Kem`: `FirstKemAgrees` stays a premise. By reading,
@@ -2785,8 +2787,8 @@ bytes on a 32-bit target. No refusal is possible at this state: the terminal gua
 chain), so the statement has one outcome and not a refused arm; the refusals `encrypt` can reach elsewhere in a session (the
 terminal guard, the Triple's `ChainExhausted` and `NoSendingChain`) are not covered. **Not shown:** the initiator's receipt of
 the reply (the next paragraph); `Session::invariant` and the ceilings
-after the reply are derived on this run in the send-preservation paragraph below; a second reply, a second message from the initiator, the header's later chunks and the responder's first
-sampling send; a restored copy of the session; that the model session the successor refines holds only bytes the responder
+after the reply are derived on this run in the send-preservation paragraph below; a second reply, the header's later chunks and the responder's first sampling send (a second message from
+the initiator is taken, under a condition, in the second-send paragraph below); a restored copy of the session; that the model session the successor refines holds only bytes the responder
 received (the relation is at the receipt's attributed view); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`);
 `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a
 run. The statement does not tie the source state to the one `establish_responder` left; it holds for every source state,
@@ -2835,12 +2837,43 @@ consistent with the other laws rests on reading X25519. It was needed because in
 key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
 mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
 plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed); a second
-message in either direction (a second reply, the initiator's next send, the
-header's later chunks, which by reading need no KEM operation, the responder's first sampling send, after which the two
-parties' Braid KEMs must agree on a run); `Session::invariant` or the ceilings after the receipt of the reply (those after the
-reply are derived in the send-preservation paragraph below); that the code's agreement after the
+message in either direction (a second reply, the header's third chunk, the responder's first sampling send; the
+initiator's next send is the next paragraph, under a condition, and its step uses no fact relating the two parties'
+Braid KEMs);
+`Session::invariant` or the ceilings after the receipt of the reply (those after the reply are derived in the
+send-preservation paragraph below); that the code's agreement after the
 call equals the one before (it refines the same model agreement); that `hfreshB` holds under an honest random source; a
 restored copy of either session; the one-time path in a run.
+
+*The initiator's second send.* `UnitLifecycleInitiatorSecondSend.lean` takes the initiator's next `Session::encrypt`, on the
+same run, at the session the receipt of the reply returns and from the source that receipt left. The model's step there has
+one outcome: the bare second frame (agreement type `hdr` with the header's chunk at index 1, previous chain length 1,
+message number 0 on the chain the receipt derived, sparse epoch 0 and number 2, no initial wrapper), no draw, the header
+encoder advanced (`second_model_step`). The code-level part is **conditional**: if that session passes `Session::invariant`
+and meets the four counter ceilings, the call returns those bytes, leaves its source as given and refines the step
+(`initiator_second_send_after_reply`); neither premise is derived here, and no run is exhibited at which they hold, so that
+part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
+the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
+results are compiler-trusted through the nine `native_decide` constants. The headline's statement pin is cut off by Lean's
+`⋯` after the binder `crcB`, so the headline's later binders and its whole conclusion are held by the build and by reading
+only, not by a pin (with this module, 15 modules hold such cut-off pins, 36 pins; a pin form that prints the whole
+statement is to be fixed separately). **No new law and no new per-run premise**: beyond
+the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
+which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
+at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
+returns the source as given (`braid_send_keysSampled`, hypothesis-free), so the step takes no draw and runs no
+encapsulation, decapsulation or key generation, and no fact relating the two parties' KEMs is used for this step (the
+receipt's premises it inherits carry `KemAgreesFor` at both parties' KEMs, as the reply paragraph records); the Braid send record
+still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every state, and whether it
+could be dropped here is not checked. The relation after the call holds the cloned key pair through `KemCloneAgrees`;
+code-level equality of the key pair is not checked. **Not shown:** `Session::invariant` or the ceilings at the session the
+receipt returns or after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
+header's third chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt`
+can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere
+are not covered); a restored copy of the session; the one-time path in a run; that the related model sessions hold only
+bytes the parties received; that `hfreshB` holds under an honest random source; that the real primitives meet the records
+or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
+equality.
 
 **Send preservation where the agreement's send takes no draw** (`UnitTripleInvModel.lean`, `UnitLifecycleSendPreserve.lean`).
 The bridge (`triple_invariant_iff_model`) rests on the kernel alone and assumes nothing beyond the Triple relation. The

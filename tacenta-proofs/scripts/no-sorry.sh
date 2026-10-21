@@ -420,6 +420,23 @@ phase_send_preservation() {
 python3 scripts/check-send-preservation-negatives.py || fail=1
 }
 
+# The initiator's second `encrypt` at the session its receipt of the reply returned
+# (`UnitLifecycleInitiatorSecondSend.lean`): a copy with the model's second step claimed to take a draw, the call
+# claimed to leave the source before the receipt, the second frame claimed at chunk index 0 or sealed on the sparse
+# chain the initiator receives on, the relation after the call claimed with the receipt's Triple or the header encoder
+# not advanced, the session after the call claimed to keep the first send's pending initial message, the agreement's
+# send at `KeysSampled` claimed to change the source or keep the encoder, the providers claimed at a drawing state, the
+# draw record claimed with an exhausted encoder, the second header's previous chain length or sparse number changed,
+# the model step claimed to keep the encoder, the first send's encoder claimed at position 0, and a copy of the frame
+# definition with its pins kept must each be refused at a named declaration or pin, with a message naming the change,
+# after the unmodified copies are accepted; the six changes labelled inside the composing proof must be accepted
+# there with that proof emptied, and the one labelled a projection (the pending initial message) must be refused where
+# that proof places a conjunct of `initiator_receives_reply` unchanged; every change refused in the composing proof
+# must carry one of the two labels, checked at start-up against the module's text.
+phase_initiator_second_send() {
+python3 scripts/check-initiator-second-send-negatives.py || fail=1
+}
+
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -612,6 +629,7 @@ phases() {
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
+  run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model

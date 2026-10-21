@@ -75,6 +75,7 @@ import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
 import Translation.UnitTripleInvModel
 import Translation.UnitLifecycleSendPreserve
+import Translation.UnitLifecycleInitiatorSecondSend
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -164,6 +165,12 @@ counter budget whose zero is the four ceilings, given the relation after the cal
 resting on the kernel and opaque constants; on the run it gives the invariant and the ceilings at the session the
 responder's reply leaves, under the reply's hypotheses.  Draw states, an agreement output, refusals and receives are
 not covered.
+`UnitLifecycleInitiatorSecondSend.lean` takes the initiator's next `Session::encrypt` at the session that receipt
+returns, on the same run: the model's step there has one outcome (the bare second frame, agreement type `hdr` with the
+header's chunk at index 1, no draw), and if that session passes `Session::invariant` and meets the four counter ceilings,
+which is not shown, the call returns those bytes, leaves the source as given and relates to the model's step.  The
+encrypt route's providers come from the invariant and the ceilings, for every session whose agreement send reads no
+draw.  No law is added, and no run is exhibited at which the invariant and the ceilings hold there.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

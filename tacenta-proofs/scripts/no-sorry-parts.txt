@@ -15,7 +15,7 @@ hosted refuted: translation-coverage lifecycle-coverage refuted-records precondi
 hosted braid: braid-agreement atomicity repair send-refusal sparse-store-full established
 hosted decrypt: decrypt-ratchet responder-receipt discharge-native-decide audit-negatives
 hosted responder: restored encrypt responder responder-frame
-hosted reply: responder-successor responder-reply responder-reply-receipt send-preservation
+hosted reply: responder-successor responder-reply responder-reply-receipt send-preservation initiator-second-send
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
 hosted dispatch-2: initial-dispatch@2/8
