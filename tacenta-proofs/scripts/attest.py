@@ -4895,17 +4895,26 @@ def scan_statement_pins(words, names, scoped):
     return out
 
 
-def pin_message(text, pos):
-    """The expected message of the `#guard_msgs` at `pos`: the text of the docstring that ends just
-    before it, or None when no docstring does (a pin that expects no message)."""
-    before = text[:pos].rstrip()
-    if not before.endswith("-/"):
-        return None
-    start = before.rfind("/--")
+def pin_message(text, words, pos):
+    """The expected message of the `#guard_msgs` at `pos`, and whether anything stands between it and
+    the pin: `(message, detached)`. `words` is `lean_code(text)`, in which comments and docstrings are
+    blank, so everything between the last code before `pos` and `pos` is comments and whitespace; the
+    last docstring there is the one Lean attaches to the `#guard_msgs`, even with a line or block
+    comment after it. `message` is None when there is no docstring (a pin that expects no message);
+    `detached` is true when a comment stands between the docstring and the `#guard_msgs`."""
+    k = pos
+    while k > 0 and words[k - 1].isspace():
+        k -= 1
+    region = text[k:pos]
+    start = region.rfind("/--")
     if start < 0:
-        return None
-    message = before[start + 3:-2]
-    return message[1:] if message.startswith("\n") else message
+        return None, False
+    end = region.find("-/", start + 3)
+    if end < 0:
+        return None, False
+    message = region[start + 3:end]
+    message = message[1:] if message.startswith("\n") else message
+    return message, bool(region[end + 2:].strip())
 
 
 # A `⋯` in a printed term is either a cut (`pp.deepTerms` false: a subterm deeper than 50 levels;
@@ -4926,7 +4935,14 @@ def check_statement_pin_messages(survey):
     after it builds. Every live `#check`/`#print` pin is read, on the floor or not."""
     problems = []
     for d in survey["live"]:
-        if d["command"] not in ("check", "print") or not d.get("message"):
+        if d["command"] not in ("check", "print"):
+            continue
+        if d.get("detached"):
+            problems.append(
+                f"the statement pin of `{d['name']}` at {d['file']}:{d['line']} has a comment between its "
+                "docstring and its `#guard_msgs`; Lean still compares the docstring, so write the docstring "
+                "directly above the `#guard_msgs` and the comment elsewhere")
+        if not d.get("message"):
             continue
         cut = _CUT_OFF.search(d["message"])
         if cut:
@@ -4982,7 +4998,8 @@ def statement_pin_survey():
 
         live = scan_statement_pins(words, names, True)
         survey["guards"] += len(live)
-        survey["live"] += [dict(located(d), message=pin_message(text, d["pos"])) for d in live]
+        survey["live"] += [dict(located(d), **dict(zip(("message", "detached"), pin_message(text, words, d["pos"]))))
+                           for d in live]
         seen = {d["pos"] for d in live}
         # The same text with the comment markers (`--`, `/-`, `/--`, `-/`) blanked, so a
         # pin that sits in a comment reads as a pin; offsets are unchanged.
