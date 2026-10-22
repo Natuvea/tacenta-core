@@ -43,7 +43,8 @@
 # A step the diff asks for and the machine cannot run (no cargo, no lake, no build of the Lean
 # project) prints a SKIP line and is listed under SKIPPED, and the final verdict is "ok WITH
 # SKIPS", never plain "ok". Changed Rust that no fast check reads (a fuzz workspace, the vendored
-# patches, a workspace's toolchain, clippy, rustfmt, deny or `.cargo` configuration) is listed under
+# patches, a toolchain, clippy, rustfmt, deny, `.cargo` or nextest configuration in a workspace or at
+# the root) is listed under
 # NOT CHECKED and the verdict is "ok WITH UNCHECKED" (exit 0). When GITHUB_ACTIONS is set the same step is a failure, the rule
 # `tooling/ci.sh` and its siblings follow: a runner must not report green on a check it did not run.
 #

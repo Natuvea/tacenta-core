@@ -26,8 +26,9 @@ case runner can hold the selection to exact output. The lines:
                                       which always runs (the workflow checker's cases with `deep`, which a
                                       workflow change selects), so the diff adds nothing to run
     uncovered WORKSPACE N             N changed paths in a Cargo workspace no fast check reads (the fuzz
-                                      workspaces, the vendored upstream patches, and a workspace's toolchain,
-                                      clippy, rustfmt, deny or `.cargo` configuration); the run then ends
+                                      workspaces, the vendored upstream patches, and a toolchain, clippy,
+                                      rustfmt, deny, `.cargo` or nextest configuration in a workspace or at
+                                      the root, where WORKSPACE is `.`); the run then ends
                                       "ok WITH UNCHECKED", never plain "ok"
     other N                           N changed paths in none of the above (documents, tooling): read by
                                       `ci.sh --fast` where a check names them, otherwise by nothing here
@@ -56,6 +57,12 @@ ROOT_PACKAGE_DIRS = ("src", "tests", "examples", "benches")
 # them, so a change to one is reported as unchecked rather than counted as `other`.
 RUST_CONFIG = ("rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml",
                ".rustfmt.toml", "deny.toml")
+# Cargo and rustup also read these from the directories above a workspace, the repository root among them.
+RUST_CONFIG_PATH = re.compile(r"(?:^|/)(?:\.cargo/|\.config/nextest\.toml$)")
+
+
+def rust_config(rel):
+    return os.path.basename(rel) in RUST_CONFIG or RUST_CONFIG_PATH.search(rel) is not None
 LEAN_PROJECTS = ("tacenta-proofs/translation", "tacenta-proofs", "tacenta-model")
 LEAN_CONFIG = ("lakefile.lean", "lakefile.toml", "lake-manifest.json", "lean-toolchain")
 WORKFLOW_PREFIXES = (".github/workflows/", ".github/actions/")
@@ -134,7 +141,8 @@ def rust_selection(root, rel, rust):
     else None."""
     placed = place(root, rel)
     if placed is None:
-        return ("other", None)
+        # A toolchain, lint or cargo configuration above every workspace (at the root) applies to all of them.
+        return ("uncovered", ".") if rust_config(rel) else ("other", None)
     workspace, _ = placed
     if any(pattern.search(workspace) for pattern in UNCOVERED_ROOTS):
         return ("uncovered", workspace)
@@ -146,7 +154,7 @@ def rust_selection(root, rel, rust):
         rust[workspace] = "ALL"
         return None
     inside = rel[len(workspace) + 1:] if workspace else rel
-    if os.path.basename(rel) in RUST_CONFIG or ("/" + inside).count("/.cargo/"):
+    if rust_config(inside):
         return ("uncovered", workspace)
     first = inside.split("/")[0]
     if first in member_dirs:

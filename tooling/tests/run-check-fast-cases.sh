@@ -213,8 +213,9 @@ plan_of plan-cargo-lock "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/Ca
 plan_of plan-vectors-runner "$(nlj ci-fast 'rust tacenta-test-vectors/runners/rust ALL')" \
   tacenta-test-vectors/runners/rust/src/main.rs
 plan_of plan-empty-diff "ci-fast"
-plan_of plan-rust-config "$(nlj ci-fast 'uncovered tacenta-core 2')" tacenta-core/clippy.toml \
-  tacenta-core/.cargo/config.toml
+plan_of plan-rust-config "$(nlj ci-fast 'uncovered tacenta-core 3')" tacenta-core/clippy.toml \
+  tacenta-core/.cargo/config.toml tacenta-core/.config/nextest.toml
+plan_of plan-root-rust-config "$(nlj ci-fast 'uncovered . 3')" rust-toolchain.toml .cargo/config.toml clippy.toml
 plan_of plan-fuzz-workspace "$(nlj ci-fast 'uncovered tacenta-core/fuzz 2')" \
   tacenta-core/fuzz/fuzz_targets/t.rs tacenta-core/fuzz/corpus/a
 plan_of plan-markdown-in-a-crate "$(nlj ci-fast 'other 1')" tacenta-core/kem/README.md

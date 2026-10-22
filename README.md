@@ -343,8 +343,8 @@ Lean module under `tacenta-model`, `tacenta-proofs` or the translation, and, whe
 exits non-zero if any failed, and ends with what ran, what failed, what it skipped, a list of what it did not
 run and its wall time. A step the diff asks for and the machine cannot run (no `cargo`, no `lake`, no build of
 the Lean project) is printed as a SKIP and ends the run as "ok WITH SKIPS"; with `GITHUB_ACTIONS` set it is a
-failure. Changed Rust that no fast check reads (a fuzz workspace, the vendored patches, a workspace's toolchain,
-clippy, rustfmt, deny or `.cargo` configuration) is listed under NOT CHECKED and ends the run as "ok WITH
+failure. Changed Rust that no fast check reads (a fuzz workspace, the vendored patches, a toolchain, clippy,
+rustfmt, deny, `.cargo` or nextest configuration in a workspace or at the repository root) is listed under NOT CHECKED and ends the run as "ok WITH
 UNCHECKED". On the laptop it was measured on, with no change the run took about a minute and a half (94 s; 203 s
 with `--deep`), nearly all of it the cheap section; the diff-scoped steps added from a few seconds (three Lean
 modules) to under a minute (a small Rust crate, the core crate) in the earlier measurements, and a Rust package
