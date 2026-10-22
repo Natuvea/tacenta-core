@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The case runner for `tacenta-core/tests/sparse_skip_order.rs`, the public-API tests of a sparse skip's two
-# bounds and their order (sparse-pq-ratchet.md, The store also has a total bound). The rows `SP-*` of
+# bounds and their order (sparse-pq-ratchet.md, The store also has a total bound). The rows `SK-*` of
 # `tooling/gate-mutations.json` edit `tacenta-core/spqr/src/lib.rs` one at a time and run this, so that
 # `tooling/mutate-gates.py` shows which test each edit of the library breaks. CI runs the test file itself, in
 # `cargo test --locked --workspace`; nothing in CI runs this runner or the mutations.

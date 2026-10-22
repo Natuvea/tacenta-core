@@ -859,7 +859,7 @@ holds through the public `State::from_bytes` and `receive` on stored starts, by 
 with and without stored keys in its range, and one past the store bound alone as `SkippedStoreFull`;
 keys under another epoch count against the store and are not deleted by a skip of this epoch; the edge
 `1,997 + 3` accepted and `1,997 + 4` refused; every refusal leaves the bytes unchanged), each of which
-fails under at least one of the seven single edits of `skip_message_keys` in the rows `SP-*` of
+fails under at least one of the seven single edits of `skip_message_keys` in the rows `SK-*` of
 `tooling/gate-mutations.json` (the two checks swapped, the store refusal named `TooManySkipped` among them),
 which `tooling/mutate-gates.py` runs locally and CI does not; that the working
 copy of a refused skip is erased, by
