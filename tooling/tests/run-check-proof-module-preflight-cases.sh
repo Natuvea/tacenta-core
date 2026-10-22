@@ -20,6 +20,11 @@
 #                                                   whose two parts do not add up: each named; a count in a
 #                                                   form the check does not read: a warning; the axiom-pin count
 #                                                   in its "theorems ... has" form off by one: named
+#   what the sentence naming results first says     "alone" for opaque results (S15), no word of trust (S16,
+#   of their trust, read in every case              S17), a compiler-trusted result padded in (S18), "no
+#                                                   compiler-trust axiom" for one that lists one, "a
+#                                                   compiler-trust axiom" for opaque ones, a name matching two
+#                                                   pins (S21): each refused, by the check it is for
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
 #   a stub that defines every name and calls nothing fails it; then, all planted at once and each required by name
 #   in one run:
@@ -177,6 +182,71 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19 theorems has an axi
 run count-theorems-form 1 --all --baseline "$baseline"
 says count-theorems-form "says 20 results with an axiom pin; there are 19"
 g checkout -q -- tacenta-proofs/CLAIMS.md
+# What the sentence naming results first says of their trust is read in every case. Each input below is refused,
+# and each is built so that only the check it is for refuses it (the counts are moved to match).
+reply="tacenta-proofs/translation/Translation/UnitLifecycleResponderReply.lean"
+clause="and list\nthe kernel's three axioms and opaque constants of the unit, and no compiler-trust axiom"
+pin_axiom() {  # name axiom: add an axiom to the pin of Tacenta.UnitLifecycleResponderReply.<name>
+  python3 - "$clone/$reply" "$1" "$2" <<'PY'
+import re, sys
+path, name, axiom = sys.argv[1:]
+t = open(path).read()
+pattern = r"(info: 'Tacenta\.UnitLifecycleResponderReply\." + re.escape(name) + r"' depends on axioms: \[[^\]]*)\]"
+t, n = re.subn(pattern, lambda m: m.group(1) + ", " + axiom + "]", t, count=1)
+assert n == 1, name
+open(path, "w").write(t)
+PY
+}
+pin_twin() {  # name: add a second pin whose name ends with the same last part, with the same axioms
+  python3 - "$clone/$reply" "$1" <<'PY'
+import re, sys
+path, name = sys.argv[1:]
+t = open(path).read()
+m = re.search(r"info: 'Tacenta\.UnitLifecycleResponderReply\." + re.escape(name) + r"' depends on axioms: (\[[^\]]*\])", t)
+twin = "Tacenta.UnitLifecycleResponderReply.Extra." + name
+t += f"\n/--\ninfo: '{twin}' depends on axioms: {m.group(1)}\n-/\n#guard_msgs in\n#print axioms {twin}\n"
+open(path, "w").write(t)
+PY
+}
+# S15: the named results said to rest on the kernel's axioms alone; they rest on opaque constants.
+edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"and rest on\\n\`propext\`, \`Classical.choice\` and \`Quot.sound\` alone, and list no compiler-trust axiom\", 1)"
+run named-alone 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-alone "[UnitLifecycleResponderReply|count|named-trust|responder_reply_refines]"
+says named-alone "names \`responder_reply_refines\` first as resting on the kernel's axioms alone; its pin rests on opaque constants"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+# S16: the sentence says nothing of trust; a kernel-only result padded in, the counts moved to 13 and 5.
+s16="t = t.replace(\"$clause\", \"and\", 1).replace(' and \`first_send_reply_reachable\`\\napply', ', \`first_send_reply_reachable\` and \`array_clone_u8\`\\napply', 1).replace('Of the other 14 results, 6 rest on', 'Of the other 13 results, 5 rest on', 1)"
+edit tacenta-proofs/CLAIMS.md "$s16"
+run named-no-trust-words 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-no-trust-words "[UnitLifecycleResponderReply|count|named-clause]"
+# S17: as S16, and the padded result is compiler-trusted.
+pin_axiom array_clone_u8 Lean.ofReduceBool
+run named-no-trust-words-compiler 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-no-trust-words-compiler "[UnitLifecycleResponderReply|count|named-clause]"
+g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
+# S18: "no compiler-trust axiom" taken out of the sentence; a compiler-trusted result padded into the list.
+pin_axiom array_clone_u8 Lean.ofReduceBool
+edit tacenta-proofs/CLAIMS.md "t = t.replace(', and no compiler-trust axiom (until 2026-10-21 also the same nine', ' (until 2026-10-21 also the same nine', 1).replace(' and \`first_send_reply_reachable\`\\napply', ', \`first_send_reply_reachable\` and \`array_clone_u8\`\\napply', 1).replace('Of the other 14 results, 6 rest on', 'Of the other 13 results, 5 rest on', 1)"
+run named-compiler-padded 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-compiler-padded "[UnitLifecycleResponderReply|count|named-trust|array_clone_u8]"
+g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
+# "no compiler-trust axiom" alone, and a named result that lists one.
+pin_axiom responder_reply_refines Lean.ofReduceBool
+edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"and list\\nno compiler-trust axiom\", 1)"
+run named-no-compiler 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-no-compiler "names \`responder_reply_refines\` first as listing no compiler-trust axiom; its pin rests on a compiler-trust axiom"
+g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
+# A sentence saying the named results are compiler-trusted, which they are not.
+edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"and list\\na compiler-trust axiom\", 1)"
+run named-compiler-clause 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-compiler-clause "names \`responder_reply_refines\` first as compiler-trusted; its pin rests on opaque constants"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+# S21: a name that matches two pins (a second pin with the same last part), the result count moved to 20.
+pin_twin responder_reply_refines
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19\\nresults carries', 'Each of the 20\\nresults carries', 1)"
+run named-ambiguous 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-ambiguous "names \`responder_reply_refines\` first, which matches 2 pins"
+g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
 # The two parts of the other results must add up to them.
 edit tacenta-proofs/CLAIMS.md "t = t.replace(') and 8 on those and opaque constants of the unit. Each of the 19', ') and 7 on those and opaque constants of the unit. Each of the 19', 1)"
 run other-sum 1 UnitLifecycleResponderReply --baseline "$baseline"
@@ -300,4 +370,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; an unread count warned and the theorems form read; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; an unread count warned and the theorems form read; the trust the naming sentence states checked in every case and an ambiguous name refused; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"

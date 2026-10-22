@@ -426,10 +426,11 @@ def other_results(report, module, where, flat, body, attest):
     The results counted are the pins of the section's modules other than the ones its **Compiler trust and pins.**
     paragraph names before its verb. Until 2026-10-21 those were the compiler-trusted results; since the
     `native_decide` constants became kernel proofs they are named results with no compiler trust, so the
-    exclusion is by name, and what the old rule implied is checked here instead: a named result with no pin is
-    an error (by full name or by its last parts after a dot, never by a substring); every named result has the
-    trust the paragraph's first sentence gives it (none of them compiler-trusted where it says "no
-    compiler-trust axiom", each on opaque constants where it says they list opaque constants); and no result
+    exclusion is by name, and what the old rule implied is checked here instead: a named result with no pin, or
+    with more than one, is an error (by full name or by its last parts after a dot, never by a substring); every
+    named result has the trust the paragraph's first sentence gives it, read in every case (the kernel's axioms
+    alone; opaque constants; no compiler-trust axiom; otherwise compiler trust; a sentence with no word of trust
+    is an error); and no result
     among the others is compiler-trusted, since the sentence counts them as resting on the kernel's axioms or on
     opaque constants. With no names before the verb, None (the count is of the results other than the
     compiler-trusted).
@@ -446,22 +447,40 @@ def other_results(report, module, where, flat, body, attest):
     rest = flat[lead.end():]
     end = re.search(r"\. (?=[A-Z])", rest)
     clause = rest[:end.start()] if end else rest
+    # What the sentence says the named results rest on, read in every case: the kernel's axioms alone (it says
+    # "alone", or names `propext` and no opaque constants), opaque constants, no compiler-trust axiom, or (with
+    # none of those) compiler trust, which is what the list meant until 2026-10-21. A sentence with no word about
+    # trust at all is an error.
+    opaque_words = re.search(r"\bopaque constants\b", clause) is not None
+    alone = re.search(r"\balone\b", clause) is not None or ("`propext`" in clause and not opaque_words)
     no_compiler = "no compiler-trust axiom" in clause
-    on_opaque = re.search(r"\bopaque constants\b", clause) is not None
+    if alone:
+        allowed, said = {"kernel"}, "resting on the kernel's axioms alone"
+    elif opaque_words:
+        allowed, said = {"opaque-external"}, "resting on opaque constants"
+    elif no_compiler:
+        allowed, said = {"kernel", "opaque-external"}, "listing no compiler-trust axiom"
+    elif re.search(r"compiler-trust", clause):
+        allowed, said = {"compiler"}, "compiler-trusted"
+    else:
+        allowed, said = None, None
+        report.add("error", f"{module}|count|named-clause",
+                   f"{where}: the sentence that names results first says nothing of their trust (the kernel's "
+                   f"axioms alone, opaque constants, or compiler trust), so what it names is not checked")
     for n in named:
-        pins = [t for pin, t in trust if pin_names(pin, n)]
+        pins = [(pin, t) for pin, t in trust if pin_names(pin, n)]
         if not pins:
             report.add("error", f"{module}|count|named-unpinned|{n}",
                        f"{where}: names `{n}` first, which has no pin in the section's modules")
             continue
-        for t in pins:
-            if no_compiler and t == "compiler":
+        if len(pins) > 1:
+            report.add("error", f"{module}|count|named-ambiguous|{n}",
+                       f"{where}: names `{n}` first, which matches {len(pins)} pins "
+                       f"({', '.join('`' + pin + '`' for pin, _ in pins)}): name it in full")
+        for pin, t in pins:
+            if allowed is not None and t not in allowed:
                 report.add("error", f"{module}|count|named-trust|{n}",
-                           f"{where}: names `{n}` first as listing no compiler-trust axiom; its pin lists one")
-            elif on_opaque and t != "opaque-external":
-                report.add("error", f"{module}|count|named-trust|{n}",
-                           f"{where}: names `{n}` first as resting on opaque constants; its pin rests on "
-                           f"{TRUST_WORDS[t]}")
+                           f"{where}: names `{n}` first as {said}; its pin rests on {TRUST_WORDS[t]}")
     other = [(pin, t) for pin, t in trust if not any(pin_names(pin, n) for n in named)]
     for pin, t in other:
         if t == "compiler":
