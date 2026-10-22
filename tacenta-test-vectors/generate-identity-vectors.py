@@ -968,7 +968,9 @@ def build():
             problems.append("%s: the model drew %s values before refusing" % (c.vid, model[1]))
         if draws is True and model[1] == "0":
             problems.append("%s: the model drew nothing" % c.vid)
-        if isinstance(outcome, tuple):
+        # A session's fields are read only when the model also gives a
+        # session; a model refusal the script admits is reported above.
+        if isinstance(outcome, tuple) and model[0] == name and len(model) >= 7:
             dash = lambda s: "" if s == "-" else s  # noqa: E731
             want = dict(lookup_fields(outcome[1]))
             got = {"attribution": model[3], "retired_for": dash(model[5]), "malformed": dash(model[6])}
