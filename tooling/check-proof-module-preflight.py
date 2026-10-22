@@ -24,8 +24,10 @@ For each module `tacenta-proofs/translation/Translation/<Module>.lean`, its sect
                      (`gutted`, `check_inside`, checking `declaration uses \`sorry\``) called from `main`. An error.
   (c) counts         the numbers the prose gives match what they count: in the section, "each of the N results"
                      (the module's axiom pins), "each of the N definitions" (its `#print` pins), "of the other N
-                     results, A rest on ... alone ... and B on" (the pins `attest.py` labels other than compiler
-                     trust, kernel only and opaque), and "plants N faults" or "N changes refused" (the script's
+                     results, A rest on ... alone ... and B on" (the pins other than the results the section's
+                     **Compiler trust and pins.** paragraph names before its verb, all of which must have a pin; with
+                     no such names, the pins `attest.py` labels other than compiler trust; then kernel only and
+                     opaque among them), and "plants N faults" or "N changes refused" (the script's
                      controls); in the script's own docstring, "N controls are labelled inside" and "N ...
                      statement-shape"; in `ASSURANCE-OBLIGATIONS.md`, the script's "(two unmodified copies
                      accepted and N changes refused". An error.
@@ -382,6 +384,45 @@ def pins_of(text, attest):
             "opaque": trust.count("opaque-external"), "compiler": trust.count("compiler")}
 
 
+def pin_trust(text, attest):
+    """[(name, trust)] of a module's axiom pins, trust as `attest.classify` gives it."""
+    cut = text.find("\n/-! ## Pins")
+    if cut < 0:
+        return []
+    externals = attest.opaque_externals()
+    return [(m.group("name"), attest.classify([x.strip() for x in m.group("axioms").split(",") if x.strip()],
+                                              externals))
+            for m in attest.AXIOM_PIN.finditer(text[cut:])]
+
+
+NAMED_FIRST = re.compile(r"\*\*Compiler trust and pins\.\*\*\s+((?:`[^`]+`(?:,\s+|\s+and\s+))*`[^`]+`)\s+"
+                         r"(?:apply|applies|list|lists|rest|rests)\b")
+
+
+def other_results(flat, body, attest):
+    """The trust of each result the section's "Of the other N results" counts, or None.
+
+    The results counted are the pins of the section's modules other than the ones its **Compiler trust and pins.**
+    paragraph names before its verb. Until 2026-10-21 those were the compiler-trusted results; since the
+    `native_decide` constants became kernel proofs they are named results with no compiler trust, so the
+    exclusion is by name. Every name must have a pin; otherwise None (and the count falls back to compiler trust).
+    """
+    lead = NAMED_FIRST.search(flat)
+    if not lead:
+        return None
+    named = re.findall(r"`([^`]+)`", lead.group(1))
+    trust = []
+    for name in location_modules(body):
+        path = TRANSLATION / f"{name}.lean"
+        if path.exists():
+            trust += pin_trust(path.read_text(encoding="utf-8"), attest)
+    def names(pin, n):
+        return pin == n or pin.endswith("." + n)
+    if not trust or not all(any(names(pin, n) for pin, _ in trust) for n in named):
+        return None
+    return [t for pin, t in trust if not any(names(pin, n) for n in named)]
+
+
 def controls_of(values):
     if values and isinstance(values.get("MUTANTS"), ast.List):
         return len(values["MUTANTS"].elts)
@@ -430,12 +471,18 @@ def check_counts(report, module, text, sections, scripts, attest):
                                number(m.group(1)), pins["print"])
             for m in re.finditer(rf"Of the other {NUMBER} results, {NUMBER} rest(?:s)? on `propext`, "
                                  rf"`Classical\.choice` and `Quot\.sound` alone(?:[^.]*?)and {NUMBER} on", flat):
-                count_mismatch(report, f"{module}|count|other", where, "results other than the compiler-trusted",
-                               number(m.group(1)), pins["kernel"] + pins["opaque"])
+                other = other_results(flat, body, attest)
+                if other is None:
+                    what, total = "results other than the compiler-trusted", pins["kernel"] + pins["opaque"]
+                    kernel, opaque = pins["kernel"], pins["opaque"]
+                else:
+                    what, total = "results other than the ones named first", len(other)
+                    kernel, opaque = other.count("kernel"), other.count("opaque-external")
+                count_mismatch(report, f"{module}|count|other", where, what, number(m.group(1)), total)
                 count_mismatch(report, f"{module}|count|kernel", where, "results on the kernel's axioms alone",
-                               number(m.group(2)), pins["kernel"])
+                               number(m.group(2)), kernel)
                 count_mismatch(report, f"{module}|count|opaque", where, "results on opaque constants",
-                               number(m.group(3)), pins["opaque"])
+                               number(m.group(3)), opaque)
         for path in scripts:
             if not single_module(path):
                 continue

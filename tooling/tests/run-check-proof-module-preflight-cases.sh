@@ -6,13 +6,15 @@
 #   a baseline key that no longer occurs            a warning to delete it; an error with --strict
 #   a baseline that omits a known finding           fails
 #   a key the baseline gained since a base          fails with --baseline-base, unless `reasons` gives it a reason
+#   a section's first-named result with no pin      the "of the other N results" count falls back to the results
+#                                                   other than the compiler-trusted, and is then wrong
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
 #   a stub that defines every name and calls nothing fails it; then, all planted at once and each required by name
 #   in one run:
 #     (b) the guard not lowered, `unknown constant` dropped from it, `check_labels` not called, the `pinned`
 #         baseline dropped, the timeout sample dropped
-#     (c) a section's count of results, a script's count in ASSURANCE-OBLIGATIONS.md and a docstring's count of
-#         inside labels each off by one
+#     (c) a section's count of results, its count of the results other than the ones it names first, a script's
+#         count in ASSURANCE-OBLIGATIONS.md and a docstring's count of inside labels each off by one
 #     (a) a not-shown item dropped from a module's docstring (a warning; an error with --strict)
 #     (d) a SCAFFOLD marker left in a tracked file, a plan identifier and a private path (stand-ins the test seam
 #         adds, which spell nothing real), and an attribution line in a commit message since --base
@@ -96,6 +98,13 @@ run baseline-omits 1 --all --baseline "$baseline"
 says baseline-omits "check-responder-receipt-negatives.py: lacks the hardened mechanism"
 g checkout -q -- "$baseline"
 
+# The results a section names first are excluded from its "of the other N results" by name, only when every name
+# has a pin; with one name that has none, the count is of the results other than the compiler-trusted.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('**Compiler trust and pins.** \`responder_reply_refines\`, ', '**Compiler trust and pins.** \`responder_reply_refines_unpinned\`, ', 1)"
+run named-without-pin 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-without-pin "says 14 results other than the compiler-trusted; there are 19"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+
 # The clean fixture of the mechanism: the template's script for a module, with one control planted.
 module=UnitLifecyclePreflightProbe
 script="tacenta-proofs/scripts/check-preflight-probe-negatives.py"
@@ -139,6 +148,7 @@ edit "$script" "t = t.replace(\"        'pinned': module,\n\", '', 1)"
 edit "$script" "t = t.replace('error: (deterministic) timeout at', 'error: (deterministic) stop at', 1)"
 edit tacenta-proofs/scripts/check-responder-receipt-negatives.py "t = t.replace('\"\"\"', '\"\"\"Two controls are labelled inside. ', 1) + '\nCOMPOSING = set()\nINSIDE = {}\n'"
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 42 results carries an axiom pin', 'Each of the 43 results carries an axiom pin', 1)"
+edit tacenta-proofs/CLAIMS.md "t = t.replace('other 35 results, 9 rest', 'other 36 results, 9 rest', 1)"
 edit ASSURANCE-OBLIGATIONS.md "t = t.replace('\`check-responder-receipt-negatives.py\` (two unmodified copies accepted and twenty changes refused', '\`check-responder-receipt-negatives.py\` (two unmodified copies accepted and twenty-one changes refused', 1)"
 edit tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean "t = t.replace('* That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.\n', '', 1)"
 edit "tacenta-proofs/translation/Translation/$module.lean" "t = t.replace('A probe.', 'A probe for item Q9, see zzdir/x/y.md, and the Zz_Forbidden.probe word.', 1)"
@@ -165,6 +175,7 @@ for needle in \
   "the two baselines (\`module\` and \`pinned\`)" \
   "a start-up sample of a heartbeat timeout" \
   "says 43 results with an axiom pin; there are 42" \
+  "says 36 results other than the ones named first; there are 35" \
   "ASSURANCE-OBLIGATIONS.md: says 21 changes refused by check-responder-receipt-negatives.py; there are 20" \
   "check-responder-receipt-negatives.py docstring: says 2 controls labelled INSIDE; there are 0" \
   "warning  UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused" \
@@ -192,4 +203,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline and a grown one without a reason refused; the template's mechanism passed and a stub of it refused; a weakened guard, a dropped label check, baseline or timeout sample, three counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline and a grown one without a reason refused; the template's mechanism passed and a stub of it refused; a first-named result with no pin counted by compiler trust; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
