@@ -24,7 +24,8 @@
 #                                  module (not-shown lists, the controls' mechanism, counts in the prose, terms
 #                                  kept out of the text) against planted faults, and every module against its
 #                                  baseline of known findings
-#   run-regenerate-generated-cases.sh  the regeneration of generated files after a merge
+#   run-check-merge-exactness-cases.sh, run-regenerate-generated-cases.sh  the merge-exactness check and the
+#                                  regeneration of generated files after a merge
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
@@ -61,5 +62,6 @@ if git -C "$root" rev-parse --verify --quiet origin/main >/dev/null; then
 else
   python3 "$root/tooling/check-proof-module-preflight.py" --all --baseline "$root/tooling/proof-module-preflight-baseline.json"
 fi
+bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
