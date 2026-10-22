@@ -1474,7 +1474,7 @@ recorded decision or a target-closing slice:
   `STATEMENT_SHAPE`,
   `COMPOSING` or `PROJECTED`, any `global` or `nonlocal`, a `raise` in `main` other than `SystemExit(<a message>)`, an assignment or `del` through an attribute or subscript of a module-level name, an in-place method call on one, and a `main` that does not record `inside`,
   `projection_of` and `projects`.
-  Anywhere in a script it refuses a `SystemExit` not raised directly of one message (a string, an f-string or a `+` with one),
+  Anywhere in a script it refuses a `SystemExit` not raised directly with one argument written as a message (a string, an f-string or a `+` with one; how the argument is written is read, not its value),
   and any use, import under any name or binding of `exit`,
   `quit`,
   `_exit`,
@@ -1483,12 +1483,18 @@ recorded decision or a target-closing slice:
   `killpg`,
   the `exec*`,
   `spawn*` and `posix_spawn*` calls,
-  `fork` or `forkpty` other than `sys.exit(main())` and `run_lean`'s `os.killpg`;
+  `fork` or `forkpty` other than the texts `sys.exit(main())` and `os.killpg(process.pid, signal.SIGTERM)`, accepted wherever they are written;
   `main` must bind `sources` once and only read it.
   Seven cases hold these: an arithmetic `SystemExit` argument, `exit` imported under another name, a helper that raises or calls an exit, an exit reached through `ctypes`, a baseline skipped with `sources` narrowed to match, and a baseline deleted from `sources`.
-  These rules read spellings: they stop accidents and the edits listed, not a deliberate edit:
-  a run ended in a way none of those names spells is not seen,
-  the same change to all five copies of a shared helper is one text, and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see is not detected.
+  The rules on the scripts' text are a tripwire for the spellings listed, not a check of what a run does; they stop accidents and the edits listed, not a deliberate edit.
+  Not seen, by class: a decorator or wrapper around `main` or a helper that catches `SystemExit` and returns, so that a refused control or `check_complete`'s refusal ends the run with status 0;
+  a key written twice in the `sources` literal, which the gate counts twice and the run once;
+  operator overloading and other dunder methods (an operand whose `__radd__` turns the message into a number);
+  reflection through names not listed (`operator.attrgetter`, `__getattribute__`, `__subclasses__`);
+  another module the script imports;
+  any other way of ending the run with status 0;
+  the same change to all five copies of a shared helper, which is one text;
+  and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see.
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;
@@ -1902,6 +1908,15 @@ scaffold a module still merge through `tooling/regenerate-generated.sh`. `toolin
 own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
 `cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,
 given two controls of the send-preservation module, was run against Lean by hand.
+
+Two gates of that change failed a second hostile read for the same reason, respellings of the shapes they name: the
+control-count gate's rules for `main` (`checks_43`) and the quiet-grep gate (`checks_44`). Both are kept, and are
+described as textual tripwires for the shapes listed, each with the classes it does not see. Recorded as decisions,
+**not built**: (1) a check of what each lifecycle negatives run produced, comparing its `result.json` (the baselines
+accepted and the controls refused, by class) with `tacenta-proofs/scripts/negatives-control-counts.json`, which would
+refuse a run wrapped so that its refusals exit 0 and a baseline hidden behind a duplicated key; (2) a quiet-grep gate
+that reads the shell through a parser (for example `shfmt --tojson`) and so sees the real pipelines and command words
+instead of a tokenizer's reading of them.
 
 ## Next P1 slices
 

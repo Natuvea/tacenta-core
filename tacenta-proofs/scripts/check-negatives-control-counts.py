@@ -15,7 +15,8 @@ that starts and passes.  This gate compares, for each script, the number of its 
   statement_shape  statement-shape checks (`STATEMENT_SHAPE`)
   pin              controls refused at a pin (`MUTANTS` entries whose place is `('pin', name)`)
   leaf             every other control (refused in a leaf lemma)
-  baselines        the unmodified copies the script requires Lean to accept first (the keys of `sources` in `main`)
+  baselines        the unmodified copies the script requires Lean to accept first (the keys written in the `sources`
+                   literal in `main`, as written: a key written twice counts twice here and once at run time)
 
 A count the script and the record disagree on is refused, naming the script and the class, so removing, adding or
 relabelling a control fails here unless the record is edited in the same change, where the diff of the record shows
@@ -34,15 +35,19 @@ import, a loop, `with` or `except` target, a parameter, a walrus, a `del`; so is
 `exec`, `eval`, `getattr`, `__dict__`, `sys.modules`, `importlib`, `__import__` or `ctypes`, through which a name
 can be rebound, or a function reached, without naming it.
 
-The counts hold what the script contains, not what it runs, so `main` is read too: it must call the shared
+The counts hold what the script contains, not what it runs, so `main` is read too.  These rules are a tripwire on
+the script's text, not a check of what it does: they name spellings, and other spellings of the same thing pass
+(see "What it cannot see").  `main` must call the shared
 `check_complete(results, sources)` as a statement of its own body (not inside an `if`, a loop, a `try` or a `with`),
 hold no `return`, call no `exit` and raise nothing but `SystemExit(<a message>)`, record `inside`, `projection_of`
 and `projects` for its controls, and the script must end its run with exactly `sys.exit(main())`.  Anywhere in the
 script, not only in `main` (a helper `main` calls ends the run as surely): `SystemExit` is only raised directly, of
-one argument written as a message (a string literal, an f-string, or a `+` with one of them as an operand, whose
-value is a string, so the run fails), and none of `exit`, `quit`, `_exit`, `abort`, `kill`, `killpg`, the `exec*`,
-`spawn*` and `posix_spawn*` calls, `fork` or `forkpty` is used, imported (under any name) or bound, except
-`sys.exit(main())` and `os.killpg(process.pid, signal.SIGTERM)` in `run_lean`.  `sources` is bound once in `main`, by
+one argument written as a message (a string literal, an f-string, or a `+` with one of them as an operand; the rule
+reads how the argument is written, and an operand that overloads `+` can still make its value a number), and none of
+`exit`, `quit`, `_exit`, `abort`, `kill`, `killpg`, the `exec*`, `spawn*` and `posix_spawn*` calls, `fork` or `forkpty`
+is used, imported (under any name) or bound, except the two texts `sys.exit(main())` and
+`os.killpg(process.pid, signal.SIGTERM)`, which are accepted by their text wherever they are written (the second is
+meant for `run_lean`).  `sources` is bound once in `main`, by
 its dict literal, and is otherwise only read (subscript, `.items()`, `.keys()`, `.values()`, and as the second
 argument of `check_complete`), so a baseline skipped in the loop cannot be hidden by narrowing it.  `main`,
 `MUTANTS`, `INSIDE`, `PROJECTION`, `STATEMENT_SHAPE`, `COMPOSING` and `PROJECTED` are each bound once, at the top
@@ -55,9 +60,17 @@ records in `RUNS`, do not number one per baseline, control and emptied-proof run
 per baseline and one refusing run per control and statement-shape check.
 
 What it cannot see.  These rules stop an accidental edit and the edits listed; they do not stop a deliberate one.
-They read spellings, not what the code does: a run ended in a way none of the names above spells (an uncaught
-exception is not such a way: it exits nonzero), a result written into `results` without its control having been
-checked, or Lean run on other files, is not seen.
+They read spellings, not what the code does.  Not seen, by class: a decorator or wrapper around `main` or a helper
+that catches `SystemExit` (or every exception) and returns, so that a refused control, a refused baseline or
+`check_complete`'s refusal ends the run with status 0 although the call stands in `main`'s own body; a key written
+twice in the `sources` literal, which this gate counts twice and the run once, so a baseline removed and another key
+duplicated keeps the count; operator overloading and other dunder methods (an operand whose `__radd__` turns the
+message into a number, `__getattribute__`, `__subclasses__`); reflection through names not listed here
+(`operator.attrgetter` and the like); another module the script imports, whose text is not read; any other way of
+ending the run with status 0 that none of the names above spells (an uncaught exception is not one: it exits
+nonzero); a result written into `results` without its control having been checked; and Lean run on other files.
+A check that would see the first two, recorded as a decision and not built, is to compare each run's `result.json`
+(the accepted baselines and refused controls, by class) with `negatives-control-counts.json`.
 The same change made to all five copies of a shared helper is one text and passes, as does a `main` that runs Lean
 the expected number of times on files other than the controls and reports refusals it did not see; a control that
 is a poor one, or a record whose counts are wrong but edited together with its script (only the diff shows it),

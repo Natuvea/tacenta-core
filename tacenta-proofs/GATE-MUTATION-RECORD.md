@@ -632,7 +632,9 @@ baseline's, an edit's, a guard's) a target directory of its own, outside the wor
 the caller's environment says; every build of a Rust runner is then a full one. `run-mutate-gates-cases.sh` holds it
 with a runner that builds through a cache in `$CARGO_TARGET_DIR`: with the caller's directory shared, the edit is
 hidden by the baseline's build and survives, and the shared directory is written; with the fix the edit is seen and
-the directory stays empty (mutation `MG-target`). The `.lake` directories an edit `link`s are still the checkout's
+the directory stays empty (mutation `MG-target`); the same case requires one target directory per run, inside the
+harness's own temporary directory, and none left there after the run (mutation `MG-target-cleanup`). Only that case
+sets `TMPDIR` and records the directories, so the cleanup is checked on its path alone. The `.lake` directories an edit `link`s are still the checkout's
 own. Read on this date, no linked runner builds a module an edit changes: the linked edits to Lean files
 (`PN1`, `PN2`) are elaborated with `lake env lean`, which writes no build output, and the other linked edits are to
 shell scripts.

@@ -17,7 +17,8 @@
 #   a runner that builds through a Cargo-like cache in `$CARGO_TARGET_DIR`, with the caller's
 #   `CARGO_TARGET_DIR` naming a directory shared with a checkout: the edit is still seen ("accepted"), and
 #   nothing is written to the shared directory (each worktree builds into a target directory of its own,
-#   one per run, in the harness's temporary directory, and none is left there after the run)
+#   one per run, in the harness's temporary directory, and none is left there after the run; only this case
+#   sets TMPDIR and records the directories, so the cleanup is checked on this runner's path alone)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"

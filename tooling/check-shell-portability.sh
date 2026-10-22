@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Refuse a pipeline that ends in a quiet grep in a tracked shell script.
+# Refuse a pipeline that ends in a quiet grep in a tracked shell script: a textual tripwire for the shapes below,
+# not a shell parser (see "What it does not see").
 #
 #   bash tooling/check-shell-portability.sh                 # every tracked shell script and workflow
 #   bash tooling/check-shell-portability.sh --files F...    # exactly these files (the case runner uses this)
@@ -7,11 +8,12 @@
 # The shape refused is `producer | grep -q pattern` (also -qF, -Eq, --quiet, --silent, and -l, -L,
 # --files-with-matches and --files-without-match, which stop at the first match too; and egrep, fgrep, ugrep
 # and rg in the same position), with the option before or after the pattern (GNU grep and the BSD grep of
-# macOS both take options after it; up to `--`), with any number of stages before it, wherever it appears: a
-# command, an `if` or `while` condition, `! producer | grep -q`, inside `$( )`, backticks, `{ }` or `( )`,
-# across a backslash continuation or a trailing pipe (with or without a comment after the pipe), and in the
-# `run:` text of a workflow or action file. A comment is told apart from code with the quotes read: a
-# backslash at the end of a comment does not continue the line, as in bash.
+# macOS both take options after it; up to `--`), with any number of stages before it: a command, an `if` or
+# `while` condition, `! producer | grep -q`, a pipeline inside `$( )`, backticks, `{ }` or `( )` (the grep a
+# command of the last stage itself, or the first command of a `{ }` group there), across a backslash
+# continuation or a trailing pipe (with or without a comment after the pipe), and in the `run:` text of a
+# workflow or action file. A comment is told apart from code with single and double quotes read: a backslash
+# at the end of a comment does not continue the line, as in bash.
 #
 # Why. `grep -q` exits at its first match. The producer is still writing, takes SIGPIPE, and under
 # `set -o pipefail` the pipeline's status is the producer's 141, not grep's 0. Whether that happens depends
@@ -33,7 +35,14 @@
 # A pipeline into `grep -c`, `grep -v` or a grep that reads to the end is not refused, because grep does
 # not stop reading early.
 #
-# What it does not see, said plainly. It is a textual tokenizer, not a shell parser. It reads the command
+# What it does not see, said plainly. It is a textual tokenizer, not a shell parser, so a respelling of a shape
+# it reads passes; a gate that reads the shell through a parser (for example `shfmt --tojson`) is a recorded
+# decision in ASSURANCE-OBLIGATIONS.md, not built. Shapes known to pass: a subshell or a compound command as
+# the last stage (`| (grep -q x)`, `| if grep -q x; then ...`, `| while grep -q x; do ...`); a redirection
+# before the command word (`| 2>/dev/null grep -q x`); ANSI-C quoting (`$'...'`, whose escaped quote the
+# tokenizer misreads, and `grep $'-q'`); an abbreviated long option (`--qui`, `--files-with-m`); `zgrep`,
+# `bzgrep`, `xzgrep` and other wrappers; a grep in an output process substitution (`> >(grep -q x)`,
+# `| tee >(grep -q x)`). It reads the command
 # word of the last stage after skipping `!`, `{`, `}`, `NAME=value`, and `command`, `builtin`, `exec`,
 # `nohup`, `time`, `env`, `sudo`, `nice`, `timeout` (and its duration) and `stdbuf` with their options, so
 # another prefix (`ionice`, `chrt`, `caffeinate`, `xargs grep -q`), a variable that holds the command
