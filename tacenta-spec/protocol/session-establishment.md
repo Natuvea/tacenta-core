@@ -130,13 +130,14 @@ which she checks before either signature (below).
 
 The KEM prekey's signature is over the type byte `0x08` followed by the
 key's bytes as the bundle holds them (message-format.md, Prekey bundle: a
-verifier re-tags the key it reads). For a key of 1,568 bytes, which is every
-key the bundle decoder returns, that is `EncodeKEM` of the key. She verifies both
-signatures before the KEM prekey's input checks (Primitives, ML-KEM-1024),
-which are part of encapsulating (security-properties/authentication.md,
-REQ-AUTH-01). So a bundle that reaches her without the bundle decoder, with a
-KEM prekey that is not 1,568 bytes, is refused as an authentication failure
-when that signature does not verify, and otherwise by the input checks.
+verifier re-tags the key it reads). For a key of 1,568 bytes, which is
+every key the bundle decoder returns, that is `EncodeKEM` of the key. She
+verifies both signatures before the KEM prekey's input checks (Primitives,
+ML-KEM-1024), which are part of encapsulating
+(security-properties/authentication.md, REQ-AUTH-01). So a bundle that
+reaches her without the bundle decoder, with a KEM prekey that is not 1,568
+bytes, is refused as an authentication failure when that signature does not
+verify, and otherwise by the input checks.
 
 She also refuses a bundle before encapsulating when its one-time curve prekey
 and that prekey's identifier disagree about whether one is present

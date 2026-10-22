@@ -103,8 +103,9 @@ An implementation offers establishment under both forms.
     expectation, the identity-key rule first, the expectation ahead of the
     signatures, the KEM prekey's input checks and the agreements, no
     randomness drawn for a refusal by the expectation or for any refusal
-    before it, and *first contact* with no records against the leaf's own
-    establishment.
+    before it, *first contact* with no records against the leaf's own
+    establishment, *known* with a key also retired in another contact's
+    record, and *first contact* over records that include an empty one.
   - `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
     (`tacenta-core/tests/full_session.rs`), which now runs under *known*: a
     bundle whose prekey signatures verify under another identity key is
@@ -118,6 +119,10 @@ An implementation offers establishment under both forms.
     canonical-key checks, the order above (not the order between the
     presence and canonical-key checks, which the page leaves open), and no random
     value drawn for any refusal before the KEM prekey's input checks.
+  - The fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which varies the presented key, the records and the bundle's identity
+    key, and not the bundle's prekeys or signatures. The hosted workflow
+    does not run it.
     `generate-identity-vectors.py` writes the bundles, and each outcome is
     checked against the model's (`Model.InitiatorExpectation`). The
     independent reader reads them.
@@ -528,8 +533,14 @@ A session's peer identity key is available to the party.
   - The unit tests of `tacenta-core/src/sessions/identity.rs`
     (`classification_over_the_cases`, `classification_ignores_duplicates`,
     `non_identity_members_never_match`, `lookup_over_the_cases`,
-    `lookup_refuses_a_presented_key_that_is_not_an_identity_key`), and the
-    responder tests in `tacenta-core/tests/identity_responder.rs`.
+    `lookup_refuses_a_presented_key_that_is_not_an_identity_key`), the
+    responder tests in `tacenta-core/tests/identity_responder.rs`, and
+    `known_and_same_but_retired_elsewhere_establishes_a_contacts_session` in
+    `tacenta-core/tests/identity_expectation.rs`.
+  - The fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which varies the presented key, the records and the bundle's identity
+    key, and not the bundle's prekeys or signatures. The hosted workflow
+    does not run it.
   - `tacenta-test-vectors/vectors/identity/identity-classification.json`
     (20 vectors) and `identity-lookup.json` (14), generated from the model
     (`Model.IdentityRecords`), and the peer key and lookup fields of the
@@ -583,7 +594,11 @@ and is computed only from identity keys (identities-and-devices.md).
   - `tacenta-test-vectors/vectors/identity/pair-digest.json` (38 vectors,
     every pair in both orders) and `verification-number.json` (9), generated
     from the model (`Model.IdentityRecords`) and read by the independent
-    reader.
+    reader;
+  - the fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which checks that the digest does not depend on argument order and that
+    the number is 60 digits that grouping keeps, on fuzzed keys. The hosted
+    workflow does not run it.
 
   No proof covers any part. The model's theorems that its digest is the same
   in either order and that its number has 60 digits are about the model

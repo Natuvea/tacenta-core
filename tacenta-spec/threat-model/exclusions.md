@@ -115,7 +115,9 @@ outside this specification. That covers:
   key unattributed, ambiguous or a retired key. That includes asking a
   person to accept a key, un-retire one or add a device's key, how it shows
   a session that is no contact's, and how it shows past plaintexts after a
-  record changes;
+  record changes, except that it shows a plaintext as a contact's only while
+  a lookup finds its session that contact's (session-establishment.md,
+  Records, expectations and attribution; ASM-14);
 - the records: who keeps them, how keys move between current and retired,
   resolving an ambiguous key, and their protection against loss, rollback,
   corruption or a writer;

@@ -288,8 +288,9 @@ and exclusions.md, EX-03.
 - Whether an initiator sends an initial message after a bundle shows
   whoever served it whether her expectation accepts that key. Under
   *known*, that means whether the key is *same* in that contact's record;
-  under *first contact*, whether it is unattributed in her records. It is free, silent and repeatable, and a probe she accepts is a
-  working substitution (EX-09).
+  under *first contact*, whether it is unattributed in her records. It is
+  free, silent and repeatable, and a probe she accepts is a working
+  substitution (EX-09).
 - An attacker holding a responder's signed prekey secret can make initial
   messages that responder accepts as coming from any identity key, until the
   prekey is deleted (REQ-AUTH-03).

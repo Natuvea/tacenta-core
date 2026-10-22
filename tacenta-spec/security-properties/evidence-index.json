@@ -146,7 +146,7 @@
         },
         {
           "path": "tacenta-core/src/sessions/identity.rs",
-          "symbol": "Expectation::is_malformed"
+          "symbol": "Expectation"
         },
         {
           "path": "tacenta-core/src/sessions/identity.rs",
@@ -275,6 +275,21 @@
           "path": "tacenta-core/tests/identity_expectation.rs",
           "name": "first_contact_over_her_records",
           "coverage": "Under first contact, a retired key is RetiredIdentity; a recorded contact's key, one also retired elsewhere, and an ambiguous one are UnexpectedIdentity; a non-canonical record is MalformedRecord; a key in no record establishes, unattributed."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "first_contact_over_records_including_an_empty_one",
+          "coverage": "Under first contact, a record with both sets empty is not malformed and changes nothing: a key in no other record establishes, unattributed, and a recorded contact's key is still UnexpectedIdentity with nothing drawn."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "known_and_same_but_retired_elsewhere_establishes_a_contacts_session",
+          "coverage": "Under known, a key same in the selected record and retired in another contact's record establishes; known reads the selected record only."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "expectation_malformed_cases",
+          "coverage": "Expectation::is_malformed: known with an empty record or a non-canonical member is malformed, first contact with any non-canonical record is malformed, and a canonical non-identity member or an empty record under first contact is not."
         },
         {
           "path": "tacenta-core/tests/identity_expectation.rs",
@@ -1538,6 +1553,11 @@
           "path": "tacenta-core/tests/identity_responder.rs",
           "name": "a_key_same_for_two_records_is_ambiguous",
           "coverage": "A responder session whose key is same for two records is ambiguous."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "known_and_same_but_retired_elsewhere_establishes_a_contacts_session",
+          "coverage": "A key same in one record and retired in another is that contact's: the lookup gives Contact(0), same_for [0] and retired_for [1], with no record skipped."
         }
       ],
       "missing_evidence": [

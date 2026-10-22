@@ -34,11 +34,13 @@ is SemVer against the specified protocol (not the implementation).
     only: the classification and lookup unit tests in
     `tacenta-core/src/sessions/identity.rs`,
     `tacenta-core/tests/identity_responder.rs`,
-    `identity-classification.json` and `identity-lookup.json`.
+    `identity-classification.json`, `identity-lookup.json` and the
+    `identity_records` fuzz target.
   - REQ-AUTH-16, the identity pair digest binds the pair, is assumed
     (ASM-07). The order independence, the refusals and the number beneath
     it are tested only: the digest and number unit tests,
-    `pair-digest.json` and `verification-number.json`.
+    `pair-digest.json`, `verification-number.json` and the
+    `identity_records` fuzz target.
   - No proof covers either. The theorems about `Model.IdentityRecords` and
     `Model.InitiatorExpectation` that `tacenta-proofs/CLAIMS.md` records
     (tier T2) are about the model alone.
@@ -254,8 +256,8 @@ is SemVer against the specified protocol (not the implementation).
   status names `establish_initiator` of `tacenta-core/src/sessions/identity.rs`
   as where the refusals are made, the tests in
   `tacenta-core/tests/identity_expectation.rs`, the `full_session.rs` test,
-  which runs under *known*, and `initiator-expectation.json`. No proof
-  covers it.
+  which runs under *known*, `initiator-expectation.json` and the
+  `identity_records` fuzz target. No proof covers it.
 
 - `security-properties/confidentiality.md`: REQ-CONF-01, whose Does not cover
   list says the peer of a session that is no contact's is whoever holds its

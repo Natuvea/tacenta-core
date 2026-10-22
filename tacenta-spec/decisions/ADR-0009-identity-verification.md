@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted, on the owner's rule-7 review (ADR-0008) of the pull request that
+lands it.
 
 ## Context
 
@@ -158,11 +159,12 @@ Accepted.
 
 - **What `tacenta-core` changes.** Its session API (`tacenta_core::sessions`)
   establishes the initiator only under an expectation, and no longer offers
-  establishment with a named key or without one. The lifecycle leaf crate,
-  an internal workspace member that is not published, keeps its own
+  establishment with a named key or without one. `tacenta-core` provides the
+  classification, the lookup, the digest and the verification number. The
+  responder's establishment is unchanged. The lifecycle leaf crate, an
+  internal workspace member that is not published, keeps its own
   establishment with a named key and without one public for the translation
-  and its tests; it is not a supported entry. It provides the classification, the lookup, the digest
-  and the verification number. The responder's establishment is unchanged.
+  and its tests; it is not a supported entry.
 - **Attribution follows the records as they stand.** A record change
   re-attributes past plaintexts, and an application shows a plaintext as a
   contact's only while the lookup finds its session that contact's.
