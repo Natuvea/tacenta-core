@@ -218,7 +218,9 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('refines',
 run named-without-pin 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-without-pin "names \`responder_reply_refines_unpinned\` first, which has no pin in the section's modules"
 g checkout -q -- tacenta-proofs/CLAIMS.md
-edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('responder_reply_refines', 'reply_refines'), 1).$moved"
+# A name that is only the tail of a pin's name (no dot before it) matches no pin. The counts are left as they
+# were: had the name matched `responder_reply_refines`, they would all agree and the run would pass.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('responder_reply_refines', 'reply_refines'), 1)"
 run named-substring 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-substring "names \`reply_refines\` first, which has no pin in the section's modules"
 g checkout -q -- tacenta-proofs/CLAIMS.md
