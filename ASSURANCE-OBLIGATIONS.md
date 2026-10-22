@@ -1012,6 +1012,7 @@ recorded decision or a target-closing slice:
   `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
   `check-repair-negatives.py`,
+  `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
   `check-sparse-store-full-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
@@ -1021,6 +1022,7 @@ recorded decision or a target-closing slice:
   `check-responder-negatives.py`,
   `check-responder-frame-negatives.py`,
   `check-responder-receipt-negatives.py`,
+  `check-responder-repeated-frame-negatives.py`,
   `check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
@@ -1069,6 +1071,8 @@ recorded decision or a target-closing slice:
   its success headline keeps the fresh-key premise and the budget after the receipt,
   and its run and reaches keep the responder's further bytes, the law that chooses the responder's and the initiator's further bytes and the stale run's key equation (the initiator's second send and its receipt of the reply are conjuncts of called theorems,
   placed unchanged);
+  `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, keeps the last-resort path, the commit's single record entry, the fingerprint of the secret read back and the committed store it returns, and its composition keeps the bundle's last-resort key and absent one-time curve key;
+  `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1227,6 +1231,27 @@ recorded decision or a target-closing slice:
   four of them,
   the three structural-invariant edits and the `HEADER_LEN` bound,
   are proof-dependency controls that leave the statement unchanged),
+  `check-responder-establish-replay-negatives.py` (two unmodified copies accepted and twelve changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement and a proof-breakage check there,
+  not a proof that the changed statement is false:
+  six labelled inside the composing proofs `establish_responder_again_refused` and `initiator_first_send_responder_replay_refused` and one a projection of a called theorem's conjunct,
+  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
+  and at run time only that each change is refused at its labelled place,
+  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  the second call claimed on the one-time path,
+  the commit claimed on the one-time path,
+  the fingerprint claimed of the secret before it is read back,
+  the second call claimed to return the store before the commit,
+  and the bundle claimed to name another KEM key or a one-time curve key;
+  the projection: the record claimed to gain the one-time identifier);
+  two statement-shape checks on the reach (the record claimed empty after the first call and the second call claimed to take a draw, still refused with the headline's proof emptied),
+  two on the leaf lemmas (the replay check claimed without the entry and the commit claimed with a one-time curve key),
+  and the replay check's statement with a variable renamed and its pins kept;
+  an error that is not a refusal voids a run, matched without regard to case;
+  a timeout never counts as the named refusal;
+  none shows that the model refuses the same delivery),
   `check-responder-frame-negatives.py` (two unmodified copies accepted and twenty changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1307,6 +1332,29 @@ recorded decision or a target-closing slice:
   only the one inside the composing proof shows the composed proof uses what it names (the sent bytes),
   the two projections only that the composed conclusions place the called theorems' conjuncts unchanged and the three statement-shape checks only that the corollaries and the reach project its statement,
   and none shows that another session fails the invariant),
+  `check-responder-repeated-frame-negatives.py` (two unmodified copies accepted and seventeen changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement and a proof-breakage check there,
+  not a proof that the changed statement is false:
+  eight labelled inside the composing proofs `responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` and two projections of called theorems' conjuncts,
+  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
+  and at run time only that each change is refused at its labelled place,
+  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  the refusal claimed to take no draw,
+  the model's step claimed to keep the draw,
+  the refusal claimed to be `NotARepeatedInitial`,
+  the second draw claimed of the first source in either composing proof,
+  the model's step claimed at the first receipt's oracle,
+  the first call claimed on the plaintext,
+  and the model session claimed at chunk index 1;
+  projections: the composed call claimed from the first source and the key generation claimed at swapped draws);
+  two statement-shape checks on the reach (claimed from the seed and claimed refused as not a repeat, still refused with the headline's proof emptied),
+  four on the leaf lemmas (the model's receive claimed to refuse for no receiving chain, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the ephemeral comparison claimed on the identity key),
+  and the model receive's statement with a variable renamed and its pins kept;
+  an error that is not a refusal voids a run, matched without regard to case;
+  a timeout never counts as the named refusal;
+  none shows that another delivery is refused),
   `check-responder-reply-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,

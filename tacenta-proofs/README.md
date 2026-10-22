@@ -88,7 +88,13 @@ first, returning the plaintext and keeping `Session::invariant` and the four cei
 case (and, by reading the code, no KEM operation), no new law and no compiler-trust
 axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
 covered; no `encrypt` whose agreement send
-draws, no refusal and no receive outside that scope covered by a preservation result);
+draws, no refusal and no receive outside that scope covered by a preservation result; and the initiator's first frame
+delivered a second time on that run, refused by the
+responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw
+taken, refining the model's step) and by `establish_responder` at the store the first success committed
+(`ReplayedLastResort`, store and source unchanged, when the bundle names the store's last-resort KEM key and no one-time
+curve prekey), with no new law or compiler-trust axiom; the model's side of the latter, the one-time path and a repeat
+at a later session or of other bytes not covered);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two

@@ -115,6 +115,7 @@ py_stubs=(
   check-receive-preservation-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
+  check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
   check-sparse-store-full-negatives.py
   check-decrypt-ratchet-negatives.py
@@ -125,6 +126,7 @@ py_stubs=(
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
+  check-responder-repeated-frame-negatives.py
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py

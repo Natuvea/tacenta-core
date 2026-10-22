@@ -5474,7 +5474,7 @@ in the section above. Without the two new laws, the only other refusals are the 
 foreign frame is refused (no AEAD authenticity law); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees` is a
 premise; by reading, a decapsulation failure returns another secret under implicit rejection and would, barring an HMAC collision,
 surface as `Aead`, not `Kem`, which is not shown); the responder successor's `Session::invariant` and its four counter ceilings here (the next section shows both); a second delivery
-of the same bytes (refused or not); the responder's reply (its `encrypt`: two sections below), the initiator's receipt of it (three sections below) and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
+of the same bytes here (the two sections on the first frame delivered a second time take it, on the same run); the responder's reply (its `encrypt`: two sections below), the initiator's receipt of it (three sections below) and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
 primitives meet the laws.
 
 **Compiler trust and pins.** `responder_first_frame_inner_outcomes`, `responder_first_frame_inner_succeeds`,
@@ -5576,7 +5576,7 @@ constants under the laws.
 **What this establishes, and what it does not.** At the session the responder's whole `establish_responder` call returns on the
 initiator's first frame, the invariant and the four ceilings hold, under the laws and premises of the section above and with
 no new one. **Not shown:** that a receive keeps the invariant in general, or at any later message; the responder's reply (the
-next section takes its `encrypt` at this session), the initiator's receipt of it (two sections below) and any later message; a second delivery of the same bytes; a tampered frame being refused; the
+next section takes its `encrypt` at this session), the initiator's receipt of it (two sections below) and any later message; a second delivery of the same bytes here (the section on the repeated frame takes it at this session); a tampered frame being refused; the
 premises of the next decrypt that are not about the session (the next frame's chunk relation, `HonestChunk` for the next header
 chunk, the draw, the boundary records); that the model session the successor is related to holds only bytes the responder
 received (the relation is at the attributed view of the section above; the invariant and the ceilings are about the code's
@@ -6738,6 +6738,208 @@ There is no statement-shape check. Several refusals are structural (a type misma
 unprovable goal. None shows anything about a later step, a tampered frame or a receive outside the in-order scope. An
 error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or
 deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: the initiator's first frame delivered again through `Session::decrypt` at the responder's session after its first receipt, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleResponderRepeatedFrame.lean`.
+
+The sections on the responder's first receipt and its successor show that, on the bytes the initiator's first `encrypt`
+emitted, a successful `establish_responder` returns a session `sB'` that refines the model's step
+(`firstReceiptSession`), passes `Session::invariant` and meets the four counter ceilings. An initiator repeats its
+initial message until it hears back, so the same bytes can reach the responder again on the session it now holds.
+These results take that second delivery on the same run: the responder's public `Session::decrypt` of the same bytes at
+`sB'`.
+
+**How, and its scope.** The call recognises the repeat: the message's ephemeral key is in the same agreement class as
+the copy the session kept (the same bytes, decoded to the initiator's ephemeral key, with which every private key's
+agreement returns under `DhAgreeContributory`: `same_ephemeral_repeat`), and its identity is the peer's (the decoded
+identity of the first call). The inner `decrypt_ratchet` then refines the model's `decryptRatchet` at `sB'`
+(`decrypt_ratchet_refines_of_invariant`, with the invariant and the ceilings from `first_receipt_successor_facts` and the
+run inputs at the view that attributes the frame's codeword to the header source; the decoder at `sB'` already holds that
+chunk, which then fits it). The model's step on the first frame at the receiver after the first message draws the
+candidate key, and its Triple receive refuses `outOfOrder`: the header's ratchet key is the peer key held, no stored key
+matches, and message 0 is below the receive count 1 (`repeat_receive_outOfOrder`, `repeat_frame_model_refused`). The code's
+result is pinned by the model's through the refusal map, the session by `decrypt_ratchet_err_leaves_state` and
+`decrypt_err_leaves_state`, and the draws by the refinement; the wrapper is `decrypt_initial_repeat_agreement_refusal_exact`.
+**Exact effects:** the call returns `Triple(Classical(OutOfOrder))` and `sB'` itself, so nothing in the session changes and
+no message key or stored key is consumed; the source loses exactly one draw, the candidate key the inner receive draws
+before the Triple's receive, as the model's step does. The refusal is not free of the random source.
+
+**Laws and premises.** No new law. The statements take the hypotheses of the successor theorems (the receipt's laws
+`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, and `DhPublicValid`, `OptionEqU64Shape`, the responder's
+contracts, oracle record and decrypt agreements, and the initiator's send hypotheses), the success equation of the first
+call, and one per-run premise: the second delivery's source holds a draw. `DhAgreeContributory` is used for the repeat
+recognition's two agreements with the initiator's ephemeral key and for the session key's and the second draw's
+agreements with the initiator's ratchet key; without it the model and the code would refuse
+`handshake nonContributoryAgreement` instead. With no draw left the model refuses `ceiling`, and the statement does not
+cover that source.
+
+- `repeat_receive_outOfOrder`, `repeat_receive_with_eviction`: the model Triple's receive of `firstHeader a4` at
+  `receiverAfterFirst` refuses `classical outOfOrder` whatever the agreements, the candidate key and the sparse output, and
+  the session's receive with eviction refuses the same without evicting; model only, no hypothesis.
+- `repeat_frame_model_refused`: the model's `decryptRatchet` of the first frame, at every codeword view, at a session with
+  that Triple whose agreement has not failed, when the frame's ratchet key is 32 canonical bytes and the session's ratchet
+  key and the draw `c` both agree with it, consumes `c`, refuses `triple (classical outOfOrder)` and keeps the session;
+  model only.
+- `key_agreement_ratchet`, `same_ephemeral_repeat`: every private key agrees with the initiator's ratchet key in the
+  responder's oracle, and the code's comparison of the ephemeral copy the session keeps with the same message's ephemeral
+  key returns `true` under every private key, under `DhAgreeContributory`.
+- `responder_first_frame_repeat_refused`: at every successful return of `establish_responder` on the initiator's initial
+  message, under the hypotheses of `responder_first_frame_successor` and the success equation, for every source whose trace
+  holds a draw `dB2`: `sB'` refines `firstReceiptSession`; the model's public `decrypt` of the same bytes there, at every
+  view, with the oracle holding `dB2` first, consumes `dB2`, refuses `triple (classical outOfOrder)` and keeps the model
+  session; and the translated `decrypt` of the same bytes at `sB'` returns `Triple(Classical(OutOfOrder))`, `sB'` and a
+  source whose trace is the rest after `dB2`.
+- `initiator_first_send_responder_repeat_refused`: the same on the bytes a successful first `encrypt` at an establishment
+  output emitted, under the hypotheses of `initiator_first_send_responder_successor_hypotheses`, with the model session at
+  the header source of the initiator's key generation.
+- `first_send_repeat_refused_reachable`: at the real constants under the laws of `first_send_receive_reachable`, all
+  assumed, one run (last-resort path, empty plaintext) on which the responder's `decrypt` of the same bytes, from the
+  source the first call left, returns `Triple(Classical(OutOfOrder))` and the session the first call returned.
+
+**Non-vacuity.** No law is added, so `first_receipt_laws_model` already puts every law these statements take in one
+toy interpretation, in the substitution sense of `LIMITATIONS.md`; `first_send_repeat_refused_reachable` exhibits every
+premise of the composed statement on one run at the real constants under those laws, the second source being the one the
+first call left.
+
+**What this establishes, and what it does not.** On the run of the initiator's first send and the responder's first
+receipt, the same bytes delivered again to the responder's `Session::decrypt` are refused as out of order with the
+session unchanged, at the cost of one draw, and the code's step refines the model's. **Not shown:** that the refusal
+consumes nothing (it consumes one draw of the source, as the model step does; only the session is left as it was); a
+repeat at any later session (after the responder's reply, after the initiator's second message, on a restored copy) or a
+repeat of the reply at the initiator; a repeat that differs in its bytes (a re-encoded ephemeral key, a changed KEM
+ciphertext or identifier, a tampered inner frame); a non-repeat initial message (`NotARepeatedInitial`) and the arms the two
+agreements' refusal or an empty source would give (`handshake nonContributoryAgreement`, `ceiling`); that the agreement's
+receive of the duplicate chunk leaves the decoder as it was (its candidate is discarded with the refusal and the statement
+does not need it); the second delivery to `establish_responder` at the committed store (the next section); that the real
+primitives meet the laws the run rests on; the one-time path in a run; a source with no state of its own, such as `OsRng`.
+
+**Compiler trust and pins.** `responder_first_frame_repeat_refused`, `initiator_first_send_responder_repeat_refused` and
+`first_send_repeat_refused_reachable` apply `decrypt_ratchet_refines_of_invariant` and `responder_first_frame_inner_succeeds`
+(and the last two `established_encrypt_outcomes` too) and list the kernel's three axioms and opaque constants of the unit,
+and no compiler-trust axiom. Of the other 5 results, 3 rest on `propext`, `Classical.choice` and `Quot.sound` alone
+(`repeat_receive_outOfOrder`, `repeat_receive_with_eviction`, `repeat_frame_model_refused`) and 2 on those three and opaque
+constants of the unit. Each of the 8 results carries an axiom pin and a statement pin. The statement pins of
+`responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` are cut off by Lean's `⋯` (after
+the binder `ptB` and after `AeadRoundTrip →`): they hold the binders up to the cut, and the rest of each statement,
+conclusion included, is held by the build and by reading only, as with every pin that ends in `⋯`.
+`check-responder-repeated-frame-negatives.py` plants seventeen faults in a copy of the module, every one a change to a
+statement, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false). Ten are refused in the two composing
+proofs: eight labelled inside and two projections. A control refused in a composing theorem is a projection when it is
+refused where that proof places a conjunct of a called theorem's conclusion unchanged, and is labelled inside otherwise;
+the script holds both labels, once at start-up (at run time it checks only that each change is refused at its labelled
+place), to a syntactic form of that standard read off the module (the refusal names a hypothesis the proof binds by
+destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor),
+requires every control refused in a composing proof to carry one of them, and runs each inside control with that proof
+replaced by `sorry`, requiring Lean to accept the change there. That probe verifies attribution only; that the syntactic
+form is the right standard, and that the two theorems compose rather than project, is decided by reading. The eight inside:
+in `responder_first_frame_repeat_refused`, the refusal claimed to take no draw, the model's step claimed to keep the draw,
+the code's refusal claimed to be `NotARepeatedInitial`, the second draw claimed of the first call's source and the model's
+step claimed at the first receipt's oracle; in `initiator_first_send_responder_repeat_refused`, the second source's draw
+claimed of the first source, the first call claimed on the plaintext instead of the sent bytes, and the model session
+claimed at chunk index 1. The two projections, both refused in `initiator_first_send_responder_repeat_refused`: the composed
+`decrypt` claimed from the first call's source (where the call conjunct of `responder_first_frame_repeat_refused` is placed
+unchanged) and the key generation claimed at the two draws swapped (where the key-generation conjunct of
+`established_encrypt_outcomes` is placed unchanged); they show only that the headline forwards those conjuncts. Two are
+statement-shape checks on the reach, each projecting `initiator_first_send_responder_repeat_refused`: the reach's `decrypt`
+claimed from the initiator's seed, and its refusal claimed to be `NotARepeatedInitial` (refused in
+`first_send_repeat_refused_reachable`, and again with the headline's proof replaced by `sorry`). Four are on the leaf lemmas:
+the model's receive claimed to refuse `noReceivingChain` (refused in `repeat_receive_outOfOrder`), the draw's agreement
+claimed refused and the model's refusal claimed to keep the oracle (refused in `repeat_frame_model_refused`), and the
+ephemeral comparison claimed on the identity key (refused in `same_ephemeral_repeat`). The last is `repeat_receive_outOfOrder`
+with a bound variable renamed and the pins kept (refused at its statement pin). Several refusals are structural (a type
+mismatch at the named place), not an unprovable goal. None is a proof that another delivery is refused. An error that is
+not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never
+counts as the named refusal, and one elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleResponderEstablishReplay.lean`.
+
+The section on the responder's first receipt shows that a successful `establish_responder` on the bytes the initiator's
+first `encrypt` emitted commits the prekey store (`ResponderCommit`): on the last-resort path the replay record gains the
+fingerprint of the handshake's shared secret. These results deliver the same bytes to `establish_responder` again, at the
+store that commit left, on the same run. `establish_responder_replay_refused` (the section on `establish_responder` over
+every input) reaches the same refusal at a store built for the purpose; here the store is the one the run's own first
+success left.
+
+**How, and its scope.** On the last-resort path with no one-time curve prekey named, the commit changes only the replay
+record, appending `(kem_id, fp)` (`commit_last_resort`). Every step of the prepare phase before the replay check reads the
+store's fields other than that record, so at the committed store each step returns what it returned in the first call;
+the replay check then finds the entry the commit appended and refuses (`replay_refused_of_mem`,
+`establish_responder_again_refused`). On the run, the decoded identifiers are the bundle's (`parts_of_first_frame`), so the
+first call's parts take the last-resort path. **Exact effects:** the second call returns `ReplayedLastResort`, the store it
+was given (the committed one) and the source it was given, and no session; it takes no draw.
+
+**Laws and premises.** No new law. The composed statement takes the hypotheses of `established_encrypt_outcomes` for the
+initiator's send, `ZeroizingArrayRoundTrip` and `DhPublicValid` (which read the decoded identifiers back), the store's
+`publish` and identity equations, the first call's success equation, and two premises on the run's shape: the bundle names
+the store's last-resort KEM key, and it names no one-time curve prekey. Both hold on the reach run. It takes none of the
+receipt's laws, `FirstKemAgrees` or `PrekeyIdsDistinct`: the first call's success is a hypothesis, and the refusal does not
+depend on why it succeeded.
+
+- `replay_refused_of_mem`: the replay check on the last-resort path refuses `ReplayedLastResort` when some entry of the
+  record holds the fingerprint of the given secret.
+- `commit_last_resort`: the success commit on the last-resort path with no one-time curve prekey named leaves the store with
+  only its replay record changed, the record gaining `(kemId, fp)` at its end; no hypothesis.
+- `establish_responder_again_refused`: for parts of an input on the last-resort path and the store that commit left with
+  the fingerprint of the parts' shared secret, `establish_responder` on the same message at that store returns
+  `ReplayedLastResort`, that store and the source as given.
+- `initiator_first_send_responder_replay_refused`: on the bytes a successful first `encrypt` at an establishment output
+  emitted, at every successful return of `establish_responder` at a store whose bundle names its last-resort KEM key and no
+  one-time curve prekey, the parts take the last-resort path, the committed store differs from the given one only in its
+  replay record, which gains `(kem_id, fp)` for the fingerprint of the shared secret the call computed, and the same bytes
+  at the committed store are refused as `ReplayedLastResort`, with that store and the source as given, from every source.
+- `first_send_replay_refused_reachable`: at the real constants under the laws of `first_send_receive_reachable`, all assumed,
+  one run (last-resort path, empty replay record at the start) after which the record holds exactly one entry and the
+  second call is refused from every source.
+
+**Non-vacuity.** No law is added; `first_receipt_laws_model` already puts the reach's laws in one toy interpretation, in
+the substitution sense of `LIMITATIONS.md`, and `first_send_replay_refused_reachable` exhibits every premise of the composed
+statement on one run at the real constants under those laws.
+
+**What this establishes, and what it does not.** On the run of the initiator's first send, when the responder's store
+answers on its last-resort KEM key with no one-time curve prekey, the same initial message delivered a second time to
+`establish_responder` at the store the first success committed is refused as a replay, and the refusal leaves the store and
+the source as they were and builds no session. **Not shown:** the model's side (no relation between the code's prekey store
+and the model's, and no refinement of the model's `establishResponder`, exists in the tree, so this is a statement about the
+translated code alone; that the model refuses the same delivery is not shown here); the one-time path (a bundle that names
+a one-time KEM prekey or a one-time curve prekey, whose second delivery the code refuses by reading because the commit
+removed the key; which entry the commit's removals take is not stated); a second delivery after a first call that refused,
+or after any other store change between the two calls (a `publish`, a rotation, another handshake); the second delivery
+of the same bytes to the session the first call returned (the section above); a delivery of other bytes that carry the same
+handshake (a re-encoding, a tampered frame); that the replay record keeps this entry for the store's life; that the real
+primitives meet the laws the run rests on; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; a source with no state of its
+own, such as `OsRng`.
+
+**Compiler trust and pins.** `initiator_first_send_responder_replay_refused` and `first_send_replay_refused_reachable` apply
+`established_encrypt_outcomes` (the second also `initiator_first_send_responder_receives`) and list the kernel's three
+axioms and opaque constants of the unit, and no compiler-trust axiom. Of the other 3 results, 0 rest on `propext`,
+`Classical.choice` and `Quot.sound` alone and 3 on those three and opaque constants of the unit. Each of the 5 results
+carries an axiom pin and a statement pin. The statement pin of `initiator_first_send_responder_replay_refused` is cut off
+by Lean's `⋯` after the responder's identity equation: it holds the binders up to the cut, and the rest of the statement,
+conclusion included, is held by the build and by reading only, as with every pin that ends in `⋯`.
+`check-responder-establish-replay-negatives.py` plants twelve faults in a copy of the module, every one a change to a
+statement, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false). Seven are refused in the two
+composing proofs: six labelled inside and one a projection, under the same label standard as the section above (held at
+start-up, the syntactic form read off the module, each inside control also run with its proof replaced by `sorry`; that
+probe verifies attribution only, and the standard itself is decided by reading). The six inside: in
+`establish_responder_again_refused`, the second call claimed on the one-time path, the commit claimed on the one-time
+path, the fingerprint claimed of the shared secret before it is zeroized and read back, and the second call claimed to
+return the store before the commit; in `initiator_first_send_responder_replay_refused`, the bundle claimed to name another
+KEM key and to name a one-time curve prekey. The projection: the record claimed to gain the bundle's one-time identifier
+instead of the KEM identifier (refused where the headline places the record conjunct of `commit_last_resort` unchanged);
+it shows only that the headline forwards it. Two are statement-shape checks on the reach, each projecting
+`initiator_first_send_responder_replay_refused`: the reach's record claimed empty after the first call and its second
+call claimed to take a draw (refused in `first_send_replay_refused_reachable`, and again with the headline's proof replaced
+by `sorry`). Two are on the leaf lemmas: the replay check claimed to refuse with no entry holding the fingerprint (refused
+in `replay_refused_of_mem`) and the commit claimed with a one-time curve prekey named (refused in `commit_last_resort`). The
+last is `replay_refused_of_mem` with a bound variable renamed and the pins kept (refused at its statement pin). Several
+refusals are structural (a type mismatch at the named place), not an unprovable goal. An error that is not a refusal voids
+a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named
+refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

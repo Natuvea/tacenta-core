@@ -1342,6 +1342,14 @@ REQUIRED_PINS = frozenset(
         "codewordViewSendOf_satisfiable",
         "scoped_chunk_fields_iff_consistent",
     )]
+    # establish_responder again on the initiator's first frame, at the store its first success committed (`UnitLifecycleResponderEstablishReplay`).
+    + ["Tacenta.UnitLifecycleResponderEstablishReplay." + n for n in (
+        "replay_refused_of_mem",
+        "commit_last_resort",
+        "establish_responder_again_refused",
+        "initiator_first_send_responder_replay_refused",
+        "first_send_replay_refused_reachable",
+    )]
     # The session contract integration (#203): the full-store failure correspondences and the retry
     # prerequisites it claims, one block per module.
     + ["Tacenta.UnitT3." + n for n in (
@@ -2255,6 +2263,17 @@ REQUIRED_PINS = frozenset(
         "first_receipt_laws_model",
         "first_send_receive_reachable",
     )]
+    # Session::decrypt of the initiator's first frame again, at the responder's session after its first receipt (`UnitLifecycleResponderRepeatedFrame`).
+    + ["Tacenta.UnitLifecycleResponderRepeatedFrame." + n for n in (
+        "repeat_receive_outOfOrder",
+        "repeat_receive_with_eviction",
+        "repeat_frame_model_refused",
+        "key_agreement_ratchet",
+        "same_ephemeral_repeat",
+        "responder_first_frame_repeat_refused",
+        "initiator_first_send_responder_repeat_refused",
+        "first_send_repeat_refused_reachable",
+    )]
     # `Session::invariant` and the four counter ceilings at the session `establish_responder` returns on the
     # initiator's first frame: the receive's success walk, the header decoder after one chunk, the Triple and the
     # session after the first receive, the facts from the relation and the walk, the compositions and the reach
@@ -2854,6 +2873,14 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitLifecycleRepair." + n for n in (
         "codewordViewSendOf_satisfiable",
         "scoped_chunk_fields_iff_consistent",
+    )]
+    # establish_responder again on the initiator's first frame, at the store its first success committed (`UnitLifecycleResponderEstablishReplay`).
+    + ["Tacenta.UnitLifecycleResponderEstablishReplay." + n for n in (
+        "replay_refused_of_mem",
+        "commit_last_resort",
+        "establish_responder_again_refused",
+        "initiator_first_send_responder_replay_refused",
+        "first_send_replay_refused_reachable",
     )]
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
@@ -4138,6 +4165,17 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "viewFirstReceipt",
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
+    )]
+    # Session::decrypt of the initiator's first frame again, at the responder's session after its first receipt (`UnitLifecycleResponderRepeatedFrame`).
+    + ["Tacenta.UnitLifecycleResponderRepeatedFrame." + n for n in (
+        "repeat_receive_outOfOrder",
+        "repeat_receive_with_eviction",
+        "repeat_frame_model_refused",
+        "key_agreement_ratchet",
+        "same_ephemeral_repeat",
+        "responder_first_frame_repeat_refused",
+        "initiator_first_send_responder_repeat_refused",
+        "first_send_repeat_refused_reachable",
     )]
     # `Session::invariant` and the four ceilings at the responder's session after the first receipt
     # (`UnitLifecycleResponderSuccessor`).

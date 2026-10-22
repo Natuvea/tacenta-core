@@ -74,8 +74,8 @@ path, empty plaintext) whose responder session passes the invariant and meets th
 * That a receive keeps the invariant in general, or at any later message: only this first receive at the responder's
   prepared session is covered.
 * The responder's reply (its `encrypt` at this session is `UnitLifecycleResponderReply`'s), the initiator's receipt of
-  it (`UnitLifecycleResponderReplyReceipt`'s), a second message from the initiator, a second delivery of the same bytes,
-  a tampered frame.
+  it (`UnitLifecycleResponderReplyReceipt`'s), a second message from the initiator, a second delivery of the same bytes
+  (`UnitLifecycleResponderRepeatedFrame` takes it at this session), a tampered frame.
 * The premises of the next decrypt that are not about the session: the next frame's chunk relation, `HonestChunk`
   (at `NoHeaderReceived` with a chunk held, a condition on the next header chunk), the draw and the boundary records.
 * That the model session the successor refines holds only bytes the responder received: the relation is the receipt

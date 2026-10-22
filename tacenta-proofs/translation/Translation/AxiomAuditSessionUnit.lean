@@ -41,6 +41,7 @@ import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
+import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
 import Translation.UnitOracleShape
 import Translation.UnitOracleModel
@@ -72,6 +73,7 @@ import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
+import Translation.UnitLifecycleResponderRepeatedFrame
 import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
@@ -194,6 +196,15 @@ initiator's new ratchet key is its first, or returns the initiator's plaintext; 
 new key is not the first and that the responder's source holds a draw, the session it leaves passes
 `Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
 constants under assumed laws.  A second reply and every later step are not covered.
+`UnitLifecycleResponderEstablishReplay.lean` delivers the initiator's first frame to `establish_responder` a second
+time, at the store the first success committed, on the same run: when the bundle names the store's last-resort KEM key
+and no one-time curve prekey, the commit appends one replay-record entry and nothing else, and the second call returns
+`ReplayedLastResort`, that store and the source as given.  No law is added; the model's side (a refinement of the
+model's `establishResponder`) and the one-time path are not shown.
+`UnitLifecycleResponderRepeatedFrame.lean` delivers the same frame to the responder's `Session::decrypt` at the session
+that first success returned, on the same run: the repeat is recognised and the inner receive refuses it as out of
+order, the session returned is the one given, the source loses exactly one draw, and the step refines the model's.  No
+law is added beyond the receipt's; a repeat at a later session or of different bytes is not shown.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

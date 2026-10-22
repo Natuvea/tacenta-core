@@ -83,6 +83,7 @@ py_controls=(
   check-initiator-second-message-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
+  check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
   check-sparse-store-full-negatives.py
   check-decrypt-ratchet-negatives.py
@@ -92,6 +93,7 @@ py_controls=(
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
+  check-responder-repeated-frame-negatives.py
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
@@ -184,6 +186,7 @@ for called in \
   check-braid-agreement-negatives.sh \
   check-atomicity-negatives.py \
   check-repair-negatives.py \
+  check-responder-establish-replay-negatives.py \
   check-send-refusal-negatives.py \
   check-sparse-store-full-negatives.py \
   check-decrypt-ratchet-negatives.py \
@@ -193,6 +196,7 @@ for called in \
   check-responder-negatives.py \
   check-responder-frame-negatives.py \
   check-responder-receipt-negatives.py \
+  check-responder-repeated-frame-negatives.py \
   check-responder-successor-negatives.py \
   check-responder-reply-negatives.py \
   check-responder-reply-receipt-negatives.py \

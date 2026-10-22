@@ -258,6 +258,18 @@ phase_repair() {
 python3 scripts/check-repair-negatives.py || fail=1
 }
 
+# `establish_responder` on the initiator's first frame delivered again, at the store its first success committed
+# (`UnitLifecycleResponderEstablishReplay.lean`): a copy with the second call or the commit claimed on the one-time
+# path, the fingerprint claimed of the secret before it is read back, the second call claimed to return the store
+# before the commit, the bundle claimed to name another KEM key or a one-time curve key, the record claimed to gain
+# the one-time identifier, the reach's record claimed empty or its second call claimed to draw, the replay check
+# claimed without the entry, the commit claimed with a one-time curve key, and a statement with a variable renamed
+# and its pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_responder_establish_replay() {
+python3 scripts/check-responder-establish-replay-negatives.py || fail=1
+}
+
 # The composed Triple send theorem must consume the leaf theorem's complete
 # classical refusal result, including the finite-width counter edge.  A
 # disposable mutation restores the old NoSendingChain-only contract and a
@@ -358,6 +370,19 @@ python3 scripts/check-responder-frame-negatives.py || fail=1
 # unmodified copies are accepted.
 phase_responder_receipt() {
 python3 scripts/check-responder-receipt-negatives.py || fail=1
+}
+
+# `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first
+# receipt (`UnitLifecycleResponderRepeatedFrame.lean`): a copy with the refusal claimed to take no draw or to be
+# `NotARepeatedInitial`, the model's step claimed to keep the draw or taken at the first receipt's oracle, the second
+# draw claimed of the first source, the first call claimed on the plaintext, the model session claimed at chunk
+# index 1, the composed call claimed from the first source, the key generation claimed at swapped draws, the reach
+# claimed from the seed or refused as not a repeat, a leaf claimed otherwise (the receive's refusal, the draw's
+# agreement, the oracle kept, the ephemeral check on the identity key), and a statement with a variable renamed and its
+# pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_responder_repeated_frame() {
+python3 scripts/check-responder-repeated-frame-negatives.py || fail=1
 }
 
 # The Session unit's refinement constants, kernel proofs since 2026-10-21 (they were `native_decide`): a copy with a
@@ -652,6 +677,7 @@ phases() {
   run_phase initial-dispatch sliceable "initial dispatcher proof-dependency controls" phase_initial_dispatch units_initial_dispatch
   run_phase atomicity plain "lifecycle frame-proof controls" phase_atomicity
   run_phase repair plain "restated dispatch record controls" phase_repair
+  run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
@@ -662,6 +688,7 @@ phases() {
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
+  run_phase responder-repeated-frame plain "responder-repeated-frame proof-dependency control" phase_responder_repeated_frame
   run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply

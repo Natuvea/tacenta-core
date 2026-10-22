@@ -49,8 +49,10 @@ hosted responder:
   restored
   encrypt
   responder
+  responder-establish-replay
   responder-frame
   responder-second-receipt
+  responder-repeated-frame
 hosted reply:
   responder-successor
   responder-reply

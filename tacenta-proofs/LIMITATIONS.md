@@ -2850,7 +2850,7 @@ the two shared secrets would differ and the refusal observed would, barring an H
 not `Kem`; this is argued from the reading only and is not shown. Every law of the premise lists, with the first-frame
 laws, holds together in `InterpO.modelFirstReceipt` (`first_receipt_laws_model`), the first-frame joint model with the toy
 seal and open (the first-frame model's seal returns the empty vector, so `AeadRoundTripShape` is false there); a toy that
-shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; a second delivery of the same bytes (refused or not); the responder's reply (its `encrypt`: two paragraphs below), the initiator's receipt of it (three paragraphs below) and any later message; the one-time path in an
+shows nothing of the real primitives. **Not shown:** that a tampered or foreign frame is refused; a second delivery of the same bytes here (the paragraph on the first frame delivered a second time takes it); the responder's reply (its `encrypt`: two paragraphs below), the initiator's receipt of it (three paragraphs below) and any later message; the one-time path in an
 exhibited run; the model's own `establishResponder` equality. The responder successor's `Session::invariant` and its four
 counter ceilings are the next paragraph's.
 
@@ -2869,7 +2869,7 @@ Triple's counters and stores and the agreement's state, by injectivity of the by
 `NoHeaderReceived` (the relation does not fix the decoder: the decoder relation is behavioural). So the agreement's decoder is
 shown to be the fresh header decoder or one `add_chunk` of it, which passes `Decoder::invariant`. The reach's run of the section
 above meets both (`first_send_receive_successor_reachable`). **Not shown:** that a receive keeps the invariant in general or at
-any later message; the reply (its `encrypt` is the next paragraph's); a second delivery of the same bytes; the premises of the next decrypt that are not about the
+any later message; the reply (its `encrypt` is the next paragraph's); a second delivery of the same bytes here (the paragraph on the first frame delivered a second time takes it); the premises of the next decrypt that are not about the
 session (the next frame's chunk relation, `HonestChunk` for the next header chunk, the draw, the boundary records); that the
 model session the successor is related to holds only bytes the responder received (the relation is at the attributed view
 above; the invariant and the ceilings are about the code's session and do not mention the view).
@@ -3124,6 +3124,31 @@ related model sessions hold only bytes the parties received; that the per-run pr
 that the real primitives meet the records or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from
 `PrekeyStore::invariant`; the model's own `establishResponder` equality; that `Session::invariant` says a session is
 reachable.
+
+**The first frame delivered a second time** (`Translation/UnitLifecycleResponderRepeatedFrame.lean`,
+`Translation/UnitLifecycleResponderEstablishReplay.lean`). On the run of the initiator's first send, the same bytes
+delivered again to the responder are refused in both places they can arrive, with no durable effect.
+`initiator_first_send_responder_repeat_refused`: at the session the first successful `establish_responder` returned, the
+public `Session::decrypt` recognises the repeat, its inner receive refuses the frame as out of order
+(`Triple(Classical(OutOfOrder))`), and it returns that session unchanged, refining the model's step; it takes one draw from
+the source, the candidate key the inner receive draws before the Triple's receive, as the model's step does, so "no effect"
+holds of the session and not of the random source. It rests on the kernel and opaque constants and on the first receipt's
+laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, ASSUMED), with one per-run premise, that
+the second source holds a draw; `DhAgreeContributory` also carries the repeat recognition's two agreements and the second
+draw's, without which the refusal would be `handshake nonContributoryAgreement` instead. Its two cut-off statement pins
+(`responder_first_frame_repeat_refused` after the binder `ptB`, `initiator_first_send_responder_repeat_refused` after
+`AeadRoundTrip →`) hold their binders up to the cut; the rest, conclusion included, is held by the build and by reading
+only. `initiator_first_send_responder_replay_refused`: at the store the first success committed, `establish_responder`
+on the same bytes returns `ReplayedLastResort`, that store and the source as given, when the bundle names the store's
+last-resort KEM key and no one-time curve prekey (two premises on the run's shape, exhibited on the reach run); it takes
+none of the receipt's laws, only the decoding facts `DhPublicValid` and `ZeroizingArrayRoundTrip` (ASSUMED), and the first
+call's success as a hypothesis. It is a statement about the translated code alone: no relation between the code's prekey
+store and the model's exists in the tree, so that the model's `establishResponder` refuses the same delivery is not shown.
+Its statement pin is cut off after the responder's identity equation, with the same consequence. **Not shown:** a repeat at
+any later session (after the responder's reply, after the initiator's second message, on a restored copy) or of the reply
+at the initiator; a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
+because the commit removed the key; a second delivery after a refused first call or after another store change; that the
+replay record keeps the entry for the store's life.
 
 **What is not shown.**
 
