@@ -58,7 +58,12 @@ that no longer occurs is reported as a stale key to delete (an error with `--str
 and the file's `reasons` gives it a reason of at least 40 characters and six different words (not a
 placeholder), so the list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a
 reviewed exception. A REF that is empty or does not resolve to a commit is an error; a base with no baseline file
-(the commit that introduces it) is only noted. Warnings never
+(the commit that introduces it) is only noted. That exemption is reachable only by changing the baseline path in
+the pinned CI command (`checks_42`, held by tooling/required-steps.json), since main has the file. What the check
+holds is the shape of a reason, not its meaning: a reason identical to another key's, and any key for a private
+term (which CI, without the list, cannot see occur), are refused; "aa bb cc dd ee ff gg hh ii jj kk ll mm nn" or
+"known finding, accepted for now; we will fix it later." pass, and only review judges them. Without the list a
+private-term key in the baseline is never judged stale either. Warnings never
 fail the run, which is how CI runs it (`--all --baseline-base origin/main`, step `checks_42`): errors only.
 Exit 0 when no error is left, 1 otherwise.
 
@@ -783,8 +788,7 @@ def main():
     stale = [k for k in sorted(known - {k for lvl, k, _ in items if lvl == "error"})
              if TERMS is not None or not k.endswith("|private term")] if args.all else []
     for key in stale:
-        # With a base to compare with (as CI runs it), a key that no longer occurs must be deleted: the baseline
-        # only shrinks.
+        # With a base to compare with (as CI runs it), a key that no longer occurs must be deleted.
         if args.strict or args.baseline_base:
             print(f"ERROR    stale key: delete it from {args.baseline}: {key}")
             errors += 1
@@ -809,7 +813,18 @@ def main():
             # without one; each must still occur, or it is stale.)
             occurring = {k for lvl, k, _ in items if lvl == "error"}
             for key in sorted(known - set(json.loads(old.stdout)["findings"])):
-                if key not in occurring and (TERMS is not None or not key.endswith("|private term")):
+                copied = [k for k in reasons if k != key and str(reasons.get(k, "")).strip()
+                          and " ".join(str(reasons[k]).split()) == " ".join(str(reasons.get(key, "")).split())]
+                if key.endswith("|private term"):
+                    # Whether it occurs can be told only where the local list is read, which CI never does.
+                    print(f"ERROR    the baseline gained {key} since {args.baseline_base}: a private-term key cannot "
+                          f"be checked in CI and is not added; take the term out of the text instead")
+                    errors += 1
+                elif copied:
+                    print(f"ERROR    the baseline gained {key} since {args.baseline_base} with the reason of "
+                          f"{copied[0]}: give each key its own reason")
+                    errors += 1
+                elif key not in occurring and not key.endswith("|private term"):
                     print(f"ERROR    the baseline gained {key} since {args.baseline_base}, which does not occur: "
                           f"a key is added only for a finding that occurs")
                     errors += 1

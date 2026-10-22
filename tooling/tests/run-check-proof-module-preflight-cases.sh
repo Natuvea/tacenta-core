@@ -115,7 +115,7 @@ PY
 }
 good_reason="the count is wrong on purpose in this fixture, to show that a reviewed exception is accepted"
 # A key that no longer occurs: a warning to delete it; an error with --strict, and with --baseline-base (as CI
-# runs it), so the baseline only shrinks.
+# runs it).
 bl add "UnitLifecycleNotAModule|terms|x"
 run stale-baseline-key 0 --all --baseline "$baseline"
 says stale-baseline-key "warning  stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
@@ -129,8 +129,15 @@ bl reason "UnitLifecycleNotAModule|terms|x" "$good_reason"
 run baseline-gained-absent 1 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-gained-absent "the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1, which does not occur"
 g reset -q --hard HEAD~1
-# A key for a finding that occurs (a count off by one), added since the base: refused with no reason and with a
-# placeholder, accepted with a reason a reviewer can read.
+# A private-term key added since the base is refused whatever its reason: CI cannot see the term occur.
+g commit -q --allow-empty -m "base for a private-term key"
+bl add "UnitLifecycleResponderReply|terms|UnitLifecycleResponderReply.lean|private term"
+bl reason "UnitLifecycleResponderReply|terms|UnitLifecycleResponderReply.lean|private term" "$good_reason"
+run baseline-gained-private-term 1 --all --baseline "$baseline" --baseline-base HEAD
+says baseline-gained-private-term "a private-term key cannot be checked in CI and is not added"
+g reset -q --hard HEAD~1
+# A key for a finding that occurs (a count off by one), added since the base: refused with no reason, with a
+# placeholder and with another key's reason, accepted with a reason a reviewer can read.
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 42 results carries an axiom pin', 'Each of the 43 results carries an axiom pin', 1)"
 # The key is the one the check prints, so a key that carried no numbers would be baselined as such.
 run count-finding 1 --all --baseline "$baseline"
@@ -147,6 +154,11 @@ says baseline-grew-trivial-reason "the baseline gained $key since HEAD~1 with no
 bl reason "$key" "reviewed, fine"
 run baseline-grew-short-reason 1 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-grew-short-reason "one too short to review"
+other_key="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["reasons"])[0])' "$clone/$baseline")"
+other_reason="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["reasons"][sys.argv[2]])' "$clone/$baseline" "$other_key")"
+bl reason "$key" "$other_reason"
+run baseline-grew-copied-reason 1 --all --baseline "$baseline" --baseline-base HEAD~1
+says baseline-grew-copied-reason "the baseline gained $key since HEAD~1 with the reason of $other_key"
 bl reason "$key" "$good_reason"
 run baseline-grew-with-reason 0 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-grew-with-reason "note     the baseline gained $key since HEAD~1: $good_reason"

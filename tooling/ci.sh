@@ -131,10 +131,14 @@ bash tooling/tests/run-check-constant-time-asm-cases.sh
 # in the checks job through run-gate-controls.sh.
 bash tooling/tests/run-check-fast-cases.sh
 
-# The preflight of every lifecycle proof module against the baseline of findings known when it was
-# introduced, for its errors only (a warning is printed and does not fail); a key the baseline gained
-# since origin/main needs a stated reason. It reads the tree and runs no Lean. Hosted CI runs the same
-# command as step checks_42 of the checks job.
+# The preflight of every lifecycle proof module (a section and a negatives script for each, the
+# not-shown lists, the controls' mechanism, the counts in the prose, markers, plan identifiers, planning
+# paths and attribution in the modules' own text) against the baseline of findings known when it was
+# introduced, for its errors only (a warning is printed and does not fail). Against origin/main's
+# baseline: a stale key fails, and a key added since must occur and carry its own reason of a stated
+# shape. Without --base and without a term list it does not scan other added lines, commit messages or
+# private terms; run it with those before handing a module over. It reads the tree and runs no Lean.
+# Hosted CI runs the same command as step checks_42 of the checks job.
 echo "== Lifecycle proof modules pass the preflight (errors only) =="
 python3 tooling/check-proof-module-preflight.py --all --baseline tooling/proof-module-preflight-baseline.json \
   --baseline-base origin/main
