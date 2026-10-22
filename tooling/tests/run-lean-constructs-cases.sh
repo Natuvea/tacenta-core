@@ -361,6 +361,13 @@ fresh_copy; inst_copy ImportInv.lean
 edit $I $'instance instDecidableEqArray {α : Type}' $'\ninstance instDecidableEqArray {α : Type}'
 run_scan
 if [ "$rc" -ne 0 ]; then wrong allow-listed-moved-down-a-line "an allow-listed instance moved by a line is refused"; else pass=$((pass + 1)); fi
+# Scopes with modifiers and dotted names open and close frames as Lean does: a `noncomputable section ... end`
+# and a `namespace A.B ... end A.B` above an allow-listed instance leave it in its namespace, accepted.
+fresh_copy; inst_copy SpqrT1.lean
+edit tacenta-proofs/translation/Translation/SpqrT1.lean $'instance spqrChainsInhabited' \
+  $'noncomputable section\ndef plantedA : Nat := 1\nend\n\nnamespace Planted.Inner\ndef plantedB : Nat := 2\nend Planted.Inner\n\ninstance spqrChainsInhabited'
+run_scan
+if [ "$rc" -ne 0 ]; then wrong scopes-with-modifiers-and-dotted-names "an allow-listed instance after a noncomputable section and a dotted namespace is refused"; else pass=$((pass + 1)); fi
 
 # A derived structural instance is not refused, nor the word in a comment.
 fresh_copy; printf 'structure PlantedS where\n  x : Nat\nderiving Repr\nderiving instance BEq for PlantedS\n-- an instance in prose\n' > "$work/T/$M"

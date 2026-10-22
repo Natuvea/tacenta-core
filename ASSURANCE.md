@@ -45,10 +45,12 @@ the whole elaborated statement: Lean does not print, among other things,
 instance arguments, coercion functions, implicit arguments, the binder types of
 `∃` and `fun`, universe levels or the types behind numerals and structure
 instances. `check-lean-constructs.sh`, a textual guard, now refuses in
-hand-written Lean an instance declaration that is not one of fourteen it lists
-whole, attribute lists naming `instance`, `default_instance` or `coe`, and the
-`coe` and `default_instance` tokens; it does not see a dependency's scoped
-instance brought in by `open`. No pin was added or removed, so no count above
+hand-written Lean an instance declaration that is not one of those it lists
+whole (fourteen today; a `deriving instance` of a type the same file declares
+needs no entry), attribute lists naming `instance`, `default_instance` or
+`coe`, and the `coe` and `default_instance` tokens; it does not read a
+`deriving` clause of a `structure` or `inductive`, a class whose parent is a
+notation class, or a dependency's scoped instance brought in by `open`. No pin was added or removed, so no count above
 changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 

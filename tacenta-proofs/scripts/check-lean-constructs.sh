@@ -353,6 +353,10 @@ INSTANCE_ALLOW = {
     "tacenta-proofs/translation/Translation/SpqrT1.lean": [("Tacenta.SpqrT1", 'instance spqrChainsInhabited : Inhabited Chains := ⟨{ send := none, receive := none }⟩')],
     "tacenta-proofs/translation/Translation/UnitSpqrT1.lean": [("Tacenta.UnitSpqrT1", 'instance spqrChainsInhabited : Inhabited Chains := ⟨{ send := none, receive := none }⟩')],
 }
+if os.environ.get("INSTANCE_ALLOW_COUNT") == "1":
+    # The number of allow-listed instance declarations, for the line this scan prints when it passes.
+    print(sum(len(entries) for entries in INSTANCE_ALLOW.values()))
+    sys.exit(0)
 INSTANCE_KEYWORD = re.compile(r"(?<![\w.«])instance(?![\w.'])")
 # An attribute list, `@[...]` or `attribute [...]` (with `local` or `scoped` inside it), read on the
 # whole stripped file so that a list split over lines is one list.
@@ -368,18 +372,24 @@ def instance_declarations(text, collapse):
     """Every instance declaration of the stripped text `text`: (line, namespace, declaration, kind). The
     declaration is the collapsed text from the line holding `instance` to the next blank line or the next
     line at column 0; the namespace is the dotted list of the open `namespace`s, sections and mutual blocks
-    counting as frames with no name. `kind` is `deriving` for `deriving instance ... for` and `instance`
-    otherwise."""
+    counting as frames with no name. A scope may carry modifiers (`noncomputable section`, `public section`);
+    `namespace A.B` opens one frame per component and `end A.B` closes as many, as Lean does. `kind` is
+    `deriving` for `deriving instance ... for` and `instance` otherwise."""
     lines = text.split("\n")
     frames, out = [], []
     for k, line in enumerate(lines):
-        head = re.match(r"\s*(namespace|section|mutual|end)(?![\w.'])\s*([\w.'«»]*)", line)
+        head = re.match(r"\s*(?:(?:noncomputable|public|private|protected)\s+)*(namespace|section|mutual|end)"
+                        r"(?![\w.'])\s*([\w.'«»]*)", line)
         if head:
+            parts = [p for p in head.group(2).split(".") if p] if head.group(2) else []
             if head.group(1) == "end":
-                if frames:
-                    frames.pop()
+                for _ in range(max(1, len(parts))):
+                    if frames:
+                        frames.pop()
+            elif head.group(1) == "namespace":
+                frames.extend(parts or [""])
             else:
-                frames.append(head.group(2) if head.group(1) == "namespace" else "")
+                frames.extend([""] * max(1, len(parts)))
         for m in INSTANCE_KEYWORD.finditer(line):
             deriving = re.search(r"(?<![\w.«])deriving\s+$", line[:m.start()])
             end = k + 1
@@ -759,7 +769,8 @@ if [ -n "$found" ]; then
 fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
+allowed_instances=$(INSTANCE_ALLOW_COUNT=1 python3 "$program")
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation, no instance declaration outside the 14 allow-listed and no instance, default_instance or coe attribute or token; 3 lakefiles set no Lean option and match their pins"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation, no instance declaration outside the $allowed_instances allow-listed and no instance, default_instance or coe attribute or token; 3 lakefiles set no Lean option and match their pins"
 fi
 exit "$status"
