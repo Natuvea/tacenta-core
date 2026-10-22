@@ -1,0 +1,16 @@
+{
+ "_note": "Findings of tooling/check-proof-module-preflight.py that were in the tree when the check was introduced, one key each. They are reported as known and do not fail; any other finding fails. A key that no longer occurs is reported as stale (an error with --strict): delete it. A key added later fails against the base branch's baseline (--baseline-base) unless `reasons` gives it one.",
+ "findings": [
+  "check-atomicity-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-check_refused,fn-gutted,fn-is_timeout,probe-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-decrypt-ratchet-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-encrypt-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-established-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-initial-dispatch-negatives.py|mechanism|COMPOSING,INSIDE,NOT_A_REFUSAL,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-check_refused,fn-guard_self_test,fn-gutted,fn-is_timeout,fn-not_a_refusal,guard-constant,guard-identifier,probe-calls,runtime-labels,startup,timeout-list",
+  "check-repair-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-responder-frame-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-responder-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-responder-receipt-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list",
+  "check-restored-negatives.py|mechanism|COMPOSING,INSIDE,PROJECTED,STATEMENT_SHAPE,TIMEOUT,baselines,fn-check_inside,fn-check_labels,fn-gutted,fn-is_timeout,probe-calls,refused-calls,runtime-labels,sample-constant,sample-timeout,self-test-calls,startup,timeout-list"
+ ],
+ "reasons": {}
+}

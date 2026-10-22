@@ -156,6 +156,8 @@ run parts-resolve 0 python3 tacenta-proofs/scripts/no-sorry-parts.py resolve --t
 says parts-resolve "scaffold-probe"
 run idempotent 0 python3 "$tool" "${args[@]}" --check
 says idempotent "0 file(s) would change"
+run preflight 1 python3 tooling/check-proof-module-preflight.py "$M"
+says preflight "SCAFFOLD-TODO marker(s) to replace"
 
 # ---- the template's start-up checks -----------------------------------------------------------------------
 run no-controls 1 python3 "tacenta-proofs/scripts/$N"

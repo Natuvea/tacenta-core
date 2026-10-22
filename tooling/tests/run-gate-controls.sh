@@ -20,6 +20,10 @@
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
 #   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
 #                                  a scaffold writes, the pins step's lists and count, with no Lean
+#   run-check-proof-module-preflight-cases.sh, check-proof-module-preflight.py --all  the preflight of a lifecycle
+#                                  module (not-shown lists, the controls' mechanism, counts in the prose, terms
+#                                  kept out of the text) against planted faults, and every module against its
+#                                  baseline of known findings
 #   run-regenerate-generated-cases.sh  the regeneration of generated files after a merge
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
@@ -49,5 +53,13 @@ bash "$here/run-regenerate-in-container-cases.sh"
 bash "$here/run-reflow-shared-lists-cases.sh"
 python3 "$root/tooling/reflow-shared-lists.py" --check
 bash "$here/run-new-lifecycle-module-cases.sh"
+bash "$here/run-check-proof-module-preflight-cases.sh"
+# The baseline may not grow unseen: where the checkout has origin/main, a key added since then needs a reason.
+if git -C "$root" rev-parse --verify --quiet origin/main >/dev/null; then
+  python3 "$root/tooling/check-proof-module-preflight.py" --all --baseline "$root/tooling/proof-module-preflight-baseline.json" \
+    --baseline-base origin/main
+else
+  python3 "$root/tooling/check-proof-module-preflight.py" --all --baseline "$root/tooling/proof-module-preflight-baseline.json"
+fi
 bash "$here/run-regenerate-generated-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
