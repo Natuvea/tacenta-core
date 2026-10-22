@@ -822,6 +822,9 @@ info: 'Tacenta.UnitKemWrapperModel.toU8_u8' depends on axioms: [propext]
 #guard_msgs in
 #print axioms Tacenta.UnitKemWrapperModel.toU8_u8
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitKemWrapperModel.toU8_u8 : ∀ (x : U8), toU8 (u8 x) = x
 -/
@@ -2693,14 +2696,16 @@ fun dh =>
 
 /--
 info: def Tacenta.UnitKemWrapperModel.bytesSlice : Bytes → Slice U8 :=
-fun l => if h : List.length l ≤ Usize.max then ⟨bytesOf l, ⋯⟩ else ⟨[], Tacenta.UnitKemWrapperModel.length_nil_le⟩
+fun l =>
+  if h : List.length l ≤ Usize.max then ⟨bytesOf l, (⋯ : (bytesOf l).length ≤ Usize.max)⟩
+  else ⟨[], Tacenta.UnitKemWrapperModel.length_nil_le⟩
 -/
 #guard_msgs in
 #print Tacenta.UnitKemWrapperModel.bytesSlice
 
 /--
 info: def Tacenta.UnitKemWrapperModel.vecSlice : alloc.vec.Vec U8 → Slice U8 :=
-fun v => ⟨↑v, ⋯⟩
+fun v => ⟨↑v, (⋯ : (↑v).length ≤ Usize.max)⟩
 -/
 #guard_msgs in
 #print Tacenta.UnitKemWrapperModel.vecSlice

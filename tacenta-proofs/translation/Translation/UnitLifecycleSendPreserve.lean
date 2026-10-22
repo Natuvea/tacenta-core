@@ -70,12 +70,13 @@ only, with no compiler-trust axiom (pins below).  The run results
 `native_decide` constants are kernel proofs since 2026-10-21.  The general lemma's premises are not all walks of
 translated code: the relation after the call carries the Triple half (the code Triple's invariant is read off the model
 Triple it relates to), the three Triple fields the structural clauses read and the budget, and only the agreement half
-is a walk of translated code; every instance gets that relation from the encrypt refinement.  The statement pins of
-`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` are cut off by
-Lean's `⋯` after `AeadRoundTrip →`: each holds the binders up to the four laws, and the later hypotheses and the whole
-conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are held by the build and by reading
-only, as with every pin that ends in `⋯` (with this module, 16 modules hold such pins; a pin form that prints the whole
-statement is to be fixed separately).
+is a walk of translated code; every instance gets that relation from the encrypt refinement.  The module sets
+`pp.deepTerms true` and `pp.proofs.withType true` before its statement pins, so the pins of
+`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` print every
+hypothesis and the whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation; without the
+options Lean cut both off with `⋯` after `AeadRoundTrip →`), and `attest.py` refuses a statement pin whose message holds
+a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  A definition the statements name, changed
+under the same name, changes no pin, and that the pinned statements are the right ones is decided by reading.
 
 ## Where its premises are exhibited
 
@@ -1757,6 +1758,9 @@ info: 'Tacenta.UnitLifecycleSendPreserve.established_encrypt_triple_invariant_vi
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleSendPreserve.established_encrypt_triple_invariant_via_preservation
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: @Tacenta.UnitLifecycleSendPreserve.ratchet_send_frame : ∀ {st st' : Model.State.State} {hd : Model.State.Header}
   {key : Model.State.Key},
@@ -2069,7 +2073,161 @@ info: @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_su
                                                           Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
                                                             Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
                                                               Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
-                                                                ⋯
+                                                                Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                                                                  Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                                                                      @core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                                                                    ∀ (traceB : F → List Model.Lifecycle.Key)
+                                                                      (oracleB : Model.Lifecycle.Oracle),
+                                                                      Tacenta.UnitLifecycleT3.OracleOf rcB crcB dh kem
+                                                                          traceB oracleB →
+                                                                        Tacenta.UnitLifecycleT3.BraidSendRefinementContracts
+                                                                            rcB oracleB.braidKem →
+                                                                          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+                                                                              oracleB.braidKem →
+                                                                            ∀ (ourB : lifecycle.Identity)
+                                                                              (storeB : lifecycle.PrekeyStore),
+                                                                              storeB.publish = ok bundleA →
+                                                                                ourB.public =
+                                                                                    ok storeB.identity_public →
+                                                                                  Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                                      storeB →
+                                                                                    Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                                        storeB bundleA.kem_prekey_id
+                                                                                        q.kemCiphertext q.kemSecret →
+                                                                                      ∀ (rngB : F),
+                                                                                        traceB rngB = oracleB.draws →
+                                                                                          ∀ (dB : Model.Lifecycle.Key)
+                                                                                            (restB :
+                                                                                              List Model.Lifecycle.Key),
+                                                                                            traceB rngB = dB :: restB →
+                                                                                              ∀ (ptB : alloc.vec.Vec U8)
+                                                                                                (sB' :
+                                                                                                  lifecycle.Session)
+                                                                                                (storeB' :
+                                                                                                  lifecycle.PrekeyStore)
+                                                                                                (rngB' : F),
+                                                                                                lifecycle.establish_responder
+                                                                                                      rcB crcB ourB
+                                                                                                      storeB bytes.deref
+                                                                                                      rngB =
+                                                                                                    ok
+                                                                                                      (core.result.Result.Ok
+                                                                                                          (sB', ptB),
+                                                                                                        storeB',
+                                                                                                        rngB') →
+                                                                                                  ∀ (ptR : Slice U8),
+                                                                                                    102 +
+                                                                                                          ((↑ptR).length +
+                                                                                                            48) ≤
+                                                                                                        Usize.max →
+                                                                                                      ∀ (rngR : F),
+                                                                                                        ∃ p ec dSend dk
+                                                                                                          ekSeed
+                                                                                                          ekVector
+                                                                                                          bytesR sB'',
+                                                                                                          oracle.braidKem.keyGen
+                                                                                                                (Model.Lifecycle.braidRandomness
+                                                                                                                  (d1 ++
+                                                                                                                    d2)) =
+                                                                                                              some
+                                                                                                                (dk,
+                                                                                                                  ekSeed,
+                                                                                                                  ekVector) ∧
+                                                                                                            lifecycle.Session.encrypt
+                                                                                                                  rcB
+                                                                                                                  crcB
+                                                                                                                  sB'
+                                                                                                                  ptR
+                                                                                                                  rngR =
+                                                                                                                ok
+                                                                                                                  (core.result.Result.Ok
+                                                                                                                      bytesR,
+                                                                                                                    sB'',
+                                                                                                                    rngR) ∧
+                                                                                                              sB''.invariant =
+                                                                                                                  ok
+                                                                                                                    true ∧
+                                                                                                                Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                                    sB'' ∧
+                                                                                                                  (∀
+                                                                                                                      (j :
+                                                                                                                        ℕ),
+                                                                                                                      j +
+                                                                                                                            3 <
+                                                                                                                          U32.max →
+                                                                                                                        Tacenta.UnitLifecycleSendPreserve.CounterRoom
+                                                                                                                          sB''
+                                                                                                                          j) ∧
+                                                                                                                    Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                                      dh
+                                                                                                                      oracleB.braidKem
+                                                                                                                      sB''
+                                                                                                                      (have
+                                                                                                                        __src :=
+                                                                                                                        Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession
+                                                                                                                          (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                                                                            dh
+                                                                                                                            p)
+                                                                                                                          (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                            p.braidSecret)
+                                                                                                                          {
+                                                                                                                            source :=
+                                                                                                                              Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                oracle.braidKem
+                                                                                                                                (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                  q.auth)
+                                                                                                                                ekSeed
+                                                                                                                                ekVector,
+                                                                                                                            index :=
+                                                                                                                              0 }
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            ec)
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.sparseRoot)
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.sparseSend)
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.sparseReceive)
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.ratchetBytes)
+                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.dhOut)
+                                                                                                                          dSend
+                                                                                                                          (oracleB.dhPublic
+                                                                                                                            dB)
+                                                                                                                          dB;
+                                                                                                                      {
+                                                                                                                        triple :=
+                                                                                                                          Tacenta.UnitLifecycleResponderReply.replierAfterSend
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              ec)
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              q.sparseRoot)
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              q.sparseSend)
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              q.sparseReceive)
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              q.ratchetBytes)
+                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                              q.dhOut)
+                                                                                                                            dSend
+                                                                                                                            (oracleB.dhPublic
+                                                                                                                              dB),
+                                                                                                                        braid :=
+                                                                                                                          __src.braid,
+                                                                                                                        ratchetPrivate :=
+                                                                                                                          __src.ratchetPrivate,
+                                                                                                                        identityAd :=
+                                                                                                                          __src.identityAd,
+                                                                                                                        ourIdentityPublic :=
+                                                                                                                          __src.ourIdentityPublic,
+                                                                                                                        peerIdentityPublic :=
+                                                                                                                          __src.peerIdentityPublic,
+                                                                                                                        pendingInitial :=
+                                                                                                                          __src.pendingInitial,
+                                                                                                                        establishedEphemeral :=
+                                                                                                                          __src.establishedEphemeral })
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_successor
@@ -2120,7 +2278,73 @@ info: @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_ad
                                                           Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
                                                             Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
                                                               Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
-                                                                ⋯
+                                                                Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                                                                  Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                                                                      @core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                                                                    ∀ (traceB : F → List Model.Lifecycle.Key)
+                                                                      (oracleB : Model.Lifecycle.Oracle),
+                                                                      Tacenta.UnitLifecycleT3.OracleOf rcB crcB dh kem
+                                                                          traceB oracleB →
+                                                                        Tacenta.UnitLifecycleT3.BraidSendRefinementContracts
+                                                                            rcB oracleB.braidKem →
+                                                                          Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+                                                                              oracleB.braidKem →
+                                                                            ∀ (ourB : lifecycle.Identity)
+                                                                              (storeB : lifecycle.PrekeyStore),
+                                                                              storeB.publish = ok bundleA →
+                                                                                ourB.public =
+                                                                                    ok storeB.identity_public →
+                                                                                  Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                                      storeB →
+                                                                                    Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                                        storeB bundleA.kem_prekey_id
+                                                                                        q.kemCiphertext q.kemSecret →
+                                                                                      ∀ (rngB : F),
+                                                                                        traceB rngB = oracleB.draws →
+                                                                                          ∀ (dB : Model.Lifecycle.Key)
+                                                                                            (restB :
+                                                                                              List Model.Lifecycle.Key),
+                                                                                            traceB rngB = dB :: restB →
+                                                                                              ∀ (ptB : alloc.vec.Vec U8)
+                                                                                                (sB' :
+                                                                                                  lifecycle.Session)
+                                                                                                (storeB' :
+                                                                                                  lifecycle.PrekeyStore)
+                                                                                                (rngB' : F),
+                                                                                                lifecycle.establish_responder
+                                                                                                      rcB crcB ourB
+                                                                                                      storeB bytes.deref
+                                                                                                      rngB =
+                                                                                                    ok
+                                                                                                      (core.result.Result.Ok
+                                                                                                          (sB', ptB),
+                                                                                                        storeB',
+                                                                                                        rngB') →
+                                                                                                  ∀ (ptR : Slice U8),
+                                                                                                    102 +
+                                                                                                          ((↑ptR).length +
+                                                                                                            48) ≤
+                                                                                                        Usize.max →
+                                                                                                      ∀ (rngR : F)
+                                                                                                        (bytesR :
+                                                                                                          alloc.vec.Vec
+                                                                                                            U8)
+                                                                                                        (sB'' :
+                                                                                                          lifecycle.Session)
+                                                                                                        (rngR' : F),
+                                                                                                        lifecycle.Session.encrypt
+                                                                                                              rcB crcB
+                                                                                                              sB' ptR
+                                                                                                              rngR =
+                                                                                                            ok
+                                                                                                              (core.result.Result.Ok
+                                                                                                                  bytesR,
+                                                                                                                sB'',
+                                                                                                                rngR') →
+                                                                                                          sB''.invariant =
+                                                                                                              ok true ∧
+                                                                                                            Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                              sB''
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_admissible

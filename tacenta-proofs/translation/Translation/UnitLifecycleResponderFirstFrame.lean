@@ -3218,6 +3218,9 @@ info: 'Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable' 
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_reachable
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleResponderFirstFrame.bundle_with_own : ∀ (b : tacenta_session_unit.PreKeyBundle)
   (o : Option tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
@@ -3966,7 +3969,69 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares : 
                                                           Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
                                                             Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
                                                                 @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
-                                                              ⋯
+                                                              ∀ {K : Model.Braid.Kem},
+                                                                Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+                                                                    K →
+                                                                  ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                                                    (storeB :
+                                                                      tacenta_session_unit.lifecycle.PrekeyStore),
+                                                                    storeB.publish = Aeneas.Std.Result.ok bundleA →
+                                                                      ourB.public =
+                                                                          Aeneas.Std.Result.ok storeB.identity_public →
+                                                                        Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                            storeB →
+                                                                          Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                              storeB bundleA.kem_prekey_id
+                                                                              q.kemCiphertext q.kemSecret →
+                                                                            ∀ (rngB : F),
+                                                                              ∃ messageKey chunk,
+                                                                                (bundleA.kem_prekey_id = storeB.kem_id ∧
+                                                                                    ∃ e,
+                                                                                      Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal
+                                                                                          storeB q.sharedBytes e ∧
+                                                                                        tacenta_session_unit.lifecycle.establish_responder
+                                                                                            rcB crcB ourB storeB
+                                                                                            bytes.deref rngB =
+                                                                                          Aeneas.Std.Result.ok
+                                                                                            (Aeneas.Std.core.result.Result.Err
+                                                                                                e,
+                                                                                              storeB, rngB)) ∨
+                                                                                  ∃ p,
+                                                                                    p.shared = q.shared ∧
+                                                                                      p.secret = q.sharedBytes ∧
+                                                                                        p.tripleSecret = q.sharedSlice ∧
+                                                                                          p.braidSecret =
+                                                                                              q.sharedSlice ∧
+                                                                                            p.peerIdentity =
+                                                                                                q.ourPublic ∧
+                                                                                              p.peerEphemeral =
+                                                                                                  q.ephemeralPublic ∧
+                                                                                                p.kemSecret =
+                                                                                                    q.kemSecret ∧
+                                                                                                  Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                        p.message =
+                                                                                                      Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+                                                                                                        view oracle
+                                                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                          dh s)
+                                                                                                        (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                          plaintext)
+                                                                                                        messageKey
+                                                                                                        chunk ∧
+                                                                                                    (p.lastResort =
+                                                                                                          true ↔
+                                                                                                        bundleA.kem_prekey_id =
+                                                                                                          storeB.kem_id) ∧
+                                                                                                      p.session.invariant =
+                                                                                                          Aeneas.Std.Result.ok
+                                                                                                            true ∧
+                                                                                                        Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                            p.session ∧
+                                                                                                          Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                            dh K
+                                                                                                            p.session
+                                                                                                            (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                                                              dh p)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares

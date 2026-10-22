@@ -1764,6 +1764,9 @@ info: 'Tacenta.UnitLifecycleDecryptStates.decrypt_of_invariant_hypotheses_jointl
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleDecryptStates.decrypt_of_invariant_hypotheses_jointly_satisfiable_at_stored_keys_held
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleDecryptStates.canonicalKey_ephemeral : ∀ (a : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
   Tacenta.SessionUnitT1.canonicalX25519 a = true →
@@ -2307,7 +2310,7 @@ Aeneas.Std.Array.repeat 32#usize 0#u8
 /--
 info: def Tacenta.UnitLifecycleDecryptStates.ephemeralOf : Aeneas.Std.Array Aeneas.Std.U8 32#usize →
   Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8 :=
-fun a => Tacenta.UnitHeadroomSatisfiable.vecOf (5#u8 :: ↑a) ⋯
+fun a => Tacenta.UnitHeadroomSatisfiable.vecOf (5#u8 :: ↑a) (⋯ : (5#u8 :: ↑a).length ≤ 4294967295)
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptStates.ephemeralOf
@@ -2361,7 +2364,7 @@ fun k pkb ad a =>
 
 /--
 info: def Tacenta.UnitLifecycleDecryptStates.ctOf : Aeneas.Std.Usize → Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8 :=
-fun n => ⟨List.replicate (↑n) 0#u8, ⋯⟩
+fun n => ⟨List.replicate (↑n) 0#u8, (⋯ : (List.replicate (↑n) 0#u8).length ≤ Aeneas.Std.Usize.max)⟩
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleDecryptStates.ctOf
@@ -2396,7 +2399,10 @@ fun a E =>
         ns := 3#u32, nr := 4#u32, pn := 2#u32,
         skipped :=
           Tacenta.UnitHeadroomSatisfiable.vecOf
-            [{ dh := a, n := 2#u32, stored_at := 4#u32, key := Tacenta.UnitLifecycleDecryptStates.zeros }] ⋯,
+            [{ dh := a, n := 2#u32, stored_at := 4#u32, key := Tacenta.UnitLifecycleDecryptStates.zeros }]
+            (⋯ :
+              [{ dh := a, n := 2#u32, stored_at := 4#u32, key := Tacenta.UnitLifecycleDecryptStates.zeros }].length ≤
+                4294967295),
         events := 5#u32, labels := tacenta_session_unit.tacenta_ratchet.LabelSet.Tacenta },
     post_quantum :=
       { rk := Tacenta.UnitLifecycleDecryptStates.zeros, epoch := E,
@@ -2405,10 +2411,15 @@ fun a E =>
             [(E,
                 { send := some (Tacenta.UnitLifecycleDecryptStates.chainAt 7#u64),
                   receive := some (Tacenta.UnitLifecycleDecryptStates.chainAt 6#u64) })]
-            ⋯,
+            (⋯ :
+              [(E,
+                      { send := some (Tacenta.UnitLifecycleDecryptStates.chainAt 7#u64),
+                        receive := some (Tacenta.UnitLifecycleDecryptStates.chainAt 6#u64) })].length ≤
+                4294967295),
         skipped :=
           Tacenta.UnitHeadroomSatisfiable.vecOf
-            [{ epoch := E, n := 3#u64, key := Tacenta.UnitLifecycleDecryptStates.zeros }] ⋯,
+            [{ epoch := E, n := 3#u64, key := Tacenta.UnitLifecycleDecryptStates.zeros }]
+            (⋯ : [{ epoch := E, n := 3#u64, key := Tacenta.UnitLifecycleDecryptStates.zeros }].length ≤ 4294967295),
         direction := tacenta_session_unit.tacenta_spqr.Direction.A2b } }
 -/
 #guard_msgs in

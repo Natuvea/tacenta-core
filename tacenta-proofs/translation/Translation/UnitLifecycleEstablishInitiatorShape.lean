@@ -1679,6 +1679,9 @@ info: 'Tacenta.UnitLifecycleEstablishInitiatorShape.establishment_hypotheses_sat
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishInitiatorShape.singleton_length_le
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleEstablishInitiatorShape.init_sender_ok : ∀ (sk : Aeneas.Std.Slice Aeneas.Std.U8)
   (a4 a5 dh : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (t : tacenta_session_unit.tacenta_triple.State),
@@ -2038,7 +2041,10 @@ info: def Tacenta.UnitLifecycleEstablishInitiatorShape.initChains : Aeneas.Std.A
     Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U64 × tacenta_session_unit.tacenta_spqr.Chains) :=
 fun c1 c2 =>
   Tacenta.UnitHeadroomSatisfiable.vecOf
-    [(0#u64, { send := some { ck := c1, n := 0#u64 }, receive := some { ck := c2, n := 0#u64 } })] ⋯
+    [(0#u64, { send := some { ck := c1, n := 0#u64 }, receive := some { ck := c2, n := 0#u64 } })]
+    (⋯ :
+      [(0#u64, { send := some { ck := c1, n := 0#u64 }, receive := some { ck := c2, n := 0#u64 } })].length ≤
+        4294967295)
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleEstablishInitiatorShape.initChains

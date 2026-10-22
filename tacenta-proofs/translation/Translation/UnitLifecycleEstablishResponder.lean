@@ -4269,6 +4269,9 @@ info: 'Tacenta.UnitLifecycleEstablishResponder.responder_route_laws_model' depen
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishResponder.responder_route_laws_model
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleEstablishResponder.signed_prekey_err : ∀ (store : tacenta_session_unit.lifecycle.PrekeyStore)
   (id : Aeneas.Std.U32) (e : tacenta_session_unit.lifecycle.Error),
@@ -5653,7 +5656,10 @@ info: def Tacenta.UnitLifecycleEstablishResponder.responderChains : Aeneas.Std.A
     Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U64 × tacenta_session_unit.tacenta_spqr.Chains) :=
 fun c1 c2 =>
   Tacenta.UnitHeadroomSatisfiable.vecOf
-    [(0#u64, { send := some { ck := c2, n := 0#u64 }, receive := some { ck := c1, n := 0#u64 } })] ⋯
+    [(0#u64, { send := some { ck := c2, n := 0#u64 }, receive := some { ck := c1, n := 0#u64 } })]
+    (⋯ :
+      [(0#u64, { send := some { ck := c2, n := 0#u64 }, receive := some { ck := c1, n := 0#u64 } })].length ≤
+        4294967295)
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleEstablishResponder.responderChains
@@ -5744,7 +5750,8 @@ info: def Tacenta.UnitLifecycleEstablishResponder.successMessage : Bool →
     (↑ct).length ≤ 4096 → (↑frame).length ≤ 4096 → Aeneas.Std.Slice Aeneas.Std.U8 :=
 fun zeroEph ct frame hct hframe =>
   Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes
-    (Tacenta.UnitLifecycleEstablishResponder.successBytes zeroEph ct frame) ⋯
+    (Tacenta.UnitLifecycleEstablishResponder.successBytes zeroEph ct frame)
+    (⋯ : (Tacenta.UnitLifecycleEstablishResponder.successBytes zeroEph ct frame).length ≤ Aeneas.Std.Usize.max)
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleEstablishResponder.successMessage

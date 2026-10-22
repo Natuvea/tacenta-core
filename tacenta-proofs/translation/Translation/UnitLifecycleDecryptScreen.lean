@@ -723,6 +723,9 @@ info: 'Tacenta.UnitLifecycleDecryptScreen.invReal_sessionRefines' depends on axi
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleDecryptScreen.invReal_sessionRefines
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleDecryptScreen.invReal_sessionRefines : ∀ (K : Model.Braid.Kem) (dh : DhView)
   (k : tacenta_boundary.dh.PrivateKey) (pkb : tacenta_boundary.dh.PublicKeyBytes) (ad : alloc.vec.Vec U8)
@@ -1660,8 +1663,16 @@ let __src := Interp.modelDecrypt;
         (seedOf r ++
           Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem.hashEk (seedOf r)
             (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r))
-        ⋯),
-  ikpEkVector := fun r => ok (vecOfBytes (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r) ⋯),
+        (⋯ :
+          List.length
+              (seedOf r ++
+                Tacenta.UnitLifecycleDecryptScreen.shippedSizeKem.hashEk (seedOf r)
+                  (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r)) ≤
+            Usize.max)),
+  ikpEkVector := fun r =>
+    ok
+      (vecOfBytes (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r)
+        (⋯ : List.length (Tacenta.UnitLifecycleDecryptScreen.ekVecShipped r) ≤ Usize.max)),
   ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
   encapsulate1 := fun {R} x x_1 header rng =>
     ok

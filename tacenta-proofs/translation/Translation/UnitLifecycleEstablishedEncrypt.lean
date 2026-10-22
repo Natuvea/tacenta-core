@@ -4472,6 +4472,9 @@ info: 'Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_rea
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_successor_reachable
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitLifecycleEstablishedEncrypt.keyGenAnswers_is : ∀ (K : Model.Braid.Kem) {R : Type}
   (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (rng : R)
@@ -4961,7 +4964,62 @@ info: @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes : �
                                                                   peer_identity_public := s.peer_identity_public,
                                                                   pending_initial := s.pending_initial,
                                                                   established_ephemeral := s.established_ephemeral } ∧
-                                                              (∃ auth kp, ⋯) ∧ ∃ tripleNext messageKey, ⋯)
+                                                              (∃ auth kp encoder,
+                                                                  output.2.1.braid.state =
+                                                                    tacenta_session_unit.tacenta_braid.State.KeysSampled
+                                                                      1#u64 auth kp encoder) ∧
+                                                                ∃ tripleNext messageKey chunk encoder pending a,
+                                                                  (∃ header,
+                                                                      Model.Triple.sendDetailed
+                                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                              dh s).triple
+                                                                          0 none =
+                                                                        Except.ok (tripleNext, header, messageKey)) ∧
+                                                                    (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                            dh s).braid =
+                                                                        Model.Braid.BraidState.keysUnsampled 1 a ∧
+                                                                      (Model.Braid.encode
+                                                                              (ekSeed ++
+                                                                                  oracle.braidKem.hashEk ekSeed
+                                                                                    ekVector ++
+                                                                                a.macHdr 1
+                                                                                  (ekSeed ++
+                                                                                    oracle.braidKem.hashEk ekSeed
+                                                                                      ekVector))).nextChunk =
+                                                                          (chunk, encoder) ∧
+                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                dh s).pendingInitial =
+                                                                            some pending ∧
+                                                                          Tacenta.UnitLifecycleT3.vecOf bytes =
+                                                                              Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                                                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                  dh s)
+                                                                                pending
+                                                                                (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+                                                                                  view oracle
+                                                                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                    dh s)
+                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                    plaintext)
+                                                                                  messageKey chunk) ∧
+                                                                            Tacenta.UnitLifecycleT3.SessionRefines dh
+                                                                              oracle.braidKem output.2.1
+                                                                              (have __src :=
+                                                                                Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                  dh s;
+                                                                              { triple := tripleNext,
+                                                                                braid :=
+                                                                                  Model.Braid.BraidState.keysSampled 1 a
+                                                                                    dk ekVector encoder,
+                                                                                ratchetPrivate := __src.ratchetPrivate,
+                                                                                identityAd := __src.identityAd,
+                                                                                ourIdentityPublic :=
+                                                                                  __src.ourIdentityPublic,
+                                                                                peerIdentityPublic :=
+                                                                                  __src.peerIdentityPublic,
+                                                                                pendingInitial := __src.pendingInitial,
+                                                                                establishedEphemeral :=
+                                                                                  __src.establishedEphemeral }))
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes
@@ -6245,7 +6303,10 @@ info: def Tacenta.UnitLifecycleEstablishedEncrypt.sentChains : Aeneas.Std.Array 
     Aeneas.Std.alloc.vec.Vec (Aeneas.Std.U64 × tacenta_session_unit.tacenta_spqr.Chains) :=
 fun c1 c2 =>
   Tacenta.UnitHeadroomSatisfiable.vecOf
-    [(0#u64, { send := some { ck := c1, n := 1#u64 }, receive := some { ck := c2, n := 0#u64 } })] ⋯
+    [(0#u64, { send := some { ck := c1, n := 1#u64 }, receive := some { ck := c2, n := 0#u64 } })]
+    (⋯ :
+      [(0#u64, { send := some { ck := c1, n := 1#u64 }, receive := some { ck := c2, n := 0#u64 } })].length ≤
+        4294967295)
 -/
 #guard_msgs in
 #print Tacenta.UnitLifecycleEstablishedEncrypt.sentChains

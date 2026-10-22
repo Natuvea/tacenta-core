@@ -990,6 +990,9 @@ info: 'Tacenta.UnitHeadroomInvariant.invariant_hypotheses_satisfiable' depends o
 The axiom pins above hold the constants a result depends on and not what it says.  These hold the
 statements of the results the documents cite. -/
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitHeadroomInvariant.invariant_session_meets_both (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
   (hv : Tacenta.UnitHeadroomInvariant.ValidKeyShape Tacenta.UnitSatisfiabilityJoint.Interp.real)
@@ -1082,7 +1085,7 @@ info: Tacenta.UnitHeadroomInvariant.emptyChain_headroom (dhs : Aeneas.Std.Array 
     { classical := __src.classical,
       post_quantum :=
         have __src := (Tacenta.UnitHeadroomSatisfiable.freshTriple dhs).post_quantum;
-        { rk := __src.rk, epoch := __src.epoch, chains := Tacenta.UnitHeadroomSatisfiable.vecOf [] ⋯,
+        { rk := __src.rk, epoch := __src.epoch, chains := Tacenta.UnitHeadroomSatisfiable.vecOf [] (⋯ : 0 ≤ 4294967295),
           skipped := __src.skipped, direction := __src.direction } })
 -/
 #guard_msgs in
@@ -1112,8 +1115,9 @@ info: Tacenta.UnitHeadroomInvariant.session_emptyChainTable_fails_invariant
           { classical := __src.classical,
             post_quantum :=
               have __src := (Tacenta.UnitHeadroomSatisfiable.freshTriple a).post_quantum;
-              { rk := __src.rk, epoch := __src.epoch, chains := Tacenta.UnitHeadroomSatisfiable.vecOf [] ⋯,
-                skipped := __src.skipped, direction := __src.direction } },
+              { rk := __src.rk, epoch := __src.epoch,
+                chains := Tacenta.UnitHeadroomSatisfiable.vecOf [] (⋯ : 0 ≤ 4294967295), skipped := __src.skipped,
+                direction := __src.direction } },
         braid := __src.braid, ratchet_private := __src.ratchet_private, identity_ad := __src.identity_ad,
         our_identity_public := __src.our_identity_public, peer_identity_public := __src.peer_identity_public,
         pending_initial := __src.pending_initial, established_ephemeral := __src.established_ephemeral }).invariant ≠

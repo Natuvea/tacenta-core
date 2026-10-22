@@ -1016,10 +1016,14 @@ info: 'Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty' depends o
 #guard_msgs in
 #print axioms Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
   (p : tacenta_session_unit.tacenta_boundary.dh.PrivateKey) :
-  tacenta_session_unit.lifecycle.same_ephemeral_agreement p ⟨[], ⋯⟩ ⟨[], ⋯⟩ = ok false
+  tacenta_session_unit.lifecycle.same_ephemeral_agreement p ⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩ =
+    ok false
 -/
 #guard_msgs in
 #check Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty
