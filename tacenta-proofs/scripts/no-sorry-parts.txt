@@ -11,13 +11,47 @@
 # `reply` part took on `send-preservation` and `initiator-second-send`; its five phases took 340 s locally and are
 # estimated at about eleven to thirteen minutes hosted (an estimate, not a hosted measurement); the
 # initial dispatcher's 50 controls took 3024 s there and are split eight ways.
-hosted kernel: kernel-replay-translation kernel-replay-proofs kernel-replay-model kernel-replay-negative
+hosted kernel:
+  kernel-replay-translation
+  kernel-replay-proofs
+  kernel-replay-model
+  kernel-replay-negative
 hosted satisfiability: session-satisfiability
-hosted refuted: translation-coverage lifecycle-coverage refuted-records precondition-witnesses port-negatives axiom-comparison lean-constructs audit-reach hypothesis-witnesses audit-reach-negatives pin-negatives
-hosted braid: braid-agreement atomicity repair send-refusal sparse-store-full established
-hosted decrypt: decrypt-ratchet responder-receipt discharge-native-decide audit-negatives
-hosted responder: restored encrypt responder responder-frame
-hosted reply: responder-successor responder-reply responder-reply-receipt send-preservation initiator-second-send
+hosted refuted:
+  translation-coverage
+  lifecycle-coverage
+  refuted-records
+  precondition-witnesses
+  port-negatives
+  axiom-comparison
+  lean-constructs
+  audit-reach
+  hypothesis-witnesses
+  audit-reach-negatives
+  pin-negatives
+hosted braid:
+  braid-agreement
+  atomicity
+  repair
+  send-refusal
+  sparse-store-full
+  established
+hosted decrypt:
+  decrypt-ratchet
+  responder-receipt
+  discharge-native-decide
+  audit-negatives
+hosted responder:
+  restored
+  encrypt
+  responder
+  responder-frame
+hosted reply:
+  responder-successor
+  responder-reply
+  responder-reply-receipt
+  send-preservation
+  initiator-second-send
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
 hosted dispatch-2: initial-dispatch@2/8

@@ -20,7 +20,15 @@ The parts file, `tacenta-proofs/scripts/no-sorry-parts.txt`, holds one part per 
 
   <partition> <part>: <phase>[@k/S] ...      or      <partition> <part>: *
 
-`*` is every phase that is not a prelude, unsliced. Part names are unique over the file. Each partition
+or a part over several lines, its header line followed directly (no blank or comment line between) by one
+line for each further phase, indented by two spaces, which is the same part as the one-line form:
+
+  <partition> <part>:
+    <phase>[@k/S]
+    ...
+
+so that two changes that give phases to two parts, or to one part, touch different lines. `*` is every
+phase that is not a prelude, unsliced. Part names are unique over the file. Each partition
 must cover each non-prelude phase of the script exactly once: one part names it, or every slice 0..S-1 of
 one S is named once. A phase the script gains and the file does not assign fails every part before it
 runs a phase, and fails the combiner.
@@ -57,7 +65,8 @@ from pathlib import Path
 
 NAME = r'[a-z][a-z0-9-]*'
 SPEC = re.compile(r'(' + NAME + r')(?:@([0-9]{1,3})/([0-9]{1,3}))?')
-LINE = re.compile(r'(' + NAME + r') (' + NAME + r'):((?: \S+)+)')
+LINE = re.compile(r'(' + NAME + r') (' + NAME + r'):((?: \S+)*)')
+CONTINUATION = re.compile(r'  (\S+)')
 FORMAT = 'no-sorry-part/1'
 MANIFEST_KEYS = {'format', 'partition', 'part', 'commit', 'tree', 'clean', 'script_sha256',
                  'parts_sha256', 'toolchain', 'build_cache', 'seam', 'exit', 'phases'}
@@ -156,16 +165,31 @@ def read_parts(path, table):
     partitions = {}   # partition -> [part]
     owner = {}        # part -> partition
     specs = {}        # part -> [(phase, slice or None)]
+    # The logical lines: a header line and the continuation lines directly below it are one part.
+    records = []      # [number, partition, part, words]
+    previous = ''
     for number, line in enumerate(text.split('\n'), 1):
+        continued = CONTINUATION.fullmatch(line)
+        if continued:
+            if not records or not (LINE.fullmatch(previous) or CONTINUATION.fullmatch(previous)):
+                refuse(f'{path}:{number} is a continuation line that does not follow a part\'s line directly: '
+                       f'{line!r}')
+            records[-1][3].append(continued.group(1))
+            previous = line
+            continue
+        previous = line
         if line == '' or line.startswith('#'):
             continue
         found = LINE.fullmatch(line)
         if not found:
             refuse(f'{path}:{number} is not `<partition> <part>: <phase>...`: {line!r}')
         partition, part, rest = found.groups()
+        records.append([number, partition, part, rest.split(' ')[1:]])
+    for number, partition, part, words in records:
+        if not words:
+            refuse(f'{path}:{number}: part {part} names no phase')
         if part in owner:
             refuse(f'{path}:{number}: part {part} is named twice')
-        words = rest.split(' ')[1:]
         listed = []
         if words == ['*']:
             listed = [(p, None) for p in phases if kinds[p] != 'prelude']
