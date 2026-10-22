@@ -168,8 +168,8 @@ for script in names:
     ran += 1
     leaf = next(x for x in m.MUTANTS if x[1] not in m.INSIDE and x[1] not in m.PROJECTION
                 and x[1] not in m.STATEMENT_SHAPE)
-    trials = [("slice", run(m.MUTANTS[:-1]), "controls refused, expected"),
-              ("continue", run([x for x in m.MUTANTS if x is not leaf]), "controls refused, expected"),
+    trials = [("slice", run(m.MUTANTS[:-1]), "INCOMPLETE RUN"),
+              ("continue", run([x for x in m.MUTANTS if x is not leaf]), "INCOMPLETE RUN"),
               ("emptied-run-skipped", run(m.MUTANTS, skip_inside=True), "emptied-proof run of an inside control"),
               ("baseline-skipped", run(m.MUTANTS, baselines=list(sources)[:-1]), "unmodified copies accepted"),
               ("fabricated", run(m.MUTANTS, lean=False), "Lean ran 0 accepting and 0 refusing times"),
@@ -350,7 +350,7 @@ done
 # an early exit, a return, and another end of the script.
 make_case stub-main
 edit stub-main "$sp" $'\ndef main():\n' $'\ndef main():\n    sources = {}\n\n\ndef old_main():\n'
-expect_fail stub-main "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
+expect_fail stub-main "$sp: \`main\` never records \`inside\` for a control"
 make_case completeness-check-removed
 edit completeness-check-removed "$sp" $'    check_complete(results, sources)\n' ''
 expect_fail completeness-check-removed "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
@@ -388,6 +388,9 @@ expect_fail global-mutants-shortened "$sp binds MUTANTS 3 time(s)"
 make_case function-code-replaced
 edit function-code-replaced "$sp" $'\n\ndef main():\n' $'\ncheck_complete.__code__ = (lambda results, sources: None).__code__\n\n\ndef main():\n'
 expect_fail function-code-replaced "$sp: \`check_complete.__code__\` is assigned or deleted through the module-level name check_complete"
+make_case runs-overwritten
+edit runs-overwritten "$sp" $'    check_complete(results, sources)\n' $'    RUNS[:] = RUNS * 2\n    check_complete(results, sources)\n'
+expect_fail runs-overwritten "$sp: \`RUNS[:]\` is assigned or deleted through the module-level name RUNS"
 make_case shared-list-cleared
 edit shared-list-cleared "$sp" $'\ndef main():\n' $'\ndef main():\n    INSIDE.clear()\n'
 expect_fail shared-list-cleared "$sp: \`INSIDE.clear()\` changes the module-level INSIDE in place"

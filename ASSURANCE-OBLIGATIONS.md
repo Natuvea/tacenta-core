@@ -1454,9 +1454,17 @@ recorded decision or a target-closing slice:
   their label check refuses a projection any place of whose refusal is not a composing theorem.
   `run-check-negatives-control-counts-cases.sh` holds both:
   twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
-  Each script's `main` calls the shared `check_complete`, which refuses a run that refused fewer controls than `MUTANTS` holds, accepted other baselines, skipped an emptied-proof run or a projection's record, or whose Lean runs, recorded by `run_lean` alone in `RUNS`, do not number one accepting run per baseline and inside control and one refusing run per control and statement-shape check;
+  Each script's `main` calls the shared `check_complete`,
+  which refuses a run that refused fewer controls than `MUTANTS` holds,
+  accepted other baselines,
+  skipped an emptied-proof run or a projection's record,
+  or whose Lean runs,
+  recorded by `run_lean` alone in `RUNS`,
+  do not number one per baseline,
+  control and emptied-proof run,
+  at least one accepting per baseline and one refusing per control and statement-shape check;
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
-  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (84 cases in all, the completeness check run on simulated results with no Lean).
+  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (85 cases in all, the completeness check run on simulated results with no Lean).
   The gate also refuses a second binding of `main`,
   `MUTANTS`,
   `INSIDE`,

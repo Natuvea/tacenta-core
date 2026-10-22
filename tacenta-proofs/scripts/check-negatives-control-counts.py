@@ -41,8 +41,8 @@ module-level name (`check_complete.__code__ = ...`, `del INSIDE[...]`), and no i
 (`INSIDE.clear()`, `MUTANTS.pop()`) is accepted, except `RUNS.append` in `run_lean`.  At the end of a real run
 `check_complete` refuses a run that refused fewer controls than `MUTANTS` holds (a slice or a `continue`), accepted
 other baselines, skipped an emptied-proof run or a projection's record, or whose Lean runs, which `run_lean` alone
-records in `RUNS`, do not number one accepting run per baseline and inside control and one refusing run per control
-and statement-shape check.
+records in `RUNS`, do not number one per baseline, control and emptied-proof run, with at least one accepting run
+per baseline and one refusing run per control and statement-shape check.
 
 What it cannot see.  These rules stop an accidental edit and the edits listed; they do not stop a deliberate one.
 The same change made to all five copies of a shared helper is one text and passes, as does a `main` that runs Lean

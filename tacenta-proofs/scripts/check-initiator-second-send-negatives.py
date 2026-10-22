@@ -556,9 +556,9 @@ def check_refused(name, status, output, marker, log, mutated, where):
 def check_complete(results, sources):
     """The run ran what the script holds: every unmodified copy accepted, in order; every control in `MUTANTS` refused
     once; the emptied-proof run of every inside control and of every statement-shape check, and the place of every
-    projection, recorded; and Lean run, by `run_lean`, as many times as that takes, with an accepting exit status
-    for each baseline and each inside control's emptied run and a refusing one for each control and each
-    statement-shape check's emptied run (`RUNS`, which `main` does not write).  A control skipped by a slice of
+    projection, recorded; and Lean run, by `run_lean`, once for each of those runs, at least once accepting per
+    baseline and once refusing per control and statement-shape check (`RUNS`, which `main` does not write; an
+    inside control's emptied run may exit either way, since only its own declaration must be accepted).  A control skipped by a slice of
     `MUTANTS` or a `continue`, a baseline left out, or results written without running Lean fails the script here
     instead of leaving a smaller run that passes.  It does not see Lean run on files other than the controls.
     `check-negatives-control-counts.py` requires `main` to call this, and the number of controls to match its
@@ -578,9 +578,10 @@ def check_complete(results, sources):
         problems.append('the place of a projection is not recorded')
     accepting = sum(1 for _, status in RUNS if status == 0)
     refusing = len(RUNS) - accepting
-    if (accepting, refusing) != (len(sources) + len(INSIDE), len(MUTANTS) + len(STATEMENT_SHAPE)):
-        problems.append(f'Lean ran {accepting} accepting and {refusing} refusing times, expected '
-                        f'{len(sources) + len(INSIDE)} and {len(MUTANTS) + len(STATEMENT_SHAPE)}')
+    runs = len(sources) + len(MUTANTS) + len(INSIDE) + len(STATEMENT_SHAPE)
+    if len(RUNS) != runs or accepting < len(sources) or refusing < len(MUTANTS) + len(STATEMENT_SHAPE):
+        problems.append(f'Lean ran {accepting} accepting and {refusing} refusing times, expected {runs} runs, at least '
+                        f'{len(sources)} accepting and {len(MUTANTS) + len(STATEMENT_SHAPE)} refusing')
     if problems:
         raise SystemExit('INCOMPLETE RUN (not a passing control): ' + '; '.join(problems))
 
