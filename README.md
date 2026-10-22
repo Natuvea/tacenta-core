@@ -268,8 +268,10 @@ The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition
 session path, and sessions and prekey stores serialize.
 Identity records (ADR-0009: the identity pair digest, the verification number, the classification and lookup of a key
 against a party's records, and initiator establishment under an expectation) are in `tacenta-core/src/sessions/identity.rs`,
-outside the translated crates, and are tested only for `tacenta-core`: tests, and 128 vectors that the model generates or
-checks and the independent reader reads. The model's theorems about them are about the model alone. The initiator is now
+outside the translated crates, and are tested only for `tacenta-core`: tests, a fuzz target (`identity_records`, which the
+hosted workflow does not run), and 128 vectors that the model generates or checks and the independent reader reads. The
+model's theorems about them are about the model alone. The application, FFI and SDK layers above the crate have not adopted
+them yet, so the product does not use them. The initiator is now
 established through that module's `establish_initiator`, which checks the expectation and then calls the leaf's
 `establish_initiator_for`; the results above about `establish_initiator_for` are about the leaf function, and that they hold
 for the session the wrapper returns is a tested reading of the wrapper, not a proof (`tacenta-proofs/CLAIMS.md`, "Read this

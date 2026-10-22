@@ -41,7 +41,8 @@ time, and the ratchet carries build-time self-consistency checks.
   and attribution"). Written from the pages, with theorems of the definitions
   (symmetry, the order of the checks, totality and the four outcomes of a
   lookup); the digest and the classification are checked against hand-computed
-  values when it builds, and the vectors will pin them.
+  values when it builds, and the identity vectors
+  (`../tacenta-test-vectors/vectors/identity/`) pin them.
 - `Model/InitiatorExpectation.lean`: the initiator's expectation (*known* or
   *first contact*) and the order of its checks, as the pages fix it, composed
   over the lifecycle model's `establishInitiator` without editing it. Nothing is

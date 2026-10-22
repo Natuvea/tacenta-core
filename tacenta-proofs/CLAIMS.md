@@ -480,9 +480,12 @@ this section says in one place what is not proved.
   `establish_initiator_for` with the bundle's own identity key, and returns what
   that call returns. The leaf's `establish_initiator` and
   `establish_initiator_for` are no longer re-exported, a breaking change to the
-  crate's API; the crate's own callers (its tests, the fuzz target and the vector
-  runner) were moved to the wrapper, and the application, FFI and SDK layers
-  above the crate have not adopted it yet, so the product does not use it.
+  crate's API. The crate's own callers (its tests, the fuzz targets and the
+  vector runner) call the wrapper, apart from two tests about the leaf itself,
+  which call it on purpose: `tests/identity_boundary.rs`, and the comparison
+  with the leaf in `tests/identity_expectation.rs`. The application, FFI and
+  SDK layers above the crate have not adopted the wrapper yet, so the product
+  does not use it.
   Every result in this file about `establish_initiator_for` is about the leaf
   function, and every result on the eight-leaf session unit is about the
   lifecycle leaf's functions; none is about the wrapper. That those results apply to the session the wrapper returns rests on a
@@ -493,7 +496,11 @@ this section says in one place what is not proved.
   `establish_responder_unattributed`; it reads signatures, not bodies. The
   responder adds no refusal: `establish_responder_unattributed` calls the leaf's
   `establish_responder` unchanged and returns its first plaintext as
-  unattributed, for the application to attribute by a lookup (ASM-14).
+  unattributed, for the application to attribute by a lookup (ASM-14). The
+  wrapper keeps the lookup beside the value and does not enforce one: given no
+  records, `attribute` releases the value as unattributed, and the leaf's
+  `establish_responder`, which returns the plaintext unwrapped, is still
+  exported.
 
 The honest one-line summary: **the protocol core is proved to refine a model
 under stated assumptions; the code path a customer's message actually travels

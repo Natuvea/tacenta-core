@@ -2156,8 +2156,8 @@ across records, initiator establishment under an expectation
 not in a leaf crate, and nothing translates it: no T1 or T3 theorem, on any
 island or unit, is about any function in it.
 
-- **What exists.** Tests: 14 unit tests in the file, 13 in
-  `tacenta-core/tests/identity_expectation.rs` and 9 in
+- **What exists.** Tests: 14 unit tests in the file, 15 in
+  `tacenta-core/tests/identity_expectation.rs` and 10 in
   `tacenta-core/tests/identity_responder.rs`. Vectors: 128 in five files under
   `tacenta-test-vectors/vectors/identity/` (`pair-digest.json` 38,
   `verification-number.json` 9, `identity-classification.json` 20,
@@ -2166,11 +2166,25 @@ island or unit, is about any function in it.
   `generate-identity-vectors.py` with every outcome checked against the model.
   The Rust runner checks them against `tacenta-core`, and the independent reader
   reads all 128 with no failure (125 at its fourteenth pass; three were added
-  after it and pass with the reader unchanged). No fuzz target reads these
-  functions with fuzzed input: `session_receive` reaches `establish_initiator`
-  only with an honest bundle and no records. So they have each element of
-  ADR-0008's L2 except a fuzz target of their own, whose untrusted input would
-  be a presented 32-byte key and a decoded bundle.
+  after it and pass with the reader unchanged). A fuzz target of their own,
+  `identity_records` (`tacenta-core/fuzz/fuzz_targets/identity_records.rs`),
+  drives the classification, the lookup, the digest, the verification number
+  and initiator establishment under an expectation with a fuzzed presented
+  key and fuzzed records, over an honest bundle whose identity key the input
+  may replace. It asserts that the lookup agrees with the classification
+  record by record, that the digest does not depend on argument order, that
+  a malformed expectation is refused as `MalformedRecord` and only then, that
+  a refusal on the expectation draws nothing, and that a session is returned
+  only for a key the expectation accepts. It does not fuzz the rest of the
+  bundle (its prekeys and signatures). Like every fuzz target here, the
+  hosted workflow neither builds nor runs it; `tooling/ci.sh` runs it briefly
+  from its three committed seeds when `cargo-fuzz` and a nightly toolchain
+  are present. Whether the nightly search on private infrastructure
+  (`ASSURANCE.md`, practice 10) runs it has not been checked. So they have
+  each element of ADR-0008's L1 and L2, with two qualifications: the hosted
+  workflow does not run the fuzz target, and `initiator-expectation.json`
+  is written by a script with each outcome checked against the model, not
+  generated from it.
 - **What is proved, and about what.** `Model.IdentityRecords` and
   `Model.InitiatorExpectation` state the same rules, and `CLAIMS.md` ("Proved
   (tier T2, in the model: identity records and the initiator's expectation)")
@@ -2209,7 +2223,11 @@ island or unit, is about any function in it.
   paths in all). It checks that each is registered under its signature.
 - **The responder adds no refusal.** `establish_responder_unattributed` calls the
   leaf's `establish_responder` unchanged and returns its first plaintext wrapped
-  as unattributed, released with a lookup of the session's peer key. Whatever the
+  as unattributed. `attribute` releases it beside a lookup of the session's
+  peer key in the records the caller gives; it cannot check that those are
+  the party's records (given none, it releases the value as unattributed),
+  and the leaf's `establish_responder`, which returns the plaintext unwrapped,
+  is still exported. So the wrapper is a nudge, not an enforcement. Whatever the
   leaf commits, it commits. Attributing a session or a plaintext to a contact is
   the application's act (ASM-14).
 - **The strength of the verification number is assumed.** About `2^100` work for

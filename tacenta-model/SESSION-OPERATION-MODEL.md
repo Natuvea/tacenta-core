@@ -116,6 +116,16 @@ explicit update to this section and the trace theorem.
 | REQ-FS-03 | prekey lifecycle and responder establishment | One-time private halves are deleted after authenticated use; rotations retire and then wipe old keys. | Unauthenticated initial messages do not delete one-time private halves. | Language-level temporary copies remain a known limitation. |
 | REQ-PCS-02 | send/receive Braid transitions | Successful send/receive pairs Braid output with Triple Ratchet epoch and commits both. | Failed Braid becomes terminal and future operations refuse until re-establishment. | Full Braid state-machine coverage is still P7 except for P6's session-level commit contract. |
 
+**Superseded, 2026-10-22: the REQ-AUTH-02 row.** It records this design
+slice, when initiator establishment took an optional named identity.
+ADR-0009 replaced that with an expectation: `tacenta_core::sessions` offers
+initiator establishment only under one (`establish_initiator` of
+`tacenta-core/src/sessions/identity.rs`), and the trusting form the row
+mentions is no longer exported there; it stays in the lifecycle leaf crate.
+The row is kept as the slice's record. What covers REQ-AUTH-02 now is in its
+status line (`tacenta-spec/security-properties/authentication.md`) and in
+`ASSURANCE.md`.
+
 ## Implementation slices
 
 1. **Prekey lifecycle and replay.** `publish`, `replenish`, both rotations,
