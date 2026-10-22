@@ -26,8 +26,7 @@ no control planted it refuses to run), and makes every edit that does not depend
   scripts/no-sorry.sh                         the phase's function and its `run_phase` line
   scripts/no-sorry-parts.txt                  the phase, in the named part of the `hosted` partition
   tooling/tests/run-proof-script-cases.sh     the script among the stubbed controls and the controls called
-  tooling/tests/run-no-sorry-parts-cases.sh   the script among the stubbed scripts, and the phase count of the
-                                              line a full run prints set to the phases `no-sorry.sh` now lists
+  tooling/tests/run-no-sorry-parts-cases.sh   the script among the stubbed scripts
   scripts/negatives-control-counts.json       the script's entry: its number of controls in each class (none
                                               yet) and of baselines, which `check-negatives-control-counts.py`
                                               compares with the script; edit it with each control added
@@ -383,12 +382,8 @@ def edit_inventory(tree, a):
     tree.write(INVENTORY, new)
 
 
-PHASE_LINE = re.compile(r"^  run_phase [a-z][a-z0-9-]* ", re.M)
-FULL_LINE = re.compile(r"^full_line='no-sorry: all ([0-9]+) phases passed'$", re.M)
-
-
 def edit_parts_cases(tree, a):
-    """The script among the stubs of the parts runner, and its phase count set to the phases no-sorry.sh lists."""
+    """The script among the stubs of the parts runner (whose phase count is read from no-sorry.sh)."""
     lines = tree.read(PARTS_CASES).split("\n")
     start = one([k for k, l in enumerate(lines) if l == "py_stubs=("], f"{PARTS_CASES}: the line `py_stubs=(`")
     end = next((k for k in range(start, len(lines)) if lines[k] == ")"), None)
@@ -396,12 +391,7 @@ def edit_parts_cases(tree, a):
         refuse(f"{PARTS_CASES}: the py_stubs array does not end with a line `)`")
     insert_word(lines, start + 1, end, r"  (check-[a-z0-9-]+-negatives\.py)", f"  {a.negatives}", None,
                 a.negatives, f"{PARTS_CASES} py_stubs")
-    text = "\n".join(lines)
-    found = list(FULL_LINE.finditer(text))
-    one(found, f"{PARTS_CASES}: the line `full_line='no-sorry: all N phases passed'`")
-    phases = len(PHASE_LINE.findall(tree.read(NO_SORRY)))
-    text = FULL_LINE.sub(f"full_line='no-sorry: all {phases} phases passed'", text)
-    tree.write(PARTS_CASES, text)
+    tree.write(PARTS_CASES, "\n".join(lines))
 
 
 def edit_record(tree, a):

@@ -52,7 +52,6 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-full_line='no-sorry: all 39 phases passed'
 
 wrong() {  # name message...
   local name="$1"
@@ -262,18 +261,17 @@ ran_nothing() {  # name: no phase script was called (a refusal before anything r
 }
 
 # ---- the fixture against the script it copies -------------------------------------------------------------
-# The phase count of `full_line` and the stubs above are written by hand (and by `new-lifecycle-module.py
-# scaffold`, for the phase and the script it adds). A phase or a called script added without them fails here,
-# naming the edit, instead of later as a genuine part that fails.
+# The line a full run prints names the number of phases the fixture's no-sorry.sh lists (read here, not written
+# by hand, so that two branches that each add a phase do not change one line). The stubs above are written by
+# hand (and by `new-lifecycle-module.py scaffold`, for the script it adds): a called script added without one
+# fails here, naming the edit, instead of later as a genuine part that fails.
 (cd "$proofs" && "${clean_env[@]}" PATH="$work/bin:$PATH" STUB_CALLS="$work/calls-fixture-table" \
   NO_SORRY_LIST=1 bash scripts/no-sorry.sh) > "$work/fixture-table" 2>&1 \
   || wrong fixture-table "the fixture's no-sorry.sh did not list its phases"
 cases=$((cases + 1))
 listed="$(awk -F'\t' '$1 == "phase" { n++ } END { print n + 0 }' "$work/fixture-table")"
-if [ "$full_line" != "no-sorry: all $listed phases passed" ]; then
-  wrong fixture-phases "no-sorry.sh lists $listed phases and full_line is '$full_line': set it to" \
-    "'no-sorry: all $listed phases passed' in tooling/tests/run-no-sorry-parts-cases.sh"
-fi
+[ "$listed" -ge 10 ] || wrong fixture-phases "the fixture's no-sorry.sh lists $listed phases"
+full_line="no-sorry: all $listed phases passed"
 cases=$((cases + 1))
 called="$(grep -vE '^[[:space:]]*#' "$proofs/scripts/no-sorry.sh" \
   | grep -oE '(python3|bash) scripts/[A-Za-z0-9_.-]+\.(py|sh)' | sed 's|.* scripts/||' | sort -u)"

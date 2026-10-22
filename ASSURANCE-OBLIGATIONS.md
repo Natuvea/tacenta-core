@@ -1878,9 +1878,11 @@ template carries the helpers of the five lifecycle negatives scripts character f
 standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
 `check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
-the script's own counts, its stub and the phase count in `tooling/tests/run-no-sorry-parts-cases.sh` (which now names
-the edit when a phase or a called script is missing from its fixture), and the two pretty-printer options in the
-module, so that its pins print whole. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
+the script's own counts, its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
+of a full run from its fixture's `no-sorry.sh` instead of a number written by hand, and names the edit when a script
+the run calls has no stub), and the two pretty-printer options in the module, so that its pins print whole. The two
+lists it now edits are among the files `tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
+scaffold a module still merge through `tooling/regenerate-generated.sh`. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
 own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
 `cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,
 given two controls of the send-preservation module, was run against Lean by hand.

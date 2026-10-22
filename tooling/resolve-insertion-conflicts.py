@@ -31,6 +31,7 @@ takes a common last line such as a closing brace out of two different insertions
     tacenta-proofs/translation/Translation/AxiomAuditSessionUnit.lean, tacenta-proofs/scripts/no-sorry.sh,
     tacenta-proofs/scripts/no-sorry-parts.txt, tacenta-proofs/scripts/attest.py,
     tacenta-proofs/scripts/check-attest-negatives.sh, tooling/tests/run-proof-script-cases.sh,
+    tooling/tests/run-no-sorry-parts-cases.sh, tacenta-proofs/scripts/negatives-control-counts.json,
     tooling/gate-inventory.json, tooling/gate-mutations.json, ASSURANCE-OBLIGATIONS.md
 
 `--check` resolves nothing and says what it would do. `--verify` merges nothing: it checks the tree as it is, which
@@ -59,6 +60,8 @@ FILES = [
     "tacenta-proofs/scripts/attest.py",
     "tacenta-proofs/scripts/check-attest-negatives.sh",
     "tooling/tests/run-proof-script-cases.sh",
+    "tooling/tests/run-no-sorry-parts-cases.sh",
+    "tacenta-proofs/scripts/negatives-control-counts.json",
     "tooling/gate-inventory.json",
     "tooling/gate-mutations.json",
     "ASSURANCE-OBLIGATIONS.md",
@@ -223,7 +226,8 @@ def verify(root):
             problems.append(f"{where}: {v!r} appears twice")
 
     text = lambda rel: (root / rel).read_text(encoding="utf-8")
-    for rel in ("tooling/gate-inventory.json", "tooling/gate-mutations.json"):
+    for rel in ("tooling/gate-inventory.json", "tooling/gate-mutations.json",
+                "tacenta-proofs/scripts/negatives-control-counts.json"):
         try:
             json.loads(text(rel))
         except ValueError as error:
@@ -234,7 +238,7 @@ def verify(root):
         problems.append(f"tacenta-proofs/scripts/attest.py: does not parse: {error}")
         attest_tree = None
     for rel in ("tacenta-proofs/scripts/no-sorry.sh", "tacenta-proofs/scripts/check-attest-negatives.sh",
-                "tooling/tests/run-proof-script-cases.sh"):
+                "tooling/tests/run-proof-script-cases.sh", "tooling/tests/run-no-sorry-parts-cases.sh"):
         r = subprocess.run(["bash", "-n", rel], cwd=root, capture_output=True, text=True)
         if r.returncode:
             problems.append(f"{rel}: bash -n: {r.stderr.strip()[:200]}")
@@ -278,6 +282,11 @@ def verify(root):
                 problems.append(f"no-sorry-parts.py refuses part {m.group(1)}: {(r.stderr or r.stdout).strip()[:200]}")
                 break
         Path(handle.name).unlink()
+    stubs = re.search(r"^py_stubs=\(\n((?:  \S+\n)*)\)", text("tooling/tests/run-no-sorry-parts-cases.sh"), re.M)
+    if stubs:
+        dup("run-no-sorry-parts-cases.sh py_stubs", stubs.group(1).split())
+    dup("negatives-control-counts.json scripts", re.findall(r'^    "(check-[a-z0-9-]+\.py)": ',
+                                                          text("tacenta-proofs/scripts/negatives-control-counts.json"), re.M))
     cases = text("tooling/tests/run-proof-script-cases.sh")
     for name in ("sh_controls", "py_controls"):
         m = re.search(rf"^{name}=\(([^)]*)\)", cases, re.M)

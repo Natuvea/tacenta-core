@@ -220,6 +220,8 @@ for f in check-responder-relay-negatives.py check-responder-relay-receipt-negati
   grep -qF "python3 scripts/$f || fail=1" "$clone/tacenta-proofs/scripts/no-sorry.sh" \
     && grep -qF "tacenta-proofs/scripts/$f" "$clone/tacenta-proofs/GATE-INVENTORY.md" \
     && grep -qF "  \`$f\`," "$clone/ASSURANCE-OBLIGATIONS.md" \
+    && grep -qx "  $f" "$clone/tooling/tests/run-no-sorry-parts-cases.sh" \
+    && grep -qF "    \"$f\": {" "$clone/tacenta-proofs/scripts/negatives-control-counts.json" \
     || fail_case "adjacent-modules: $f is not wired in the merged tree"
 done
 cases=$((cases + 1))

@@ -8,15 +8,15 @@
 #                     its name sorts after, and the tree then passes `attest.py --check`, `gate-inventory.py
 #                     --check`, `reflow-shared-lists.py --check`, `bash -n`, the parts resolution of the real
 #                     `no-sorry.sh`, JSON parsing, the control-count gate (the script's entry is written with its
-#                     counts) and the parts runner (the script among its stubs, its phase count moved by one); the
+#                     counts) and the parts runner (the script among its stubs, the phase counted); the
 #                     module carries the two pretty-printer options before its pins; a second run changes nothing
 #   the template      the new negatives script refuses to run with no control planted, and its start-up checks
 #                     refuse a label that does not match where its control is refused, a projection that may be
 #                     refused outside a composing proof, and a guard that does not fire on any one of the six
 #                     error spellings it lists; its completeness check refuses a run with no Lean run behind it
 #                     (simulated: no Lean here); and the count gate follows it: a control planted without its
-#                     record entry edited, and the entry deleted, are refused; the parts runner, with the phase
-#                     count left as it was or the new stub left out, names the edit to make
+#                     record entry edited, and the entry deleted, are refused; the parts runner, with the new
+#                     stub left out, names the edit to make
 #   pins              from a pins section, the module's names land on the four lists of `attest.py` and nowhere
 #                     else, in both deletion lists of the attestation negatives with a print-form case, and the
 #                     case count moves by the cases added; a second run changes nothing; `attest.py` then refuses
@@ -124,7 +124,6 @@ unchanged late-name
 # ---- scaffold ------------------------------------------------------------------------------------------------
 run dry-run 0 python3 "$tool" "${args[@]}" --check
 says dry-run "11 file(s) would change"; unchanged dry-run
-phases_before="$(grep -c '^  run_phase [a-z]' "$clone/tacenta-proofs/scripts/no-sorry.sh")"
 run scaffold 0 python3 "$tool" "${args[@]}"
 says scaffold "tooling/gate-inventory.py --write: exit 0"; says scaffold "tacenta-proofs/scripts/attest.py: exit 0"
 cases=$((cases + 1))
@@ -159,11 +158,6 @@ next_line parts-stubs tooling/tests/run-no-sorry-parts-cases.sh "  check-restore
 next_line record tacenta-proofs/scripts/negatives-control-counts.json \
   "$(grep '^    "check-responder-successor-negatives.py": ' "$root/tacenta-proofs/scripts/negatives-control-counts.json")" \
   "    \"$N\": {\"inside\": 0, \"projection\": 0, \"statement_shape\": 0, \"pin\": 0, \"leaf\": 0, \"baselines\": 2},"
-cases=$((cases + 1))
-phases_after="$(grep -c '^  run_phase [a-z]' "$clone/tacenta-proofs/scripts/no-sorry.sh")"
-[ "$phases_after" -eq $((phases_before + 1)) ] \
-  && grep -qx "full_line='no-sorry: all $phases_after phases passed'" "$clone/tooling/tests/run-no-sorry-parts-cases.sh" \
-  || fail_case "parts-count: the parts runner's phase count is not the $phases_after phases no-sorry.sh lists"
 cases=$((cases + 1))
 grep -qx 'set_option pp.deepTerms true' "$clone/tacenta-proofs/translation/Translation/$M.lean" \
   && grep -qx 'set_option pp.proofs.withType true' "$clone/tacenta-proofs/translation/Translation/$M.lean" \
@@ -249,15 +243,8 @@ grep -vF "\"$N\": " "$work/record" > "$clone/tacenta-proofs/scripts/negatives-co
 run record-missing 1 python3 tacenta-proofs/scripts/check-negatives-control-counts.py
 says record-missing "$N carries the shared check_labels and is not in negatives-control-counts.json"
 cp "$work/record" "$clone/tacenta-proofs/scripts/negatives-control-counts.json"
-# The parts runner with the phase count left as it was names the edit to make.
-cp "$clone/tooling/tests/run-no-sorry-parts-cases.sh" "$work/parts-runner"
-sed -i.bak "s/^full_line='no-sorry: all [0-9]* phases passed'$/full_line='no-sorry: all $phases_before phases passed'/" \
-  "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
-rm -f "$clone/tooling/tests/run-no-sorry-parts-cases.sh.bak"
-run parts-count-missed 1 bash tooling/tests/run-no-sorry-parts-cases.sh
-says parts-count-missed "WRONG  parts control fixture-phases: no-sorry.sh lists $phases_after phases and full_line is 'no-sorry: all $phases_before phases passed': set it to"
-cp "$work/parts-runner" "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
 # The parts runner with the new script's stub left out names it.
+cp "$clone/tooling/tests/run-no-sorry-parts-cases.sh" "$work/parts-runner"
 grep -vx "  $N" "$work/parts-runner" > "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
 run parts-stub-missed 1 bash tooling/tests/run-no-sorry-parts-cases.sh
 says parts-stub-missed "WRONG  parts control fixture-stubs: no-sorry.sh calls scripts/$N, which has no stub here"
@@ -381,4 +368,4 @@ printf '{"severity": "error", "pos": {"line": 3, "column": 0}, "data": "unsolved
 run genpins-error 2 python3 tacenta-proofs/scripts/genpins.py "$work/pkg/Mod/M.lean" --lean-json "$work/lean3.json"
 says genpins-error "Lean reports an error at line 3"
 
-echo "new-lifecycle-module-cases: $cases cases (a missing, a doubled and a packed anchor, an unknown or sliced part and bad names refused with nothing written; a late name placed before the last evidence item; the scaffold changed exactly the expected files at the expected places and the tree passed the attestation, inventory, form, shell, JSON and parts checks, the control-count gate and the parts runner, the module set the two pretty-printer options, and a second run changed nothing; the template refused no controls, a broken inside or projection label, a guard missing any one of its six spellings and a run with no Lean behind it, the count gate refused a control planted without its record entry and a missing entry, and the parts runner named a phase count and a stub left behind; the pins step placed the names on the four lists and the two deletion lists, moved the count by its cases, changed nothing the second time, left the ledger to be written and refused a pin it cannot read; genpins wrote, checked and refused an error, a missing and a warning message) gave the expected result"
+echo "new-lifecycle-module-cases: $cases cases (a missing, a doubled and a packed anchor, an unknown or sliced part and bad names refused with nothing written; a late name placed before the last evidence item; the scaffold changed exactly the expected files at the expected places and the tree passed the attestation, inventory, form, shell, JSON and parts checks, the control-count gate and the parts runner, the module set the two pretty-printer options, and a second run changed nothing; the template refused no controls, a broken inside or projection label, a guard missing any one of its six spellings and a run with no Lean behind it, the count gate refused a control planted without its record entry and a missing entry, and the parts runner named a stub left out; the pins step placed the names on the four lists and the two deletion lists, moved the count by its cases, changed nothing the second time, left the ledger to be written and refused a pin it cannot read; genpins wrote, checked and refused an error, a missing and a warning message) gave the expected result"
