@@ -3135,16 +3135,16 @@ the source, the candidate key the inner receive draws before the Triple's receiv
 holds of the session and not of the random source. It rests on the kernel and opaque constants and on the first receipt's
 laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, ASSUMED), with one per-run premise, that
 the second source holds a draw; `DhAgreeContributory` also carries the repeat recognition's two agreements and the second
-draw's, without which the refusal would be `handshake nonContributoryAgreement` instead. Its two cut-off statement pins
-(`responder_first_frame_repeat_refused` after the binder `ptB`, `initiator_first_send_responder_repeat_refused` after
-`AeadRoundTrip →`) hold their binders up to the cut; the rest, conclusion included, is held by the build and by reading
-only. `initiator_first_send_responder_replay_refused`: at the store the first success committed, `establish_responder`
+draw's, without which the refusal would be `handshake nonContributoryAgreement` instead. Its two statement pins
+(`responder_first_frame_repeat_refused`, `initiator_first_send_responder_repeat_refused`) print the whole statement (the
+module sets the two `pp` options before its pins), which is still not the whole elaborated statement: what Lean's printing
+leaves out is held by the build and by reading only, as for every statement pin. `initiator_first_send_responder_replay_refused`: at the store the first success committed, `establish_responder`
 on the same bytes returns `ReplayedLastResort`, that store and the source as given, when the bundle names the store's
 last-resort KEM key and no one-time curve prekey (two premises on the run's shape, exhibited on the reach run); it takes
 none of the receipt's laws, only the decoding facts `DhPublicValid` and `ZeroizingArrayRoundTrip` (ASSUMED), and the first
 call's success as a hypothesis. It is a statement about the translated code alone: no relation between the code's prekey
 store and the model's exists in the tree, so that the model's `establishResponder` refuses the same delivery is not shown.
-Its statement pin is cut off after the responder's identity equation, with the same consequence. **Not shown:** a repeat at
+Its statement pin prints the whole statement, with the same proviso. **Not shown:** a repeat at
 any later session (after the responder's reply, after the initiator's second message, on a restored copy) or of the reply
 at the initiator; a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
 because the commit removed the key; a second delivery after a refused first call or after another store change; that the

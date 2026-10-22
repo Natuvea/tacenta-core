@@ -6820,9 +6820,11 @@ primitives meet the laws the run rests on; the one-time path in a run; a source 
 and no compiler-trust axiom. Of the other 5 results, 3 rest on `propext`, `Classical.choice` and `Quot.sound` alone
 (`repeat_receive_outOfOrder`, `repeat_receive_with_eviction`, `repeat_frame_model_refused`) and 2 on those three and opaque
 constants of the unit. Each of the 8 results carries an axiom pin and a statement pin. The statement pins of
-`responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` are cut off by Lean's `⋯` (after
-the binder `ptB` and after `AeadRoundTrip →`): they hold the binders up to the cut, and the rest of each statement,
-conclusion included, is held by the build and by reading only, as with every pin that ends in `⋯`.
+`responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` print the whole statement: the
+module sets `pp.deepTerms true` and `pp.proofs.withType true` before its pins, without which Lean cut them off with `⋯`
+(after the binder `ptB` and after `AeadRoundTrip →`). As for every statement pin, a printed pin is not the whole elaborated
+statement (what Lean's printing leaves out is listed under the initiator's second send above), and that the pinned
+statement is the right one is decided by reading.
 `check-responder-repeated-frame-negatives.py` plants seventeen faults in a copy of the module, every one a change to a
 statement, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false). Ten are refused in the two composing
@@ -6917,9 +6919,10 @@ own, such as `OsRng`.
 `established_encrypt_outcomes` (the second also `initiator_first_send_responder_receives`) and list the kernel's three
 axioms and opaque constants of the unit, and no compiler-trust axiom. Of the other 3 results, 0 rest on `propext`,
 `Classical.choice` and `Quot.sound` alone and 3 on those three and opaque constants of the unit. Each of the 5 results
-carries an axiom pin and a statement pin. The statement pin of `initiator_first_send_responder_replay_refused` is cut off
-by Lean's `⋯` after the responder's identity equation: it holds the binders up to the cut, and the rest of the statement,
-conclusion included, is held by the build and by reading only, as with every pin that ends in `⋯`.
+carries an axiom pin and a statement pin. The statement pin of `initiator_first_send_responder_replay_refused` prints the
+whole statement (the module sets the two `pp` options before its pins, without which Lean cut it off with `⋯` after the
+responder's identity equation); as for every statement pin, that is not the whole elaborated statement, and that the
+pinned statement is the right one is decided by reading.
 `check-responder-establish-replay-negatives.py` plants twelve faults in a copy of the module, every one a change to a
 statement, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false). Seven are refused in the two

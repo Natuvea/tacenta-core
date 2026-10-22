@@ -486,10 +486,11 @@ def declaration_lines(text, name):
 
 
 def pin_line(text, name):
-    """The 1-based line of the `#guard_msgs in` that precedes `#print name`, or None."""
+    """The 1-based line of the `#guard_msgs in` that precedes `#print name` (a definition's pin) or `#check @name` (a
+    statement pin), or None."""
     lines = text.split('\n')
     for k in range(1, len(lines)):
-        if lines[k] == f'#print {name}' and lines[k - 1].startswith('#guard_msgs'):
+        if lines[k] in (f'#print {name}', f'#check @{name}') and lines[k - 1].startswith('#guard_msgs'):
             return k
     return None
 
@@ -534,8 +535,8 @@ def check_refused(name, status, output, marker, log, mutated, where):
     if isinstance(where, tuple):
         line = pin_line(mutated, where[1])
         if line is None:
-            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` pin, so '
-                             f'its refusal cannot be the pin\'s; {log}')
+            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` or `#check @{where[1]}` '
+                             f'pin, so its refusal cannot be the pin\'s; {log}')
         spans = [(where[1], (line, line))]
     else:
         spans = []
