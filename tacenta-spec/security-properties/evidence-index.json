@@ -185,7 +185,10 @@
             "known-new-unencodable-kem-prekey",
             "known-same-unencodable-kem-prekey",
             "known-new-low-order-signed-prekey",
-            "known-same-low-order-signed-prekey"
+            "known-same-low-order-signed-prekey",
+            "known-malformed-record-inconsistent-presence",
+            "known-malformed-record-respelled-identity",
+            "known-same-short-kem-prekey-bad-kem-prekey-signature"
           ],
           "coverage": "Pins both expectation forms against signed bundles: MalformedRecord before any bundle check, the presence and canonical-key checks before the expectation, the identity-key rule applied first, RetiredIdentity and UnexpectedIdentity before the signatures, the KEM prekey's input checks and the agreements (the same defects under the expected key give their own refusals), and no random value drawn before any of those refusals."
         }

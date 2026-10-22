@@ -142,7 +142,11 @@ is SemVer against the specified protocol (not the implementation).
   different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
   -16, whose statuses do not change. `bundle-admission.json` is unchanged:
   its runner establishes each case under *first contact* with no records. No
-  existing vector changes.
+  existing vector changes. Three of the initiator vectors pin orders the
+  fourteenth independent reader pass found unpinned (`GAPS-14.md`): a
+  malformed expectation before the presence and canonical-key checks, and,
+  for a KEM prekey of the wrong length whose signature does not verify, the
+  signatures before the KEM prekey's input checks.
 
 ### Changed
 - `protocol/group-messaging.md`: the page no longer lists or relies on one

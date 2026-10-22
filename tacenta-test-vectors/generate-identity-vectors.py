@@ -692,6 +692,12 @@ def cases():
          "known K; the bundle names K, with a KEM prekey one byte long, given as fields: refused by the "
          "KEM prekey's input checks",
          known(), rec_k, bundle(K, K_SECRET, ek=EK + b"\x00"), "kem-input", raw=True)
+    case("known-same-short-kem-prekey-bad-kem-prekey-signature",
+         "known K; the bundle names K, with a KEM prekey one byte short whose signature does not verify, "
+         "given as fields: the signatures come before the KEM prekey's input checks, so an "
+         "authentication failure",
+         known(), rec_k, bundle(K, K_SECRET, ek=EK[:-1], kem_sig_ok=False), "authentication-failure",
+         raw=True)
     case("known-new-low-order-one-time-prekey",
          "known K; another identity key, with a one-time prekey of order 8: the expectation comes before "
          "any agreement",
@@ -778,6 +784,15 @@ def cases():
          "known, with a record holding K and u = p; the bundle names u = 0: the malformed expectation "
          "comes first",
          known(), [Record([K, P_SPELLED])], bundle(U0, K_SECRET), "malformed-record")
+    case("known-malformed-record-inconsistent-presence",
+         "known, with a record holding K and u = p; the bundle names K and has a one-time prekey with the "
+         "absent identifier: the malformed expectation comes before the presence check",
+         known(), [Record([K, P_SPELLED])], bundle(K, K_SECRET, one_time_id=ABSENT_ID), "malformed-record")
+    case("known-malformed-record-respelled-identity",
+         "known, with a record holding K and u = p; the bundle names K with bit 255 set, given as fields "
+         "since the bundle decoder refuses it: the malformed expectation comes before the canonical-key "
+         "check",
+         known(), [Record([K, P_SPELLED])], bundle(bit255(K), K_SECRET), "malformed-record", raw=True)
     case("known-inconsistent-presence-non-identity-key",
          "known K; the bundle names u = 0 and has a one-time prekey with the absent identifier: the "
          "presence check comes first",

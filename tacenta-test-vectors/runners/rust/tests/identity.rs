@@ -73,7 +73,7 @@ fn identity_key_vectors_pass() {
     assert!(count("identity-lookup", "valid") >= 11);
     assert!(count("identity-lookup", "invalid") >= 3);
     assert!(count("initiator-expectation", "valid") >= 5);
-    assert!(count("initiator-expectation", "invalid") >= 39);
+    assert!(count("initiator-expectation", "invalid") >= 42);
 
     // Every refusal the identity-record files name is pinned by at least one
     // vector, so a file that stopped reaching one of them fails; and the

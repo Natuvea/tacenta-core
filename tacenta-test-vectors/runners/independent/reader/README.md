@@ -1249,13 +1249,15 @@ Current result (pass 14). "Vector checks" are the lines that name a vector, and
 derived from a sentence of the specification; the total is their sum, and the
 run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
 the same three numbers. The one skip is on the allowlist in `run.py`, with its
-reason (Not implemented, above):
+reason (Not implemented, above). Three vectors of `initiator-expectation.json`
+were added after pass 14 and pass without a change to the reader; the pass
+itself ended at 1170 PASS, 0 FAIL, 1 SKIP (`../GAPS-14.md`):
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (50 files) | 889 | 888 | 0 | 1 |
+| Vector checks (50 files) | 892 | 891 | 0 | 1 |
 | Derived cases (15 modules) | 282 | 282 | 0 | 0 |
-| **Total** | 1171 | 1170 | 0 | 1 |
+| **Total** | 1174 | 1173 | 0 | 1 |
 
 At the baseline of pass 14 the runner gave 1027 PASS, 0 FAIL and 126 SKIP:
 763/0/126 for the vectors and 264/0/0 for the derived cases, the 125 vectors of
@@ -1346,7 +1348,7 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
 derived cases merged, and the identity work of passes 13 and 14, the current
-run is **1170 PASS, 0 FAIL, 1 SKIP** (889 vector checks and 282 derived cases). This supersedes the earlier pass-10 skip tally;
+run is **1173 PASS, 0 FAIL, 1 SKIP** (892 vector checks and 282 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12

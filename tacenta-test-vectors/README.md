@@ -641,7 +641,8 @@ initiator. Every invalid vector in these five files names its refusal, with
   the contacts the key is *retired* for, 4 bytes each in record order, empty
   when there are none; and `malformed`, the records skipped as malformed, the
   same way. Which contacts an ambiguous key is *same* for is not in the
-  result: the page does not say that a lookup reports them.
+  result: the page says a lookup may report them and leaves them out of its
+  result.
 
 The files:
 
@@ -694,7 +695,9 @@ The files:
 What these files do not pin: when the KEM prekey's input checks are made
 relative to drawing `EKA` (the page leaves it open, so `kem-input` pins only
 the kind); the order of the presence check and the canonical-key checks (no
-vector fails both); a separate refusal by the identity-key rule after the
+vector fails both); the order of a malformed expectation against decoding the
+bundle (the page leaves it open; the bundle of every `malformed-record` vector
+either decodes or is given as `bundle_fields`); a separate refusal by the identity-key rule after the
 expectation, which the expectation always makes first; and the responder's
 attribution of a session, which is a lookup of its peer key (the lookup file
 pins that) after the establishment `initial-message-admission.json` pins.

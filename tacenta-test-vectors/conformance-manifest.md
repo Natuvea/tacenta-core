@@ -366,7 +366,7 @@ Runner: `runners/rust/tests/session_establishment.rs`.
 | The verification number: big-endian, mod 10^60, 60 ASCII digits, leading zeros kept | The verification number | `vectors/identity/verification-number.json` (9 vectors), and the numbers in `pair-digest.json` |
 | Classification: the presented key's refusals first, a non-canonical member malformed wherever it sits, a canonical non-identity member not malformed and never matched, retired over same, duplicates ignored | Records, expectations and attribution, Records and Classification | `vectors/identity/identity-classification.json` (20 vectors: 11 valid, 9 invalid) |
 | Lookup: a contact's, ambiguous, a retired key or unattributed; retired contacts reported beside every result; malformed records skipped and reported; a refused key refuses the lookup, with records or without, and reports none | Records, expectations and attribution, Lookup | `vectors/identity/identity-lookup.json` (14 vectors: 11 valid, 3 invalid) |
-| The initiator's expectation: *known* and *first contact*; `MalformedRecord` first (a non-canonical member, or *known* with an empty record), then the presence and canonical-key checks, then the expectation with the identity-key rule first, before the signatures, the KEM prekey's input checks and the agreements; no random value drawn for any refusal before the KEM prekey's input checks; a session's lookup in all the records | Records, expectations and attribution, The initiator; Sending the initial message | `vectors/identity/initiator-expectation.json` (44 vectors: 5 sessions, 39 refusals), with signed bundles; the substitute key with a bad signature, an unencodable or short KEM prekey, or a low-order prekey is refused as an unexpected identity, and the expected key with the same defect gives that defect's own refusal |
+| The initiator's expectation: *known* and *first contact*; `MalformedRecord` first (a non-canonical member, or *known* with an empty record), then the presence and canonical-key checks, then the expectation with the identity-key rule first, before the signatures, the KEM prekey's input checks and the agreements; no random value drawn for any refusal before the KEM prekey's input checks; a session's lookup in all the records | Records, expectations and attribution, The initiator; Sending the initial message | `vectors/identity/initiator-expectation.json` (47 vectors: 5 sessions, 42 refusals), with signed bundles; the substitute key with a bad signature, an unencodable or short KEM prekey, or a low-order prekey is refused as an unexpected identity, and the expected key with the same defect gives that defect's own refusal |
 
 **Not pinned by any vector:** the refusal of an initial message that is otherwise
 well formed for the responder and names a key the rule refuses. The model and
@@ -378,8 +378,10 @@ behind.
 **Not pinned by any identity-record vector:** where the KEM prekey's input
 checks fall against drawing `EKA` (the page leaves it open, so the `kem-input`
 vectors pin the kind only); the order of the presence check and the
-canonical-key checks; the layout of the verification number in groups of
-five; the contacts an ambiguous key is *same* for; and the responder's
+canonical-key checks; the order of a malformed expectation against decoding
+the bundle, which the page leaves open; the layout of the verification number
+in groups of five; the contacts an ambiguous key is *same* for, which the page
+leaves out of a lookup's result; and the responder's
 attribution of a session, which is a lookup of its peer key (pinned by
 `identity-lookup.json`) after the establishment
 `initial-message-admission.json` pins. The responder's cases are tested in
