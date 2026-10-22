@@ -325,15 +325,18 @@ ALLOW = {
 #     namespace, and each listed declaration must occur exactly once (a second
 #     copy, in another namespace too, or a changed class or value on a
 #     continuation line, is refused; matching is by text, so lines may move);
-#   - `deriving instance C for T` is accepted when every `T` is a type the file
-#     declares, and is otherwise an instance declaration like the above;
+#   - `deriving instance C for T` is accepted when every `T` is written as a name
+#     the file gives one of its own declarations (compared as written, with no
+#     namespace resolution), and is otherwise an instance declaration like the
+#     above;
 #   - an attribute list, `@[...]` or `attribute [...]`, read on the whole file
 #     so that a list split over lines is one list, may not name `instance`,
 #     `default_instance` or `coe`; and the tokens `coe` and `default_instance`
 #     are refused anywhere in code, whatever carries them.
 # It does not see an instance a dependency declares `scoped` and an `open` brings
-# into scope, nor a class whose parent is a notation class (its use needs a
-# binder the pin prints). A new entry is a diff for review.
+# into scope, a `deriving` clause of a `structure`, `inductive` or `def`, nor a
+# class whose parent is a notation class (its use needs a binder the pin
+# prints). A new entry is a diff for review.
 INSTANCE_ALLOW = {
     "tacenta-model/Model/IdentityRecords.lean": [("Model.IdentityRecords", "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α) | .error a, .error b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .ok a, .ok b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .error _, .ok _ => isFalse (by intro h; cases h) | .ok _, .error _ => isFalse (by intro h; cases h)")],
     "tacenta-model/Model/InitiatorExpectation.lean": [("Model.InitiatorExpectation", "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α) | .error a, .error b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .ok a, .ok b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .error _, .ok _ => isFalse (by intro h; cases h) | .ok _, .error _ => isFalse (by intro h; cases h)")],
@@ -372,13 +375,15 @@ def instance_declarations(text, collapse):
     """Every instance declaration of the stripped text `text`: (line, namespace, declaration, kind). The
     declaration is the collapsed text from the line holding `instance` to the next blank line or the next
     line at column 0; the namespace is the dotted list of the open `namespace`s, sections and mutual blocks
-    counting as frames with no name. A scope may carry modifiers (`noncomputable section`, `public section`);
+    counting as frames with no name. A scope may carry an attribute list and modifiers (`noncomputable section`,
+    `@[expose] public section`);
     `namespace A.B` opens one frame per component and `end A.B` closes as many, as Lean does. `kind` is
     `deriving` for `deriving instance ... for` and `instance` otherwise."""
     lines = text.split("\n")
     frames, out = [], []
     for k, line in enumerate(lines):
-        head = re.match(r"\s*(?:(?:noncomputable|public|private|protected)\s+)*(namespace|section|mutual|end)"
+        head = re.match(r"\s*(?:@\[[^\]]*\]\s*)?(?:(?:noncomputable|public|private|protected)\s+)*"
+                        r"(namespace|section|mutual|end)"
                         r"(?![\w.'])\s*([\w.'«»]*)", line)
         if head:
             parts = [p for p in head.group(2).split(".") if p] if head.group(2) else []

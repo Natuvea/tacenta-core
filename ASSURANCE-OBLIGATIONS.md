@@ -1510,18 +1510,18 @@ recorded decision or a target-closing slice:
   each exactly once,
   so a copy elsewhere or a changed continuation line is refused,
   while lines may move),
-  a `deriving instance` for a type the file does not declare,
+  a `deriving instance` for a type whose name, as written, the file does not give one of its own declarations (compared as written, with no namespace resolution, so another file's type written by a short name the file also declares is accepted),
   an attribute list `@[...]` or `attribute [...]`,
   read on the whole file so a list split over lines is one,
   naming `instance`,
   `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code;
-  it does not see a dependency's scoped instance brought in by `open`, or a class whose parent is a notation class;
+  it does not see a dependency's scoped instance brought in by `open`, a `deriving` clause of a `structure`, `inductive` or `def`, or a class whose parent is a notation class;
   every first-party module is in the audit's import closure;
   every translation module built;
   no incomplete declaration.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-lean-constructs-cases.sh` (91 cases on a copy of the audit modules:
+  `tooling/tests/run-lean-constructs-cases.sh` (93 cases on a copy of the audit modules:
   instance declarations,
   `local`,
   `scoped`,

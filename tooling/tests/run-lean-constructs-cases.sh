@@ -368,6 +368,11 @@ edit tacenta-proofs/translation/Translation/SpqrT1.lean $'instance spqrChainsInh
   $'noncomputable section\ndef plantedA : Nat := 1\nend\n\nnamespace Planted.Inner\ndef plantedB : Nat := 2\nend Planted.Inner\n\ninstance spqrChainsInhabited'
 run_scan
 if [ "$rc" -ne 0 ]; then wrong scopes-with-modifiers-and-dotted-names "an allow-listed instance after a noncomputable section and a dotted namespace is refused"; else pass=$((pass + 1)); fi
+fresh_copy; inst_copy SpqrT1.lean
+edit tacenta-proofs/translation/Translation/SpqrT1.lean $'instance spqrChainsInhabited' \
+  $'@[expose] public section\ndef plantedC : Nat := 3\nend\n\ninstance spqrChainsInhabited'
+run_scan
+if [ "$rc" -ne 0 ]; then wrong scope-with-an-attribute "an allow-listed instance after an @[expose] public section is refused"; else pass=$((pass + 1)); fi
 
 # A derived structural instance is not refused, nor the word in a comment.
 fresh_copy; printf 'structure PlantedS where\n  x : Nat\nderiving Repr\nderiving instance BEq for PlantedS\n-- an instance in prose\n' > "$work/T/$M"

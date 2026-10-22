@@ -81,10 +81,12 @@ statement: Lean leaves out, among other things, instance arguments, the function
 arguments, the binder types of `∃` and `fun`, universe levels and the types behind numerals and structure instances,
 so a definition the statement names changed under the same name, a new instance in scope or a function given the `coe`
 attribute can change what it means without changing the pin.  `check-lean-constructs.sh`, a textual guard, refuses an
-instance declaration not among those it lists whole (fourteen today; a `deriving instance` of a type the same file
-declares needs no entry), any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and
-`default_instance` tokens; it does not read a `deriving` clause of a `structure` or `inductive`, a class whose parent is
-a notation class, or a dependency's scoped instance brought in by `open`.  That the pinned statement is the right one is decided by reading.
+instance declaration not among those it lists whole (fourteen today: eleven `instance` and three `deriving instance`),
+any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and `default_instance` tokens.  A
+`deriving instance` needs no entry when each of its types is written as a name the file gives one of its own
+declarations, compared as written with no namespace resolution, so another file's type written by a short name the file
+also declares is accepted.  It does not read a `deriving` clause of a `structure`, `inductive` or `def`, a class whose
+parent is a notation class, or a dependency's scoped instance brought in by `open`.  That the pinned statement is the right one is decided by reading.
 
 ## Non-vacuity
 
