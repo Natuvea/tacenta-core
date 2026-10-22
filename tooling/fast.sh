@@ -6,6 +6,8 @@
 #                                         unstaged and untracked files)
 #   bash tooling/fast.sh --base REF       the diff against another base (FAST_BASE does the same)
 #   bash tooling/fast.sh --plan           print what would run for this diff and run nothing
+#   bash tooling/fast.sh --deep           also the slow case runners `ci.sh` marks `deep_only` (FAST_DEEP=1
+#                                         does the same; a diff under tooling/ or .github/ selects it)
 #   bash tooling/fast.sh --paths-from F   take the changed paths from file F (one per line) instead
 #                                         of git; for the case runner
 #
@@ -16,7 +18,10 @@
 #      script does not repeat it. It already holds the checks that a change to the specification,
 #      the vectors, the independent reader, a workflow or a tooling script needs (the reader, the
 #      traceability checker, the vector-schema check, the workflow checkers and their cases), so a
-#      diff in those areas adds nothing to run here.
+#      diff in those areas adds nothing to run here. Six slow case runners of that section (the
+#      workflow checker's, the container regeneration's, and the assurance manifest, receipts,
+#      evidence pack and ledger receipt ones) run only with `--deep`, which a change under tooling/
+#      or .github/ or to regenerate-in-container.sh turns on; otherwise they are listed as not run.
 #   2. For the Rust workspaces the diff touches (`tooling/fast-plan.py` decides which, and
 #      which packages of each), `cargo fmt --check`, `cargo clippy` and `cargo test` as
 #      `tooling/ci.sh` runs them, restricted to the touched packages with `-p`. A change to a
@@ -61,10 +66,12 @@ SECONDS=0
 base="${FAST_BASE:-origin/main}"
 mode=run
 paths_from=""
+deep="${FAST_DEEP:-0}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --plan) mode=plan; shift ;;
+    --deep) deep=1; shift ;;
     --paths-from) paths_from="${2:?--paths-from needs a file}"; shift 2 ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "fast: unknown argument $1 (see --help)" >&2; exit 2 ;;
@@ -100,6 +107,16 @@ echo "fast: plan"
 sed 's/^/  /' "$work/plan"
 if [ "$mode" = plan ]; then
   exit 0
+fi
+# The slow case runners of the cheap section run when asked, or when the diff touches what they hold.
+if grep -qx 'deep' "$work/plan"; then
+  deep=1
+fi
+if [ "$deep" = 1 ]; then
+  export FAST_DEEP=1
+  echo "fast: deep: ci.sh --fast also runs its deep_only case runners"
+else
+  unset FAST_DEEP
 fi
 
 # --- running and recording ---------------------------------------------------
@@ -249,7 +266,8 @@ else
 fi
 echo "  Rust packages this diff did not touch, and the packages that depend on those it did"
 echo "  the CI-only steps: the SPQR erasure regression, the portable-backend KEM tests, the 32-bit premises run,"
-echo "    the gate-inventory and mutation-harness cases (run-gate-controls.sh)"
+echo "    the gate-inventory and mutation-harness cases and the controls of the module and merge tooling"
+echo "    (run-gate-controls.sh)"
 echo "  hosted jobs: the sliced attestation negatives, the translation parts, the assurance receipts"
 echo "  the full 'lake build' of the translation, no-sorry.sh and attest-negatives, MSRV, armv7, cargo audit and the fuzz smoke run"
 if [ -n "$lean_config" ]; then

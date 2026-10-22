@@ -78,7 +78,8 @@ change touches, `cargo fmt`, `cargo clippy` and `cargo test` on the affected
 Rust packages, `lake env lean` on each changed Lean module and, for a change
 under `tooling/` or `.github/`, the gate-inventory check. It takes a few
 minutes, says at the end what it did not run, and is not a substitute for the
-gate or the hosted CI. The public CI runs the same steps, split into jobs, and the
+gate or the hosted CI. Six slow case files of the tooling run in it only with
+`--deep`, which a change under `tooling/` or `.github/` selects for you. The public CI runs the same steps, split into jobs, and the
 README states the two ways they differ: the steps the workflow always runs
 that the script skips when their tooling is absent (it prints a line for
 each), and the two the script runs that the workflow does not. Any other

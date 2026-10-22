@@ -16,7 +16,8 @@
 #                   GITHUB_ACTIONS it is a failure
 #   summary-*       the NOT RUN list, the "not CI" line and the wall time are printed, pass or fail
 #   ci-fast-*       the real `tooling/ci.sh --fast` runs its cheap steps and none of the heavy ones,
-#                   and the same stubs show a run without `--fast` does run them
+#                   lists its deep_only case runners without --deep and runs them with it, and the
+#                   same stubs show a run without `--fast` does run them all
 #   hook-*          the pre-push hook runs the fast check only when asked to
 set -euo pipefail
 
@@ -93,7 +94,7 @@ case "${1:-}" in
     echo "  Stub heavy step"
     exit 0 ;;
   --fast)
-    echo "ci --fast" >> "$STUB_LOG"
+    echo "ci --fast deep=${FAST_DEEP:-0}" >> "$STUB_LOG"
     [ -f "$SANDBOX/ci-fails" ] && { echo "stub ci: a cheap check failed" >&2; exit 1; }
     echo "stub ci: the cheap section passed"
     exit 0 ;;
@@ -160,7 +161,8 @@ run_fast() {
   esac
   : > "$log"
   set +e
-  OUT="$(cd "$sandbox" && env -u GITHUB_ACTIONS ${gha:+GITHUB_ACTIONS="$gha"} PATH="$path" SANDBOX="$sandbox" \
+  OUT="$(cd "$sandbox" && env -u GITHUB_ACTIONS -u FAST_DEEP ${gha:+GITHUB_ACTIONS="$gha"} \
+    ${DEEP_FOR_RUN:+FAST_DEEP="$DEEP_FOR_RUN"} PATH="$path" SANDBOX="$sandbox" \
     STUB_LOG="$log" STUB_FAIL="${STUB_FAIL:-}" "$real_bash" tooling/fast.sh "$@" 2>&1)"
   RC=$?
   set -e
@@ -200,8 +202,9 @@ plan_of plan-lean-only "$(nlj ci-fast 'lean tacenta-model Model/A.lean' 'lean ta
   tacenta-model/Model/A.lean tacenta-proofs/Proofs/B.lean tacenta-proofs/translation/Translation/C.lean
 plan_of plan-lean-config "$(nlj ci-fast 'lean-config tacenta-model lakefile.lean')" tacenta-model/lakefile.lean
 plan_of plan-spec-only "$(nlj ci-fast 'covered spec')" tacenta-spec/pages/p.md tacenta-test-vectors/vectors/v.json
-plan_of plan-workflow-only "$(nlj ci-fast 'covered workflows' gate-inventory)" .github/workflows/ci.yml
-plan_of plan-tooling-script "$(nlj ci-fast gate-inventory 'other 1')" tooling/check-labels.sh
+plan_of plan-workflow-only "$(nlj ci-fast 'covered workflows' deep gate-inventory)" .github/workflows/ci.yml
+plan_of plan-tooling-script "$(nlj ci-fast deep gate-inventory 'other 1')" tooling/check-labels.sh
+plan_of plan-regenerate-script "$(nlj ci-fast deep 'other 1')" tacenta-proofs/scripts/regenerate-in-container.sh
 plan_of plan-gate-inventory-file "$(nlj ci-fast gate-inventory 'other 1')" tacenta-proofs/GATE-INVENTORY.md
 plan_of plan-cargo-toml "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/kem/Cargo.toml
 plan_of plan-cargo-lock "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/Cargo.lock tacenta-core/kem/src/lib.rs
@@ -269,6 +272,7 @@ run_fast with-tools "" --base base
 rc_is run-tooling-change 0
 has_log run-tooling-change-inventory "gate-inventory --check"
 has_log run-tooling-change-ci "ci --fast"
+has_log run-tooling-change-deep "ci --fast deep=1"
 touch "$sandbox/inventory-fails"
 run_fast with-tools "" --base base
 rc_is failing-gate-inventory 1
@@ -285,6 +289,7 @@ has_log run-spec-only-ci "ci --fast"
 lacks_log run-spec-only-no-cargo "cargo "
 lacks_log run-spec-only-no-inventory "gate-inventory"
 lacks_log run-spec-only-no-lake "lake "
+has_log run-spec-only-not-deep "ci --fast deep=0"
 
 new_sandbox
 run_fast with-tools "" --base base
@@ -293,6 +298,11 @@ has_log run-empty-diff-ci "ci --fast"
 lacks_log run-empty-diff-no-cargo "cargo "
 lacks_log run-empty-diff-no-lake "lake "
 has_out run-empty-diff "0 changed path(s)"
+has_log run-empty-diff-not-deep "ci --fast deep=0"
+run_fast with-tools "" --base base --deep
+has_log run-empty-diff-deep-flag "ci --fast deep=1"
+DEEP_FOR_RUN=1 run_fast with-tools "" --base base
+has_log run-empty-diff-deep-env "ci --fast deep=1"
 
 new_sandbox
 run_fast with-tools "" --base no-such-ref
@@ -403,7 +413,8 @@ chmod +x "$ci_sandbox/tacenta-proofs/scripts/verify.sh"
 run_ci() {  # args... ; env passes through
   : > "$log"
   set +e
-  OUT="$(cd "$ci_sandbox" && env -u GITHUB_ACTIONS -u CI_FAST ${CI_FAST_FOR_RUN:+CI_FAST="$CI_FAST_FOR_RUN"} \
+  OUT="$(cd "$ci_sandbox" && env -u GITHUB_ACTIONS -u CI_FAST -u FAST_DEEP ${CI_FAST_FOR_RUN:+CI_FAST="$CI_FAST_FOR_RUN"} \
+    ${DEEP_FOR_RUN:+FAST_DEEP="$DEEP_FOR_RUN"} \
     PATH="$work/cistubs:$work/stubs:$work/tools" SANDBOX="$ci_sandbox" STUB_LOG="$log" PROPTEST_CASES=1 \
     "$real_bash" tooling/ci.sh "$@" 2>&1)"
   RC=$?
@@ -420,7 +431,15 @@ cheap_calls="bash tooling/check-signoff.sh origin/main
 python3 tooling/check-vectors.py
 python3 tooling/check-traceability.py
 bash tooling/check-workflows.sh
+python3 tooling/check-proof-module-preflight.py --all
 python3 tacenta-test-vectors/runners/independent/reader/run.py"
+# The slow case runners fast mode runs only with --deep (the full run always runs them).
+deep_calls="bash tooling/tests/run-check-workflows-cases.sh
+bash tooling/tests/run-regenerate-in-container-cases.sh
+bash tooling/tests/run-build-assurance-manifest-cases.sh
+bash tooling/tests/run-collect-assurance-receipts-cases.sh
+bash tooling/tests/run-build-evidence-pack-cases.sh
+bash tooling/tests/run-check-ledger-review-receipt-cases.sh"
 
 for mode in flag env; do
   if [ "$mode" = flag ]; then
@@ -429,7 +448,7 @@ for mode in flag env; do
     CI_FAST_FOR_RUN=1 run_ci
   fi
   rc_is "ci-fast-$mode" 0
-  has_out "ci-fast-$mode-summary" "fast mode: not run"
+  has_out "ci-fast-$mode-summary" "fast mode: not run (the steps below this point"
   has_out "ci-fast-$mode-lists-translation" "Lean: the translation and its proofs use no sorry"
   has_out "ci-fast-$mode-lists-attest" "Claims and attestations cover what ships"
   has_out "ci-fast-$mode-not-the-gate" "fast mode: this is not the gate"
@@ -445,6 +464,29 @@ EOF
 $heavy_calls
 EOF
   lacks_log "ci-fast-$mode-no-rustup" "rustup"
+  while IFS= read -r call; do
+    [ -n "$call" ] && { lacks_log "ci-fast-$mode-deep-step-not-run" "$call"; \
+      has_out "ci-fast-$mode-deep-step-listed" "${call#bash } (fast mode runs it only with --deep)"; }
+  done <<EOF
+$deep_calls
+EOF
+done
+
+# With --deep (or FAST_DEEP=1) fast mode runs them, still none of the heavy steps, and does not list them.
+for mode in flag env; do
+  if [ "$mode" = flag ]; then
+    CI_FAST_FOR_RUN="" run_ci --fast --deep
+  else
+    CI_FAST_FOR_RUN="" DEEP_FOR_RUN=1 run_ci --fast
+  fi
+  rc_is "ci-fast-deep-$mode" 0
+  while IFS= read -r call; do
+    [ -n "$call" ] && { has_log "ci-fast-deep-$mode-runs" "$call"; \
+      lacks_out "ci-fast-deep-$mode-not-listed" "${call#bash } (fast mode runs it only with --deep)"; }
+  done <<EOF
+$deep_calls
+EOF
+  lacks_log "ci-fast-deep-$mode-no-heavy" "verify.sh"
 done
 
 # The same stubs without the switch run the heavy steps and end on the gate's own line: the control
@@ -458,11 +500,20 @@ while IFS= read -r call; do
 done <<EOF
 $heavy_calls
 EOF
+while IFS= read -r call; do
+  [ -n "$call" ] && { has_log "ci-full-control-deep-step" "$call"; }
+done <<EOF
+$deep_calls
+EOF
 
 CI_FAST_FOR_RUN="" run_ci --fast-not-run
 rc_is ci-fast-not-run 0
 has_out ci-fast-not-run-list "Lean: build the model"
 lacks_out ci-fast-not-run-excludes-cheap "Workflows parse"
+has_out ci-fast-not-run-lists-deep "tooling/tests/run-build-evidence-pack-cases.sh (fast mode runs it only with --deep)"
+CI_FAST_FOR_RUN="" run_ci --fast-not-run --deep
+has_out ci-fast-not-run-deep-list "Lean: build the model"
+lacks_out ci-fast-not-run-deep-omits "(fast mode runs it only with --deep)"
 [ ! -s "$log" ] || wrong ci-fast-not-run-runs-nothing "stub calls were made: $(tr '\n' ';' < "$log")"
 
 # --- hook-*: the pre-push hook ------------------------------------------------
@@ -499,4 +550,4 @@ if [ "$failures" -ne 0 ]; then
   echo "run-check-fast-cases: $failures case(s) went wrong" >&2
   exit 1
 fi
-echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, ci.sh --fast against the full run, the pre-push opt-in) gave the expected result"
+echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, ci.sh --fast against the full run, with and without --deep, the pre-push opt-in) gave the expected result"

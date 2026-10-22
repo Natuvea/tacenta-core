@@ -331,8 +331,11 @@ runner that GitHub lets only this workflow, as it is on main, use.
 Before each commit, `bash tooling/fast.sh` is the quick check, a few minutes where the gate takes much
 longer. It runs `bash tooling/ci.sh --fast`, which is every step of `ci.sh` above the line that file marks
 (the workflow, proof-hygiene, label, vector-schema, traceability and authentication-boundary checks, the
-generated-unit checks, the independent reader, the sign-off check, and the case files that hold each of
-them), and then, for the diff against `origin/main` (committed, staged, unstaged and new files; `--base REF`
+generated-unit checks, the preflight of the lifecycle proof modules, the independent reader, the sign-off
+check, and the case files that hold each of them; six slow case files among them, the workflow checker's,
+the container regeneration's and those of the assurance manifest, receipts, evidence pack and ledger receipt,
+run only with `--deep`, which a change under `tooling/` or `.github/` or to `regenerate-in-container.sh`
+turns on, and are otherwise listed as not run), and then, for the diff against `origin/main` (committed, staged, unstaged and new files; `--base REF`
 names another base), `cargo fmt --check`, `cargo clippy` and `cargo test` for the Rust packages whose files
 changed (the whole workspace when a `Cargo.toml` or `Cargo.lock` did) and `lake env lean` for each changed
 Lean module under `tacenta-model`, `tacenta-proofs` or the translation, and, when a file under `tooling/` or
@@ -340,9 +343,10 @@ Lean module under `tacenta-model`, `tacenta-proofs` or the translation, and, whe
 exits non-zero if any failed, and ends with what ran, what failed, what it skipped, a list of what it did not
 run and its wall time. A step the diff asks for and the machine cannot run (no `cargo`, no `lake`, no build of
 the Lean project) is printed as a SKIP and ends the run as "ok WITH SKIPS"; with `GITHUB_ACTIONS` set it is a
-failure. On the laptop it was measured on, with another gate running beside it, the run took between three and
-four minutes whatever the diff (no change, a specification change, a small Rust crate, the core crate, three
-Lean modules), nearly all of it the cheap section; a Rust package with long tests takes what its tests take. It does not run the Lean model,
+failure. On the laptop it was measured on, with no change the run took about a minute and a half (94 s; 203 s
+with `--deep`), nearly all of it the cheap section; the diff-scoped steps added from a few seconds (three Lean
+modules) to under a minute (a small Rust crate, the core crate) in the earlier measurements, and a Rust package
+with long tests takes what its tests take. It does not run the Lean model,
 proofs and translation builds with their `sorry` scans, the attestation check and its negative cases, the
 vector currency check, the packages that depend on one it touched, the minimum-version, 32-bit,
 advisory-audit and fuzz steps, the steps only the workflow runs, or any hosted job, and `lake env lean` checks

@@ -37,7 +37,12 @@
 # Fast mode (`bash tooling/ci.sh --fast`, or `CI_FAST=1 bash tooling/ci.sh`)
 # runs the cheap section, which is everything above the line marked
 # "fast mode stops here", and then stops with a summary that lists every step
-# it did not run. It is not the gate and says so; `tooling/fast.sh` is the
+# it did not run. Six slow case runners in that section, which hold tooling a
+# change rarely touches (the workflow checker's, the container regeneration's,
+# and the assurance manifest, receipts, evidence pack and ledger receipt ones),
+# are marked `deep_only`: fast mode runs them only with `--deep` (or
+# FAST_DEEP=1) and otherwise lists them as not run. A run without --fast runs
+# them always. It is not the gate and says so; `tooling/fast.sh` is the
 # command a developer runs, which adds the diff-scoped Rust and Lean checks to
 # it. The list of steps a fast run did not run is read from this file's own
 # text (`--fast-not-run` prints it and runs nothing), so a step added below the
@@ -50,25 +55,45 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 fast=0
+deep=0
 for arg in "$@"; do
   case "$arg" in
     --fast) fast=1 ;;
     --fast-not-run) fast=2 ;;
+    --deep) deep=1 ;;
   esac
 done
 if [ "${CI_FAST:-}" = "1" ] && [ "$fast" -eq 0 ]; then
   fast=1
 fi
+if [ "${FAST_DEEP:-}" = "1" ]; then
+  deep=1
+fi
 
-# The steps below the stop line, by their headings, read from this file.
+# The steps below the stop line, by their headings, read from this file; without --deep, also the
+# case runners above it that only `deep_only` runs.
 fast_not_run() {
   sed -n '/^# ---- fast mode stops here/,$p' "$self" \
     | sed -n 's/^ *echo "== \(.*\) ==".*$/  \1/p' | sed 's/ (\$msrv)//'
+  if [ "$deep" -eq 0 ]; then
+    sed -n '1,/^# ---- fast mode stops here/p' "$self" \
+      | sed -n 's/^deep_only \(.*\)$/  \1 (fast mode runs it only with --deep)/p'
+  fi
 }
 if [ "$fast" -eq 2 ]; then
   fast_not_run
   exit 0
 fi
+
+# A slow case runner of tooling a change rarely touches: fast mode runs it only with --deep and
+# otherwise names it (the summary lists it as not run); a run without --fast always runs it.
+deep_only() {
+  if [ "$fast" -eq 1 ] && [ "$deep" -eq 0 ]; then
+    echo "fast mode: not running $* (only with --deep)"
+    return 0
+  fi
+  "$@"
+}
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
 # that does not parse runs nothing. In CI this catches the *other* workflow
@@ -78,12 +103,12 @@ echo "== Workflows parse =="
 bash tooling/check-workflows.sh
 # And the checker is held to its own cases, passing and refused, so a rule
 # loosened by mistake fails this gate rather than the next reader.
-bash tooling/tests/run-check-workflows-cases.sh
+deep_only bash tooling/tests/run-check-workflows-cases.sh
 
 # The regeneration script's comparison and --check verdict, held by their control with a stub
 # docker and no toolchain. Hosted CI runs it in the checks job through run-gate-controls.sh; it
 # runs here too so that a Mac, where its copy step once failed under BSD tar, is a regression check.
-bash tooling/tests/run-regenerate-in-container-cases.sh
+deep_only bash tooling/tests/run-regenerate-in-container-cases.sh
 
 # YAML parsing and the repository-specific checks above deliberately do not
 # parse GitHub expressions. The pinned actionlint release covers that grammar
@@ -216,11 +241,11 @@ python3 tooling/check-vectors.py
 bash tooling/tests/run-check-vectors-cases.sh
 python3 tooling/check-session-operation-traces.py
 bash tooling/tests/run-check-session-operation-traces-cases.sh
-bash tooling/tests/run-build-assurance-manifest-cases.sh
-bash tooling/tests/run-collect-assurance-receipts-cases.sh
+deep_only bash tooling/tests/run-build-assurance-manifest-cases.sh
+deep_only bash tooling/tests/run-collect-assurance-receipts-cases.sh
 bash tooling/tests/run-check-signoff-cases.sh
-bash tooling/tests/run-build-evidence-pack-cases.sh
-bash tooling/tests/run-check-ledger-review-receipt-cases.sh
+deep_only bash tooling/tests/run-build-evidence-pack-cases.sh
+deep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
 # A second reader of the same vectors. At run time it reads the vectors and
 # imports nothing from tacenta-core or tacenta-model (ADR-0006). Its first
