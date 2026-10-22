@@ -1940,9 +1940,10 @@ replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean"
   $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
 expect_fail "statement-pin-untyped-proof-hole" "the statement pin of \`Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty\` at tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean:" --check
 
-# Lean attaches a docstring to the `#guard_msgs` after it across a line or block comment, so the
-# docstring is found through the comments: the untyped hole is refused there too, and the comment
-# between is refused on its own, with the typed holes left as they are.
+# Lean attaches a docstring to the `#guard_msgs` after it across a line comment, so the docstring is
+# found through the comments: the untyped hole is refused there too (the lookup that read only a
+# docstring ending just above the pin skipped it), and the comment between is refused on its own,
+# with the typed holes left as they are.
 attach_comment() {
   python3 - "$work/tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" <<'PY'
 import pathlib, sys
@@ -1950,7 +1951,7 @@ path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 head = text.index("info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty")
 end = text.index("-/\n#guard_msgs in\n", head)
-path.write_text(text[:end] + "-/\n-- the pin\n/- of the empty agreement -/\n#guard_msgs in\n"
+path.write_text(text[:end] + "-/\n-- the pin of the empty agreement\n#guard_msgs in\n"
                 + text[end + len("-/\n#guard_msgs in\n"):])
 PY
 }
