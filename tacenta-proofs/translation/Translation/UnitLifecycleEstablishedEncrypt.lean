@@ -111,6 +111,7 @@ of the real primitives.
   which the shipping wrapper does not do, by reading; the terminal guard and the Triple refusals, reachable
   later in a session, do not occur here and are not covered.
 * A restored copy of the session after the send (its agreement holds a key pair: outside `RestoredScope`).
+* A random source with no state of its own, such as `OsRng`.
 -/
 
 namespace Tacenta.UnitLifecycleEstablishedEncrypt
