@@ -23,7 +23,8 @@
 # those; when one of them is anything else it stops there, having written nothing. After it, it runs
 # `attest.py --check`, `gate-inventory.py --check`, `check-workflows.sh`, `reflow-shared-lists.py --check` and the
 # structural checks of `resolve-insertion-conflicts.py --verify` (the JSON loads, attest.py parses, `bash -n`, every
-# part resolves against the phases no-sorry.sh lists, no entry a module adds appears twice), and stages the
+# part resolves against the phases no-sorry.sh lists, no entry a module adds appears twice), then
+# `tooling/check-landing.sh` (the rows and the section the tooling change added are still there), and stages the
 # generated files that were unmerged.
 #
 # It refuses, and writes nothing more, when a path other than those is unmerged or a tracked file other than those
@@ -120,6 +121,7 @@ python3 tooling/gate-inventory.py --check
 bash tooling/check-workflows.sh
 python3 tooling/reflow-shared-lists.py --check
 python3 tooling/resolve-insertion-conflicts.py --verify
+bash tooling/check-landing.sh
 
 for path in $unmerged; do
   git add -- "$path"

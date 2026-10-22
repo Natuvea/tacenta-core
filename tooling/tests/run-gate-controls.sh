@@ -26,6 +26,7 @@
 #                                  baseline of known findings
 #   run-check-merge-exactness-cases.sh, run-regenerate-generated-cases.sh  the merge-exactness check and the
 #                                  regeneration of generated files after a merge
+#   run-check-landing-cases.sh, check-landing.sh  the additions of the tooling change survive a merge or a rebase
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
@@ -64,4 +65,6 @@ else
 fi
 bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
+bash "$here/run-check-landing-cases.sh"
+bash "$root/tooling/check-landing.sh"
 python3 "$root/tooling/gate-inventory.py" --check

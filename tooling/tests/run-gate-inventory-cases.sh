@@ -91,6 +91,9 @@ check 'a row whose text changed' 1 'is not what the generator produces'
 reset
 printf '{"mutations": [{"id": "M1", "file": "tooling/check-x.sh"}]}\n' > "$repo/tooling/gate-mutations.json"
 check 'a mutation added' 1 'is not what the generator produces'
+reset
+printf '{"mutations": [{"id": "M2", "file": "tooling/new-gate.sh"}]}\n' > "$repo/tooling/gate-mutations.json"
+check 'a mutation of a file no row holds' 1 'mutation M2 edits tooling/new-gate.sh, which no inventory row holds'
 
 reset
 write_steps '[{"id": "s1", "run": "bash tooling/check-x.sh"}, {"id": "s2", "run": "bash tooling/tests/run-check-x-cases.sh"}, {"id": "s3", "run": "bash tooling/new-gate.sh"}]'

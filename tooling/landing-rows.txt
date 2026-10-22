@@ -1,0 +1,14 @@
+# What the tooling for new proof modules added to the shared files, which a merge or a rebase that takes one side
+# of a conflict can drop without any other check noticing. tooling/check-landing.sh requires each to be present.
+#
+#   row <gate>                 a row of tooling/gate-inventory.json, and its gate named in GATE-INVENTORY.md
+#   section <file> <heading>   a heading line of a Markdown file
+row tooling/reflow-shared-lists.py
+row tacenta-proofs/scripts/new-lifecycle-module.py
+row tacenta-proofs/scripts/genpins.py
+row tooling/regenerate-generated.sh
+row tooling/resolve-insertion-conflicts.py
+row tooling/check-proof-module-preflight.py
+row tooling/check-merge-exactness.sh
+row tooling/check-landing.sh
+section ASSURANCE-OBLIGATIONS.md ### Tooling for new proof modules and merges (2026-10-21)
