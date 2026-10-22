@@ -324,7 +324,7 @@ named.
 
 The protocol gives the party three things:
 - initiator establishment always takes an expectation. It refuses a key that
-  the expectation retires or does not accept (REQ-AUTH-02).
+  the expectation retires or does not accept (REQ-AUTH-02);
 - a classification of a key against a record, a lookup of it across records,
   and a session's peer identity key (REQ-AUTH-15);
 - the identity pair digest and its verification number, which two parties

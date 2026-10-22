@@ -34,7 +34,7 @@ Of the 34 requirements:
 | REQ-AUTH-13: unauthenticated input changes nothing durable | Tested only |
 | REQ-AUTH-14: an authenticator failure ends the agreement | Proved (T3) |
 | REQ-AUTH-15: keys are classified and looked up as specified | Tested only |
-| REQ-AUTH-16: the identity pair digest binds the pair | Assumed; order independence and refusals tested only |
+| REQ-AUTH-16: the identity pair digest binds the pair | Assumed; order independence, refusals and the number tested only |
 | REQ-CONF-01: messages are confidential against an outsider | Assumed |
 | REQ-CONF-02: the key schedule is the specified one | Proved (T3) |
 | REQ-CONF-03: PQXDH's derivation input is unambiguous | Proved (T2) |
@@ -283,12 +283,12 @@ and exclusions.md, EX-03.
 - Nothing proves that an identity key belongs to the person a user means
   (ASM-14; EX-09). The verification number lets two people check that they
   hold the same keys, at about 2^100 attacker work if they compare all 60
-  digits and much less if they compare fewer. Whether they compare is
-  theirs.
+  digits and much less if they compare fewer; that margin is assumed
+  (ASM-07). Whether they compare is theirs.
 - Whether an initiator sends an initial message after a bundle shows
   whoever served it whether her expectation accepts that key. Under
-  *first contact*, that means whether the key is unattributed in her
-  records. It is free, silent and repeatable, and a probe she accepts is a
+  *known*, that means whether the key is *same* in that contact's record;
+  under *first contact*, whether it is unattributed in her records. It is free, silent and repeatable, and a probe she accepts is a
   working substitution (EX-09).
 - An attacker holding a responder's signed prekey secret can make initial
   messages that responder accepts as coming from any identity key, until the

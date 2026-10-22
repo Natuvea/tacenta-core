@@ -128,9 +128,10 @@ prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy. She verifies them only under an `IKB` that is an identity key,
 which she checks before either signature (below).
 
-The KEM prekey's signature is over `EncodeKEM` of the key the bundle holds:
-the type byte, then that key's bytes, however many there are (message-format.md,
-Prekey bundle: a verifier re-tags the key it reads). She verifies both
+The KEM prekey's signature is over the type byte `0x08` followed by the
+key's bytes as the bundle holds them (message-format.md, Prekey bundle: a
+verifier re-tags the key it reads). For a key of 1,568 bytes, which is every
+key the bundle decoder returns, that is `EncodeKEM` of the key. She verifies both
 signatures before the KEM prekey's input checks (Primitives, ML-KEM-1024),
 which are part of encapsulating (security-properties/authentication.md,
 REQ-AUTH-01). So a bundle that reaches her without the bundle decoder, with a
@@ -486,7 +487,8 @@ their names and signatures are not.
 identity key finds it that contact's. This specification fixes only whether
 a session is a contact's now, against the records as they stand. How an
 application shows a plaintext, including one it has already shown, is the
-application's (exclusions.md, EX-09).
+application's (exclusions.md, EX-09), except that it shows a plaintext as a
+contact's only while a lookup finds its session that contact's (ASM-14).
 - **The records as they stand.** Attribution is decided against the records
   as they stand whenever a plaintext is shown or the session is used. This
   includes plaintexts already shown:
@@ -495,8 +497,7 @@ application's (exclusions.md, EX-09).
   - recording a key attributes that session's earlier plaintexts, including
     any received before a comparison.
 
-  An application may show a plaintext as having been a contact's when it
-  arrived. No session is ended by this specification.
+  No session is ended by this specification.
 - **Labels.** A sender label, handle, address or anything else a bundle, a
   message or the transport supplies never selects the record a session is
   classified against, and never chooses among contacts for an ambiguous key.
@@ -563,10 +564,12 @@ The order is fixed for three reasons:
   expectation refuses is reported as that refusal, even when a signature
   would fail, its KEM prekey would fail the input checks, or one of its
   prekeys would give a non-contributory agreement.
-- **Malformed input is reported as such.** A bundle that fails decoding, the
-  presence check or the canonical-key check is reported as that, and a key
-  that is not an identity key as an invalid identity key, never as a refused
-  identity.
+- **Malformed input is reported as such.** Under a well-formed expectation,
+  a bundle that fails decoding, the presence check or the canonical-key check
+  is reported as that, and a key that is not an identity key as an invalid
+  identity key, never as a refused identity. A malformed expectation is
+  reported first (`MalformedRecord`), except against a bundle that fails
+  decoding, where either refusal conforms.
 
 Her session is then attributed by a lookup, like any other. Under *known*,
 a key that is *same* in her record and also *same* in another contact's
@@ -873,8 +876,8 @@ from deleting ephemeral and one-time private keys once used. Resistance to
 harvest-now-decrypt-later comes from `SS`. These are stated as numbered
 requirements in security-properties/, each with the assumptions it rests on and
 its status:
-- authentication.md: REQ-AUTH-01 to REQ-AUTH-04, REQ-AUTH-10, REQ-AUTH-12
-  and REQ-AUTH-15;
+- authentication.md: REQ-AUTH-01 to REQ-AUTH-04, REQ-AUTH-10, REQ-AUTH-12,
+  REQ-AUTH-15 and REQ-AUTH-16;
 - confidentiality.md: REQ-CONF-03 and REQ-CONF-06;
 - forward-secrecy.md: REQ-FS-05.
 

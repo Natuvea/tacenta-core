@@ -49,7 +49,10 @@ fact that it was sent.
     REQ-AUTH-15, REQ-AUTH-16).
   - That the peer of a session that is no contact's, such as an unattributed
     first-contact session, is the person the user believes. Its messages are
-    confidential against everyone but whoever holds its peer key (ASM-14).
+    confidential against everyone but whoever holds its peer key (ASM-14),
+    absent a compromised signed-prekey secret: on a responder session, an
+    attacker holding it can make a session under someone else's genuine key
+    and read it (REQ-AUTH-03; LIM-15).
   - Persisted state (EX-07).
 
 ### REQ-CONF-02: the key schedule is the specified one

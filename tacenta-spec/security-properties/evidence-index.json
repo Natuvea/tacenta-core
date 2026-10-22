@@ -146,7 +146,7 @@
         },
         {
           "path": "tacenta-core/src/sessions/identity.rs",
-          "symbol": "is_malformed"
+          "symbol": "Expectation::is_malformed"
         },
         {
           "path": "tacenta-core/src/sessions/identity.rs",
@@ -1356,7 +1356,9 @@
         "ASM-14",
         "ASM-19"
       ],
-      "limitations": [],
+      "limitations": [
+        "LIM-15"
+      ],
       "implementation": [
         {
           "path": "tacenta-core/src/sessions/identity.rs",
@@ -1557,7 +1559,9 @@
         "ASM-07",
         "ASM-14"
       ],
-      "limitations": [],
+      "limitations": [
+        "LIM-15"
+      ],
       "implementation": [
         {
           "path": "tacenta-core/src/sessions/identity.rs",

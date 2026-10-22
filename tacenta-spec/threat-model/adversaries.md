@@ -107,8 +107,8 @@ can check: that is ASM-14.
   computed from the party's own key and the key it vouches for (the
   session's peer key, or a key it is about to record), over a channel the
   adversary does not control, detect a substitution of the keys they
-  compared, including at first contact, at about 2^100 attacker work
-  (REQ-AUTH-16).
+  compared, including at first contact, at about 2^100 attacker work. That
+  margin is assumed (ASM-07; REQ-AUTH-16 is assumed).
 
 Proofs: none.
 

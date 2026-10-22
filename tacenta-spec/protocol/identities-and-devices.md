@@ -232,8 +232,9 @@ for one is not accepted for the other.
 
 Two parties check that they hold the same pair of identity keys by each
 computing one value from the two keys and comparing the values. This section
-fixes that value. How and whether people compare it is outside this
-specification (exclusions.md, EX-09).
+fixes that value, and REQ-AUTH-16 (security-properties/authentication.md)
+states what it binds and on what that rests. How and whether people compare
+it is outside this specification (exclusions.md, EX-09).
 
 The digest takes two identity keys, each the 32 bytes the identity key is
 published as (The identity key's secret, above), and applies the identity-key

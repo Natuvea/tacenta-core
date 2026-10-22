@@ -63,7 +63,7 @@ implementation.
   part of this specification.
 - **The order of checks.** When an input fails more than one check, which
   refusal is reported, unless a page fixes an order because the order is
-  observable in a way that matters. Some pages fix one:
+  observable in a way that matters. Some pages fix one; among them:
   - session-establishment.md fixes the initiator's, and says why. She
     refuses a malformed expectation before any check of Sending the initial
     message. She checks the bundle's identity key against her expectation
@@ -80,6 +80,11 @@ implementation.
     identifier is resolved and before decapsulation, and `ReplayedLastResort`
     before the initial ciphertext is decrypted. key-deletion.md fixes
     `LastResortRecordFull` before anything is decrypted or changed.
+  - protobuf-profile.md fixes the checks of reading a tag, and of each field
+    of a message, in order.
+  - identities-and-devices.md fixes the checks a verifier applies before it
+    relies on a signed inventory statement, in order (Accepting a signed
+    statement).
 
 ## Why the line is here
 

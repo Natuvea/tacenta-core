@@ -6,6 +6,64 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/identities-and-devices.md`: the identity pair digest
+  (`PAIR_DIGEST_LABEL`) and the verification number. The pages had left
+  identity-key comparison to the application (EX-09). The key order, the
+  comparator, the encoding and the treatment of keys that are not identity
+  keys each give different bytes, and the page fixes each of them: the
+  digest takes identity keys only, under the identity-key rule. The number's
+  bound is stated with the digits it needs, and is assumed (REQ-AUTH-16).
+
+- `protocol/session-establishment.md`, Records, expectations and
+  attribution:
+  - records, the classification and the lookup, which every implementation
+    provides. A presented key is held to the identity-key rule; a record's
+    members are held to the canonical encoding only;
+  - attribution by lookup, against the records as they stand, with labels
+    never selecting a record. An application shows a plaintext as a
+    contact's only while a lookup finds its session that contact's;
+  - keys the lookup finds ambiguous or retired (*same* for no contact)
+    attributed to nobody;
+  - unattributed first-contact sessions in both roles;
+  - initiator expectations, *known* and *first contact*, the latter checked
+    by a lookup over her records;
+  - no persisted format changes.
+
+- `security-properties/authentication.md`: REQ-AUTH-15 and REQ-AUTH-16.
+  - REQ-AUTH-15, keys are classified and looked up as specified, is tested
+    only: the classification and lookup unit tests in
+    `tacenta-core/src/sessions/identity.rs`,
+    `tacenta-core/tests/identity_responder.rs`,
+    `identity-classification.json` and `identity-lookup.json`.
+  - REQ-AUTH-16, the identity pair digest binds the pair, is assumed
+    (ASM-07). The order independence, the refusals and the number beneath
+    it are tested only: the digest and number unit tests,
+    `pair-digest.json` and `verification-number.json`.
+  - No proof covers either. The theorems about `Model.IdentityRecords` and
+    `Model.InitiatorExpectation` that `tacenta-proofs/CLAIMS.md` records
+    (tier T2) are about the model alone.
+  - `evidence-index.json` has an entry for each, citing those tests,
+    vectors and theorems and LIM-15, with a `proof` item saying that
+    `tacenta-core`'s functions are outside the translated crates.
+
+- `tacenta-test-vectors/vectors/identity/`: vectors for the identity pair
+  digest (`pair-digest.json`, every pair in both orders), the verification
+  number (`verification-number.json`), the classification and the lookup
+  (`identity-classification.json`, `identity-lookup.json`), generated from
+  the model, and for initiator establishment under an expectation
+  (`initiator-expectation.json`: signed bundles written by
+  `generate-identity-vectors.py`, each case's outcome checked against the
+  model). The vector schema names their refusals and adds
+  `acceptable_refusals`, for a digest whose two keys are refused with
+  different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
+  -16. `bundle-admission.json` is unchanged: its runner establishes each
+  case under *first contact* with no records. No existing vector changes.
+  Three of the initiator vectors pin orders the fourteenth independent
+  reader pass found unpinned (`GAPS-14.md`): a malformed expectation before
+  the presence and canonical-key checks, and, for a KEM prekey of the wrong
+  length whose signature does not verify, the signatures before the KEM
+  prekey's input checks.
+
 - `identities-and-devices.md` now specifies the bounded hosted device-inventory
   statement profile: its canonical unsigned encoding, bounds, refusal rules,
   issuer-signature input and replacement-binding commitment. This is an
@@ -108,49 +166,113 @@ is SemVer against the specified protocol (not the implementation).
     - REQ-AUTH-02 has no test (LIM-13);
     - tests hold erasure in place only for the classical ratchet's state, the
       KEM key pair, the identity and the prekey store (LIM-11).
-- `protocol/identities-and-devices.md`: the identity pair digest
-  (`PAIR_DIGEST_LABEL`) and the verification number. The pages had left
-  identity-key comparison to the application (EX-09). The key order, the
-  comparator, the encoding and the treatment of keys that are not identity
-  keys each give different bytes, and the page fixes each of them: the
-  digest takes identity keys only, under the identity-key rule. The number's
-  bound is stated with the digits it needs.
-- `protocol/session-establishment.md`, Records, expectations and
-  attribution:
-  - records, the classification and the lookup, which every implementation
-    provides. A presented key is held to the identity-key rule; a record's
-    members are held to the canonical encoding only;
-  - attribution by lookup, against the records as they stand, with labels
-    never selecting a record;
-  - keys the lookup finds ambiguous or retired (*same* for no contact)
-    attributed to nobody;
-  - unattributed first-contact sessions in both roles;
-  - initiator expectations, *known* and *first contact*, the latter checked
-    by a lookup over her records.
-
-  Also REQ-AUTH-15 and REQ-AUTH-16. No persisted format changes.
-
-- `tacenta-test-vectors/vectors/identity/`: vectors for the identity pair
-  digest (`pair-digest.json`, every pair in both orders), the verification
-  number (`verification-number.json`), the classification and the lookup
-  (`identity-classification.json`, `identity-lookup.json`), generated from
-  the model, and for initiator establishment under an expectation
-  (`initiator-expectation.json`: signed bundles written by
-  `generate-identity-vectors.py`, each case's outcome checked against the
-  model). The vector schema names their refusals and adds
-  `acceptable_refusals`, for a digest whose two keys are refused with
-  different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
-  -16. The three keep their statuses (tested only, tested only, assumed); the
-  entry under Changed for their status lines says what those now cite.
-  `bundle-admission.json` is unchanged:
-  its runner establishes each case under *first contact* with no records. No
-  existing vector changes. Three of the initiator vectors pin orders the
-  fourteenth independent reader pass found unpinned (`GAPS-14.md`): a
-  malformed expectation before the presence and canonical-key checks, and,
-  for a KEM prekey of the wrong length whose signature does not verify, the
-  signatures before the KEM prekey's input checks.
 
 ### Changed
+- `protocol/session-establishment.md`:
+  - the initiator establishes only with an expectation, which replaces the
+    named identity the page let her state;
+  - **Conformance:** an implementation that offers initiator establishment
+    without an expectation, or with a named key in place of a record, does
+    not conform. For `tacenta-core` that is its API, `tacenta_core::sessions`;
+    the lifecycle leaf crate, an internal workspace member that is not
+    published, keeps its own establishment without an expectation public for
+    the translation and its tests, and is not a supported entry;
+  - she refuses a malformed expectation (`MalformedRecord`) before any check
+    of Sending the initial message. A *known* expectation with an empty
+    record is malformed;
+  - she checks the bundle's identity key against her expectation after the
+    bundle's presence and canonical-key checks, and before the identity-key
+    rule, the signature checks, the KEM prekey's input checks and anything
+    that draws randomness or computes an agreement. That is where the page
+    placed the named identity, before the identity-key rule and the
+    signatures, so that order is kept. The page had left the named identity
+    unordered against the presence and canonical-key checks; it now follows
+    them. The check applies the identity-key rule to the key itself, so a key
+    that is not an identity key is refused as an invalid identity key either
+    way. One outcome changes: a bundle whose key is not an identity key and
+    differs from the named key was refused as an unexpected identity, since
+    the named identity came first, and is now refused as an invalid identity
+    key;
+  - whether `EKA` is drawn before the KEM prekey's input checks is stated
+    as not fixed;
+  - also changed: the lead-in to the session-reset and
+    simultaneous-initiation cases, the "changed identity" bullet, and the
+    Security properties list, which names REQ-AUTH-15 and REQ-AUTH-16.
+
+- `protocol/session-establishment.md`, `protocol/identities-and-devices.md`
+  and `protocol/error-handling.md`: the text settles five of the gaps the
+  fourteenth independent reader pass recorded
+  (`tacenta-test-vectors/runners/independent/GAPS-14.md`); their rows stay
+  open until a later pass reads it.
+  - G14-02: decoding the bundle is not a check of Sending the initial
+    message, and no order is fixed between it and a malformed expectation;
+    either refusal conforms. A malformed expectation with bundle bytes that
+    do not decode tells the readings apart.
+  - G14-03: the initiator's refusals of a bundle are named as kinds (an
+    inconsistent bundle, a non-canonical key, an authentication failure, a
+    KEM input refusal, a non-contributory agreement), and error-handling.md
+    lists them, since an order can be seen only between refusals that are
+    told apart. The vectors use the same names.
+  - G14-04: the verification number's input is the 32-byte digest, and the
+    number is the 60 digits; the twelve groups of five, and how they are
+    separated, are a display only.
+  - G14-05: a lookup's result is stated: the attribution, the contacts the
+    key is *retired* for and the records skipped as malformed, as sets.
+    Naming the contacts an ambiguous key is *same* for is optional.
+  - G14-06: the KEM prekey's signature is over the type byte `0x08` and the
+    key's bytes as the bundle holds them, which for a 1,568-byte key is
+    `EncodeKEM` of it, and both signatures come before the KEM prekey's
+    input checks. A bundle that did not come from the decoder, with a KEM
+    prekey of the wrong length whose signature does not verify, is an
+    authentication failure.
+  - No byte, constant or stored format changes, and no existing vector's
+    outcome changes.
+
+- `protocol/error-handling.md`: the conditions list; the orders the pages
+  fix, among them the initiator's, protobuf-profile.md's and the inventory
+  statement's checks; and the closing remark on one check order.
+
+- `protocol/identities-and-devices.md`: the status line; where the
+  identity-key rule applies, now including the digest and a presented key;
+  and the way forward from a stored key the rule refuses, which now goes
+  through an expectation.
+
+- `CONSTANTS.md`: the label row and the Bounds row.
+
+- `threat-model/assumptions.md`: the ASM-07 lead-in and SHA-256 bullet;
+  ASM-14; the "Relied on by" lines of ASM-07, ASM-14 and ASM-19.
+
+- `threat-model/exclusions.md`: EX-05, EX-09 with the probe, and EX-10.
+
+- `threat-model/adversaries.md`: ADV-04, whose verification-number margin
+  is assumed (ASM-07).
+
+- `threat-model/assets.md`: AS-10 and AS-11.
+
+- `security-properties/authentication.md`: the intro, and REQ-AUTH-02, now
+  "the initiator's expectation is enforced". It stays tested only, and its
+  status names `establish_initiator` of `tacenta-core/src/sessions/identity.rs`
+  as where the refusals are made, the tests in
+  `tacenta-core/tests/identity_expectation.rs`, the `full_session.rs` test,
+  which runs under *known*, and `initiator-expectation.json`. No proof
+  covers it.
+
+- `security-properties/confidentiality.md`: REQ-CONF-01, whose Does not cover
+  list says the peer of a session that is no contact's is whoever holds its
+  peer key, absent a compromised signed-prekey secret (LIM-15).
+
+- `security-properties/limitations.md`: the counts, the table, LIM-13, which
+  names the session layer's `establish_initiator` and its tests and vectors,
+  and LIM-15.
+
+- `security-properties/evidence-index.json`: REQ-AUTH-02's property, and its
+  evidence: the session layer's functions, its tests and vectors, and the
+  model's theorems (tier T2, about the model alone). Its `missing_evidence`
+  is a `proof` item saying that `establish_initiator` is outside the
+  translated crates.
+
+- `README.md`.
+
 - `protocol/group-messaging.md`: the page no longer lists or relies on one
   published analysis of sender keys (IACR ePrint 2023/1385). The page's rule is
   to check what a published description's authors based it on before using it,
@@ -653,115 +775,6 @@ is SemVer against the specified protocol (not the implementation).
   composite header's `bv_decide` round trips and the export and import
   statements, through the length bound of a debug-assertion message in the
   generated `export`. No rule, byte or constant changes.
-- `protocol/session-establishment.md`:
-  - the initiator establishes only with an expectation, which replaces the
-    named identity the page let her state;
-  - she refuses a malformed one (`MalformedRecord`) before any check of
-    Sending the initial message. A *known* expectation with an empty record
-    is malformed;
-  - she checks the bundle's identity key against her expectation after the
-    bundle's presence and canonical-key checks, and before the identity-key
-    rule, the signature checks, the KEM prekey's input checks and anything
-    that draws randomness or computes an agreement. That is where the page
-    placed the named identity, before the identity-key rule and the
-    signatures, so that order is kept. The page had left the named identity
-    unordered against the presence and canonical-key checks; it now follows
-    them. The check applies the identity-key rule to the key itself, so a key
-    that is not an identity key is refused as an invalid identity key either
-    way. One outcome changes: a bundle whose key is not an identity key and
-    differs from the named key was refused as an unexpected identity, since
-    the named identity came first, and is now refused as an invalid identity
-    key;
-  - whether `EKA` is drawn before the KEM prekey's input checks is stated
-    as not fixed;
-  - also changed: the lead-in to the session-reset and
-    simultaneous-initiation cases, the "changed identity" bullet, and the
-    Security properties list.
-
-  **Conformance:** an implementation that offers initiator establishment
-  without an expectation, or with a named key in place of a record, does not
-  conform.
-- `protocol/error-handling.md`: the conditions list; the orders the pages
-  fix, among them the initiator's; and the closing remark on one check order.
-- `protocol/identities-and-devices.md`: the status line; where the
-  identity-key rule applies, now including the digest and a presented key;
-  and the way forward from a stored key the rule refuses, which now goes
-  through an expectation.
-- `CONSTANTS.md`: the label row and the Bounds row.
-- `threat-model/assumptions.md`: the ASM-07 lead-in and SHA-256 bullet;
-  ASM-14; the "Relied on by" lines of ASM-07, ASM-14 and ASM-19.
-- `threat-model/exclusions.md`: EX-05, EX-09 with the probe, and EX-10.
-- `threat-model/adversaries.md`: ADV-04.
-- `threat-model/assets.md`: AS-10 and AS-11.
-- `security-properties/authentication.md`: the intro, and REQ-AUTH-02
-  amended.
-- `security-properties/confidentiality.md`: REQ-CONF-01.
-- `security-properties/limitations.md`: the counts, the table and LIM-15.
-- `security-properties/evidence-index.json`: entries for REQ-AUTH-15 and
-  -16; REQ-AUTH-02's property and the reasons of its missing evidence.
-- `README.md`.
-- `protocol/session-establishment.md`, `protocol/identities-and-devices.md`,
-  `protocol/error-handling.md` and `decisions/ADR-0009-identity-verification.md`:
-  six of the gaps the fourteenth independent reader pass recorded
-  (`tacenta-test-vectors/runners/independent/GAPS-14.md`). G14-01, the
-  status lines, is the next entry's.
-  - G14-02: decoding the bundle is not a check of Sending the initial
-    message, and no order is fixed between it and a malformed expectation;
-    either refusal conforms. The page had left it open, and a malformed
-    expectation with bundle bytes that do not decode tells the readings
-    apart.
-  - G14-03: the initiator's refusals of a bundle are named as kinds (an
-    inconsistent bundle, a non-canonical key, an authentication failure, a
-    KEM input refusal, a non-contributory agreement), and error-handling.md
-    lists them. The page fixed an order among them, and against her
-    expectation, without naming them, and an order can be seen only between
-    refusals that are told apart. The vectors already used these names.
-  - G14-04: the verification number's input is the 32-byte digest, and the
-    number is the 60 digits; the twelve groups of five, and how they are
-    separated, are a display only.
-  - G14-05: a lookup's result is stated: the attribution, the contacts the
-    key is *retired* for and the records skipped as malformed, as sets.
-    Naming the contacts an ambiguous key is *same* for is optional.
-  - G14-06: the KEM prekey's signature is over the type byte and the key's
-    bytes as the bundle holds them, and both signatures come before the KEM
-    prekey's input checks. A bundle that did not come from the decoder, with
-    a KEM prekey of the wrong length whose signature does not verify, tells
-    the readings apart: it is an authentication failure.
-  - G14-07: ADR-0009 no longer says that `tacenta-core` has not changed; it
-    says what changed.
-
-  No byte, constant or stored format changes, and no existing vector's
-  outcome changes.
-- `security-properties/authentication.md`, REQ-AUTH-02, REQ-AUTH-15 and
-  REQ-AUTH-16, `security-properties/limitations.md`, LIM-13, and
-  `security-properties/evidence-index.json`: the status lines now name the
-  evidence that exists (G14-01 of the fourteenth independent reader pass).
-  None of the three statuses changes: REQ-AUTH-02 and REQ-AUTH-15 stay tested
-  only, and REQ-AUTH-16 stays assumed (ASM-07), with the order independence,
-  the refusals and the number beneath it tested only.
-  - REQ-AUTH-02 names `establish_initiator` of
-    `tacenta-core/src/sessions/identity.rs` as where the refusals are made, the
-    tests in `tacenta-core/tests/identity_expectation.rs`, the `full_session.rs`
-    test, which now runs under *known*, and `initiator-expectation.json`. The
-    sentences saying that no vector covers it and that it covers an expectation
-    of one named key are gone. No proof covers it.
-  - REQ-AUTH-15 names the classification and lookup tests,
-    `identity_responder.rs`, `identity-classification.json` and
-    `identity-lookup.json`. REQ-AUTH-16 names the digest and number tests,
-    `pair-digest.json` and `verification-number.json`. Before, REQ-AUTH-15
-    was "tested only" with no test or vector named.
-  - LIM-13 names the session layer's `establish_initiator` and the current
-    tests and vectors.
-  - In `evidence-index.json`, the `missing_evidence` items that said no test
-    or vector exists are removed from the three entries, and each keeps its
-    `proof` item, whose reason now says that `tacenta-core`'s functions are
-    outside the translated crates and the model's theorems are about the
-    model alone. Each entry gains `model_properties` and a `claims` entry for
-    the theorems about `Model.IdentityRecords` and
-    `Model.InitiatorExpectation` that `tacenta-proofs/CLAIMS.md` records (tier
-    T2, about the model only).
-- `decisions/ADR-0009-identity-verification.md`: the status is Accepted. No
-  decision it records changes.
 
 ### Fixed
 - `protocol/session-establishment.md`: the repeated-initial rule names the key

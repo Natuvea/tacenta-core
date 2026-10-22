@@ -27,8 +27,10 @@ Accepted.
 1. **One SHA-256 digest per unordered pair of identity keys,** under a fixed
    label. The keys are raw and sorted as unsigned bytes.
    - The digest applies the identity-key rule to both keys. Every key a
-     session holds already passes it, so this refuses only keys typed,
-     scanned or imported, and it means one key has one digest.
+     session established or imported under this revision holds already
+     passes it (a stored key the rule refuses is refused on import), so this
+     refuses only keys typed, scanned or imported, and it means one key has
+     one digest.
    - Keys only, and no identifier. A comparison is of keys, and what the keys
      belong to is the party's (ASM-14).
    - A 60-digit rendering is normative where digits are shown, so two
@@ -49,10 +51,13 @@ Accepted.
    the bundle's presence and canonical-key checks, and before the
    identity-key rule, the signature checks, the KEM prekey's input checks
    and anything that draws randomness or computes an agreement. That is
-   where the named identity was checked, so the order is kept. Nothing is
-   spent on a key she already refuses. The check applies the identity-key
-   rule to the key itself, so a key that fails the rule is refused for that
-   reason whichever check meets it.
+   where the named identity was checked, so its place before the
+   identity-key rule and the signatures is kept. Nothing is spent on a key
+   she already refuses. The check applies the identity-key rule to the key
+   itself, first, so a key that fails the rule is refused for that reason
+   whichever check meets it. That changes one outcome: a bundle whose key is
+   not an identity key and differs from the named key was refused as an
+   unexpected identity, and is now refused as an invalid identity key.
 3. **Records belong to the party.**
    - A key is classified against a record, and looked up across records. A
      presented key is held to the identity-key rule, and a record's members
@@ -145,16 +150,22 @@ Accepted.
     callback cannot promise that.
 31. **Attribution at the time a plaintext arrives.** It keeps history, but it
     leaves the messages between a key's theft and its retirement attributed.
+    For the same reason the pages do not let an application show a plaintext
+    as having been a contact's when it arrived: under a key since retired,
+    that shows the attacker's messages as the contact's (ASM-14).
 
 ## Consequences
 
-- **What `tacenta-core` changes.** Its session API establishes the initiator
-  only under an expectation, and no longer offers establishment with a named
-  key or without one. It provides the classification, the lookup, the digest
+- **What `tacenta-core` changes.** Its session API (`tacenta_core::sessions`)
+  establishes the initiator only under an expectation, and no longer offers
+  establishment with a named key or without one. The lifecycle leaf crate,
+  an internal workspace member that is not published, keeps its own
+  establishment with a named key and without one public for the translation
+  and its tests; it is not a supported entry. It provides the classification, the lookup, the digest
   and the verification number. The responder's establishment is unchanged.
 - **Attribution follows the records as they stand.** A record change
-  re-attributes past plaintexts. An application may show a plaintext as
-  having been a contact's when it arrived.
+  re-attributes past plaintexts, and an application shows a plaintext as a
+  contact's only while the lookup finds its session that contact's.
 - **Recommended records policy** (non-normative):
   - record a key after the people compare the verification number;
   - treat adding a device's key with the scrutiny of a replacement, since an
