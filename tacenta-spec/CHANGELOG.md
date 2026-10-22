@@ -5,6 +5,111 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+### Added
+- `identities-and-devices.md` now specifies the bounded hosted device-inventory
+  statement profile: its canonical unsigned encoding, bounds, refusal rules,
+  issuer-signature input and replacement-binding commitment. This is an
+  inventory statement format only; general device management and group
+  messaging remain scaffolded.
+
+- `group-messaging.md` now specifies the two bounded fan-out commitment helper
+  domains and their 32-byte SHA-256 outputs. It does not select a group cipher
+  or membership protocol.
+
+- `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
+  `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
+  index, completing coverage for all 32 security-property requirements. The
+  traceability checker now fails if any requirement lacks an evidence-index
+  entry, and its case runner includes a missing-entry negative control.
+
+- `security-properties/evidence-index-format.md`: the checked JSON format for
+  the P2 requirement evidence index, including the boundary between reference
+  validation and human semantic review.
+- `security-properties/evidence-index.json`: a P2 pilot evidence index for
+  REQ-AUTH-04, REQ-AUTH-01 and REQ-AUTH-03, covering one proved requirement,
+  one tested-only requirement and one assumed requirement with supporting
+  derivation proofs.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-02, REQ-AUTH-05 and REQ-AUTH-06, extending the P2 migration across
+  named identity checks and ratchet-message associated-data/AEAD coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-07, REQ-AUTH-08 and REQ-AUTH-09, extending the P2 migration across
+  model-level key-position uniqueness and decoder canonicality coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-10, REQ-AUTH-11 and REQ-AUTH-12, extending the P2 migration across
+  non-contributory agreement refusal, ratchet replay refusal and initial-message
+  replay-record coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-13 and REQ-AUTH-14, completing the authentication P2 migration with
+  unauthenticated-input durability and Braid authenticator-failure coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-CONF-01 through REQ-CONF-09, extending the P2 migration across
+  confidentiality assumptions, derivation proofs, symbolic secrecy claims, AEAD
+  vectors and timing-test evidence.
+- `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
+  assurance execution plan. It classifies target deficits, gate obligations,
+  deferral risks and missing negative-control evidence so readiness is assessed
+  from named rows rather than inferred from prose.
+- `tooling/check-traceability.py` and
+  `tooling/tests/run-check-traceability-cases.sh`: a CI-enforced structural
+  traceability check for the security-property ledger. It checks that every
+  `REQ-*` row has status and assumptions, the limitations status table covers
+  those rows, direct assumption dependencies name live `ASM-*` entries, and
+  `REQ/ASM/LIM/ADV/AS/EX` references resolve. The cases prove the gate fails
+  when a requirement row drops out of the limitations table or cites an unknown
+  assumption.
+- `GAP-REGISTER.md`: a current register for assurance gate 2, preserving the
+  historical independent-reader reports while recording which findings are now
+  closed, open, or deferred.
+- `decisions/ADR-0008-assurance-expectations.md`: the practices the
+  project holds itself to, the definition of done, and assurance levels per
+  component. `ASSURANCE.md` at the repository root records where each practice
+  and component stands. A decision about how the work is done, not about the
+  protocol.
+- `threat-model/`: the threat model, written and normative. All four pages were
+  scaffolds.
+  - `assets.md`: twelve assets, AS-01 to AS-12. Nine are secrets: plaintexts,
+    the identity secret, prekey secrets, handshake secrets, the three
+    ratchets' secrets, per-message keys and persisted state. Three are
+    properties: the authenticity of a conversation, the authenticity of
+    published keys, and state integrity against unauthenticated input.
+  - `adversaries.md`: six adversaries, ADV-01 to ADV-06. They are the network;
+    compromise of a party's state at a point in time; a future quantum
+    adversary recording traffic; a malicious directory; a writer of the
+    persisted store, outside this specification under ADR-0007; and a malicious
+    peer. Each says what it can do and how the proofs represent it. The only
+    adversary in any proof is the symbolic attacker of `Model.Adversary`.
+  - `assumptions.md`: nineteen assumptions, ASM-01 to ASM-19, each naming the
+    requirements and proofs that rely on it.
+    - ASM-01 to ASM-14 are about the world: randomness, the primitives and the
+      libraries trusted for them, constant time, erasure, the symbolic model's
+      fidelity, the clock, storage, the network and key authenticity.
+    - ASM-15 to ASM-19 are about the evidence: the platform, the translation
+      toolchain, the Lean kernel and proofs checked by evaluation, the proofs'
+      boundary hypotheses, and the untranslated session layer.
+  - `exclusions.md`: fourteen exclusions, EX-01 to EX-14. Among them are
+    metadata, endpoint compromise beyond a point in time, denial of service
+    beyond the stated bounds, group messaging and devices (unspecified), a
+    store writer, side channels beyond what is assumed, and deniability.
+- `security-properties/`: the security properties as 32 numbered requirements.
+  Each gives its statement, what it protects, the adversaries it holds against,
+  the assumptions it rests on, its status and what it does not cover. 12 are
+  proved, 9 assumed and 11 tested only.
+  - `authentication.md`: REQ-AUTH-01 to REQ-AUTH-14.
+  - `confidentiality.md`: REQ-CONF-01 to REQ-CONF-09.
+  - `forward-secrecy.md`: REQ-FS-01 to REQ-FS-06.
+  - `post-compromise-security.md`: REQ-PCS-01 to REQ-PCS-03. The page's existing
+    account becomes REQ-PCS-01's, and its Sources point to the forward-secrecy
+    page.
+  - `limitations.md`: the gaps, LIM-01 to LIM-22, with a status table. Three of
+    them:
+    - five proved requirements rest on model-level theorems that
+      `tacenta-proofs/CLAIMS.md` does not record (LIM-02);
+    - REQ-AUTH-02 has no test (LIM-13);
+    - tests hold erasure in place only for the classical ratchet's state, the
+      KEM key pair, the identity and the prekey store (LIM-11).
+
+### Changed
 - `protocol/group-messaging.md`: the page no longer lists or relies on one
   published analysis of sender keys (IACR ePrint 2023/1385). The page's rule is
   to check what a published description's authors based it on before using it,
@@ -60,12 +165,6 @@ is SemVer against the specified protocol (not the implementation).
   store's semantic rules are also corrected from "all four versions" to all
   five. No wire format changes.
 
-- `protocol/session-establishment.md`: the repeated-initial rule names the key
-  its agreement class is taken under. It is the session's current
-  `ratchet_private`, not the responder's signed-prekey secret, which the
-  persisted session does not hold. The behaviour of `tacenta-core` is
-  unchanged; the wording is corrected.
-
 - Identity keys are held to one rule at every boundary that admits one.
   `identities-and-devices.md` gains an Identity keys section: the rule of
   Accepting a signed statement, check 6 (a canonical curve public key of the
@@ -89,33 +188,6 @@ is SemVer against the specified protocol (not the implementation).
   a caller can find such states beforehand by applying the rule to the stored
   keys). The encodings, the signature input and the persisted layouts are unchanged.
 
-- `protocol/session-persistence.md`: align the repeated-initial semantic rule
-  with `session-establishment.md`: the ephemeral is compared by its X25519
-  agreement class and the identity by bytes. This removes the stale
-  byte-for-byte wording without changing the persisted format.
-
-- `Session::decrypt` now recognises a repeated initial message by the
-  responder's X25519 agreement class for its ephemeral, while retaining the
-  byte-bound identity check. This keeps canonical torsion-equivalent ephemeral
-  encodings in the same established session and closes the repeat-blackhole
-  gap.
-
-- `identities-and-devices.md` now specifies the bounded hosted device-inventory
-  statement profile: its canonical unsigned encoding, bounds, refusal rules,
-  issuer-signature input and replacement-binding commitment. This is an
-  inventory statement format only; general device management and group
-  messaging remain scaffolded.
-
-- `group-messaging.md` now specifies the two bounded fan-out commitment helper
-  domains and their 32-byte SHA-256 outputs. It does not select a group cipher
-  or membership protocol.
-
-- `tacenta-spqr`: secret-bearing chain-table updates now wipe the old
-  allocation before growth, and skipped-message keys are derived directly into
-  their final vector instead of being moved from a temporary buffer. This
-  closes the sparse-ratchet container residue paths without changing the wire
-  format or ratchet state machine.
-
 - `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
   assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
   decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
@@ -123,31 +195,9 @@ is SemVer against the specified protocol (not the implementation).
   operation-agreement clauses alone; `toyKem_correct` stays a model fact.
   Closes hostile-lens item FM-03.
 
-- Workflow checks now fail when the workflow or case corpus is absent, with an
-  explicit empty-repository control. Vector currency uses `git status` with
-  untracked files included, so a newly generated uncommitted vector cannot be
-  hidden from the local or hosted gate. This closes hostile-lens item SC-14.
-
-- The constant-time assembly reader's callee allow-list now matches whole
-  length-prefixed Rust identifier components, rather than substring regular
-  expressions. Its production-reader controls require an exact `compress`
-  callee to pass while `compress_sign_fixup` and an empty allow-list fail.
-  This closes hostile-lens item HL-SC-16.
-
-- The DCO gate now fails if its comparison base is missing and checks merge
-  commits instead of silently excluding them. A production-script case runner
-  pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
-  refusals. This closes hostile-lens item SC-10.
-
 - `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
   crate and now translates from all 30 public roots. This is a Phase 0
   translatability result only; no session theorem or assurance level changes.
-
-- `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
-  `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
-  index, completing coverage for all 32 security-property requirements. The
-  traceability checker now fails if any requirement lacks an evidence-index
-  entry, and its case runner includes a missing-entry negative control.
 
 - `protocol/triple-ratchet.md` and `protocol/session-establishment.md`: make
   the session transaction boundary explicit for end-to-end refinement. The
@@ -166,45 +216,6 @@ is SemVer against the specified protocol (not the implementation).
   The independent reader follows the v2 agreed-secret replay identity and
   covers fail-closed import of v4 replay records into v5.
 
-- `security-properties/evidence-index-format.md`: the checked JSON format for
-  the P2 requirement evidence index, including the boundary between reference
-  validation and human semantic review.
-- `security-properties/evidence-index.json`: a P2 pilot evidence index for
-  REQ-AUTH-04, REQ-AUTH-01 and REQ-AUTH-03, covering one proved requirement,
-  one tested-only requirement and one assumed requirement with supporting
-  derivation proofs.
-- `security-properties/evidence-index.json`: evidence-index entries for
-  REQ-AUTH-02, REQ-AUTH-05 and REQ-AUTH-06, extending the P2 migration across
-  named identity checks and ratchet-message associated-data/AEAD coverage.
-- `security-properties/evidence-index.json`: evidence-index entries for
-  REQ-AUTH-07, REQ-AUTH-08 and REQ-AUTH-09, extending the P2 migration across
-  model-level key-position uniqueness and decoder canonicality coverage.
-- `security-properties/evidence-index.json`: evidence-index entries for
-  REQ-AUTH-10, REQ-AUTH-11 and REQ-AUTH-12, extending the P2 migration across
-  non-contributory agreement refusal, ratchet replay refusal and initial-message
-  replay-record coverage.
-- `security-properties/evidence-index.json`: evidence-index entries for
-  REQ-AUTH-13 and REQ-AUTH-14, completing the authentication P2 migration with
-  unauthenticated-input durability and Braid authenticator-failure coverage.
-- `security-properties/evidence-index.json`: evidence-index entries for
-  REQ-CONF-01 through REQ-CONF-09, extending the P2 migration across
-  confidentiality assumptions, derivation proofs, symbolic secrecy claims, AEAD
-  vectors and timing-test evidence.
-- `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
-  assurance execution plan. It classifies target deficits, gate obligations,
-  deferral risks and missing negative-control evidence so readiness is assessed
-  from named rows rather than inferred from prose.
-- `tooling/check-traceability.py` and
-  `tooling/tests/run-check-traceability-cases.sh`: a CI-enforced structural
-  traceability check for the security-property ledger. It checks that every
-  `REQ-*` row has status and assumptions, the limitations status table covers
-  those rows, direct assumption dependencies name live `ASM-*` entries, and
-  `REQ/ASM/LIM/ADV/AS/EX` references resolve. The cases prove the gate fails
-  when a requirement row drops out of the limitations table or cites an unknown
-  assumption.
-- `GAP-REGISTER.md`: a current register for assurance gate 2, preserving the
-  historical independent-reader reports while recording which findings are now
-  closed, open, or deferred.
 - `protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth rule,
   that every stored signature verifies under `identity_public` -- the signed
   prekey's, the KEM prekey's, each one-time KEM prekey's, and the retired pair's
@@ -237,55 +248,6 @@ is SemVer against the specified protocol (not the implementation).
   the mapping for the session's two halves and not for the triple ratchet
   state's, leaving two readings a stored state can tell apart (the independent
   reader's `GAPS-5.md`, G5-02's neighbour G5-01).
-- `decisions/ADR-0008-assurance-expectations.md`: the practices the
-  project holds itself to, the definition of done, and assurance levels per
-  component. `ASSURANCE.md` at the repository root records where each practice
-  and component stands. A decision about how the work is done, not about the
-  protocol.
-- `threat-model/`: the threat model, written and normative. All four pages were
-  scaffolds.
-  - `assets.md`: twelve assets, AS-01 to AS-12. Nine are secrets: plaintexts,
-    the identity secret, prekey secrets, handshake secrets, the three
-    ratchets' secrets, per-message keys and persisted state. Three are
-    properties: the authenticity of a conversation, the authenticity of
-    published keys, and state integrity against unauthenticated input.
-  - `adversaries.md`: six adversaries, ADV-01 to ADV-06. They are the network;
-    compromise of a party's state at a point in time; a future quantum
-    adversary recording traffic; a malicious directory; a writer of the
-    persisted store, outside this specification under ADR-0007; and a malicious
-    peer. Each says what it can do and how the proofs represent it. The only
-    adversary in any proof is the symbolic attacker of `Model.Adversary`.
-  - `assumptions.md`: nineteen assumptions, ASM-01 to ASM-19, each naming the
-    requirements and proofs that rely on it.
-    - ASM-01 to ASM-14 are about the world: randomness, the primitives and the
-      libraries trusted for them, constant time, erasure, the symbolic model's
-      fidelity, the clock, storage, the network and key authenticity.
-    - ASM-15 to ASM-19 are about the evidence: the platform, the translation
-      toolchain, the Lean kernel and proofs checked by evaluation, the proofs'
-      boundary hypotheses, and the untranslated session layer.
-  - `exclusions.md`: fourteen exclusions, EX-01 to EX-14. Among them are
-    metadata, endpoint compromise beyond a point in time, denial of service
-    beyond the stated bounds, group messaging and devices (unspecified), a
-    store writer, side channels beyond what is assumed, and deniability.
-- `security-properties/`: the security properties as 32 numbered requirements.
-  Each gives its statement, what it protects, the adversaries it holds against,
-  the assumptions it rests on, its status and what it does not cover. 12 are
-  proved, 9 assumed and 11 tested only.
-  - `authentication.md`: REQ-AUTH-01 to REQ-AUTH-14.
-  - `confidentiality.md`: REQ-CONF-01 to REQ-CONF-09.
-  - `forward-secrecy.md`: REQ-FS-01 to REQ-FS-06.
-  - `post-compromise-security.md`: REQ-PCS-01 to REQ-PCS-03. The page's existing
-    account becomes REQ-PCS-01's, and its Sources point to the forward-secrecy
-    page.
-  - `limitations.md`: the gaps, LIM-01 to LIM-22, with a status table. Three of
-    them:
-    - five proved requirements rest on model-level theorems that
-      `tacenta-proofs/CLAIMS.md` does not record (LIM-02);
-    - REQ-AUTH-02 has no test (LIM-13);
-    - tests hold erasure in place only for the classical ratchet's state, the
-      KEM key pair, the identity and the prekey store (LIM-11).
-
-### Changed
 - `tacenta-model`, `Model.Lifecycle.sameEphemeralAgreement`: the model's
   repeated-initial comparison now does what `protocol/session-establishment.md`,
   Receiving the initial message, says. It decodes the message's `ephemeral` and
@@ -650,6 +612,46 @@ is SemVer against the specified protocol (not the implementation).
   composite header's `bv_decide` round trips and the export and import
   statements, through the length bound of a debug-assertion message in the
   generated `export`. No rule, byte or constant changes.
+
+### Fixed
+- `protocol/session-establishment.md`: the repeated-initial rule names the key
+  its agreement class is taken under. It is the session's current
+  `ratchet_private`, not the responder's signed-prekey secret, which the
+  persisted session does not hold. The behaviour of `tacenta-core` is
+  unchanged; the wording is corrected.
+
+- `protocol/session-persistence.md`: align the repeated-initial semantic rule
+  with `session-establishment.md`: the ephemeral is compared by its X25519
+  agreement class and the identity by bytes. This removes the stale
+  byte-for-byte wording without changing the persisted format.
+
+- `Session::decrypt` now recognises a repeated initial message by the
+  responder's X25519 agreement class for its ephemeral, while retaining the
+  byte-bound identity check. This keeps canonical torsion-equivalent ephemeral
+  encodings in the same established session and closes the repeat-blackhole
+  gap.
+
+- `tacenta-spqr`: secret-bearing chain-table updates now wipe the old
+  allocation before growth, and skipped-message keys are derived directly into
+  their final vector instead of being moved from a temporary buffer. This
+  closes the sparse-ratchet container residue paths without changing the wire
+  format or ratchet state machine.
+
+- Workflow checks now fail when the workflow or case corpus is absent, with an
+  explicit empty-repository control. Vector currency uses `git status` with
+  untracked files included, so a newly generated uncommitted vector cannot be
+  hidden from the local or hosted gate. This closes hostile-lens item SC-14.
+
+- The constant-time assembly reader's callee allow-list now matches whole
+  length-prefixed Rust identifier components, rather than substring regular
+  expressions. Its production-reader controls require an exact `compress`
+  callee to pass while `compress_sign_fixup` and an empty allow-list fail.
+  This closes hostile-lens item HL-SC-16.
+
+- The DCO gate now fails if its comparison base is missing and checks merge
+  commits instead of silently excluding them. A production-script case runner
+  pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
+  refusals. This closes hostile-lens item SC-10.
 
 ## [0.2.0] - 2026-09-11
 
