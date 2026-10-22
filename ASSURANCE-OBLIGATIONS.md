@@ -1893,7 +1893,9 @@ standard and labels, the guard's self-test of each of its six error spellings, `
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
 the script's own counts, its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
 of a full run from its fixture's `no-sorry.sh` instead of a number written by hand, and names the edit when a script
-the run calls has no stub), and the two pretty-printer options in the module, so that its pins print whole. The two
+the run calls has no stub; a phase dropped from both `no-sorry.sh` and the parts file is therefore no longer caught
+there, and is caught by `tooling/tests/run-proof-script-cases.sh`, whose honest run lists every script `no-sorry.sh`
+must call), and the two pretty-printer options in the module, so that its pins print whole. The two
 lists it now edits are among the files `tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
 scaffold a module still merge through `tooling/regenerate-generated.sh`. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
 own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
