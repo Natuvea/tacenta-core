@@ -369,7 +369,7 @@ make_case early-return
 edit early-return "$sp" $'    check_complete(results, sources)\n' $'    if results:\n        return 0\n    check_complete(results, sources)\n'
 expect_fail early-return "$sp: \`main\` holds a \`return\`"
 make_case other-end
-edit other-end "$sp" $'    sys.exit(main())\n' $'    main()\n    sys.exit(0)\n'
+edit other-end "$sp" $'    sys.exit(main())\n' $'    main()\n'
 expect_fail other-end "$sp: the script must end its run with exactly"
 
 # Edits that skip controls without a binding the one-text check reads: a second binding of main, MUTANTS or
