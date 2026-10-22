@@ -12,6 +12,7 @@
 #                   only, workflow only, a manifest change, no change, mixed, a fuzz workspace
 #   run-*           the steps run for a real git diff, with the arguments they were given
 #   failing-*       a failing sub-check makes the run fail, and does not stop the others
+#   run-uncovered   changed Rust no fast check reads ends "ok WITH UNCHECKED", not plain "ok"
 #   missing-*       a missing tool prints SKIP and is not an unqualified pass; under
 #                   GITHUB_ACTIONS it is a failure
 #   summary-*       the NOT RUN list, the "not CI" line and the wall time are printed, pass or fail
@@ -212,6 +213,8 @@ plan_of plan-cargo-lock "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/Ca
 plan_of plan-vectors-runner "$(nlj ci-fast 'rust tacenta-test-vectors/runners/rust ALL')" \
   tacenta-test-vectors/runners/rust/src/main.rs
 plan_of plan-empty-diff "ci-fast"
+plan_of plan-rust-config "$(nlj ci-fast 'uncovered tacenta-core 2')" tacenta-core/clippy.toml \
+  tacenta-core/.cargo/config.toml
 plan_of plan-fuzz-workspace "$(nlj ci-fast 'uncovered tacenta-core/fuzz 2')" \
   tacenta-core/fuzz/fuzz_targets/t.rs tacenta-core/fuzz/corpus/a
 plan_of plan-markdown-in-a-crate "$(nlj ci-fast 'other 1')" tacenta-core/kem/README.md
@@ -300,6 +303,15 @@ lacks_log run-empty-diff-no-cargo "cargo "
 lacks_log run-empty-diff-no-lake "lake "
 has_out run-empty-diff "0 changed path(s)"
 has_log run-empty-diff-not-deep "ci --fast deep=0"
+
+# Changed Rust that no fast check reads is listed and the verdict is not the plain "ok".
+new_sandbox
+echo '// changed' >> "$sandbox/tacenta-core/fuzz/fuzz_targets/t.rs"
+run_fast with-tools "" --base base
+rc_is run-uncovered 0
+has_out run-uncovered-listed "NOT CHECKED"
+has_out run-uncovered-verdict "fast: ok WITH UNCHECKED"
+lacks_out run-uncovered-not-plain "fast: ok (no step that ran failed"
 run_fast with-tools "" --base base --deep
 has_log run-empty-diff-deep-flag "ci --fast deep=1"
 DEEP_FOR_RUN=1 run_fast with-tools "" --base base

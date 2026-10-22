@@ -26,7 +26,9 @@ case runner can hold the selection to exact output. The lines:
                                       which always runs (the workflow checker's cases with `deep`, which a
                                       workflow change selects), so the diff adds nothing to run
     uncovered WORKSPACE N             N changed paths in a Cargo workspace no fast check reads (the fuzz
-                                      workspaces, the vendored upstream patches)
+                                      workspaces, the vendored upstream patches, and a workspace's toolchain,
+                                      clippy, rustfmt, deny or `.cargo` configuration); the run then ends
+                                      "ok WITH UNCHECKED", never plain "ok"
     other N                           N changed paths in none of the above (documents, tooling): read by
                                       `ci.sh --fast` where a check names them, otherwise by nothing here
 
@@ -50,6 +52,10 @@ import sys
 
 UNCOVERED_ROOTS = (re.compile(r"(^|/)fuzz$"), re.compile(r"^tacenta-proofs/upstream/"))
 ROOT_PACKAGE_DIRS = ("src", "tests", "examples", "benches")
+# Files that change how a workspace is built or linted without being a package's source: no fast check reads
+# them, so a change to one is reported as unchecked rather than counted as `other`.
+RUST_CONFIG = ("rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml",
+               ".rustfmt.toml", "deny.toml")
 LEAN_PROJECTS = ("tacenta-proofs/translation", "tacenta-proofs", "tacenta-model")
 LEAN_CONFIG = ("lakefile.lean", "lakefile.toml", "lake-manifest.json", "lean-toolchain")
 WORKFLOW_PREFIXES = (".github/workflows/", ".github/actions/")
@@ -140,6 +146,8 @@ def rust_selection(root, rel, rust):
         rust[workspace] = "ALL"
         return None
     inside = rel[len(workspace) + 1:] if workspace else rel
+    if os.path.basename(rel) in RUST_CONFIG or ("/" + inside).count("/.cargo/"):
+        return ("uncovered", workspace)
     first = inside.split("/")[0]
     if first in member_dirs:
         name = package_name(read(os.path.join(root, workspace, first, "Cargo.toml")))
