@@ -3,7 +3,10 @@
 #
 #   bash tooling/tests/run-check-negatives-control-counts-cases.sh
 #
-# Part 1 (run second), the count gate (`tacenta-proofs/scripts/check-negatives-control-counts.py`). Each case copies the gate,
+# check_complete, the shared completeness check each script's main calls, runs second, on the results a
+# whole run would write and on those of a run that skipped a control, an emptied-proof run or a baseline.
+#
+# Part 1 (run third), the count gate (`tacenta-proofs/scripts/check-negatives-control-counts.py`). Each case copies the gate,
 # its record and the five negatives scripts into a fixture directory, changes one thing and runs the real gate
 # there: the unmodified copy is accepted; a control deleted with its label, a control relabelled, a control added,
 # a baseline added, the record missing a script or naming one too many, a record entry without a class, a sixth
@@ -118,6 +121,62 @@ PY
 done
 
 
+# check_complete itself, on the results a whole run would write and on those of a run that sliced
+# MUTANTS, skipped a control with `continue`, skipped an emptied-proof run or a baseline.
+set +e
+out="$(python3 -B - "$scripts" "${five[@]}" <<'PY' 2>&1
+import ast, importlib.util, sys
+scripts, names = sys.argv[1], sys.argv[2:]
+ran = 0
+for script in names:
+    path = f"{scripts}/{script}"
+    spec = importlib.util.spec_from_file_location("negatives", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    main = next(n for n in ast.parse(open(path).read()).body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    keys = next(n.value.keys for n in ast.walk(main) if isinstance(n, ast.Assign)
+                and isinstance(n.value, ast.Dict) and any(getattr(t, "id", "") == "sources" for t in n.targets))
+    sources = {k.value: None for k in keys}
+
+    def whole():
+        rejected = {}
+        for label, name, _, _, _ in m.MUTANTS:
+            r = {"exit": 1}
+            if name in m.INSIDE:
+                r["inside"] = m.INSIDE[name]
+            if name in m.STATEMENT_SHAPE:
+                r["projects"] = m.STATEMENT_SHAPE[name]
+            rejected[f"{label}/{name}"] = r
+        return {"accepted": list(sources), "rejected": rejected}
+
+    m.check_complete(whole(), sources)
+    ran += 1
+    sliced = whole(); sliced["rejected"].popitem()
+    skipped = whole(); first = next(iter(skipped["rejected"])); del skipped["rejected"][first]
+    emptied = whole(); key = next(k for k in emptied["rejected"] if k.split("/", 1)[1] in m.INSIDE)
+    del emptied["rejected"][key]["inside"]
+    baseline = whole(); baseline["accepted"].pop()
+    for what, results in (("slice", sliced), ("continue", skipped), ("emptied run skipped", emptied),
+                          ("baseline skipped", baseline)):
+        try:
+            m.check_complete(results, sources)
+        except SystemExit as refusal:
+            if "INCOMPLETE RUN" not in str(refusal):
+                sys.exit(f"WRONG  check-complete-{what}:{script}: refused for another reason: {refusal}")
+            ran += 1
+            continue
+        sys.exit(f"WRONG  check-complete-{what}:{script}: an incomplete run was accepted")
+print(ran)
+PY
+)"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ]; then
+  printf '%s\n' "$out" >&2
+  exit 1
+fi
+cases=$((cases + out))
+
 make_case unmodified
 expect_pass unmodified
 
@@ -190,7 +249,7 @@ record = json.load(open(path))
 del record["scripts"]["check-responder-reply-negatives.py"]
 json.dump(record, open(path, "w"))
 PY
-expect_fail record-misses-a-script "check-responder-reply-negatives.py defines the shared check_labels and is not in negatives-control-counts.json"
+expect_fail record-misses-a-script "check-responder-reply-negatives.py carries the shared check_labels and is not in negatives-control-counts.json"
 
 make_case record-names-another-script
 python3 -B - "$work/record-names-another-script/negatives-control-counts.json" <<'PY'
@@ -200,7 +259,7 @@ record = json.load(open(path))
 record["scripts"]["check-gone-negatives.py"] = dict(record["scripts"]["check-responder-reply-negatives.py"])
 json.dump(record, open(path, "w"))
 PY
-expect_fail record-names-another-script "lists check-gone-negatives.py, which is not a negatives script here defining check_labels"
+expect_fail record-names-another-script "lists check-gone-negatives.py, which is not a script here carrying check_labels"
 
 make_case record-entry-without-a-class
 python3 -B - "$work/record-entry-without-a-class/negatives-control-counts.json" <<'PY'
@@ -229,7 +288,7 @@ expect_fail record-unreadable "negatives-control-counts.json cannot be read as a
 # A sixth script that carries the shared label check is not left out of the record.
 make_case sixth-script-unrecorded
 cp "$work/sixth-script-unrecorded/$sp" "$work/sixth-script-unrecorded/check-new-step-negatives.py"
-expect_fail sixth-script-unrecorded "check-new-step-negatives.py defines the shared check_labels and is not in negatives-control-counts.json"
+expect_fail sixth-script-unrecorded "check-new-step-negatives.py carries the shared check_labels and is not in negatives-control-counts.json"
 
 # One copy of a shared helper changed.
 make_case helper-copy-differs
@@ -237,5 +296,55 @@ edit helper-copy-differs check-initiator-second-send-negatives.py \
   "        others = [d for d in places if d not in COMPOSING]" \
   "        others = [d for d in places if d not in COMPOSING and False]"
 expect_fail helper-copy-differs "check-initiator-second-send-negatives.py's copy of the shared check_labels differs from"
+
+# Ways around the one-text check: a decorator, a second binding of a shared name of any kind, a name
+# rebound through globals(), and a sixth script that carries check_labels under another spelling.
+make_case decorated-helper
+edit decorated-helper "$sp" $'\ndef check_labels(text):\n' $'\n@(lambda f: (lambda text: None))\ndef check_labels(text):\n'
+expect_fail decorated-helper "$sp's copy of the shared check_labels differs"
+make_case annotated-rebinding
+edit annotated-rebinding "$sp" $'\n\ndef main():\n' $'\nNOT_A_REFUSAL: tuple = NOT_A_REFUSAL + (\'error\',)\n\n\ndef main():\n'
+expect_fail annotated-rebinding "$sp binds the shared NOT_A_REFUSAL 2 time(s)"
+make_case augmented-rebinding
+edit augmented-rebinding "$sp" $'\n\ndef main():\n' $'\nTIMEOUT += (\'error\',)\n\n\ndef main():\n'
+expect_fail augmented-rebinding "$sp binds the shared TIMEOUT 2 time(s)"
+make_case global-rebinding-in-main
+edit global-rebinding-in-main "$sp" $'\ndef main():\n' $'\ndef main():\n    global check_refused\n    check_refused = lambda *a, **k: None\n'
+expect_fail global-rebinding-in-main "$sp binds the shared check_refused 3 time(s)"
+make_case local-shadow-in-main
+edit local-shadow-in-main "$sp" $'\ndef main():\n' $'\ndef main():\n    check_refused = lambda *a, **k: None\n'
+expect_fail local-shadow-in-main "$sp binds the shared check_refused 2 time(s)"
+make_case parameter-shadow
+edit parameter-shadow "$sp" $'\ndef main():\n' $'\ndef main(check_refused=lambda *a, **k: None):\n'
+expect_fail parameter-shadow "$sp binds the shared check_refused 2 time(s)"
+make_case rebinding-through-globals
+edit rebinding-through-globals "$sp" $'\ndef main():\n' $'\ndef main():\n    globals()[\'check_refused\'] = print\n'
+expect_fail rebinding-through-globals "$sp uses globals"
+for shape in $'def check_labels (text):\n    return None\n' $'from negatives import check_labels\n' $'import negatives\nnegatives.check_labels(\'\')\n'; do
+  make_case sixth-script-spelling
+  printf '%s' "$shape" > "$work/sixth-script-spelling/check-other-negatives.py"
+  expect_fail sixth-script-spelling "check-other-negatives.py carries the shared check_labels and is not in"
+done
+
+# A main that does not run what the record counts: a stub, a missing or guarded completeness check,
+# an early exit, a return, and another end of the script.
+make_case stub-main
+edit stub-main "$sp" $'\ndef main():\n' $'\ndef main():\n    sources = {}\n\n\ndef old_main():\n'
+expect_fail stub-main "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
+make_case completeness-check-removed
+edit completeness-check-removed "$sp" $'    check_complete(results, sources)\n' ''
+expect_fail completeness-check-removed "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
+make_case completeness-check-guarded
+edit completeness-check-guarded "$sp" $'    check_complete(results, sources)\n' $'    try:\n        check_complete(results, sources)\n    except SystemExit:\n        pass\n'
+expect_fail completeness-check-guarded "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
+make_case early-exit
+edit early-exit "$sp" $'    check_complete(results, sources)\n' $'    sys.exit(0)\n    check_complete(results, sources)\n'
+expect_fail early-exit "$sp: \`main\` calls an exit"
+make_case early-return
+edit early-return "$sp" $'    check_complete(results, sources)\n' $'    if results:\n        return 0\n    check_complete(results, sources)\n'
+expect_fail early-return "$sp: \`main\` holds a \`return\`"
+make_case other-end
+edit other-end "$sp" $'    sys.exit(main())\n' $'    main()\n    sys.exit(0)\n'
+expect_fail other-end "$sp: the script must end its run with exactly"
 
 echo "check-negatives-control-counts cases: $cases passed"

@@ -574,6 +574,27 @@ def check_refused(name, status, output, marker, log, mutated, where):
                      f'not a timeout matches `{marker}`; {log}')
 
 
+def check_complete(results, sources):
+    """The run ran what the script holds: every unmodified copy accepted, in order; every control in `MUTANTS` refused
+    once; and the emptied-proof run of every inside control and of every statement-shape check recorded.  A control
+    skipped by a slice of `MUTANTS` or a `continue`, or a baseline left out, fails the script here instead of leaving
+    a smaller run that passes.  `check-negatives-control-counts.py` requires `main` to call this, and the number of
+    controls to match its record."""
+    rejected = {key.split('/', 1)[1]: r for key, r in results['rejected'].items()}
+    problems = []
+    if results['accepted'] != list(sources):
+        problems.append(f'unmodified copies accepted {results["accepted"]}, expected {list(sources)}')
+    if len(results['rejected']) != len(MUTANTS) or sorted(rejected) != sorted(m[1] for m in MUTANTS):
+        problems.append(f'{len(results["rejected"])} controls refused, expected the {len(MUTANTS)} in MUTANTS; not run: '
+                        f'{sorted(set(m[1] for m in MUTANTS) - set(rejected))}')
+    if sorted(n for n, r in rejected.items() if 'inside' in r) != sorted(INSIDE):
+        problems.append('the emptied-proof run of an inside control is missing')
+    if sorted(n for n, r in rejected.items() if 'projects' in r) != sorted(STATEMENT_SHAPE):
+        problems.append('the emptied-proof run of a statement-shape check is missing')
+    if problems:
+        raise SystemExit('INCOMPLETE RUN (not a passing control): ' + '; '.join(problems))
+
+
 def main():
     guard_self_test(NOT_A_REFUSAL)
     check_labels(without_pins(MODULE.read_text(), MODULE))
@@ -651,6 +672,7 @@ def main():
                 check_refused(name, status, output, marker, elog, emptied, where)
                 results['rejected'][f'{label}/{name}']['projects'] = decl
                 print(f'PASS: {label}/{name} still refused with the proof of {decl} emptied', flush=True)
+    check_complete(results, sources)
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
     inside = sum(1 for r in results['rejected'].values() if 'inside' in r)
     shape = sum(1 for r in results['rejected'].values() if 'projects' in r)
