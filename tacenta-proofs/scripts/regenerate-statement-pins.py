@@ -23,9 +23,10 @@ For each module named, this script:
 With `--check` it writes nothing: it reports the pins whose docstring differs from what Lean prints
 with the two options, and whether the options are in place, and exits 1 if anything would change.
 
-It rewrites what Lean prints and so cannot tell a right statement from a wrong one: a weakened
-theorem regenerated through it gets a weakened pin, which the diff of the pin shows.  It handles
-modules of the translation package only.
+It rewrites every pin of the module whose docstring does not match, not only the cut-off ones, and
+copies what Lean prints, so it cannot tell a right statement from a wrong one: run after a theorem was
+weakened, it writes the weakened pin without complaint, and only the diff of the pin shows the change.
+Read that diff.  It handles modules of the translation package only.
 """
 import argparse
 import json

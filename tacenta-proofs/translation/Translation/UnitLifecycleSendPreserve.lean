@@ -72,11 +72,14 @@ translated code: the relation after the call carries the Triple half (the code T
 Triple it relates to), the three Triple fields the structural clauses read and the budget, and only the agreement half
 is a walk of translated code; every instance gets that relation from the encrypt refinement.  The module sets
 `pp.deepTerms true` and `pp.proofs.withType true` before its statement pins, so the pins of
-`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` print every
-hypothesis and the whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation; without the
-options Lean cut both off with `⋯` after `AeadRoundTrip →`), and `attest.py` refuses a statement pin whose message holds
-a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  A definition the statements name, changed
-under the same name, changes no pin, and that the pinned statements are the right ones is decided by reading.
+`initiator_first_send_responder_reply_successor` and `initiator_first_send_responder_reply_admissible` print their
+statements without a cut, through the conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation;
+without the options Lean cut both off with `⋯` after `AeadRoundTrip →`), and `attest.py` refuses a statement pin whose
+message holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  The pins are not the whole
+elaborated statements: Lean leaves out instance arguments, coercion functions, implicit arguments and the binder types
+of `∃` and `fun`, so a definition the statements name changed under the same name, a new instance or a `coe` function
+can change their meaning without changing the pins, and that the pinned statements are the right ones is decided by
+reading.
 
 ## Where its premises are exhibited
 

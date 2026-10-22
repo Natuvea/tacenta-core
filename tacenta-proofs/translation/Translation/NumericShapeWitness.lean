@@ -36,7 +36,7 @@ script that did that is not in this tree, so nothing here checks that the list i
 
 The statement of each shape theorem and of the two theorems at the end is held by a `#guard_msgs in #check`
 pin after the namespace: a changed statement stops the build until its pin is changed too. `attest.py` requires
-each statement pin to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says, so a statement changed
+each statement pin to exist (`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`, so a statement changed
 together with its pin's expected message is accepted.
 -/
 

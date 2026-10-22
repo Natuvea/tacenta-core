@@ -3660,7 +3660,7 @@ pin (`REQUIRED_PINS`), so deleting one fails it. The build compares the text of 
 `attest.py` requires each of the nineteen to exist as an active `#guard_msgs in #check` whose options still compare the
 printed message (`REQUIRED_STATEMENT_PINS`), so deleting one, commenting one out, removing its `#guard_msgs`, nesting it
 under another `... in` or giving it an option such as `(drop info)` fails it; removing its expected message fails the
-build, not this check. `attest.py` does not read what a statement pin says, so a statement that is weakened together with
+build, not this check. `attest.py` reads what a statement pin says only to refuse a cut-off `⋯`, so a statement that is weakened together with
 its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the
 pin show it; a pin holds the printed statement, in which a definition appears by name, so changing a definition changes
 no pin unless the definition has its own `#print` pin. The axiom lists name the opaque constants that the statements mention,
@@ -3864,8 +3864,8 @@ What these do not say.
 
 None of the seven depends on a compiler-trust axiom. Each carries an axiom pin under `#guard_msgs`, and the statement of each is
 pinned under `#guard_msgs in #check` as well, so a weaker statement that keeps its axiom list fails the module while that pin
-stands. `attest.py` lists the seven in `REQUIRED_PINS` and `REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it does
-not read what a statement pin says, so a statement weakened together with its pin's expected message is shown only by the build
+stands. `attest.py` lists the seven in `REQUIRED_PINS` and `REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it reads
+what a statement pin says only to refuse a cut-off `⋯`, so a statement weakened together with its pin's expected message is shown only by the build
 and the diff. `check-attest-negatives.sh` deletes each axiom pin in turn. The axiom lists are long because the statements
 unfold the generated bodies; they are the unit's opaque constants that those bodies mention, not hypotheses.
 
@@ -3954,7 +3954,7 @@ claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown
 
 Each of the two claimed results carries an axiom pin and its statement pinned under `#guard_msgs in #check`, so a weaker
 statement that keeps its axiom list fails the module while that pin stands. `attest.py` lists them in `REQUIRED_PINS` and
-`REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it does not read what a statement pin says, so a statement weakened
+`REQUIRED_STATEMENT_PINS`, so deleting either pin fails it; it reads what a statement pin says only to refuse a cut-off `⋯`, so a statement weakened
 together with its pin's expected message is shown only by the build and the diff. `check-attest-negatives.sh` deletes each axiom
 pin in turn. `send_and_scoped_chunk_fields_joint` and `scoped_record_gives_consistent` carry no axiom pin and are not on
 `REQUIRED_PINS`.
@@ -6049,13 +6049,18 @@ opaque constants of the unit (`sparseOutput_none_of_no_draw`, `encryptProviders_
 `braidSendTraceCounted_of_keysSampled`, `first_send_model_session_encoder`, `initiator_second_send_refines`,
 `initiator_second_send_after_reply`). Each of the eleven results carries an axiom pin
 and a statement pin, and each of the five definitions (`initiatorAfterSecond`, `secondHeader`, `secondKey`,
-`secondComposite`, `secondFrame`) a `#print` pin. The headline's statement pin prints the whole statement, every binder
-and the whole conclusion (the model step and the code-level implication): the module sets `pp.deepTerms true` and
-`pp.proofs.withType true` before its pins, without which Lean cut the pin off with `⋯` after the binder `crcB`, and
-`attest.py` refuses a statement pin whose message holds a `⋯` other than an omitted proof printed with its proposition,
-`(⋯ : P)`. So a change to any binder or to the conclusion fails the build at the pin unless the pin is rewritten in the
-same diff; a definition the statement names, changed under the same name, changes no pin. The same holds of the 38 pins
-in 16 modules that Lean had cut off. `check-initiator-second-send-negatives.py` plants sixteen faults in a copy
+`secondComposite`, `secondFrame`) a `#print` pin. The headline's statement pin prints the statement without a cut,
+through the model step and the code-level implication: the module sets `pp.deepTerms true` and `pp.proofs.withType true`
+before its pins, without which Lean cut the pin off with `⋯` after the binder `crcB`, and `attest.py` refuses a statement
+pin whose message holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`. The pin is not the
+whole elaborated statement. Lean's printing still leaves out four things: instance arguments, the function behind a coercion `↑`, implicit arguments, and the binder types of `∃` and `fun`. So a definition the statement names changed under the same name, a new
+instance in scope, or a function given the `coe` attribute can change what the statement means without changing the pin;
+`check-lean-constructs.sh` refuses the last two in hand-written Lean (an `instance` declaration outside its list of the
+eleven existing ones, and every `instance`, `default_instance` or `coe` attribute). That the pinned statement is the
+right one is decided by reading its source and the definitions it names. The same holds of the 38 pins in 16 modules
+that Lean had printed with a `⋯`: 22 cut at depth 50, and 16 whose only `⋯` was an omitted proof printed without its
+proposition.
+`check-initiator-second-send-negatives.py` plants sixteen faults in a copy
 of the module, every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration
 or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement
 is false). Seven are refused in the composing proof `initiator_second_send_after_reply`: six labelled inside it and one a
@@ -6213,9 +6218,10 @@ constants are kernel proofs since 2026-10-21. Of the 40 results, 26 rest on at m
 `next_chunk_keeps`, `modelCounterRoom_firstReceipt`) and 14 on those and opaque constants of the unit,
 `encrypt_keeps_invariant_no_draw` and the three results above among them. Each of the 40 results carries an axiom pin and a
 statement pin. The statement pins of `initiator_first_send_responder_reply_successor` and
-`initiator_first_send_responder_reply_admissible` print every hypothesis and the whole conclusion (the invariant,
-`CounterHeadroom`, `CounterRoom` and the relation): the module sets `pp.deepTerms true` and `pp.proofs.withType true` before
-its pins, without which Lean cut both off with `⋯` after `AeadRoundTrip →` (two of the 38 pins in 16 modules counted in the
+`initiator_first_send_responder_reply_admissible` print their statements without a cut, through the conclusion (the
+invariant, `CounterHeadroom`, `CounterRoom` and the relation), with the four omissions and the reading named in the
+second-send section above: the module sets `pp.deepTerms true` and `pp.proofs.withType true` before
+its pins, without which Lean cut both off with `⋯` after `AeadRoundTrip →` (two of the 22 pins cut at depth 50 counted in the
 second-send section above). Each of
 the eight definitions (`ModelRatchetInv`, `ModelSpqrInv`, `ModelRolesAgree`, `ModelTripleInv`, `RolesAgree`, `CounterRoom`,
 `ModelCounterRoom`, `SendsWithoutDraw`) a `#print` pin. `check-send-preservation-negatives.py` plants eighteen faults in

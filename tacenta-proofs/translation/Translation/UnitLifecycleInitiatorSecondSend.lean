@@ -74,11 +74,13 @@ could be dropped here is not checked.
 Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below);
 `initiator_second_send_refines` and `initiator_second_send_after_reply` apply the encrypt and decrypt refinements, whose
 nine `native_decide` constants are kernel proofs since 2026-10-21.  The module sets `pp.deepTerms true` and
-`pp.proofs.withType true` before its statement pins, so the headline's pin prints every binder and the whole conclusion
+`pp.proofs.withType true` before its statement pins, so the headline's pin prints the statement without a cut
 (without them Lean cut it off with `⋯` after the binder `crcB`), and `attest.py` refuses a statement pin whose message
-holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  A change to a binder or to the
-conclusion therefore fails the build at the pin unless the pin is rewritten in the same diff; a definition the
-statement names, changed under the same name, changes no pin, and that the pinned statement is the right one is
+holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  The pin is not the whole elaborated
+statement: Lean leaves out instance arguments, the function behind a coercion `↑`, implicit arguments and the binder
+types of `∃` and `fun`, so a definition the statement names changed under the same name, a new instance in scope or a
+function given the `coe` attribute can change what it means without changing the pin (`check-lean-constructs.sh`
+refuses the last two outside its list of eleven existing instances), and that the pinned statement is the right one is
 decided by reading.
 
 ## Non-vacuity

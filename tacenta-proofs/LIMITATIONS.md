@@ -1903,7 +1903,7 @@ narrower than the claim that was removed:
   `len + 48 ≤ usize::MAX` have no shape) and nothing in the tree checks it. Those
   theorems are about shapes and are joined to no theorem; their statements are
   held by `#guard_msgs in #check` pins in the build; `attest.py` requires each pin
-  to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says.
+  to exist (`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`.
 - The store bounds the classical ratchet's `receive` carries are satisfied by
   every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
   `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
@@ -2965,10 +2965,12 @@ and meets the four counter ceilings, the call returns those bytes, leaves its so
 part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
 the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
 results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
-2026-10-21. The headline's statement pin prints the whole statement (the module sets `pp.deepTerms true` and
-`pp.proofs.withType true` before its pins; without them Lean cut it off with `⋯` after the binder `crcB`); a definition the
-statement names, changed under the same name, still changes no pin, and that the pinned statement is the right one is
-decided by reading. **No new law and no new per-run premise**: beyond
+2026-10-21. The headline's statement pin prints the statement without a cut (the module sets `pp.deepTerms true` and
+`pp.proofs.withType true` before its pins; without them Lean cut it off with `⋯` after the binder `crcB`). It is not the
+whole elaborated statement: lean's printing still leaves out four things: instance arguments, the function behind a coercion `↑`, implicit arguments, and the binder types of `∃` and `fun`. A definition the statement names changed under the same
+name, a new instance in scope or a function given the `coe` attribute can change what it means without changing the pin
+(`check-lean-constructs.sh` refuses the last two in hand-written Lean outside its list of eleven existing instances), and
+that the pinned statement is the right one is decided by reading. **No new law and no new per-run premise**: beyond
 the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
 which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
 at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
@@ -2997,10 +2999,12 @@ budget; only the agreement half is a walk of translated code, and the code's Tri
 gets the relation from the encrypt refinement, which rests on the kernel and opaque constants since its nine
 `native_decide` constants became kernel proofs on 2026-10-21, so the run results list no compiler-trust axiom either.
 The statement pins of the two run headlines, `initiator_first_send_responder_reply_successor` and
-`initiator_first_send_responder_reply_admissible`, print every hypothesis and the whole conclusion (the invariant,
-`CounterHeadroom`, `CounterRoom` and the relation; without the module's `pp.deepTerms` and `pp.proofs.withType` options Lean
-cut both off with `⋯` after `AeadRoundTrip →`); a definition the statements name, changed under the same name, changes no
-pin.
+`initiator_first_send_responder_reply_admissible`, print their statements without a cut, through the conclusion (the
+invariant, `CounterHeadroom`, `CounterRoom` and the relation; without the module's `pp.deepTerms` and `pp.proofs.withType`
+options Lean cut both off with `⋯` after `AeadRoundTrip →`). They are not the whole elaborated statements: Lean leaves out
+instance arguments, coercion functions, implicit arguments and the binder types of `∃` and `fun`, so a definition the
+statements name changed under the same name, a new instance or a `coe` function can change their meaning without
+changing the pins, and that they are the right statements is decided by reading.
 Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
 only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after

@@ -36,11 +36,15 @@ author with tool assistance; no reader independent of the maintainer has read
 it.
 
 Also on 2026-10-22, the 38 statement pins in 16 translation modules that Lean had
-cut off with `⋯` (a term deeper than 50 levels, or a proof inside a term) were
-regenerated to print the whole statement, each module setting `pp.deepTerms` and
-`pp.proofs.withType` before its pins, and `attest.py` now refuses a statement pin
-whose message holds a `⋯` other than an omitted proof with its proposition, and
-any other pretty-printer option. No pin was added or removed, so no count above
+printed with a `⋯` (a term deeper than 50 levels, or a proof inside a term) were
+regenerated to print each statement without a cut, each module setting
+`pp.deepTerms` and `pp.proofs.withType` before its pins, and `attest.py` now
+refuses a statement pin whose message holds a `⋯` other than an omitted proof
+with its proposition, and any other pretty-printer option. A pin is still not
+the whole elaborated statement: Lean does not print instance arguments, coercion
+functions, implicit arguments or the binder types of `∃` and `fun`, and
+`check-lean-constructs.sh` now refuses new instance declarations and instance
+and `coe` attributes in hand-written Lean. No pin was added or removed, so no count above
 changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 
