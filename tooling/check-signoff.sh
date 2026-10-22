@@ -33,7 +33,10 @@ while read -r sha; do
   [ -n "$sha" ] || continue
   count=$((count + 1))
   author=$(git show -s --format='%an <%ae>' "$sha")
-  if ! git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -qxF -- "$author"; then
+  # Captured, not piped into `grep -q`: grep exits at its first match and `git show` takes SIGPIPE, which
+  # pipefail would report as an unsigned commit. A failing `git show` still counts as not signed off.
+  trailers="$(git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$sha")" || trailers=""
+  if ! grep -qxF -- "$author" <<<"$trailers"; then
     printf 'check-signoff: %s is not signed off by its author, %s\n' \
       "$(git log -1 --format='%h %s' "$sha")" "$author" >&2
     status=1

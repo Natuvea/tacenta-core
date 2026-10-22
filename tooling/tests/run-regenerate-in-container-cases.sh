@@ -162,11 +162,15 @@ expect_accepted() {
 
 compare() { bash "$tree/$script" --compare "$regen"; }
 
+# The last line of $1 contains the fixed string $2. A here-string and not a pipe: `grep -q` exits at its
+# first match, and a producer still writing would take SIGPIPE under pipefail.
+last_line_has() { grep -qF -- "$2" <<<"$(tail -n 1 <<<"$1")"; }
+
 # 1. The unchanged copy is accepted, so a refusal below is the change and not the script, and it says how many
 # tracked paths differ from HEAD.
 out="$(compare)" || { echo "regenerate-in-container negative: the unchanged tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
 grep -qF "PASS: all" <<<"$out" || { echo "regenerate-in-container negative: no PASS line for the unchanged tree" >&2; exit 1; }
-tail -n 1 <<<"$out" | grep -qF "PASS: all" && tail -n 1 <<<"$out" | grep -qF "0 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: the PASS line does not count the paths that differ from HEAD" >&2; exit 1; }
+last_line_has "$out" "PASS: all" && last_line_has "$out" "0 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: the PASS line does not count the paths that differ from HEAD" >&2; exit 1; }
 accepted=$((accepted + 1))
 
 # 2. One changed byte in each generated file.
@@ -229,11 +233,11 @@ reset_regen
 echo "# edited after HEAD" >>"$tree/README.md"
 echo "# edited after HEAD" >>"$regen/README.md"
 out="$(compare)" || { echo "regenerate-in-container negative: the edited tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
-tail -n 1 <<<"$out" | grep -qF "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: an edited tree is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
+last_line_has "$out" "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: an edited tree is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
 accepted=$((accepted + 1))
 git -C "$tree" add README.md
 out="$(compare)" || { echo "regenerate-in-container negative: the staged tree was refused" >&2; printf '%s\n' "$out" >&2; exit 1; }
-tail -n 1 <<<"$out" | grep -qF "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: a staged edit is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
+last_line_has "$out" "1 tracked path(s) differ from HEAD" || { echo "regenerate-in-container negative: a staged edit is not counted in the PASS line" >&2; printf '%s\n' "$out" >&2; exit 1; }
 accepted=$((accepted + 1))
 git -C "$tree" reset -q HEAD -- README.md
 git -C "$tree" checkout -q -- README.md
@@ -280,7 +284,7 @@ done
 sed -i.bak 's/nightly-2026.07.22-b1214ca/nightly-2000.01.01-0000000/' "$tree/tacenta-proofs/scripts/run-aeneas.sh"
 expect_refused "release-not-in-run-aeneas" "run-aeneas.sh does not pin" env PATH="$work/bin:$PATH" bash "$tree/$script" --check --archive "$work/junk.tar.gz"
 mv "$tree/tacenta-proofs/scripts/run-aeneas.sh.bak" "$tree/tacenta-proofs/scripts/run-aeneas.sh"
-git -C "$tree" status --porcelain | grep -q . && { echo "regenerate-in-container negative: the pin cases left the tree changed" >&2; exit 1; }
+[ -n "$(git -C "$tree" status --porcelain)" ] && { echo "regenerate-in-container negative: the pin cases left the tree changed" >&2; exit 1; }
 
 # 10. Arguments.
 expect_refused "unknown-argument" "usage:" bash "$tree/$script" --regenerate

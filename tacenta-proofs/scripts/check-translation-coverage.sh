@@ -38,9 +38,11 @@ if ! grep -q '^globs = \["Translation\.\*"\]' translation/lakefile.toml; then
   echo "::error::translation/lakefile.toml no longer globs exactly Translation.*; coverage cannot be asserted" >&2
   fail=1
 fi
-if find "$src" -mindepth 2 -name '*.lean' | grep -q .; then
+# Captured, not piped into `grep -q .`: grep exits at the first line and `find` takes SIGPIPE.
+nested="$(find "$src" -mindepth 2 -name '*.lean' || true)"
+if [ -n "$nested" ]; then
   echo "::error::a .lean file sits in a subdirectory of Translation/, outside the Translation.* glob" >&2
-  find "$src" -mindepth 2 -name '*.lean' >&2
+  printf '%s\n' "$nested" >&2
   fail=1
 fi
 

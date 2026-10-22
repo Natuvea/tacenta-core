@@ -54,7 +54,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -74,7 +74,7 @@ expect_writer_fail() {
     echo "WRONG  $name: the writer accepted it" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -233,7 +233,7 @@ set +e
 poisoned="$(PYTHONPATH="$work/poison" GITHUB_EVENT_NAME=push GITHUB_RUN_ID=control python3 "$root/tooling/write-assurance-receipt.py" --id rust --classification required --command c --required-outcomes "$(outcomes rust push)" --output "$work/poisoned.json" 2>&1)"
 poisoned_rc=$?
 set -e
-if [ "$poisoned_rc" -eq 0 ] || ! printf '%s' "$poisoned" | grep -qF "poisoned interpreter setting was honoured"; then
+if [ "$poisoned_rc" -eq 0 ] || ! grep -qF "poisoned interpreter setting was honoured" <<<"$poisoned"; then
   echo "WRONG  interpreter-setting control: the setting did not reach an ordinary interpreter" >&2
   exit 1
 fi

@@ -28,12 +28,16 @@ if ! grep -q "def control" "$lean"; then
   exit 1
 fi
 
-if grep -A3 "def control" "$lean" | grep -q "sorry"; then
+# Captured, not piped into `grep -q`: grep exits at its first match and the producer takes SIGPIPE.
+control_def="$(grep -A3 "def control" "$lean" || true)"
+repro_def="$(grep -A3 "def repro" "$lean" || true)"
+
+if grep -q "sorry" <<<"$control_def"; then
   echo "FAIL: control no longer translates. The control case has regressed." >&2
   exit 1
 fi
 
-if ! grep -A3 "def repro" "$lean" | grep -q "sorry"; then
+if ! grep -q "sorry" <<<"$repro_def"; then
   echo "FIXED: repro translates now. The construct is supported." >&2
   echo "Close the issue and delete this repository." >&2
   exit 1

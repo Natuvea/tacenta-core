@@ -129,7 +129,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -205,7 +205,7 @@ unreadable="$(python3 "$root/tooling/build-evidence-pack.py" --verify "$work/no-
 unreadable_rc=$?
 set -e
 cases=$((cases + 1))
-if [ "$unreadable_rc" -eq 0 ] || ! printf '%s' "$unreadable" | grep -qF 'cannot read JSON'; then
+if [ "$unreadable_rc" -eq 0 ] || ! grep -qF 'cannot read JSON' <<<"$unreadable"; then
   echo "WRONG  unreadable-pack: $unreadable" >&2
   exit 1
 fi
@@ -263,11 +263,11 @@ missing_args="$(python3 "$root/tooling/build-evidence-pack.py" --manifest "$work
 missing_args_rc=$?
 set -e
 cases=$((cases + 2))
-if [ "$combined_rc" -eq 0 ] || ! printf '%s' "$combined" | grep -qF -- '--verify cannot be combined with build arguments'; then
+if [ "$combined_rc" -eq 0 ] || ! grep -qF -- '--verify cannot be combined with build arguments' <<<"$combined"; then
   echo "WRONG  verify-with-build-arguments: $combined" >&2
   exit 1
 fi
-if [ "$missing_args_rc" -eq 0 ] || ! printf '%s' "$missing_args" | grep -qF -- '--manifest, --receipts and --output are required'; then
+if [ "$missing_args_rc" -eq 0 ] || ! grep -qF -- '--manifest, --receipts and --output are required' <<<"$missing_args"; then
   echo "WRONG  build-without-arguments: $missing_args" >&2
   exit 1
 fi
@@ -307,7 +307,7 @@ expect_real_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -442,7 +442,7 @@ repo_without_verify="$(cd "$real/repo" && python3 tooling/build-evidence-pack.py
 repo_without_verify_rc=$?
 set -e
 cases=$((cases + 1))
-if [ "$repo_without_verify_rc" -eq 0 ] || ! printf '%s' "$repo_without_verify" | grep -qF -- '--candidate-repo is only for --verify'; then
+if [ "$repo_without_verify_rc" -eq 0 ] || ! grep -qF -- '--candidate-repo is only for --verify' <<<"$repo_without_verify"; then
   echo "WRONG  candidate-repo-without-verify: $repo_without_verify" >&2
   exit 1
 fi
@@ -475,7 +475,7 @@ expect_not_reproduced() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -657,7 +657,7 @@ expect_publish_fail() {
     echo "WRONG  $name: the publisher accepted it" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1

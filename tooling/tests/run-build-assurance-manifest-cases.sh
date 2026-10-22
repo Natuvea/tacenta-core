@@ -24,7 +24,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -42,7 +42,7 @@ expect_validate_fail() {
     echo "WRONG  $name: expected validation refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -269,7 +269,7 @@ expect_dirty_refusal() {
     echo "WRONG  $name: a dirty candidate was built without --allow-dirty" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -324,7 +324,7 @@ dirty_validate="$(python3 "$repo/tooling/build-assurance-manifest.py" --validate
 dirty_rc=$?
 set -e
 refusals=$((refusals + 1))
-if [ "$dirty_rc" -eq 0 ] || ! printf '%s' "$dirty_validate" | grep -qF 'manifest does not assert a clean source tree'; then
+if [ "$dirty_rc" -eq 0 ] || ! grep -qF 'manifest does not assert a clean source tree' <<<"$dirty_validate"; then
   echo "WRONG  dirty-build-validates: $dirty_validate" >&2
   exit 1
 fi
@@ -338,11 +338,11 @@ bare="$(python3 "$root/tooling/build-assurance-manifest.py" --receipts "$work/pa
 bare_rc=$?
 set -e
 refusals=$((refusals + 2))
-if [ "$both_rc" -eq 0 ] || ! printf '%s' "$both" | grep -qF -- '--validate cannot be combined with --receipts or --output'; then
+if [ "$both_rc" -eq 0 ] || ! grep -qF -- '--validate cannot be combined with --receipts or --output' <<<"$both"; then
   echo "WRONG  validate-with-build-arguments: $both" >&2
   exit 1
 fi
-if [ "$bare_rc" -eq 0 ] || ! printf '%s' "$bare" | grep -qF -- '--receipts and --output are required to build'; then
+if [ "$bare_rc" -eq 0 ] || ! grep -qF -- '--receipts and --output are required to build' <<<"$bare"; then
   echo "WRONG  build-without-output: $bare" >&2
   exit 1
 fi
