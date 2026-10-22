@@ -3103,16 +3103,18 @@ through the receive by the in-order receive step above, at `NoHeaderReceived` wi
 `establish_responder` shows its session holds at most one; the reply keeps the agreement). No new law; the records and laws
 are the run's (ASSUMED, as above), `DhAgreeSymmetric` giving the responder's first agreement from the initiator's. The
 second chunk does not complete the 96-byte header, so the model's step runs no KEM operation and no header check (the
-code's, by reading the generated code), and no fact relating the two parties' KEMs is used. The two per-run premises are conditions on the run, not laws: the draw and the
+code's, by reading the generated code), and no fact relating the two parties' Braid KEMs is used by this step (the run's premises still include `FirstKemAgrees`,
+about the prekey encapsulation of the first message). The two per-run premises are conditions on the run, not laws: the draw and the
 initiator's new key, both from the random sources; no probability is claimed. `first_send_second_receipt_reachable` and
 `first_send_second_receipt_stale_reachable` exhibit, at the real constants under the laws of
 `first_send_second_message_reachable` (all ASSUMED), a run that returns the plaintext with the invariant and the ceilings
 after it, and one that refuses (the initiator's 32 further bytes those of its first ratchet key). All rest on the kernel and
 opaque constants with no compiler-trust axiom. The statement pins of the two headlines and of the run are cut off by
 Lean's `⋯` (their new per-run premises are placed first, so the pins hold them; with this module, 19 modules hold such
-cut-off pins, 44 pins); the reaches' pins and the `#print` pins of their runs are printed in full. **The budget** after
+cut-off pins, 44 pins); of the success headline's conclusion only the four calls, the plaintext equation and the invariant
+and ceilings after the receive are consumed by a later proof, and its other conjuncts are held by reading only; the reaches' pins and the `#print` pins of their runs are printed in full. **The budget** after
 the receive (room for every `j` with `j + 3 < u32::MAX`) is what the composition derives; by reading it is exact there (the
-clock is 2). **Not shown:** a second reply and its receipt, the header's third chunk, the responder's first sampling send
+clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply and its receipt, the header's third chunk, the responder's first sampling send
 and every later step, among them the responder's check of the completed encapsulation key, the first step at which both
 parties' KEMs act on one key pair; a tampered, foreign or replayed second frame's refusal (no AEAD authenticity law); a
 receive out of order, with a stored or skipped key, or with more than one chunk held before it; code-level equality of the

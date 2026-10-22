@@ -81,9 +81,11 @@ run, under the receipt's hypotheses and a bound on the second plaintext, with no
 second `encrypt` at the session the receipt returns yields the bare second frame with no draw and refines the model's step
 with no condition, and the session it leaves passes `Session::invariant` and meets the four ceilings, with no
 compiler-trust axiom and a reach at the real constants under the reply's reach laws (assumed); the responder's `decrypt`
-of that second message at its session after the reply returning the initiator's plaintext and keeping `Session::invariant`
-and the four ceilings under one further per-run premise (the initiator's new ratchet key is not its first), or refusing
-`OutOfOrder` with the session unchanged when it fails, with one draw (and, by reading the code, no KEM operation), no new law and no compiler-trust
+of that second message at its session after the reply, under the per-run premise that the responder's source after its
+reply holds a draw, refusing `OutOfOrder` with the session unchanged exactly when the initiator's new ratchet key is its
+first and otherwise returning the initiator's plaintext, and, under the second per-run premise that the new key is not the
+first, returning the plaintext and keeping `Session::invariant` and the four ceilings, with the one draw taken in either
+case (and, by reading the code, no KEM operation), no new law and no compiler-trust
 axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
 covered; no `encrypt` whose agreement send
 draws, no refusal and no receive outside that scope covered by a preservation result);

@@ -262,10 +262,12 @@ hypotheses and a bound on the second plaintext, with no new law or per-run premi
 `Session::invariant` and meets the four ceilings, the initiator's second `encrypt` there returns the bare second frame with
 no draw and refines the model's step with no condition, and the session it leaves passes `Session::invariant` and meets
 the ceilings (no compiler-trust axiom); a reach exhibits such a run at the real constants under the reply's reach laws,
-which are assumed. The responder's `decrypt` of that second message, at its session after the reply, either returns the
-initiator's plaintext and leaves a session that passes `Session::invariant` and meets the four ceilings, under one further
-per-run premise (the initiator's new ratchet key is not its first), or refuses `OutOfOrder` with the session unchanged when
-that premise fails; it takes one draw (and, by reading the code, no KEM operation), adds no law and lists no compiler-trust axiom, and reaches at
+which are assumed. The responder's `decrypt` of that second message, at its session after the reply, takes two per-run
+premises beyond the second message's: the responder's source after its reply holds a draw (for both outcomes), and, for
+the success outcome only, the initiator's new ratchet key is not its first. Under the draw premise alone it either refuses
+`OutOfOrder` with the session unchanged, exactly when the initiator's new key is its first, or returns the initiator's
+plaintext; under both it returns the plaintext and leaves a session that passes `Session::invariant` and meets the four
+ceilings. It takes the one draw in either case (and, by reading the code, no KEM operation), adds no law and lists no compiler-trust axiom, and reaches at
 the real constants exhibit both outcomes under the same assumed laws. A second reply and every later step are not
 covered. No `encrypt`
 whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result.
