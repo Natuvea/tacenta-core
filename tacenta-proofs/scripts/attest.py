@@ -2284,6 +2284,69 @@ REQUIRED_PINS = frozenset(
         "first_send_reply_receipt_reachable",
         "first_send_reply_stale_reachable",
     )]
+    # `Triple::invariant` read on the model through the Triple relation, both directions (`UnitTripleInvModel`).
+    + ["Tacenta.UnitTripleInvModel." + n for n in (
+        "keyOf_injective",
+        "keyOf_inj_iff",
+        "canonicalKey_keyOf",
+        "u32_max_eq_model",
+        "u64_max_eq_model",
+        "ratchet_inv_iff_model",
+        "window_end_val",
+        "spqr_inv_iff_model",
+        "triple_invariant_true_iff",
+        "rolesAgree_iff_model",
+        "triple_invariant_iff_model",
+    )]
+    # `Session::encrypt` keeping `Session::invariant` at an agreement state whose send takes no draw: the model's send,
+    # the counter budget, the agreement walk, the general step and its use on the reply's run (`UnitLifecycleSendPreserve`).
+    + ["Tacenta.UnitLifecycleSendPreserve." + n for n in (
+        "ratchet_send_frame",
+        "modelRatchetInv_send",
+        "findChains_mem",
+        "spqr_send_frame",
+        "mem_sent_chains",
+        "modelSpqrInv_send",
+        "modelTripleInv_send",
+        "braid_send_no_draw_model",
+        "encrypt_session_cases",
+        "counterRoom_zero",
+        "epoch_val_refines",
+        "counterRoom_iff_model",
+        "modelCounterRoom_encrypt",
+        "sendsWithoutDraw_of_refines",
+        "vec_clone_u8",
+        "encoder_clone_eq",
+        "decoder_clone_eq",
+        "next_chunk_keeps",
+        "encoder_sized_congr",
+        "key_pair_valid_clone",
+        "braid_send_no_draw",
+        "session_invariant_iff",
+        "structural_congr",
+        "encrypt_ok_not_failed",
+        "encrypt_keeps_invariant_no_draw",
+        "modelCounterRoom_firstReceipt",
+        "initiator_first_send_responder_reply_successor",
+        "initiator_first_send_responder_reply_admissible",
+        "established_encrypt_triple_invariant_via_preservation",
+    )]
+    # The initiator's second `encrypt` at the session its receipt of the reply returns: the providers of the encrypt
+    # route from the invariant and the ceilings, the agreement's send at `KeysSampled` and its draw record, the model's
+    # second send and step, the refinement there and the composition on the run (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "send_output_none_of_no_draw",
+        "sparseOutput_none_of_no_draw",
+        "encryptProviders_of_invariant",
+        "braid_send_keysSampled",
+        "braidSendTraceCounted_of_keysSampled",
+        "second_send_key",
+        "secondFrame_with_draws",
+        "second_model_step",
+        "initiator_second_send_refines",
+        "first_send_model_session_encoder",
+        "initiator_second_send_after_reply",
+    )]
 )
 COMPILER_TRUSTED_PINS = frozenset(
     {
@@ -4028,6 +4091,79 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
     )]
+    # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel`).
+    + ["Tacenta.UnitTripleInvModel." + n for n in (
+        "keyOf_injective",
+        "keyOf_inj_iff",
+        "canonicalKey_keyOf",
+        "u32_max_eq_model",
+        "u64_max_eq_model",
+        "ratchet_inv_iff_model",
+        "window_end_val",
+        "spqr_inv_iff_model",
+        "triple_invariant_true_iff",
+        "rolesAgree_iff_model",
+        "triple_invariant_iff_model",
+        "ModelRatchetInv",
+        "ModelSpqrInv",
+        "ModelRolesAgree",
+        "ModelTripleInv",
+        "RolesAgree",
+    )]
+    # Send preservation where the agreement takes no draw (`UnitLifecycleSendPreserve`).
+    + ["Tacenta.UnitLifecycleSendPreserve." + n for n in (
+        "ratchet_send_frame",
+        "modelRatchetInv_send",
+        "findChains_mem",
+        "spqr_send_frame",
+        "mem_sent_chains",
+        "modelSpqrInv_send",
+        "modelTripleInv_send",
+        "braid_send_no_draw_model",
+        "encrypt_session_cases",
+        "counterRoom_zero",
+        "epoch_val_refines",
+        "counterRoom_iff_model",
+        "modelCounterRoom_encrypt",
+        "sendsWithoutDraw_of_refines",
+        "vec_clone_u8",
+        "encoder_clone_eq",
+        "decoder_clone_eq",
+        "next_chunk_keeps",
+        "encoder_sized_congr",
+        "key_pair_valid_clone",
+        "braid_send_no_draw",
+        "session_invariant_iff",
+        "structural_congr",
+        "encrypt_ok_not_failed",
+        "encrypt_keeps_invariant_no_draw",
+        "modelCounterRoom_firstReceipt",
+        "initiator_first_send_responder_reply_successor",
+        "initiator_first_send_responder_reply_admissible",
+        "established_encrypt_triple_invariant_via_preservation",
+        "CounterRoom",
+        "ModelCounterRoom",
+        "SendsWithoutDraw",
+    )]
+    # The initiator's second send (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "send_output_none_of_no_draw",
+        "sparseOutput_none_of_no_draw",
+        "encryptProviders_of_invariant",
+        "braid_send_keysSampled",
+        "braidSendTraceCounted_of_keysSampled",
+        "second_send_key",
+        "secondFrame_with_draws",
+        "second_model_step",
+        "initiator_second_send_refines",
+        "first_send_model_session_encoder",
+        "initiator_second_send_after_reply",
+        "initiatorAfterSecond",
+        "secondHeader",
+        "secondKey",
+        "secondComposite",
+        "secondFrame",
+    )]
 )
 
 # Floor names whose pin must be `#print`: for a definition `#check @name` prints the type and
@@ -4450,6 +4586,28 @@ REQUIRED_PRINT_FORM = frozenset(
         "kemViewReply",
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
+    )]
+    # The five model and code predicates of the bridge (`UnitTripleInvModel`).
+    + ["Tacenta.UnitTripleInvModel." + n for n in (
+        "ModelRatchetInv",
+        "ModelSpqrInv",
+        "ModelRolesAgree",
+        "ModelTripleInv",
+        "RolesAgree",
+    )]
+    # The budget, its model reading and the no-draw states (`UnitLifecycleSendPreserve`).
+    + ["Tacenta.UnitLifecycleSendPreserve." + n for n in (
+        "CounterRoom",
+        "ModelCounterRoom",
+        "SendsWithoutDraw",
+    )]
+    # The five definitions of the initiator's second send (`UnitLifecycleInitiatorSecondSend`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondSend." + n for n in (
+        "initiatorAfterSecond",
+        "secondHeader",
+        "secondKey",
+        "secondComposite",
+        "secondFrame",
     )]
 )
 assert REQUIRED_PRINT_FORM <= REQUIRED_STATEMENT_PINS
