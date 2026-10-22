@@ -418,7 +418,8 @@ python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 # and the four ceilings kept through the receive (`UnitLifecycleResponderSecondReceipt.lean`): nineteen changes to
 # statements and definitions (the draw, the plaintext, the stale arm's refusal and the decoder after the receipt in
 # the two-outcome theorem; the fresh-key premise and the budget after the receipt in the success headline; the
-# responder's further bytes and the source-choosing law in the run and the reaches; two projections; the model's
+# responder's further bytes and the source-choosing law in the run, the law in the reach and the stale run's key
+# equation in the stale reach; two projections; the model's
 # stale receive, the Triple after the receipt, the decoder at the responder's session and the in-order step's premise
 # in the leaf lemmas; the two runs' definitions at their pins), each of which must be refused at a named declaration
 # or pin, with a message naming the change, after the two unmodified copies are accepted; the eleven changes

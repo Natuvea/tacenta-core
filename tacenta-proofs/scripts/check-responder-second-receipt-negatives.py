@@ -40,9 +40,11 @@ at its labelled place):
   * in `second_receipt_reach_run`: the responder's 32 further bytes claimed to be 31 (refused where the responder's
     source is read as two draws) and the law `DhPublicNotConstant` swapped for `DhAgreeSymmetric` (refused where the
     responder's source is chosen by it);
-  * in `first_send_second_receipt_reachable`: the same law swapped (refused where the run is applied);
-  * in `first_send_second_receipt_stale_reachable`: the responder's 32 further bytes claimed to be 31 (refused where the
-    run is applied).
+  * in `first_send_second_receipt_reachable`: the same law swapped (refused where the reach chooses the initiator's
+    further bytes by it, so that its new ratchet key is not its first);
+  * in `first_send_second_receipt_stale_reachable`: the stale run's definition, in the copy without pins, claimed with the
+    initiator's new ratchet key not its first (refused where the reach places the equation it derives from its first
+    ratchet key's bytes and the oracle's public-key record).
 
 Two are projections, labelled neither inside nor statement-shape: the initiator's second `encrypt` claimed at the session
 before its receipt of the reply, refused in `responder_receives_second_message_two_outcomes` where it places the
@@ -147,6 +149,8 @@ EXTRA = """    (extraB : List Std.U8) (hextraB : extraB.length = 32)
     (ptR : Slice Std.U8) (hptR : ptR.val.length ≤ 4096) (ptS : Slice Std.U8) (hptS : ptS.val.length ≤ 4096) :
 """
 
+STALE_KEY = "    oracle.dhPublic (extra.map Tacenta.SessionUnitBraidT3.u8) = arrayOf q.ratchetBytes ∧\n"
+
 MODEL_STALE = "        newPub2 none = .error (.classical .outOfOrder) := by\n"
 
 MODEL_TRIPLE = "        ns := 0, nr := 1, pn := 1, skipped := [], events := 2, labels := .tacenta }\n"
@@ -215,12 +219,11 @@ MUTANTS = [
     ('module', 'reach-fresh-key-law-swapped',
      [(LAWS + "    SecondReceiptRun K", (LAWS + "    SecondReceiptRun K").replace("(hnc : DhPublicNotConstant)",
                                                                              "(hnc : DhAgreeSymmetric)"))],
-     r"hnc\nhas type\n  DhAgreeSymmetric\nbut is expected to have type\n  DhPublicNotConstant\nin the application\n  second_receipt_reach_run",
+     r"hnc\nhas type\n  DhAgreeSymmetric\nbut is expected to have type\n  DhPublicNotConstant\nin the application\n  dhPublicNotConstant_is\.mp hnc",
      [REACH]),
-    ('module', 'stale-reach-responder-extra-bytes-claimed-shorter',
-     [(EXTRA + "    SecondReceiptStaleRun K", (EXTRA + "    SecondReceiptStaleRun K").replace("extraB.length = 32",
-                                                                                         "extraB.length = 31"))],
-     r"hextraB\nhas type\n  extraB\.length = 31\nbut is expected to have type\n  extraB\.length = 32\nin the application\n  second_receipt_reach_run",
+    ('module', 'stale-run-claimed-on-a-fresh-key',
+     [(STALE_KEY, STALE_KEY.replace("= arrayOf q.ratchetBytes ∧", "≠ arrayOf q.ratchetBytes ∧"))],
+     r"hsame\nhas type\n  oracle\.dhPublic \(List\.map SessionUnitBraidT3\.u8 ↑sec\) = arrayOf q\.ratchetBytes\nbut is expected to have type\n  oracle\.dhPublic \(List\.map SessionUnitBraidT3\.u8 ↑sec\) ≠ arrayOf q\.ratchetBytes\nin the application\n  And\.intro hsame",
      [STALE_REACH]),
     # projections
     ('module', 'second-send-claimed-at-the-session-before-the-receipt',
@@ -292,7 +295,7 @@ INSIDE = {
     'run-responder-extra-bytes-claimed-shorter': RUN,
     'run-fresh-key-law-swapped': RUN,
     'reach-fresh-key-law-swapped': REACH,
-    'stale-reach-responder-extra-bytes-claimed-shorter': STALE_REACH,
+    'stale-run-claimed-on-a-fresh-key': STALE_REACH,
 }
 
 # The controls refused in a composing proof where it places a conjunct of a called theorem's conclusion unchanged,

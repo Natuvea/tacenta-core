@@ -88,18 +88,25 @@ platform width, so each result holds on 32- and 64-bit targets.  The reaches tak
 At `sB''` the responder's agreement is at `NoHeaderReceived`; the second chunk does not complete the 96-byte header (two
 of three chunks), so the model's step runs no encapsulation, decapsulation, key generation or header check (the code's
 `Braid::receive` likewise, by reading the generated code; no theorem here states it), and no fact relating the two
-parties' KEMs is used.  The records the decrypt refinement takes for every state
+parties' Braid KEMs is used by this step (the run's premises still include `FirstKemAgrees`, about the prekey
+encapsulation of the first message). The records the decrypt refinement takes for every state
 (`DecryptRatchetAgreements` at the responder oracle's KEM) are the ones the first receipt already takes.
 
 ## Trust
 
-Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below); the headlines
-apply the encrypt and decrypt refinements through the theorems they compose, whose nine `native_decide` constants are
-kernel proofs since 2026-10-21.  The statement pins of the two headlines and of `second_receipt_reach_run` are cut off by
-Lean's `⋯`: the new per-run premises are placed first so that the pins hold them; the binders after the cut and the whole
-conclusions are held by the build and by reading only, as with every pin that ends in `⋯`.  The two reaches print in
-full: their conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose `#print` pins hold the
-whole runs.
+Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below); the
+headlines apply the encrypt and decrypt refinements through the theorems they compose, whose nine `native_decide`
+constants are kernel proofs since 2026-10-21. The statement pins of the two headlines and of `second_receipt_reach_run`
+are cut off by Lean's `⋯`: the new per-run premises are placed first so that the pins hold them; the binders after the
+cut are held by the build (the run applies both headlines, so each is supplied there); of the conclusions, the
+two-outcome theorem's is held by the build (the success headline consumes or restates every conjunct of it, and the run
+uses its stale arm), the run's likewise (the two reaches use every conjunct and print in full), and the success
+headline's only in part: the run consumes its four calls, the plaintext equation and `Session::invariant` and
+`CounterHeadroom` at `sB'''`; its other conjuncts (the reply receipt's plaintext, the frame equation of `bytes2`, the
+agreements `x` and `z`, the invariant and the ceilings at `sB''`, the draw equation, the cleared pending initial
+message, the frame equation of `sB'''`, its relation to the model and the budget) are held by reading only. The two
+reaches print in full: their conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose
+`#print` pins hold the whole runs.
 
 ## Non-vacuity
 
@@ -118,7 +125,8 @@ taken.  The laws are assumed at the real constants, not shown of them.
   is the open of the initiator's own seal, excluded by `AeadRoundTrip`.
 * Delivery out of order, a skipped or stored key, or the decoder holding more than one chunk before a receive.
 * That the budget is exact at `sB'''`: room for every `j` with `j + 3 < u32::MAX` is what the composition derives (the
-  clock at `sB'''` is 2, by reading); more room is not claimed.
+  clock at `sB'''` is 2, by reading; exactness also follows from the success headline's relation conjunct through
+  `counterRoom_iff_model`, which no theorem here states); more room is not claimed.
 * That the code's agreement or key pair after the call equals the one before: they refine the same model values.
 * That `hfreshA` or the draw holds of a run with an honest random source: they are premises, and no probability is
   claimed.

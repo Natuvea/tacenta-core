@@ -1067,7 +1067,7 @@ recorded decision or a target-closing slice:
   the plaintext,
   the stale arm's refusal and the two-chunk decoder it composes,
   its success headline keeps the fresh-key premise and the budget after the receipt,
-  and its run and reaches keep the responder's further bytes and the law that chooses the responder's source (the initiator's second send and its receipt of the reply are conjuncts of called theorems,
+  and its run and reaches keep the responder's further bytes, the law that chooses the responder's and the initiator's further bytes and the stale run's key equation (the initiator's second send and its receipt of the reply are conjuncts of called theorems,
   placed unchanged);
   the Session Braid port scripts refuse a source whose anchor moved.
 
