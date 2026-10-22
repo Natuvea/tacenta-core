@@ -54,7 +54,7 @@ tacenta-proofs/GATE-INVENTORY.md
 tacenta-proofs/scripts/attest-negatives-case-count.txt"
 
 is_generated() {
-  printf '%s\n' "$generated" | grep -qxF -- "$1"
+  grep -qxF -- "$1" <<<"$generated"
 }
 
 # Two modules whose entries sort after the same existing entry insert lines at one place of a shared list; those

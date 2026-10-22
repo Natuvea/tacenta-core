@@ -170,8 +170,10 @@ run_fast() {
   set -e
 }
 
-has_out() { cases=$((cases + 1)); printf '%s\n' "$OUT" | grep -qF -- "$2" || wrong "$1" "output lacks '$2'"; }
-lacks_out() { cases=$((cases + 1)); ! printf '%s\n' "$OUT" | grep -qF -- "$2" || wrong "$1" "output has '$2'"; }
+# A here-string, not a pipe: `grep -q` stops reading at the first match, and under pipefail the writer's SIGPIPE
+# would make a match read as a miss (it does with the BSD tools and bash 3.2 here, and can with GNU ones).
+has_out() { cases=$((cases + 1)); grep -qF -- "$2" <<<"$OUT" || wrong "$1" "output lacks '$2'"; }
+lacks_out() { cases=$((cases + 1)); ! grep -qF -- "$2" <<<"$OUT" || wrong "$1" "output has '$2'"; }
 has_log() { cases=$((cases + 1)); grep -qF -- "$2" "$log" || wrong "$1" "no stub call '$2' (calls: $(tr '\n' ';' < "$log"))"; }
 lacks_log() { cases=$((cases + 1)); ! grep -qF -- "$2" "$log" || wrong "$1" "stub call '$2' was made"; }
 rc_is() { cases=$((cases + 1)); [ "$RC" -eq "$2" ] || wrong "$1" "exit $RC, expected $2"; }

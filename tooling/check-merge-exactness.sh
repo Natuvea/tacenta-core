@@ -83,7 +83,7 @@ git diff --no-renames --no-ext-diff --binary -U0 "$base" "$p1" > "$work/b-p1"
 : > "$work/by-hand"
 auto="$(git merge-tree --write-tree --name-only --merge-base="$base" "$p1" "$p2" 2>/dev/null || true)"
 tree="${auto%%$'\n'*}"
-if printf '%s\n' "$tree" | grep -qE '^[0-9a-f]{40,64}$'; then
+if grep -qE '^[0-9a-f]{40,64}$' <<<"$tree"; then
   printf '%s\n' "$auto" | sed -n '2,/^$/p' | sed '/^$/d' > "$work/conflicted"
   git diff --no-renames --name-only "$tree" "$merge" > "$work/by-hand"
   printf '%s\n%s\n' "$tree" "$merge" > "$work/trees"
