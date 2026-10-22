@@ -97,16 +97,16 @@ encapsulation of the first message). The records the decrypt refinement takes fo
 Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below); the
 headlines apply the encrypt and decrypt refinements through the theorems they compose, whose nine `native_decide`
 constants are kernel proofs since 2026-10-21. The statement pins of the two headlines and of `second_receipt_reach_run`
-are cut off by Lean's `⋯`: the new per-run premises are placed first so that the pins hold them; the binders after the
-cut are held by the build (the run applies both headlines, so each is supplied there); of the conclusions, the
-two-outcome theorem's is held by the build (the success headline consumes or restates every conjunct of it, and the run
-uses its stale arm), the run's likewise (the two reaches use every conjunct and print in full), and the success
-headline's only in part: the run consumes its four calls, the plaintext equation and `Session::invariant` and
-`CounterHeadroom` at `sB'''`; its other conjuncts (the reply receipt's plaintext, the frame equation of `bytes2`, the
-agreements `x` and `z`, the invariant and the ceilings at `sB''`, the draw equation, the cleared pending initial
-message, the frame equation of `sB'''`, its relation to the model and the budget) are held by reading only. The two
-reaches print in full: their conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose
-`#print` pins hold the whole runs.
+print the whole statement: the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its pins, without
+which Lean cut them off with `⋯` (the new per-run premises are placed first).  The two reaches print in full too: their
+conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose `#print` pins hold the whole runs.
+A printed pin is still not the whole elaborated statement (instance arguments, coercion functions, implicit arguments
+and the binder types of `∃` and `fun` are not printed), so that the pinned statement is the right one is decided by
+reading.  Of the success headline's conclusion, the run consumes its four calls, the plaintext equation and
+`Session::invariant` and `CounterHeadroom` at `sB'''`; its other conjuncts (the reply receipt's plaintext, the frame
+equation of `bytes2`, the agreements `x` and `z`, the invariant and the ceilings at `sB''`, the draw equation, the
+cleared pending initial message, the frame equation of `sB'''`, its relation to the model and the budget) are pinned
+and used by no later proof.
 
 ## Non-vacuity
 

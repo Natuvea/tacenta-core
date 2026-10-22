@@ -35,7 +35,7 @@ cases=0
 named=(check-responder-successor-negatives.py check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py
   check-initiator-second-send-negatives.py check-receive-preservation-negatives.py
-  check-initiator-second-message-negatives.py)
+  check-initiator-second-message-negatives.py check-responder-second-receipt-negatives.py)
 listed="$(printf '%s\n' "${named[@]}" | sort)"
 in_record="$(python3 -B -c 'import json, sys; print("\n".join(sorted(json.load(open(sys.argv[1]))["scripts"])))' \
   "$scripts/negatives-control-counts.json")"

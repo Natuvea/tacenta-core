@@ -3109,10 +3109,11 @@ initiator's new key, both from the random sources; no probability is claimed. `f
 `first_send_second_receipt_stale_reachable` exhibit, at the real constants under the laws of
 `first_send_second_message_reachable` (all ASSUMED), a run that returns the plaintext with the invariant and the ceilings
 after it, and one that refuses (the initiator's 32 further bytes those of its first ratchet key). All rest on the kernel and
-opaque constants with no compiler-trust axiom. The statement pins of the two headlines and of the run are cut off by
-Lean's `⋯` (their new per-run premises are placed first, so the pins hold them; with this module, 19 modules hold such
-cut-off pins, 44 pins); of the success headline's conclusion only the four calls, the plaintext equation and the invariant
-and ceilings after the receive are consumed by a later proof, and its other conjuncts are held by reading only; the reaches' pins and the `#print` pins of their runs are printed in full. **The budget** after
+opaque constants with no compiler-trust axiom. The statement pins of the two headlines, of the run and of the reaches, and the `#print` pins of the runs, print
+the whole statement (the module sets the two `pp` options before its pins), which is still not the whole elaborated
+statement: what Lean's printing leaves out is held by the build and by reading only, as for every statement pin. Of the
+success headline's conclusion only the four calls, the plaintext equation and the invariant and ceilings after the
+receive are consumed by a later proof; its other conjuncts are pinned and used by no later proof. **The budget** after
 the receive (room for every `j` with `j + 3 < u32::MAX`) is what the composition derives; by reading it is exact there (the
 clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply and its receipt, the header's third chunk, the responder's first sampling send
 and every later step, among them the responder's check of the completed encapsulation key, the first step at which both

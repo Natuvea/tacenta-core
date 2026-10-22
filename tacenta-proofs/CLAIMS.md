@@ -6689,18 +6689,16 @@ proofs since 2026-10-21. Of the other 14 results, 8 rest on `propext`, `Classica
 choice, `secondReceipt_inOrderStep`, `byteTrace_pair`) and 6 on those and opaque constants of the unit. Each of the 19
 results carries an axiom pin and a statement pin, and each of the six definitions (`responderAfterSecond`, `secondAd`,
 `replierSession`, `secondReceiptSession`, `SecondReceiptRun`, `SecondReceiptStaleRun`) a `#print` pin. The statement
-pins of the two headlines and of `second_receipt_reach_run` are cut off by Lean's `⋯`: the headlines' new per-run
-premises (the draw and `hfreshA`) are placed first so that the pins hold them; the binders after the cut are held by the
-build (the run applies both headlines, so each is supplied there); of the conclusions, the two-outcome theorem's is held
-by the build (the success headline consumes or restates every conjunct of it, and the run uses its stale arm), the run's
-likewise (the two reaches use every conjunct and print in full), and the success headline's only in part: the run
-consumes its four calls, the plaintext equation and `Session::invariant` and `CounterHeadroom` at `sB'''`; its other
-conjuncts (the reply receipt's plaintext, the frame equation of `bytes2`, the agreements `x` and `z`, the invariant and
-the ceilings at `sB''`, the draw equation, the cleared pending initial message, the frame equation of `sB'''`, its
-relation to the model and the budget) are held by reading only (with this module, 19 modules hold such cut-off pins, 44
-pins; a pin form that prints the whole statement is to be fixed separately). The reaches' statement pins are printed in
-full: their conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose `#print` pins hold the
-whole runs. `check-responder-second-receipt-negatives.py` plants nineteen faults in a copy of the module, every one a
+pins of the two headlines and of `second_receipt_reach_run` print the whole statement: the module sets `pp.deepTerms
+true` and `pp.proofs.withType true` before its pins, without which Lean cut them off with `⋯` (the headlines' new
+per-run premises, the draw and `hfreshA`, are placed first). The reaches' statement pins are printed in full too: their
+conclusions are the definitions `SecondReceiptRun` and `SecondReceiptStaleRun`, whose `#print` pins hold the whole runs.
+As for every statement pin, a printed pin is not the whole elaborated statement (what Lean's printing leaves out is listed
+under the initiator's second send above), and that the pinned statement is the right one is decided by reading. Of the
+success headline's conclusion, the run consumes the four calls, the plaintext equation and `Session::invariant` and
+`CounterHeadroom` at `sB'''`; its other conjuncts (the reply receipt's plaintext, the frame equation of `bytes2`, the
+agreements `x` and `z`, the invariant and the ceilings at `sB''`, the draw equation, the cleared pending initial message,
+the frame equation of `sB'''`, its relation to the model and the budget) are pinned but used by no later proof. `check-responder-second-receipt-negatives.py` plants nineteen faults in a copy of the module, every one a
 change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin, against a message
 naming the change (a proof-breakage check at that place, not a proof that the changed statement is false). Thirteen are
 refused in the five composing proofs: eleven labelled inside them and two projections. A control refused there is a
