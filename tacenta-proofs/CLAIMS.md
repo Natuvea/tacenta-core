@@ -4208,7 +4208,9 @@ per-declaration `native_decide` axioms, the nine `UnitTripleT3.receive_refines_d
 under the Session unit's names: eight from the Session unit's sparse ratchet refinement (its four labels, its `MAX_SKIP`
 constants, its store cap and one step of `receive_refines_continuation`) and the Triple's `combine_info_agrees`. Those nine
 constants are kernel proofs now, pinned in `AxiomAuditSessionUnit.lean` (the section "Proved (the Session unit's refinement
-constants, by the kernel)"). The other 32 results here rest on no compiler-evaluated constant either: seven (`receiveWithEvictionLoopResult_stop`,
+constants, by the kernel)"). The other 32 results here (the section's other pins less `or_unless_closed` and
+`decrypt_ratchet_refines_or_open`, which `UnitLifecycleDecryptRatchetT3` also holds and the next section describes) rest
+on no compiler-evaluated constant either: seven (`receiveWithEvictionLoopResult_stop`,
 `shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
 `evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 25 each rest on between 1 and
 49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
@@ -5005,8 +5007,8 @@ and of every statement here lists only the first. `check-discharge-native-decide
 checks that the theorem's statement and the axiom's type are the same expression. Removing the dependency needs the message
 dropped from the Rust `debug_assert_eq!` (whether Charon then emits no string literal is not checked) or an Aeneas `toStr`
 whose bound the kernel discharges, at a re-translation. Of the
-other 97 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
-`model_kemCiphertextLenBound` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
+other 97 results, 69 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
+`model_kemCiphertextLenBound`, `export_message_fits` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
 unit, which the types and definitions they mention refer to. Each of the 108 results carries an axiom pin and a statement
 pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants twelve faults in
 copies of the three modules and requires Lean to refuse each at a named declaration or pin, with a message that names the

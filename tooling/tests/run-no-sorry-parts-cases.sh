@@ -590,7 +590,7 @@ python3 "$fixture_helper" resolve --table "$work/table" \
 parts_case phase-twice "partition hosted: phase repair is in parts" \
   "i = next(i for i, x in enumerate(l) if x.startswith('hosted kernel:')); l[i] += ' repair'"
 parts_case phase-dropped "partition hosted: phase repair is in no part" \
-  "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); l[i] = l[i].replace(' repair', '')"
+  "l.remove('  repair')"
 parts_case slice-missing "slice 7/8 of initial-dispatch is in no part" \
   "l[:] = [x for x in l if not x.startswith('hosted dispatch-7:')]"
 parts_case slice-twice "slice 6/8 of initial-dispatch is in parts dispatch-6, dispatch-8" \
@@ -602,7 +602,7 @@ parts_case sliced-two-ways "is sliced 8 and 9 ways" \
 parts_case sliced-and-whole "initial-dispatch is in part kernel and sliced in" \
   "i = next(i for i, x in enumerate(l) if x.startswith('hosted kernel:')); l[i] += ' initial-dispatch'"
 parts_case plain-sliced "slices repair, which the script does not slice" \
-  "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); l[i] = l[i].replace(' repair', ' repair@0/2')"
+  "l[l.index('  repair')] = '  repair@0/2'"
 parts_case prelude-named "names build-model, a prelude phase every part runs" \
   "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); l[i] += ' build-model'"
 parts_case unknown-phase "names no-such-phase, which the script does not run" \
@@ -619,6 +619,40 @@ parts_case carriage-return "holds a carriage return" \
   "l[-2] = l[-2] + '\\r'"
 parts_case named-twice-in-part "names repair twice" \
   "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); l[i] += ' repair'"
+# A part over several lines (its header line, then one indented line per phase) is the same part as its one-line
+# form, and a continuation line belongs to the line directly above it.
+parts_case continuation-after-blank "is a continuation line that does not follow a part's line directly" \
+  "i = l.index('  repair'); l.insert(i, '')"
+parts_case continuation-after-comment "is a continuation line that does not follow a part's line directly" \
+  "i = l.index('  repair'); l.insert(i, '# a comment')"
+parts_case continuation-first "is a continuation line that does not follow a part's line directly" \
+  "l.insert(0, '  repair')"
+parts_case empty-part "part extra names no phase" \
+  "l.insert(l.index('single all: *'), 'hosted extra:')"
+parts_case header-without-phase "part braid names no phase" \
+  "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); j = i + 1
+while l[j].startswith('  '): del l[j]"
+parts_case star-and-phase "'*' is not a phase or" \
+  "l.insert(l.index('single all: *') + 1, '  repair')"
+cases=$((cases + 1))
+python3 - "$proofs/scripts/no-sorry-parts.txt" "$work/parts-one-line" <<'PY'
+import sys
+out = []
+for line in open(sys.argv[1]).read().split("\n"):
+    if line.startswith("  "):
+        out[-1] += " " + line.strip()
+    else:
+        out.append(line)
+open(sys.argv[2], "w").write("\n".join(out))
+PY
+for p in $(awk '/^[a-z]/ { sub(":", "", $2); print $2 }' "$proofs/scripts/no-sorry-parts.txt"); do
+  python3 "$fixture_helper" resolve --table "$work/table" --parts "$work/parts-one-line" --part "$p" \
+    > "$work/out-one-line-$p" 2>&1 || wrong one-line-form "the one-line form of the parts file was refused for $p"
+  python3 "$fixture_helper" resolve --table "$work/table" --parts "$proofs/scripts/no-sorry-parts.txt" --part "$p" \
+    > "$work/out-lines-$p" 2>&1 || wrong one-line-form "the committed parts file was refused for $p"
+  cmp -s "$work/out-one-line-$p" "$work/out-lines-$p" \
+    || wrong one-line-form "part $p reads differently in its one-line form"
+done
 
 # ---- the real script and parts file, without Lean ---------------------------------------------------
 # The committed parts file covers the committed script: every part of every partition resolves against the

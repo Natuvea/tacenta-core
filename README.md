@@ -328,6 +328,34 @@ builds from nothing, and every run replays the modules under `Translation/`,
 GitHub-hosted machines; a push to main runs the two Lean jobs on a self-hosted
 runner that GitHub lets only this workflow, as it is on main, use.
 
+Before each commit, `bash tooling/fast.sh` is the quick check, a few minutes where the gate takes much
+longer. It runs `bash tooling/ci.sh --fast`, which is every step of `ci.sh` above the line that file marks
+(the workflow, proof-hygiene, label, vector-schema, traceability and authentication-boundary checks, the
+generated-unit checks, the preflight of the lifecycle proof modules, the independent reader, the sign-off
+check, and the case files that hold each of them; six slow case files among them, the workflow checker's,
+the container regeneration's and those of the assurance manifest, receipts, evidence pack and ledger receipt,
+run only with `--deep`, which a change under `tooling/` or `.github/` or to `regenerate-in-container.sh`
+turns on, and are otherwise listed as not run), and then, for the diff against `origin/main` (committed, staged, unstaged and new files; `--base REF`
+names another base), `cargo fmt --check`, `cargo clippy` and `cargo test` for the Rust packages whose files
+changed (the whole workspace when a `Cargo.toml` or `Cargo.lock` did) and `lake env lean` for each changed
+Lean module under `tacenta-model`, `tacenta-proofs` or the translation, and, when a file under `tooling/` or
+`.github/` changed, the gate-inventory check. It continues past a failing step,
+exits non-zero if any failed, and ends with what ran, what failed, what it skipped, a list of what it did not
+run and its wall time. A step the diff asks for and the machine cannot run (no `cargo`, no `lake`, no build of
+the Lean project) is printed as a SKIP and ends the run as "ok WITH SKIPS"; with `GITHUB_ACTIONS` set it is a
+failure. Changed Rust that no fast check reads (a fuzz workspace, the vendored patches, a toolchain, clippy,
+rustfmt, deny, `.cargo` or nextest configuration in a workspace or at the repository root) is listed under NOT CHECKED and ends the run as "ok WITH
+UNCHECKED". On the laptop it was measured on, with no change the run took about a minute and a half (94 s; 203 s
+with `--deep`), nearly all of it the cheap section; the diff-scoped steps added from a few seconds (three Lean
+modules) to under a minute (a small Rust crate, the core crate) in the earlier measurements, and a Rust package
+with long tests takes what its tests take. It does not run the Lean model,
+proofs and translation builds with their `sorry` scans, the attestation check and its negative cases, the
+vector currency check, the packages that depend on one it touched, the minimum-version, 32-bit,
+advisory-audit and fuzz steps, the steps only the workflow runs, or any hosted job, and `lake env lean` checks
+one module against the build it finds, not the modules that import it. A pass from it is not a pass of the
+gate: run `bash tooling/ci.sh` and read the hosted CI before a merge. `bash tooling/fast.sh --plan` prints what
+it would run, and `FAST_PRE_PUSH=1` makes the pre-push hook run it before each push (CONTRIBUTING.md).
+
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Five of those steps need tooling the workflow
 installs and a developer's machine may not have; the workflow always runs
@@ -404,6 +432,42 @@ in `tacenta-core`; `cargo test --locked` in
 `lake build` in `tacenta-model` and says so when it skips for want of it;
 `lake build` in `tacenta-model`; `scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
 hook that runs the cheapest of the checks before a push leaves the machine.
+
+A new lifecycle proof module is wired into the gates by
+`tacenta-proofs/scripts/new-lifecycle-module.py`: `scaffold` creates the module and its negatives script from
+`tacenta-proofs/scripts/templates/` and makes every edit to the shared files that does not depend on theorem
+names (the audit import, the `no-sorry.sh` phase and its part, the proof-script cases, the gate inventory and
+mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
+`tacenta-proofs/scripts/genpins.py` and puts its names on the four lists of `attest.py` and in the attestation
+negatives, moving the pinned case count by the cases it adds. Each new entry goes after the entry its name sorts
+after, and the shared lists are kept one entry per line (`python3 tooling/reflow-shared-lists.py --check`, run in
+CI), so two branches that each add a module change different lines. The prose is not written for you: the tool
+marks what it adds with `SCAFFOLD-TODO`, and `python3 tooling/check-proof-module-preflight.py <Module>` (run on
+every lifecycle module by `tooling/ci.sh` and in CI, step `checks_42`, against
+`tooling/proof-module-preflight-baseline.json`, the findings that were in the tree when it was introduced, and
+failing there on errors only; a key that no longer occurs fails there, and a key added later must occur and needs its own reason of at least 40 characters and six words, whose meaning only review judges; a private-term key cannot be checked in CI and is not added) refuses the marker, a module with no `CLAIMS.md` section or no negatives
+script, a negatives script missing the names and call sites of the hardened mechanism (a structural check: the script is not run, and
+a stub that calls them only in dead code passes it), a
+count in the prose that does not match the pins or the controls (only counts written in the forms it reads:
+"each of the N results (or theorems) carries (or has) an axiom pin", "each of the N definitions" and "of the other
+N results, A rest on `propext`, `Classical.choice` and `Quot.sound` alone ... and [the other] B on", which on main
+reach 13, 12 and 8 of the 19 lifecycle sections that have pins; any other "[of] the other N
+results/theorems/definitions/lemmas", "[of] the other N,", "of the N results/theorems" or "each of the N
+results/theorems/definitions/lemmas" in such a section is a warning, seven of them on main), and a plan identifier, planning path or
+attribution line in the module's text, and warns when the module's not-shown list misses an item of its
+`CLAIMS.md` section. A local list of further terms to keep out can be named with the environment variable
+`TACENTA_PRIVATE_TERMS_FILE` (a file outside the tree, one term per line); without it that part is skipped, and CI
+does not set it. After a merge, `bash tooling/regenerate-generated.sh` resolves the conflicts in the shared lists
+that are only two insertions at one place (`tooling/resolve-insertion-conflicts.py`, which refuses anything else
+and any entry that would appear twice), writes the generated files (the manifests, `GATE-INVENTORY.md`,
+`tooling/required-steps.json`) again from the merged tree, runs their checks, the structural checks of the
+shared lists and `tooling/check-landing.sh` (the inventory rows and the obligations section this tooling added,
+listed in `tooling/landing-rows.txt`, are still there), and refuses while anything else is unresolved. A conflict
+in a shared list that is anything other than two insertions (an edit on one side, prose on both) is left to be
+resolved by hand. `bash tooling/check-merge-exactness.sh <merge>`
+compares a merge with git's own merge of its two parents: a file where it differs and git merges cleanly fails,
+and a file resolved by hand is listed to be read, so an edit that adapts the merged tree goes in a commit of its
+own after the merge. None of these runs Lean in CI: their controls stub it.
 
 Three things run outside this repository, and the gate says so rather than
 pretending to run them. **Regenerating the Rust-to-Lean translation** needs

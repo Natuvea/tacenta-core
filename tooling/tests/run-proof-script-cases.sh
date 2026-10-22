@@ -61,20 +61,44 @@ if os.environ.get("STUB_FAIL") == name:
     sys.exit(1)
 STUB
 }
-sh_controls=(check-lifecycle-translation-coverage-negatives.sh check-refuted-records.sh check-refuted-records-negatives.sh
+sh_controls=(
+  check-lifecycle-translation-coverage-negatives.sh
+  check-refuted-records.sh
+  check-refuted-records-negatives.sh
   check-session-satisfiability-negatives.sh
-  check-port-negatives.sh check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh
-  check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh
-  check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh)
-py_controls=(check-lifecycle-translation-coverage.py
-  check-initial-dispatch-negatives.py check-atomicity-negatives.py
-  check-repair-negatives.py check-send-refusal-negatives.py check-sparse-store-full-negatives.py
-  check-decrypt-ratchet-negatives.py check-established-negatives.py check-restored-negatives.py
-  check-encrypt-negatives.py check-responder-negatives.py check-responder-frame-negatives.py
-  check-responder-receipt-negatives.py check-responder-successor-negatives.py
-  check-responder-reply-negatives.py check-responder-reply-receipt-negatives.py
-  check-send-preservation-negatives.py check-discharge-native-decide-negatives.py
-  check-initiator-second-send-negatives.py attest.py)
+  check-port-negatives.sh
+  check-lean-constructs.sh
+  check-audit-reach.sh
+  check-audit-reach-negatives.sh
+  check-pin-negatives.sh
+  check-kernel-replay-negative.sh
+  check-audit-negatives.sh
+  check-precondition-witnesses.sh
+  check-hypothesis-witnesses.sh
+  check-braid-agreement-negatives.sh
+)
+py_controls=(
+  check-lifecycle-translation-coverage.py
+  check-initial-dispatch-negatives.py
+  check-atomicity-negatives.py
+  check-repair-negatives.py
+  check-send-refusal-negatives.py
+  check-sparse-store-full-negatives.py
+  check-decrypt-ratchet-negatives.py
+  check-established-negatives.py
+  check-restored-negatives.py
+  check-encrypt-negatives.py
+  check-responder-negatives.py
+  check-responder-frame-negatives.py
+  check-responder-receipt-negatives.py
+  check-responder-successor-negatives.py
+  check-responder-reply-negatives.py
+  check-responder-reply-receipt-negatives.py
+  check-send-preservation-negatives.py
+  check-discharge-native-decide-negatives.py
+  check-initiator-second-send-negatives.py
+  attest.py
+)
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
 for s in "${py_controls[@]}"; do stub_py "$s"; done
 # check-translation-coverage.sh is the real script in the no-sorry cases (its fixture is complete below).
@@ -131,23 +155,49 @@ run_nosorry() {
 honest_logs
 run_nosorry honest 0 'no-sorry: the model and its property theorems is complete'
 # Every control the script owns is called, and the kernel replay reaches all three packages.
-for called in check-translation-coverage.sh check-lifecycle-translation-coverage.py \
+for called in \
+  check-translation-coverage.sh \
+  check-lifecycle-translation-coverage.py \
   check-lifecycle-translation-coverage-negatives.sh \
-  check-refuted-records.sh check-refuted-records-negatives.sh \
+  check-refuted-records.sh \
+  check-refuted-records-negatives.sh \
   check-session-satisfiability-negatives.sh \
-  check-port-negatives.sh check-initial-dispatch-negatives.py 'attest.py --compare-audit' \
-  check-lean-constructs.sh check-audit-reach.sh check-audit-reach-negatives.sh check-pin-negatives.sh check-kernel-replay-negative.sh check-audit-negatives.sh \
-  check-precondition-witnesses.sh check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh \
-  check-atomicity-negatives.py check-repair-negatives.py \
-  check-send-refusal-negatives.py check-sparse-store-full-negatives.py check-decrypt-ratchet-negatives.py \
-  check-established-negatives.py check-restored-negatives.py check-encrypt-negatives.py \
-  check-responder-negatives.py check-responder-frame-negatives.py check-responder-receipt-negatives.py \
-  check-responder-successor-negatives.py check-responder-reply-negatives.py \
-  check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py check-initiator-second-send-negatives.py \
+  check-port-negatives.sh \
+  check-initial-dispatch-negatives.py \
+  'attest.py --compare-audit' \
+  check-lean-constructs.sh \
+  check-audit-reach.sh \
+  check-audit-reach-negatives.sh \
+  check-pin-negatives.sh \
+  check-kernel-replay-negative.sh \
+  check-audit-negatives.sh \
+  check-precondition-witnesses.sh \
+  check-hypothesis-witnesses.sh \
+  check-braid-agreement-negatives.sh \
+  check-atomicity-negatives.py \
+  check-repair-negatives.py \
+  check-send-refusal-negatives.py \
+  check-sparse-store-full-negatives.py \
+  check-decrypt-ratchet-negatives.py \
+  check-established-negatives.py \
+  check-restored-negatives.py \
+  check-encrypt-negatives.py \
+  check-responder-negatives.py \
+  check-responder-frame-negatives.py \
+  check-responder-receipt-negatives.py \
+  check-responder-successor-negatives.py \
+  check-responder-reply-negatives.py \
+  check-responder-reply-receipt-negatives.py \
+  check-send-preservation-negatives.py \
+  check-initiator-second-send-negatives.py \
   check-discharge-native-decide-negatives.py \
-  'lake build translation' 'lake build tacenta-proofs' 'lake build tacenta-model' \
-  'leanchecker translation Translation.Alpha' 'leanchecker translation Translation.Beta' \
-  'leanchecker tacenta-proofs Proofs.Gamma' 'leanchecker tacenta-model Model.Delta' \
+  'lake build translation' \
+  'lake build tacenta-proofs' \
+  'lake build tacenta-model' \
+  'leanchecker translation Translation.Alpha' \
+  'leanchecker translation Translation.Beta' \
+  'leanchecker tacenta-proofs Proofs.Gamma' \
+  'leanchecker tacenta-model Model.Delta' \
   'leanchecker tacenta-model Properties.Epsilon'; do
   case "$called" in
     check-translation-coverage.sh) continue ;;  # the real script runs; its own cases are below

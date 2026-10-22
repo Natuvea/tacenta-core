@@ -82,6 +82,7 @@ builds).
   reach the inner receive; the generic route's `establish_responder_at_parts` makes the call's success exactly the inner
   receive's success with the commit returning.
 * The responder's successor, its invariant, the responder's draws, or anything after the first frame.
+* The model's `establishResponder` equality.
 * That `PrekeyStore::invariant` gives `PrekeyIdsDistinct` (above); that the real primitives meet
   `DhAgreeSymmetric`, `DhPublicValid`, the round trip, the boundary records or `FirstFrameSuccessShape`; that
   ML-KEM decapsulation agrees on a given run.  A source with no state of its own, such as `OsRng`, is outside

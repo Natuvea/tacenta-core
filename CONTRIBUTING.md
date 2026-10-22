@@ -23,6 +23,20 @@ unsigned merge of its base. Pull requests whose commits are not signed off canno
 be merged. The check covers only commits added on top of `main`, and commits on
 `main` from before it was introduced carry no sign-off.
 
+## Proof modules and merges
+
+A new lifecycle proof module starts with
+`python3 tacenta-proofs/scripts/new-lifecycle-module.py scaffold` and gets its pins with `... pins --lean` once
+the proof is written; both print what is left to write by hand. Before handing a module over, run
+`python3 tooling/check-proof-module-preflight.py <Module> --base origin/main` (with `TACENTA_PRIVATE_TERMS_FILE`
+naming your local list of terms to keep out, if you keep one). After merging a branch that touches
+the generated files, run `bash tooling/regenerate-generated.sh` rather than resolving them by hand, and check a
+merge you resolved with `bash tooling/check-merge-exactness.sh HEAD`; put edits that adapt the merged tree in a
+commit after the merge, not in it. When a conflict in `tooling/gate-inventory.json` or `ASSURANCE-OBLIGATIONS.md`
+is settled by taking one side, re-apply the other side's additions; `bash tooling/check-landing.sh` fails while
+the rows and the section it lists are missing. The "Building and checking" section of
+`README.md` says what each of these holds.
+
 ## Licence of contributions
 
 This project is licensed under the Apache License, Version 2.0 (see `LICENSE`).
@@ -58,7 +72,14 @@ implementation of it
 
 The README's "Building and checking" section lists the prerequisites and the
 one command, `bash tooling/ci.sh`, that runs the gate. Run it before opening
-a pull request. The public CI runs the same steps, split into jobs, and the
+a pull request. Before each commit, run the quick check, `bash tooling/fast.sh`:
+the cheap part of the gate (`bash tooling/ci.sh --fast`) and, for the files your
+change touches, `cargo fmt`, `cargo clippy` and `cargo test` on the affected
+Rust packages, `lake env lean` on each changed Lean module and, for a change
+under `tooling/` or `.github/`, the gate-inventory check. It takes a few
+minutes, says at the end what it did not run, and is not a substitute for the
+gate or the hosted CI. Six slow case files of the tooling run in it only with
+`--deep`, which a change under `tooling/` or `.github/` selects for you. The public CI runs the same steps, split into jobs, and the
 README states the two ways they differ: the steps the workflow always runs
 that the script skips when their tooling is absent (it prints a line for
 each), and the two the script runs that the workflow does not. Any other
@@ -72,3 +93,7 @@ by cloning; enable it once per clone with
 
 `.githooks/pre-push` says why the check has to run somewhere other than
 inside the workflow it protects.
+
+The hook also runs the quick check before a push if you ask it to: set
+`FAST_PRE_PUSH=1` in your environment (or for one push, `FAST_PRE_PUSH=1 git
+push`). Without that variable the hook is unchanged.

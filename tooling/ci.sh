@@ -33,9 +33,66 @@
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
 # stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
 # the step that needs it says so when it skips.
+#
+# Fast mode (`bash tooling/ci.sh --fast`; only the flag selects it, so no
+# variable left in an environment turns `bash tooling/ci.sh`, the gate, into
+# its cheap part with exit 0) runs the cheap section, which is everything above the line marked
+# "fast mode stops here", and then stops with a summary that lists every step
+# it did not run. Six slow case runners in that section, which hold tooling a
+# change rarely touches (the workflow checker's, the container regeneration's,
+# and the assurance manifest, receipts, evidence pack and ledger receipt ones),
+# are marked `deep_only`: fast mode runs them only with `--deep` (or
+# FAST_DEEP=1) and otherwise lists them as not run. A run without --fast runs
+# them always. It is not the gate and says so; `tooling/fast.sh` is the
+# command a developer runs, which adds the diff-scoped Rust and Lean checks to
+# it. The list of steps a fast run did not run is read from this file's own
+# text (`--fast-not-run` prints it and runs nothing), so a step added below the
+# line is listed without anyone editing a second list, and a step added above
+# it is run by fast mode without anyone editing one. With neither switch this
+# script behaves as it always has.
 set -euo pipefail
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+
+fast=0
+deep=0
+for arg in "$@"; do
+  case "$arg" in
+    --fast) fast=1 ;;
+    --fast-not-run) fast=2 ;;
+    --deep) deep=1 ;;
+  esac
+done
+if [ "${FAST_DEEP:-}" = "1" ]; then
+  deep=1
+fi
+
+# The steps below the stop line, by their headings, read from this file; without --deep, also the
+# case runners above it that only `deep_only` runs (a `deep_only` call is found at any indentation, inside
+# an `if` too; a heading below the line must be an `echo "== ... =="` line to be listed).
+fast_not_run() {
+  sed -n '/^# ---- fast mode stops here/,$p' "$self" \
+    | sed -n 's/^ *echo "== \(.*\) ==".*$/  \1/p' | sed 's/ (\$msrv)//'
+  if [ "$deep" -eq 0 ]; then
+    sed -n '1,/^# ---- fast mode stops here/p' "$self" \
+      | sed -n 's/^[[:space:]]*deep_only \(.*\)$/  \1 (fast mode runs it only with --deep)/p'
+  fi
+}
+if [ "$fast" -eq 2 ]; then
+  fast_not_run
+  exit 0
+fi
+
+# A slow case runner of tooling a change rarely touches: fast mode runs it only with --deep and
+# otherwise names it (the summary lists it as not run); a run without --fast always runs it.
+deep_only() {
+  if [ "$fast" -eq 1 ] && [ "$deep" -eq 0 ]; then
+    echo "fast mode: not running $* (only with --deep)"
+    return 0
+  fi
+  "$@"
+}
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
 # that does not parse runs nothing. In CI this catches the *other* workflow
@@ -45,12 +102,12 @@ echo "== Workflows parse =="
 bash tooling/check-workflows.sh
 # And the checker is held to its own cases, passing and refused, so a rule
 # loosened by mistake fails this gate rather than the next reader.
-bash tooling/tests/run-check-workflows-cases.sh
+deep_only bash tooling/tests/run-check-workflows-cases.sh
 
 # The regeneration script's comparison and --check verdict, held by their control with a stub
 # docker and no toolchain. Hosted CI runs it in the checks job through run-gate-controls.sh; it
 # runs here too so that a Mac, where its copy step once failed under BSD tar, is a regression check.
-bash tooling/tests/run-regenerate-in-container-cases.sh
+deep_only bash tooling/tests/run-regenerate-in-container-cases.sh
 
 # YAML parsing and the repository-specific checks above deliberately do not
 # parse GitHub expressions. The pinned actionlint release covers that grammar
@@ -67,6 +124,24 @@ ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/tests/run-check-actionl
 # The assembly gate allow-list must match a whole Rust identifier component;
 # a helper whose longer name merely contains an allowed word must stay red.
 bash tooling/tests/run-check-constant-time-asm-cases.sh
+
+# The fast local check, `tooling/fast.sh`: its selection of steps from a diff, its failure and skip
+# rules, and this script's own fast mode (the cheap steps run, none of the heavy ones). It runs
+# stubs, so it needs no toolchain, and it is a cheap step: fast mode runs it too. Hosted CI runs it
+# in the checks job through run-gate-controls.sh.
+bash tooling/tests/run-check-fast-cases.sh
+
+# The preflight of every lifecycle proof module (a section and a negatives script for each, the
+# not-shown lists, the controls' mechanism, the counts in the prose, markers, plan identifiers, planning
+# paths and attribution in the modules' own text) against the baseline of findings known when it was
+# introduced, for its errors only (a warning is printed and does not fail). Against origin/main's
+# baseline: a stale key fails, and a key added since must occur and carry its own reason of a stated
+# shape. Without --base and without a term list it does not scan other added lines, commit messages or
+# private terms; run it with those before handing a module over. It reads the tree and runs no Lean.
+# Hosted CI runs the same command as step checks_42 of the checks job.
+echo "== Lifecycle proof modules pass the preflight (errors only) =="
+python3 tooling/check-proof-module-preflight.py --all --baseline tooling/proof-module-preflight-baseline.json \
+  --baseline-base origin/main
 
 # Every commit this branch adds on top of origin/main is signed off by its
 # author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
@@ -169,11 +244,11 @@ python3 tooling/check-vectors.py
 bash tooling/tests/run-check-vectors-cases.sh
 python3 tooling/check-session-operation-traces.py
 bash tooling/tests/run-check-session-operation-traces-cases.sh
-bash tooling/tests/run-build-assurance-manifest-cases.sh
-bash tooling/tests/run-collect-assurance-receipts-cases.sh
+deep_only bash tooling/tests/run-build-assurance-manifest-cases.sh
+deep_only bash tooling/tests/run-collect-assurance-receipts-cases.sh
 bash tooling/tests/run-check-signoff-cases.sh
-bash tooling/tests/run-build-evidence-pack-cases.sh
-bash tooling/tests/run-check-ledger-review-receipt-cases.sh
+deep_only bash tooling/tests/run-build-evidence-pack-cases.sh
+deep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
 # A second reader of the same vectors. At run time it reads the vectors and
 # imports nothing from tacenta-core or tacenta-model (ADR-0006). Its first
@@ -189,6 +264,15 @@ python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
 python3 tacenta-test-vectors/runners/independent/reader/test_skip_allowlist.py
 python3 tacenta-test-vectors/runners/independent/reader/test_session_e2e_sweep.py
 python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
+
+if [ "$fast" -eq 1 ]; then
+  echo "== fast mode: the cheap section passed =="
+  echo "fast mode: not run (the steps below this point in tooling/ci.sh):"
+  fast_not_run
+  echo "fast mode: this is not the gate. Only a run without --fast ends on the gate's own green line."
+  exit 0
+fi
+# ---- fast mode stops here: everything below is the part that is not cheap ----
 
 echo "== Lean: build the model =="
 

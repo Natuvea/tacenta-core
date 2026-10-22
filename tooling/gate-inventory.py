@@ -37,8 +37,8 @@ nobody has seen fail.
 `--check` also fails when a step of the required workflow that runs a command is claimed by no row (so a
 new gate cannot be added without saying what holds it), when a row names a control or a gate that is not a
 file, when a control script does not mention the gate it claims to hold, when a mutation names a file
-that is not in the tree, and when a row or a control names a CI step (`ci_steps`) that the workflow does not
-have, or names one for a control whose command does not run that control. A control is named with its step
+that is not in the tree or that no row holds (its gate or one of its `mutation_files`), and when a row or a
+control names a CI step (`ci_steps`) that the workflow does not have, or names one for a control whose command does not run that control. A control is named with its step
 when the step that reaches it textually is not the one that gives its verdict: `check-attest-negatives.sh`
 runs in the slices (`negatives_slice`), and only the combining step (`negatives_combine`) says whether they
 hold the gate. For a control that is a shell script (`.sh`), the named step must also run it: its `run` text
@@ -272,6 +272,13 @@ def build(rows, mutations, steps, files, reach, combining):
         table.append({"number": number, "row": row, "gate": gate, "run": run, "controls": controls,
                       "state": state,
                       "mutations": sorted(i for f in row.get("mutation_files", [gate]) for i in by_file.get(f, []))})
+    # Every mutation must edit a file a row holds (its gate, or one of its `mutation_files`): a mutation of a
+    # file no row holds is counted nowhere, as when a merge drops the rows of the tools it added.
+    held = {f for row in rows for f in row.get("mutation_files", [row["gate"]])}
+    for mutation in mutations:
+        if mutation["file"] not in held:
+            problems.append(f"mutation {mutation['id']} edits {mutation['file']}, which no inventory row holds "
+                            "(give the file a row, or name it in a row's mutation_files)")
     # Every step that runs a command must be claimed: listed by a row, or running a file a row names.
     # A step without an id is claimed only by the scripts it runs, and every script it runs must have a row: one
     # listed script beside an unlisted one does not claim the step.

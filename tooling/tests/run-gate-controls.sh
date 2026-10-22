@@ -15,8 +15,24 @@
 #   run-no-sorry-parts-cases.sh  the parts of no-sorry.sh in CI and their combiner: a part missing, repeated,
 #                                  relabelled, of another commit, tree, script or cache, failed, or with a phase in
 #                                  no part or two; the dispatcher's slices; the committed parts file against the script
+#   run-check-fast-cases.sh      the fast local check (tooling/fast.sh, its selection in fast-plan.py, ci.sh --fast and the
+#                                  opt-in FAST_PRE_PUSH mode of the pre-push hook), on stub tools
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
+#   run-reflow-shared-lists-cases.sh, reflow-shared-lists.py --check  the lists every new proof module edits are
+#                                  one entry per line (a packed list refused, the rewrite keeps every entry)
+#   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
+#                                  a scaffold writes, the pins step's lists and count, with no Lean
+#   run-check-proof-module-preflight-cases.sh  the preflight of a lifecycle module (not-shown lists, the controls'
+#                                  mechanism, counts in the prose, terms kept out of the text) against planted
+#                                  faults; the preflight of every module against its baseline is step checks_42
+#   run-check-merge-exactness-cases.sh, run-regenerate-generated-cases.sh  the merge-exactness check and the
+#                                  regeneration of generated files after a merge
+#   run-check-landing-cases.sh, check-landing.sh  the additions of the tooling change survive a merge or a rebase
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
+#
+# All of them run through with-no-git-identity.sh: no global or system git configuration, no identity in the
+# environment and none guessed from the account, as on the hosted runner, so a fixture that commits must give
+# its own identity (one that did not passed here and failed there).
 #
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
 # only reads the tree) and needs no Lean toolchain. They are run one after another; the first failure stops the run. The shard runner runs
@@ -26,6 +42,21 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
+
+# The hosted runner has no git identity and no global git configuration; this machine may have both. Run every
+# control as the runner would, so a fixture that commits without its own identity fails here too.
+if [ "${GATE_NO_GIT_IDENTITY:-}" != 1 ]; then
+  exec bash "$here/with-no-git-identity.sh" bash "$0" "$@"
+fi
+if ident="$(git -C "$root" var GIT_COMMITTER_IDENT 2>/dev/null)"; then
+  echo "run-gate-controls: git resolves an identity here ($ident); the hosted runner has none" >&2
+  exit 1
+fi
+# A seam for the mutation harness: stop after the check above, which is all a change to these lines can break.
+if [ "${GATE_CONTROLS_PROBE_ONLY:-}" = 1 ]; then
+  echo "run-gate-controls: no git identity here, as on the hosted runner"
+  exit 0
+fi
 
 bash "$here/run-source-gate-cases.sh"
 bash "$here/run-proof-script-cases.sh"
@@ -38,7 +69,16 @@ bash "$root/tacenta-proofs/scripts/check-generation-negatives.sh"
 bash "$here/run-attest-negatives-shard-cases.sh"
 bash "$here/run-attest-negatives-slice-cases.sh"
 bash "$here/run-no-sorry-parts-cases.sh"
+bash "$here/run-check-fast-cases.sh"
 bash "$here/run-gate-inventory-cases.sh"
 bash "$here/run-mutate-gates-cases.sh"
 bash "$here/run-regenerate-in-container-cases.sh"
+bash "$here/run-reflow-shared-lists-cases.sh"
+python3 "$root/tooling/reflow-shared-lists.py" --check
+bash "$here/run-new-lifecycle-module-cases.sh"
+bash "$here/run-check-proof-module-preflight-cases.sh"
+bash "$here/run-check-merge-exactness-cases.sh"
+bash "$here/run-regenerate-generated-cases.sh"
+bash "$here/run-check-landing-cases.sh"
+bash "$root/tooling/check-landing.sh"
 python3 "$root/tooling/gate-inventory.py" --check

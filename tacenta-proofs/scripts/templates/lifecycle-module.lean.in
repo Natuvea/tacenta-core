@@ -1,0 +1,26 @@
+import @IMPORT@
+
+/-!
+# @MODULE@
+
+@DESCRIPTION@
+
+SCAFFOLD-TODO: replace this paragraph with what the module shows, at which public root, under which laws and
+premises, and how the result composes with the results it imports.
+
+## The laws and premises
+
+* SCAFFOLD-TODO: each new law, its shape, whether it is assumed, and the model that satisfies it.
+
+## Non-vacuity
+
+* SCAFFOLD-TODO: the interpretation in which every law holds, and the run that reaches the result.
+
+## What it does not show
+
+* SCAFFOLD-TODO: every item the module's section of `CLAIMS.md` lists as not shown, one per bullet.
+-/
+
+namespace Tacenta.@MODULE@
+
+end Tacenta.@MODULE@
