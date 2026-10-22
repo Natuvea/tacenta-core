@@ -26,7 +26,7 @@ use rand::SeedableRng;
 use tacenta_core::primitives::dh::PublicKeyBytes;
 use tacenta_core::primitives::kem;
 use tacenta_core::sessions::{
-    self, PrekeyStore, Session, SessionDecodeError, encode_ec, establish_initiator,
+    self, Expectation, PrekeyStore, Session, SessionDecodeError, encode_ec, establish_initiator,
     establish_responder,
 };
 
@@ -47,7 +47,8 @@ fn establish(
     assert!(bob_prekeys.invariant(), "create_prekeys");
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), r).unwrap();
     assert!(alice.invariant(), "establish_initiator");
     let initial = alice.encrypt(b"hello bob", r).unwrap();
     assert!(alice.invariant(), "first encrypt");
@@ -121,7 +122,8 @@ fn an_unanswered_initiator_satisfies_the_invariant() {
     let bob_id = sessions::Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
-    let alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     assert!(alice.invariant());
     let mut alice = round_trip(alice, "unanswered initiator");
     let initial = alice.encrypt(b"first", &mut r).unwrap();
@@ -497,7 +499,9 @@ fn the_prekey_store_invariant_holds_after_every_operation() {
     assert_eq!(curve, kem);
     for i in 0..curve + 3 {
         let bundle = store.publish();
-        let mut peer = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut peer =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = peer.encrypt(b"x", &mut r).unwrap();
         let (session, _) = establish_responder(&bob_id, &mut store, &initial, &mut r).unwrap();
         assert!(session.invariant(), "session from establishment {i}");

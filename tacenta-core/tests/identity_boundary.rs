@@ -15,11 +15,15 @@ use tacenta_core::primitives::{dh, xeddsa};
 use tacenta_core::serialization::{decode_initial, encode_initial};
 use tacenta_core::sessions::{
     Identity, LifecycleError as Error, PrekeyStore, PrekeyStoreDecodeError, Session,
-    SessionDecodeError, SessionError, StoredSessionIdentities, encode_ec, establish_initiator,
-    establish_initiator_for, establish_responder, is_valid_identity_key, responder_shared_secret,
-    scan_stored_prekey_identity, scan_stored_session_identities, verify_bundle,
-    verify_under_identity,
+    SessionDecodeError, SessionError, StoredSessionIdentities, encode_ec, establish_responder,
+    is_valid_identity_key, responder_shared_secret, scan_stored_prekey_identity,
+    scan_stored_session_identities, verify_bundle, verify_under_identity,
 };
+// The lifecycle leaf's own initiator entry points, which take no expectation:
+// the boundary these tests hold is the leaf's. `tacenta_core::sessions`
+// establishes only under an expectation, and tests/identity_expectation.rs
+// holds the same refusals there.
+use tacenta_lifecycle::{establish_initiator, establish_initiator_for};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Class {

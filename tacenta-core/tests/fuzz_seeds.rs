@@ -25,7 +25,9 @@ use std::path::PathBuf;
 
 use rand::SeedableRng;
 use tacenta_core::serialization::{WireBundle, decode_bundle, encode_bundle};
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 fn seed(name: &str, session: &Session, wire: &[u8]) {
     let export = session.export();
@@ -50,7 +52,8 @@ fn write_persisted_state_seeds() {
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello bob", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 

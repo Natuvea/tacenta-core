@@ -12,7 +12,7 @@ use tacenta_core::serialization::{
     encode_bundle, message_type,
 };
 use tacenta_core::sessions::{
-    Identity, LifecycleError, encode_ec, establish_initiator, establish_responder,
+    Expectation, Identity, LifecycleError, encode_ec, establish_initiator, establish_responder,
 };
 
 /// Where the identity's thirty-two key bytes start in an initial message:
@@ -60,7 +60,8 @@ fn a_last_resort_first_contact_with_a_respelled_ephemeral_is_refused() {
     let mut store = bob.create_prekeys(0, &mut r);
     let bundle = store.publish_multi_use();
     let alice = Identity::generate(&mut r);
-    let mut session = establish_initiator(&alice, &bundle, &mut r).unwrap();
+    let mut session =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let captured = session.encrypt(b"first", &mut r).unwrap();
     assert_eq!(captured[35], 0x05, "the ephemeral's curve byte");
     assert_eq!(
@@ -99,7 +100,8 @@ fn an_initial_message_with_a_respelled_key_is_refused_at_decode() {
     let mut store = bob.create_prekeys(1, &mut r);
     let bundle = store.publish();
     let alice = Identity::generate(&mut r);
-    let mut session = establish_initiator(&alice, &bundle, &mut r).unwrap();
+    let mut session =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = session.encrypt(b"first", &mut r).unwrap();
     decode_initial(&initial).expect("the honest initial message decodes");
 
@@ -146,7 +148,8 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
     let mut store = bob.create_prekeys(1, &mut r);
     let bundle = store.publish();
     let alice = Identity::generate(&mut r);
-    let mut session = establish_initiator(&alice, &bundle, &mut r).unwrap();
+    let mut session =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let first = session.encrypt(b"first", &mut r).unwrap();
     let (mut responder, plaintext) = establish_responder(&bob, &mut store, &first, &mut r).unwrap();
     assert_eq!(plaintext, b"first");
@@ -288,7 +291,8 @@ fn a_ratchet_message_with_a_respelled_ratchet_key_is_refused_at_decode() {
     let store = bob.create_prekeys(0, &mut r);
     let bundle = store.publish_multi_use();
     let alice = Identity::generate(&mut r);
-    let mut session = establish_initiator(&alice, &bundle, &mut r).unwrap();
+    let mut session =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = session.encrypt(b"first", &mut r).unwrap();
     let message = decode_initial(&initial)
         .expect("the initial message decodes")
@@ -312,8 +316,8 @@ mod stored_keys {
     use rand::SeedableRng;
     use tacenta_core::primitives::dh::PublicKeyBytes;
     use tacenta_core::sessions::{
-        Identity, LifecycleError, PrekeyStore, PrekeyStoreDecodeError, Session, SessionDecodeError,
-        establish_initiator, establish_responder,
+        Expectation, Identity, LifecycleError, PrekeyStore, PrekeyStoreDecodeError, Session,
+        SessionDecodeError, establish_initiator, establish_responder,
     };
 
     /// Where the classical ratchet state starts in a session export: after the
@@ -377,7 +381,8 @@ mod stored_keys {
         let mut store = bob.create_prekeys(1, &mut r);
         let bundle = store.publish();
         let alice = Identity::generate(&mut r);
-        let mut initiator = establish_initiator(&alice, &bundle, &mut r).unwrap();
+        let mut initiator =
+            establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
         let first = initiator.encrypt(b"first", &mut r).unwrap();
         let (responder, _) = establish_responder(&bob, &mut store, &first, &mut r).unwrap();
         (initiator, responder)
@@ -452,7 +457,8 @@ mod stored_keys {
         let mut store = bob.create_prekeys(1, &mut r);
         let bundle = store.publish();
         let alice = Identity::generate(&mut r);
-        let mut initiator = establish_initiator(&alice, &bundle, &mut r).unwrap();
+        let mut initiator =
+            establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
         let first = initiator.encrypt(b"first", &mut r).unwrap();
         let (mut responder, _) = establish_responder(&bob, &mut store, &first, &mut r).unwrap();
         let _second = initiator.encrypt(b"second", &mut r).unwrap();
@@ -544,13 +550,28 @@ mod stored_keys {
                 }
                 assert!(
                     matches!(
-                        establish_initiator(&alice, &published, &mut r),
-                        Err(LifecycleError::BadEncoding)
+                        establish_initiator(
+                            &alice,
+                            &published,
+                            &Expectation::first_contact(&[]),
+                            &mut r
+                        ),
+                        Err(tacenta_core::sessions::InitiatorError::Establish(
+                            LifecycleError::BadEncoding
+                        ))
                     ),
                     "bundle key {which} re-spelled"
                 );
             }
         }
-        assert!(establish_initiator(&alice, &store.publish(), &mut r).is_ok());
+        assert!(
+            establish_initiator(
+                &alice,
+                &store.publish(),
+                &Expectation::first_contact(&[]),
+                &mut r
+            )
+            .is_ok()
+        );
     }
 }

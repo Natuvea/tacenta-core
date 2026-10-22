@@ -13,7 +13,7 @@
 use rand::SeedableRng;
 use tacenta_core::serialization::{decode_initial, encode_initial};
 use tacenta_core::sessions::{
-    Identity, LifecycleError as Error, establish_initiator, establish_responder,
+    Expectation, Identity, LifecycleError as Error, establish_initiator, establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -43,7 +43,8 @@ fn an_unknown_identifier_is_refused_before_decapsulation() {
     let bob_id = Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let decoded = decode_initial(&initial).unwrap();
     let store_before = bob_prekeys.to_bytes();

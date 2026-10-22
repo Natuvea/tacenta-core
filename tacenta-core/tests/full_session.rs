@@ -6,8 +6,7 @@
 
 use rand::{RngCore, SeedableRng};
 use tacenta_core::sessions::{
-    self, LifecycleError, Session, establish_initiator, establish_initiator_for,
-    establish_responder,
+    self, Expectation, InitiatorError, Record, Session, establish_initiator, establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -22,7 +21,8 @@ fn establish(rng: &mut rand::rngs::StdRng) -> (Session, Session, Vec<u8>) {
     let mut bob_prekeys = bob_id.create_prekeys(4, rng);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, rng).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), rng).unwrap();
     let initial = alice.encrypt(b"hello bob", rng).unwrap();
     let (bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, rng).unwrap();
     (alice, bob, first)
@@ -79,7 +79,8 @@ fn a_bundle_without_a_one_time_prekey_still_establishes() {
     let bundle = bob_prekeys.publish();
     assert!(bundle.bundle.one_time_prekey.is_none());
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"no one-time prekey", &mut r).unwrap();
     let (_bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     assert_eq!(first, b"no one-time prekey");
@@ -114,7 +115,8 @@ fn the_message_that_fails_the_agreement_still_returns_its_plaintext() {
     let bob_id = sessions::Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     assert_eq!(first, b"hello");
@@ -186,7 +188,9 @@ fn kem_prekeys_are_used_once_then_fall_back_to_the_last_resort() {
         let bundle = bob_prekeys.publish();
         seen_kem_ids.push(bundle.kem_prekey_id);
 
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"hello", &mut r).unwrap();
         let (_bob, first) =
             establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
@@ -222,7 +226,8 @@ fn a_replayed_initial_message_is_rejected() {
     let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello bob", &mut r).unwrap();
 
     establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
@@ -253,7 +258,8 @@ fn a_later_message_can_establish_the_session_when_the_first_is_lost() {
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let one = alice.encrypt(b"first", &mut r).unwrap();
     let two = alice.encrypt(b"second", &mut r).unwrap();
     let three = alice.encrypt(b"third", &mut r).unwrap();
@@ -305,12 +311,19 @@ fn an_unrelated_initial_message_does_not_take_over_a_session() {
     let bundle = bob_prekeys.publish();
 
     let alice_id = sessions::Identity::generate(&mut r);
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let from_alice = alice.encrypt(b"hello", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &from_alice, &mut r).unwrap();
 
     let mallory_id = sessions::Identity::generate(&mut r);
-    let mut mallory = establish_initiator(&mallory_id, &bundle, &mut r).unwrap();
+    let mut mallory = establish_initiator(
+        &mallory_id,
+        &bundle,
+        &Expectation::first_contact(&[]),
+        &mut r,
+    )
+    .unwrap();
     let from_mallory = mallory.encrypt(b"me instead", &mut r).unwrap();
 
     assert!(
@@ -340,7 +353,8 @@ fn a_last_resort_handshake_cannot_be_replayed() {
 
     let alice_id = sessions::Identity::generate(&mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
 
     let (_bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
@@ -377,7 +391,9 @@ fn a_different_peer_on_the_last_resort_key_is_unaffected() {
     for round in 0..4u32 {
         let alice_id = sessions::Identity::generate(&mut r);
         let bundle = bob_prekeys.publish();
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"hello", &mut r).unwrap();
         let (_bob, plaintext) =
             establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
@@ -430,7 +446,9 @@ fn replenishment_continues_the_identifier_sequence() {
         );
         seen.push(bundle.kem_prekey_id);
 
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"hi", &mut r).unwrap();
         let (_bob, plaintext) =
             establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
@@ -452,7 +470,9 @@ fn replenishment_restores_one_time_key_use() {
         // Drain the single one-time key, then read the fallback's identifier.
         let alice_id = sessions::Identity::generate(&mut r);
         let bundle = bob_prekeys.publish();
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"x", &mut r).unwrap();
         establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
         bob_prekeys.publish().kem_prekey_id
@@ -477,7 +497,8 @@ fn the_replay_record_survives_persistence() {
 
     let alice_id = sessions::Identity::generate(&mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 
@@ -519,7 +540,9 @@ fn a_published_batch_opens_a_distinct_session_per_peer() {
     // own prekey rather than colliding with the others.
     for (round, bundle) in batch.into_iter().enumerate() {
         let alice_id = sessions::Identity::generate(&mut r);
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"hello", &mut r).unwrap();
         let (_bob, plaintext) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r)
             .unwrap_or_else(|e| panic!("dispensed bundle {round} failed: {e:?}"));
@@ -541,19 +564,26 @@ fn the_multi_use_bundle_serves_when_the_pool_is_empty() {
     assert!(bob_prekeys.publish_one_time_batch().is_empty());
 
     let alice_id = sessions::Identity::generate(&mut r);
-    let mut alice = establish_initiator(&alice_id, &fallback, &mut r).unwrap();
+    let mut alice = establish_initiator(
+        &alice_id,
+        &fallback,
+        &Expectation::first_contact(&[]),
+        &mut r,
+    )
+    .unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (_bob, plaintext) =
         establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     assert_eq!(plaintext, b"hello");
 }
 
-/// A named identity is enforced (session-establishment.md, Sending the initial
-/// message; REQ-AUTH-02). The adversary is a directory that serves a substitute
-/// for Bob's bundle: one Mallory published, whose prekey signatures verify under
-/// Mallory's own identity key, so a caller that names no identity accepts it.
-/// Alice names Bob's identity key, and `establish_initiator_for` must refuse the
-/// substitute with `UnexpectedIdentity`. Without the identity check the
+/// A known contact's record is enforced (session-establishment.md, Records,
+/// expectations and attribution; REQ-AUTH-02). The adversary is a directory
+/// that serves a substitute for Bob's bundle: one Mallory published, whose
+/// prekey signatures verify under Mallory's own identity key, so first contact
+/// with no records accepts it. Alice establishes under *known* with Bob's
+/// record, and `establish_initiator` must refuse the substitute with
+/// `UnexpectedIdentity`. Without the check against the expectation the
 /// substitute establishes, and this test fails.
 ///
 /// The refusal comes before encapsulating: the random generator is not drawn
@@ -578,12 +608,27 @@ fn a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothi
 
     // The substitute is well formed: only the named identity refuses it.
     let mut spare = r.clone();
-    assert!(establish_initiator(&alice_id, &substitute, &mut spare).is_ok());
+    assert!(
+        establish_initiator(
+            &alice_id,
+            &substitute,
+            &Expectation::first_contact(&[]),
+            &mut spare
+        )
+        .is_ok()
+    );
 
+    let bob_record = Record::new(vec![bob_id.public()], Vec::new());
     let mut untouched = r.clone();
     assert_eq!(
-        establish_initiator_for(&alice_id, &substitute, &bob_id.public(), &mut r).err(),
-        Some(LifecycleError::UnexpectedIdentity)
+        establish_initiator(
+            &alice_id,
+            &substitute,
+            &Expectation::known(&bob_record),
+            &mut r
+        )
+        .err(),
+        Some(InitiatorError::UnexpectedIdentity)
     );
     assert_eq!(
         r.next_u64(),
@@ -593,8 +638,13 @@ fn a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothi
     assert_eq!(bob_prekeys.to_bytes().to_vec(), bob_store_before);
     assert_eq!(mallory_prekeys.to_bytes().to_vec(), mallory_store_before);
 
-    let mut alice =
-        establish_initiator_for(&alice_id, &bob_bundle, &bob_id.public(), &mut r).unwrap();
+    let mut alice = establish_initiator(
+        &alice_id,
+        &bob_bundle,
+        &Expectation::known(&bob_record),
+        &mut r,
+    )
+    .unwrap();
     let initial = alice.encrypt(b"hello bob", &mut r).unwrap();
     let (_bob, plaintext) =
         establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();

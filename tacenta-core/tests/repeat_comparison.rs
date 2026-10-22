@@ -26,7 +26,7 @@ use curve25519_dalek::traits::IsIdentity;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use tacenta_core::sessions::{
-    Identity, LifecycleError, Session, establish_initiator, establish_responder,
+    Expectation, Identity, LifecycleError, Session, establish_initiator, establish_responder,
 };
 
 /// The thirty-two key bytes of an initial message's `ephemeral` field: after the version and type
@@ -63,10 +63,12 @@ fn setting(seed: u64) -> Setting {
     let bob = Identity::generate(&mut rng);
     let mut store = bob.create_prekeys(0, &mut rng);
     let bundle = store.publish_multi_use();
-    let mut initiator = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+    let mut initiator =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng).unwrap();
     let first = initiator.encrypt(b"first", &mut rng).unwrap();
     let repeat = initiator.encrypt(b"second", &mut rng).unwrap();
-    let mut second_initiator = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+    let mut second_initiator =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng).unwrap();
     let other = second_initiator.encrypt(b"other", &mut rng).unwrap();
     assert_ne!(ephemeral(&other), ephemeral(&first));
     let (responder, plaintext) = establish_responder(&bob, &mut store, &first, &mut rng).unwrap();

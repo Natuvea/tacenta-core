@@ -30,7 +30,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use rand::SeedableRng;
-use tacenta_core::sessions::{Identity, establish_initiator, establish_responder};
+use tacenta_core::sessions::{Expectation, Identity, establish_initiator, establish_responder};
 
 fuzz_target!(|data: &[u8]| {
     // Fixed seed: the budget belongs to the message bytes, and a crash has to
@@ -67,7 +67,12 @@ fuzz_target!(|data: &[u8]| {
     let mut mutated_prekeys = bob.create_prekeys(4, &mut rng);
     let mutated_alice = Identity::generate(&mut rng);
     let mutated_bundle = mutated_prekeys.publish();
-    if let Ok(mutated_initiator) = establish_initiator(&mutated_alice, &mutated_bundle, &mut rng) {
+    if let Ok(mutated_initiator) = establish_initiator(
+        &mutated_alice,
+        &mutated_bundle,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    ) {
         let mut mutated_initiator = mutated_initiator;
         let Ok(mutated_initial) = mutated_initiator.encrypt(b"fuzz", &mut rng) else {
             return;
@@ -104,7 +109,9 @@ fuzz_target!(|data: &[u8]| {
     // next genuine message.
     let alice = Identity::generate(&mut rng);
     let bundle = bob_prekeys.publish();
-    if let Ok(mut alice_session) = establish_initiator(&alice, &bundle, &mut rng) {
+    if let Ok(mut alice_session) =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng)
+    {
         assert!(alice_session.invariant(), "establish_initiator");
         let Ok(initial) = alice_session.encrypt(b"fuzz", &mut rng) else {
             return;

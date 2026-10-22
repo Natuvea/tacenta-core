@@ -8,7 +8,9 @@
 //! schedule coverage.
 
 use rand::{SeedableRng, rngs::StdRng};
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 fn rng(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)
@@ -24,7 +26,13 @@ fn session_lifecycle_01_establishes_restores_continues_and_refuses_replays() {
 
     // Pending initiator checkpoint: the fresh object must retain enough state
     // to generate an initial wrapper and establish the peer.
-    let alice = establish_initiator(&alice_id, &bundle, &mut random).unwrap();
+    let alice = establish_initiator(
+        &alice_id,
+        &bundle,
+        &Expectation::first_contact(&[]),
+        &mut random,
+    )
+    .unwrap();
     let mut alice = Session::import(&alice.export()).unwrap();
     let initial = alice.encrypt(b"initial", &mut random).unwrap();
     let (bob, plaintext) =

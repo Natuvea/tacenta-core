@@ -1425,16 +1425,17 @@ fn check_identity_key(v: &Vector) -> Result<(), String> {
 }
 
 /// A whole prekey bundle offered to the initiator: `verify_bundle` and
-/// `establish_initiator_for` (session-establishment.md, Sending the initial
-/// message). An admitted bundle establishes; a refused one is refused as an
-/// invalid identity key by both, and `establish_initiator_for` draws no
-/// randomness before it refuses.
+/// `establish_initiator` under first contact with no records
+/// (session-establishment.md, Sending the initial message; Records,
+/// expectations and attribution). An admitted bundle establishes; a refused
+/// one is refused as an invalid identity key by both, and `establish_initiator`
+/// draws no randomness before it refuses.
 fn check_bundle_admission(v: &Vector) -> Result<(), String> {
     use tacenta_core::primitives::dh;
     use tacenta_core::serialization::decode_bundle;
     use tacenta_core::sessions::{
-        Identity, LifecycleError, PreKeyBundle, PublishedBundle, SessionError,
-        establish_initiator_for, verify_bundle,
+        Expectation, Identity, InitiatorError, LifecycleError, PreKeyBundle, PublishedBundle,
+        SessionError, establish_initiator, verify_bundle,
     };
     let wire = decode_bundle(&input(v, "bundle")?)
         .map_err(|e| format!("the bundle does not decode: {e:?}"))?;
@@ -1455,13 +1456,18 @@ fn check_bundle_admission(v: &Vector) -> Result<(), String> {
     let initiator = Identity::from_secret(array32(&input(v, "initiator_identity_secret")?)?);
     let mut rng = FixedBytes::new(vec![0x5c; 64])?;
     let verified = verify_bundle(&published.bundle);
-    let established = establish_initiator_for(&initiator, &published, &identity_key, &mut rng);
+    let established = establish_initiator(
+        &initiator,
+        &published,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    );
     match expects_success(v)? {
         true => {
             verified.map_err(|e| format!("verify_bundle refused an admitted bundle: {e:?}"))?;
-            established.map(|_| ()).map_err(|e| {
-                format!("establish_initiator_for refused an admitted bundle: {e:?}")
-            })?;
+            established
+                .map(|_| ())
+                .map_err(|e| format!("establish_initiator refused an admitted bundle: {e:?}"))?;
             eq(identity_key.as_bytes(), &bytes(&v.output)?)
         }
         false => {
@@ -1471,15 +1477,17 @@ fn check_bundle_admission(v: &Vector) -> Result<(), String> {
                 ));
             }
             match established {
-                Err(LifecycleError::Handshake(SessionError::InvalidIdentityKey)) => {}
+                Err(InitiatorError::Establish(LifecycleError::Handshake(
+                    SessionError::InvalidIdentityKey,
+                ))) => {}
                 Err(other) => {
                     return Err(format!(
-                        "establish_initiator_for gave {other:?}, not an invalid identity key"
+                        "establish_initiator gave {other:?}, not an invalid identity key"
                     ));
                 }
                 Ok(_) => {
                     return Err(
-                        "establish_initiator_for admitted a bundle the vector refuses".to_string(),
+                        "establish_initiator admitted a bundle the vector refuses".to_string()
                     );
                 }
             }

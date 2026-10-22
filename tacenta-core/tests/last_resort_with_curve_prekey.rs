@@ -24,7 +24,7 @@
 use rand::SeedableRng;
 use tacenta_core::serialization::{ABSENT_ID, decode_initial};
 use tacenta_core::sessions::{
-    Identity, LifecycleError as Error, PreKeyBundle, PrekeyStore, PublishedBundle,
+    Expectation, Identity, LifecycleError as Error, PreKeyBundle, PrekeyStore, PublishedBundle,
     establish_initiator, establish_responder,
 };
 
@@ -119,7 +119,13 @@ fn world(seed: u64) -> (World, PrekeyStore) {
 /// the message these tests are about: it names the curve prekey and the
 /// last-resort key and no other.
 fn combined_initial(world: &World, text: &[u8], r: &mut rand::rngs::StdRng) -> Vec<u8> {
-    let mut alice = establish_initiator(&world.alice, &world.bundle, r).unwrap();
+    let mut alice = establish_initiator(
+        &world.alice,
+        &world.bundle,
+        &Expectation::first_contact(&[]),
+        r,
+    )
+    .unwrap();
     let initial = alice.encrypt(text, r).unwrap();
     let decoded = decode_initial(&initial).unwrap();
     assert_eq!(decoded.one_time_prekey_id, world.named_curve);

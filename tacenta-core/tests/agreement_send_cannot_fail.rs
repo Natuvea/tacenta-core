@@ -31,7 +31,7 @@
 
 use rand::SeedableRng;
 use tacenta_core::sessions::{
-    Identity, Session, SessionDecodeError, establish_initiator, establish_responder,
+    Expectation, Identity, Session, SessionDecodeError, establish_initiator, establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -97,7 +97,8 @@ fn responder_holding_a_header() -> (Vec<u8>, usize) {
     let bob_id = Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 
@@ -209,7 +210,9 @@ fn a_constant_random_source_does_not_make_a_send_fail() {
         let bob_prekeys = bob_id.create_prekeys(2, &mut r);
         let bundle = bob_prekeys.publish();
 
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         assert_eq!(
             agreement_tag(&alice),
             KEYS_UNSAMPLED,

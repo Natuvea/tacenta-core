@@ -17,7 +17,9 @@
 //! decrypt. That is the property an attacker would otherwise be able to break.
 
 use rand::SeedableRng;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
@@ -29,7 +31,8 @@ fn establish(rng: &mut rand::rngs::StdRng) -> (Session, Session) {
     let mut bob_prekeys = bob_id.create_prekeys(4, rng);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, rng).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), rng).unwrap();
     let initial = alice.encrypt(b"hello bob", rng).unwrap();
     let (bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, rng).unwrap();
     (alice, bob)
@@ -139,7 +142,8 @@ fn a_failed_initial_message_does_not_burn_prekeys() {
     let offered_curve = bundle.one_time_prekey_id;
     let offered_kem = bundle.kem_prekey_id;
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello bob", &mut r).unwrap();
 
     assert!(
@@ -178,7 +182,9 @@ fn repeated_failed_initial_messages_do_not_drain_the_store() {
     // Four one-time prekeys, so four bundles' worth. Attack with far more.
     for _ in 0..16 {
         let bundle = bob_prekeys.publish();
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let mut alice =
+            establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+                .unwrap();
         let initial = alice.encrypt(b"burn", &mut r).unwrap();
         assert!(establish_responder(&bob_id, &mut bob_prekeys, &forge(&initial), &mut r).is_err());
     }
@@ -196,7 +202,8 @@ fn repeated_failed_initial_messages_do_not_drain_the_store() {
     );
 
     // And a genuine establishment still works.
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"for real", &mut r).unwrap();
     let (_, plaintext) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     assert_eq!(plaintext, b"for real");
@@ -217,7 +224,8 @@ fn a_failed_last_resort_message_does_not_record_a_replay_identity() {
     let bundle = bob_prekeys.publish();
     let before = bob_prekeys.last_resort_record_remaining();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"must not be recorded", &mut r).unwrap();
     assert!(
         establish_responder(&bob_id, &mut bob_prekeys, &forge(&initial), &mut r).is_err(),
@@ -243,7 +251,8 @@ fn a_successful_initial_message_does_consume_its_prekeys() {
     let used_curve = bundle.one_time_prekey_id;
     let used_kem = bundle.kem_prekey_id;
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 

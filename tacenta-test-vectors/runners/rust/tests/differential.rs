@@ -3969,8 +3969,13 @@ fn initial_for_bundle(
     bundle: &tacenta_core::sessions::PublishedBundle,
     rng: &mut Rng,
 ) -> Vec<u8> {
-    let mut session = tacenta_core::sessions::establish_initiator(initiator, bundle, rng)
-        .expect("generated bundle should establish an initiator session");
+    let mut session = tacenta_core::sessions::establish_initiator(
+        initiator,
+        bundle,
+        &tacenta_core::sessions::Expectation::first_contact(&[]),
+        rng,
+    )
+    .expect("generated bundle should establish an initiator session");
     session
         .encrypt(b"operation-model first plaintext", rng)
         .expect("fresh initiator session should encrypt its initial message")
@@ -4164,7 +4169,8 @@ fn check_prekey_responder_effects(exe: &Path, rng: &mut Rng, seed: u64, seen: &m
 /// exposed before the relevant commit point.
 fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observed) {
     use tacenta_core::sessions::{
-        Identity, LifecycleError, establish_initiator_for, establish_responder,
+        Expectation, Identity, InitiatorError, LifecycleError, Record, establish_initiator,
+        establish_responder,
     };
 
     let mut rng = Rng::new(seed ^ 0x0070_3673_7461_7274);
@@ -4175,8 +4181,14 @@ fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observe
     let initiator_public = initiator.public();
     let responder_public = responder.public();
 
-    let mut pending = establish_initiator_for(&initiator, &bundle, &responder_public, &mut rng)
-        .expect("a published bundle for the named identity should establish an initiator");
+    let responder_record = Record::new(vec![responder_public], Vec::new());
+    let mut pending = establish_initiator(
+        &initiator,
+        &bundle,
+        &Expectation::known(&responder_record),
+        &mut rng,
+    )
+    .expect("a published bundle for the known identity should establish an initiator");
     expect_model_check(
         exe,
         format!(
@@ -4236,8 +4248,13 @@ fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observe
     let substitute_bundle = substitute_store.publish();
     let mut untouched = Rng(rng.0);
     assert!(matches!(
-        establish_initiator_for(&initiator, &substitute_bundle, &responder_public, &mut rng,),
-        Err(LifecycleError::UnexpectedIdentity)
+        establish_initiator(
+            &initiator,
+            &substitute_bundle,
+            &Expectation::known(&responder_record),
+            &mut rng,
+        ),
+        Err(InitiatorError::UnexpectedIdentity)
     ));
     assert_eq!(
         rng.next_u64(),
@@ -4250,8 +4267,14 @@ fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observe
     let responder = Identity::generate(&mut rng);
     let mut store = responder.create_prekeys(1, &mut rng);
     let bundle = store.publish();
-    let mut pending = establish_initiator_for(&initiator, &bundle, &responder.public(), &mut rng)
-        .expect("a second published bundle should establish an initiator");
+    let second_record = Record::new(vec![responder.public()], Vec::new());
+    let mut pending = establish_initiator(
+        &initiator,
+        &bundle,
+        &Expectation::known(&second_record),
+        &mut rng,
+    )
+    .expect("a second published bundle should establish an initiator");
     let mut forged = pending
         .encrypt(b"operation-model forged initial", &mut rng)
         .expect("a pending initiator session should encrypt its first message");
@@ -4280,15 +4303,20 @@ fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observe
 /// persisted state before and after each accepted operation or ordinary
 /// refusal. Terminal Braid failure is deliberately a separate transition.
 fn check_established_message_effects(exe: &Path, seed: u64, seen: &mut Observed) {
-    use tacenta_core::sessions::{Identity, establish_initiator, establish_responder};
+    use tacenta_core::sessions::{Expectation, Identity, establish_initiator, establish_responder};
 
     let mut rng = Rng::new(seed ^ 0x0070_366d_6573_7361);
     let alice_id = Identity::generate(&mut rng);
     let bob_id = Identity::generate(&mut rng);
     let mut store = bob_id.create_prekeys(2, &mut rng);
     let bundle = store.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut rng)
-        .expect("published bundle should establish initiator");
+    let mut alice = establish_initiator(
+        &alice_id,
+        &bundle,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    )
+    .expect("published bundle should establish initiator");
     let initial = alice
         .encrypt(b"operation-model initial", &mut rng)
         .expect("pending initiator should send initial");
@@ -4418,7 +4446,7 @@ fn check_established_message_effects(exe: &Path, seed: u64, seen: &mut Observed)
 
 fn check_failed_agreement_effects(exe: &Path, seed: u64, seen: &mut Observed) {
     use tacenta_core::sessions::{
-        Identity, LifecycleError, Session, establish_initiator, establish_responder,
+        Expectation, Identity, LifecycleError, Session, establish_initiator, establish_responder,
     };
 
     let mut rng = Rng::new(seed ^ 0x0070_3666_6169_6c65);
@@ -4426,8 +4454,13 @@ fn check_failed_agreement_effects(exe: &Path, seed: u64, seen: &mut Observed) {
     let bob_id = Identity::generate(&mut rng);
     let mut store = bob_id.create_prekeys(2, &mut rng);
     let bundle = store.publish();
-    let mut alice =
-        establish_initiator(&alice_id, &bundle, &mut rng).expect("initiator establishes");
+    let mut alice = establish_initiator(
+        &alice_id,
+        &bundle,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    )
+    .expect("initiator establishes");
     let initial = alice
         .encrypt(b"operation-model agreement initial", &mut rng)
         .expect("initial sends");
@@ -4515,8 +4548,8 @@ fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut 
     use tacenta_core::serialization::composite::Composite;
     use tacenta_core::serialization::{decode_message, encode_message};
     use tacenta_core::sessions::{
-        Identity, LifecycleError, PreKeyBundle, PublishedBundle, SessionError, establish_initiator,
-        establish_responder,
+        Expectation, Identity, InitiatorError, LifecycleError, PreKeyBundle, PublishedBundle,
+        SessionError, establish_initiator, establish_responder,
     };
 
     fn copied_bundle(source: &PublishedBundle) -> PublishedBundle {
@@ -4549,10 +4582,15 @@ fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut 
     bad_signed.bundle.signed_prekey_signature[0] ^= 0x01;
     let mut untouched = Rng(rng.0);
     assert!(matches!(
-        establish_initiator(&alice_id, &bad_signed, &mut rng),
-        Err(LifecycleError::Handshake(
+        establish_initiator(
+            &alice_id,
+            &bad_signed,
+            &Expectation::first_contact(&[]),
+            &mut rng
+        ),
+        Err(InitiatorError::Establish(LifecycleError::Handshake(
             SessionError::BadSignedPrekeySignature
-        ))
+        )))
     ));
     assert_eq!(
         rng.next_u64(),
@@ -4565,10 +4603,15 @@ fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut 
     bad_kem.bundle.kem_prekey_signature[0] ^= 0x01;
     let mut untouched = Rng(rng.0);
     assert!(matches!(
-        establish_initiator(&alice_id, &bad_kem, &mut rng),
-        Err(LifecycleError::Handshake(
+        establish_initiator(
+            &alice_id,
+            &bad_kem,
+            &Expectation::first_contact(&[]),
+            &mut rng
+        ),
+        Err(InitiatorError::Establish(LifecycleError::Handshake(
             SessionError::BadKemPrekeySignature
-        ))
+        )))
     ));
     assert_eq!(
         rng.next_u64(),
@@ -4577,8 +4620,13 @@ fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut 
     );
     seen.session_crypto_signature_refusal += 1;
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut rng)
-        .expect("published bundle should establish an initiator");
+    let mut alice = establish_initiator(
+        &alice_id,
+        &bundle,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    )
+    .expect("published bundle should establish an initiator");
     let initial = alice
         .encrypt(b"operation-model delivery initial", &mut rng)
         .expect("pending initiator sends initial");
@@ -4724,7 +4772,8 @@ fn check_responder_refusal_controls(exe: &Path, seed: u64, seen: &mut Observed) 
     use tacenta_core::primitives::kem;
     use tacenta_core::serialization::{ABSENT_ID, encode_initial};
     use tacenta_core::sessions::{
-        Identity, LifecycleError, SessionError, encode_ec, establish_initiator, establish_responder,
+        Expectation, Identity, LifecycleError, SessionError, encode_ec, establish_initiator,
+        establish_responder,
     };
 
     let mut rng = Rng::new(seed ^ 0x0070_3672_6566_7573);
@@ -4764,8 +4813,9 @@ fn check_responder_refusal_controls(exe: &Path, seed: u64, seen: &mut Observed) 
 
     let mut store = bob.create_prekeys(1, &mut rng);
     let bundle = store.publish();
-    let mut pending = establish_initiator(&alice, &bundle, &mut rng)
-        .expect("published bundle establishes an initiator");
+    let mut pending =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng)
+            .expect("published bundle establishes an initiator");
     let genuine = pending
         .encrypt(b"operation-model malformed initial", &mut rng)
         .expect("pending initiator sends initial");

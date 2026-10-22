@@ -14,7 +14,8 @@
 //!   implementation's.
 //! - **Initiator establishment under an expectation** (the same section, and
 //!   Sending the initial message): [`establish_initiator`] with an
-//!   [`Expectation`], *known* or *first contact*.
+//!   [`Expectation`], *known* or *first contact*. It is the only initiator
+//!   establishment `tacenta_core::sessions` offers.
 //!
 //! # Where this sits
 //!

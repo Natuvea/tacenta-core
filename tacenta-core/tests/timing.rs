@@ -86,7 +86,9 @@ use std::cell::RefCell;
 use std::time::Instant;
 use tacenta_braid::Braid;
 use tacenta_core::primitives::aead;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 // ------------------------------------------------------------------ the stamp
 
@@ -985,7 +987,8 @@ fn establish(r: &mut rand::rngs::StdRng) -> (Session, Session) {
     let bob_id = sessions::Identity::generate(r);
     let mut bob_prekeys = bob_id.create_prekeys(4, r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), r).unwrap();
     let initial = alice.encrypt(b"hello", r).unwrap();
     let (bob, _first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, r).unwrap();
     (alice, bob)

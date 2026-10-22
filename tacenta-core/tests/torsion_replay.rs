@@ -9,7 +9,9 @@ use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::montgomery::MontgomeryPoint;
 use curve25519_dalek::traits::IsIdentity;
 use rand::SeedableRng;
-use tacenta_core::sessions::{Identity, LifecycleError, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    Expectation, Identity, LifecycleError, establish_initiator, establish_responder,
+};
 
 const EPHEMERAL: core::ops::Range<usize> = 36..68;
 
@@ -68,7 +70,9 @@ fn torsion_equivalent_initial_repeat_stays_in_the_established_session() {
         } else {
             store.publish()
         };
-        let mut initiator = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+        let mut initiator =
+            establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng)
+                .unwrap();
         let first = initiator.encrypt(b"first", &mut rng).unwrap();
         let repeat = initiator.encrypt(b"second", &mut rng).unwrap();
         let spelling = torsion_spellings(ephemeral(&first))[0];
@@ -98,7 +102,8 @@ fn spent_last_resort_rejects_every_torsion_equivalent_replay() {
     let bob = Identity::generate(&mut rng);
     let mut store = bob.create_prekeys(0, &mut rng);
     let bundle = store.publish_multi_use();
-    let mut initiator = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+    let mut initiator =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng).unwrap();
     let first = initiator.encrypt(b"first", &mut rng).unwrap();
     establish_responder(&bob, &mut store, &first, &mut rng).unwrap();
     let before = store.to_bytes().to_vec();
@@ -124,7 +129,8 @@ fn a_non_contributory_ephemeral_is_not_a_repeat() {
     let bob = Identity::generate(&mut rng);
     let mut store = bob.create_prekeys(0, &mut rng);
     let bundle = store.publish_multi_use();
-    let mut initiator = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+    let mut initiator =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng).unwrap();
     let first = initiator.encrypt(b"first", &mut rng).unwrap();
     let (mut responder, _) = establish_responder(&bob, &mut store, &first, &mut rng).unwrap();
     let mut low_order = first.clone();

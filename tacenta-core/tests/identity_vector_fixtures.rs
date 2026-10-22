@@ -18,7 +18,7 @@
 use rand_core::{CryptoRng, RngCore};
 use tacenta_core::serialization::{decode_initial, encode_initial};
 use tacenta_core::sessions::{
-    Identity, PrekeyStore, encode_ec, establish_initiator, establish_responder,
+    Expectation, Identity, PrekeyStore, encode_ec, establish_initiator, establish_responder,
 };
 
 const ALICE_SECRET: [u8; 32] = [1u8; 32];
@@ -120,7 +120,8 @@ fn write_initial_message_admission_vectors() {
     let store = bob.create_prekeys(1, &mut rng);
     let stored = store.to_bytes();
     let bundle = store.publish();
-    let mut session = establish_initiator(&alice, &bundle, &mut rng).unwrap();
+    let mut session =
+        establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut rng).unwrap();
     let plaintext = b"identity boundary";
     let initial = session.encrypt(plaintext, &mut rng).unwrap();
 

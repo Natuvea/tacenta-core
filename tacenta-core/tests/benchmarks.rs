@@ -26,7 +26,9 @@
 
 use rand::SeedableRng;
 use std::time::Instant;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
@@ -103,14 +105,21 @@ fn operational_costs() {
     row(
         "establish_initiator, PQXDH + first ratchet",
         bench(20, || {
-            let _ = establish_initiator(&alice_id, &bundle, &mut rng(2)).unwrap();
+            let _ = establish_initiator(
+                &alice_id,
+                &bundle,
+                &Expectation::first_contact(&[]),
+                &mut rng(2),
+            )
+            .unwrap();
         }),
     );
 
     println!();
     println!("Steady state, per message");
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 
@@ -185,7 +194,13 @@ fn operational_costs() {
         // prekey the bundle names, so reusing one is `UnknownPrekeyId` on the
         // second pass -- which is the one-time guarantee working, not a bug.
         let fresh_bundle = bob_prekeys.publish();
-        let mut a2 = establish_initiator(&alice_id, &fresh_bundle, &mut r).unwrap();
+        let mut a2 = establish_initiator(
+            &alice_id,
+            &fresh_bundle,
+            &Expectation::first_contact(&[]),
+            &mut r,
+        )
+        .unwrap();
         let first = a2.encrypt(b"open", &mut r).unwrap();
         let (mut b2, _) = establish_responder(&bob_id, &mut bob_prekeys, &first, &mut r).unwrap();
         for _ in 0..gap {
@@ -227,7 +242,8 @@ fn forged_header_against_a_full_store() {
     let bob_id = sessions::Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 

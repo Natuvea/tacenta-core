@@ -6,7 +6,9 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rand::{Rng, SeedableRng};
-use tacenta_core::sessions::{Identity, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    Expectation, Identity, Session, establish_initiator, establish_responder,
+};
 use tacenta_spqr::{Output, State};
 
 const MAX_KEYS: usize = 4096;
@@ -149,8 +151,13 @@ fn public_session_retirement_wipes_spqr_keys_before_release() {
     let alice_identity = Identity::generate(&mut rng);
     let bob_identity = Identity::generate(&mut rng);
     let mut store = bob_identity.create_prekeys(0, &mut rng);
-    let mut alice =
-        establish_initiator(&alice_identity, &store.publish_multi_use(), &mut rng).unwrap();
+    let mut alice = establish_initiator(
+        &alice_identity,
+        &store.publish_multi_use(),
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    )
+    .unwrap();
     let first = alice.encrypt(b"initial", &mut rng).unwrap();
     let (mut bob, _) = establish_responder(&bob_identity, &mut store, &first, &mut rng).unwrap();
     let mut alice_to_bob = Vec::new();
@@ -208,7 +215,13 @@ fn public_session_drop_wipes_spqr_keys_before_release() {
     let bob_identity = Identity::generate(&mut rng);
     let mut store = bob_identity.create_prekeys(0, &mut rng);
     let mut alice = Box::new(
-        establish_initiator(&alice_identity, &store.publish_multi_use(), &mut rng).unwrap(),
+        establish_initiator(
+            &alice_identity,
+            &store.publish_multi_use(),
+            &Expectation::first_contact(&[]),
+            &mut rng,
+        )
+        .unwrap(),
     );
     let first = alice.encrypt(b"initial", &mut rng).unwrap();
     let (bob, _) = establish_responder(&bob_identity, &mut store, &first, &mut rng).unwrap();
