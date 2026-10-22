@@ -81,10 +81,13 @@ run() {  # name want-exit args... ; the output is in $out
 says() {  # name needle
   cases=$((cases + 1))
   grep -qF -- "$2" <<<"$out" && return 0
+  # One failure line either way: tooling/mutate-gates.py reruns a failing runner with `exit 1` disabled, and a
+  # second line would turn a message into a verdict.
   if [ "$last_want" != 0 ]; then
     fail_case "$1: refused, but missing diagnostic: expected '$2'" "$out"
+  else
+    fail_case "$1: expected '$2'" "$out"
   fi
-  fail_case "$1: expected '$2'" "$out"
 }
 # finds: in a run that holds several faults at once, each needle is a finding of its own; a missing one is a
 # finding the check did not report.
@@ -185,6 +188,9 @@ says baseline-key-numbers "[UnitLifecycleResponderFirstReceipt|count|results|44|
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 44 results carries an axiom pin', 'Each of the 42 results carries an axiom pin', 1)"
 run stale-at-base 1 --all --baseline "$baseline" --baseline-base HEAD
 says stale-at-base "ERROR    stale key: delete it from $baseline: $key"
+# On a clean tree (the baseline and CLAIMS.md as committed, the key's finding there), so that only the base
+# refuses the run.
+g checkout -q -- "$baseline" tacenta-proofs/CLAIMS.md
 run base-unresolved 1 --all --baseline "$baseline" --baseline-base refs/heads/no-such-base
 says base-unresolved "ERROR    the base refs/heads/no-such-base does not resolve to a commit"
 run base-empty 2 --all --baseline "$baseline" --baseline-base ""
@@ -203,13 +209,20 @@ g checkout -q -- "$baseline"
 # The results a section names first are excluded from its "of the other N results" by name. A named result with no
 # pin is an error, and a name matches a pin only as its full name or its last parts after a dot.
 lead="**Compiler trust and pins.** \`responder_reply_refines\`, "
-edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('refines', 'refines_unpinned'), 1)"
+# The renamed result then counts among the others, so the counts are moved to 15 and 9 to match.
+moved="replace('Of the other 14 results, 6 rest on', 'Of the other 15 results, 6 rest on', 1).replace(') and 8 on those and opaque constants of the unit. Each of the 19', ') and 9 on those and opaque constants of the unit. Each of the 19', 1)"
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('refines', 'refines_unpinned'), 1).$moved"
 run named-without-pin 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-without-pin "names \`responder_reply_refines_unpinned\` first, which has no pin in the section's modules"
 g checkout -q -- tacenta-proofs/CLAIMS.md
-edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('responder_reply_refines', 'reply_refines'), 1)"
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('responder_reply_refines', 'reply_refines'), 1).$moved"
 run named-substring 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-substring "names \`reply_refines\` first, which has no pin in the section's modules"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+# A fictional name added to the list: it has no pin, so nothing moves among the others.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead' + '\`no_such_result\`, ', 1)"
+run named-fictional 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-fictional "names \`no_such_result\` first, which has no pin in the section's modules"
 g checkout -q -- tacenta-proofs/CLAIMS.md
 # A kernel-only result padded into the named list, with the counts moved so that they still match: the paragraph
 # says the named results rest on opaque constants, and this one does not.

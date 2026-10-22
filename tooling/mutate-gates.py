@@ -77,7 +77,7 @@ GIT = ["git", "-c", "user.name=mutate-gates", "-c", "user.email=mutate-gates@exa
 MESSAGE_ONLY = re.compile(
     r"refused, but|missing diagnostic|reported \d+ problem|the refusal does not name|no report at"
     r"|expected (?:a )?refusal .*got exit [1-9]|expected exit (?:nonzero|1) .*got exit [1-9]")
-ACCEPTED = re.compile(r"got exit 0|was accepted|accepted|did not refuse|not refused|expected refusal$"
+ACCEPTED = re.compile(r"got exit 0|expected exit [1-9][0-9]*, got 0\b|was accepted|accepted|did not refuse|not refused|expected refusal$"
                       r"|expected validation refusal|did not fail|accepted it")
 # The lines on which the runners report a case that went wrong. Anchored at the start of the line: the gate's own
 # diagnostics, which a runner prints beneath its report, say "expected" and "refused" too and are not reports.
