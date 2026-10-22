@@ -92,19 +92,38 @@ An implementation offers establishment under both forms.
     accept, under *known*.
 - **Rests on:** ASM-14, for the records and for stating first contact only
   for a peer with no record; ASM-19.
-- **Status: tested only.** `tacenta-core` makes the refusal in
-  `establish_initiator_for` (`UnexpectedIdentity`).
-  `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
-  (`tacenta-core/tests/full_session.rs`) exercises it. It offers a bundle whose
-  prekey signatures verify under another identity key, and checks two things:
-  the refusal is `UnexpectedIdentity`; and no randomness is drawn before it, so
-  nothing is encapsulated. It also asserts that neither prekey store's bytes
-  change, which holds by construction rather than by the check, since
-  `establish_initiator_for` takes no prekey store. No vector or proof covers it
-  (limitations.md, LIM-13). That test covers an expectation of one named key
-  only. The two forms, `RetiredIdentity`, `MalformedRecord` and the order
-  have no test or vector yet; evidence-index.json records them as missing
-  evidence.
+- **Status: tested only.** `tacenta-core` makes the refusals in
+  `establish_initiator` of `tacenta-core/src/sessions/identity.rs`, which
+  `tacenta_core::sessions` offers; the lifecycle leaf's
+  `establish_initiator_for`, which it calls once the expectation lets the key
+  go on, is internal. Vectors and tests cover it; no proof does.
+  - The tests in `tacenta-core/tests/identity_expectation.rs`: both forms,
+    `RetiredIdentity`, `UnexpectedIdentity`, `MalformedRecord` before any
+    bundle check, the presence and canonical-key refusals ahead of the
+    expectation, the identity-key rule first, the expectation ahead of the
+    signatures, the KEM prekey's input checks and the agreements, no
+    randomness drawn for a refusal by the expectation or for any refusal
+    before it, and *first contact* with no records against the leaf's own
+    establishment.
+  - `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+    (`tacenta-core/tests/full_session.rs`), which now runs under *known*: a
+    bundle whose prekey signatures verify under another identity key is
+    refused as `UnexpectedIdentity` before any randomness is drawn. It also
+    asserts that neither prekey store's bytes change, which holds by
+    construction rather than by the check, since establishment takes no
+    prekey store.
+  - `tacenta-test-vectors/vectors/identity/initiator-expectation.json` (47
+    vectors, 5 sessions and 42 refusals): both forms, `RetiredIdentity`,
+    `UnexpectedIdentity`, `MalformedRecord` before the presence and
+    canonical-key checks, the order above (not the order between the
+    presence and canonical-key checks, which the page leaves open), and no random
+    value drawn for any refusal before the KEM prekey's input checks.
+    `generate-identity-vectors.py` writes the bundles, and each outcome is
+    checked against the model's (`Model.InitiatorExpectation`). The
+    independent reader reads them.
+  - No proof covers it (limitations.md, LIM-13). The model's theorems about
+    the order are about the model alone, and `establish_initiator` is outside
+    the translated crates, so no result about the lifecycle leaf covers it.
 - **Does not cover:**
   - Under *first contact*, an unattributed key: any identity key whose prekey
     signatures verify is accepted, and only a comparison of the verification
@@ -505,8 +524,19 @@ A session's peer identity key is available to the party.
   party attributes as ASM-14 assumes.
 - **Rests on:** ASM-14, for the records it is applied to; ASM-19, for the
   peer key's availability.
-- **Status: tested only.** No test or vector covers it yet;
-  evidence-index.json records them as missing evidence. No proof covers it.
+- **Status: tested only.**
+  - The unit tests of `tacenta-core/src/sessions/identity.rs`
+    (`classification_over_the_cases`, `classification_ignores_duplicates`,
+    `non_identity_members_never_match`, `lookup_over_the_cases`,
+    `lookup_refuses_a_presented_key_that_is_not_an_identity_key`), and the
+    responder tests in `tacenta-core/tests/identity_responder.rs`.
+  - `tacenta-test-vectors/vectors/identity/identity-classification.json`
+    (20 vectors) and `identity-lookup.json` (14), generated from the model
+    (`Model.IdentityRecords`), and the peer key and lookup fields of the
+    sessions in `initiator-expectation.json`. The independent reader reads
+    them.
+  - No proof covers it. The model's theorems about the classification and the
+    lookup are about the model alone.
 - **Does not cover:**
   - Attribution itself, which is the party's act (ASM-14).
   - A party that attributes by label, attributes once and never again, or
@@ -540,9 +570,24 @@ and is computed only from identity keys (identities-and-devices.md).
   compared.
 - **Rests on:** ASM-07, ASM-14.
 - **Status: assumed (ASM-07)** for the binding. Beneath it, the order
-  independence and the refusals are tested only. No vector covers them yet;
-  evidence-index.json records them as missing evidence. No proof covers any
-  part.
+  independence, the refusals and the verification number are tested only:
+  - the unit tests of `tacenta-core/src/sessions/identity.rs`
+    (`the_label_is_the_32_bytes_constants_md_gives`,
+    `digest_known_answers_in_both_orders`,
+    `the_digest_sorts_as_unsigned_bytes_and_not_otherwise`,
+    `digest_refuses_keys_that_are_not_identity_keys`,
+    `digest_refuses_non_canonical_keys_as_decode_failures`,
+    `digest_with_two_refused_keys_reports_one_of_them`,
+    `verification_number_known_answers` and
+    `verification_number_in_twelve_groups_of_five`);
+  - `tacenta-test-vectors/vectors/identity/pair-digest.json` (38 vectors,
+    every pair in both orders) and `verification-number.json` (9), generated
+    from the model (`Model.IdentityRecords`) and read by the independent
+    reader.
+
+  No proof covers any part. The model's theorems that its digest is the same
+  in either order and that its number has 60 digits are about the model
+  alone, and nothing proves SHA-256 or its reduction to 60 digits.
 - **Does not cover:**
   - Whether and how people compare, how many digits they compare, and over
     what channel (ASM-14; EX-09).

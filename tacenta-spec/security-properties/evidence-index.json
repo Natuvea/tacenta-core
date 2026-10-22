@@ -157,8 +157,70 @@
           "symbol": "establish_initiator_for"
         }
       ],
-      "model_properties": [],
-      "claims": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "malformed_first",
+          "coverage": "A malformed expectation is refused first, for every bundle, identity and oracle, with the oracle unchanged. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "presence_before_expectation",
+          "coverage": "The bundle's presence refusal comes before the expectation's check. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "canonical_before_expectation",
+          "coverage": "The bundle's canonical-key refusal comes before the expectation's check. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "rule_first",
+          "coverage": "A bundle identity key the oracle's identity-key rule refuses is an invalid identity key under either form, whatever the records hold. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "expectation_refusal",
+          "coverage": "A refusal by the expectation is the step's result with the oracle unchanged, so nothing is drawn for it in the model. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "expectation_refusal_independent",
+          "coverage": "Oracles that share the identity-key rule give the same result for a bundle the expectation refuses, whatever the signatures, KEM prekey or agreements would give. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "check_known_none_iff",
+          "coverage": "Under known the key goes on exactly when it is an identity key, the record is well formed, and the key is current and not retired. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "check_firstContact_none_iff",
+          "coverage": "Under first contact the key goes on exactly when it is an identity key that is same and retired for no contact. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/InitiatorExpectation.lean",
+          "theorem": "success_is_leaf",
+          "coverage": "Past the expectation the step is the unchanged lifecycle model's establishment, called with the bundle's own identity key. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, in the model: identity records and the initiator's expectation)",
+          "references": [
+            "malformed_first",
+            "presence_before_expectation",
+            "canonical_before_expectation",
+            "rule_first",
+            "expectation_refusal",
+            "expectation_refusal_independent",
+            "check_known_none_iff",
+            "check_firstContact_none_iff",
+            "success_is_leaf"
+          ]
+        }
+      ],
       "vectors": [
         {
           "path": "tacenta-test-vectors/vectors/identity/initiator-expectation.json",
@@ -243,24 +305,10 @@
       "missing_evidence": [
         {
           "kind": "proof",
-          "reason": "No proof covers the session layer's check of a bundle's identity key against the initiator's expectation.",
+          "reason": "No proof covers the session layer's check of a bundle's identity key against the initiator's expectation: establish_initiator in tacenta-core/src/sessions/identity.rs is outside the translated crates, and the model's theorems about the order are about the model alone.",
           "references": [
             "ASM-19",
             "LIM-13"
-          ]
-        },
-        {
-          "kind": "vector",
-          "reason": "No conformance vector exercises the initiator's expectation.",
-          "references": [
-            "LIM-13"
-          ]
-        },
-        {
-          "kind": "tests and vectors",
-          "reason": "No test or vector exercises the two expectation forms, RetiredIdentity, MalformedRecord or the check order; this is recorded as missing evidence.",
-          "references": [
-            "ASM-19"
           ]
         }
       ]
@@ -1335,8 +1383,64 @@
           "symbol": "peer_identity"
         }
       ],
-      "model_properties": [],
-      "claims": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "classify_key_refusal",
+          "coverage": "The presented key's refusal comes before any member is read. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "classify_malformed",
+          "coverage": "A non-canonical member refuses the classification of an identity key, even when the key matches another member. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "classify_retired",
+          "coverage": "For an identity key and a well-formed record, a key in the retired set is retired. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "classify_member_is_identity_key",
+          "coverage": "A same or retired result means the key is an identity key and a member, so a canonical non-identity member never matches. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "lookup_key_refusal",
+          "coverage": "A refused presented key refuses the lookup, with no record reported. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "lookup_total",
+          "coverage": "The lookup gives a result for every identity key over every list of records. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "attributionOf_cases",
+          "coverage": "The attribution is exactly one of a contact's, ambiguous, a retired key and unattributed. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "lookup_result",
+          "coverage": "A lookup's result is the attribution of the contacts the key is same and retired for, with the retired-for contacts and the malformed records reported. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, in the model: identity records and the initiator's expectation)",
+          "references": [
+            "classify_key_refusal",
+            "classify_malformed",
+            "classify_retired",
+            "classify_member_is_identity_key",
+            "lookup_key_refusal",
+            "lookup_total",
+            "attributionOf_cases",
+            "lookup_result"
+          ]
+        }
+      ],
       "vectors": [
         {
           "path": "tacenta-test-vectors/vectors/identity/identity-classification.json",
@@ -1436,15 +1540,8 @@
       ],
       "missing_evidence": [
         {
-          "kind": "tests and vectors",
-          "reason": "No test or vector exercises it; this is recorded as missing evidence.",
-          "references": [
-            "ASM-19"
-          ]
-        },
-        {
           "kind": "proof",
-          "reason": "No proof covers the classification, the lookup or the availability of a session's peer identity key.",
+          "reason": "No proof covers tacenta-core's classification, lookup or the availability of a session's peer identity key: the functions are outside the translated crates, and the model's theorems are about the model alone.",
           "references": [
             "ASM-19"
           ]
@@ -1475,8 +1572,46 @@
           "symbol": "verification_number"
         }
       ],
-      "model_properties": [],
-      "claims": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "pairDigest_comm_ok",
+          "coverage": "The model's digest is the same in either argument order. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check. It says nothing about SHA-256 (ASM-07)."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "pairDigest_ok_iff",
+          "coverage": "The model's digest is given exactly when neither key is refused, and is the hash of the sorted pair. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "pairDigest_error_allowed",
+          "coverage": "A refusal of the model's digest is a refusal of one of the two keys. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "decimalValue_verificationNumber",
+          "coverage": "The model's verification number reads back as the digest's big-endian value mod 10^60. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        },
+        {
+          "path": "tacenta-model/Model/IdentityRecords.lean",
+          "theorem": "verificationNumber_digits",
+          "coverage": "Every byte of the model's verification number is an ASCII digit. T2 proof about the model's definition only; it does not relate the model to tacenta-core, which the identity vectors and tests check."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, in the model: identity records and the initiator's expectation)",
+          "references": [
+            "pairDigest_comm_ok",
+            "pairDigest_ok_iff",
+            "pairDigest_error_allowed",
+            "decimalValue_verificationNumber",
+            "verificationNumber_digits"
+          ]
+        }
+      ],
       "vectors": [
         {
           "path": "tacenta-test-vectors/vectors/identity/pair-digest.json",
@@ -1528,15 +1663,8 @@
       ],
       "missing_evidence": [
         {
-          "kind": "tests and vectors",
-          "reason": "No test or vector exercises it; this is recorded as missing evidence.",
-          "references": [
-            "ASM-07"
-          ]
-        },
-        {
           "kind": "proof",
-          "reason": "No proof covers the binding; it rests on SHA-256 collision resistance and on the stated random-function heuristic for the reduced output.",
+          "reason": "No proof covers the binding; it rests on SHA-256 collision resistance and on the stated random-function heuristic for the reduced output. The model's theorems cover the order independence and the digits of the model's functions only.",
           "references": [
             "ASM-07"
           ]

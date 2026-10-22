@@ -140,7 +140,9 @@ is SemVer against the specified protocol (not the implementation).
   model). The vector schema names their refusals and adds
   `acceptable_refusals`, for a digest whose two keys are refused with
   different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
-  -16, whose statuses do not change. `bundle-admission.json` is unchanged:
+  -16. The three keep their statuses (tested only, tested only, assumed); the
+  entry under Changed for their status lines says what those now cite.
+  `bundle-admission.json` is unchanged:
   its runner establishes each case under *first contact* with no records. No
   existing vector changes. Three of the initiator vectors pin orders the
   fourteenth independent reader pass found unpinned (`GAPS-14.md`): a
@@ -702,7 +704,7 @@ is SemVer against the specified protocol (not the implementation).
   `protocol/error-handling.md` and `decisions/ADR-0009-identity-verification.md`:
   six of the gaps the fourteenth independent reader pass recorded
   (`tacenta-test-vectors/runners/independent/GAPS-14.md`). G14-01, the
-  status lines, is left to the change that sets the requirements' statuses.
+  status lines, is the next entry's.
   - G14-02: decoding the bundle is not a check of Sending the initial
     message, and no order is fixed between it and a malformed expectation;
     either refusal conforms. The page had left it open, and a malformed
@@ -730,6 +732,36 @@ is SemVer against the specified protocol (not the implementation).
 
   No byte, constant or stored format changes, and no existing vector's
   outcome changes.
+- `security-properties/authentication.md`, REQ-AUTH-02, REQ-AUTH-15 and
+  REQ-AUTH-16, `security-properties/limitations.md`, LIM-13, and
+  `security-properties/evidence-index.json`: the status lines now name the
+  evidence that exists (G14-01 of the fourteenth independent reader pass).
+  None of the three statuses changes: REQ-AUTH-02 and REQ-AUTH-15 stay tested
+  only, and REQ-AUTH-16 stays assumed (ASM-07), with the order independence,
+  the refusals and the number beneath it tested only.
+  - REQ-AUTH-02 names `establish_initiator` of
+    `tacenta-core/src/sessions/identity.rs` as where the refusals are made, the
+    tests in `tacenta-core/tests/identity_expectation.rs`, the `full_session.rs`
+    test, which now runs under *known*, and `initiator-expectation.json`. The
+    sentences saying that no vector covers it and that it covers an expectation
+    of one named key are gone. No proof covers it.
+  - REQ-AUTH-15 names the classification and lookup tests,
+    `identity_responder.rs`, `identity-classification.json` and
+    `identity-lookup.json`. REQ-AUTH-16 names the digest and number tests,
+    `pair-digest.json` and `verification-number.json`. Before, REQ-AUTH-15
+    was "tested only" with no test or vector named.
+  - LIM-13 names the session layer's `establish_initiator` and the current
+    tests and vectors.
+  - In `evidence-index.json`, the `missing_evidence` items that said no test
+    or vector exists are removed from the three entries, and each keeps its
+    `proof` item, whose reason now says that `tacenta-core`'s functions are
+    outside the translated crates and the model's theorems are about the
+    model alone. Each entry gains `model_properties` and a `claims` entry for
+    the theorems about `Model.IdentityRecords` and
+    `Model.InitiatorExpectation` that `tacenta-proofs/CLAIMS.md` records (tier
+    T2, about the model only).
+- `decisions/ADR-0009-identity-verification.md`: the status is Accepted. No
+  decision it records changes.
 
 ### Fixed
 - `protocol/session-establishment.md`: the repeated-initial rule names the key
@@ -772,7 +804,7 @@ is SemVer against the specified protocol (not the implementation).
   refusals. This closes hostile-lens item SC-10.
 
 ### Decided
-- `decisions/ADR-0009-identity-verification.md` (proposed).
+- `decisions/ADR-0009-identity-verification.md` (accepted).
 
 ## [0.2.0] - 2026-09-11
 

@@ -83,8 +83,15 @@ result is carried through the public `Session::decrypt` on frames that are not i
 messages, under the same hypotheses and one premise on the input
 (`decrypt_refines_ratchet_frame`, also in forms that take `Session::invariant`
 and the counter ceilings), and no theorem covers an initial message, so nothing
-here proves `Session::encrypt` or `Session::decrypt` end to end. `Proofs/` carries the
-model-layer work.
+here proves `Session::encrypt` or `Session::decrypt` end to end. The results above about
+`establish_initiator_for` are about the leaf function: the initiator is now established
+through `tacenta_core::sessions::establish_initiator`, a wrapper in
+`tacenta-core/src/sessions/identity.rs` outside the translated crates, which checks the
+initiator's expectation and then calls it, and no theorem is about the wrapper. Identity
+records (the pair digest, the verification number, the classification and the lookup) are
+tested only for `tacenta-core`; `CLAIMS.md` claims 35 theorems about their model
+(`Model.IdentityRecords`, `Model.InitiatorExpectation`), which are about the model alone.
+`Proofs/` carries the model-layer work, and `Proofs/TrustedBase.lean` pins those 35.
 
 Read [CLAIMS.md](CLAIMS.md) for what is established and
 [LIMITATIONS.md](LIMITATIONS.md) for what is not. `scripts/attest.py --check`

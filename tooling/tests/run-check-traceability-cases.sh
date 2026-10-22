@@ -62,6 +62,8 @@ make_case() {
   cp "$root/tacenta-model/Model/Triple.lean" "$dst/tacenta-model/Model/Triple.lean"
   cp "$root/tacenta-model/Model/Braid.lean" "$dst/tacenta-model/Model/Braid.lean"
   cp "$root/tacenta-model/Model/SessionTrace.lean" "$dst/tacenta-model/Model/SessionTrace.lean"
+  cp "$root/tacenta-model/Model/IdentityRecords.lean" "$dst/tacenta-model/Model/IdentityRecords.lean"
+  cp "$root/tacenta-model/Model/InitiatorExpectation.lean" "$dst/tacenta-model/Model/InitiatorExpectation.lean"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
   cp "$root/tacenta-proofs/Proofs/KeyErasure.lean" "$dst/tacenta-proofs/Proofs/KeyErasure.lean"
   cp "$root/tacenta-proofs/Proofs/RatchetCorrectness.lean" "$dst/tacenta-proofs/Proofs/RatchetCorrectness.lean"

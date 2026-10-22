@@ -247,19 +247,26 @@ See LIMITATIONS.md, "Constant-time behaviour is assumed, not proven".
 ### LIM-13: a requirement with no test (closed)
 
 Closed on 2026-09-11. REQ-AUTH-02 is stated by session-establishment.md and
-made by `establish_initiator_for`. No test or vector exercised its refusal
-(`UnexpectedIdentity`).
+made by the session layer's `establish_initiator`
+(`tacenta-core/src/sessions/identity.rs`), which refuses before it calls the
+lifecycle leaf's `establish_initiator_for`. When this entry was opened, no
+test or vector exercised its refusal.
 
-`a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
-(`tacenta-core/tests/full_session.rs`) now does. It checks that:
-- a bundle whose signatures verify under another identity key is refused;
-- no randomness is drawn before the refusal.
+Now:
+- `tacenta-core/tests/identity_expectation.rs` exercises both forms of the
+  expectation, `RetiredIdentity`, `UnexpectedIdentity`, `MalformedRecord` and
+  the order, and checks that no randomness is drawn for a refusal by the
+  expectation or for any refusal before it;
+- `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+  (`tacenta-core/tests/full_session.rs`), under *known*, checks that a bundle
+  whose signatures verify under another identity key is refused, with no
+  randomness drawn before the refusal. It also asserts that neither prekey
+  store's bytes change. That holds by construction rather than by the check:
+  establishment takes no prekey store, so the assertion cannot fail;
+- `tacenta-test-vectors/vectors/identity/initiator-expectation.json` pins the
+  same refusals and order.
 
-It also asserts that neither prekey store's bytes change. That holds by
-construction rather than by the check: `establish_initiator_for` takes no
-prekey store, so the assertion cannot fail.
-
-REQ-AUTH-02 remains tested only. No vector or proof covers it.
+REQ-AUTH-02 remains tested only. Vectors cover it; no proof does.
 
 ### LIM-14: no proof about cost
 
