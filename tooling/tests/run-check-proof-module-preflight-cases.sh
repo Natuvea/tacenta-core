@@ -177,6 +177,9 @@ other_reason="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); pri
 bl reason "$key" "$other_reason"
 run baseline-grew-copied-reason 1 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-grew-copied-reason "the baseline gained $key since HEAD~1 with the reason of $other_key"
+bl reason "$key" "$(printf '%s' "$other_reason" | tr '[:lower:]' '[:upper:]')."
+run baseline-grew-copied-reason-recased 1 --all --baseline "$baseline" --baseline-base HEAD~1
+says baseline-grew-copied-reason-recased "the baseline gained $key since HEAD~1 with the reason of $other_key"
 bl reason "$key" "$good_reason"
 run baseline-grew-with-reason 0 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-grew-with-reason "note     the baseline gained $key since HEAD~1: $good_reason"
@@ -325,6 +328,11 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19\\nresults carries',
 run named-ambiguous 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-ambiguous "names \`responder_reply_refines\` first, which matches 2 pins"
 g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
+# A count written with a number word the check cannot read is a warning, not a silent pass.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Of the other 14 results, 6 rest on', 'Of the other twenty-odd results, 6 rest on', 1)"
+run count-unread-number 0 UnitLifecycleResponderReply --baseline "$baseline"
+says count-unread-number "gives the number of results other than the ones named first in words the check cannot read"
+g checkout -q -- tacenta-proofs/CLAIMS.md
 # A warning alone does not fail the run (CI runs the check for its errors only).
 edit tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean "t = t.replace('* That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.\n', '', 1)"
 run warning-only 0 UnitLifecycleResponderFirstReceipt --baseline "$baseline"

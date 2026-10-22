@@ -1787,8 +1787,8 @@ and in `tooling/ci.sh`, failing on errors only), the regeneration of generated f
 after a merge (`tooling/regenerate-generated.sh`, with the resolver of insertion conflicts it runs first,
 `tooling/resolve-insertion-conflicts.py`), the merge-exactness check (`tooling/check-merge-exactness.sh`) and the
 check that a merge or a rebase kept what this tooling added (`tooling/check-landing.sh`). They change no claim and no gate's verdict on the proofs. The same change also corrects one count in
-`tacenta-proofs/CLAIMS.md` (the restored-session section's kernel-only results, 68 to 69, which leaves out
-`export_message_fits`), says which results the retry-loop section's "other 32" counts (its pins less two that the
+`tacenta-proofs/CLAIMS.md` (the restored-session section's kernel-only results, 68, which left out
+`export_message_fits`, to 69), says which results the retry-loop section's "other 32" counts (its other pins less two that the
 next section describes), and adds one item to the not-shown lists of two module docstrings
 (`UnitLifecycleEstablishedEncrypt`: a random source with no state of its own; `UnitLifecycleResponderFirstFrame`:
 the model's `establishResponder` equality), all found by the preflight; those edits need the rule-7 read.

@@ -62,8 +62,9 @@ and the file's `reasons` gives it a reason of at least 40 characters and six dif
 placeholder), so the list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a
 reviewed exception. A REF that is empty or does not resolve to a commit is an error; a base with no baseline file
 (the commit that introduces it) is only noted. That exemption is reachable only by changing the baseline path in
-the pinned CI command (`checks_42`, held by tooling/required-steps.json), since main has the file. What the check
-holds is the shape of a reason, not its meaning: a reason identical to another key's, and any key for a private
+the pinned CI command (`checks_42`, held by tooling/required-steps.json) once main has the file (in the change that
+introduces it, main has none, so the exemption applies there). What the check holds is the shape of a reason, not
+its meaning: a reason that is another key's (compared without case, spacing or a trailing stop), and any key for a private
 term (which CI, without the list, cannot see occur), are refused; "aa bb cc dd ee ff gg hh ii jj kk ll mm nn" or
 "known finding, accepted for now; we will fix it later." pass, and only review judges them. Without the list a
 private-term key in the baseline is never judged stale either. Warnings never
@@ -509,11 +510,22 @@ def controls_of(values):
 
 def count_mismatch(report, key, where, what, said, actual):
     # The key carries both numbers, so a baselined count is known only at the value it was baselined at.
+    if said is None and actual is not None:
+        # The pattern matched a number word that `number` cannot read ("twenty-odd"): not checked, and said so.
+        report.add("warning", f"{key}|unread-number", f"{where}: gives the number of {what} in words the check "
+                   f"cannot read, so that count is not checked (there are {actual})")
     if said is not None and actual is not None and said != actual:
         report.add("error", f"{key}|{said}|{actual}", f"{where}: says {said} {what}; there are {actual}")
 
 
 PLACEHOLDER = re.compile(r"(?i)\W*(?:x+|todo|tbd|fixme|reason|n/?a|none|placeholder|ok|fine|known|\.+)\W*")
+
+
+def same_reason(a, b):
+    """Whether two reasons are the same text up to case, white space and trailing punctuation."""
+    def norm(text):
+        return " ".join(str(text or "").lower().split()).rstrip(" .;:,!")
+    return norm(a) == norm(b)
 
 
 def trivial_reason(reason):
@@ -825,7 +837,7 @@ def main():
             occurring = {k for lvl, k, _ in items if lvl == "error"}
             for key in sorted(known - set(json.loads(old.stdout)["findings"])):
                 copied = [k for k in reasons if k != key and str(reasons.get(k, "")).strip()
-                          and " ".join(str(reasons[k]).split()) == " ".join(str(reasons.get(key, "")).split())]
+                          and same_reason(reasons[k], reasons.get(key, ""))]
                 if key.endswith("|private term"):
                     # Whether it occurs can be told only where the local list is read, which CI never does.
                     print(f"ERROR    the baseline gained {key} since {args.baseline_base}: a private-term key cannot "

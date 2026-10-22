@@ -1,5 +1,5 @@
 {
- "_note": "Findings of tooling/check-proof-module-preflight.py that were in the tree when the check was introduced, one key each. They are reported as known and do not fail; any other finding fails. A key that no longer occurs is reported as stale (an error with --strict or --baseline-base, as CI runs it): delete it. A key added later fails against the base branch's baseline (--baseline-base) unless it occurs and `reasons` gives it a reason of at least 40 characters and six words.",
+ "_note": "Findings of tooling/check-proof-module-preflight.py that were in the tree when the check was introduced, one key each. They are reported as known and do not fail; any other finding fails. A key that no longer occurs is reported as stale (an error with --strict or --baseline-base, as CI runs it): delete it. A key added later fails against the base branch's baseline (--baseline-base) unless it occurs and `reasons` gives it a reason of at least 40 characters and six words. A key added since the base is also refused when its reason is another key's (up to case, spacing and a trailing stop), and when it is for a private term, which CI cannot check.",
  "findings": [
   "UnitLifecycleDecryptScreen|no-negatives-script",
   "UnitLifecycleIntegrationScreen|no-negatives-script",
