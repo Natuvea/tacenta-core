@@ -417,6 +417,34 @@ open(path, "w").write(text[:start] + text[end:])
 PY
 expect_fail projection-record-removed "$ss: \`main\` never records \`projection_of\` for a control"
 
+# Respellings of an early end or a narrowed baseline set: a SystemExit of a number written as arithmetic, an exit
+# imported under another name, a helper that ends the run (by raising or by an exit call), the run ended through
+# ctypes, a baseline skipped and `sources` narrowed to match before the completeness check, and a baseline deleted
+# from `sources`.
+make_case raise-arithmetic
+edit raise-arithmetic "$sp" $'    check_complete(results, sources)\n' $'    if os.environ.get(\'QUICK\'):\n        raise SystemExit(1 - 1)\n    check_complete(results, sources)\n'
+expect_fail raise-arithmetic "\`SystemExit(1 - 1)\` (line"
+make_case exit-imported-as-another-name
+edit exit-imported-as-another-name "$sp" $'\nimport tempfile\n' $'\nimport tempfile\nfrom sys import exit as leave\n'
+edit exit-imported-as-another-name "$sp" $'    check_complete(results, sources)\n' $'    leave(0)\n    check_complete(results, sources)\n'
+expect_fail exit-imported-as-another-name "uses \`exit\`, through which the script can end its own run"
+make_case helper-raises-exit
+edit helper-raises-exit "$sp" $'\n\ndef main():\n' $'\n\ndef finish():\n    raise SystemExit(0)\n\n\ndef main():\n    finish()\n'
+expect_fail helper-raises-exit "\`SystemExit(0)\` (line"
+make_case helper-calls-exit
+edit helper-calls-exit "$sp" $'\n\ndef main():\n' $'\n\ndef finish():\n    sys.exit(0)\n\n\ndef main():\n    finish()\n'
+expect_fail helper-calls-exit "\`sys.exit(0)\` (line"
+make_case exit-through-ctypes
+edit exit-through-ctypes "$sp" $'\n\ndef main():\n' $'\n\ndef finish():\n    import ctypes\n    ctypes.CDLL(None)[\'_\' + \'exit\'](0)\n\n\ndef main():\n    finish()\n'
+expect_fail exit-through-ctypes "uses ctypes, through which a shared helper can be rebound"
+make_case baseline-skipped-sources-narrowed
+edit baseline-skipped-sources-narrowed "$sp" $'        for label, text in sources.items():\n' $'        for label, text in sources.items():\n            if label == \'pinned\':\n                continue\n'
+edit baseline-skipped-sources-narrowed "$sp" $'    check_complete(results, sources)\n' $'    sources = {k: v for k, v in sources.items() if k in results[\'accepted\']}\n    check_complete(results, sources)\n'
+expect_fail baseline-skipped-sources-narrowed "binds, changes or passes on \`sources\`"
+make_case baseline-deleted-from-sources
+edit baseline-deleted-from-sources "$sp" $'    check_complete(results, sources)\n' $'    del sources[\'pinned\']\n    check_complete(results, sources)\n'
+expect_fail baseline-deleted-from-sources "binds, changes or passes on \`sources\`"
+
 # The scaffold's template is held to the shared text and to the rules for `main`, so a script generated from it
 # starts at the standard of the others.
 tp=templates/lifecycle-negatives.py.in

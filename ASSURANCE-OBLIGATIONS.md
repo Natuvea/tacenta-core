@@ -1466,7 +1466,7 @@ recorded decision or a target-closing slice:
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
   Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
   The gate holds the scaffold's negatives template (`tacenta-proofs/scripts/templates/lifecycle-negatives.py.in`) to the same shared text and reads its `main` by the same rules, without counting it;
-  its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (90 cases in all, the completeness check run on simulated results with no Lean).
+  its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (97 cases in all, the completeness check run on simulated results with no Lean).
   The gate also refuses a second binding of `main`,
   `MUTANTS`,
   `INSIDE`,
@@ -1474,7 +1474,20 @@ recorded decision or a target-closing slice:
   `STATEMENT_SHAPE`,
   `COMPOSING` or `PROJECTED`, any `global` or `nonlocal`, a `raise` in `main` other than `SystemExit(<a message>)`, an assignment or `del` through an attribute or subscript of a module-level name, an in-place method call on one, and a `main` that does not record `inside`,
   `projection_of` and `projects`.
-  These rules stop accidents and the edits listed, not a deliberate edit:
+  Anywhere in a script it refuses a `SystemExit` not raised directly of one message (a string, an f-string or a `+` with one),
+  and any use, import under any name or binding of `exit`,
+  `quit`,
+  `_exit`,
+  `abort`,
+  `kill`,
+  `killpg`,
+  the `exec*`,
+  `spawn*` and `posix_spawn*` calls,
+  `fork` or `forkpty` other than `sys.exit(main())` and `run_lean`'s `os.killpg`;
+  `main` must bind `sources` once and only read it.
+  Seven cases hold these: an arithmetic `SystemExit` argument, `exit` imported under another name, a helper that raises or calls an exit, an exit reached through `ctypes`, a baseline skipped with `sources` narrowed to match, and a baseline deleted from `sources`.
+  These rules read spellings: they stop accidents and the edits listed, not a deliberate edit:
+  a run ended in a way none of those names spells is not seen,
   the same change to all five copies of a shared helper is one text, and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see is not detected.
 
   **Missing evidence:**

@@ -31,13 +31,20 @@ the same rules for `main` (it is read, never imported, and has no entry in the r
 starts at the standard of the others and no helper fix can leave the template behind.  Any
 other binding of a shared name is refused, at any depth: an annotated or augmented assignment, a `global`, an
 import, a loop, `with` or `except` target, a parameter, a walrus, a `del`; so is any use of `globals`, `setattr`,
-`exec`, `eval`, `__dict__`, `sys.modules`, `importlib` or `__import__`, through which a name can be rebound without
-naming it.
+`exec`, `eval`, `getattr`, `__dict__`, `sys.modules`, `importlib`, `__import__` or `ctypes`, through which a name
+can be rebound, or a function reached, without naming it.
 
 The counts hold what the script contains, not what it runs, so `main` is read too: it must call the shared
 `check_complete(results, sources)` as a statement of its own body (not inside an `if`, a loop, a `try` or a `with`),
 hold no `return`, call no `exit` and raise nothing but `SystemExit(<a message>)`, record `inside`, `projection_of`
-and `projects` for its controls, and the script must end its run with exactly `sys.exit(main())`.  `main`,
+and `projects` for its controls, and the script must end its run with exactly `sys.exit(main())`.  Anywhere in the
+script, not only in `main` (a helper `main` calls ends the run as surely): `SystemExit` is only raised directly, of
+one argument written as a message (a string literal, an f-string, or a `+` with one of them as an operand, whose
+value is a string, so the run fails), and none of `exit`, `quit`, `_exit`, `abort`, `kill`, `killpg`, the `exec*`,
+`spawn*` and `posix_spawn*` calls, `fork` or `forkpty` is used, imported (under any name) or bound, except
+`sys.exit(main())` and `os.killpg(process.pid, signal.SIGTERM)` in `run_lean`.  `sources` is bound once in `main`, by
+its dict literal, and is otherwise only read (subscript, `.items()`, `.keys()`, `.values()`, and as the second
+argument of `check_complete`), so a baseline skipped in the loop cannot be hidden by narrowing it.  `main`,
 `MUTANTS`, `INSIDE`, `PROJECTION`, `STATEMENT_SHAPE`, `COMPOSING` and `PROJECTED` are each bound once, at the top
 level; no `global` or `nonlocal` statement, no assignment or `del` through an attribute or subscript of a
 module-level name (`check_complete.__code__ = ...`, `del INSIDE[...]`), and no in-place method call on one
@@ -48,6 +55,9 @@ records in `RUNS`, do not number one per baseline, control and emptied-proof run
 per baseline and one refusing run per control and statement-shape check.
 
 What it cannot see.  These rules stop an accidental edit and the edits listed; they do not stop a deliberate one.
+They read spellings, not what the code does: a run ended in a way none of the names above spells (an uncaught
+exception is not such a way: it exits nonzero), a result written into `results` without its control having been
+checked, or Lean run on other files, is not seen.
 The same change made to all five copies of a shared helper is one text and passes, as does a `main` that runs Lean
 the expected number of times on files other than the controls and reports refusals it did not see; a control that
 is a poor one, or a record whose counts are wrong but edited together with its script (only the diff shows it),
@@ -90,7 +100,7 @@ def load(path):
 
 # Names through which a script could rebind a shared helper without a binding this gate reads.
 DYNAMIC = ("globals", "setattr", "exec", "eval", "__dict__", "modules", "importlib", "__import__", "vars", "locals",
-           "__code__", "__globals__", "__builtins__", "delattr")
+           "__code__", "__globals__", "__builtins__", "delattr", "getattr", "builtins", "ctypes")
 # The names each script defines for itself, bound once at the top level and nowhere else, so that `main` and the
 # lists `check_complete` reads cannot be rebound or shortened by a second binding.
 ONCE = ("main", "MUTANTS", "INSIDE", "PROJECTION", "STATEMENT_SHAPE", "COMPOSING", "PROJECTED")
@@ -226,10 +236,107 @@ def edit_problems(name, source):
     return problems
 
 
+def is_message(node):
+    """Whether `node` is written as a message: a string literal, an f-string, or a `+` one of whose operands is one
+    (so its value is a string, or the `+` fails). `SystemExit` of a string exits 1; of a number, a name or a call it
+    may exit 0."""
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str)
+    if isinstance(node, ast.JoinedStr):
+        return True
+    return isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and (is_message(node.left)
+                                                                             or is_message(node.right))
+
+
+# The names through which a script can end its own process: `exit` and its kin, the `os` calls that end or replace the
+# process, and the `os.killpg` the shared `run_lean` sends its child group, which is allowed there and nowhere else.
+EXITS = ("exit", "quit", "_exit", "abort", "kill", "killpg", "execl", "execle", "execlp", "execlpe", "execv",
+         "execve", "execvp", "execvpe", "posix_spawn", "posix_spawnp", "spawnl", "spawnle", "spawnlp", "spawnlpe",
+         "spawnv", "spawnve", "spawnvp", "spawnvpe", "fork", "forkpty")
+ALLOWED_EXITS = ("sys.exit(main())", "os.killpg(process.pid, signal.SIGTERM)")
+
+
+def exit_problems(name, source):
+    """Anywhere in the script, not only in `main`: every `SystemExit` is raised directly, of one message (a helper
+    `main` calls ends the run as surely as `main` does), and no name of EXITS is used, imported or bound, except
+    `sys.exit(main())` that ends the run and `os.killpg(process.pid, signal.SIGTERM)` in `run_lean`."""
+    tree = ast.parse(source)
+    parent = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    problems = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == "SystemExit":
+            call = parent.get(node)
+            raised = (isinstance(call, ast.Call) and call.func is node and isinstance(parent.get(call), ast.Raise)
+                      and parent[call].exc is call)
+            if not raised or len(call.args) != 1 or call.keywords or not is_message(call.args[0]):
+                where = call if isinstance(call, ast.Call) else node
+                problems.append(f"{name}: `{ast.unparse(where)[:60]}` (line {node.lineno}): SystemExit may only be "
+                                "raised directly, of one message (a string, an f-string or a `+` with one), which "
+                                "fails the run")
+        elif isinstance(node, ast.Raise) and isinstance(node.exc, ast.Name) and node.exc.id == "SystemExit":
+            pass  # reported above, as a bare name
+        names = []
+        if isinstance(node, ast.Name) and node.id in EXITS:
+            names.append(node.id)
+        elif isinstance(node, ast.Attribute) and node.attr in EXITS:
+            names.append(node.attr)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            names += [a.name.split(".")[-1] for a in node.names if a.name.split(".")[-1] in EXITS or a.name == "*"]
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name in EXITS:
+            names.append(node.name)
+        for found in names:
+            call = parent.get(node)
+            text = ast.unparse(call) if isinstance(call, ast.Call) else ""
+            if text in ALLOWED_EXITS:
+                continue
+            problems.append(f"{name}: `{(text or ast.unparse(node))[:60]}` (line {node.lineno}) uses `{found}`, through "
+                            "which the script can end its own run before `check_complete` (allowed only as "
+                            "`sys.exit(main())` and in `run_lean`)")
+    return problems
+
+
+def sources_problems(name, source):
+    """`sources` in `main` is bound once, by the dict literal of the baselines, and only read: by subscript, by
+    `.items()`, `.keys()` or `.values()`, and as the second argument of `check_complete`. So the baselines
+    `check_complete` compares the run with are the ones the record counts, and a baseline skipped in the loop cannot
+    be hidden by narrowing `sources` before the call."""
+    tree = ast.parse(source)
+    mains = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"]
+    if len(mains) != 1:
+        return []
+    main = mains[0]
+    parent = {child: node for node in ast.walk(main) for child in ast.iter_child_nodes(node)}
+    problems, binds = [], 0
+    for node in ast.walk(main):
+        if not (isinstance(node, ast.Name) and node.id == "sources") and not (
+                isinstance(node, ast.arg) and node.arg == "sources"):
+            continue
+        up = parent.get(node)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and isinstance(up, ast.Assign) \
+                and up.targets == [node] and isinstance(up.value, ast.Dict) and parent.get(up) is main:
+            binds += 1
+            continue
+        ok = isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and (
+            (isinstance(up, ast.Subscript) and up.value is node and isinstance(up.ctx, ast.Load))
+            or (isinstance(up, ast.Attribute) and up.value is node and up.attr in ("items", "keys", "values")
+                and isinstance(parent.get(up), ast.Call) and parent[up].func is up and not parent[up].args)
+            or (isinstance(up, ast.Call) and isinstance(up.func, ast.Name) and up.func.id == "check_complete"
+                and len(up.args) == 2 and up.args[1] is node))
+        if not ok:
+            where = up if up is not None else node
+            problems.append(f"{name}: `{ast.unparse(where)[:60]}` (line {node.lineno}) in `main` binds, changes or "
+                            "passes on `sources`, which holds the baselines `check_complete` compares the run with; "
+                            "it may only be read")
+    if binds != 1:
+        problems.append(f"{name}: `main` binds `sources` {binds} time(s) as a dict literal of its own body; it must "
+                        "be bound once, so the baselines `check_complete` reads are the ones counted")
+    return problems
+
+
 def main_problems(name, source):
     """What `main` and the end of the script must hold so that the run is the one the counts describe."""
     tree = ast.parse(source)
-    problems = edit_problems(name, source)
+    problems = edit_problems(name, source) + exit_problems(name, source) + sources_problems(name, source)
     mains = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"]
     if len(mains) != 1:
         return [f"{name} has {len(mains)} top-level `main`, not one"]
@@ -246,9 +353,7 @@ def main_problems(name, source):
         if isinstance(node, ast.Raise):
             exc = node.exc
             failing = (isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name) and exc.func.id == "SystemExit"
-                       and len(exc.args) == 1 and not exc.keywords
-                       and isinstance(exc.args[0], (ast.JoinedStr, ast.Constant, ast.BinOp))
-                       and not (isinstance(exc.args[0], ast.Constant) and not isinstance(exc.args[0].value, str)))
+                       and len(exc.args) == 1 and not exc.keywords and is_message(exc.args[0]))
             if not failing:
                 problems.append(f"{name}: `main` raises `{ast.unparse(node)[:60]}`; a raise in `main` must be "
                                 "`raise SystemExit(<a message>)`, which fails the run")
