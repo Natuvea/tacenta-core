@@ -4354,6 +4354,62 @@ fixed), of the closure (the bridge without the public mapping, and the complete 
 with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
 named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
 
+## Proved (tier T3, session lifecycle: the sparse skip's refusal kind in both directions, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleSparseSkipKindT3.lean`.
+
+`sparse-pq-ratchet.md`, The store also has a total bound, refuses a skip as `TooManySkipped` past `MAX_SKIP` and,
+after the deletion on a working copy, as `SkippedStoreFull` past `MAX_SKIPPED_STORE`;
+`Model.SparseRatchet.skipMessageKeysDetailed` names the refusal in that order. On the Session unit's translated
+`State::skip_message_keys`, `SessionUnitSpqrT3.skip_message_keys_refines` relates a success to the model's success and
+a refusal to some error with the state unchanged, and `UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines` (the
+previous section) maps every error the code returns to the model's detailed refusal. This module composes the two. It
+adds no hypothesis: the composition takes exactly their hypotheses, in their order.
+
+- `skip_message_keys_refines_detailed`: at states related by `StateRefines`, under the hash agreement, the `Zeroizing`
+  round trip, `VecRetainAgrees`, the totality records `VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`, and the
+  two room premises on the chain table and the store, where `skipMessageKeysDetailed` succeeds with `m'` the translated
+  skip returns `Ok ()` and a state related to `m'`; where it refuses with a reason, the skip returns `Err err` and the
+  state it was given, and `sparseReceiveRefusalOfReal err` is that reason. So a request that steps the chain past
+  `MAX_SKIP` is refused as `TooManySkipped` whatever the store holds, and a request within `MAX_SKIP` that the store
+  bound refuses is refused as `SkippedStoreFull`; that reading of the two cases is from the definition of
+  `skipMessageKeysDetailed`, not a further theorem.
+- `sparseReceiveRefusalOfReal_injective`: the public mapping from the sparse ratchet's errors to the model's refusals
+  sends different errors to different reasons, so the error in the refusal case is the one that names the reason.
+
+**What is not shown.** The leaf statement `Tacenta.SpqrT3.skip_message_keys_refines` and the three-leaf unit's copy are
+unchanged and still pin the kind in one direction only, and this module is about the Session unit's copy of the code,
+which is generated from the same source; it does not show that its hypotheses about the real functions hold, since the
+hash agreement, the `Zeroizing` round trip, `VecRetainAgrees` and the three totality records are hypotheses here, as in
+the theorems it composes (`VecRetainAgrees` follows from five assumed laws, row `SESSION-SPARSE-AGREEMENTS`); it is about
+one skip, not a sparse `receive`, a sequence of skips, or the session's eviction and retry; no state is exhibited here at
+which the model refuses for each reason, and no vector pins either refusal kind; it says nothing about the Rust source as
+compiled, whose runtime counterpart is `tacenta-core/tests/sparse_skip_order.rs`, which tests the source and not the
+translation.
+
+For a state that meets the Session unit's sparse decoder invariant, which `State::from_bytes` checks,
+`inv_gives_chain_room` and `inv_gives_skip_room` (`SessionUnitRatchetImportInv.lean`) give the two room premises.
+
+**Compiler trust and pins.** Neither result rests on a compiler-trust axiom. `sparseReceiveRefusalOfReal_injective`
+rests on `propext` alone; `skip_message_keys_refines_detailed` on the kernel's three axioms and twelve of the Session
+unit's opaque constants, the same list as `spqr_skip_refusal_refines`. Each of the two results carries an axiom pin and a
+statement pin, and the statement pin of `skip_message_keys_refines_detailed` prints the whole statement. The module
+defines nothing, so it has no `#print` pin; the definitions its statements use (`StateRefines`,
+`sparseReceiveRefusalOfReal`, `skipMessageKeysDetailed`) carry none here, and a pin shows their names and not their
+meaning. `attest.py` requires the axiom pins and statement pins. `check-sparse-skip-kind-negatives.py` plants four faults
+in a copy of the module, each a change to a statement, and requires Lean to refuse each at a named declaration against a
+message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false). Three
+are labelled inside the composing proof `skip_message_keys_refines_detailed` and each is accepted there with that proof
+replaced by `sorry`: the kind claimed under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, every refusal
+claimed `skippedStoreFull` (both refused where the kind from `spqr_skip_refusal_refines` is placed), and a success
+claimed to leave the state it was given (refused where the success conjunct of `skip_message_keys_refines` is placed,
+after the rewriting through `skipMessageKeysDetailed_ok_iff`). That probe verifies attribution only; which of the three
+is a composition step and which places a called theorem's conjunct is decided by reading. The fourth is the mapping
+claimed injective with `TooManySkipped` sent to `skippedStoreFull`, refused in `sparseReceiveRefusalOfReal_injective`.
+The first three refusals are structural (a type mismatch at the named place), not an unprovable goal. An error that is
+not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout
+never counts as the named refusal.
+
 ## Proved (tier T3, session lifecycle: the per-run receive bounds of `decrypt_ratchet` from `Session::invariant`, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleDecryptRunBounds.lean`.

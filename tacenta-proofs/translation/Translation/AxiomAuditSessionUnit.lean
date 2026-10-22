@@ -69,6 +69,7 @@ import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
@@ -212,6 +213,11 @@ associated data (a per-run premise): the initiator's `decrypt` at the same sessi
 `Aead`, leaves the session as it was and takes one draw, under the assumed law `AeadOpenSealUnique` (an opened
 ciphertext is the sealing of what it opened to), which a toy model satisfies and the round trip does not imply.
 Neither the law nor the premise is shown of the real AEAD, and a frame with changed header bytes is not covered.
+`UnitLifecycleSparseSkipKindT3.lean` composes the Session unit's sparse skip refinement with the refusal theorem of
+`UnitLifecycleTripleRefusalT3.lean`: at related states the skip's success is the model's detailed success, and a
+refusal leaves the state as it was and returns the error that maps to the model's refusal, of the same kind (the
+mapping is injective).  It adds no law; `VecRetainAgrees` stays assumed.  It is about one skip on the Session unit's
+copy of the code: the leaf statement and the three-leaf unit's copy still pin the kind in one direction only.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

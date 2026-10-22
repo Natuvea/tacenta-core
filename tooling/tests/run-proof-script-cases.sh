@@ -85,6 +85,7 @@ py_controls=(
   check-repair-negatives.py
   check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
+  check-sparse-skip-kind-negatives.py
   check-sparse-store-full-negatives.py
   check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
@@ -189,6 +190,7 @@ for called in \
   check-repair-negatives.py \
   check-responder-establish-replay-negatives.py \
   check-send-refusal-negatives.py \
+  check-sparse-skip-kind-negatives.py \
   check-sparse-store-full-negatives.py \
   check-tampered-reply-negatives.py \
   check-decrypt-ratchet-negatives.py \

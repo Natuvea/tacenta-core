@@ -279,6 +279,16 @@ phase_send_refusal() {
 python3 scripts/check-send-refusal-negatives.py || fail=1
 }
 
+# The Session unit's sparse skip refines the model's detailed skip, refusal kind included
+# (`UnitLifecycleSparseSkipKindT3.lean`).  After the two unmodified copies are accepted, four changes must each be
+# refused at a named declaration with a message naming the change: the kind under a mapping that swaps
+# `TooManySkipped` and `SkippedStoreFull`, every refusal claimed `skippedStoreFull` and a success claimed to keep
+# the state (in the composing proof, each accepted there with that proof emptied), and the error mapping claimed
+# injective with `TooManySkipped` sent to `skippedStoreFull`.
+phase_sparse_skip_kind() {
+python3 scripts/check-sparse-skip-kind-negatives.py || fail=1
+}
+
 # The sparse skip's store-full conjunct is proved in one branch that reads the store a skip
 # leaves through `hC`: a copy naming another refusal, and a copy whose branch drops `hC`,
 # must each be refused at that branch.
@@ -687,6 +697,7 @@ phases() {
   run_phase repair plain "restated dispatch record controls" phase_repair
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
+  run_phase sparse-skip-kind plain "sparse skip refusal-kind proof-dependency control" phase_sparse_skip_kind
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet

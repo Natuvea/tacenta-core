@@ -1014,6 +1014,7 @@ recorded decision or a target-closing slice:
   `check-repair-negatives.py`,
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
+  `check-sparse-skip-kind-negatives.py`,
   `check-sparse-store-full-negatives.py`,
   `check-tampered-reply-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
@@ -1075,6 +1076,7 @@ recorded decision or a target-closing slice:
   `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, keeps the last-resort path, the commit's single record entry, the fingerprint of the secret read back and the committed store it returns, and its composition keeps the bundle's last-resort key and absent one-time curve key;
   `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
   the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
+  the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1145,6 +1147,7 @@ recorded decision or a target-closing slice:
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused: 12 inside the four composing proofs, 2 projections, 7 on leaf lemmas, one statement-shape check and one definition held by its pin),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
+  `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused: the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, every refusal claimed `skippedStoreFull`, a success claimed to keep the state, each in the composing proof and accepted there with that proof emptied, and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,
   each at a named declaration or pin:

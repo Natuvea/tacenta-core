@@ -37,6 +37,7 @@ hosted braid:
   atomicity
   repair
   send-refusal
+  sparse-skip-kind
   sparse-store-full
   established
 hosted decrypt:

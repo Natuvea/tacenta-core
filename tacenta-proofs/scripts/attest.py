@@ -2010,6 +2010,11 @@ REQUIRED_PINS = frozenset(
         "identity_ad_length_of",
         "export_message_fits",
     )]
+    # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
+    + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
+        "sparseReceiveRefusalOfReal_injective",
+        "skip_message_keys_refines_detailed",
+    )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).
     + ["Tacenta.UnitLifecycleRestoredSession." + n for n in (
@@ -3846,6 +3851,11 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "export_message_fits",
         "CodecShape",
         "sessionEnc",
+    )]
+    # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
+    + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
+        "sparseReceiveRefusalOfReal_injective",
+        "skip_message_keys_refines_detailed",
     )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).
