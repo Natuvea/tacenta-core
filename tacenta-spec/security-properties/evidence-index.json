@@ -159,7 +159,37 @@
       ],
       "model_properties": [],
       "claims": [],
-      "vectors": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/identity/initiator-expectation.json",
+          "case_ids": [
+            "known-same",
+            "known-new",
+            "known-retired",
+            "first-contact-no-records",
+            "first-contact-retired-key",
+            "first-contact-recorded-contact",
+            "first-contact-ambiguous",
+            "first-contact-current-and-retired-elsewhere",
+            "known-empty-record",
+            "known-empty-record-bad-signature",
+            "known-malformed-record-bad-signature",
+            "first-contact-malformed-record-bad-signature",
+            "known-new-key-without-identifier",
+            "known-respelled-identity-bit-255",
+            "known-non-identity-key-u-0",
+            "known-retired-mixed-order-identity",
+            "known-new-bad-signed-prekey-signature",
+            "known-new-bad-kem-prekey-signature",
+            "known-same-bad-signatures",
+            "known-new-unencodable-kem-prekey",
+            "known-same-unencodable-kem-prekey",
+            "known-new-low-order-signed-prekey",
+            "known-same-low-order-signed-prekey"
+          ],
+          "coverage": "Pins both expectation forms against signed bundles: MalformedRecord before any bundle check, the presence and canonical-key checks before the expectation, the identity-key rule applied first, RetiredIdentity and UnexpectedIdentity before the signatures, the KEM prekey's input checks and the agreements (the same defects under the expected key give their own refusals), and no random value drawn before any of those refusals."
+        }
+      ],
       "tests": [
         {
           "path": "tacenta-core/tests/full_session.rs",
@@ -1304,7 +1334,51 @@
       ],
       "model_properties": [],
       "claims": [],
-      "vectors": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/identity/identity-classification.json",
+          "case_ids": [
+            "same",
+            "new",
+            "retired",
+            "retired-over-same",
+            "empty-record",
+            "presented-u-p",
+            "torsion-translate",
+            "malformed-current-member",
+            "malformed-member-before-the-match",
+            "non-identity-member-is-not-malformed",
+            "non-identity-members-never-match",
+            "duplicate-members"
+          ],
+          "coverage": "Pins the classification: the presented key's decode-failure and invalid-identity-key refusals first, membership by bytes, retired over same, MalformedRecord for a non-canonical member wherever it sits, and canonical members that are not identity keys neither malformed nor matched."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/identity/identity-lookup.json",
+          "case_ids": [
+            "one-contact",
+            "ambiguous",
+            "retired-key",
+            "in-no-record",
+            "no-records",
+            "contact-and-retired-elsewhere",
+            "malformed-record-skipped",
+            "only-a-malformed-record-holds-the-key",
+            "presented-key-not-canonical",
+            "presented-torsion-translate-no-records",
+            "record-of-non-identity-keys"
+          ],
+          "coverage": "Pins the lookup's four outcomes, the retired contacts reported beside the result, malformed records skipped and reported, and a refused presented key refusing the lookup with no record reported."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/identity/initiator-expectation.json",
+          "case_ids": [
+            "known-same-also-current-elsewhere",
+            "first-contact-no-records"
+          ],
+          "coverage": "Pins the session's peer identity key and its lookup in all the records: ambiguous after establishment under known, unattributed after first contact."
+        }
+      ],
       "tests": [
         {
           "path": "tacenta-core/src/sessions/identity.rs",
@@ -1400,7 +1474,33 @@
       ],
       "model_properties": [],
       "claims": [],
-      "vectors": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/identity/pair-digest.json",
+          "case_ids": [
+            "rfc7748-keys",
+            "rfc7748-keys-swapped",
+            "equal-keys",
+            "unsigned-order-not-value-order",
+            "unsigned-order-not-signed-limb-or-value-order-swapped",
+            "torsion-translate",
+            "u-p",
+            "u-p-and-u-0"
+          ],
+          "coverage": "Pins the digest and its verification number in both argument orders, the unsigned byte order against the value, signed-byte and limb orders, and refusal of a key that is not an identity key or not canonical, with either refusal accepted when both keys are refused."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/identity/verification-number.json",
+          "case_ids": [
+            "all-zero",
+            "all-ones",
+            "first-byte-high",
+            "small-value",
+            "big-endian"
+          ],
+          "coverage": "Pins the verification number: the digest read big-endian, reduced mod 10^60, and written as 60 ASCII digits with leading zeros."
+        }
+      ],
       "tests": [
         {
           "path": "tacenta-core/src/sessions/identity.rs",

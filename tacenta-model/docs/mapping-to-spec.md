@@ -187,7 +187,13 @@ theorems are properties of the definitions: the digest is symmetric and its sort
 is the unsigned byte order; a classification and a lookup are total on an
 identity key and read only the members of the sets; the order of the initiator's
 checks is the page's. Nothing here says the definitions compute what
-`tacenta-core` computes; the vectors will. The digest's SHA-256 is
+`tacenta-core` computes; the vectors do that, by bytes: `Vectors.lean` writes
+`pair-digest.json`, `verification-number.json`, `identity-classification.json`
+and `identity-lookup.json` under `tacenta-test-vectors/vectors/identity/` from
+these definitions, `initiator-expectation.json` beside them takes every case's
+outcome from `establishInitiatorExpecting` (`lake exe genvectors
+initiator-expectation-verdicts`), and the Rust runner checks `tacenta-core`
+against all five. The digest's SHA-256 is
 `Model.Sha256.hash`, checked against FIPS examples and a length theorem. Three
 choices are the model's, not the pages': a list that is not 32 bytes is not the
 canonical encoding of a curve public key (a decode failure; the keys the

@@ -54,8 +54,17 @@ Two kinds live here:
     generated from `Model.IdentityKey`) and at the two boundaries that read
     an identity key off the wire, a prekey bundle (`bundle-admission.json`)
     and an initial message (`initial-message-admission.json`). The two stored
-    formats' rows are in `vectors/persistence/`. Checked by
-    `runners/rust/tests/identity.rs`. Layout: Vector layouts, below.
+    formats' rows are in `vectors/persistence/`. Beside them, identity
+    records (identities-and-devices.md, The identity pair digest;
+    session-establishment.md, Records, expectations and attribution): the
+    identity pair digest and its verification number (`pair-digest.json`,
+    `verification-number.json`), the classification of a key against one
+    record and its lookup across records (`identity-classification.json`,
+    `identity-lookup.json`), all generated from `Model.IdentityRecords`; and
+    initiator establishment under an expectation (`initiator-expectation.json`),
+    written by `generate-identity-vectors.py`, whose bundles carry signatures,
+    and checked against `Model.InitiatorExpectation` when it is written.
+    Checked by `runners/rust/tests/identity.rs`. Layout: Vector layouts, below.
   - `vectors/aead/`: the authenticated encryption, both directions, with its
     refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
     others, but the model has no AES: the generator computes the padding, the
@@ -595,7 +604,11 @@ rule refuses (error-handling.md).
   `identity-mixed-order-*-signed-under-it` vectors both prekey signatures verify
   under the key by steps 1 to 6 of identities-and-devices.md, Verifying a
   signature, without the prime-order step, so the rule is the only thing that
-  refuses them, and it comes before the signatures are checked.
+  refuses them, and it comes before the signatures are checked. The file
+  carries no expectation (session-establishment.md, Records, expectations and
+  attribution): each case is establishment under *first contact* with no
+  records, which keeps every outcome, and the Rust runner establishes it so.
+  `initiator-expectation.json` has the same refusals under *known*.
 - **`initial-message-admission.json`** is written by an ignored test in
   tacenta-core (`tests/identity_vector_fixtures.rs`, Regenerating, below). The
   inputs are `bob_identity_secret`, `prekey_store` (a stored prekey store,
@@ -606,6 +619,85 @@ rule refuses (error-handling.md).
   first; two of them add an unknown one-time identifier or a ciphertext of the
   wrong length, to pin the order among the checks. A refusal leaves the prekey
   store as it was.
+
+### Identity records: `vectors/identity/pair-digest.json` and four beside it
+
+The pages are identities-and-devices.md, The identity pair digest (and its
+section The verification number), and session-establishment.md, Records,
+expectations and attribution, with Sending the initial message for the
+initiator. Every invalid vector in these five files names its refusal, with
+`refusal` or, where the page allows either of two, `acceptable_refusals`
+(the schema's description of `refusal` says what each name means). Keys are
+32 bytes, and these layouts are shared:
+
+- **A list of keys** is the keys' 32-byte encodings concatenated, empty for
+  an empty list. A list denotes the set of its members.
+- **A list of records** is a 4-byte big-endian count, then for each record a
+  4-byte count of its current keys, those keys, a 4-byte count of its retired
+  keys and those keys. The n-th record, counting from 0, is contact n's.
+- **A lookup's result** is the `fields` `attribution`, one byte (`00`
+  unattributed, `01` a contact's, `02` ambiguous, `03` a retired key);
+  `contact`, the contact as 4 bytes, present only for `01`; `retired_for`,
+  the contacts the key is *retired* for, 4 bytes each in record order, empty
+  when there are none; and `malformed`, the records skipped as malformed, the
+  same way. Which contacts an ambiguous key is *same* for is not in the
+  result: the page does not say that a lookup reports them.
+
+The files:
+
+- **`pair-digest.json`** is generated from `Model.IdentityRecords.pairDigest`.
+  The inputs are `k1` and `k2`, and every pair is given in both orders (the
+  second with `-swapped` after its id; a pair of equal keys once). A valid
+  vector's `fields` are `digest` and `verification_number`, the 60 ASCII
+  digits. A refused pair is `decode-failure` when a key is not canonical and
+  `invalid-identity-key` when it is canonical and not an identity key. The
+  `u-p-and-u-0` pair, whose keys are refused with different kinds, carries
+  `acceptable_refusals` with both, since the page says either conforms. The
+  digests and numbers were computed with Python's `hashlib` when the table
+  was written, and the generator writes nothing if the model disagrees.
+- **`verification-number.json`** is generated from
+  `Model.IdentityRecords.verificationNumber`. The one input is `digest`, and
+  the `output` is the 60 ASCII digits, most significant first. The layout in
+  twelve groups of five is not pinned: the page allows it, and it does not
+  change the digits.
+- **`identity-classification.json`** is generated from
+  `Model.IdentityRecords.classify`. The inputs are `key`, the presented key,
+  and `current` and `retired`, the record's two sets as lists of keys. The
+  `output` is the class, one byte: `01` *same*, `02` *new*, `03` *retired*. A
+  refusal is `decode-failure` or `invalid-identity-key` for the presented key,
+  checked first, or `malformed-record` for a non-canonical member.
+- **`identity-lookup.json`** is generated from
+  `Model.IdentityRecords.lookupWith` under the identity-key rule. The inputs
+  are `key` and `records`, a list of records. A valid vector's `fields` are a
+  lookup's result; a refused key is `decode-failure` or
+  `invalid-identity-key`, and no record is reported.
+- **`initiator-expectation.json`** is written by `generate-identity-vectors.py`
+  (Regenerating, below), not by the model, because its bundles carry XEdDSA
+  signatures. The inputs are `expectation` (`00` for *first contact*, which
+  carries all the records; `01` and a 4-byte contact for *known*, whose record
+  is that contact's), `records`, a list of records, `initiator_identity_secret`,
+  and the bundle: `bundle`, a whole prekey bundle the bundle decoder accepts,
+  or `bundle_fields`, the same layout (message-format.md, Prekey bundle) for a
+  bundle it refuses, which reaches establishment some other way: a re-spelled
+  identity key, or a KEM prekey of the wrong length. A runner reads
+  `bundle_fields` by the layout, without the decoder. A valid vector's
+  `fields` are `peer_identity`, the session's peer identity key, and the
+  result of looking it up in all of `records`. A refused vector names the
+  refusal of session-establishment.md: `malformed-record`,
+  `unexpected-identity`, `retired-identity` or `invalid-identity-key` from the
+  expectation, and the refusals of Sending the initial message that the
+  expectation is ordered against, `inconsistent-bundle` (the presence check),
+  `non-canonical-key`, `authentication-failure` (either signature),
+  `kem-input` and `non-contributory`. Every refusal but the last two is made
+  before anything is drawn, and a runner checks that it drew no random value.
+
+What these files do not pin: when the KEM prekey's input checks are made
+relative to drawing `EKA` (the page leaves it open, so `kem-input` pins only
+the kind); the order of the presence check and the canonical-key checks (no
+vector fails both); a separate refusal by the identity-key rule after the
+expectation, which the expectation always makes first; and the responder's
+attribution of a session, which is a lookup of its peer key (the lookup file
+pins that) after the establishment `initial-message-admission.json` pins.
 
 ### The hosted-inventory statements: `vectors/groups/inventory-*.json`
 
@@ -892,7 +984,16 @@ on the path and installs that toolchain on first use. Then:
     bash tacenta-test-vectors/regenerate-vectors.sh
     git diff --stat -- tacenta-test-vectors/vectors
 
-Two files under `vectors/identity/` are not model output.
+Three files under `vectors/identity/` are not model output.
+`initiator-expectation.json` is written by `generate-identity-vectors.py`,
+which `regenerate-vectors.sh` runs after the model's files: the script makes
+the bundles and their signatures with its own arithmetic, asks the model for
+every case's outcome (`lake exe genvectors initiator-expectation-verdicts`),
+and writes nothing when the model, its own reading of the pages or a case's
+intended outcome disagree. It also recomputes the four model-generated
+identity-record files with its own code. `python3
+tacenta-test-vectors/generate-identity-vectors.py --check` compares instead
+of writing.
 `bundle-admission.json` is computed by a stand-alone program that is not in this
 repository, and is not regenerated here.
 `initial-message-admission.json` is written by an ignored test in

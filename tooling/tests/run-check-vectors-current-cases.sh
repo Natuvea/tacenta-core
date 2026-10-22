@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Negative control for `tooling/check-vectors-current.sh`: a committed vector that differs from the model's
-# output must be refused, and the unchanged tree accepted.
+# output must be refused, and the unchanged tree accepted. So must a changed vector in the file the
+# regeneration writes through `generate-identity-vectors.py`.
 #
 # The case plants its change in a disposable worktree of the commit under test, with the model package's
 # build directory linked in so that `lake exe genvectors` runs without a rebuild, flips one hex digit in one
@@ -54,4 +55,24 @@ if [ "$rc" -eq 0 ] || ! grep -qF "$target" <<<"$out" || ! grep -qF 'the committe
   exit 1
 fi
 
-echo "check-vectors-current cases: the unchanged tree was accepted and a changed committed vector was refused, naming its file"
+# The same for the one file the regeneration writes through a script rather than
+# straight from the model: a changed expected refusal in the initiator's vectors.
+git -C "$tree" reset -q --hard HEAD~1
+target=tacenta-test-vectors/vectors/identity/initiator-expectation.json
+python3 - "$tree/$target" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+if '"refusal": "kem-input"' not in text:
+    raise SystemExit(f"control: no kem-input refusal in {path}")
+path.write_text(text.replace('"refusal": "kem-input"', '"refusal": "non-contributory"', 1))
+PY
+git -C "$tree" -c user.name=control -c user.email=control@example.invalid commit -q -a --no-verify -m 'a changed committed initiator vector'
+run_check
+if [ "$rc" -eq 0 ] || ! grep -qF "$target" <<<"$out" || ! grep -qF 'the committed vectors are not what the model generates' <<<"$out"; then
+  echo "WRONG  vectors-current: a changed initiator vector was not refused for that file (exit $rc)" >&2
+  printf '%s\n' "$out" | tail -15 >&2
+  exit 1
+fi
+
+echo "check-vectors-current cases: the unchanged tree was accepted, and a changed committed vector and a changed initiator vector were each refused, naming their file"

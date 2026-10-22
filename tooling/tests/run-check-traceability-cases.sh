@@ -20,7 +20,7 @@ make_case() {
   mkdir -p "$dst/tacenta-core/spqr/src" "$dst/tacenta-core/triple/src"
   mkdir -p "$dst/tacenta-model/Properties"
   mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
-  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input" "$dst/tacenta-test-vectors/vectors/post-quantum" "$dst/tacenta-test-vectors/vectors/persistence" "$dst/tacenta-test-vectors/vectors/session-establishment"
+  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input" "$dst/tacenta-test-vectors/vectors/post-quantum" "$dst/tacenta-test-vectors/vectors/persistence" "$dst/tacenta-test-vectors/vectors/session-establishment" "$dst/tacenta-test-vectors/vectors/identity"
   cp "$root/tacenta-core/lifecycle/src/lib.rs" "$dst/tacenta-core/lifecycle/src/lib.rs"
   cp "$root/tacenta-core/lifecycle/src/lifecycle.rs" "$dst/tacenta-core/lifecycle/src/lifecycle.rs"
   cp "$root/tacenta-core/AUTHENTICATION-BOUNDARY.md" "$dst/tacenta-core/AUTHENTICATION-BOUNDARY.md"
@@ -92,6 +92,11 @@ make_case() {
   cp "$root/tacenta-test-vectors/vectors/persistence/ratchet-state.json" "$dst/tacenta-test-vectors/vectors/persistence/ratchet-state.json"
   cp "$root/tacenta-test-vectors/vectors/persistence/sparse-ratchet-state.json" "$dst/tacenta-test-vectors/vectors/persistence/sparse-ratchet-state.json"
   cp "$root/tacenta-test-vectors/vectors/session-establishment/pqxdh-sk.json" "$dst/tacenta-test-vectors/vectors/session-establishment/pqxdh-sk.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/pair-digest.json" "$dst/tacenta-test-vectors/vectors/identity/pair-digest.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/verification-number.json" "$dst/tacenta-test-vectors/vectors/identity/verification-number.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/identity-classification.json" "$dst/tacenta-test-vectors/vectors/identity/identity-classification.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/identity-lookup.json" "$dst/tacenta-test-vectors/vectors/identity/identity-lookup.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/initiator-expectation.json" "$dst/tacenta-test-vectors/vectors/identity/initiator-expectation.json"
 }
 
 expect_fail() {

@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use tacenta_core::ratchet;
 
+mod identity_records;
 mod session_e2e;
 
 /// One vector file (one algorithm), matching schema/vector.schema.json.
@@ -41,6 +42,11 @@ pub struct Vector {
     /// is refused, `counter-exhaustion`, or sparse `no-chain` after retirement.
     #[serde(default)]
     pub refusal: Option<String>,
+    /// Carried by an invalid vector in place of `refusal` where the page lets
+    /// an implementation give any one of several refusals: the identity pair
+    /// digest of two keys refused with different kinds.
+    #[serde(default)]
+    pub acceptable_refusals: Option<Vec<String>>,
 }
 
 fn valid() -> String {
@@ -429,6 +435,15 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         "identity-key" => check_identity_key(v),
         "bundle-admission" => check_bundle_admission(v),
         "initial-message-admission" => check_initial_message_admission(v),
+        // Identity records (identities-and-devices.md, The identity pair
+        // digest; session-establishment.md, Records, expectations and
+        // attribution): the digest and its verification number, the
+        // classification, the lookup, and the initiator's expectation.
+        "pair-digest" => identity_records::check_pair_digest(v),
+        "verification-number" => identity_records::check_verification_number(v),
+        "identity-classification" => identity_records::check_identity_classification(v),
+        "identity-lookup" => identity_records::check_identity_lookup(v),
+        "initiator-expectation" => identity_records::check_initiator_expectation(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),

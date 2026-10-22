@@ -1126,14 +1126,20 @@ Current result (pass 13). "Vector checks" are the lines that name a vector, and
 "derived cases" are the `negative ::` lines, each a case the reader's authors
 derived from a sentence of the specification; the total is their sum, and the
 run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
-the same three numbers. The one skip is on the allowlist in `run.py`, with its
-reason (Not implemented, above):
+the same three numbers. One skip is on the allowlist in `run.py`, with its
+reason (Not implemented, above). The other 125 are the five identity-record
+files under `vectors/identity/` (`pair-digest.json`,
+`verification-number.json`, `identity-classification.json`,
+`identity-lookup.json` and `initiator-expectation.json`), which were added after
+this pass and which this reader does not read yet. `run.py` allowlists them
+temporarily, each file whole by its algorithm and its number of vectors, until
+a clean-room pass teaches the reader identity records:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (45 files) | 764 | 763 | 0 | 1 |
+| Vector checks (50 files) | 889 | 763 | 0 | 126 |
 | Derived cases (14 modules) | 264 | 264 | 0 | 0 |
-| **Total** | 1028 | 1027 | 0 | 1 |
+| **Total** | 1153 | 1027 | 0 | 126 |
 
 At the baseline of pass 13 (before any change to the reader) the runner gave
 911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
@@ -1217,7 +1223,8 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **1027 PASS, 0 FAIL, 1 SKIP** (764 vector checks
+derived cases merged, and the identity-record files skipped until the reader
+reads them, the current run is **1027 PASS, 0 FAIL, 126 SKIP** (889 vector checks
 and 264 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 

@@ -130,6 +130,20 @@ is SemVer against the specified protocol (not the implementation).
 
   Also REQ-AUTH-15 and REQ-AUTH-16. No persisted format changes.
 
+- `tacenta-test-vectors/vectors/identity/`: vectors for the identity pair
+  digest (`pair-digest.json`, every pair in both orders), the verification
+  number (`verification-number.json`), the classification and the lookup
+  (`identity-classification.json`, `identity-lookup.json`), generated from
+  the model, and for initiator establishment under an expectation
+  (`initiator-expectation.json`: signed bundles written by
+  `generate-identity-vectors.py`, each case's outcome checked against the
+  model). The vector schema names their refusals and adds
+  `acceptable_refusals`, for a digest whose two keys are refused with
+  different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
+  -16, whose statuses do not change. `bundle-admission.json` is unchanged:
+  its runner establishes each case under *first contact* with no records. No
+  existing vector changes.
+
 ### Changed
 - `protocol/group-messaging.md`: the page no longer lists or relies on one
   published analysis of sender keys (IACR ePrint 2023/1385). The page's rule is

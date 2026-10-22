@@ -35,6 +35,43 @@ EXPECTED_SKIPS = {
     # AEAD and the plaintext.
     "identity/initial-message-admission.json :: honest-initial-message",
 }
+
+# TEMPORARY, until the next clean-room pass teaches this reader identity
+# records. These five files were added with the vectors for identity records
+# (the identity pair digest, the verification number, the classification, the
+# lookup and the initiator's expectation); the reader has no handler for their
+# algorithms, so it skips every vector in them. Each is allowlisted whole, by
+# its algorithm and its exact number of vectors: a vector added to or removed
+# from one of them stops the run here, and a skip anywhere else still fails the
+# gate. Nothing here teaches the reader anything.
+#
+# To remove, in the pass that adds handlers for these algorithms: delete this
+# comment, `_TEMPORARY_UNREAD_FILES`, `_temporary_unread_labels` and the
+# `EXPECTED_SKIPS |= ...` line below them, and set the tally in README.md
+# (Current result, and the pass-11 record) and in ../GAPS-11.md to the run's.
+_TEMPORARY_UNREAD_FILES = {
+    "identity/pair-digest.json": ("pair-digest", 38),
+    "identity/verification-number.json": ("verification-number", 9),
+    "identity/identity-classification.json": ("identity-classification", 20),
+    "identity/identity-lookup.json": ("identity-lookup", 14),
+    "identity/initiator-expectation.json": ("initiator-expectation", 44),
+}
+
+
+def _temporary_unread_labels():
+    labels = set()
+    for rel, (algorithm, count) in _TEMPORARY_UNREAD_FILES.items():
+        with open(os.path.join(VECTORS, rel)) as fh:
+            doc = json.load(fh)
+        ids = [v["id"] for v in doc["vectors"]]
+        if doc.get("algorithm") != algorithm or len(ids) != count:
+            raise SystemExit("reader skip allowlist: %s is not the %d-vector %s file the "
+                             "temporary allowlist names; review it" % (rel, count, algorithm))
+        labels |= {f"{rel} :: {i}" for i in ids}
+    return labels
+
+
+EXPECTED_SKIPS |= _temporary_unread_labels()
 _OBSERVED_SKIPS = set()
 
 

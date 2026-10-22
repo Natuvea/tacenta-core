@@ -10,6 +10,9 @@
 # the hosted-inventory files, whose shapes are closed in the checker itself:
 # an unread field at the top of a case, inside a nested object, a binding
 # with an extra field, and a refusal class the acceptance vectors do not name.
+# The identity-record cases add those files: an invalid vector that names no
+# refusal, `acceptable_refusals` beside a `refusal`, on a valid vector, with a
+# refusal repeated or with one refusal, and a refusal the schema does not name.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -170,4 +173,57 @@ edit_group_file group-unknown-refusal inventory-acceptance-v1.json \
   'data["cases"][0]["refusal"] = "unlucky"'
 expect_fail group-unknown-refusal "refusal: neither null nor one of"
 
-echo 'check-vectors-cases: pass cases and 11 refusal cases gave the expected result'
+# The identity-record files: the real files, then one change each.
+make_identity_case() {
+  local name="$1"
+  make_case "$name"
+  mkdir -p "$work/$name/tacenta-test-vectors/vectors/identity"
+  for f in pair-digest verification-number identity-classification identity-lookup initiator-expectation; do
+    cp "$root/tacenta-test-vectors/vectors/identity/$f.json" "$work/$name/tacenta-test-vectors/vectors/identity/"
+  done
+}
+
+edit_identity_file() {
+  local name="$1" file="$2" edit="$3"
+  python3 - "$work/$name/tacenta-test-vectors/vectors/identity/$file" "$edit" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+either = next((v for v in data["vectors"] if "acceptable_refusals" in v), None)
+named = next((v for v in data["vectors"] if "refusal" in v), None)
+valid = next((v for v in data["vectors"] if v.get("result", "valid") == "valid"), None)
+exec(sys.argv[2])
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+}
+
+make_identity_case identity-pass
+python3 "$work/identity-pass/tooling/check-vectors.py"
+
+make_identity_case identity-unnamed-refusal
+edit_identity_file identity-unnamed-refusal initiator-expectation.json 'del named["refusal"]'
+expect_fail identity-unnamed-refusal "an invalid identity-record vector names its refusal"
+
+make_identity_case identity-both-refusals
+edit_identity_file identity-both-refusals pair-digest.json 'either["refusal"] = "decode-failure"'
+expect_fail identity-both-refusals "carries \`refusal\` or \`acceptable_refusals\`, not both"
+
+make_identity_case identity-acceptable-on-valid
+edit_identity_file identity-acceptable-on-valid pair-digest.json \
+  'valid["acceptable_refusals"] = ["decode-failure", "invalid-identity-key"]'
+expect_fail identity-acceptable-on-valid "\`acceptable_refusals\` is carried only by an invalid vector"
+
+make_identity_case identity-repeated-refusal
+edit_identity_file identity-repeated-refusal pair-digest.json \
+  'either["acceptable_refusals"] = ["decode-failure", "decode-failure"]'
+expect_fail identity-repeated-refusal "\`acceptable_refusals\` repeats a refusal"
+
+make_identity_case identity-one-acceptable
+edit_identity_file identity-one-acceptable pair-digest.json 'either["acceptable_refusals"] = ["decode-failure"]'
+expect_fail identity-one-acceptable "acceptable_refusals: fewer than 2 items"
+
+make_identity_case identity-unknown-refusal
+edit_identity_file identity-unknown-refusal identity-lookup.json 'named["refusal"] = "unlucky"'
+expect_fail identity-unknown-refusal "'unlucky' is not one of"
+
+echo 'check-vectors-cases: pass cases and 17 refusal cases gave the expected result'
