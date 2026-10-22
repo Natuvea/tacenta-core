@@ -77,11 +77,13 @@ nine `native_decide` constants are kernel proofs since 2026-10-21.  The module s
 `pp.proofs.withType true` before its statement pins, so the headline's pin prints the statement without a cut
 (without them Lean cut it off with `⋯` after the binder `crcB`), and `attest.py` refuses a statement pin whose message
 holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  The pin is not the whole elaborated
-statement: Lean leaves out instance arguments, the function behind a coercion `↑`, implicit arguments and the binder
-types of `∃` and `fun`, so a definition the statement names changed under the same name, a new instance in scope or a
-function given the `coe` attribute can change what it means without changing the pin (`check-lean-constructs.sh`
-refuses the last two outside its list of eleven existing instances), and that the pinned statement is the right one is
-decided by reading.
+statement: Lean leaves out, among other things, instance arguments, the function behind a coercion `↑`, implicit
+arguments, the binder types of `∃` and `fun`, universe levels and the types behind numerals and structure instances,
+so a definition the statement names changed under the same name, a new instance in scope or a function given the `coe`
+attribute can change what it means without changing the pin.  `check-lean-constructs.sh`, a textual guard, refuses an
+instance declaration not among the fourteen it lists whole, any attribute list naming `instance`, `default_instance` or
+`coe`, and the `coe` and `default_instance` tokens; it does not see a dependency's scoped instance brought in by
+`open`.  That the pinned statement is the right one is decided by reading.
 
 ## Non-vacuity
 

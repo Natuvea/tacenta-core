@@ -641,8 +641,10 @@ recorded decision or a target-closing slice:
   every `set_option pp.*` in the first-party Lean trees other than `pp.deepTerms true` and `pp.proofs.withType true` is refused, so no option can bring the cut back or narrow a message without a `⋯` (`pp.oneline`).
   The docstring is found through any comment between it and the `#guard_msgs` (Lean attaches it across one), and such a comment is refused.
   A message without a cut is still not the whole elaborated statement:
-  Lean does not print instance arguments, the function behind a coercion `↑`, implicit arguments or the binder types of `∃` and `fun`, so a new instance, a `coe` function or a definition changed under its name can change what a pinned statement means with its pin unchanged;
-  `check-lean-constructs.sh` refuses the first two in hand-written Lean (row below), and the third is a matter for review.
+  Lean does not print, among other things, instance arguments, the function behind a coercion `↑`, implicit arguments, the binder types of `∃` and `fun`, universe levels or the types behind numerals and structure instances, so a new instance, a `coe` function or a definition changed under its name can change what a pinned statement means with its pin unchanged.
+  `check-lean-constructs.sh` (row below) is a textual guard against the first two in hand-written Lean, and does not see a dependency's scoped instance brought in by `open`;
+  the third is a matter for review.
+  The docstring is found by reading the comments between the last code and the `#guard_msgs` as Lean reads them, so a `/--` inside a line comment is not taken for it.
 
   **Current negative-control evidence:**
   `tacenta-proofs/scripts/check-attest-negatives.sh` runs the statement-pin cases:
@@ -663,7 +665,8 @@ recorded decision or a target-closing slice:
   an unimported module,
   a pin cut off with `⋯` where Lean cut it before its module set `pp.deepTerms`,
   an omitted proof printed without its proposition,
-  the same behind a line and a block comment,
+  the same behind a line comment,
+  behind `-- /-- fake -/` and behind `-- /--` (a docstring opener inside a line comment is part of the comment),
   a comment between a docstring and its `#guard_msgs`,
   seven pretty-printer options (at file level,
   as an `... in` prefix and in a section),
@@ -1451,11 +1454,18 @@ recorded decision or a target-closing slice:
   their label check refuses a projection any place of whose refusal is not a composing theorem.
   `run-check-negatives-control-counts-cases.sh` holds both:
   twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
-  Each script's `main` calls the shared `check_complete`, which refuses a run that refused fewer controls than `MUTANTS` holds, accepted other baselines or skipped an emptied-proof run;
+  Each script's `main` calls the shared `check_complete`, which refuses a run that refused fewer controls than `MUTANTS` holds, accepted other baselines, skipped an emptied-proof run or a projection's record, or whose Lean runs, recorded by `run_lean` alone in `RUNS`, do not number one accepting run per baseline and inside control and one refusing run per control and statement-shape check;
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
-  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (60 cases in all).
-  Not read:
-  whether the results `main` passes to `check_complete` are Lean's.
+  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (84 cases in all, the completeness check run on simulated results with no Lean).
+  The gate also refuses a second binding of `main`,
+  `MUTANTS`,
+  `INSIDE`,
+  `PROJECTION`,
+  `STATEMENT_SHAPE`,
+  `COMPOSING` or `PROJECTED`, any `global` or `nonlocal`, a `raise` in `main` other than `SystemExit(<a message>)`, an assignment or `del` through an attribute or subscript of a module-level name, an in-place method call on one, and a `main` that does not record `inside`,
+  `projection_of` and `projects`.
+  These rules stop accidents and the edits listed, not a deliberate edit:
+  the same change to all five copies of a shared helper is one text, and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see is not detected.
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;
@@ -1472,18 +1482,39 @@ recorded decision or a target-closing slice:
   `implemented_by`,
   `extern`,
   `partial` or `unsafe` name, and no elaboration-time code outside the seven audit invocations, each exact and standing alone, with nothing in the invoking modules but imports, pins and the invocation, one per line, and none of the text found at review to redirect, wrap, forge or hide around them;
-  no `instance` declaration outside an allow-list of the eleven existing ones (file and exact line) and no `instance`,
-  `default_instance` or `coe` attribute, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin;
+  a textual guard on instances and coercions, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin:
+  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of the fourteen listed for its file and namespace (eleven `instance` and three `deriving instance`,
+  each exactly once,
+  so a copy elsewhere or a changed continuation line is refused,
+  while lines may move),
+  a `deriving instance` for a type the file does not declare,
+  an attribute list `@[...]` or `attribute [...]`,
+  read on the whole file so a list split over lines is one,
+  naming `instance`,
+  `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code;
+  it does not see a dependency's scoped instance brought in by `open`, or a class whose parent is a notation class;
   every first-party module is in the audit's import closure;
   every translation module built;
   no incomplete declaration.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-lean-constructs-cases.sh` (75 cases on a copy of the audit modules:
-  four instance declarations and five instance,
-  `default_instance` or `coe` attributes refused,
-  a derived instance accepted,
-  an allow-listed instance changed or gone refused;
+  `tooling/tests/run-lean-constructs-cases.sh` (91 cases on a copy of the audit modules:
+  instance declarations,
+  `local`,
+  `scoped`,
+  after `open … in` and with a priority,
+  instance,
+  `default_instance` and `coe` attributes on one line and split over two,
+  the bare tokens,
+  a derived instance for another file's type and the coercion counterexample from review in the held-encoder module,
+  refused;
+  a derived instance of a type the file declares accepted;
+  an allow-listed instance changed on its first or a continuation line,
+  copied into another namespace,
+  copied twice,
+  moved to another namespace or with a changed default,
+  refused,
+  and one moved down a line accepted;
   a wrapper before an invocation,
   an indented invocation,
   a continuation,

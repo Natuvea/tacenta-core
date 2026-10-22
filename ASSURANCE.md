@@ -41,10 +41,14 @@ regenerated to print each statement without a cut, each module setting
 `pp.deepTerms` and `pp.proofs.withType` before its pins, and `attest.py` now
 refuses a statement pin whose message holds a `⋯` other than an omitted proof
 with its proposition, and any other pretty-printer option. A pin is still not
-the whole elaborated statement: Lean does not print instance arguments, coercion
-functions, implicit arguments or the binder types of `∃` and `fun`, and
-`check-lean-constructs.sh` now refuses new instance declarations and instance
-and `coe` attributes in hand-written Lean. No pin was added or removed, so no count above
+the whole elaborated statement: Lean does not print, among other things,
+instance arguments, coercion functions, implicit arguments, the binder types of
+`∃` and `fun`, universe levels or the types behind numerals and structure
+instances. `check-lean-constructs.sh`, a textual guard, now refuses in
+hand-written Lean an instance declaration that is not one of fourteen it lists
+whole, attribute lists naming `instance`, `default_instance` or `coe`, and the
+`coe` and `default_instance` tokens; it does not see a dependency's scoped
+instance brought in by `open`. No pin was added or removed, so no count above
 changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 

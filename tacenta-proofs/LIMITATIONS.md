@@ -2967,10 +2967,10 @@ the ceilings at every session whose model agreement send reads no draw (`encrypt
 results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
 2026-10-21. The headline's statement pin prints the statement without a cut (the module sets `pp.deepTerms true` and
 `pp.proofs.withType true` before its pins; without them Lean cut it off with `⋯` after the binder `crcB`). It is not the
-whole elaborated statement: lean's printing still leaves out four things: instance arguments, the function behind a coercion `↑`, implicit arguments, and the binder types of `∃` and `fun`. A definition the statement names changed under the same
-name, a new instance in scope or a function given the `coe` attribute can change what it means without changing the pin
-(`check-lean-constructs.sh` refuses the last two in hand-written Lean outside its list of eleven existing instances), and
-that the pinned statement is the right one is decided by reading. **No new law and no new per-run premise**: beyond
+whole elaborated statement: Lean's printing leaves out, among other things, instance arguments, the function behind a coercion `↑`, implicit arguments, the binder types of `∃` and `fun`, universe levels, and the types behind numerals, anonymous constructors and structure instances. A
+definition the statement names changed under the same name, a new instance in scope or a function given the `coe`
+attribute can change what it means without changing the pin; `check-lean-constructs.sh`, a textual guard on the source, refuses in hand-written Lean an `instance` declaration whose whole text is not one of the fourteen it lists for that file and namespace (eleven `instance` and three `deriving instance` declarations), any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code; it does not see a scoped instance of a dependency that an `open` brings into scope. That the pinned statement is the right one
+is decided by reading. **No new law and no new per-run premise**: beyond
 the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
 which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
 at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
@@ -3001,8 +3001,9 @@ gets the relation from the encrypt refinement, which rests on the kernel and opa
 The statement pins of the two run headlines, `initiator_first_send_responder_reply_successor` and
 `initiator_first_send_responder_reply_admissible`, print their statements without a cut, through the conclusion (the
 invariant, `CounterHeadroom`, `CounterRoom` and the relation; without the module's `pp.deepTerms` and `pp.proofs.withType`
-options Lean cut both off with `⋯` after `AeadRoundTrip →`). They are not the whole elaborated statements: Lean leaves out
-instance arguments, coercion functions, implicit arguments and the binder types of `∃` and `fun`, so a definition the
+options Lean cut both off with `⋯` after `AeadRoundTrip →`). They are not the whole elaborated statements: Lean leaves out,
+among other things, instance arguments, coercion functions, implicit arguments, the binder types of `∃` and `fun`,
+universe levels and the types behind numerals and structure instances, so a definition the
 statements name changed under the same name, a new instance or a `coe` function can change their meaning without
 changing the pins, and that they are the right statements is decided by reading.
 Its statement covers the nine agreement

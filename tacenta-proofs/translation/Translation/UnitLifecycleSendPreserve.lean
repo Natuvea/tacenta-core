@@ -76,8 +76,8 @@ is a walk of translated code; every instance gets that relation from the encrypt
 statements without a cut, through the conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation;
 without the options Lean cut both off with `⋯` after `AeadRoundTrip →`), and `attest.py` refuses a statement pin whose
 message holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`.  The pins are not the whole
-elaborated statements: Lean leaves out instance arguments, coercion functions, implicit arguments and the binder types
-of `∃` and `fun`, so a definition the statements name changed under the same name, a new instance or a `coe` function
+elaborated statements: Lean leaves out, among other things, instance arguments, coercion functions, implicit
+arguments, the binder types of `∃` and `fun`, universe levels and the types behind numerals and structure instances, so a definition the statements name changed under the same name, a new instance or a `coe` function
 can change their meaning without changing the pins, and that the pinned statements are the right ones is decided by
 reading.
 

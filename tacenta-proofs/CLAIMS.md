@@ -6053,10 +6053,9 @@ and a statement pin, and each of the five definitions (`initiatorAfterSecond`, `
 through the model step and the code-level implication: the module sets `pp.deepTerms true` and `pp.proofs.withType true`
 before its pins, without which Lean cut the pin off with `⋯` after the binder `crcB`, and `attest.py` refuses a statement
 pin whose message holds a `⋯` other than an omitted proof printed with its proposition, `(⋯ : P)`. The pin is not the
-whole elaborated statement. Lean's printing still leaves out four things: instance arguments, the function behind a coercion `↑`, implicit arguments, and the binder types of `∃` and `fun`. So a definition the statement names changed under the same name, a new
-instance in scope, or a function given the `coe` attribute can change what the statement means without changing the pin;
-`check-lean-constructs.sh` refuses the last two in hand-written Lean (an `instance` declaration outside its list of the
-eleven existing ones, and every `instance`, `default_instance` or `coe` attribute). That the pinned statement is the
+whole elaborated statement. Lean's printing leaves out, among other things, instance arguments, the function behind a coercion `↑`, implicit arguments, the binder types of `∃` and `fun`, universe levels, and the types behind numerals, anonymous constructors and structure instances. So a
+definition the statement names changed under the same name, a new instance in scope, or a function given the `coe`
+attribute can change what the statement means without changing the pin. `check-lean-constructs.sh`, a textual guard on the source, refuses in hand-written Lean an `instance` declaration whose whole text is not one of the fourteen it lists for that file and namespace (eleven `instance` and three `deriving instance` declarations), any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code; it does not see a scoped instance of a dependency that an `open` brings into scope. That the pinned statement is the
 right one is decided by reading its source and the definitions it names. The same holds of the 38 pins in 16 modules
 that Lean had printed with a `⋯`: 22 cut at depth 50, and 16 whose only `⋯` was an omitted proof printed without its
 proposition.
