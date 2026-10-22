@@ -636,6 +636,9 @@ recorded decision or a target-closing slice:
   The floor lists names;
   for the 89 definition pins on `REQUIRED_PRINT_FORM` it also requires the form,
   `#print name`, and refuses `#check @name`, which prints the type of a definition and not its body.
+  Every live statement pin, on the floor or not, is refused when its expected message holds a `⋯` other than an omitted proof printed with its proposition,
+  `(⋯ : P)`, so a pin Lean cut off at depth 50 cannot stand;
+  every `set_option pp.*` in the first-party Lean trees other than `pp.deepTerms true` and `pp.proofs.withType true` is refused, so no option can bring the cut back or narrow a message without a `⋯` (`pp.oneline`).
 
   **Current negative-control evidence:**
   `tacenta-proofs/scripts/check-attest-negatives.sh` runs the statement-pin cases:
@@ -654,6 +657,10 @@ recorded decision or a target-closing slice:
   five spellings that are accepted,
   a `#print` definition pin with its `#guard_msgs` removed,
   an unimported module,
+  a pin cut off with `⋯` where Lean cut it before its module set `pp.deepTerms`,
+  an omitted proof printed without its proposition,
+  seven pretty-printer options (at file level,
+  as an `... in` prefix and in a section),
   the floor shortened with and without a hand edit of the manifest,
   and the recorded floor missing,
   unreadable,
@@ -662,9 +669,9 @@ recorded decision or a target-closing slice:
   empty,
   or the script's floor emptied.
   The scanner reads text, so it does not see the elaborated environment:
-  it cannot tell that a pin names the declaration the claim means, and it does not read what a pin says, so a statement weakened together with its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the pin show it;
+  it cannot tell that a pin names the declaration the claim means, and it reads what a pin says only for a `⋯`, so a statement weakened together with its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the pin show it;
   a pin holds the printed statement, in which a definition appears by name, so changing a definition changes no pin unless the definition has its own `#print` pin.
-  It does not follow `open`, a file-level `set_option` that elides or changes the printed statement, a macro that writes `#guard_msgs`, or a header longer than 20,000 characters.
+  It does not follow `open`, a pretty-printer option set by a macro, a `run_cmd`, the lakefile or the command line, a macro that writes `#guard_msgs`, or a header longer than 20,000 characters.
   A `macro`,
   `syntax`,
   `#exit` or `run_cmd` in front of or around a pin is refused by `check-lean-constructs.sh` (run by `no-sorry.sh` in the translation job), not by this check.

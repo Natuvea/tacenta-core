@@ -35,6 +35,15 @@ item 2. The counts were recomputed from that tree. The update was made by the
 author with tool assistance; no reader independent of the maintainer has read
 it.
 
+Also on 2026-10-22, the 38 statement pins in 16 translation modules that Lean had
+cut off with `⋯` (a term deeper than 50 levels, or a proof inside a term) were
+regenerated to print the whole statement, each module setting `pp.deepTerms` and
+`pp.proofs.withType` before its pins, and `attest.py` now refuses a statement pin
+whose message holds a `⋯` other than an omitted proof with its proposition, and
+any other pretty-printer option. No pin was added or removed, so no count above
+changes. The change was made by the author with tool assistance; no reader
+independent of the maintainer has read it.
+
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
 checks and reviews are evidence of what they ran, not independent review.

@@ -4765,7 +4765,7 @@ def axiom_pins():
 # know that the name resolves to a declaration of the shape the claim describes (the
 # build does: the docstring holds the printed statement); it does not run Lean, so a
 # pin that elaborates to a message that matches a docstring written to match it is
-# as good as the build says; it does not read what a pin says, so a statement weakened
+# as good as the build says; it reads what a pin says only for a `⋯`, so a statement weakened
 # together with its pin's expected message is accepted (the build compares the text;
 # the diff of the pin shows the change); it does not follow `open`, a pretty-printer
 # option set by a macro, a `run_cmd`, the lakefile or the command line, a macro that expands to
