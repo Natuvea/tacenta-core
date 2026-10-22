@@ -24,8 +24,9 @@ since the checks below would then have nothing to read:
                      `TIMEOUT` read by `is_timeout`; the two baselines (`module`, `pinned`); and the `sorry` probe
                      (`gutted`, `check_inside`, checking `declaration uses \`sorry\``) called from `main`. An error.
   (c) counts         the numbers the prose gives match what they count, where the prose writes them in one of
-                     these forms (any other "of the other N" or "each of the N results/theorems/definitions/lemmas"
-                     in the section is a warning, so a rephrased count shows rather than passing unread): in the
+                     these forms (any other "[of] the other N results/theorems/definitions/lemmas", "[of] the other
+                     N,", "of the N results/theorems" or "each of the N results/theorems/definitions/lemmas" in the
+                     section is a warning, so a rephrased count shows rather than passing unread): in the
                      section, "each of the N results (or theorems) carries (or has) an axiom pin" (the module's axiom
                      pins), "each of the N definitions" (its `#print` pins), "of the other N results, A rest on
                      ... alone ... and [the other] B on" (the pins other than the results the section's
@@ -532,13 +533,17 @@ def section_pins(body, attest):
 
 
 # The count sentences the check reads. A count written another way is not checked: COUNT_LIKE finds the phrases
-# that look like one ("of the other N", "each of the N results/theorems/definitions") outside these, and each is a
-# warning, so a rephrasing shows instead of passing unread.
+# that look like one outside these ("[of] the other N results/theorems/definitions/lemmas", "[of] the other N,",
+# "of the N results/theorems", "each of the N results/theorems/definitions/lemmas"), and each is a warning, so a
+# rephrasing shows instead of passing unread. "The other eight states" and the like are not counts of results and
+# are not matched.
 COUNT_RESULTS = rf"[Ee]ach of the {NUMBER} (?:results|theorems) (?:carries|has) an axiom pin"
 COUNT_DEFINITIONS = rf"[Ee]ach of the {NUMBER} definitions"
 COUNT_OTHER = (rf"Of the other {NUMBER} results, {NUMBER} rest(?:s)? on `propext`, `Classical\.choice` and "
                rf"`Quot\.sound` alone(?:[^.]*?)and (?:the other )?{NUMBER} on")
-COUNT_LIKE = rf"\b(?:[Oo]f the other {NUMBER}\b|[Ee]ach of the {NUMBER} (?:results|theorems|definitions|lemmas)\b)"
+COUNT_LIKE = (rf"\b(?:[Tt]he other {NUMBER}(?: (?:results|theorems|definitions|lemmas)\b|,)"
+              rf"|[Oo]f the {NUMBER} (?:results|theorems)\b"
+              rf"|[Ee]ach of the {NUMBER} (?:results|theorems|definitions|lemmas)\b)")
 
 
 def single_module(path):

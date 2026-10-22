@@ -99,6 +99,12 @@ PY
 
 run committed 0 --all --baseline "$baseline"
 says committed "0 error(s), 15 known"
+# Main's count sentences in forms the check does not read are warned; prose about other things is not.
+finds committed-unread "not checked: \"The other 32 results here"
+finds committed-unread "not checked: \"Of the 40 results, 26 rest on"
+finds committed-unread "not checked: \"The other sixteen results"
+cases=$((cases + 1))
+! grep -q "not checked: \"[^\"]*other eight states" <<<"$out" || fail_case "committed-not-a-count: warned on prose that is not a count" "$out"
 says committed "private-term scan skipped: no list"
 # Edit the baseline: `bl add KEY` lists a key, `bl reason KEY TEXT` gives it a reason.
 bl() {
@@ -213,7 +219,7 @@ g checkout -q -- tacenta-proofs/CLAIMS.md tacenta-proofs/translation/Translation
 # axiom-pin count is read.
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Of the other 14 results, 6 rest on', 'Of the other 14, 6 rest on', 1)"
 run count-unread 0 UnitLifecycleResponderReply --baseline "$baseline"
-says count-unread "a count the preflight does not read, so it is not checked: \"Of the other 14, 6 rest on"
+says count-unread "a count the preflight does not read, so it is not checked: \"the other 14, 6 rest on"
 g checkout -q -- tacenta-proofs/CLAIMS.md
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19 theorems has an axiom pin', 'Each of the 20 theorems has an axiom pin', 1)"
 run count-theorems-form 1 --all --baseline "$baseline"
