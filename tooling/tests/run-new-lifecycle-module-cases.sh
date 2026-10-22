@@ -7,10 +7,16 @@
 #   scaffold          a fake module is wired: exactly the expected files change, each new line sits after the entry
 #                     its name sorts after, and the tree then passes `attest.py --check`, `gate-inventory.py
 #                     --check`, `reflow-shared-lists.py --check`, `bash -n`, the parts resolution of the real
-#                     `no-sorry.sh` and JSON parsing; a second run changes nothing
+#                     `no-sorry.sh`, JSON parsing, the control-count gate (the script's entry is written with its
+#                     counts) and the parts runner (the script among its stubs, its phase count moved by one); the
+#                     module carries the two pretty-printer options before its pins; a second run changes nothing
 #   the template      the new negatives script refuses to run with no control planted, and its start-up checks
-#                     refuse a label that does not match where its control is refused and a guard that does not
-#                     fire on the kernel's `unknown constant`
+#                     refuse a label that does not match where its control is refused, a projection that may be
+#                     refused outside a composing proof, and a guard that does not fire on any one of the six
+#                     error spellings it lists; its completeness check refuses a run with no Lean run behind it
+#                     (simulated: no Lean here); and the count gate follows it: a control planted without its
+#                     record entry edited, and the entry deleted, are refused; the parts runner, with the phase
+#                     count left as it was or the new stub left out, names the edit to make
 #   pins              from a pins section, the module's names land on the four lists of `attest.py` and nowhere
 #                     else, in both deletion lists of the attestation negatives with a print-form case, and the
 #                     case count moves by the cases added; a second run changes nothing; `attest.py` then refuses
@@ -28,19 +34,22 @@ git -C "$clone" checkout -q --detach "$(git -C "$root" rev-parse HEAD)"
 g() { git -C "$clone" -c user.name=control -c user.email=control@example.invalid "$@"; }
 tool="tacenta-proofs/scripts/new-lifecycle-module.py"
 cases=0
+last_want=0
 M=UnitLifecycleScaffoldProbe
 N=check-scaffold-probe-negatives.py
 args=(scaffold --module "$M" --negatives "$N" --part decrypt --description "The probe's one-line description.")
 
-fail_case() {
+fail_case() {  # the output under the line is indented, so that a runner's own WRONG lines in it (the parts runner
+  # run as a case) are not read by mutate-gates.py as this runner's verdicts
   echo "WRONG  new-lifecycle-module $1" >&2
   shift
-  [ $# -eq 0 ] || printf '%s\n' "$@" >&2
+  [ $# -eq 0 ] || printf '%s\n' "$@" | sed 's/^/    | /' >&2
   exit 1
 }
 run() {  # name want-exit command...; output in $out
   local name="$1" want="$2" rc
   shift 2
+  last_want="$want"
   set +e
   out="$(cd "$clone" && "$@" 2>&1)"
   rc=$?
@@ -48,9 +57,13 @@ run() {  # name want-exit command...; output in $out
   cases=$((cases + 1))
   [ "$rc" -eq "$want" ] || fail_case "$name: expected exit $want, got $rc" "$out"
 }
-says() {
+says() {  # after a run that had to fail, a missing needle is a refusal with other words
   cases=$((cases + 1))
-  grep -qF -- "$2" <<<"$out" || fail_case "$1: expected '$2'" "$out"
+  if [ "$last_want" -ne 0 ]; then
+    grep -qF -- "$2" <<<"$out" || fail_case "$1: refused, but missing diagnostic '$2'" "$out"
+  else
+    grep -qF -- "$2" <<<"$out" || fail_case "$1: expected '$2'" "$out"
+  fi
 }
 unchanged() {
   cases=$((cases + 1))
@@ -110,7 +123,8 @@ unchanged late-name
 
 # ---- scaffold ------------------------------------------------------------------------------------------------
 run dry-run 0 python3 "$tool" "${args[@]}" --check
-says dry-run "9 file(s) would change"; unchanged dry-run
+says dry-run "11 file(s) would change"; unchanged dry-run
+phases_before="$(grep -c '^  run_phase [a-z]' "$clone/tacenta-proofs/scripts/no-sorry.sh")"
 run scaffold 0 python3 "$tool" "${args[@]}"
 says scaffold "tooling/gate-inventory.py --write: exit 0"; says scaffold "tacenta-proofs/scripts/attest.py: exit 0"
 cases=$((cases + 1))
@@ -119,12 +133,14 @@ tacenta-proofs/GATE-INVENTORY.md
 tacenta-proofs/manifests/source-commit-attestation.json
 tacenta-proofs/manifests/verification-manifest.json
 tacenta-proofs/scripts/$N
+tacenta-proofs/scripts/negatives-control-counts.json
 tacenta-proofs/scripts/no-sorry-parts.txt
 tacenta-proofs/scripts/no-sorry.sh
 $audit
 tacenta-proofs/translation/Translation/$M.lean
 tooling/gate-inventory.json
 tooling/gate-mutations.json
+tooling/tests/run-no-sorry-parts-cases.sh
 tooling/tests/run-proof-script-cases.sh"
 got="$(g status --porcelain | awk '{print $2}' | sort)"
 [ "$got" = "$(printf '%s\n' "$want" | sort)" ] || fail_case "scaffold: other files changed" "$got"
@@ -139,6 +155,19 @@ next_line called tooling/tests/run-proof-script-cases.sh "  check-restored-negat
 next_line build-controls tooling/gate-inventory.json '    "tacenta-proofs/scripts/check-restored-negatives.py",' \
   "    \"tacenta-proofs/scripts/$N\","
 next_line gate-list ASSURANCE-OBLIGATIONS.md '  `check-restored-negatives.py`,' "  \`$N\`,"
+next_line parts-stubs tooling/tests/run-no-sorry-parts-cases.sh "  check-restored-negatives.py" "  $N"
+next_line record tacenta-proofs/scripts/negatives-control-counts.json \
+  "$(grep '^    "check-responder-successor-negatives.py": ' "$root/tacenta-proofs/scripts/negatives-control-counts.json")" \
+  "    \"$N\": {\"inside\": 0, \"projection\": 0, \"statement_shape\": 0, \"pin\": 0, \"leaf\": 0, \"baselines\": 2},"
+cases=$((cases + 1))
+phases_after="$(grep -c '^  run_phase [a-z]' "$clone/tacenta-proofs/scripts/no-sorry.sh")"
+[ "$phases_after" -eq $((phases_before + 1)) ] \
+  && grep -qx "full_line='no-sorry: all $phases_after phases passed'" "$clone/tooling/tests/run-no-sorry-parts-cases.sh" \
+  || fail_case "parts-count: the parts runner's phase count is not the $phases_after phases no-sorry.sh lists"
+cases=$((cases + 1))
+grep -qx 'set_option pp.deepTerms true' "$clone/tacenta-proofs/translation/Translation/$M.lean" \
+  && grep -qx 'set_option pp.proofs.withType true' "$clone/tacenta-proofs/translation/Translation/$M.lean" \
+  || fail_case "module-pp-options: the module does not set the two options its whole-statement pins need"
 cases=$((cases + 1))
 grep -q "^    {\"id\": \"NS-drop-scaffold-probe\", " "$clone/tooling/gate-mutations.json" \
   && grep -q "^    {\"id\": \"NS-swallow-scaffold-probe\", " "$clone/tooling/gate-mutations.json" \
@@ -149,6 +178,11 @@ run inventory-check 0 python3 tooling/gate-inventory.py --check
 run reflow-check 0 python3 tooling/reflow-shared-lists.py --check
 run bash-n 0 bash -n tacenta-proofs/scripts/no-sorry.sh
 run bash-n-cases 0 bash -n tooling/tests/run-proof-script-cases.sh
+run bash-n-parts 0 bash -n tooling/tests/run-no-sorry-parts-cases.sh
+run counts-gate 0 python3 tacenta-proofs/scripts/check-negatives-control-counts.py
+says counts-gate "6 scripts match negatives-control-counts.json"
+run parts-runner 0 bash tooling/tests/run-no-sorry-parts-cases.sh
+says parts-runner "no-sorry-parts-cases:"
 run json 0 python3 -c "import json; json.load(open('tooling/gate-inventory.json')); json.load(open('tooling/gate-mutations.json'))"
 (cd "$clone/tacenta-proofs" && NO_SORRY_LIST=1 bash scripts/no-sorry.sh) > "$work/table"
 run parts-resolve 0 python3 tacenta-proofs/scripts/no-sorry-parts.py resolve --table "$work/table" \
@@ -160,17 +194,75 @@ run preflight 1 python3 tooling/check-proof-module-preflight.py "$M"
 says preflight "SCAFFOLD-TODO marker(s) to replace"
 
 # ---- the template's start-up checks -----------------------------------------------------------------------
-run no-controls 1 python3 "tacenta-proofs/scripts/$N"
-says no-controls "NO CONTROLS: MUTANTS is empty"
 cp "$clone/tacenta-proofs/scripts/$N" "$work/script"
+cp "$clone/tacenta-proofs/translation/Translation/$M.lean" "$work/module"
+cp "$clone/tacenta-proofs/scripts/negatives-control-counts.json" "$work/record"
+# The script reads the module without its pins, so the module gets a pins section first; and a `lake` that
+# accepts every file stands in for Lean, so that only the script's own checks can refuse a run here.
+printf '\n/-! ## Pins -/\n' >> "$clone/tacenta-proofs/translation/Translation/$M.lean"
+mkdir -p "$work/fakebin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$work/fakebin/lake"
+chmod +x "$work/fakebin/lake"
+run no-controls 1 env PATH="$work/fakebin:$PATH" python3 "tacenta-proofs/scripts/$N"
+says no-controls "NO CONTROLS: MUTANTS is empty"
 edit "tacenta-proofs/scripts/$N" "t = t.replace('MUTANTS = [\n', 'MUTANTS = [\n    (\'module\', \'c\', [(\'a\', \'b\')], r\'x\', [\'leaf\']),\n', 1).replace('INSIDE = {}', 'INSIDE = {\'c\': \'leaf\'}')"
 run label-broken 1 python3 "tacenta-proofs/scripts/$N"
 says label-broken "LABELS BROKEN: c is labelled inside leaf, which is not a composing proof"
+# The count gate follows the script: a control planted without its record entry edited is refused.
+run counts-follow 1 python3 tacenta-proofs/scripts/check-negatives-control-counts.py
+says counts-follow "$N has 1 inside control(s) and negatives-control-counts.json records 0"
 cp "$work/script" "$clone/tacenta-proofs/scripts/$N"
-edit "tacenta-proofs/scripts/$N" "t = t.replace(\"'unknown identifier', 'unknown constant',\", \"'unknown identifier',\", 1)"
-run guard-broken 1 python3 "tacenta-proofs/scripts/$N"
-says guard-broken "GUARD BROKEN: the not-a-refusal guard does not fire on the kernel's \`unknown constant\`"
+edit "tacenta-proofs/scripts/$N" "t = t.replace('MUTANTS = [\n', 'MUTANTS = [\n    (\'module\', \'c\', [(\'a\', \'b\')], r\'x\', [\'leaf\']),\n', 1).replace('PROJECTION = {}', 'PROJECTION = {\'c\': \'called\'}')"
+run projection-place 1 python3 "tacenta-proofs/scripts/$N"
+says projection-place "LABELS BROKEN: c is labelled a projection, but it may be refused in leaf, which is not a composing proof"
 cp "$work/script" "$clone/tacenta-proofs/scripts/$N"
+# The guard's self-test, one error spelling taken out of the guard at a time.
+for spelling in "unknown identifier|\`Unknown identifier\`" "unknown constant|the kernel's \`unknown constant\`" \
+  "unexpected token|\`unexpected token\`" "expected '|\`expected '\`" "unknown namespace|\`unknown namespace\`" \
+  "does not contain|\`does not contain\`"; do
+  word="${spelling%%|*}"
+  python3 - "$clone/tacenta-proofs/scripts/$N" "$word" <<'PY'
+import re, sys
+path, word = sys.argv[1:]
+t = open(path).read()
+m = re.search(r"^NOT_A_REFUSAL = \(([^)]*)\)$", t, re.M)
+items = [i.strip() for i in m.group(1).replace("\n", " ").split(",") if i.strip()]
+kept = [i for i in items if i[1:-1] != word]
+assert len(kept) == len(items) - 1, (word, items)
+open(path, "w").write(t[:m.start()] + "NOT_A_REFUSAL = (" + ", ".join(kept) + ")" + t[m.end():])
+PY
+  run "guard-broken-${word// /-}" 1 python3 "tacenta-proofs/scripts/$N"
+  says "guard-broken-${word// /-}" "GUARD BROKEN: the not-a-refusal guard does not fire on ${spelling#*|}"
+  cp "$work/script" "$clone/tacenta-proofs/scripts/$N"
+done
+# The completeness check, on a simulated run that ran no Lean (no Lean here): refused.
+run complete-no-lean 1 python3 - "$clone/tacenta-proofs/scripts/$N" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("generated", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+m.check_complete({"accepted": ["module", "pinned"], "rejected": {}}, {"module": None, "pinned": None})
+PY
+says complete-no-lean "INCOMPLETE RUN (not a passing control): Lean ran 0 accepting and 0 refusing times, expected 2 runs"
+# The record entry deleted: the count gate refuses the script it no longer lists.
+grep -vF "\"$N\": " "$work/record" > "$clone/tacenta-proofs/scripts/negatives-control-counts.json"
+run record-missing 1 python3 tacenta-proofs/scripts/check-negatives-control-counts.py
+says record-missing "$N carries the shared check_labels and is not in negatives-control-counts.json"
+cp "$work/record" "$clone/tacenta-proofs/scripts/negatives-control-counts.json"
+# The parts runner with the phase count left as it was names the edit to make.
+cp "$clone/tooling/tests/run-no-sorry-parts-cases.sh" "$work/parts-runner"
+sed -i.bak "s/^full_line='no-sorry: all [0-9]* phases passed'$/full_line='no-sorry: all $phases_before phases passed'/" \
+  "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
+rm -f "$clone/tooling/tests/run-no-sorry-parts-cases.sh.bak"
+run parts-count-missed 1 bash tooling/tests/run-no-sorry-parts-cases.sh
+says parts-count-missed "WRONG  parts control fixture-phases: no-sorry.sh lists $phases_after phases and full_line is 'no-sorry: all $phases_before phases passed': set it to"
+cp "$work/parts-runner" "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
+# The parts runner with the new script's stub left out names it.
+grep -vx "  $N" "$work/parts-runner" > "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
+run parts-stub-missed 1 bash tooling/tests/run-no-sorry-parts-cases.sh
+says parts-stub-missed "WRONG  parts control fixture-stubs: no-sorry.sh calls scripts/$N, which has no stub here"
+cp "$work/parts-runner" "$clone/tooling/tests/run-no-sorry-parts-cases.sh"
+cp "$work/module" "$clone/tacenta-proofs/translation/Translation/$M.lean"
 
 # ---- pins ----------------------------------------------------------------------------------------------------
 P="Tacenta.$M"
@@ -289,4 +381,4 @@ printf '{"severity": "error", "pos": {"line": 3, "column": 0}, "data": "unsolved
 run genpins-error 2 python3 tacenta-proofs/scripts/genpins.py "$work/pkg/Mod/M.lean" --lean-json "$work/lean3.json"
 says genpins-error "Lean reports an error at line 3"
 
-echo "new-lifecycle-module-cases: $cases cases (a missing, a doubled and a packed anchor, an unknown or sliced part and bad names refused with nothing written; a late name placed before the last evidence item; the scaffold changed exactly the expected files at the expected places and the tree passed the attestation, inventory, form, shell, JSON and parts checks, and a second run changed nothing; the template refused no controls, a broken label and a broken guard; the pins step placed the names on the four lists and the two deletion lists, moved the count by its cases, changed nothing the second time, left the ledger to be written and refused a pin it cannot read; genpins wrote, checked and refused an error, a missing and a warning message) gave the expected result"
+echo "new-lifecycle-module-cases: $cases cases (a missing, a doubled and a packed anchor, an unknown or sliced part and bad names refused with nothing written; a late name placed before the last evidence item; the scaffold changed exactly the expected files at the expected places and the tree passed the attestation, inventory, form, shell, JSON and parts checks, the control-count gate and the parts runner, the module set the two pretty-printer options, and a second run changed nothing; the template refused no controls, a broken inside or projection label, a guard missing any one of its six spellings and a run with no Lean behind it, the count gate refused a control planted without its record entry and a missing entry, and the parts runner named a phase count and a stub left behind; the pins step placed the names on the four lists and the two deletion lists, moved the count by its cases, changed nothing the second time, left the ledger to be written and refused a pin it cannot read; genpins wrote, checked and refused an error, a missing and a warning message) gave the expected result"

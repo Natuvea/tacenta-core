@@ -25,7 +25,10 @@ a sixth such script is not left out.
 The scripts keep their own copies of the shared helpers (`check_labels`, `passed_through`, the guard, the refusal
 check, `check_complete` and the rest named in SHARED); this gate also requires each named helper to be bound exactly
 once in each script, at the top level, by its own `def` or assignment, and to be the same text, character for
-character and from its first decorator, in all of them, so a fix made to one copy cannot leave another behind.  Any
+character and from its first decorator, in all of them, so a fix made to one copy cannot leave another behind.  The template the scaffold
+writes a new script from, `templates/lifecycle-negatives.py.in`, is held to the same text of every helper and to
+the same rules for `main` (it is read, never imported, and has no entry in the record), so a script generated from it
+starts at the standard of the others and no helper fix can leave the template behind.  Any
 other binding of a shared name is refused, at any depth: an annotated or augmented assignment, a `global`, an
 import, a loop, `with` or `except` target, a parameter, a walrus, a `del`; so is any use of `globals`, `setattr`,
 `exec`, `eval`, `__dict__`, `sys.modules`, `importlib` or `__import__`, through which a name can be rebound without
@@ -62,6 +65,8 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 RECORD = HERE / "negatives-control-counts.json"
+# The scaffold's negatives template: held to the shared text and the rules for `main`, never counted.
+TEMPLATE = HERE / "templates" / "lifecycle-negatives.py.in"
 CLASSES = ("inside", "projection", "statement_shape", "pin", "leaf", "baselines")
 # The helpers every lifecycle negatives script carries a copy of, which must be the same text in each.
 SHARED = ("mentions", "binding", "called_theorem", "passed_through", "check_labels", "guard_self_test",
@@ -345,8 +350,23 @@ def main():
         if used:
             problems.append(f"{name} uses {', '.join(sorted(used))}, through which a shared helper can be rebound "
                             "without a binding this gate reads")
+    copies_of = dict(texts)
+    template = TEMPLATE.relative_to(HERE).as_posix()
+    try:
+        copies_of[template] = TEMPLATE.read_text()
+        ast.parse(copies_of[template])
+    except (OSError, SyntaxError) as error:
+        copies_of.pop(template, None)
+        problems.append(f"{template} cannot be read as Python ({type(error).__name__}: {error}), so the scaffold's "
+                        "template cannot be held to the shared helpers")
+    if template in copies_of:
+        problems += main_problems(template, copies_of[template])
+        dynamic = dynamic_uses(copies_of[template])
+        if dynamic:
+            problems.append(f"{template} uses {', '.join(sorted(dynamic))}, through which a shared helper can be "
+                            "rebound without a binding this gate reads")
     if texts:
-        shared = {name: [b for b in bindings(text) if b[0] in SHARED] for name, text in texts.items()}
+        shared = {name: [b for b in bindings(text) if b[0] in SHARED] for name, text in copies_of.items()}
         for helper in SHARED:
             copies = {}
             for name in sorted(shared):
@@ -368,7 +388,7 @@ def main():
         return refuse(problems)
     total = sum(sum(v for k, v in scripts[n].items()) - scripts[n]["baselines"] for n in scripts)
     print(f"check-negatives-control-counts: {len(scripts)} scripts match {RECORD.name} ({total} controls), and "
-          f"their {len(SHARED)} shared helpers are the same text")
+          f"their {len(SHARED)} shared helpers are the same text, in the scaffold's template too")
     return 0
 
 

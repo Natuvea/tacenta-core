@@ -12,17 +12,25 @@ A module of `tacenta-proofs/translation/Translation/` that proves a lifecycle re
 shared files. Written by hand, two branches each adding a module edited the same lines of those files and their
 merge conflicted; and a file missed was a gate that silently did not hold the module. This makes the edits.
 
-`scaffold` (before the proof exists) creates the module from `templates/lifecycle-module.lean.in` and its
-negatives script from `templates/lifecycle-negatives.py.in` (the controls' full mechanism: the not-a-refusal
-guard matched without regard to case, its start-up tests on `Unknown identifier`, the kernel's `unknown constant`
-and a heartbeat timeout, the two unmodified baselines, the `COMPOSING`, `INSIDE`, `PROJECTED` and
-`STATEMENT_SHAPE` labels checked at start-up and at run time, and the `sorry` probe of each inside control; with
+`scaffold` (before the proof exists) creates the module from `templates/lifecycle-module.lean.in` (with the two
+pretty-printer options that make its statement pins print whole, before the section `genpins.py` writes) and its
+negatives script from `templates/lifecycle-negatives.py.in` (the controls' full mechanism, the helpers shared
+character for character with the other lifecycle negatives scripts, which `check-negatives-control-counts.py`
+holds the template to: the not-a-refusal guard matched without regard to case and its start-up tests on each
+error spelling it lists and on a heartbeat timeout, the unmodified baselines, the `COMPOSING`, `INSIDE`,
+`PROJECTION`, `PROJECTED` and `STATEMENT_SHAPE` labels checked at start-up against the syntactic projection
+standard, the `sorry` probe of each inside control, and `check_complete` over the Lean runs `RUNS` records; with
 no control planted it refuses to run), and makes every edit that does not depend on theorem names:
 
   Translation/AxiomAuditSessionUnit.lean      the import, and a paragraph of the audit's docstring
   scripts/no-sorry.sh                         the phase's function and its `run_phase` line
   scripts/no-sorry-parts.txt                  the phase, in the named part of the `hosted` partition
   tooling/tests/run-proof-script-cases.sh     the script among the stubbed controls and the controls called
+  tooling/tests/run-no-sorry-parts-cases.sh   the script among the stubbed scripts, and the phase count of the
+                                              line a full run prints set to the phases `no-sorry.sh` now lists
+  scripts/negatives-control-counts.json       the script's entry: its number of controls in each class (none
+                                              yet) and of baselines, which `check-negatives-control-counts.py`
+                                              compares with the script; edit it with each control added
   tooling/gate-inventory.json                 the script among the Lean build's controls, and its own row
   tooling/gate-mutations.json                 `NS-drop-<phase>` and `NS-swallow-<phase>`
   ASSURANCE-OBLIGATIONS.md                    the script in the lifecycle row of the gate evidence list
@@ -60,6 +68,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +85,9 @@ ATTEST = "tacenta-proofs/scripts/attest.py"
 NEGATIVES_SH = "tacenta-proofs/scripts/check-attest-negatives.sh"
 COUNT = "tacenta-proofs/scripts/attest-negatives-case-count.txt"
 TEMPLATES = "tacenta-proofs/scripts/templates"
+PARTS_CASES = "tooling/tests/run-no-sorry-parts-cases.sh"
+RECORD = "tacenta-proofs/scripts/negatives-control-counts.json"
+COUNTS_GATE = "tacenta-proofs/scripts/check-negatives-control-counts.py"
 
 MODULE_NAME = re.compile(r"UnitLifecycle[A-Z][A-Za-z0-9]*")
 NEGATIVES_NAME = re.compile(r"check-[a-z0-9]+(?:-[a-z0-9]+)*-negatives\.py")
@@ -371,6 +383,69 @@ def edit_inventory(tree, a):
     tree.write(INVENTORY, new)
 
 
+PHASE_LINE = re.compile(r"^  run_phase [a-z][a-z0-9-]* ", re.M)
+FULL_LINE = re.compile(r"^full_line='no-sorry: all ([0-9]+) phases passed'$", re.M)
+
+
+def edit_parts_cases(tree, a):
+    """The script among the stubs of the parts runner, and its phase count set to the phases no-sorry.sh lists."""
+    lines = tree.read(PARTS_CASES).split("\n")
+    start = one([k for k, l in enumerate(lines) if l == "py_stubs=("], f"{PARTS_CASES}: the line `py_stubs=(`")
+    end = next((k for k in range(start, len(lines)) if lines[k] == ")"), None)
+    if end is None:
+        refuse(f"{PARTS_CASES}: the py_stubs array does not end with a line `)`")
+    insert_word(lines, start + 1, end, r"  (check-[a-z0-9-]+-negatives\.py)", f"  {a.negatives}", None,
+                a.negatives, f"{PARTS_CASES} py_stubs")
+    text = "\n".join(lines)
+    found = list(FULL_LINE.finditer(text))
+    one(found, f"{PARTS_CASES}: the line `full_line='no-sorry: all N phases passed'`")
+    phases = len(PHASE_LINE.findall(tree.read(NO_SORRY)))
+    text = FULL_LINE.sub(f"full_line='no-sorry: all {phases} phases passed'", text)
+    tree.write(PARTS_CASES, text)
+
+
+def edit_record(tree, a):
+    """The script's entry in the record of control counts, with the counts of the script as it is now."""
+    text = tree.read(RECORD)
+    lines = text.split("\n")
+    try:
+        record = json.loads(text)
+        scripts = record["scripts"]
+    except (ValueError, KeyError, TypeError) as error:
+        refuse(f"{RECORD} cannot be read as a record of scripts ({error})")
+    if a.negatives in scripts:
+        return
+    entries = [(k, m.group(1)) for k, l in enumerate(lines)
+               for m in [re.fullmatch(r'    "(check-[a-z0-9-]+-negatives\.py)": \{.*\},?', l)] if m]
+    if len(entries) != len(scripts) or not entries:
+        refuse(f"{RECORD}: its scripts are not one entry per line (`    \"check-...-negatives.py\": {{...}},`)")
+    # The counts the gate reads, from the script's text as it will be written (the template's or the one there).
+    rel = f"tacenta-proofs/scripts/{a.negatives}"
+    source = tree.new.get(rel) if rel in tree.new else (tree.root / rel).read_text(encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("counts_gate_for_new_module", tree.root / COUNTS_GATE)
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    with tempfile.TemporaryDirectory(prefix="new-lifecycle-module-") as tmp:
+        probe = Path(tmp) / a.negatives
+        probe.write_text(source, encoding="utf-8")
+        got, _ = gate.counts(probe)
+    if got.get("baselines") is None:
+        refuse(f"{a.negatives}: its `sources` dictionary in `main` cannot be read, so its baselines cannot be counted")
+    entry = {c: got[c] for c in gate.CLASSES}
+    at = entries[place_after([n for _, n in entries], a.negatives)][0]
+    if not lines[at].endswith(","):
+        # The last entry has no comma; an entry that sorts after it goes before it, so that no edit changes an
+        # existing line.
+        at -= 1
+    lines.insert(at + 1, f'    "{a.negatives}": {json.dumps(entry)},')
+    new = "\n".join(lines)
+    try:
+        json.loads(new)
+    except ValueError as error:
+        refuse(f"{RECORD}: the edit would leave a file that is not JSON: {error}")
+    tree.write(RECORD, new)
+
+
 NS_ENTRY = re.compile(r'    \{"id": "NS-(drop|swallow)-([a-z0-9-]+)", "file": "tacenta-proofs/scripts/no-sorry\.sh", '
                       r'"old": "python3 scripts/(check-[a-z0-9-]+-negatives\.py) \|\| fail=1')
 
@@ -469,6 +544,8 @@ def scaffold(tree, a):
     edit_no_sorry(tree, a)
     edit_parts(tree, a)
     edit_cases(tree, a)
+    edit_parts_cases(tree, a)
+    edit_record(tree, a)
     edit_inventory(tree, a)
     edit_mutations(tree, a)
     edit_obligations(tree, a)
@@ -720,7 +797,9 @@ def regenerate(root):
 
 
 LEFT = """What is left, by hand:
-  - the proof in {module_rel}, and its controls in {script_rel} (MUTANTS and the labels);
+  - the proof in {module_rel}, and its controls in {script_rel} (MUTANTS and the labels), with the
+    script's counts in tacenta-proofs/scripts/negatives-control-counts.json edited to match
+    (`python3 tacenta-proofs/scripts/check-negatives-control-counts.py` names each class that differs);
   - then `python3 tacenta-proofs/scripts/new-lifecycle-module.py pins --module {module} --lean`;
   - the module's section of tacenta-proofs/CLAIMS.md (attest.py --check holds every pinned theorem to it),
     LIMITATIONS.md, the Session row of ASSURANCE.md, GAP-REGISTER.md and both READMEs;

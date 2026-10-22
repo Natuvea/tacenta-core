@@ -24,3 +24,9 @@ premises, and how the result composes with the results it imports.
 namespace Tacenta.@MODULE@
 
 end Tacenta.@MODULE@
+
+-- The pins `genpins.py` writes after this line print each statement whole: with no cut at depth 50
+-- (`pp.deepTerms`) and each omitted proof with its proposition, `(⋯ : P)` (`pp.proofs.withType`). `attest.py`
+-- refuses a statement pin that prints a bare `⋯`, and every other `pp` option.
+set_option pp.deepTerms true
+set_option pp.proofs.withType true

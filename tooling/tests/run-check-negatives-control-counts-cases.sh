@@ -12,7 +12,10 @@
 # there: the unmodified copy is accepted; a control deleted with its label, a control relabelled, a control added,
 # a baseline added, the record missing a script or naming one too many, a record entry without a class, a sixth
 # script defining `check_labels` and not recorded, and one copy of a shared helper changed are each refused for
-# their own reason; a control deleted with its label and the record edited in the same change is accepted.
+# their own reason; a control deleted with its label and the record edited in the same change is accepted. The
+# scaffold's template (`templates/lifecycle-negatives.py.in`) is held too: a helper of the template changed, its
+# `main` without the completeness call or the projection record, a template that rebinds a name through
+# `globals()`, and the template missing are each refused.
 #
 # Part 2 (run first), the shared `check_labels` of the five scripts, on the real module texts: a projection whose refusal
 # list also names a declaration that is not a composing theorem is refused, in each script that has a projection
@@ -34,6 +37,8 @@ make_case() {
   local dst="$work/$1"
   mkdir -p "$dst"
   cp "$scripts/check-negatives-control-counts.py" "$scripts/negatives-control-counts.json" "$dst/"
+  mkdir -p "$dst/templates"
+  cp "$scripts/templates/lifecycle-negatives.py.in" "$dst/templates/"
   for s in "${five[@]}"; do cp "$scripts/$s" "$dst/"; done
 }
 
@@ -411,5 +416,31 @@ end = text.index("            if name in STATEMENT_SHAPE:\n", start)
 open(path, "w").write(text[:start] + text[end:])
 PY
 expect_fail projection-record-removed "$ss: \`main\` never records \`projection_of\` for a control"
+
+# The scaffold's template is held to the shared text and to the rules for `main`, so a script generated from it
+# starts at the standard of the others.
+tp=templates/lifecycle-negatives.py.in
+make_case template-helper-differs
+edit template-helper-differs "$tp" "'unknown namespace', 'does not contain')" "'unknown namespace')"
+expect_fail template-helper-differs "$tp's copy of the shared NOT_A_REFUSAL differs from the copy in 5 of the other scripts"
+make_case template-without-completeness
+edit template-without-completeness "$tp" $'    check_complete(results, sources)\n' $'    pass\n'
+expect_fail template-without-completeness "$tp: \`main\` must call \`check_complete(results, sources)\` exactly once"
+make_case template-without-projection-record
+python3 -B - "$work/template-without-projection-record/$tp" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+start = text.index("            if name in PROJECTION:\n")
+end = text.index("            if name in STATEMENT_SHAPE:\n", start)
+open(path, "w").write(text[:start] + text[end:])
+PY
+expect_fail template-without-projection-record "$tp: \`main\` never records \`projection_of\` for a control"
+make_case template-rebinds-through-globals
+edit template-rebinds-through-globals "$tp" $'\n\ndef main():\n' $'\nglobals()[\'TIMEOUT\'] = ()\n\n\ndef main():\n'
+expect_fail template-rebinds-through-globals "$tp uses globals, through which a shared helper can be rebound"
+make_case template-missing
+rm "$work/template-missing/$tp"
+expect_fail template-missing "$tp cannot be read as Python"
 
 echo "check-negatives-control-counts cases: $cases passed"

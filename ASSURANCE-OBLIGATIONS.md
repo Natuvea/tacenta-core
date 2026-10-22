@@ -1464,7 +1464,9 @@ recorded decision or a target-closing slice:
   control and emptied-proof run,
   at least one accepting per baseline and one refusing per control and statement-shape check;
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
-  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (85 cases in all, the completeness check run on simulated results with no Lean).
+  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
+  The gate holds the scaffold's negatives template (`tacenta-proofs/scripts/templates/lifecycle-negatives.py.in`) to the same shared text and reads its `main` by the same rules, without counting it;
+  its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (90 cases in all, the completeness check run on simulated results with no Lean).
   The gate also refuses a second binding of `main`,
   `MUTANTS`,
   `INSIDE`,
@@ -1870,6 +1872,16 @@ Lean: that the pin generator's probe matches a real `lake env lean --json` run w
 `run-gate-controls.sh` runs every control through `tooling/tests/with-no-git-identity.sh`, with no global or
 system git configuration and no git identity, as the hosted runner has none, so a fixture that commits without
 its own identity fails on a developer's machine too (one did, and failed only on the runner).
+
+On 2026-10-22 the scaffold was brought up to what a module it starts needs to pass the gates. Its negatives
+template carries the helpers of the five lifecycle negatives scripts character for character (the projection
+standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
+`check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
+rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
+the script's own counts, its stub and the phase count in `tooling/tests/run-no-sorry-parts-cases.sh` (which now names
+the edit when a phase or a called script is missing from its fixture), and the two pretty-printer options in the
+module, so that its pins print whole. The controls stub Lean as before; one generated script,
+given two controls of the send-preservation module, was run against Lean by hand.
 
 ## Next P1 slices
 
