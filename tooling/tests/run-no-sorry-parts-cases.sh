@@ -264,7 +264,8 @@ ran_nothing() {  # name: no phase script was called (a refusal before anything r
 # The line a full run prints names the number of phases the fixture's no-sorry.sh lists (read here, not written
 # by hand, so that two branches that each add a phase do not change one line). So a phase dropped from both
 # no-sorry.sh and the parts file is not caught here: run-proof-script-cases.sh holds that, since its honest run
-# lists every script no-sorry.sh must call ("no-sorry honest: ... was not called"). The stubs above are written by
+# lists every stubbed script no-sorry.sh must call ("no-sorry honest: ... was not called") and requires the success
+# line of the real check-translation-coverage.sh, which it does not stub. The stubs above are written by
 # hand (and by `new-lifecycle-module.py scaffold`, for the script it adds): a called script added without one
 # fails here, naming the edit, instead of later as a genuine part that fails.
 (cd "$proofs" && "${clean_env[@]}" PATH="$work/bin:$PATH" STUB_CALLS="$work/calls-fixture-table" \
