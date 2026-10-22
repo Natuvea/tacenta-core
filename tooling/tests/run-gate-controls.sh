@@ -30,6 +30,10 @@
 #   run-check-landing-cases.sh, check-landing.sh  the additions of the tooling change survive a merge or a rebase
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
+# All of them run through with-no-git-identity.sh: no global or system git configuration, no identity in the
+# environment and none guessed from the account, as on the hosted runner, so a fixture that commits must give
+# its own identity (one that did not passed here and failed there).
+#
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
 # only reads the tree) and needs no Lean toolchain. They are run one after another; the first failure stops the run. The shard runner runs
 # check-attest-negatives.sh itself on a few of its cases, with the real attest.py, so it and the slice runner
@@ -38,6 +42,21 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
+
+# The hosted runner has no git identity and no global git configuration; this machine may have both. Run every
+# control as the runner would, so a fixture that commits without its own identity fails here too.
+if [ "${GATE_NO_GIT_IDENTITY:-}" != 1 ]; then
+  exec bash "$here/with-no-git-identity.sh" bash "$0" "$@"
+fi
+if ident="$(git -C "$root" var GIT_COMMITTER_IDENT 2>/dev/null)"; then
+  echo "run-gate-controls: git resolves an identity here ($ident); the hosted runner has none" >&2
+  exit 1
+fi
+# A seam for the mutation harness: stop after the check above, which is all a change to these lines can break.
+if [ "${GATE_CONTROLS_PROBE_ONLY:-}" = 1 ]; then
+  echo "run-gate-controls: no git identity here, as on the hosted runner"
+  exit 0
+fi
 
 bash "$here/run-source-gate-cases.sh"
 bash "$here/run-proof-script-cases.sh"

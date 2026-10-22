@@ -235,7 +235,7 @@ a="$(scaffold UnitLifecycleResponderAlpha check-responder-alpha-negatives.py)"
   --negatives check-responder-beta-negatives.py --part decrypt --description "A fixture module." --no-regenerate >/dev/null \
   && python3 tooling/gate-inventory.py --write >/dev/null)
 g add -A; g commit -q -m beta; b="$(g rev-parse HEAD)"
-squash="$(git -C "$clone" commit-tree "$(g rev-parse "$a^{tree}")" -p "$base" -m "squash of alpha")"
+squash="$(g commit-tree "$(g rev-parse "$a^{tree}")" -p "$base" -m "squash of alpha")"
 g checkout -q --detach "$b"
 g merge -q --no-edit "$squash" >/dev/null 2>&1 || true
 resolver_out

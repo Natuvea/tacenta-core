@@ -1794,6 +1794,9 @@ next section describes), and adds one item to the not-shown lists of two module 
 the model's `establishResponder` equality), all found by the preflight; those edits need the rule-7 read.
 Their controls stub
 Lean: that the pin generator's probe matches a real `lake env lean --json` run was checked by hand, not in CI.
+`run-gate-controls.sh` runs every control through `tooling/tests/with-no-git-identity.sh`, with no global or
+system git configuration and no git identity, as the hosted runner has none, so a fixture that commits without
+its own identity fails on a developer's machine too (one did, and failed only on the runner).
 
 ## Next P1 slices
 
