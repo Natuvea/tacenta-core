@@ -311,6 +311,40 @@ ALLOW = {
     ],
 }
 
+# Instances and coercions. A statement pin prints the statement as Lean shows it,
+# and Lean does not show the instance behind `<`, `+` or a numeral, or the
+# function behind a coercion arrow; so a new `instance` in scope, or a function
+# given the `coe` attribute, can change what a pinned statement means while its
+# pin still matches. Refused: every `instance` declaration (`local` and `scoped`
+# included) other than the eleven listed here by file and exact line, and every
+# `instance`, `default_instance` or `coe` attribute (`@[...]` or
+# `attribute [...]`), of which there are none. `deriving` clauses and
+# `deriving instance ... for` are not refused: they derive the structural
+# instance of a type the file declares. A new entry is a diff for review.
+INSTANCE_ALLOW = {
+    "tacenta-model/Model/IdentityRecords.lean": [
+        "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α)"],
+    "tacenta-model/Model/InitiatorExpectation.lean": [
+        "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α)"],
+    "tacenta-proofs/translation/Translation/ErasureWitness.lean": [
+        "instance : Fintype (BitVec 8) :=",
+        "instance : Fintype Std.U8 :=",
+        "instance : Fintype Data32 := Fintype.ofEquiv _ data32Equiv.symm",
+        "noncomputable instance : Fintype F := Fintype.ofFinite F"],
+    "tacenta-proofs/translation/Translation/ImportInv.lean": [
+        "instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :"],
+    "tacenta-proofs/translation/Translation/SessionUnitRatchetImportInv.lean": [
+        "instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :"],
+    "tacenta-proofs/translation/Translation/SessionUnitSpqrT1.lean": [
+        "instance spqrChainsInhabited : Inhabited Chains :="],
+    "tacenta-proofs/translation/Translation/SpqrT1.lean": [
+        "instance spqrChainsInhabited : Inhabited Chains :="],
+    "tacenta-proofs/translation/Translation/UnitSpqrT1.lean": [
+        "instance spqrChainsInhabited : Inhabited Chains :="],
+}
+INSTANCE_KEYWORD = re.compile(r"(?<![\w.«])instance(?![\w.'])")
+INSTANCE_ATTRIBUTE = re.compile(r"(?:@|attribute\s*)\[[^\]]*(?<![\w.])(?:instance|default_instance|coe)(?![\w.'])")
+
 # A lakefile that sets any Lean option, or names the option, is refused: none
 # of the three sets any today, and the one option that matters here is the
 # one the environment cannot record.
@@ -469,6 +503,7 @@ for path in sorted(set(lean_paths.split()) | set(all_lean_paths.split()) | set(l
         hits.append(f"{path}: control-character: the file holds a carriage return or a NUL, which "
                     "Lean and this scan read differently; use plain newlines")
 present = {path: set() for path in ALLOW}
+instances = {path: set() for path in INSTANCE_ALLOW}
 for path in lean_paths.split():
     raw = open(path, encoding="utf-8").read()
     raw_lines = raw.split("\n")
@@ -552,6 +587,16 @@ for path in lean_paths.split():
         for kind, rule in LEAN_RULES:
             if rule.search(line):
                 hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
+        if INSTANCE_ATTRIBUTE.search(line):
+            hits.append(f"{path}:{lineno}: instance-or-coe-attribute: {line.strip()}")
+        for m in INSTANCE_KEYWORD.finditer(line):
+            if re.search(r"(?<![\w.«])deriving\s+$", line[:m.start()]):
+                continue
+            source = collapse(raw_lines[lineno - 1])
+            if source in INSTANCE_ALLOW.get(path, []):
+                instances[path].add(source)
+            else:
+                hits.append(f"{path}:{lineno}: instance-declaration: {line.strip()}")
         for kind, rule in ELAB_RULES:
             if kind == "interpolating-head" and path == AUDIT_IMPLEMENTATION:
                 continue
@@ -612,6 +657,12 @@ for path, lines in ALLOW.items():
         if source not in present[path]:
             hits.append(f"{path}: allow-listed line missing (the audit is not invoked, "
                         f"or its implementation changed): {entry_text(source)}")
+# An entry of a file that is scanned must still be there; a file that is gone holds no instance.
+for path, lines in INSTANCE_ALLOW.items():
+    for source in lines:
+        if path in lean_paths.split() and source not in instances[path]:
+            hits.append(f"{path}: instance allow-list entry missing (the declaration moved, changed or "
+                        f"went; edit INSTANCE_ALLOW in the same change): {source}")
 for path in lake_paths.split():
     raw = open(path, encoding="utf-8").read()
     text = strip_toml(raw) if path.endswith(".toml") else strip_lean(raw)
@@ -640,6 +691,10 @@ if [ -n "$found" ]; then
   echo "An axiom, an opaque, an implemented_by/extern attribute, a partial def, an" >&2
   echo "unsafe declaration, a name in the compiler's _unsafe_rec/_native namespace," >&2
   echo 'a disabled warn.sorry diagnostic, a debug.* option, or a lakefile that sets Lean options widens the trust' >&2
+  echo "base of every theorem downstream of it without a compiler warning; an instance" >&2
+  echo "declaration not on INSTANCE_ALLOW, or an instance or coe attribute, can change what a" >&2
+  echo "pinned statement means while its pin still matches, since Lean does not print either;" >&2
+  echo "and an axiom or the rest above widens the trust" >&2
   echo "base of every theorem downstream of it without a compiler warning; and" >&2
   echo "elaboration-time code (run_cmd, #eval, elab, macro, syntax, initialize," >&2
   echo "addDecl, any reference to the Lean namespace) could plant a compiler-trust" >&2
@@ -651,6 +706,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option and match their pins"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation, no instance declaration outside the 11 allow-listed and no instance or coe attribute; 3 lakefiles set no Lean option and match their pins"
 fi
 exit "$status"

@@ -284,8 +284,38 @@ refused_with quote-in-interpolation brace-in-string
 fresh_copy; printf 'def hiddenAt (r : Syntax) : MetaM Unit := throwErrorAt r "{"--"}" -- run_cmd Lean.logInfo "x"\n' >> "$work/T/tacenta-model/Model/AxiomAudit.lean"
 refused_with quote-in-interpolation-after-argument brace-in-string
 
+# Instances and coercions: Lean prints neither the instance behind a notation nor the function
+# behind a coercion, so either can change what a pinned statement means with its pin unchanged.
+plant_refused() { # <case> <kind> <Lean text>
+  fresh_copy; printf '%s\n' "$3" > "$work/T/$M"
+  refused_with "$1" "$2"
+}
+plant_refused instance-lt instance-declaration $'namespace Planted\ninstance : LT Nat := ⟨fun _ _ => False⟩\nend Planted'
+plant_refused local-instance-ofnat instance-declaration $'namespace Planted\nlocal instance : OfNat Nat 96 := ⟨97⟩\nend Planted'
+plant_refused scoped-instance-hadd instance-declaration $'namespace Planted\nscoped instance : HAdd Nat Nat Nat := ⟨fun a _ => a⟩\nend Planted'
+plant_refused instance-with-priority instance-declaration 'noncomputable instance (priority := high) : Inhabited Nat := ⟨1⟩'
+plant_refused coe-attribute instance-or-coe-attribute '@[coe] def indexOf (_x : Nat) : Nat := 0'
+plant_refused coe-attribute-added-later instance-or-coe-attribute $'def indexOf (_x : Nat) : Nat := 0\nattribute [coe] indexOf'
+plant_refused local-instance-attribute instance-or-coe-attribute $'def bogusLT : LT Nat := ⟨fun _ _ => False⟩\nattribute [local instance] bogusLT in\ntheorem planted : True := trivial'
+plant_refused instance-attribute-in-a-list instance-or-coe-attribute '@[simp, instance] def bogusLE : LE Nat := ⟨fun _ _ => True⟩'
+plant_refused default-instance-attribute instance-or-coe-attribute '@[default_instance] def bogusAdd : Add Nat := ⟨fun a _ => a⟩'
+# A derived structural instance is not refused, nor the word in a comment.
+fresh_copy; printf 'structure PlantedS where\n  x : Nat\nderiving Repr\nderiving instance BEq for PlantedS\n-- an instance in prose\n' > "$work/T/$M"
+run_scan
+if [ "$rc" -ne 0 ]; then wrong derived-instance-accepted "a derived instance is refused"; else pass=$((pass + 1)); fi
+# An allow-listed instance whose line changed is refused as a new declaration; one that is no longer an
+# instance leaves its entry missing, which is refused too, so the list stays exact.
+fresh_copy; mkdir -p "$work/T/tacenta-proofs/translation/Translation"
+sed 's/^instance instDecidableEqArray /instance instDecidableEqArray2 /' \
+  "$root/tacenta-proofs/translation/Translation/ImportInv.lean" > "$work/T/tacenta-proofs/translation/Translation/ImportInv.lean"
+refused_with allow-listed-instance-changed instance-declaration
+fresh_copy; mkdir -p "$work/T/tacenta-proofs/translation/Translation"
+sed 's/^instance instDecidableEqArray /def instDecidableEqArray /' \
+  "$root/tacenta-proofs/translation/Translation/ImportInv.lean" > "$work/T/tacenta-proofs/translation/Translation/ImportInv.lean"
+refused_with allow-listed-instance-gone "instance allow-list entry missing"
+
 if [ $fail -ne 0 ]; then
   echo "lean-constructs-cases: $fail of $((pass + fail)) cases wrong"
   exit 1
 fi
-echo 'lean-constructs-cases: '"$pass"' cases (the unmodified copy and a tag in a comment accepted; a wrapper before an invocation, with a line or block comment between, or open-in; an indented invocation; a continuation, a declaration and a pin after the last invocation, in two packages; narrowed prefixes and a deleted invocation; a namespace, an open, a declaration and two commands on a line in an audit module; a notation and an infix; the Lean namespace by _root_ and in guillemets; the audit log tag in a string, a printed string, #reduce, dbg_trace and an interpolated string elsewhere; an interpolating head, a qualified, a goal and an aesop trace, a named-at head, and a bang macro with its string on the same or the next line elsewhere; a string literal holding a brace in the audit, in the shapes a brace count cannot read, with a string gap and in a raw string (a plain lone brace elsewhere, and a string ending in a bang, accepted); a doc comment opened by `/--/`, a `/--` inside a comment, `/-/- -/`, a char literal and a raw string after the `!` operator and after `λ`, each followed by hidden code; a char literal or raw string straight after a token, refused as ambiguous; a literal or comment opener after a non-space (a token ending in a prime, an opener inside a token, an identifier character outside `\\w`), refused as adjacent; a fifth library and a widened glob in a lakefile; a quote inside an interpolation in the audit, after an argument too, as unbalanced-brace strings, each refused; a char literal holding a newline, an identifier of char-literal shape and a lone carriage return, each refused)'
+echo 'lean-constructs-cases: '"$pass"' cases (the unmodified copy and a tag in a comment accepted; a wrapper before an invocation, with a line or block comment between, or open-in; an indented invocation; a continuation, a declaration and a pin after the last invocation, in two packages; narrowed prefixes and a deleted invocation; a namespace, an open, a declaration and two commands on a line in an audit module; a notation and an infix; the Lean namespace by _root_ and in guillemets; the audit log tag in a string, a printed string, #reduce, dbg_trace and an interpolated string elsewhere; an interpolating head, a qualified, a goal and an aesop trace, a named-at head, and a bang macro with its string on the same or the next line elsewhere; a string literal holding a brace in the audit, in the shapes a brace count cannot read, with a string gap and in a raw string (a plain lone brace elsewhere, and a string ending in a bang, accepted); a doc comment opened by `/--/`, a `/--` inside a comment, `/-/- -/`, a char literal and a raw string after the `!` operator and after `λ`, each followed by hidden code; a char literal or raw string straight after a token, refused as ambiguous; a literal or comment opener after a non-space (a token ending in a prime, an opener inside a token, an identifier character outside `\\w`), refused as adjacent; a fifth library and a widened glob in a lakefile; a quote inside an interpolation in the audit, after an argument too, as unbalanced-brace strings, each refused; a char literal holding a newline, an identifier of char-literal shape and a lone carriage return, each refused; four instance declarations of notation and default classes and five instance, default_instance or coe attributes refused, a derived instance accepted, an allow-listed instance whose line changed refused as a declaration, and one that is no longer an instance refused as a missing entry)'
