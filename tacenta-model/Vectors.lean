@@ -31,6 +31,8 @@ import Model.TripleRatchet
 import Model.CompositeHeader
 import Model.Erasure
 import Model.IdentityKey
+import Model.IdentityRecords
+import Model.InitiatorExpectation
 import Model.PersistedState
 import Model.Protobuf
 
@@ -3013,6 +3015,583 @@ def identityKeyFile (_ : Unit) : Except String String := do
     vectors)
 
 
+/-! #### Identity records: the pair digest, the verification number, the
+classification and the lookup
+
+`Model.IdentityRecords` over fixed tables (identities-and-devices.md, The
+identity pair digest; session-establishment.md, Records, expectations and
+attribution). Each row carries the answer a separate program gave it when the
+table was written (the digests and numbers were computed with Python's
+`hashlib`), and the generator writes nothing if the model's answer differs
+from a row's. `generate-identity-vectors.py` recomputes every answer in the
+four files again, with its own code, each time the vectors are regenerated.
+
+Keys are 32-byte hex strings. The identity keys are RFC 7748's two public keys
+and the X25519 public keys of fixed secrets (the `honest-*` rows of the
+identity-key table); the keys that are not identity keys are the low-order and
+twist values of that table, the sum of RFC 7748's first key and a torsion point
+of order 8, and non-canonical spellings. -/
+
+/-- RFC 7748, section 6.1, Alice's public key. -/
+def kAlice : String := "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
+/-- RFC 7748, section 6.1, Bob's public key. -/
+def kBob : String := "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"
+/-- Alice's point plus a torsion point of order 8: canonical, on the curve, not
+    of prime order, and the same agreement as Alice's key under every clamped
+    secret. -/
+def kAliceT : String := "ec06a18b2851717cbad4dda975daa176baef2f520371e51e5383029272448859"
+def kH1 : String := "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209"
+def kH2 : String := "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59"
+def kH3 : String := "5fef13fc76023a9ee6ded987b6aa93958cdc2097ef9fc845d5319c9ca100d35e"
+def kU0 : String := "0000000000000000000000000000000000000000000000000000000000000000"
+def kU1 : String := "0100000000000000000000000000000000000000000000000000000000000000"
+def kU2 : String := "0200000000000000000000000000000000000000000000000000000000000000"
+def kPm1 : String := "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+def kO8a : String := "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"
+def kO8b : String := "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157"
+/-- u = p: not canonical. -/
+def kP : String := "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+/-- All 256 bits set: not canonical. -/
+def kAllOnes : String := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+/-- u = 9 with bit 255 set: not canonical. -/
+def kNineBit255 : String := "0900000000000000000000000000000000000000000000000000000000000080"
+
+/-- The schema's name for a key refusal. -/
+def keyRefusalName : Model.IdentityRecords.KeyRefusal → String
+  | .decodeFailure => "decode-failure"
+  | .invalidIdentityKey => "invalid-identity-key"
+
+def classifyRefusalName : Model.IdentityRecords.ClassifyRefusal → String
+  | .decodeFailure => "decode-failure"
+  | .invalidIdentityKey => "invalid-identity-key"
+  | .malformedRecord => "malformed-record"
+
+/-- The class byte of a classification's `output`: `01` same, `02` new, `03`
+    retired. -/
+def classByte : Model.IdentityRecords.Class → UInt8
+  | .same => 0x01
+  | .new => 0x02
+  | .retired => 0x03
+
+def className : Model.IdentityRecords.Class → String
+  | .same => "same"
+  | .new => "new"
+  | .retired => "retired"
+
+/-- A JSON list of strings. -/
+def jsonStrings (xs : List String) : String :=
+  "[" ++ String.intercalate ", " (xs.map fun x => "\"" ++ x ++ "\"") ++ "]"
+
+/-- An invalid vector's head: `refusal` when the page allows one refusal, and
+    `acceptable_refusals` when it allows either of several. -/
+def refusedPart (refusals : List String) : String :=
+  match refusals with
+  | [r] => "\"result\": \"invalid\", \"refusal\": \"" ++ r ++ "\", "
+  | rs => "\"result\": \"invalid\", \"acceptable_refusals\": " ++ jsonStrings rs ++ ", "
+
+/-- Whether two lists hold the same strings, as sets. -/
+def sameStrings (a b : List String) : Bool :=
+  a.all (fun x => b.contains x) && b.all (fun x => a.contains x)
+
+/-! ##### The identity pair digest -/
+
+/-- One pair: a name, the two keys, and either the digest and verification
+    number the separate program computed, or the refusals the page allows
+    (both, when both keys are refused with different kinds). -/
+structure DigestRow where
+  name : String
+  k1 : String
+  k2 : String
+  digest : String
+  number : String
+  refusals : List String
+  note : String
+
+def digestRows : List DigestRow := [
+    { name := "rfc7748-keys", k1 := kAlice, k2 := kBob,
+      digest := "14008811078928fb1c0b1467a9abb2398f06cdbe384d30f1e1c2555aa6a4128d",
+      number := "052232527622821359925098979431014658475034016576229087646349", refusals := [],
+      note := "RFC 7748 section 6.1, the two public keys; the number has a leading 0, and laid out in twelve groups of five it reads 05223 25276 22821 35992 50989 79431 01465 84750 34016 57622 90876 46349" },
+    { name := "equal-keys", k1 := kAlice, k2 := kAlice,
+      digest := "bd9ea428f322bc1156ba40bed0ce489c0c627f1c44457f6b8caf07a12d81583f",
+      number := "342505388527416776856014407131757739973616090526712340764735", refusals := [],
+      note := "the same identity key twice" },
+    { name := "unsigned-order-not-value-order",
+      k1 := "9adcf8b0b668a3d1265ceaeca21842d68fbed9b24a955d77142b1ef112b49b09",
+      k2 := "4495ae279c3c3726cb968047eb431fc19a94b67c9649016ac7042617384bd930",
+      digest := "0027825f48dd255fd917134fc155e774a0ca3349f447bea76c9ec01116c25b01",
+      number := "326740346840144235862691584058853149216616459493057048500993", refusals := [],
+      note := "two identity keys whose unsigned byte order and little-endian value order disagree" },
+    { name := "unsigned-order-not-signed-limb-or-value-order",
+      k1 := "024dfc7477b284dd11f4b6562500ce06aaa4d903e085182e76d6bec3a10bc01b",
+      k2 := "b832ea22937fb9b62143d78e2ec1b582baabfc9686593c34e8d1ee72cae95819",
+      digest := "8d4322bf83f49d728de0ff1b74146da602f44ecea4d2f68c9474a28fb703ca45",
+      number := "810580752928734638613309288310412549030767074425684229343813", refusals := [],
+      note := "two identity keys whose unsigned byte order disagrees with the signed-byte, the u64-limb and the little-endian value orders" },
+    { name := "torsion-translate", k1 := kAlice, k2 := kAliceT, digest := "", number := "",
+      refusals := ["invalid-identity-key"],
+      note := "the second key is the first key's point plus a torsion point of order 8: the same agreement, not an identity key" },
+    { name := "u-0-twice", k1 := kU0, k2 := kU0, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = 0 twice" },
+    { name := "u-0", k1 := kU0, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = 0, of order 2" },
+    { name := "u-1", k1 := kU1, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = 1, of order 4" },
+    { name := "u-p-minus-1", k1 := kPm1, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = p - 1" },
+    { name := "u-order8-a", k1 := kO8a, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "a u-coordinate of order 8" },
+    { name := "u-order8-b", k1 := kO8b, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "the other u-coordinate of order 8" },
+    { name := "u-2", k1 := kU2, k2 := kAlice, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = 2, on the twist" },
+    { name := "u-p-minus-1-with-the-other-key", k1 := kPm1, k2 := kBob, digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "u = p - 1 against RFC 7748's second key" },
+    { name := "u-1-and-u-128", k1 := kU1,
+      k2 := "8000000000000000000000000000000000000000000000000000000000000000", digest := "", number := "",
+      refusals := ["invalid-identity-key"], note := "keys whose first bytes are 01 and 80: neither is an identity key" },
+    { name := "u-65280-and-u-1",
+      k1 := "00ff000000000000000000000000000000000000000000000000000000000000", k2 := kU1,
+      digest := "", number := "", refusals := ["invalid-identity-key"],
+      note := "keys whose first two bytes are 00 ff and 01 00: neither is an identity key" },
+    { name := "u-p", k1 := kP, k2 := kAlice, digest := "", number := "",
+      refusals := ["decode-failure"], note := "u = p, not canonical" },
+    { name := "u-2-255-minus-1",
+      k1 := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", k2 := kAlice,
+      digest := "", number := "", refusals := ["decode-failure"], note := "u = 2^255 - 1, at least p: not canonical" },
+    { name := "all-bits-set", k1 := kAllOnes, k2 := kAlice, digest := "", number := "",
+      refusals := ["decode-failure"], note := "bit 255 set, and at least p" },
+    { name := "u-9-bit-255", k1 := kNineBit255, k2 := kAlice, digest := "", number := "",
+      refusals := ["decode-failure"], note := "a small value with bit 255 set" },
+    { name := "u-p-and-u-0", k1 := kP, k2 := kU0, digest := "", number := "",
+      refusals := ["decode-failure", "invalid-identity-key"],
+      note := "both keys refused, with different kinds: either refusal conforms" }
+  ]
+
+/-- The refusals the model allows for a pair, by name. -/
+def allowedNames (k1 k2 : List UInt8) : List String :=
+  ((Model.IdentityRecords.allowedRefusals k1 k2).map keyRefusalName).eraseDups
+
+/-- One pair in one order. Fails when the model's digest, number or allowed
+    refusals are not the row's, or when its refusal is not one it allows. -/
+@[never_extract]
+def digestVector (id note k1h k2h : String) (row : DigestRow) : Except String String := do
+  let k1 := ofHex k1h
+  let k2 := ofHex k2h
+  let ins := jsonObject [("k1", k1h), ("k2", k2h)]
+  match Model.IdentityRecords.pairDigest k1 k2 with
+  | .ok d =>
+    let number := Model.IdentityRecords.verificationNumber d
+    if !row.refusals.isEmpty || toHex d != row.digest || number != row.number.toList.map Char.toUInt8 then
+      throw ("genvectors: Model.IdentityRecords.pairDigest disagrees with the table on " ++ id)
+    pure (vectorHead id note ++ "\"inputs\": " ++ ins ++ ", \"fields\": " ++
+      jsonObject [("digest", toHex d), ("verification_number", toHex number)] ++ " }")
+  | .error r =>
+    let allowed := allowedNames k1 k2
+    if row.refusals.isEmpty || !sameStrings allowed row.refusals
+        || !row.refusals.contains (keyRefusalName r) then
+      throw ("genvectors: Model.IdentityRecords.pairDigest refuses " ++ id ++ " otherwise than the table says")
+    pure (vectorHead id note ++ refusedPart row.refusals ++ "\"inputs\": " ++ ins ++ " }")
+
+/-- Each pair in both orders; a pair of equal keys once. -/
+@[never_extract]
+def pairDigestFile (_ : Unit) : Except String String := do
+  let mut vectors : List String := []
+  for row in digestRows do
+    vectors := vectors ++ [← digestVector row.name row.note row.k1 row.k2 row]
+    if row.k1 != row.k2 then
+      vectors := vectors ++
+        [← digestVector (row.name ++ "-swapped") (row.note ++ "; the same pair in the other order")
+            row.k2 row.k1 row]
+  pure (answerFile "pair-digest"
+    ("generated by tacenta-model Vectors.lean (lake exe genvectors pair-digest), from Model.IdentityRecords.pairDigest and verificationNumber, identities-and-devices.md, The identity pair digest; every pair is given in both orders; each row's digest and number, or its refusals, were computed by a separate program with Python's hashlib and are embedded as literals, and the generator writes nothing if the model disagrees with a row; a valid vector's fields are the digest and the verification number as 60 ASCII digits; an invalid vector carries the refusal the page gives, or acceptable_refusals when both keys are refused with different kinds and either conforms. Layout: tacenta-test-vectors/README.md, Vector layouts")
+    vectors)
+
+/-! ##### The verification number -/
+
+structure NumberRow where
+  name : String
+  digest : String
+  number : String
+  note : String
+
+def numberRows : List NumberRow := [
+    { name := "rfc7748-keys-digest", digest := "14008811078928fb1c0b1467a9abb2398f06cdbe384d30f1e1c2555aa6a4128d",
+      number := "052232527622821359925098979431014658475034016576229087646349",
+      note := "the digest of RFC 7748's two public keys; a leading 0" },
+    { name := "equal-keys-digest", digest := "bd9ea428f322bc1156ba40bed0ce489c0c627f1c44457f6b8caf07a12d81583f",
+      number := "342505388527416776856014407131757739973616090526712340764735",
+      note := "the digest of one identity key twice" },
+    { name := "unsigned-order-digest", digest := "0027825f48dd255fd917134fc155e774a0ca3349f447bea76c9ec01116c25b01",
+      number := "326740346840144235862691584058853149216616459493057048500993",
+      note := "a real digest whose first byte is 00" },
+    { name := "limb-order-digest", digest := "8d4322bf83f49d728de0ff1b74146da602f44ecea4d2f68c9474a28fb703ca45",
+      number := "810580752928734638613309288310412549030767074425684229343813",
+      note := "a real digest" },
+    { name := "all-zero", digest := "0000000000000000000000000000000000000000000000000000000000000000",
+      number := "000000000000000000000000000000000000000000000000000000000000",
+      note := "60 zeros" },
+    { name := "all-ones", digest := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      number := "423570985008687907853269984665640564039457584007913129639935",
+      note := "2^256 - 1, reduced mod 10^60" },
+    { name := "first-byte-high", digest := "f30f87160c9c36b2645d92005f9555ee30ed00199f19bd6e1dde7c5bb2ec0bde",
+      number := "615284566845113059934298192627384047078637029284611927837662",
+      note := "a digest whose first byte is at least 0x80, read unsigned" },
+    { name := "small-value", digest := "0000000000000000000000000000000000000000000000000000000000003039",
+      number := "000000000000000000000000000000000000000000000000000000012345",
+      note := "12345: 55 leading zeros" },
+    { name := "big-endian", digest := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      number := "700044960722568376592200742329637303199754547598369979440671",
+      note := "read big-endian; read little-endian it would give 155369551180448584754667373453244490859944217516317499064576" }
+  ]
+
+@[never_extract]
+def numberVector (row : NumberRow) : Except String String := do
+  let number := Model.IdentityRecords.verificationNumber (ofHex row.digest)
+  if number != row.number.toList.map Char.toUInt8 then
+    throw ("genvectors: Model.IdentityRecords.verificationNumber disagrees with the table on " ++ row.name)
+  pure (vectorHead row.name row.note ++ "\"inputs\": " ++ jsonObject [("digest", row.digest)] ++
+    ", \"output\": \"" ++ toHex number ++ "\" }")
+
+@[never_extract]
+def verificationNumberFile (_ : Unit) : Except String String := do
+  let vectors ← numberRows.mapM numberVector
+  pure (answerFile "verification-number"
+    ("generated by tacenta-model Vectors.lean (lake exe genvectors verification-number), from Model.IdentityRecords.verificationNumber, identities-and-devices.md, The verification number; each row's number was computed by a separate program and is embedded as a literal, and the generator writes nothing if the model disagrees; the input is a digest, and the output is the number as 60 ASCII digits, most significant first")
+    vectors)
+
+/-! ##### The classification -/
+
+/-- One classification: the presented key, the record's two sets, and the class
+    or refusal the table gives. -/
+structure ClassifyRow where
+  name : String
+  key : String
+  current : List String
+  retired : List String
+  expected : String
+  note : String
+
+def classifyRows : List ClassifyRow := [
+    { name := "empty-record", key := kAlice, current := [], retired := [], expected := "new",
+      note := "a record whose two sets are both empty classifies every identity key as new" },
+    { name := "same", key := kAlice, current := [kAlice], retired := [], expected := "same",
+      note := "the key is current" },
+    { name := "new", key := kBob, current := [kAlice], retired := [], expected := "new",
+      note := "another identity key" },
+    { name := "retired", key := kAlice, current := [], retired := [kAlice], expected := "retired",
+      note := "the key is retired" },
+    { name := "retired-over-same", key := kAlice, current := [kAlice], retired := [kAlice], expected := "retired",
+      note := "a key in both sets is retired" },
+    { name := "retired-set-holds-another-key", key := kAlice, current := [], retired := [kBob], expected := "new",
+      note := "only another key is retired" },
+    { name := "torsion-translate", key := kAliceT, current := [kAlice], retired := [], expected := "invalid-identity-key",
+      note := "the presented key is the current key's point plus a torsion point of order 8" },
+    { name := "same-among-three", key := kH2, current := [kH1, kH2, kH3], retired := [], expected := "same",
+      note := "the second of three current keys" },
+    { name := "presented-all-bits-set", key := kAllOnes, current := [kAlice], retired := [], expected := "decode-failure",
+      note := "the presented key has bit 255 set" },
+    { name := "presented-u-p", key := kP, current := [kAlice], retired := [], expected := "decode-failure",
+      note := "the presented key is u = p" },
+    { name := "malformed-current-member", key := kAlice, current := [kAlice, kP], retired := [],
+      expected := "malformed-record", note := "a current member is u = p, although the key matches another member" },
+    { name := "malformed-retired-member", key := kAlice, current := [kAlice], retired := [kAllOnes],
+      expected := "malformed-record", note := "a retired member has bit 255 set" },
+    { name := "malformed-member-before-the-match", key := kAlice, current := [kP], retired := [kAlice],
+      expected := "malformed-record", note := "the current set's only member is u = p and the key is retired: every member is checked" },
+    { name := "duplicate-members", key := kAlice, current := [kAlice, kAlice, kBob], retired := [],
+      expected := "same", note := "a list with a repeated member is the set of its members" },
+    { name := "duplicate-members-removed", key := kAlice, current := [kAlice, kBob], retired := [],
+      expected := "same", note := "the same set without the repetition" },
+    { name := "non-identity-member-is-not-malformed", key := kAlice, current := [kAlice], retired := [kU0],
+      expected := "same", note := "a canonical member that is not an identity key, u = 0, does not make the record malformed" },
+    { name := "presented-non-identity-key-in-the-record", key := kU0, current := [], retired := [kU0],
+      expected := "invalid-identity-key", note := "the presented key u = 0 is refused, although its bytes are a member" },
+    { name := "presented-key-before-the-members", key := kAliceT, current := [kP], retired := [],
+      expected := "invalid-identity-key", note := "the presented key is checked before the members: the record is also malformed" },
+    { name := "canonical-check-first", key := kP, current := [kNineBit255], retired := [],
+      expected := "decode-failure", note := "the presented key is u = p and a member has bit 255 set: the presented key's canonical check comes first" },
+    { name := "non-identity-members-never-match", key := kAlice, current := [kU2, kAliceT], retired := [],
+      expected := "new", note := "members that are not identity keys, u = 2 and a torsion translate of the key, match no presented key" }
+  ]
+
+@[never_extract]
+def classifyVector (row : ClassifyRow) : Except String String := do
+  let record : Model.IdentityRecords.Record :=
+    { current := row.current.map ofHex, retired := row.retired.map ofHex }
+  let ins := jsonObject [("key", row.key), ("current", String.join row.current),
+    ("retired", String.join row.retired)]
+  match Model.IdentityRecords.classify (ofHex row.key) record with
+  | .ok c =>
+    if className c != row.expected then
+      throw ("genvectors: Model.IdentityRecords.classify disagrees with the table on " ++ row.name)
+    pure (vectorHead row.name row.note ++ "\"inputs\": " ++ ins ++ ", \"output\": \"" ++
+      toHex [classByte c] ++ "\" }")
+  | .error r =>
+    if classifyRefusalName r != row.expected then
+      throw ("genvectors: Model.IdentityRecords.classify disagrees with the table on " ++ row.name)
+    pure (vectorHead row.name row.note ++ refusedPart [row.expected] ++ "\"inputs\": " ++ ins ++ " }")
+
+@[never_extract]
+def identityClassificationFile (_ : Unit) : Except String String := do
+  let vectors ← classifyRows.mapM classifyVector
+  pure (answerFile "identity-classification"
+    ("generated by tacenta-model Vectors.lean (lake exe genvectors identity-classification), from Model.IdentityRecords.classify, session-establishment.md, Records, expectations and attribution, Classification; each row's class or refusal is the table's, embedded as a literal, and the generator writes nothing if the model disagrees; the inputs are the presented key and the record's current and retired sets, each a list of 32-byte keys; the output is the class, 01 same, 02 new, 03 retired. Layout: tacenta-test-vectors/README.md, Vector layouts")
+    vectors)
+
+/-! ##### The lookup -/
+
+/-- One lookup: the presented key, the records (the n-th is contact n's, from
+    0), and the attribution or refusal the table gives, with the contact, the
+    contacts the key is retired for and the records skipped as malformed. -/
+structure LookupRow where
+  name : String
+  key : String
+  records : List (List String × List String)
+  expected : String
+  contact : Nat
+  retiredFor : List Nat
+  malformed : List Nat
+  note : String
+
+def lookupRows : List LookupRow := [
+    { name := "one-contact", key := kAlice, records := [([kAlice], [])], expected := "contact", contact := 0,
+      retiredFor := [], malformed := [], note := "same for exactly one record" },
+    { name := "ambiguous", key := kAlice, records := [([kAlice], []), ([kAlice], [])], expected := "ambiguous",
+      contact := 0, retiredFor := [], malformed := [], note := "same for two records" },
+    { name := "retired-key", key := kAlice, records := [([], [kAlice]), ([kBob], [])], expected := "retired-key",
+      contact := 0, retiredFor := [0], malformed := [], note := "retired for one record and new in the other" },
+    { name := "contact-and-retired-elsewhere", key := kAlice, records := [([], [kAlice]), ([kAlice], [])],
+      expected := "contact", contact := 1, retiredFor := [0], malformed := [],
+      note := "same for contact 1 and retired for contact 0, which is reported" },
+    { name := "in-no-record", key := kAlice, records := [([kBob], [])], expected := "unattributed", contact := 0,
+      retiredFor := [], malformed := [], note := "the key is in no record" },
+    { name := "no-records", key := kAlice, records := [], expected := "unattributed", contact := 0,
+      retiredFor := [], malformed := [], note := "a party that holds no record" },
+    { name := "malformed-record-skipped", key := kAlice, records := [([kAlice, kP], []), ([kAlice], [])],
+      expected := "contact", contact := 1, retiredFor := [], malformed := [0],
+      note := "record 0 holds u = p and is skipped and reported; record 1 decides" },
+    { name := "only-a-malformed-record-holds-the-key", key := kAlice, records := [([kAlice, kP], [])],
+      expected := "unattributed", contact := 0, retiredFor := [], malformed := [0],
+      note := "the only record that holds the key is malformed: skipped and reported, and it attributes nothing" },
+    { name := "presented-key-not-canonical", key := kP, records := [([kAlice], []), ([kP], [])],
+      expected := "decode-failure", contact := 0, retiredFor := [], malformed := [],
+      note := "the presented key is u = p: refused, with no record reported" },
+    { name := "ambiguous-and-retired", key := kAlice, records := [([kAlice], []), ([kAlice], []), ([], [kAlice])],
+      expected := "ambiguous", contact := 0, retiredFor := [2], malformed := [],
+      note := "same for contacts 0 and 1, retired for contact 2, which is reported" },
+    { name := "retired-for-two", key := kAlice, records := [([], [kAlice]), ([], [kAlice])],
+      expected := "retired-key", contact := 0, retiredFor := [0, 1], malformed := [],
+      note := "retired for both contacts" },
+    { name := "record-of-non-identity-keys", key := kAlice, records := [([kU0, kU2], [])],
+      expected := "unattributed", contact := 0, retiredFor := [], malformed := [],
+      note := "a record holding only canonical keys that are not identity keys, u = 0 and u = 2: not malformed, and it matches nothing" },
+    { name := "presented-torsion-translate", key := kAliceT, records := [([kAlice], [])],
+      expected := "invalid-identity-key", contact := 0, retiredFor := [], malformed := [],
+      note := "the presented key is a torsion translate of a recorded key: refused, with no record reported" },
+    { name := "presented-torsion-translate-no-records", key := kAliceT, records := [],
+      expected := "invalid-identity-key", contact := 0, retiredFor := [], malformed := [],
+      note := "the same key with no records: refused all the same" }
+  ]
+
+/-- The layout of a list of records: a 4-byte count, then per record a 4-byte
+    count of current keys, those keys, a 4-byte count of retired keys and those
+    keys. -/
+def encodeRecords (records : List (List String × List String)) : List UInt8 :=
+  beN 4 records.length ++ (records.map fun r =>
+    beN 4 r.1.length ++ (r.1.map ofHex).flatten ++ beN 4 r.2.length ++ (r.2.map ofHex).flatten).flatten
+
+/-- A lookup's result as the vectors write it: the attribution byte (`00`
+    unattributed, `01` a contact's, `02` ambiguous, `03` a retired key), the
+    contact as 4 bytes when there is one, and the contacts the key is retired
+    for and the records skipped as malformed, 4 bytes each. -/
+def lookupFields (res : Model.IdentityRecords.LookupResult Nat) : List (String × String) :=
+  let idx (cs : List Nat) : String := toHex (cs.map (beN 4)).flatten
+  let rest := [("retired_for", idx res.retiredFor), ("malformed", idx res.malformed)]
+  match res.attribution with
+  | .contact c => [("attribution", "01"), ("contact", toHex (beN 4 c))] ++ rest
+  | .ambiguous _ => [("attribution", "02")] ++ rest
+  | .retiredKey _ => [("attribution", "03")] ++ rest
+  | .unattributed => [("attribution", "00")] ++ rest
+
+def attributionName : Model.IdentityRecords.Attribution Nat → String
+  | .contact _ => "contact"
+  | .ambiguous _ => "ambiguous"
+  | .retiredKey _ => "retired-key"
+  | .unattributed => "unattributed"
+
+@[never_extract]
+def lookupVector (row : LookupRow) : Except String String := do
+  let records := (List.range row.records.length).zip
+    (row.records.map fun r => ({ current := r.1.map ofHex, retired := r.2.map ofHex } : Model.IdentityRecords.Record))
+  let ins := jsonObject [("key", row.key), ("records", toHex (encodeRecords row.records))]
+  match Model.IdentityRecords.lookupWith Model.IdentityKey.valid (ofHex row.key) records with
+  | .ok res =>
+    let contactOk := match res.attribution with
+      | .contact c => c == row.contact
+      | _ => true
+    if attributionName res.attribution != row.expected || !contactOk
+        || res.retiredFor != row.retiredFor || res.malformed != row.malformed then
+      throw ("genvectors: Model.IdentityRecords.lookupWith disagrees with the table on " ++ row.name)
+    pure (vectorHead row.name row.note ++ "\"inputs\": " ++ ins ++ ", \"fields\": " ++
+      jsonObject (lookupFields res) ++ " }")
+  | .error r =>
+    if keyRefusalName r != row.expected then
+      throw ("genvectors: Model.IdentityRecords.lookupWith disagrees with the table on " ++ row.name)
+    pure (vectorHead row.name row.note ++ refusedPart [row.expected] ++ "\"inputs\": " ++ ins ++ " }")
+
+@[never_extract]
+def identityLookupFile (_ : Unit) : Except String String := do
+  let vectors ← lookupRows.mapM lookupVector
+  pure (answerFile "identity-lookup"
+    ("generated by tacenta-model Vectors.lean (lake exe genvectors identity-lookup), from Model.IdentityRecords.lookupWith under Model.IdentityKey.valid, session-establishment.md, Records, expectations and attribution, Lookup; each row's attribution, contact, retired and malformed records, or refusal, is the table's, embedded as a literal, and the generator writes nothing if the model disagrees; the inputs are the presented key and a counted list of records, the n-th being contact n's; the fields are the attribution, the contact when there is one, and the contacts the key is retired for and the records skipped as malformed. Layout: tacenta-test-vectors/README.md, Vector layouts")
+    vectors)
+
+/-! ##### The initiator's verdicts
+
+`generate-identity-vectors.py` writes `initiator-expectation.json`, whose
+bundles carry signatures the model cannot make. It asks the model for each
+case's outcome through `lake exe genvectors initiator-expectation-verdicts`,
+one request per line on stdin:
+
+    id expectation records ik spk opk_present opk one_time_id kem spk_sig_ok kem_sig_ok kem_ok low_order secret public
+
+Byte strings are hex, `-` for an empty one. `expectation` and `records` are
+the vectors' layouts. The three flags and `low_order` (the concatenated keys
+of the bundle's prekeys that give a non-contributory agreement) are the facts
+the model cannot compute; everything else, the identity-key rule included, the
+model computes from the bytes. The answer, one line per request, is
+
+    id outcome draws [peer attribution contact retired_for malformed]
+
+where `outcome` is the vectors' refusal name or `session`, and `draws` is how
+many of the four random values offered the step consumed. -/
+
+/-- A 4-byte big-endian number at `pos`. -/
+def be32At (bs : List UInt8) (pos : Nat) : Nat :=
+  ((bs.drop pos).take 4).foldl (fun acc b => acc * 256 + b.toNat) 0
+
+/-- `n` 32-byte keys from `pos`. -/
+def keysAt (bs : List UInt8) (pos n : Nat) : List (List UInt8) :=
+  (List.range n).map fun i => (bs.drop (pos + 32 * i)).take 32
+
+/-- The records layout back to records, contact `n` the `n`-th. -/
+def decodeRecords (bs : List UInt8) : Except String (List (Nat × Model.IdentityRecords.Record)) := Id.run do
+  if bs.length < 4 then return .error "genvectors: records shorter than their count"
+  let mut pos := 4
+  let mut out : List (Nat × Model.IdentityRecords.Record) := []
+  for i in List.range (be32At bs 0) do
+    if pos + 4 > bs.length then return .error "genvectors: records truncated"
+    let nc := be32At bs pos
+    let cur := keysAt bs (pos + 4) nc
+    let mid := pos + 4 + 32 * nc
+    if mid + 4 > bs.length then return .error "genvectors: records truncated"
+    let nr := be32At bs mid
+    let ret := keysAt bs (mid + 4) nr
+    pos := mid + 4 + 32 * nr
+    out := out ++ [(i, { current := cur, retired := ret })]
+  if pos != bs.length then return .error "genvectors: records do not fill their bytes"
+  return .ok out
+
+/-- The vectors' name for an initiator refusal. A refusal the leaf makes after
+    the expectation, of a kind the expectation already decides, gets a name of
+    its own so that the generator sees it as a disagreement. -/
+def initiatorRefusalName : Model.InitiatorExpectation.Refusal → String
+  | .malformedRecord => "malformed-record"
+  | .unexpectedIdentity => "unexpected-identity"
+  | .retiredIdentity => "retired-identity"
+  | .decodeFailure => "decode-failure"
+  | .invalidIdentityKey => "invalid-identity-key"
+  | .bundle .inconsistentBundle => "inconsistent-bundle"
+  | .bundle .badEncoding => "non-canonical-key"
+  | .bundle (.handshake .badSignedPrekeySignature) => "authentication-failure"
+  | .bundle (.handshake .badKemPrekeySignature) => "authentication-failure"
+  | .bundle (.handshake .nonContributoryAgreement) => "non-contributory"
+  | .bundle .kem => "kem-input"
+  | .bundle (.handshake .invalidIdentityKey) => "leaf-invalid-identity-key"
+  | .bundle .unexpectedIdentity => "leaf-unexpected-identity"
+  | .bundle _ => "leaf-other"
+
+/-- The number of random values offered to a step. -/
+def verdictDraws : Nat := 4
+
+/-- An oracle that decides what the model cannot compute from the request's
+    flags: a signature verifies as `spkOk` when its message is the signed
+    prekey's tagged form and as `kemOk` otherwise; the KEM prekey passes its
+    input checks as `kemInputOk`; an agreement with a key in `lowOrder` is not
+    contributory. The identity-key rule is `Model.IdentityKey.valid`. Every
+    other primitive is a stand-in whose values no verdict depends on. -/
+def verdictOracle (spk : List UInt8) (spkOk kemOk kemInputOk : Bool)
+    (lowOrder : List (List UInt8)) : Model.Lifecycle.Oracle :=
+  { draws := List.replicate verdictDraws (fill 0x5c)
+    braidKem := { keyGen := fun _ => none, hashEk := fun _ _ => [], encaps1 := fun _ _ _ => none,
+                  encaps2 := fun _ _ _ => none, decaps := fun _ _ _ => none,
+                  ekSize := 0, ct1Size := 0, ct2Size := 0 }
+    dhPublic := fun k => Model.Sha256.hash k
+    dhAgree := fun priv pub => if lowOrder.contains pub then none else some (Model.Sha256.hash (priv ++ pub))
+    identityValid := Model.IdentityKey.valid
+    aeadSeal := fun _ _ _ _ _ => []
+    aeadOpen := fun _ _ _ _ _ => none
+    kemValid := fun _ => kemInputOk
+    kemEncaps := fun _ draw => some (List.replicate 1568 0, draw)
+    kemDecaps := fun _ _ => none
+    sigVerify := fun _ msg _ =>
+      if msg == Model.PersistedState.SessionState.encodeEc spk then spkOk else kemOk
+    sigSign := fun _ _ _ _ => [] }
+
+def dashHex (s : String) : List UInt8 := if s == "-" then [] else ofHex s
+
+def hexOrDash (bs : List UInt8) : String := if bs.isEmpty then "-" else toHex bs
+
+/-- One request answered. -/
+def initiatorVerdict (line : String) : Except String String := do
+  match line.splitOn " " with
+  | [id, expHex, recordsHex, ik, spk, opkPresent, opk, oneTimeId, kem, spkOk, kemOk, kemInputOk,
+      lowOrder, secret, pub] =>
+    let records ← decodeRecords (ofHex recordsHex)
+    let exp ← match ofHex expHex with
+      | [0x00] => pure (Model.InitiatorExpectation.Expectation.firstContact records)
+      | 0x01 :: idx =>
+        if idx.length != 4 then throw ("genvectors: " ++ id ++ ": a known expectation names 4 bytes")
+        else
+          match records.lookup (be32At idx 0) with
+          | some r => pure (Model.InitiatorExpectation.Expectation.known r)
+          | none => throw ("genvectors: " ++ id ++ ": a known expectation names no record")
+      | _ => throw ("genvectors: " ++ id ++ ": not an expectation")
+    let low := dashHex lowOrder
+    let lowKeys := (List.range (low.length / 32)).map fun i => (low.drop (32 * i)).take 32
+    let oracle := verdictOracle (ofHex spk) (spkOk == "1") (kemOk == "1") (kemInputOk == "1") lowKeys
+    let bundle : Model.Lifecycle.Bundle :=
+      { identityKey := ofHex ik, signedPrekey := ofHex spk, signedPrekeySig := [],
+        kemPrekey := dashHex kem, kemPrekeySig := [],
+        oneTimePrekey := if opkPresent == "01" then some (ofHex opk) else none,
+        signedPrekeyId := 1, oneTimeId := UInt32.ofNat (be32At (ofHex oneTimeId) 0), kemPrekeyId := 4 }
+    let identity : Model.Lifecycle.Identity := { secret := ofHex secret, publicKey := ofHex pub }
+    let step := Model.InitiatorExpectation.establishInitiatorExpecting oracle identity bundle exp
+    let drawn := toString (verdictDraws - step.oracle.draws.length)
+    match step.result with
+    | .error r => pure (id ++ " " ++ initiatorRefusalName r ++ " " ++ drawn)
+    | .ok s =>
+      match Model.IdentityRecords.lookupWith Model.IdentityKey.valid s.peerIdentityPublic records with
+      | .error _ => pure (id ++ " session-without-lookup " ++ drawn)
+      | .ok res =>
+        let fs := lookupFields res
+        let get (k : String) : String := hexOrDash (ofHex ((fs.lookup k).getD ""))
+        pure (id ++ " session " ++ drawn ++ " " ++ toHex s.peerIdentityPublic ++ " " ++
+          get "attribution" ++ " " ++ get "contact" ++ " " ++ get "retired_for" ++ " " ++ get "malformed")
+  | _ => throw ("genvectors: not a verdict request: " ++ line)
+
+/-- Every request on stdin, answered in order; a malformed request stops the
+    run. -/
+def initiatorVerdicts : IO Unit := do
+  let input ← (← IO.getStdin).readToEnd
+  for line in input.splitOn "\n" do
+    let request := line.replace "\r" ""
+    if !request.isEmpty then
+      match initiatorVerdict request with
+      | .ok answer => IO.println answer
+      | .error e => throw (IO.userError e)
+
 end Vectors
 
 def main (args : List String) : IO Unit :=
@@ -3068,6 +3647,16 @@ def main (args : List String) : IO Unit :=
     Vectors.printOrFail (Vectors.sessionStateFile ())
   else if args.contains "identity-key" then
     Vectors.printOrFail (Vectors.identityKeyFile ())
+  else if args.contains "pair-digest" then
+    Vectors.printOrFail (Vectors.pairDigestFile ())
+  else if args.contains "verification-number" then
+    Vectors.printOrFail (Vectors.verificationNumberFile ())
+  else if args.contains "identity-classification" then
+    Vectors.printOrFail (Vectors.identityClassificationFile ())
+  else if args.contains "identity-lookup" then
+    Vectors.printOrFail (Vectors.identityLookupFile ())
+  else if args.contains "initiator-expectation-verdicts" then
+    Vectors.initiatorVerdicts
   else if args.contains "protobuf-ratchet-body" then
     IO.println (Vectors.ratchetBodyFile ())
   else if args.contains "protobuf-prekey-envelope" then
