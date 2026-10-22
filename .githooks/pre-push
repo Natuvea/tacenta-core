@@ -16,6 +16,15 @@
 # somewhere other than inside the file it protects, and the machine that
 # wrote the change is the earliest such place. The full gate is
 # `tooling/ci.sh`; this hook is deliberately only the cheap part of it.
+#
+# Opt in to more with FAST_PRE_PUSH=1 (set it in your shell, or for one push:
+# `FAST_PRE_PUSH=1 git push`): the hook then also runs `tooling/fast.sh`, the
+# few-minute check CONTRIBUTING.md describes, and refuses the push if it fails.
+# Without the variable the hook does what it always did, and nothing here makes
+# the fast check required.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 bash tooling/check-workflows.sh
+if [ "${FAST_PRE_PUSH:-}" = "1" ]; then
+  bash tooling/fast.sh
+fi

@@ -15,6 +15,8 @@
 #   run-no-sorry-parts-cases.sh  the parts of no-sorry.sh in CI and their combiner: a part missing, repeated,
 #                                  relabelled, of another commit, tree, script or cache, failed, or with a phase in
 #                                  no part or two; the dispatcher's slices; the committed parts file against the script
+#   run-check-fast-cases.sh      the fast local check (tooling/fast.sh, its selection in fast-plan.py, ci.sh --fast and the
+#                                  opt-in FAST_PRE_PUSH mode of the pre-push hook), on stub tools
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
 #   run-reflow-shared-lists-cases.sh, reflow-shared-lists.py --check  the lists every new proof module edits are
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
@@ -49,6 +51,7 @@ bash "$root/tacenta-proofs/scripts/check-generation-negatives.sh"
 bash "$here/run-attest-negatives-shard-cases.sh"
 bash "$here/run-attest-negatives-slice-cases.sh"
 bash "$here/run-no-sorry-parts-cases.sh"
+bash "$here/run-check-fast-cases.sh"
 bash "$here/run-gate-inventory-cases.sh"
 bash "$here/run-mutate-gates-cases.sh"
 bash "$here/run-regenerate-in-container-cases.sh"

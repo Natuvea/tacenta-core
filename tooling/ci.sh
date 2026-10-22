@@ -33,9 +33,42 @@
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
 # stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
 # the step that needs it says so when it skips.
+#
+# Fast mode (`bash tooling/ci.sh --fast`, or `CI_FAST=1 bash tooling/ci.sh`)
+# runs the cheap section, which is everything above the line marked
+# "fast mode stops here", and then stops with a summary that lists every step
+# it did not run. It is not the gate and says so; `tooling/fast.sh` is the
+# command a developer runs, which adds the diff-scoped Rust and Lean checks to
+# it. The list of steps a fast run did not run is read from this file's own
+# text (`--fast-not-run` prints it and runs nothing), so a step added below the
+# line is listed without anyone editing a second list, and a step added above
+# it is run by fast mode without anyone editing one. With neither switch this
+# script behaves as it always has.
 set -euo pipefail
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+
+fast=0
+for arg in "$@"; do
+  case "$arg" in
+    --fast) fast=1 ;;
+    --fast-not-run) fast=2 ;;
+  esac
+done
+if [ "${CI_FAST:-}" = "1" ] && [ "$fast" -eq 0 ]; then
+  fast=1
+fi
+
+# The steps below the stop line, by their headings, read from this file.
+fast_not_run() {
+  sed -n '/^# ---- fast mode stops here/,$p' "$self" \
+    | sed -n 's/^ *echo "== \(.*\) ==".*$/  \1/p' | sed 's/ (\$msrv)//'
+}
+if [ "$fast" -eq 2 ]; then
+  fast_not_run
+  exit 0
+fi
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
 # that does not parse runs nothing. In CI this catches the *other* workflow
@@ -67,6 +100,12 @@ ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/tests/run-check-actionl
 # The assembly gate allow-list must match a whole Rust identifier component;
 # a helper whose longer name merely contains an allowed word must stay red.
 bash tooling/tests/run-check-constant-time-asm-cases.sh
+
+# The fast local check, `tooling/fast.sh`: its selection of steps from a diff, its failure and skip
+# rules, and this script's own fast mode (the cheap steps run, none of the heavy ones). It runs
+# stubs, so it needs no toolchain, and it is a cheap step: fast mode runs it too. Hosted CI runs it
+# in the checks job through run-gate-controls.sh.
+bash tooling/tests/run-check-fast-cases.sh
 
 # Every commit this branch adds on top of origin/main is signed off by its
 # author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
@@ -189,6 +228,15 @@ python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
 python3 tacenta-test-vectors/runners/independent/reader/test_skip_allowlist.py
 python3 tacenta-test-vectors/runners/independent/reader/test_session_e2e_sweep.py
 python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
+
+if [ "$fast" -eq 1 ]; then
+  echo "== fast mode: the cheap section passed =="
+  echo "fast mode: not run (the steps below this point in tooling/ci.sh):"
+  fast_not_run
+  echo "fast mode: this is not the gate. Only a run without --fast ends on the gate's own green line."
+  exit 0
+fi
+# ---- fast mode stops here: everything below is the part that is not cheap ----
 
 echo "== Lean: build the model =="
 
