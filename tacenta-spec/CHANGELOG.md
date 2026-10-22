@@ -779,6 +779,16 @@ is SemVer against the specified protocol (not the implementation).
   generated `export`. No rule, byte or constant changes.
 
 ### Fixed
+- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the
+  passage on what the proofs cover said which refusal a skip returns was not
+  proved. The leaf refinement fixes it in one direction (a `SkippedStoreFull`
+  result is the store's refusal); the copy translated with the session
+  lifecycle is now proved in both directions, under that theorem's
+  hypotheses
+  (`UnitLifecycleSparseSkipKindT3.skip_message_keys_refines_detailed`), and
+  `tacenta-core/tests/sparse_skip_order.rs` tests the order on the Rust
+  source. The rule and the behaviour are unchanged.
+
 - `protocol/session-establishment.md`: the repeated-initial rule names the key
   its agreement class is taken under. It is the session's current
   `ratchet_private`, not the responder's signed-prekey secret, which the
