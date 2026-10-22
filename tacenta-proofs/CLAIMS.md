@@ -824,10 +824,16 @@ only of a `SkippedStoreFull` result, so whether a full store is refused as
 `TooManySkipped` or `SkippedStoreFull` is not in the statement. The order of the
 two checks is pinned in one direction only: the second conjunct rules out a
 `SkippedStoreFull` result for a request beyond `MAX_SKIP`. A full store refused
-as `TooManySkipped` still passes the theorem after a one-token change to its proof. The session evicts only on `SkippedStoreFull`,
-and the session proofs take the refusal kind as a hypothesis (`hreason`). The
-refusal kind, and the order in the other direction, are tested only, by `tacenta-spqr`'s unit tests and
-the differential harness. Its statement is pinned in
+as `TooManySkipped` still passes the theorem after a one-token change to its proof. For the copy of
+the code in the Session unit the kind is proved in both directions:
+`UnitLifecycleSparseSkipKindT3.skip_message_keys_refines_detailed` composes the Session unit's copy of this
+theorem with `UnitLifecycleTripleRefusalT3.spqr_skip_refusal_refines`, so a refusal the model names is the
+error of that kind, and an error the code returns is the model's refusal of that kind (the section "Proved
+(tier T3, session lifecycle: the sparse skip's refusal kind in both directions, on the eight-leaf unit)").
+The leaf and the three-leaf unit have no such statement. The session evicts only on `SkippedStoreFull`,
+and branch lemmas such as those of `UnitLifecycleInitialDispatch.lean` take the Triple refusal kind as a
+hypothesis (`hreason`). For the Rust source the order is tested only, by
+`tacenta-core/tests/sparse_skip_order.rs` (below); no vector pins either refusal kind. Its statement is pinned in
 `Translation/SparseSkipStatementPin.lean`. No other proof reads the refusal
 clause `r.2 = s` of this statement: `receive_refines_continuation` discards it, and
 `receive_refines_continuation` and `receive_refines` state their refusals as an
@@ -847,7 +853,15 @@ survivors' order),
 `a_sparse_store_refusal_is_atomic_when_replacement_would_still_overflow`,
 `a_sparse_store_with_nothing_to_replace_is_held_to_the_absolute_bound`,
 `the_purge_range_is_above_the_chain_number_and_up_to_the_target_only` and
-`a_skip_to_the_chain_number_stores_nothing_and_checks_nothing`; that the working
+`a_skip_to_the_chain_number_stores_nothing_and_checks_nothing`; that the order
+holds through the public `State::from_bytes` and `receive` on stored starts, by the five tests of
+`tacenta-core/tests/sparse_skip_order.rs` (a request past both bounds is refused as `TooManySkipped`,
+with and without stored keys in its range, and one past the store bound alone as `SkippedStoreFull`;
+keys under another epoch count against the store and are not deleted by a skip of this epoch; the edge
+`1,997 + 3` accepted and `1,997 + 4` refused; every refusal leaves the bytes unchanged), each of which
+fails under at least one of the seven single edits of `skip_message_keys` in the rows `SP-*` of
+`tooling/gate-mutations.json` (the two checks swapped, the store refusal named `TooManySkipped` among them),
+which `tooling/mutate-gates.py` runs locally and CI does not; that the working
 copy of a refused skip is erased, by
 `a_skip_refused_for_the_total_bound_frees_no_secret` in
 `tacenta-core/tests/spqr_erasure_public.rs` (it relies on `Skipped` erasing on

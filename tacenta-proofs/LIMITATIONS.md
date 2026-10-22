@@ -3558,7 +3558,9 @@ which every axiom-level field of the four contract records holds (`spqrSessionLa
 substitution sense above; and an interpretation whose `Vec::pop` leaves a vector unchanged fails them
 (`spqrSessionLawsShape_fails_of_noop_pop`). The loop theorems `receive_with_eviction_loop_refines` and
 `receive_with_eviction_refines`, the refusal theorems of the complete form and the session unit's sparse and Triple
-refinement theorems still take the two agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`).
+refinement theorems still take the two agreements as hypotheses (`GAP-REGISTER.md`, row `SESSION-SPARSE-AGREEMENTS`), and
+so does their composition `UnitLifecycleSparseSkipKindT3.skip_message_keys_refines_detailed`, which takes
+`VecRetainAgrees` alone.
 `ErasureAgrees` follows from the two laws about `usize::div_ceil` and `Vec::truncate` above.
 
 **The random source.** The random source holds at least one draw; the model's ceiling refusal for an exhausted source has
