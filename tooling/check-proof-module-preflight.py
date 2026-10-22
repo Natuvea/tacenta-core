@@ -31,7 +31,8 @@ since the checks below would then have nothing to read:
                      pins), "each of the N definitions" (its `#print` pins), "of the other N results, A rest on
                      ... alone ... and [the other] B on" (the pins other than the results the section's
                      **Compiler trust and pins.** paragraph names before its verb; then kernel only and opaque among
-                     them, none of them compiler-trusted (so A + B = N follows), every named result pinned and of the trust the
+                     them, none of them compiler-trusted (so A + B = N follows, unless a compiler-trusted other result
+                     is a baselined finding, which states the same fact), every named result pinned and of the trust the
                      paragraph's first sentence gives it; with no such names, the pins `attest.py` labels other
                      than compiler trust), and "plants N faults" or "N changes refused" (the script's
                      controls); in the script's own docstring, "N controls are labelled inside" and "N ...
@@ -435,9 +436,12 @@ def other_results(report, module, where, flat, body, attest):
     `native_decide` constants became kernel proofs they are named results with no compiler trust, so the
     exclusion is by name, and what the old rule implied is checked here instead: a named result with no pin, or
     with more than one, is an error (by full name or by its last parts after a dot, never by a substring); every
-    named result has the trust the paragraph's first sentence gives it, read in every case (the kernel's axioms
-    alone; opaque constants; no compiler-trust axiom; otherwise compiler trust; a sentence with no word of trust
-    is an error); and no result
+    named result has the trust the paragraph's first sentence gives it, read from these words only: "alone",
+    "only", "solely" or "nothing else", or `propext` with no unnegated "opaque constants", mean the kernel's
+    axioms alone; an unnegated "opaque constants" (not "no" or "not on" opaque constants) means opaque
+    constants; "no compiler-trust axiom" means no compiler trust; any other "compiler-trust" means compiler
+    trust; a sentence with none of these is an error. Where several apply the first in that order, the
+    strictest, is read. Only the first sentence is read; a second sentence saying otherwise is not; and no result
     among the others is compiler-trusted, since the sentence counts them as resting on the kernel's axioms or on
     opaque constants. With no names before the verb, None (the count is of the results other than the
     compiler-trusted).
@@ -454,12 +458,12 @@ def other_results(report, module, where, flat, body, attest):
     rest = flat[lead.end():]
     end = re.search(r"\. (?=[A-Z])", rest)
     clause = rest[:end.start()] if end else rest
-    # What the sentence says the named results rest on, read in every case: the kernel's axioms alone (it says
-    # "alone", or names `propext` and no opaque constants), opaque constants, no compiler-trust axiom, or (with
-    # none of those) compiler trust, which is what the list meant until 2026-10-21. A sentence with no word about
-    # trust at all is an error.
-    opaque_words = re.search(r"\bopaque constants\b", clause) is not None
-    alone = re.search(r"\balone\b", clause) is not None or ("`propext`" in clause and not opaque_words)
+    # What the sentence says the named results rest on, from the words listed in the docstring above: the
+    # kernel's axioms alone, opaque constants, no compiler-trust axiom, or (with none of those) compiler trust,
+    # which is what the list meant until 2026-10-21. A sentence with no word about trust at all is an error.
+    opaque_words = re.search(r"(?<!\bno )(?<!\bnot on )\bopaque constants\b", clause) is not None
+    alone = (re.search(r"\b(?:alone|only|solely|nothing else)\b", clause) is not None
+             or ("`propext`" in clause and not opaque_words))
     no_compiler = "no compiler-trust axiom" in clause
     if alone:
         allowed, said = {"kernel"}, "resting on the kernel's axioms alone"
@@ -581,9 +585,10 @@ def check_counts(report, module, text, sections, scripts, attest):
                 else:
                     what, total = "results other than the ones named first", len(other)
                     kernel, opaque = other.count("kernel"), other.count("opaque-external")
-                    # The three numbers are each checked below, and `other_results` refuses a compiler-trusted
-                    # result among the others: with both, the kernel-only and opaque counts add up to the other
-                    # count, so that sum needs no check of its own.
+                    # The sum A + B = N is redundant by proof: `classify` gives only kernel, opaque-external or
+                    # compiler, so |other| = K + P + C; the three checks below force N = |other|, A = K and B = P,
+                    # and `other_results` reports any C > 0. The only case where the sum would add a finding is one
+                    # where that other-compiler finding is baselined, and it states the same fact.
                 count_mismatch(report, f"{module}|count|other", where, what, number(m.group(1)), total)
                 count_mismatch(report, f"{module}|count|kernel", where, "results on the kernel's axioms alone",
                                number(m.group(2)), kernel)

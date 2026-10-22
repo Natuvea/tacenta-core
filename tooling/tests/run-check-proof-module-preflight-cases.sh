@@ -22,11 +22,16 @@
 #                                                   named; a count in a
 #                                                   form the check does not read: a warning; the axiom-pin count
 #                                                   in its "theorems ... has" form off by one: named
-#   what the sentence naming results first says     "alone" for opaque results (S15), no word of trust (S16,
-#   of their trust, read in every case              S17), a compiler-trusted result padded in (S18), "no
-#                                                   compiler-trust axiom" for one that lists one, "a
-#                                                   compiler-trust axiom" for opaque ones, a name matching two
-#                                                   pins (S21): each refused, by the check it is for
+#   what the sentence naming results first says     the named (opaque) results said to rest on the kernel's
+#   of their trust                                  axioms alone, in six wordings ("alone", "nothing else",
+#                                                   "only", a negated "no opaque constants", "only ... unlike
+#                                                   the opaque constants", `propext` with no opaque constants);
+#                                                   no word of trust, with a kernel-only and with a
+#                                                   compiler-trusted result padded in; a compiler-trusted
+#                                                   result padded in after "no compiler-trust axiom" is moved
+#                                                   out; "no compiler-trust axiom" for one that lists one; "a
+#                                                   compiler-trust axiom" for opaque ones; a name matching two
+#                                                   pins; a fictional name: each refused, by the check it is for
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
 #   a stub that defines every name and calls nothing fails it; then, all planted at once and each required by name
 #   in one run:
@@ -255,23 +260,36 @@ t += f"\n/--\ninfo: '{twin}' depends on axioms: {m.group(1)}\n-/\n#guard_msgs in
 open(path, "w").write(t)
 PY
 }
-# S15: the named results said to rest on the kernel's axioms alone; they rest on opaque constants.
+# The named results said to rest on the kernel's axioms alone; they rest on opaque constants.
 edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"and rest on\\n\`propext\`, \`Classical.choice\` and \`Quot.sound\` alone, and list no compiler-trust axiom\", 1)"
 run named-alone 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-alone "[UnitLifecycleResponderReply|count|named-trust|responder_reply_refines]"
 says named-alone "names \`responder_reply_refines\` first as resting on the kernel's axioms alone; its pin rests on opaque constants"
 g checkout -q -- tacenta-proofs/CLAIMS.md
-# S16: the sentence says nothing of trust; a kernel-only result padded in, the counts moved to 13 and 5.
+# The same false claim in other words: each is read as kernel-only (or, negated, not as opaque) and refused.
+for form in \
+  "and rest on the kernel's three axioms and nothing else, and list no compiler-trust axiom|only-nothing-else" \
+  "and rest only on \`Classical.choice\` and \`Quot.sound\`, and list no compiler-trust axiom|only-only" \
+  "and rest on \`propext\`, \`Classical.choice\` and \`Quot.sound\`, on no opaque constants and on no compiler-trust axiom|only-negated-opaque" \
+  "and rest only on the kernel's three axioms, unlike the opaque constants of the encrypt route, and list no compiler-trust axiom|only-unlike-opaque" \
+  "and rest on \`propext\`, \`Classical.choice\` and \`Quot.sound\`, and list no compiler-trust axiom|only-propext"; do
+  name="named-${form##*|}"
+  edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"${form%|*}\", 1)"
+  run "$name" 1 UnitLifecycleResponderReply --baseline "$baseline"
+  says "$name" "names \`responder_reply_refines\` first as resting on the kernel's axioms alone; its pin rests on opaque constants"
+  g checkout -q -- tacenta-proofs/CLAIMS.md
+done
+# The sentence says nothing of trust; a kernel-only result padded in, the counts moved to 13 and 5.
 s16="t = t.replace(\"$clause\", \"and\", 1).replace(' and \`first_send_reply_reachable\`\\napply', ', \`first_send_reply_reachable\` and \`array_clone_u8\`\\napply', 1).replace('Of the other 14 results, 6 rest on', 'Of the other 13 results, 5 rest on', 1)"
 edit tacenta-proofs/CLAIMS.md "$s16"
 run named-no-trust-words 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-no-trust-words "[UnitLifecycleResponderReply|count|named-clause]"
-# S17: as S16, and the padded result is compiler-trusted.
+# As above, and the padded result is compiler-trusted.
 pin_axiom array_clone_u8 Lean.ofReduceBool
 run named-no-trust-words-compiler 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-no-trust-words-compiler "[UnitLifecycleResponderReply|count|named-clause]"
 g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
-# S18: "no compiler-trust axiom" taken out of the sentence; a compiler-trusted result padded into the list.
+# "no compiler-trust axiom" taken out of the sentence; a compiler-trusted result padded into the list.
 pin_axiom array_clone_u8 Lean.ofReduceBool
 edit tacenta-proofs/CLAIMS.md "t = t.replace(', and no compiler-trust axiom (until 2026-10-21 also the same nine', ' (until 2026-10-21 also the same nine', 1).replace(' and \`first_send_reply_reachable\`\\napply', ', \`first_send_reply_reachable\` and \`array_clone_u8\`\\napply', 1).replace('Of the other 14 results, 6 rest on', 'Of the other 13 results, 5 rest on', 1)"
 run named-compiler-padded 1 UnitLifecycleResponderReply --baseline "$baseline"
@@ -288,7 +306,7 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace(\"$clause\", \"and list\\na compile
 run named-compiler-clause 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-compiler-clause "names \`responder_reply_refines\` first as compiler-trusted; its pin rests on opaque constants"
 g checkout -q -- tacenta-proofs/CLAIMS.md
-# S21: a name that matches two pins (a second pin with the same last part), the result count moved to 20.
+# A name that matches two pins (a second pin with the same last part), the result count moved to 20.
 pin_twin responder_reply_refines
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19\\nresults carries', 'Each of the 20\\nresults carries', 1)"
 run named-ambiguous 1 UnitLifecycleResponderReply --baseline "$baseline"
