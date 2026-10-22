@@ -72,12 +72,11 @@ No premise names a width, so each result holds on 32- and 64-bit targets.  The r
 Every result here rests on the kernel and opaque constants only, with no compiler-trust axiom (pins below); the headline
 applies the encrypt and decrypt refinements through `initiator_second_send_after_reply` and
 `initiator_receives_reply_successor`, whose nine `native_decide` constants are kernel proofs since 2026-10-21.  The
-headline's statement pin is cut off by Lean's `⋯` after the binder `trace rng' = dA :: restA`: the bound on `ptS` is
-placed first so that the pin holds it, and the pin holds the binders up to the initiator's draw after its first send; the
-responder's binders, `hfreshB` and the whole conclusion are held by the build and by reading only, as with every pin that
-ends in `⋯` (with this module, 18 modules hold such cut-off pins, 41 pins; a pin form that prints the whole statement is
-to be fixed separately).  The reach's statement pin and the `#print` pin of `SecondMessageRun`, the conclusion it names,
-are printed in full.
+headline's statement pin prints the whole statement: the module sets `pp.deepTerms true` and `pp.proofs.withType true`
+before its pins, without which Lean cut the pin off with `⋯` after the binder `trace rng' = dA :: restA`.  The reach's
+statement pin and the `#print` pin of `SecondMessageRun`, the conclusion it names, are printed in full too.  A printed
+pin is still not the whole elaborated statement (instance arguments, coercion functions, implicit arguments and the
+binder types of `∃` and `fun` are not printed), so that the pinned statement is the right one is decided by reading.
 
 ## Non-vacuity
 

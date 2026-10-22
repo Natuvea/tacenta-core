@@ -6533,12 +6533,12 @@ equality; that `Session::invariant` says a session is reachable (it is a predica
 `Quot.sound` and opaque constants of the unit. `initiator_sends_second_message` applies
 `initiator_second_send_after_reply` and `initiator_receives_reply_successor`, and the reach applies the headline, whose
 nine `native_decide` constants are kernel proofs since 2026-10-21. Each of the two results carries an axiom pin and a
-statement pin, and the definition `SecondMessageRun` a `#print` pin. The headline's statement pin is cut off by Lean's `⋯`
-after the binder `trace rng' = dA :: restA`: the bound on `ptS` is placed first so that the pin holds it, and the pin holds
-the binders up to the initiator's draw after its first send; the responder's binders, `hfreshB` and the whole conclusion
-are held by the build and by reading only, as with every pin that ends in `⋯` (with this module, 18 modules hold such
-cut-off pins, 41 pins; a pin form that prints the whole statement is to be fixed separately). The reach's statement pin
-is printed in full: its conclusion is the definition `SecondMessageRun`, whose `#print` pin holds the whole run.
+statement pin, and the definition `SecondMessageRun` a `#print` pin. The headline's statement pin prints the statement
+without a cut: the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its pins, without which Lean cut
+the pin off with `⋯` after the binder `trace rng' = dA :: restA`. The reach's statement pin is printed in full too: its
+conclusion is the definition `SecondMessageRun`, whose `#print` pin holds the whole run. As for every statement pin, a
+printed pin is not the whole elaborated statement (what Lean's printing leaves out is listed under the initiator's second
+send above), and that the pinned statement is the right one is decided by reading.
 `check-initiator-second-message-negatives.py` plants eleven faults in a copy of the module, every one a change to a
 statement or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the
 change (a proof-breakage check at that place, not a proof that the changed statement is false). Ten are refused in the

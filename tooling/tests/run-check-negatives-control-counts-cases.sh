@@ -34,7 +34,8 @@ cases=0
 # named here fails this runner rather than going unheld.
 named=(check-responder-successor-negatives.py check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py
-  check-initiator-second-send-negatives.py check-receive-preservation-negatives.py)
+  check-initiator-second-send-negatives.py check-receive-preservation-negatives.py
+  check-initiator-second-message-negatives.py)
 listed="$(printf '%s\n' "${named[@]}" | sort)"
 in_record="$(python3 -B -c 'import json, sys; print("\n".join(sorted(json.load(open(sys.argv[1]))["scripts"])))' \
   "$scripts/negatives-control-counts.json")"
@@ -104,7 +105,7 @@ expect_fail() {
 for s in "${named[@]}"; do
   set +e
   out="$(python3 -B - "$scripts/$s" <<'PY' 2>&1
-import importlib.util, sys
+import importlib.util, re, sys
 spec = importlib.util.spec_from_file_location("negatives", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
@@ -114,7 +115,11 @@ if not m.PROJECTION:
     print("NO-PROJECTION")
     sys.exit(0)
 name = sorted(m.PROJECTION)[0]
-leaf = next(d for mutant in m.MUTANTS if not isinstance(mutant[4], tuple) for d in mutant[4] if d not in m.COMPOSING)
+# A declaration that is not a composing proof: a leaf some control is refused in, or, in a script whose controls are all
+# refused in composing proofs or at pins, a declaration of the module that is not one.
+leaf = next((d for mutant in m.MUTANTS if not isinstance(mutant[4], tuple) for d in mutant[4] if d not in m.COMPOSING),
+            None) or next(d for d in re.findall(r"(?m)^(?:private )?(?:theorem|lemma|def) (\w+)", text)
+                          if d not in m.COMPOSING)
 m.MUTANTS = [mutant[:4] + (list(mutant[4]) + [leaf],) if mutant[1] == name else mutant for mutant in m.MUTANTS]
 try:
     m.check_labels(text)

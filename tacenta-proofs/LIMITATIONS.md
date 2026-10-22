@@ -3079,10 +3079,9 @@ per-run premise; the preservation step's record `KemCloneAgrees` (ASSUMED, as ab
 record. `first_send_second_message_reachable` exhibits, at the real constants under the laws of
 `first_send_reply_receipt_reachable` (all ASSUMED, `DhPublicNotConstant` included), a run at which every hypothesis of the
 headline holds; its conclusion is the definition `SecondMessageRun`. Both rest on the kernel and opaque constants with no
-compiler-trust axiom. The headline's statement pin is cut off by Lean's `⋯` after the binder `trace rng' = dA :: restA`
-(the bound on the second plaintext is placed first, so the pin holds it), so its responder binders, `hfreshB` and its
-whole conclusion are held by the build and by reading only (with this module, 18 modules hold such cut-off pins, 41 pins);
-the reach's pin and the `#print` pin of `SecondMessageRun` are printed in full. **The budget** after the send is what the
+compiler-trust axiom. The headline's statement pin, the reach's pin and the `#print` pin of `SecondMessageRun` print
+the whole statement (the module sets the two `pp` options before its pins), which is still not the whole elaborated
+statement: what Lean's printing leaves out is held by the build and by reading only, as for every statement pin. **The budget** after the send is what the
 composition derives, not the exact room: the preservation step charges a unit for the send although the clock does not
 move. **Not shown:** the responder's receipt of the second message, a second reply and its receipt, the header's third
 chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt` can reach
