@@ -5,6 +5,8 @@
 #                                                   scan says it was skipped
 #   a baseline key that no longer occurs            a warning to delete it; an error with --strict or --baseline-base
 #   a baseline that omits a known finding           fails
+#   a key in the base's baseline whose finding      fails with --baseline-base (stale)
+#   has gone
 #   a key the baseline gained since a base          fails with --baseline-base when its finding does not occur, and
 #                                                   when `reasons` gives it none or a placeholder; passes with a
 #                                                   reason a reviewer can read
@@ -16,8 +18,8 @@
 #   the results a section names first (in the       a named result with no pin, or matched only by a substring
 #   section of UnitLifecycleResponderReply)         of a pin's name; a kernel-only result padded into the named
 #                                                   list with the counts moved to match; an unnamed result made
-#                                                   compiler-trusted with the counts moved to match; a count
-#                                                   whose two parts do not add up: each named; a count in a
+#                                                   compiler-trusted with the counts moved to match: each
+#                                                   named; a count in a
 #                                                   form the check does not read: a warning; the axiom-pin count
 #                                                   in its "theorems ... has" form off by one: named
 #   what the sentence naming results first says     "alone" for opaque results (S15), no word of trust (S16,
@@ -49,6 +51,7 @@ g() { git -C "$clone" -c user.name=control -c user.email=control@example.invalid
 lint="tooling/check-proof-module-preflight.py"
 baseline="tooling/proof-module-preflight-baseline.json"
 cases=0
+last_want=0
 
 fail_case() {
   echo "WRONG  preflight $1" >&2
@@ -64,11 +67,25 @@ run() {  # name want-exit args... ; the output is in $out
   rc=$?
   set -e
   cases=$((cases + 1))
+  last_want="$want"
   [ "$rc" -eq "$want" ] || fail_case "$name: expected exit $want, got $rc" "$out"
 }
-says() {  # name needle: the last run printed the needle
+# says: the last run printed the needle. After a run that had to be refused for one reason, a missing needle
+# means it was refused for another: that is reported as "refused, but missing diagnostic", which
+# tooling/mutate-gates.py counts as a message, not a catch.
+says() {  # name needle
   cases=$((cases + 1))
-  grep -qF -- "$2" <<<"$out" || fail_case "$1: expected '$2'" "$out"
+  grep -qF -- "$2" <<<"$out" && return 0
+  if [ "$last_want" != 0 ]; then
+    fail_case "$1: refused, but missing diagnostic: expected '$2'" "$out"
+  fi
+  fail_case "$1: expected '$2'" "$out"
+}
+# finds: in a run that holds several faults at once, each needle is a finding of its own; a missing one is a
+# finding the check did not report.
+finds() {  # name needle
+  cases=$((cases + 1))
+  grep -qF -- "$2" <<<"$out" || fail_case "$1: did not report '$2'" "$out"
 }
 edit() {  # file program-over-t
   python3 - "$clone/$1" "$2" <<'PY'
@@ -114,8 +131,12 @@ says baseline-gained-absent "the baseline gained UnitLifecycleNotAModule|terms|x
 g reset -q --hard HEAD~1
 # A key for a finding that occurs (a count off by one), added since the base: refused with no reason and with a
 # placeholder, accepted with a reason a reviewer can read.
-key="UnitLifecycleResponderFirstReceipt|count|results|43|42"
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 42 results carries an axiom pin', 'Each of the 43 results carries an axiom pin', 1)"
+# The key is the one the check prints, so a key that carried no numbers would be baselined as such.
+run count-finding 1 --all --baseline "$baseline"
+key="$(sed -n 's/^ERROR .*\[\(UnitLifecycleResponderFirstReceipt|count|results[^]]*\)\]$/\1/p' <<<"$out" | head -n 1)"
+cases=$((cases + 1))
+[ -n "$key" ] || fail_case "count-finding: did not report a count key for the section" "$out"
 bl add "$key"
 g commit -qam "a count finding baselined"
 run baseline-grew 1 --all --baseline "$baseline" --baseline-base HEAD~1
@@ -132,7 +153,11 @@ says baseline-grew-with-reason "note     the baseline gained $key since HEAD~1: 
 # The key carries the numbers: the same count at another wrong value is a new finding.
 edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 43 results carries an axiom pin', 'Each of the 44 results carries an axiom pin', 1)"
 run baseline-key-numbers 1 --all --baseline "$baseline"
-says baseline-key-numbers "says 44 results with an axiom pin; there are 42"
+says baseline-key-numbers "[UnitLifecycleResponderFirstReceipt|count|results|44|42]"
+# A key that is in the base's baseline and whose finding has gone is stale, an error with a base.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 44 results carries an axiom pin', 'Each of the 42 results carries an axiom pin', 1)"
+run stale-at-base 1 --all --baseline "$baseline" --baseline-base HEAD
+says stale-at-base "ERROR    stale key: delete it from $baseline: $key"
 run base-unresolved 1 --all --baseline "$baseline" --baseline-base refs/heads/no-such-base
 says base-unresolved "ERROR    the base refs/heads/no-such-base does not resolve to a commit"
 run base-empty 2 --all --baseline "$baseline" --baseline-base ""
@@ -247,11 +272,6 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19\\nresults carries',
 run named-ambiguous 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-ambiguous "names \`responder_reply_refines\` first, which matches 2 pins"
 g checkout -q -- tacenta-proofs/CLAIMS.md "$reply"
-# The two parts of the other results must add up to them.
-edit tacenta-proofs/CLAIMS.md "t = t.replace(') and 8 on those and opaque constants of the unit. Each of the 19', ') and 7 on those and opaque constants of the unit. Each of the 19', 1)"
-run other-sum 1 UnitLifecycleResponderReply --baseline "$baseline"
-says other-sum "says 6 and 7 of the other 14 results, which do not add up"
-g checkout -q -- tacenta-proofs/CLAIMS.md
 # A warning alone does not fail the run (CI runs the check for its errors only).
 edit tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean "t = t.replace('* That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.\n', '', 1)"
 run warning-only 0 UnitLifecycleResponderFirstReceipt --baseline "$baseline"
@@ -265,8 +285,8 @@ sed -e 's/@MODULE@/UnitLifecycleOrphanProbe/g' -e 's/@IMPORT@/Translation.UnitLi
   -e 's/@DESCRIPTION@/A probe./g' "$clone/tacenta-proofs/scripts/templates/lifecycle-module.lean.in" \
   | sed 's/SCAFFOLD-TODO: //' > "$clone/tacenta-proofs/translation/Translation/UnitLifecycleOrphanProbe.lean"
 run no-section-no-script 1 UnitLifecycleOrphanProbe
-says no-section-no-script "UnitLifecycleOrphanProbe: no \`## Proved\` section of tacenta-proofs/CLAIMS.md names it"
-says no-section-no-script "UnitLifecycleOrphanProbe: no tacenta-proofs/scripts/check-*-negatives.py names it"
+finds no-section-no-script "UnitLifecycleOrphanProbe: no \`## Proved\` section of tacenta-proofs/CLAIMS.md names it"
+finds no-section-no-script "UnitLifecycleOrphanProbe: no tacenta-proofs/scripts/check-*-negatives.py names it"
 rm "$clone/tacenta-proofs/translation/Translation/UnitLifecycleOrphanProbe.lean"
 
 # The clean fixture of the mechanism: the template's script for a module, with one control planted, and a
@@ -332,6 +352,7 @@ run_seam() {  # name want-exit args...
   rc=$?
   set -e
   cases=$((cases + 1))
+  last_want="$want"
   [ "$rc" -eq "$want" ] || fail_case "$name: expected exit $want, got $rc" "$out"
 }
 run_seam planted 1 "$module" UnitLifecycleResponderFirstReceipt --baseline "$baseline" --base HEAD~1
@@ -352,13 +373,13 @@ for needle in \
   "$module.lean: holds a private term the repository keeps out of its text (line 2 of the list)" \
   "its message holds an attribution the repository keeps out" \
   "a line added since HEAD~1 holds a plan identifier the repository keeps out (Q9)" ; do
-  says planted "$needle"
+  finds planted "$needle"
 done
 # The stand-in term written as one word, and split inside a word, is caught too.
 for form in "ZzForbiddenProbe" "zzforbid' + 'denprobe"; do
   edit "tacenta-proofs/translation/Translation/$module.lean" "import re; t = re.sub(r'the [^ ]* word', 'the $form word', t, count=1)"
   run_seam "no-separator ($form)" 1 "$module"
-  says "no-separator ($form)" "$module.lean: holds a private term the repository keeps out of its text (line 2 of the list)"
+  finds "no-separator ($form)" "$module.lean: holds a private term the repository keeps out of its text (line 2 of the list)"
 done
 # Without the seam the stand-ins are not refused: the seam only adds patterns.
 run no-seam 1 "$module" --baseline "$baseline"
@@ -368,6 +389,6 @@ cases=$((cases + 1))
 out="$(cd "$clone" && PREFLIGHT_PLAN_ID=x python3 "$lint" --all 2>&1 || true)"
 grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam variable was read" "$out"
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
-says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
+finds planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; an unread count warned and the theorems form read; the trust the naming sentence states checked in every case and an ambiguous name refused; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base, also one stale at the base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result named; an unread count warned and the theorems form read; the trust the naming sentence states checked in every case and an ambiguous name refused; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"

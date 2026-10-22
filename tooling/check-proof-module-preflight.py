@@ -30,7 +30,7 @@ since the checks below would then have nothing to read:
                      pins), "each of the N definitions" (its `#print` pins), "of the other N results, A rest on
                      ... alone ... and [the other] B on" (the pins other than the results the section's
                      **Compiler trust and pins.** paragraph names before its verb; then kernel only and opaque among
-                     them, A + B = N, none of them compiler-trusted, every named result pinned and of the trust the
+                     them, none of them compiler-trusted (so A + B = N follows), every named result pinned and of the trust the
                      paragraph's first sentence gives it; with no such names, the pins `attest.py` labels other
                      than compiler trust), and "plants N faults" or "N changes refused" (the script's
                      controls); in the script's own docstring, "N controls are labelled inside" and "N ...
@@ -570,11 +570,9 @@ def check_counts(report, module, text, sections, scripts, attest):
                 else:
                     what, total = "results other than the ones named first", len(other)
                     kernel, opaque = other.count("kernel"), other.count("opaque-external")
-                    said = [number(m.group(i)) for i in (1, 2, 3)]
-                    if None not in said and said[0] != said[1] + said[2]:
-                        report.add("error", f"{module}|count|sum|{said[0]}|{said[1]}|{said[2]}",
-                                   f"{where}: says {said[1]} and {said[2]} of the other {said[0]} results, which "
-                                   f"do not add up")
+                    # The three numbers are each checked below, and `other_results` refuses a compiler-trusted
+                    # result among the others: with both, the kernel-only and opaque counts add up to the other
+                    # count, so that sum needs no check of its own.
                 count_mismatch(report, f"{module}|count|other", where, what, number(m.group(1)), total)
                 count_mismatch(report, f"{module}|count|kernel", where, "results on the kernel's axioms alone",
                                number(m.group(2)), kernel)
@@ -821,7 +819,7 @@ def main():
                           f"or give the key a reason under `reasons` for review")
                     errors += 1
                 else:
-                    print(f"note     the baseline gained {key} since {args.baseline_base}: {reasons[key]}")
+                    print(f"note     the baseline gained {key} since {args.baseline_base}: {reasons.get(key)}")
     warnings = sum(1 for lvl, _, _ in items if lvl == "warning")
     print(f"proof-module-preflight: {len(modules)} module(s); {errors} error(s), "
           f"{sum(1 for lvl, k, _ in items if lvl == 'error' and k in known)} known, {warnings} warning(s)")
