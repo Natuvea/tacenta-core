@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Negative control for `tooling/check-vectors-current.sh`: a committed vector that differs from the model's
 # output must be refused, and the unchanged tree accepted. So must a changed vector in the file the
-# regeneration writes through `generate-identity-vectors.py`.
+# regeneration writes through `generate-identity-vectors.py`, and a changed vector among the hosted-inventory
+# files, which no model output and no regeneration reaches and which the gate compares through
+# `generate-inventory-vectors.py --check`.
 #
 # The case plants its change in a disposable worktree of the commit under test, with the model package's
 # build directory linked in so that `lake exe genvectors` runs without a rebuild, flips one hex digit in one
@@ -75,4 +77,27 @@ if [ "$rc" -eq 0 ] || ! grep -qF "$target" <<<"$out" || ! grep -qF 'the committe
   exit 1
 fi
 
-echo "check-vectors-current cases: the unchanged tree was accepted, and a changed committed vector and a changed initiator vector were each refused, naming their file"
+# The hosted-inventory files: no model output and no regeneration reaches them, so only the generator's own
+# `--check` can see one drift. Flip the first hex digit of the first long hex string.
+git -C "$tree" reset -q --hard HEAD~1
+target=tacenta-test-vectors/vectors/groups/inventory-statements-v1.json
+python3 - "$tree/$target" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+match = re.search(r'"[0-9a-f]{32,}"', text)
+if not match:
+    raise SystemExit(f"control: no long hex string in {path}")
+start = match.start() + 1
+flipped = "0" if text[start] != "0" else "1"
+path.write_text(text[:start] + flipped + text[start + 1:])
+PY
+git -C "$tree" -c user.name=control -c user.email=control@example.invalid commit -q -a --no-verify -m 'a changed committed inventory vector'
+run_check
+if [ "$rc" -eq 0 ] || ! grep -qF "DIFFERS  ${target##*/}" <<<"$out" || ! grep -qF 'the committed inventory vectors are not what generate-inventory-vectors.py produces' <<<"$out"; then
+  echo "WRONG  vectors-current: a changed inventory vector was not refused for that file (exit $rc)" >&2
+  printf '%s\n' "$out" | tail -15 >&2
+  exit 1
+fi
+
+echo "check-vectors-current cases: the unchanged tree was accepted, and a changed committed vector, a changed initiator vector and a changed inventory vector were each refused, naming their file"

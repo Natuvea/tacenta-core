@@ -1698,14 +1698,17 @@ recorded decision or a target-closing slice:
   Vector currency (`proofs_vectors`, inline in `ci.yml`) and the differential harness's required-input rule (`differential.rs:4817`)
 
   **Protected property:**
-  The committed vectors equal the model's output;
+  The committed vectors equal the model's output, and the four hosted-inventory files equal what their own generator produces;
   the harness fails, and does not skip, in CI when the model binary is missing.
 
   **Current negative-control evidence:**
   `tooling/check-vectors-current.sh` is the workflow's inline step as a script,
-  with `tooling/tests/run-check-vectors-current-cases.sh` (a committed vector changed by one hex digit is refused,
-  naming its file;
-  `VC1` to `VC3` re-run red),
+  with `tooling/tests/run-check-vectors-current-cases.sh` (a committed vector,
+  a changed initiator vector and a changed inventory vector,
+  each by one hex digit,
+  are refused,
+  naming their file;
+  `VC1` to `VC6` re-run red),
   and `tooling/tests/run-differential-required-input-cases.sh` shows the harness failing with the model executable missing when the variable or `GITHUB_ACTIONS` requires it and skipping otherwise (`DF1` to `DF3`).
   Neither is a CI step yet, and the workflow's step does not yet call the script.
   A committed vector that the model no longer generates stays in the tree, because the regeneration overwrites and never deletes.
