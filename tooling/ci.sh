@@ -34,8 +34,9 @@
 # stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
 # the step that needs it says so when it skips.
 #
-# Fast mode (`bash tooling/ci.sh --fast`, or `CI_FAST=1 bash tooling/ci.sh`)
-# runs the cheap section, which is everything above the line marked
+# Fast mode (`bash tooling/ci.sh --fast`; only the flag selects it, so no
+# variable left in an environment turns `bash tooling/ci.sh`, the gate, into
+# its cheap part with exit 0) runs the cheap section, which is everything above the line marked
 # "fast mode stops here", and then stops with a summary that lists every step
 # it did not run. Six slow case runners in that section, which hold tooling a
 # change rarely touches (the workflow checker's, the container regeneration's,
@@ -63,21 +64,19 @@ for arg in "$@"; do
     --deep) deep=1 ;;
   esac
 done
-if [ "${CI_FAST:-}" = "1" ] && [ "$fast" -eq 0 ]; then
-  fast=1
-fi
 if [ "${FAST_DEEP:-}" = "1" ]; then
   deep=1
 fi
 
 # The steps below the stop line, by their headings, read from this file; without --deep, also the
-# case runners above it that only `deep_only` runs.
+# case runners above it that only `deep_only` runs (a `deep_only` call is found at any indentation, inside
+# an `if` too; a heading below the line must be an `echo "== ... =="` line to be listed).
 fast_not_run() {
   sed -n '/^# ---- fast mode stops here/,$p' "$self" \
     | sed -n 's/^ *echo "== \(.*\) ==".*$/  \1/p' | sed 's/ (\$msrv)//'
   if [ "$deep" -eq 0 ]; then
     sed -n '1,/^# ---- fast mode stops here/p' "$self" \
-      | sed -n 's/^deep_only \(.*\)$/  \1 (fast mode runs it only with --deep)/p'
+      | sed -n 's/^[[:space:]]*deep_only \(.*\)$/  \1 (fast mode runs it only with --deep)/p'
   fi
 }
 if [ "$fast" -eq 2 ]; then

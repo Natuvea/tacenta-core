@@ -16,7 +16,8 @@
 #                   GITHUB_ACTIONS it is a failure
 #   summary-*       the NOT RUN list, the "not CI" line and the wall time are printed, pass or fail
 #   ci-fast-*       the real `tooling/ci.sh --fast` runs its cheap steps and none of the heavy ones,
-#                   lists its deep_only case runners without --deep and runs them with it, and the
+#                   lists its deep_only case runners without --deep (an indented one too) and runs
+#                   them with it, CI_FAST=1 in the environment does not make fast mode, and the
 #                   same stubs show a run without `--fast` does run them all
 #   hook-*          the pre-push hook runs the fast check only when asked to
 set -euo pipefail
@@ -441,12 +442,8 @@ bash tooling/tests/run-collect-assurance-receipts-cases.sh
 bash tooling/tests/run-build-evidence-pack-cases.sh
 bash tooling/tests/run-check-ledger-review-receipt-cases.sh"
 
-for mode in flag env; do
-  if [ "$mode" = flag ]; then
-    CI_FAST_FOR_RUN="" run_ci --fast
-  else
-    CI_FAST_FOR_RUN=1 run_ci
-  fi
+for mode in flag; do
+  CI_FAST_FOR_RUN="" run_ci --fast
   rc_is "ci-fast-$mode" 0
   has_out "ci-fast-$mode-summary" "fast mode: not run (the steps below this point"
   has_out "ci-fast-$mode-lists-translation" "Lean: the translation and its proofs use no sorry"
@@ -489,6 +486,14 @@ EOF
   lacks_log "ci-fast-deep-$mode-no-heavy" "verify.sh"
 done
 
+# CI_FAST=1 in the environment does not make fast mode: only the flag does, so the gate cannot end green on
+# its cheap part by a variable left in an environment.
+CI_FAST_FOR_RUN=1 run_ci
+rc_is ci-env-not-fast 0
+has_out ci-env-not-fast-green-line "ci: all checks green"
+lacks_out ci-env-not-fast-no-fast-line "fast mode: not run"
+has_log ci-env-not-fast-heavy-step "verify.sh"
+
 # The same stubs without the switch run the heavy steps and end on the gate's own line: the control
 # that the instrument above can see a heavy step at all.
 CI_FAST_FOR_RUN="" run_ci
@@ -514,6 +519,20 @@ has_out ci-fast-not-run-lists-deep "tooling/tests/run-build-evidence-pack-cases.
 CI_FAST_FOR_RUN="" run_ci --fast-not-run --deep
 has_out ci-fast-not-run-deep-list "Lean: build the model"
 lacks_out ci-fast-not-run-deep-omits "(fast mode runs it only with --deep)"
+# A deep_only call indented inside an `if` is listed too.
+cp "$ci_sandbox/tooling/ci.sh" "$work/ci.sh.saved"
+python3 - "$ci_sandbox/tooling/ci.sh" <<'PY'
+import sys
+path = sys.argv[1]
+t = open(path).read()
+old = "\ndeep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh\n"
+assert old in t
+t = t.replace(old, "\nif true; then\n  deep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh\nfi\n")
+open(path, "w").write(t)
+PY
+CI_FAST_FOR_RUN="" run_ci --fast-not-run
+has_out ci-fast-not-run-indented-deep "tooling/tests/run-check-ledger-review-receipt-cases.sh (fast mode runs it only with --deep)"
+cp "$work/ci.sh.saved" "$ci_sandbox/tooling/ci.sh"
 [ ! -s "$log" ] || wrong ci-fast-not-run-runs-nothing "stub calls were made: $(tr '\n' ';' < "$log")"
 
 # --- hook-*: the pre-push hook ------------------------------------------------
