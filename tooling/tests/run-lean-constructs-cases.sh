@@ -299,6 +299,69 @@ plant_refused coe-attribute-added-later instance-or-coe-attribute $'def indexOf 
 plant_refused local-instance-attribute instance-or-coe-attribute $'def bogusLT : LT Nat := ⟨fun _ _ => False⟩\nattribute [local instance] bogusLT in\ntheorem planted : True := trivial'
 plant_refused instance-attribute-in-a-list instance-or-coe-attribute '@[simp, instance] def bogusLE : LE Nat := ⟨fun _ _ => True⟩'
 plant_refused default-instance-attribute instance-or-coe-attribute '@[default_instance] def bogusAdd : Add Nat := ⟨fun a _ => a⟩'
+# The same names in attribute lists split over lines, which Lean reads as one list, and the other
+# attribute and declaration forms.
+plant_refused coe-in-a-two-line-list instance-or-coe-attribute $'@[simp,\n  coe] def indexOf (_x : Nat) : Nat := 0'
+plant_refused coe-attribute-over-two-lines instance-or-coe-attribute $'def indexOf (_x : Nat) : Nat := 0\nattribute\n  [coe] indexOf'
+plant_refused default-instance-in-a-two-line-list instance-or-coe-attribute $'@[simp,\n  default_instance] def bogusAdd : Add Nat := ⟨fun a _ => a⟩'
+plant_refused instance-attribute-added-later instance-or-coe-attribute $'def bogusLT : LT Nat := ⟨fun _ _ => False⟩\nattribute [instance] bogusLT'
+plant_refused coe-token-alone coercion-token 'def planted : Nat := coe 0'
+plant_refused default-instance-token-alone coercion-token 'def planted : Nat := default_instance'
+plant_refused open-in-instance instance-declaration $'open Nat in instance : LT Nat := ⟨fun _ _ => False⟩'
+plant_refused deriving-instance-for-another-files-type instance-declaration $'deriving instance BEq for Model.State.State'
+# The coercion counterexample of the review, in the module itself: a `coe` function in a two-line list,
+# the pinned conjunct `c.index.val = 0` rewritten through it to a statement that is always true, and the
+# proof bullet closed by `rfl`. Lean accepts the module with its pin unchanged; this scan refuses it.
+fresh_copy; mkdir -p "$work/T/tacenta-proofs/translation/Translation"
+python3 - "$root/tacenta-proofs/translation/Translation/UnitHeldKemWitness.lean" \
+  "$work/T/tacenta-proofs/translation/Translation/UnitHeldKemWitness.lean" <<'PY3'
+import sys
+t = open(sys.argv[1]).read()
+anchor = "/-- **The header encoder.**"
+assert t.count(anchor) == 1
+t = t.replace(anchor, "@[simp,\n  coe] def indexOf (_x : Std.U16) : Nat := 0\n\n" + anchor)
+old = "      c.index.val = 0 ∧ CodewordOf m c ∧ EncoderRefines enc1 ⟨m, 1⟩ ∧\n"
+assert t.count(old) == 1
+t = t.replace(old, "      indexOf c.index = 0 ∧ CodewordOf m c ∧ EncoderRefines enc1 ⟨m, 1⟩ ∧\n")
+old = "  · simp [Model.Braid.encode, Model.Braid.Encoder.nextChunk, hnext0] at hidx ⊢\n"
+assert t.count(old) == 1
+open(sys.argv[2], "w").write(t.replace(old, "  · rfl\n"))
+PY3
+refused_with coercion-counterexample-in-held-encoder instance-or-coe-attribute
+
+# An allow-listed declaration is matched whole, in its namespace and once: a copy in another namespace with
+# another class on its continuation line, an exact copy in another namespace, a second copy in the same
+# namespace, a changed class on a continuation line in place, and a changed `default` value.
+inst_copy() { # <file> : copy one allow-listed module into the copy
+  mkdir -p "$work/T/tacenta-proofs/translation/Translation"
+  cp "$root/tacenta-proofs/translation/Translation/$1" "$work/T/tacenta-proofs/translation/Translation/$1"
+}
+I=tacenta-proofs/translation/Translation/ImportInv.lean
+fresh_copy; inst_copy ImportInv.lean
+printf '\nnamespace Evil\ninstance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    LT (Array α N) := ⟨fun _ _ => False⟩\nend Evil\n' >> "$work/T/$I"
+refused_with allow-listed-first-line-new-class instance-declaration
+fresh_copy; inst_copy ImportInv.lean
+printf '\nnamespace Evil\ninstance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\nend Evil\n' >> "$work/T/$I"
+refused_with allow-listed-copy-in-another-namespace instance-declaration
+fresh_copy; inst_copy ImportInv.lean
+edit $I $'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\n' \
+  $'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\n\ninstance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\n'
+refused_with allow-listed-second-copy "a second copy of an allow-listed instance"
+fresh_copy; inst_copy ImportInv.lean
+edit $I $'    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff' $'    LT (Array α N) :=\n  fun a b => decidable_of_iff'
+refused_with allow-listed-continuation-class-changed instance-declaration
+fresh_copy; inst_copy ImportInv.lean
+edit $I $'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\n' \
+  $'namespace Evil\ninstance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} :\n    DecidableEq (Array α N) :=\n  fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm\nend Evil\n'
+refused_with allow-listed-moved-to-another-namespace instance-declaration
+fresh_copy; inst_copy SpqrT1.lean
+edit tacenta-proofs/translation/Translation/SpqrT1.lean $'  ⟨{ send := none, receive := none }⟩' $'  ⟨{ send := none, receive := some default }⟩'
+refused_with allow-listed-default-value-changed instance-declaration
+fresh_copy; inst_copy ImportInv.lean
+edit $I $'instance instDecidableEqArray {α : Type}' $'\ninstance instDecidableEqArray {α : Type}'
+run_scan
+if [ "$rc" -ne 0 ]; then wrong allow-listed-moved-down-a-line "an allow-listed instance moved by a line is refused"; else pass=$((pass + 1)); fi
+
 # A derived structural instance is not refused, nor the word in a comment.
 fresh_copy; printf 'structure PlantedS where\n  x : Nat\nderiving Repr\nderiving instance BEq for PlantedS\n-- an instance in prose\n' > "$work/T/$M"
 run_scan
@@ -318,4 +381,4 @@ if [ $fail -ne 0 ]; then
   echo "lean-constructs-cases: $fail of $((pass + fail)) cases wrong"
   exit 1
 fi
-echo 'lean-constructs-cases: '"$pass"' cases (the unmodified copy and a tag in a comment accepted; a wrapper before an invocation, with a line or block comment between, or open-in; an indented invocation; a continuation, a declaration and a pin after the last invocation, in two packages; narrowed prefixes and a deleted invocation; a namespace, an open, a declaration and two commands on a line in an audit module; a notation and an infix; the Lean namespace by _root_ and in guillemets; the audit log tag in a string, a printed string, #reduce, dbg_trace and an interpolated string elsewhere; an interpolating head, a qualified, a goal and an aesop trace, a named-at head, and a bang macro with its string on the same or the next line elsewhere; a string literal holding a brace in the audit, in the shapes a brace count cannot read, with a string gap and in a raw string (a plain lone brace elsewhere, and a string ending in a bang, accepted); a doc comment opened by `/--/`, a `/--` inside a comment, `/-/- -/`, a char literal and a raw string after the `!` operator and after `λ`, each followed by hidden code; a char literal or raw string straight after a token, refused as ambiguous; a literal or comment opener after a non-space (a token ending in a prime, an opener inside a token, an identifier character outside `\\w`), refused as adjacent; a fifth library and a widened glob in a lakefile; a quote inside an interpolation in the audit, after an argument too, as unbalanced-brace strings, each refused; a char literal holding a newline, an identifier of char-literal shape and a lone carriage return, each refused; four instance declarations of notation and default classes and five instance, default_instance or coe attributes refused, a derived instance accepted, an allow-listed instance whose line changed refused as a declaration, and one that is no longer an instance refused as a missing entry)'
+echo 'lean-constructs-cases: '"$pass"' cases (the unmodified copy and a tag in a comment accepted; a wrapper before an invocation, with a line or block comment between, or open-in; an indented invocation; a continuation, a declaration and a pin after the last invocation, in two packages; narrowed prefixes and a deleted invocation; a namespace, an open, a declaration and two commands on a line in an audit module; a notation and an infix; the Lean namespace by _root_ and in guillemets; the audit log tag in a string, a printed string, #reduce, dbg_trace and an interpolated string elsewhere; an interpolating head, a qualified, a goal and an aesop trace, a named-at head, and a bang macro with its string on the same or the next line elsewhere; a string literal holding a brace in the audit, in the shapes a brace count cannot read, with a string gap and in a raw string (a plain lone brace elsewhere, and a string ending in a bang, accepted); a doc comment opened by `/--/`, a `/--` inside a comment, `/-/- -/`, a char literal and a raw string after the `!` operator and after `λ`, each followed by hidden code; a char literal or raw string straight after a token, refused as ambiguous; a literal or comment opener after a non-space (a token ending in a prime, an opener inside a token, an identifier character outside `\\w`), refused as adjacent; a fifth library and a widened glob in a lakefile; a quote inside an interpolation in the audit, after an argument too, as unbalanced-brace strings, each refused; a char literal holding a newline, an identifier of char-literal shape and a lone carriage return, each refused; four instance declarations of notation and default classes and five instance, default_instance or coe attributes refused, and the same names in lists split over lines, an instance attribute added later, the bare coe and default_instance tokens, an instance after open-in and a derived instance for a type another file declares; the coercion counterexample from review in the held-encoder module refused; a derived instance of a type the file declares accepted; an allow-listed instance changed on its first line, a copy with another class or exact in another namespace, a second copy, moved to another namespace, a changed class on a continuation line and a changed default value refused, one moved down a line accepted, and one that is no longer an instance refused as a missing entry)'
