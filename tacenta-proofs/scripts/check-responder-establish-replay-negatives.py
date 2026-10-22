@@ -10,19 +10,20 @@ copy of the module and requires Lean to refuse it, at a named place, with an err
 
 Six controls are labelled inside the proofs that compose: the generic step `establish_responder_again_refused` (which
 composes the commit, the replay check and the prepare phase's steps carried to the committed store) and the run's
-headline `initiator_first_send_responder_replay_refused`.  Each is a change to a composing theorem's statement.  A
-control refused in a composing theorem is a projection when it is refused where that proof places a conjunct of a
-called theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the
-two labels to a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis
-the proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places
-with a constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside
-control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change
-there, so the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing
-step from a projection.  That the syntactic form is the right standard, and that the two theorems named in `COMPOSING`
-compose rather than project, is decided by reading.  The labels are also held consistent (an inside control must be
-labelled with the declaration it is refused in and with a composing theorem; no control carries two labels; a
-statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`),
-at start-up (at run time the script checks only that each change is refused at its labelled place):
+headline `initiator_first_send_responder_replay_refused`.  Each is a change to a composing theorem's statement.  A control
+refused in a composing theorem is a projection when it is refused where that proof places a conjunct of a called
+theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two
+labels to a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the
+proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
+constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside control it
+also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so
+the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing step from a
+projection.  That the syntactic form is the right standard, and that the two theorems named in `COMPOSING` compose rather
+than project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with the
+declaration it is refused in and with a composing theorem; no control carries two labels; every place a projection may
+be refused must be a composing theorem; a statement-shape check may not be refused in a composing theorem, and the
+theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
+at its labelled place):
 
   * in `establish_responder_again_refused`: the second call claimed on the one-time path (`p.lastResort = false`,
     refused where the first call's KEM lookup is carried to the committed store); the commit claimed on the one-time

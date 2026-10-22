@@ -11,20 +11,20 @@ by the round trip.  A proof that Lean accepts after the fact it rests on is remo
 makes one change to a copy of the module and requires Lean to refuse it, at a named place, with an error that names
 what the change removed.
 
-Seven controls are labelled inside the proof that composes the run, `initiator_refuses_tampered_reply`, and none is
-a projection.  A control refused in a composing theorem is a projection when it is refused where that proof places a
+Seven controls are labelled inside the proof that composes the run, `initiator_refuses_tampered_reply`, and none is a
+projection.  A control refused in a composing theorem is a projection when it is refused where that proof places a
 conjunct of a called theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script
 holds each of the two labels to a syntactic form of that standard read off the module (`passed_through`: the refusal
 names a hypothesis the proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or
 substitutes, and places with a constructor), and requires every control refused in a composing theorem to carry one of
 them.  For each inside control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring
 Lean to accept the change there, so the refusal is attributable to that proof.  That probe verifies attribution only:
-it cannot tell a composing step from a projection.  That the syntactic form is the right standard, and that the
-theorem named in `COMPOSING` composes rather than projects, is decided by reading.  The labels are also held
-consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; no
-control carries two labels; a statement-shape check may not be refused in a composing theorem, and the theorem it
-projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused at its
-labelled place):
+it cannot tell a composing step from a projection.  That the syntactic form is the right standard, and that the theorem
+named in `COMPOSING` composes rather than projects, is decided by reading.  The labels are also held consistent (an
+inside control must be labelled with the declaration it is refused in and with a composing theorem; no control carries
+two labels; every place a projection may be refused must be a composing theorem; a statement-shape check may not be
+refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up (at run time the
+script checks only that each change is refused at its labelled place):
 
   * inside: the tampered frame claimed to keep only the reply's first 101 bytes (refused where the frame layout lemma
     is rewritten into the frame premise, which then does not match the reply's 102-byte header);

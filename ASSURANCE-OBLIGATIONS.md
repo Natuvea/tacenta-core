@@ -1147,7 +1147,12 @@ recorded decision or a target-closing slice:
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused: 12 inside the four composing proofs, 2 projections, 7 on leaf lemmas, one statement-shape check and one definition held by its pin),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
-  `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused: the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, every refusal claimed `skippedStoreFull`, a success claimed to keep the state, each in the composing proof and accepted there with that proof emptied, and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
+  `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
+  the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,
+  every refusal claimed `skippedStoreFull`,
+  a success claimed to keep the state,
+  each in the composing proof and accepted there with that proof emptied,
+  and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,
   each at a named declaration or pin:
@@ -1526,13 +1531,17 @@ recorded decision or a target-closing slice:
   that the responder receives the frame,
   or that `encrypt` refuses elsewhere) and `check-port-negatives.sh` (ten broken anchors,
   as in the row above).
-  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in `check-responder-successor-negatives.py`,
+  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in each lifecycle negatives script that carries the shared `check_labels` (`check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
-  `check-send-preservation-negatives.py` and `check-initiator-second-send-negatives.py` is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`), which also holds the five copies of their shared helpers to one text, so a control deleted with its label is refused unless the record is edited in the same change;
+  `check-send-preservation-negatives.py`,
+  `check-initiator-second-send-negatives.py` and the scripts added after them,
+  all of which the record must list) is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`),
+  which also holds their copies of the shared helpers to one text,
+  so a control deleted with its label is refused unless the record is edited in the same change;
   their label check refuses a projection any place of whose refusal is not a composing theorem.
   `run-check-negatives-control-counts-cases.sh` holds both:
-  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
+  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each script whose record counts a projection (the runner names the scripts it copies and refuses a list that differs from the record's).
   Each script's `main` calls the shared `check_complete`,
   which refuses a run that refused fewer controls than `MUTANTS` holds,
   accepted other baselines,
@@ -1572,7 +1581,7 @@ recorded decision or a target-closing slice:
   reflection through names not listed (`operator.attrgetter`, `__getattribute__`, `__subclasses__`);
   another module the script imports;
   any other way of ending the run with status 0;
-  the same change to all five copies of a shared helper, which is one text;
+  the same change to every copy of a shared helper, which is one text;
   and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see.
 
   **Missing evidence:**
@@ -1652,7 +1661,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (105 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (114 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).
@@ -1972,7 +1981,7 @@ system git configuration and no git identity, as the hosted runner has none, so 
 its own identity fails on a developer's machine too (one did, and failed only on the runner).
 
 On 2026-10-22 the scaffold was brought up to what a module it starts needs to pass the gates. Its negatives
-template carries the helpers of the five lifecycle negatives scripts character for character (the projection
+template carries the helpers of the lifecycle negatives scripts character for character (the projection
 standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
 `check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with

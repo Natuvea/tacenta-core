@@ -22,9 +22,9 @@ that theorem's proof replaced by `sorry`, requiring Lean to accept the change th
 that proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
 form is the right standard, and that the five theorems compose rather than project, is decided by reading.  The labels
 are also held consistent (an inside control must be labelled with the declaration it is refused in and with a composing
-theorem; no control carries two labels; a statement-shape check may not be refused in a composing theorem, and the
-theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
-at its labelled place):
+theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
+statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
+start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `responder_receives_second_message_two_outcomes`: the responder's source after its reply claimed empty, so that no
     draw is there (refused where the run inputs of the decrypt refinement take the draw); the success arm's plaintext

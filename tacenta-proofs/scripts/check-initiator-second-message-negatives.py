@@ -20,11 +20,11 @@ theorem's conclusion, never rewrites, simplifies or substitutes, and places with
 control refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with
 that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to
 that proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
-form is the right standard, and that the two theorems compose rather than project, is decided by reading.  The labels
-are also held consistent (an inside control must be labelled with the declaration it is refused in and with a composing
-theorem; no control carries two labels; a statement-shape check may not be refused in a composing theorem, and the
-theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
-at its labelled place):
+form is the right standard, and that the two theorems compose rather than project, is decided by reading.  The labels are
+also held consistent (an inside control must be labelled with the declaration it is refused in and with a composing
+theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
+statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
+start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `initiator_sends_second_message`: the budget after the send claimed for `j + 1` further operations (refused where
     the preservation step's budget is placed); the budget claimed for every `j` with `j + 2 < u32::MAX`, more than the
