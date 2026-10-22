@@ -13,7 +13,9 @@
 #   rewrite           without --check: the options inserted once before the first statement pin, the pin's
 #                     docstring replaced by the whole message, nothing else changed; --check then exits 0
 #   other error       an error that is not a pin mismatch: refused, the module left as it was
-#   not a statement   a mismatch at an axiom pin, which this script does not rewrite: refused, module unchanged
+#   not a statement   a mismatch at an axiom pin, which this script does not rewrite: refused, module unchanged,
+#                     also when the script had inserted the options first (they are taken out again)
+#   after the rewrite an error, or a warning more, that only the rewritten module has: refused
 #   outside           a module outside tacenta-proofs/translation/Translation: refused
 #
 # What Lean itself prints, and that the rewrite then elaborates, is not checked here (no Lean): `attest.py`
@@ -76,9 +78,15 @@ for m in pin.finditer(text):
     if m.group("doc") != "info: " + printed:
         out.append({"severity": "error", "pos": {"line": guard, "column": 0},
                     "data": "❌️ Docstring on `#guard_msgs` does not match generated message"})
+rewritten = "  ∀ (a : Nat), a = a\n-/" in text
 for k, line in enumerate(text.split("\n"), 1):
-    if "PLANTED_ERROR" in line:
+    if "PLANTED_ERROR_AFTER" in line:
+        if rewritten:
+            out.append({"severity": "error", "pos": {"line": k, "column": 0}, "data": "unsolved goals"})
+    elif "PLANTED_ERROR" in line:
         out.append({"severity": "error", "pos": {"line": k, "column": 0}, "data": "unsolved goals"})
+    if "PLANTED_WARNING_AFTER" in line and rewritten:
+        out.append({"severity": "warning", "pos": {"line": k, "column": 0}, "data": "unused variable"})
 for o in out:
     print(json.dumps(o, ensure_ascii=False))
 sys.exit(1 if any(o["severity"] == "error" for o in out) else 0)
@@ -139,6 +147,27 @@ run other-error 1 PinsProbe
 says other-error "Lean reported 1 error(s) that are not a pin mismatch"
 same other-error "$work/before"
 
+# an error, or one warning more, that only the rewritten module has: refused after the rewrite
+write_module "-- PLANTED_ERROR_AFTER"
+run error-after-rewrite 1 PinsProbe
+says error-after-rewrite "after the rewrite Lean still reports 1 error(s)"
+write_module "-- PLANTED_WARNING_AFTER"
+run warning-after-rewrite 1 PinsProbe
+says warning-after-rewrite "the rewrite changed the number of warnings Lean reports"
+
+# a mismatch at an axiom pin in a module without the options: the options it inserted are taken out again
+write_module ""
+python3 - "$module" <<'PY'
+import sys
+p = sys.argv[1]
+t = open(p).read().replace("depends on axioms: [propext]", "depends on axioms: [propext, Quot.sound]")
+open(p, "w").write(t)
+PY
+cp "$module" "$work/before"
+run axiom-pin-mismatch-restored 1 PinsProbe
+says axiom-pin-mismatch-restored "that are not statement pins this script rewrites"
+same axiom-pin-mismatch-restored "$work/before"
+
 # not a statement pin
 write_module ""
 python3 - "$module" <<'PY'
@@ -157,4 +186,4 @@ same axiom-pin-mismatch "$work/before"
 run outside 1 "$clone/tacenta-model/Model/State.lean"
 says outside "not a module of tacenta-proofs/translation/Translation"
 
-echo "regenerate-statement-pins-cases: $cases cases (a cut pin and missing options reported by --check with nothing written; the options inserted once and the pin rewritten whole, then --check clean; an error that is not a pin mismatch and a mismatch at an axiom pin refused with the module left as it was; a module outside the translation refused) gave the expected result"
+echo "regenerate-statement-pins-cases: $cases cases (a cut pin and missing options reported by --check with nothing written; the options inserted once and the pin rewritten whole, then --check clean; an error that is not a pin mismatch and a mismatch at an axiom pin (with and without the options in place) refused with the module left as it was; an error or a warning more after the rewrite refused; a module outside the translation refused) gave the expected result"
