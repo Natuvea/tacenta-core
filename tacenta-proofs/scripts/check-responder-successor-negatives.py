@@ -19,9 +19,10 @@ requiring Lean to accept the change there, so the refusal is attributable to tha
 attribution only: it cannot tell a composing step from a projection (a corollary's statement-shape check passes it
 too).  That the syntactic form is the right standard, and that the two theorems named in `COMPOSING` compose rather
 than project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with
-the declaration it is refused in and with a composing theorem; no control carries two labels; a statement-shape check
-may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up
-(at run time the script checks only that each change is refused at its labelled place):
+the declaration it is refused in and with a composing theorem; no control carries two labels; every place a projection
+may be refused must be a composing theorem; a statement-shape check may not be refused in a composing theorem, and the
+theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
+at its labelled place):
 
   * inside `initiator_first_send_responder_successor_hypotheses`: the composed call taken on the plaintext instead of
     the bytes the first send returned (refused at the step where the encrypt's output fixes the message, the argument
@@ -359,13 +360,20 @@ def check_labels(text):
         if called is not None:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, but is refused where {decl} places a '
                              f'conjunct of {called} unchanged, a projection')
+    # Every place a projection is refused must be a composing proof that places the conjunct unchanged: a refusal
+    # list that also names a leaf or another declaration would let the control be refused there instead.
     for name, called in PROJECTION.items():
-        places = [] if isinstance(wheres[name], tuple) else [d for d in wheres[name] if d in COMPOSING]
+        places = [] if isinstance(wheres[name], tuple) else list(wheres[name])
         if not places:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection but is not refused in a composing proof')
-        if passed_through(text, places[0], markers[name]) != called:
-            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection of {called}, but is not refused where '
-                             f'{places[0]} places a conjunct of {called} unchanged')
+        others = [d for d in places if d not in COMPOSING]
+        if others:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection, but it may be refused in '
+                             f'{", ".join(others)}, which is not a composing proof')
+        for place in places:
+            if passed_through(text, place, markers[name]) != called:
+                raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection of {called}, but is not refused '
+                                 f'where {place} places a conjunct of {called} unchanged')
     for name, decl in STATEMENT_SHAPE.items():
         if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
             raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
