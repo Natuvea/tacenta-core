@@ -1,7 +1,8 @@
 # Coverage-guided fuzzing
 
-Six libFuzzer targets over every decoder and state machine that reads bytes
-somebody else chose.
+Seven libFuzzer targets over every decoder and state machine that reads bytes
+somebody else chose, and over the identity functions that judge a key somebody
+else chose.
 
 ## The targets
 
@@ -13,8 +14,10 @@ somebody else chose.
 | `session_receive` | `establish_responder` on raw unauthenticated bytes and on xor mutations of a genuine initial message (a committed zero-byte mutation reaches an accepted responder handshake), plus `Session::decrypt` on both sides of an established session; both sessions and the store are asserted to satisfy their `invariant` after every establishment, send and receive, accepted or refused |
 | `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, the target sends after each message, and `Braid::invariant` is asserted after every receive and send; so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
 | `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`); `State::invariant` is asserted after every receive and send |
+| `identity_records` | `classify`, `lookup`, `identity_pair_digest` (in both argument orders), `verification_number` and `verification_number_grouped` on a fuzzed presented key and fuzzed records, and `sessions::establish_initiator` under a *known* or *first contact* expectation over an honest bundle whose identity key the input may replace; asserted: `lookup` agrees with `classify` record by record, the digest is order-independent, the number is 60 digits that grouping keeps, a malformed expectation is refused as `MalformedRecord` and only then, a refusal on the expectation draws nothing, the leaf's `UnexpectedIdentity` never reaches the caller, and a session is returned only for a key the expectation accepts. Three hand-built seeds (`seed-*.bin`) reach the leaf's success, a retired refusal over an empty record, and a substituted identity |
 
-The first three take bytes. The last three drive state machines, which is the
+The first three take bytes, and so does `identity_records`, which reads them
+as keys and records. `session_receive`, `braid_receive` and `triple_receive` drive state machines, which is the
 harder question: not whether parsing a message
 panics, but whether a *sequence* of parsed-but-hostile messages walks a state
 machine somewhere it cannot handle. Those three adopt whatever the machine
@@ -86,7 +89,7 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: 4,107 files holding 2,657,576 bytes of
+in `corpus/<target>/`, which is committed: 4,110 files holding 2,657,779 bytes of
 content in all (`du` reports allocated blocks rather than content size).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it

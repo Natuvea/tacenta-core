@@ -11,8 +11,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from tacenta_reader import constants as K  # noqa: E402
-from tacenta_reader import curve25519, gf65536, ratchet, spqr, wire  # noqa: E402
+from tacenta_reader import curve25519, gf65536, ratchet, records, spqr, wire  # noqa: E402
 from tacenta_reader.wire import BundleRefused, Codeword, CompositeHeader, DecodeError, EncodeError  # noqa: E402
+
+# Pass 14: the initiator's bundle check takes an expectation; these cases use first
+# contact with no records, which goes on for every identity key.
+FIRST_CONTACT = records.FirstContact(())
 
 CASES = []
 
@@ -403,47 +407,49 @@ def _():
     b = signed_bundle(True, signed_prekey_id=0, kem_prekey_id=0)
     got = accepts(wire.decode_bundle, wire.encode_bundle(b))
     assert (got.signed_prekey_id, got.kem_prekey_id) == (0, 0)
-    accepts(wire.initiator_check_bundle, got, expected_identity=IK_PUB)
+    accepts(wire.initiator_check_bundle, got, records.Known(records.Record.of([IK_PUB])))
 
 
 @case("PB-09 initiator accepts a correctly signed bundle", f"{SE} Sending the initial message: Alice verifies every signature")
 def _():
     for ot in (True, False):
-        accepts(wire.initiator_check_bundle, wire.decode_bundle(bundle_bytes(ot)), expected_identity=IK_PUB)
+        accepts(wire.initiator_check_bundle, wire.decode_bundle(bundle_bytes(ot)), records.Known(records.Record.of([IK_PUB])))
+        accepts(wire.initiator_check_bundle, wire.decode_bundle(bundle_bytes(ot)), FIRST_CONTACT)
 
 
 @case("PB-10 initiator refuses presence/identifier disagreement (both directions)",
       f"{SE}: one-time curve prekey and that prekey's identifier disagree about whether one is present")
 def _():
-    rejects(wire.initiator_check_bundle, signed_bundle(True, one_time_prekey_id=K.ABSENT_ID), exc=BundleRefused)
-    rejects(wire.initiator_check_bundle, signed_bundle(False, one_time_prekey_id=9), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(True, one_time_prekey_id=K.ABSENT_ID), FIRST_CONTACT, exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(False, one_time_prekey_id=9), FIRST_CONTACT, exc=BundleRefused)
     # and the decoder itself does not refuse it: "refused by the initiator" (G-07)
     raw = wire.encode_bundle(signed_bundle(False, one_time_prekey_id=9))
     accepts(wire.decode_bundle, raw)
 
 
-@case("PB-11 initiator refuses an identity that is not the one it named", f"{SE}: its identity key is not the one she set out to reach")
+@case("PB-11 initiator refuses an identity her expectation does not accept: under known, a key new in the record is an unexpected identity (pass 14: the named identity this case read before is replaced by the expectation)",
+      f"{SE} Records, expectations and attribution, The initiator: under known, by classifying it against that record ... New is refused as an unexpected identity (UnexpectedIdentity)")
 def _():
-    rejects(wire.initiator_check_bundle, signed_bundle(), expected_identity=OPK_PUB, exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(), records.Known(records.Record.of([OPK_PUB])), exc=records.UnexpectedIdentity)
 
 
 @case("PB-12 initiator refuses a forged signed prekey and a forged KEM prekey", f"{SE}: Alice verifies every signature in the bundle and aborts if any fails")
 def _():
     good = signed_bundle()
-    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey=OPK_PUB), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey=OPK_PUB), FIRST_CONTACT, exc=BundleRefused)
     forged_kem = bytes([KEM_PK[0] ^ 1]) + KEM_PK[1:]
-    rejects(wire.initiator_check_bundle, signed_bundle(kem_prekey=forged_kem), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(kem_prekey=forged_kem), FIRST_CONTACT, exc=BundleRefused)
     bad_sig = bytes([good.signed_prekey_signature[0] ^ 1]) + good.signed_prekey_signature[1:]
-    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey_signature=bad_sig), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey_signature=bad_sig), FIRST_CONTACT, exc=BundleRefused)
 
 
 @case("PB-13 a signature over the untagged key is refused (signatures are over EncodeEC / EncodeKEM)",
       f"{MF} Prekey bundle: The signatures are over the tagged forms")
 def _():
     raw_sig = curve25519.xeddsa_sign(IK_PRIV, SPK_PUB, b"\x33" * 64)
-    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey_signature=raw_sig), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(signed_prekey_signature=raw_sig), FIRST_CONTACT, exc=BundleRefused)
     raw_kem_sig = curve25519.xeddsa_sign(IK_PRIV, KEM_PK, b"\x44" * 64)
-    rejects(wire.initiator_check_bundle, signed_bundle(kem_prekey_signature=raw_kem_sig), exc=BundleRefused)
+    rejects(wire.initiator_check_bundle, signed_bundle(kem_prekey_signature=raw_kem_sig), FIRST_CONTACT, exc=BundleRefused)
 
 
 @case("PB-14 EncodeEC and EncodeKEM ranges are disjoint", f"{SE} Parameters: The ranges of the encoding functions must be pairwise disjoint")

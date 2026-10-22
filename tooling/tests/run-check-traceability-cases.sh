@@ -16,11 +16,11 @@ make_case() {
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
   cp -R "$root/tacenta-spec/protocol" "$dst/tacenta-spec/"
   mkdir -p "$dst/tacenta-core/lifecycle/src" "$dst/tacenta-core/boundary/src" "$dst/tacenta-core/wire/src" "$dst/tacenta-core/ratchet/src" "$dst/tacenta-core/braid/src" "$dst/tooling" "$dst/tacenta-model/Model"
-  mkdir -p "$dst/tacenta-core/tests"
+  mkdir -p "$dst/tacenta-core/tests" "$dst/tacenta-core/src/sessions"
   mkdir -p "$dst/tacenta-core/spqr/src" "$dst/tacenta-core/triple/src"
   mkdir -p "$dst/tacenta-model/Properties"
   mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
-  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input" "$dst/tacenta-test-vectors/vectors/post-quantum" "$dst/tacenta-test-vectors/vectors/persistence" "$dst/tacenta-test-vectors/vectors/session-establishment"
+  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input" "$dst/tacenta-test-vectors/vectors/post-quantum" "$dst/tacenta-test-vectors/vectors/persistence" "$dst/tacenta-test-vectors/vectors/session-establishment" "$dst/tacenta-test-vectors/vectors/identity"
   cp "$root/tacenta-core/lifecycle/src/lib.rs" "$dst/tacenta-core/lifecycle/src/lib.rs"
   cp "$root/tacenta-core/lifecycle/src/lifecycle.rs" "$dst/tacenta-core/lifecycle/src/lifecycle.rs"
   cp "$root/tacenta-core/AUTHENTICATION-BOUNDARY.md" "$dst/tacenta-core/AUTHENTICATION-BOUNDARY.md"
@@ -38,6 +38,9 @@ make_case() {
   cp "$root/tacenta-core/spqr/src/lib.rs" "$dst/tacenta-core/spqr/src/lib.rs"
   cp "$root/tacenta-core/triple/src/lib.rs" "$dst/tacenta-core/triple/src/lib.rs"
   cp "$root/tacenta-core/tests/full_session.rs" "$dst/tacenta-core/tests/full_session.rs"
+  cp "$root/tacenta-core/src/sessions/identity.rs" "$dst/tacenta-core/src/sessions/identity.rs"
+  cp "$root/tacenta-core/tests/identity_expectation.rs" "$dst/tacenta-core/tests/identity_expectation.rs"
+  cp "$root/tacenta-core/tests/identity_responder.rs" "$dst/tacenta-core/tests/identity_responder.rs"
   cp "$root/tacenta-core/tests/agreement_and_bounds.rs" "$dst/tacenta-core/tests/agreement_and_bounds.rs"
   cp "$root/tacenta-core/tests/replay_record.rs" "$dst/tacenta-core/tests/replay_record.rs"
   cp "$root/tacenta-core/tests/failed_decrypt_changes_nothing.rs" "$dst/tacenta-core/tests/failed_decrypt_changes_nothing.rs"
@@ -59,6 +62,8 @@ make_case() {
   cp "$root/tacenta-model/Model/Triple.lean" "$dst/tacenta-model/Model/Triple.lean"
   cp "$root/tacenta-model/Model/Braid.lean" "$dst/tacenta-model/Model/Braid.lean"
   cp "$root/tacenta-model/Model/SessionTrace.lean" "$dst/tacenta-model/Model/SessionTrace.lean"
+  cp "$root/tacenta-model/Model/IdentityRecords.lean" "$dst/tacenta-model/Model/IdentityRecords.lean"
+  cp "$root/tacenta-model/Model/InitiatorExpectation.lean" "$dst/tacenta-model/Model/InitiatorExpectation.lean"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
   cp "$root/tacenta-proofs/Proofs/KeyErasure.lean" "$dst/tacenta-proofs/Proofs/KeyErasure.lean"
   cp "$root/tacenta-proofs/Proofs/RatchetCorrectness.lean" "$dst/tacenta-proofs/Proofs/RatchetCorrectness.lean"
@@ -89,6 +94,11 @@ make_case() {
   cp "$root/tacenta-test-vectors/vectors/persistence/ratchet-state.json" "$dst/tacenta-test-vectors/vectors/persistence/ratchet-state.json"
   cp "$root/tacenta-test-vectors/vectors/persistence/sparse-ratchet-state.json" "$dst/tacenta-test-vectors/vectors/persistence/sparse-ratchet-state.json"
   cp "$root/tacenta-test-vectors/vectors/session-establishment/pqxdh-sk.json" "$dst/tacenta-test-vectors/vectors/session-establishment/pqxdh-sk.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/pair-digest.json" "$dst/tacenta-test-vectors/vectors/identity/pair-digest.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/verification-number.json" "$dst/tacenta-test-vectors/vectors/identity/verification-number.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/identity-classification.json" "$dst/tacenta-test-vectors/vectors/identity/identity-classification.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/identity-lookup.json" "$dst/tacenta-test-vectors/vectors/identity/identity-lookup.json"
+  cp "$root/tacenta-test-vectors/vectors/identity/initiator-expectation.json" "$dst/tacenta-test-vectors/vectors/identity/initiator-expectation.json"
 }
 
 expect_fail() {
@@ -267,6 +277,7 @@ python3 - "$work/assumption-inverse-extra/tacenta-spec/threat-model/assumptions.
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+assert text.count("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.") == 1, "ASM-03's relied-on line has changed; re-target this case"
 text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-03.", 1)
 path.write_text(text)
 PY
@@ -277,6 +288,7 @@ python3 - "$work/assumption-inverse-missing/tacenta-spec/threat-model/assumption
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+assert text.count("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.") == 1, "ASM-03's relied-on line has changed; re-target this case"
 text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01.", 1)
 path.write_text(text)
 PY

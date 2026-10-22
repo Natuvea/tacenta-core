@@ -4,6 +4,8 @@
 //! an external consumer. Rustdoc records cross-crate reexports differently
 //! from locally declared items; this fixture checks that the old import paths
 //! and call signatures remain usable despite that metadata-only difference.
+//! The one deliberate break is initiator establishment, which now takes an
+//! expectation.
 
 use rand_core::{CryptoRng, RngCore};
 use tacenta_core::primitives::{aead, dh, kem, xeddsa};
@@ -105,9 +107,31 @@ fn moved_surface_still_type_checks<R: RngCore + CryptoRng>(
         peer_identity,
         &[0; 32],
     );
-    let _ = tacenta_core::sessions::establish_initiator(identity, published, rng);
-    let _ =
-        tacenta_core::sessions::establish_initiator_for(identity, published, peer_identity, rng);
+    // Initiator establishment takes an expectation. The trusting entry points
+    // (`establish_initiator` without one, and `establish_initiator_for`) are no
+    // longer re-exported here, deliberately: the specification has the
+    // initiator establish only under an expectation (session-establishment.md,
+    // Records, expectations and attribution).
+    let record = tacenta_core::sessions::Record::new(vec![*peer_identity], Vec::new());
+    let records = [record.clone()];
+    let _: Result<Session, tacenta_core::sessions::InitiatorError> =
+        tacenta_core::sessions::establish_initiator(
+            identity,
+            published,
+            &tacenta_core::sessions::Expectation::known(&record),
+            rng,
+        );
+    let _ = tacenta_core::sessions::establish_initiator(
+        identity,
+        published,
+        &tacenta_core::sessions::Expectation::first_contact(&records),
+        rng,
+    );
+    let _ = tacenta_core::sessions::establish_responder_unattributed(identity, store, bytes, rng);
+    let _ = tacenta_core::sessions::classify(peer_identity, &record);
+    let _ = tacenta_core::sessions::lookup(peer_identity, &records);
+    let _ = tacenta_core::sessions::identity_pair_digest(peer_identity, peer_identity);
+    let _ = tacenta_core::sessions::verification_number(&[0; 32]);
     let _ = tacenta_core::sessions::establish_responder(identity, store, bytes, rng);
 
     let _ = bundle.identity_key;

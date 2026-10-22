@@ -7,7 +7,7 @@
 //! costs no proof work.
 
 use rand::SeedableRng;
-use tacenta_core::sessions::{self, Session, SessionDecodeError, establish_initiator};
+use tacenta_core::sessions::{self, Expectation, Session, SessionDecodeError, establish_initiator};
 
 /// A real, established session: PQXDH plus the first ratchet step. Built the
 /// same way `benchmarks.rs` builds one, so this exercises the shape a product
@@ -18,7 +18,8 @@ fn an_established_session() -> Session {
     let bob_id = sessions::Identity::generate(&mut r);
     let bob_prekeys = bob_id.create_prekeys(32, &mut r);
     let bundle = bob_prekeys.publish();
-    establish_initiator(&alice_id, &bundle, &mut r).expect("establishment must succeed")
+    establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r)
+        .expect("establishment must succeed")
 }
 
 /// Round-tripping an ordinary session must still work. Without this the

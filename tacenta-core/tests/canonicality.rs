@@ -27,7 +27,7 @@ use tacenta_core::serialization::{
     encode_message,
 };
 use tacenta_core::sessions::{
-    Identity, PrekeyStore, Session, decode_ec, decode_kem, encode_ec, encode_kem,
+    Expectation, Identity, PrekeyStore, Session, decode_ec, decode_kem, encode_ec, encode_kem,
     establish_initiator, establish_responder,
 };
 
@@ -292,7 +292,8 @@ fn canonical_session() -> Vec<u8> {
     let bob_id = Identity::generate(&mut r);
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"hello", &mut r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     let reply = bob.encrypt(b"hi", &mut r).unwrap();

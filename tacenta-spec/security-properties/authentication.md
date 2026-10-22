@@ -1,7 +1,10 @@
 # Authentication
 
-Authentication guarantees, as numbered requirements. They cover four things:
-- a session is with the identity key it was established with;
+Authentication guarantees, as numbered requirements. They cover five things:
+- a session is with the identity key it was established with, and is a
+  contact's only when a lookup of that key against the party's records
+  finds it that contact's;
+- two parties can check that they hold the same pair of identity keys;
 - a message a session accepts was made by its peer, for that session and
   position, and is accepted once;
 - every key has one encoding;
@@ -56,28 +59,91 @@ Sending the initial message).
   - That a signed prekey is current, or a one-time KEM prekey unused. A
     directory can serve an old bundle (ADV-04).
 
-### REQ-AUTH-02: a named identity is enforced
+### REQ-AUTH-02: the initiator's expectation is enforced
 
-When the initiator names the identity key she means to reach, she refuses a
-bundle whose identity key is any other, before encapsulating
-(session-establishment.md, Sending the initial message).
+The initiator establishes only with an expectation, *known* or *first
+contact* (session-establishment.md, Records, expectations and attribution).
+
+She refuses an expectation that holds a non-canonical key, or a *known*
+expectation whose record is empty (`MalformedRecord`), before any check of
+Sending the initial message.
+
+Then, after the bundle's presence and canonical-key checks, and before the
+identity-key rule, the signature checks, the KEM prekey's input checks and
+anything that draws randomness or computes an agreement, she refuses a bundle
+whose identity key is:
+- not an identity key: an invalid identity key, as the identity-key rule
+  refuses it;
+- under *known*: *retired* in the record (`RetiredIdentity`), or *new*
+  (`UnexpectedIdentity`);
+- under *first contact*: a key her records' lookup finds a contact's or
+  ambiguous (`UnexpectedIdentity`), or a retired key, that is, *same* for no
+  contact (`RetiredIdentity`).
+
+An implementation offers establishment under both forms.
 
 - **Protects:** AS-10.
-- **Holds against:** ADV-04, and ADV-01 substituting a bundle built around
-  another identity key.
-- **Rests on:** ASM-14, for the key she names; ASM-19.
-- **Status: tested only.** `tacenta-core` makes the refusal in
-  `establish_initiator_for` (`UnexpectedIdentity`).
-  `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
-  (`tacenta-core/tests/full_session.rs`) exercises it. It offers a bundle whose
-  prekey signatures verify under another identity key, and checks two things:
-  the refusal is `UnexpectedIdentity`; and no randomness is drawn before it, so
-  nothing is encapsulated. It also asserts that neither prekey store's bytes
-  change, which holds by construction rather than by the check, since
-  `establish_initiator_for` takes no prekey store. No vector or proof covers it
-  (limitations.md, LIM-13).
-- **Does not cover:** an initiator that names no key. `establish_initiator`
-  accepts any identity key whose prekey signatures verify.
+- **Holds against:**
+  - ADV-04 serving an old bundle under a key a record retires, under *known*
+    or, when that key is *same* for no contact, under *first contact*;
+  - ADV-04 serving a recorded contact's bundle under another name, under
+    *first contact*;
+  - ADV-01 substituting a bundle built around a key the record does not
+    accept, under *known*.
+- **Rests on:** ASM-14, for the records and for stating first contact only
+  for a peer with no record; ASM-19.
+- **Status: tested only.** `tacenta-core` makes the refusals in
+  `establish_initiator` of `tacenta-core/src/sessions/identity.rs`, which
+  `tacenta_core::sessions` offers; the lifecycle leaf's
+  `establish_initiator_for`, which it calls once the expectation lets the key
+  go on, is internal. Vectors and tests cover it; no proof does.
+  - The tests in `tacenta-core/tests/identity_expectation.rs`: both forms,
+    `RetiredIdentity`, `UnexpectedIdentity`, `MalformedRecord` before any
+    bundle check, the presence and canonical-key refusals ahead of the
+    expectation, the identity-key rule first, the expectation ahead of the
+    signatures, the KEM prekey's input checks and the agreements, no
+    randomness drawn for a refusal by the expectation or for any refusal
+    before it, *first contact* with no records against the leaf's own
+    establishment, *known* with a key also retired in another contact's
+    record, and *first contact* over records that include an empty one.
+  - `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+    (`tacenta-core/tests/full_session.rs`), which now runs under *known*: a
+    bundle whose prekey signatures verify under another identity key is
+    refused as `UnexpectedIdentity` before any randomness is drawn. It also
+    asserts that neither prekey store's bytes change, which holds by
+    construction rather than by the check, since establishment takes no
+    prekey store.
+  - `tacenta-test-vectors/vectors/identity/initiator-expectation.json` (47
+    vectors, 5 sessions and 42 refusals): both forms, `RetiredIdentity`,
+    `UnexpectedIdentity`, `MalformedRecord` before the presence and
+    canonical-key checks, the order above (not the order between the
+    presence and canonical-key checks, which the page leaves open), and no random
+    value drawn for any refusal before the KEM prekey's input checks.
+  - The fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which varies the presented key, the records and the bundle's identity
+    key, and not the bundle's prekeys or signatures. The hosted workflow
+    does not run it.
+    `generate-identity-vectors.py` writes the bundles, and each outcome is
+    checked against the model's (`Model.InitiatorExpectation`). The
+    independent reader reads them.
+  - No proof covers it (limitations.md, LIM-13). The model's theorems about
+    the order are about the model alone, and `establish_initiator` is outside
+    the translated crates, so no result about the lifecycle leaf covers it.
+- **Does not cover:**
+  - Under *first contact*, an unattributed key: any identity key whose prekey
+    signatures verify is accepted, and only a comparison of the verification
+    number checks it (REQ-AUTH-16; ADV-04).
+  - Under *known*, a key also *same* in another contact's record. She goes
+    on, and the session is ambiguous and no contact's (ASM-14).
+  - A party that states *first contact* for a peer it holds a record for
+    (ASM-14).
+  - That the record is right for the contact (ASM-14).
+  - A key still in a current set that the contact has stopped using. Bundles
+    carry no date (REQ-AUTH-01).
+  - That a key the expectation accepts signed the bundle. The signatures are
+    checked after it (REQ-AUTH-01).
+  - The responder (REQ-AUTH-15).
+  - What the refusal reveals to whoever served the bundle (EX-09; LIM-15).
 
 ### REQ-AUTH-03: the shared secret binds both identities
 
@@ -436,3 +502,117 @@ epoch 0, and leaves the Braid in `Failed` (mlkem-braid.md, Failure).
     (`tacenta-core/tests/full_session.rs`) and `nothing_leaves_the_failed_state`
     (`tacenta-core/braid/src/tests.rs`).
   - A peer that fails the agreement on purpose (ADV-06; EX-03).
+
+## Identity records and verification
+
+### REQ-AUTH-15: keys are classified and looked up as specified
+
+A presented identity key is classified against a record, and looked up
+across records, as session-establishment.md (Records, expectations and
+attribution) states:
+- a presented key that is not an identity key is refused first: as a decode
+  failure if it is not canonical, and otherwise as an invalid identity key;
+- membership is byte equality;
+- *retired* takes precedence within a record;
+- every member is checked, and a non-canonical member refuses that record's
+  classification (`MalformedRecord`); a canonical member that is not an
+  identity key does not;
+- a lookup skips and reports such a record;
+- a lookup finds a key a contact's, ambiguous, a retired key (*same* for no
+  contact), or unattributed.
+
+A session's peer identity key is available to the party.
+
+- **Protects:** AS-10, through the attribution ASM-14 assumes of the party.
+- **Holds against:** ADV-01, ADV-04 and ADV-06 presenting a session under a
+  key no record accepts, or under a label of a recorded contact, when the
+  party attributes as ASM-14 assumes.
+- **Rests on:** ASM-14, for the records it is applied to; ASM-19, for the
+  peer key's availability.
+- **Status: tested only.**
+  - The unit tests of `tacenta-core/src/sessions/identity.rs`
+    (`classification_over_the_cases`, `classification_ignores_duplicates`,
+    `non_identity_members_never_match`, `lookup_over_the_cases`,
+    `lookup_refuses_a_presented_key_that_is_not_an_identity_key`), the
+    responder tests in `tacenta-core/tests/identity_responder.rs`, and
+    `known_and_same_but_retired_elsewhere_establishes_a_contacts_session` in
+    `tacenta-core/tests/identity_expectation.rs`.
+  - The fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which varies the presented key, the records and the bundle's identity
+    key, and not the bundle's prekeys or signatures. The hosted workflow
+    does not run it.
+  - `tacenta-test-vectors/vectors/identity/identity-classification.json`
+    (20 vectors) and `identity-lookup.json` (14), generated from the model
+    (`Model.IdentityRecords`), and the peer key and lookup fields of the
+    sessions in `initiator-expectation.json`. The independent reader reads
+    them.
+  - No proof covers it. The model's theorems about the classification and the
+    lookup are about the model alone.
+- **Does not cover:**
+  - Attribution itself, which is the party's act (ASM-14).
+  - A party that attributes by label, attributes once and never again, or
+    records a key without a comparison (EX-09).
+  - History. Attribution follows the records now, so a record change
+    re-attributes past plaintexts.
+  - A key accepted for a contact. It stays *same* for every later bundle and
+    message under it, a ghost device's included.
+  - An attacker holding the responder's signed-prekey secret (REQ-AUTH-03;
+    LIM-15).
+  - The prekeys a session consumes before it is attributed.
+  - A contact's new device, which is *new* like a substituted key.
+
+### REQ-AUTH-16: the identity pair digest binds the pair
+
+The identity pair digest of two identity keys is the same in either order,
+and is computed only from identity keys (identities-and-devices.md).
+- **The digest.** Finding two different unordered pairs with the same digest
+  is a SHA-256 collision. An attacker that chooses its own key in each of two
+  different pairs, the other key of each fixed, needs about 2^128 SHA-256
+  evaluations to make their digests equal.
+- **The verification number.** The same attacker needs about 10^30, near
+  2^100, to make the verification numbers equal. That holds only when all
+  60 digits are compared. Comparing k digits costs about 10^(k/2).
+
+- **Protects:** AS-10.
+- **Holds against:** ADV-01 and ADV-04 substituting an identity key, at first
+  contact or later, against two parties who compare all 60 digits of the
+  verification number, computed from their own keys and the key vouched for,
+  over a channel the adversary does not control. It covers the keys they
+  compared.
+- **Rests on:** ASM-07, ASM-14.
+- **Status: assumed (ASM-07)** for the binding. Beneath it, the order
+  independence, the refusals and the verification number are tested only:
+  - the unit tests of `tacenta-core/src/sessions/identity.rs`
+    (`the_label_is_the_32_bytes_constants_md_gives`,
+    `digest_known_answers_in_both_orders`,
+    `the_digest_sorts_as_unsigned_bytes_and_not_otherwise`,
+    `digest_refuses_keys_that_are_not_identity_keys`,
+    `digest_refuses_non_canonical_keys_as_decode_failures`,
+    `digest_with_two_refused_keys_reports_one_of_them`,
+    `verification_number_known_answers` and
+    `verification_number_in_twelve_groups_of_five`);
+  - `tacenta-test-vectors/vectors/identity/pair-digest.json` (38 vectors,
+    every pair in both orders) and `verification-number.json` (9), generated
+    from the model (`Model.IdentityRecords`) and read by the independent
+    reader;
+  - the fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
+    which checks that the digest does not depend on argument order and that
+    the number is 60 digits that grouping keeps, on fuzzed keys. The hosted
+    workflow does not run it.
+
+  No proof covers any part. The model's theorems that its digest is the same
+  in either order and that its number has 60 digits are about the model
+  alone, and nothing proves SHA-256 or its reduction to 60 digits.
+- **Does not cover:**
+  - Whether and how people compare, how many digits they compare, and over
+    what channel (ASM-14; EX-09).
+  - Whose keys they are (ASM-14).
+  - A copied or stolen identity secret: the key, and so the digest, is the
+    same (ADV-02).
+  - An attacker holding the responder's signed-prekey secret. It can make
+    the responder accept an initial message under the peer's genuine key,
+    and the verification number then matches (REQ-AUTH-03; LIM-15).
+  - Keys other than the two compared, for example another key in the same
+    record (EX-05).
+  - A key presented under another contact: no identifier is bound, so a
+    comparison made with one contact matches again under another.

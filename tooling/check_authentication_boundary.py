@@ -91,6 +91,9 @@ REGISTRY = ROOT / "tacenta-core" / "AUTHENTICATION-BOUNDARY.md"
 # a check that flags noise is a check somebody switches off.
 ZONES = [
     "tacenta-core/lifecycle/src",
+    # Initiator establishment under an expectation, which wraps the leaf's
+    # establishment and is the entry `tacenta_core::sessions` offers.
+    "tacenta-core/src/sessions",
     "tacenta-core/ratchet/src",
     "tacenta-core/spqr/src",
     "tacenta-core/triple/src",

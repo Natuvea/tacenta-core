@@ -140,7 +140,9 @@ fn pqxdh_secret_seeds_the_ratchet_and_a_message_round_trips() {
 #[test]
 fn a_session_dh_step_pairs_the_old_key_with_the_peers_new_key() {
     use rand::SeedableRng;
-    use tacenta_core::sessions::{Identity, Session, establish_initiator, establish_responder};
+    use tacenta_core::sessions::{
+        Expectation, Identity, Session, establish_initiator, establish_responder,
+    };
 
     // `export` writes: version(1), then two length-prefixed blobs (the triple
     // and the braid), then the 32-byte ratchet private key. Read it back.
@@ -162,7 +164,8 @@ fn a_session_dh_step_pairs_the_old_key_with_the_peers_new_key() {
     let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let initial = alice.encrypt(b"open", &mut r).unwrap();
     // Establishing the responder makes Bob take his first DH step: he receives
     // Alice's ratchet key and adopts a fresh one of his own for sending.

@@ -162,9 +162,20 @@ compute FIPS 197, SP 800-38A and RFC 2104.
 ### ASM-07: SHA-2 and SHA-3, as used
 
 These hash functions have the collision resistance, and the other properties,
-that the published analyses of the constructions using them require:
-- **SHA-256:** inside HMAC and HKDF, and in the last-resort replay identity, used as
-  a keyed hash.
+that the published analyses of the constructions using them require, and,
+where a construction is this specification's own, the properties stated with
+it below:
+- **SHA-256:** inside HMAC and HKDF; in the last-resort replay identity,
+  used as a keyed hash; in the inventory binding commitment and the
+  group-messaging commitments; and in the identity pair digest. For the
+  pair digest, two properties are stated:
+  - collision resistance of its 32-byte output;
+  - that its output, read big-endian and reduced mod 10^60, admits no claw
+    search better than the generic one, about 10^(k/2) for k digits
+    compared.
+
+  The second is a random-function heuristic. Collision resistance does not
+  imply it, and no published analysis covers this construction.
 - **SHA-512:** inside XEdDSA.
 - **SHA3-256, SHA3-512 and SHAKE:** inside ML-KEM-1024 (`libcrux-ml-kem`),
   including the hash of the encapsulation key that a Braid header carries.
@@ -172,8 +183,8 @@ that the published analyses of the constructions using them require:
 A collision between two replay identities would make the record refuse a handshake it
 has not seen. That is a refusal, not an acceptance.
 
-- **Relied on by:** REQ-AUTH-01, REQ-AUTH-12, REQ-CONF-06, and through ASM-04
-  and ASM-05 every requirement those support.
+- **Relied on by:** REQ-AUTH-01, REQ-AUTH-12, REQ-AUTH-16, REQ-CONF-06, and
+  through ASM-04 and ASM-05 every requirement those support.
 - **Proofs:** none. The model computes SHA-256 only to serve as the vectors'
   oracle, and `hash_length` says its output is thirty-two bytes.
 
@@ -302,22 +313,48 @@ Recovery does depend on the network:
 
 ### ASM-14: key authenticity
 
-The identity key a party establishes a session with belongs to the peer the
-party means to reach. It is verified out of band, or under the application's
-own trust policy. The directory is not trusted for authenticity: a bundle's
-signatures prove only that its prekeys were published by the holder of the
-bundle's identity key.
+A key a party records in a contact's current set belongs to that contact.
+It is verified out of band, or under the application's own trust policy. The
+directory is not trusted for authenticity. A bundle's signatures prove only
+that its prekeys were published by the holder of the bundle's identity key,
+and an inventory statement the directory issues is no better. A session
+that is no contact's has, as its peer, whoever holds its peer key. At first
+contact, that is whoever the directory's bundle, or the arriving message,
+named.
 
-The protocol gives the caller two things to build on:
-- `establish_initiator_for` refuses a bundle whose identity key is not the one
-  the caller names (REQ-AUTH-02);
-- a session reports its peer's identity key (`Session::peer_identity`), for the
-  application to compare with the one it holds for the contact.
+The protocol gives the party three things:
+- initiator establishment always takes an expectation. It refuses a key that
+  the expectation retires or does not accept (REQ-AUTH-02);
+- a classification of a key against a record, a lookup of it across records,
+  and a session's peer identity key (REQ-AUTH-15);
+- the identity pair digest and its verification number, which two parties
+  compute independently and compare (REQ-AUTH-16).
 
-How identity keys are verified is not specified (EX-09).
+What is assumed of the party:
+- every key in its records was put there by the party, and its records are
+  intact;
+- it states first contact only for a peer it holds no record for, and
+  carries all its records with it;
+- its records do not hold one key as current for two contacts, or it
+  accepts that a session under such a key is no contact's;
+- it treats a session, and every plaintext and payload the session yields,
+  as a contact's only when a lookup of its peer key finds it that contact's:
+  - against its records as they stand when it does so;
+  - never by a label;
+  - never for a key the lookup finds ambiguous or a retired key (*same* for
+    no contact);
+- a comparison that matches was made over all 60 digits, between the
+  party's own identity key and the key it vouches for (the session's peer
+  key, or the key it is about to record), over a channel the adversary does
+  not control, by people who mean each other, against an adversary that
+  cannot do about 2^100 work.
 
-- **Relied on by:** REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-03, REQ-CONF-01,
-  REQ-CONF-06.
+Such a comparison shows that both parties hold the same pair of keys. It
+does not show whose keys they are. How identity keys come to be trusted is
+not specified (EX-09).
+
+- **Relied on by:** REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-03, REQ-AUTH-15,
+  REQ-AUTH-16, REQ-CONF-01, REQ-CONF-06.
 - **Proofs:** none. Nothing anywhere in this project proves that an identity
   key belongs to the person a user means (LIMITATIONS.md, "Forward secrecy is
   proved, against a symbolic attacker", on authentication).
@@ -433,6 +470,6 @@ Phase 0 carve-out but has no theorem.
 
 - **Relied on by:** every requirement, as a statement about `tacenta-core`; in
   particular REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-05, REQ-AUTH-09 to
-  REQ-AUTH-13, REQ-CONF-02, REQ-CONF-04, REQ-CONF-09, REQ-FS-03 and
-  REQ-PCS-02, whose evidence is at that layer.
+  REQ-AUTH-13, REQ-AUTH-15, REQ-CONF-02, REQ-CONF-04, REQ-CONF-09, REQ-FS-03
+  and REQ-PCS-02, whose evidence is at that layer.
 - **Proofs:** none. It is where their preconditions land.

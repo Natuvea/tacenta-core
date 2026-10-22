@@ -17,8 +17,8 @@
 
 use rand::SeedableRng;
 use tacenta_core::sessions::{
-    Identity, LifecycleError, PrekeyStore, PrekeyStoreDecodeError, establish_initiator,
-    establish_responder,
+    Expectation, Identity, LifecycleError, PrekeyStore, PrekeyStoreDecodeError,
+    establish_initiator, establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -40,7 +40,7 @@ fn last_resort_initial(
     r: &mut rand::rngs::StdRng,
 ) -> Vec<u8> {
     let peer = Identity::generate(r);
-    let mut s = establish_initiator(&peer, bundle, r).unwrap();
+    let mut s = establish_initiator(&peer, bundle, &Expectation::first_contact(&[]), r).unwrap();
     s.encrypt(text, r).unwrap()
 }
 

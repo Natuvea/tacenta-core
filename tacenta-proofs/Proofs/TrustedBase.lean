@@ -60,6 +60,8 @@ import Properties.StateConsistency
 import Proofs.KeyErasure
 import Proofs.MemorySafety
 import Proofs.SparseRatchetCorrectness
+import Model.IdentityRecords
+import Model.InitiatorExpectation
 
 namespace Proofs.TrustedBase
 
@@ -473,6 +475,226 @@ info: 'Model.Polynomial.interp_eq' depends on axioms: [propext, Classical.choice
 -/
 #guard_msgs in
 #print axioms Model.Polynomial.interp_eq
+
+/-! ## Identity records and the initiator's expectation, in the model
+
+The results `CLAIMS.md` claims about `Model.IdentityRecords` and
+`Model.InitiatorExpectation`: the pair digest's symmetry and refusals, the
+verification number's digits, the classification and the lookup, and the order
+of the initiator's checks. They are properties of the model's definitions. None
+of them says that `tacenta-core` computes those definitions; the identity
+vectors and the runner test that. Four of them use `Classical.choice`, none uses
+anything evaluated. -/
+
+/--
+info: 'Model.IdentityRecords.digestOf_comm' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.digestOf_comm
+
+/--
+info: 'Model.IdentityRecords.pairDigest_comm_ok' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.pairDigest_comm_ok
+
+/--
+info: 'Model.IdentityRecords.pairDigest_ok_iff' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.pairDigest_ok_iff
+
+/--
+info: 'Model.IdentityRecords.pairDigest_error_allowed' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.pairDigest_error_allowed
+
+/--
+info: 'Model.IdentityRecords.allowedRefusals_comm' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.allowedRefusals_comm
+
+/--
+info: 'Model.IdentityRecords.digestOf_length' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.digestOf_length
+
+/--
+info: 'Model.IdentityRecords.verificationNumber_length' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.verificationNumber_length
+
+/--
+info: 'Model.IdentityRecords.verificationNumber_digits' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.verificationNumber_digits
+
+/--
+info: 'Model.IdentityRecords.decimalValue_verificationNumber' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.decimalValue_verificationNumber
+
+/--
+info: 'Model.IdentityRecords.groupsOfFive_verificationNumber' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.groupsOfFive_verificationNumber
+
+/--
+info: 'Model.IdentityRecords.classify_key_refusal' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_key_refusal
+
+/--
+info: 'Model.IdentityRecords.classify_malformed' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_malformed
+
+/--
+info: 'Model.IdentityRecords.classify_retired' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_retired
+
+/--
+info: 'Model.IdentityRecords.classify_same' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_same
+
+/--
+info: 'Model.IdentityRecords.classify_new' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_new
+
+/--
+info: 'Model.IdentityRecords.classify_both_retired' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_both_retired
+
+/--
+info: 'Model.IdentityRecords.classify_congr' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_congr
+
+/--
+info: 'Model.IdentityRecords.classify_member_is_identity_key' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.classify_member_is_identity_key
+
+/--
+info: 'Model.IdentityRecords.lookup_key_refusal' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.lookup_key_refusal
+
+/--
+info: 'Model.IdentityRecords.lookup_total' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.lookup_total
+
+/--
+info: 'Model.IdentityRecords.attributionOf_cases' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.attributionOf_cases
+
+/--
+info: 'Model.IdentityRecords.lookup_result' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.IdentityRecords.lookup_result
+
+/--
+info: 'Model.InitiatorExpectation.known_empty_malformed' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.known_empty_malformed
+
+/--
+info: 'Model.InitiatorExpectation.check_key_refusal' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.check_key_refusal
+
+/--
+info: 'Model.InitiatorExpectation.check_known_none_iff' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.check_known_none_iff
+
+/--
+info: 'Model.InitiatorExpectation.check_firstContact_none_iff' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.check_firstContact_none_iff
+
+/--
+info: 'Model.InitiatorExpectation.malformed_first' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.malformed_first
+
+/--
+info: 'Model.InitiatorExpectation.presence_before_expectation' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.presence_before_expectation
+
+/--
+info: 'Model.InitiatorExpectation.canonical_before_expectation' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.canonical_before_expectation
+
+/--
+info: 'Model.InitiatorExpectation.expectation_refusal' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.expectation_refusal
+
+/--
+info: 'Model.InitiatorExpectation.refusal_keeps_oracle' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.refusal_keeps_oracle
+
+/--
+info: 'Model.InitiatorExpectation.expectation_refusal_independent' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.expectation_refusal_independent
+
+/--
+info: 'Model.InitiatorExpectation.rule_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.rule_first
+
+/--
+info: 'Model.InitiatorExpectation.success_is_leaf' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.success_is_leaf
+
+/--
+info: 'Model.InitiatorExpectation.leaf_key_checks_redundant' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.InitiatorExpectation.leaf_key_checks_redundant
 
 /-! ## Trusted by evaluation
 

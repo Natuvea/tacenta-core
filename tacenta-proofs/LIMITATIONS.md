@@ -2111,7 +2111,8 @@ done.
 ### The lifecycle leaf is a tenth translated zone, with no theorem on its own island
 
 `tacenta-core/lifecycle` is the shipping session orchestration behind the
-unchanged `tacenta_core::sessions` API. Charon starts from every public item,
+`tacenta_core::sessions` API, which since identity records offers the initiator's
+establishment only through a wrapper outside this leaf (the next section). Charon starts from every public item,
 and `TacentaLifecycle.lean` contains all 30 public lifecycle operations and
 their reachable call graph. The coverage gate compares the Rust surface with
 the generated definitions, and its missing-root control proves that omission
@@ -2144,6 +2145,115 @@ names (ten in the record, twelve after its first dated note, thirteen after the 
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
+
+### Identity records, and the initiator's public entry, are outside the translated zone
+
+`tacenta-core/src/sessions/identity.rs` holds the identity pair digest, the
+verification number, the classification of a key against a record, the lookup
+across records, initiator establishment under an expectation
+(`establish_initiator`) and the responder's `establish_responder_unattributed`
+(ADR-0009; REQ-AUTH-02, -15 and -16). It is in the `tacenta-core` crate itself,
+not in a leaf crate, and nothing translates it: no T1 or T3 theorem, on any
+island or unit, is about any function in it.
+
+- **What exists.** Tests: 14 unit tests in the file, 15 in
+  `tacenta-core/tests/identity_expectation.rs` and 10 in
+  `tacenta-core/tests/identity_responder.rs`. Vectors: 128 in five files under
+  `tacenta-test-vectors/vectors/identity/` (`pair-digest.json` 38,
+  `verification-number.json` 9, `identity-classification.json` 20,
+  `identity-lookup.json` 14, `initiator-expectation.json` 47), the first four
+  generated from the model and the fifth written by
+  `generate-identity-vectors.py` with every outcome checked against the model.
+  The Rust runner checks them against `tacenta-core`, and the independent reader
+  reads all 128 with no failure (125 at its fourteenth pass; three were added
+  after it and pass with the reader unchanged). A fuzz target of their own,
+  `identity_records` (`tacenta-core/fuzz/fuzz_targets/identity_records.rs`),
+  drives the classification, the lookup, the digest, the verification number
+  and initiator establishment under an expectation with a fuzzed presented
+  key and fuzzed records, over an honest bundle whose identity key the input
+  may replace. It asserts that the lookup agrees with the classification
+  record by record, that the digest does not depend on argument order, that
+  a malformed expectation is refused as `MalformedRecord` and only then, that
+  a refusal on the expectation draws nothing, and that a session is returned
+  only for a key the expectation accepts. It does not fuzz the rest of the
+  bundle (its prekeys and signatures). Like every fuzz target here, the
+  hosted workflow neither builds nor runs it; `tooling/ci.sh` runs it briefly
+  from its three committed seeds when `cargo-fuzz` and a nightly toolchain
+  are present. Whether the nightly search on private infrastructure
+  (`ASSURANCE.md`, practice 10) runs it has not been checked.
+- **Where that leaves them against ADR-0008's levels.** They have no
+  property test of their own (no proptest names them, in their own tests or
+  in `tests/fuzz.rs`; the fuzz target's assertions run only under
+  `cargo-fuzz`), and their fuzzing reaches the presented key and the records
+  but not the rest of an untrusted bundle. So they meet L1 only in part: its
+  unit tests, yes; its property tests, no; its fuzzing of untrusted input,
+  partly, and not in the hosted workflow. Since L2 includes L1, they do not
+  reach L2 either, although they have its other elements: the model states
+  them, and vectors pin them that are checked against the implementation and
+  read by the independent reader (`initiator-expectation.json` is written by
+  a script with each outcome checked against the model, not generated from
+  it). The Session row in `ASSURANCE.md` stays at L2, because a tick there
+  means that the component has that kind of evidence, not that every part of
+  it does, and a level is lowered only by a recorded decision (ADR-0008); the
+  row says the same of these functions.
+- **What is proved, and about what.** `Model.IdentityRecords` and
+  `Model.InitiatorExpectation` state the same rules, and `CLAIMS.md` ("Proved
+  (tier T2, in the model: identity records and the initiator's expectation)")
+  claims 35 theorems about those definitions. They are about the model only.
+  No theorem says that the crate's functions compute the model's, that the
+  model's definitions are what the pages say, or that the model's rule
+  argument `oracle.identityValid` is `Model.IdentityKey.valid` (the vector
+  generator sets the one to the other).
+- **The public initiator entry is an unverified hop.**
+  `tacenta_core::sessions::establish_initiator` is the wrapper. It refuses a
+  malformed expectation, makes the bundle's presence and canonical-key checks,
+  checks the bundle's identity key against the expectation, and then calls the
+  lifecycle leaf's `establish_initiator_for` with the bundle's own identity key
+  as the expected one, returning what that call returns. The leaf's
+  `establish_initiator` and `establish_initiator_for` are no longer re-exported
+  from `tacenta_core::sessions`. The theorems about `establish_initiator_for` on
+  the eight-leaf session unit (its T1 theorem, and the T3 results at the session
+  it returns) are about the leaf function. That they carry over to the session
+  the wrapper returns rests on reading the wrapper: it takes everything but the
+  random source by shared reference, draws nothing from the random source before
+  the call, and passes the leaf's session on unchanged (a refusal of the leaf's is
+  passed on inside `InitiatorError::Establish`). Tests check it
+  (`with_no_records_first_contact_is_the_leafs_establishment` compares draws and
+  exported bytes with the leaf's own establishment, and
+  `the_leaf_pin_never_fires_through_the_expectation`); no proof does.
+- **The wrapper repeats the leaf's checks.** The presence and canonical-key
+  checks are written again in the wrapper, with the leaf's own predicates, so
+  that they come before the expectation, and the model does the same
+  (`Model.InitiatorExpectation`, the header's note). If the leaf's checks change,
+  the copies do not follow by themselves; the identity vectors and the tests are
+  what would notice.
+- **The authentication-boundary checker reads the wrapper's signatures, not its
+  body.** `tooling/check_authentication_boundary.py` scans six zones, now with
+  `tacenta-core/src/sessions` among them, and `AUTHENTICATION-BOUNDARY.md`
+  registers `establish_initiator` and `establish_responder_unattributed` there (31
+  paths in all). It checks that each is registered under its signature.
+- **The responder adds no refusal.** `establish_responder_unattributed` calls the
+  leaf's `establish_responder` unchanged and returns its first plaintext wrapped
+  as unattributed. `attribute` releases it beside a lookup of the session's
+  peer key in the records the caller gives; it cannot check that those are
+  the party's records (given none, it releases the value as unattributed),
+  and the leaf's `establish_responder`, which returns the plaintext unwrapped,
+  is still exported. So the wrapper is a nudge, not an enforcement. Whatever the
+  leaf commits, it commits. Attributing a session or a plaintext to a contact is
+  the application's act (ASM-14).
+- **The strength of the verification number is assumed.** About `2^100` work for
+  an attacker holds only if all 60 digits are compared over a channel the
+  attacker does not control, and it rests on treating SHA-256 reduced mod `10^60`
+  as a random function (ASM-07; REQ-AUTH-16 is assumed). Comparing `k` digits
+  costs about `10^(k/2)`.
+- **Not provided.** The records themselves (their storage, integrity, rollback
+  and loss), how an application attributes and shows plaintexts, device handling,
+  and key transparency are not provided by `tacenta-core` or by the
+  specification. Nothing proves that an identity key belongs to the person a user
+  means; that is ASM-14, an assumption.
+- **Not yet adopted.** Adoption by the application, FFI and SDK layers above
+  `tacenta-core` is separate work; until it lands, the product does not use
+  these functions.
 
 ### The Session unit's primitive contracts are totality assumptions
 
@@ -4019,9 +4129,11 @@ implementation anywhere in the core.
 
 Also not implemented, and listed here because a reader comparing this to
 libsignal will look for them: persistent storage, platform bindings, and an
-identity trust store are not in this crate at all. A caller is handed the
-peer's identity key and is expected to remember and compare it, which is a
-much easier interface to misuse than an address-keyed store that does it for
+identity trust store are not in this crate at all. The crate classifies and
+looks up a key against records the caller holds, and establishes an initiator
+only under an expectation built from them (`sessions::identity`), but keeping
+the records, and keeping them right, is the caller's (ASM-14). That is a much
+easier interface to misuse than an address-keyed store that does it for
 them.
 
 **The post-quantum ratchet is in the session.** `Session` holds `triple:

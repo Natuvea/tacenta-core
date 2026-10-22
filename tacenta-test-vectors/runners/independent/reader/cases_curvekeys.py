@@ -98,13 +98,13 @@ def _():
             assert curve25519.xeddsa_verify(NC.IK_PUB, wire.encode_ec(s), b.signed_prekey_signature) is not None
             # its signature does not refuse it. Pass 4 had the initiator accept it; from pass 5 she refuses it
             # herself as well (session-establishment.md, Sending the initial message; SK-07)
-            rejects(wire.initiator_check_bundle, b, exc=wire.BundleRefused)
+            rejects(wire.initiator_check_bundle, b, NC.FIRST_CONTACT, exc=wire.BundleRefused)
             rejects(wire.decode_bundle, wire.encode_bundle(b), exc=wire.DecodeError)
     for key in (NC.IK_PUB, NINE):
         for s in spellings(key):
             e = rejects(wire.decode_bundle, wire.encode_bundle(replace(base, identity_key=s)), exc=Exception)
             assert isinstance(e, wire.DecodeError), f"refused as {type(e).__name__}, not as a decode failure"
-        rejects(wire.initiator_check_bundle, replace(base, identity_key=spellings(key)[0]), exc=wire.BundleRefused)
+        rejects(wire.initiator_check_bundle, replace(base, identity_key=spellings(key)[0]), NC.FIRST_CONTACT, exc=wire.BundleRefused)
     for key in (NC.OPK_PUB, NINE):
         for s in spellings(key):
             rejects(wire.decode_bundle, wire.encode_bundle(replace(base, one_time_prekey=s)), exc=wire.DecodeError)
@@ -261,8 +261,8 @@ def _():
     assert accepts(pqxdh.receive_repeated_initial, s, wrap(m3), live) == b"third"
 
 
-@case("SE-08 (pass 12) a repeat's ephemeral is compared by its X25519 agreement class, which session-establishment.md now takes under the responder's signed-prekey secret and session-persistence.md under no named secret: for clamped secrets the class does not depend on which secret is used, so the verdict under the session's ratchet private key, which is what the session holds, is the verdict under the signed-prekey secret (GAPS-12.md G12-06)",
-      f"{SE} Receiving the initial message: the message's `ephemeral` field is in the same X25519 agreement class, under the responder's signed-prekey secret, as the `ephemeral` field carried by the initial message that established the session; session-persistence.md, Session, Semantic rules: A repeated initial message is matched against `established_ephemeral` by the responder's successful X25519 agreement class")
+@case("SE-08 (pass 12, cite pass 14) a repeat's ephemeral is compared by its X25519 agreement class taken under the session's current ratchet private key, which both pages now name; for clamped secrets the class does not depend on which secret is used, so the verdict under the ratchet private key is also the verdict under the signed-prekey secret pass 12 read (GAPS-12.md G12-06, closed)",
+      f"{SE} Receiving the initial message: The class is taken under the session's current ratchet private key (`ratchet_private`, session-persistence.md): X25519 of that key with each of the two ephemerals must give an output that is contributory, and the two outputs must be equal. The signed-prekey secret is not the key; session-persistence.md, Session, Semantic rules: by the responder's successful X25519 agreement class under the session's `ratchet_private`")
 def _():
     from tacenta_reader.curve25519 import BASE, Q, _add, _inv, _is_identity, _mul, _recover_x
     def u_of(pt):

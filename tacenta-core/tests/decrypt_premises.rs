@@ -141,7 +141,8 @@ use tacenta_core::serialization::{
     DecodeError, MessageType, VERSION, decode_initial, decode_message, message_type,
 };
 use tacenta_core::sessions::{
-    Identity, LifecycleError, Session, SessionDecodeError, establish_initiator, establish_responder,
+    Expectation, Identity, LifecycleError, Session, SessionDecodeError, establish_initiator,
+    establish_responder,
 };
 use tacenta_spqr::SpqrError;
 use tacenta_triple::TripleError;
@@ -753,7 +754,13 @@ fn establish() -> Established {
         ]),
         0,
     );
-    let mut alice_session = establish_initiator(&alice, &published, &mut rng).unwrap();
+    let mut alice_session = establish_initiator(
+        &alice,
+        &published,
+        &Expectation::first_contact(&[]),
+        &mut rng,
+    )
+    .unwrap();
     assert_eq!((rng.unused(), log.borrow().len()), (0, 3));
 
     let (mut rng, log) = Counting::new(v.draws(&["alice_braid_keygen_d_z"]), 0);

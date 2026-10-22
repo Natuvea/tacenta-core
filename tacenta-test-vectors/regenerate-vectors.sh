@@ -5,15 +5,20 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Thirty-one files, all under vectors/: the Double Ratchet scenarios, the
+# Thirty-five files from the model, all under vectors/: the Double Ratchet scenarios, the
 # PQXDH shared secrets, the message and initial-message encodings, the nine
 # post-quantum derivation files and the two erasure-code files beside them, the
 # erasure coders' two persisted formats and the six persisted states (the two
 # ratchets', the Triple Ratchet's, the Braid's, the prekey store's and the
 # session's),
 # the protobuf profile's two readers, the AEAD's two directions, the three
-# decoder files under malformed-input/, and the identity-key table under
-# identity/.
+# decoder files under malformed-input/, and under identity/ the identity-key
+# table, the identity pair digest, the verification number, the
+# classification and the lookup. Then generate-identity-vectors.py writes one
+# more file under identity/, initiator-expectation.json: its bundles carry
+# signatures the model cannot make, so the script makes them and asks the
+# model for every case's outcome, and it recomputes the four identity-record
+# files above with its own code; it writes nothing when either disagrees.
 # The AEAD files take their AES-256 block values from NIST SP 800-38A, since
 # the model has no AES; their `source` field says so. The primitive vectors
 # under vectors/primitives/ are not regenerated: they are standards' known
@@ -85,3 +90,19 @@ generate initial-decode   "$here/vectors/malformed-input/initial-message-decode.
 # The identity-key rule (identities-and-devices.md, Accepting a signed
 # statement, check 6), one vector per key of a fixed table.
 generate identity-key     "$here/vectors/identity/identity-key.json"
+
+# Identity records (identities-and-devices.md, The identity pair digest;
+# session-establishment.md, Records, expectations and attribution), each over
+# a fixed table whose answers a separate program computed.
+generate pair-digest             "$here/vectors/identity/pair-digest.json"
+generate verification-number     "$here/vectors/identity/verification-number.json"
+generate identity-classification "$here/vectors/identity/identity-classification.json"
+generate identity-lookup         "$here/vectors/identity/identity-lookup.json"
+
+# The initiator's expectation, with signed bundles: written by a script that
+# checks every case against the model (and the four files above against its
+# own code). It writes to a temporary file and moves it into place itself.
+if ! python3 "$here/generate-identity-vectors.py"; then
+  echo "regenerate-vectors: generate-identity-vectors.py failed; vectors/identity/initiator-expectation.json left unchanged" >&2
+  exit 1
+fi

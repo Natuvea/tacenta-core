@@ -3,20 +3,23 @@
 An implementation of parts of the Tacenta protocol specification, written to
 test whether the specification alone is enough to build from. Passes 2 to 7 were
 run in isolated directories, on the author's own isolation records; pass 1 has none.
-Passes 8 to 11 and later maintenance were made with the implementation in view. Passes 12 and 13 have isolation records written by their own author, as
+Passes 8 to 11 and later maintenance were made with the implementation in view. Passes 12, 13 and 14 have isolation records written by their own author, as
 this file records below.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
-**Specification revision.** Thirteenth pass, against the tree as found:
+**Specification revision.** Fourteenth pass, against the tree as found:
 
-- `SOURCE-REVISION`, a local revision of this branch taken after the merge of the inventory work (#200) and before the merge of the conformance alignment (#202); it is not a commit of the repository;
+- `SOURCE-REVISION` `98591a2c50f82c3f1a134649eafa37140ba43b0e`;
 - `VERSION` `0.2.0`;
-- every change under `CHANGELOG.md` `[Unreleased]`, the entry this pass is
-  about beginning "Identity keys are held to one rule at every boundary that
-  admits one."
+- every change under `CHANGELOG.md` `[Unreleased]`, the entries this pass is
+  about being those on the identity pair digest, the verification number,
+  Records, expectations and attribution, and the initiator's expectation
+  (Added, Changed and Decided; `../GAPS-14.md` names them).
 
-The twelfth pass read `1cac363f11305d675844af590a0840774a87656f` (the hosted
+The thirteenth pass read a local revision taken after the merge of the
+inventory work (#200) and before the merge of the conformance alignment (#202),
+which is not a commit of the repository (identity keys). The twelfth pass read `1cac363f11305d675844af590a0840774a87656f` (the hosted
 device-inventory statements). The seventh pass, the last pass held to the isolation rule
 before that, read `5ae44427d17d0e8bfa1d314780305690000ee770`; passes 8 to 10
 were maintenance re-runs (`../GAPS-8.md` to `../GAPS-10.md`). The sixth pass
@@ -58,8 +61,8 @@ alone is enough, and nothing here should be read as one.
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
 `../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth),
-`../GAPS-7.md` (seventh), `../GAPS-12.md` (twelfth) or `../GAPS-13.md`
-(thirteenth).
+`../GAPS-7.md` (seventh), `../GAPS-12.md` (twelfth), `../GAPS-13.md`
+(thirteenth) or `../GAPS-14.md` (fourteenth).
 A hypothesis that matches a vector is still recorded as a gap.
 
 ## Isolation
@@ -333,6 +336,91 @@ was used.
   of further material, were available alongside the directory. None of it was
   opened, and nothing in it was used for any reading or decision here.
 
+### Isolation, pass 14
+
+- **Reads.** Inside the clean-room directory:
+  - `tacenta-spec/`: `protocol/identities-and-devices.md` in full;
+    `session-establishment.md`, Publishing keys to Records, expectations and
+    attribution, and Primitives to the end; `error-handling.md` in full;
+    `CHANGELOG.md` `[Unreleased]` in full; `decisions/ADR-0009-identity-verification.md`
+    in full; `security-properties/authentication.md`, the introduction and
+    REQ-AUTH-01, -02, -11, -15 and -16; `limitations.md`, LIM-13 to LIM-19 and
+    the LIM-21 sentence; `evidence-index.json`, the entries for REQ-AUTH-02,
+    -15 and -16; `CONSTANTS.md`, the `PAIR_DIGEST_LABEL` row and Bounds;
+    `threat-model/assumptions.md` ASM-14 and `exclusions.md` EX-09; `VERSION`;
+    and, to re-assess the open gaps, passages of `session-persistence.md`,
+    `sparse-pq-ratchet.md`, `adversaries.md`, `exclusions.md`,
+    `assumptions.md`, `evidence-index-format.md` and ADR-0006, found by
+    searching for the sentences the gaps quote.
+  - `tacenta-test-vectors/`: `README.md` (its headings, The identity keys and
+    Identity records, and searches for the v4 phrases and "rule 3"),
+    `conformance-manifest.md` (Covered: identity keys, and searches),
+    `schema/vector.schema.json` (the descriptions of `result`, `inputs`,
+    `output`, `refusal`, `acceptable_refusals` and `fields`), the five new
+    files under `vectors/identity/` in full (`initiator-expectation.json` with
+    its long inputs shortened for display, and its bundles parsed by the
+    layout before the handler was written, which showed what `../GAPS-14.md`
+    G14-06 records), and a search of `vectors/primitives/xeddsa.json`.
+  - `reader/`; `../GAPS-13.md` in full; the tally at the end of
+    `../GAPS-11.md`; `SOURCE-REVISION`. `GAPS.md` to `GAPS-10.md` and
+    `GAPS-12.md` were not opened.
+- **Outside this directory.** Nothing outside it was read, listed or searched;
+  every command named paths inside it. Python loaded its standard library from
+  the system installation, as any run does. **Reads attempted outside this
+  directory: none.**
+- **Names treated as text.** The pages, the README, the manifest and the
+  evidence index name implementation files, symbols, tests and generators
+  (`generate-identity-vectors.py`, `Model.IdentityRecords`,
+  `Model.InitiatorExpectation.establishInitiatorExpecting`, the
+  `tacenta-core` identity module with its functions and tests, and two runner
+  test files). None was looked for.
+- **Writes.** Only inside the clean-room directory: this reader (the new
+  `tacenta_reader/records.py` and `cases_records.py`; changes to
+  `tacenta_reader/wire.py`, `admission.py`, `identity.py`, `constants.py`,
+  `__init__.py`, `negative_cases.py`, `cases_stored.py`, `cases_curvekeys.py`,
+  `cases_idkeys.py`, `run.py` and this file); `../GAPS-14.md`; the two tally
+  sentences of `../GAPS-11.md`; and `../work/` (`baseline14.txt`, run outputs,
+  `check_new_vectors14.py` and its output, `faults14.py` with its outputs,
+  `final-run14.txt`, and `reader-baseline14/`, a copy of the reader as found).
+  The per-fault copies were made under `../work/faults14/`, each reaching the
+  vectors through a symbolic link inside this directory, and were removed after
+  each run. Python wrote its usual `__pycache__` directories inside `reader/`.
+- **Not consulted.** No implementation, no git history, no vector generator, no
+  other scratch files, no web search, and no libsignal material. FIPS 180-4
+  (through `hashlib`) and RFC 7748 were used from knowledge. Nothing was
+  fetched.
+- **Unrelated notes, not used.** An index of notes from other work was in
+  view from the start of this pass; no read this pass made put it there. None
+  of the notes it lists was opened, and nothing in it was used for any reading
+  or decision here.
+
+## What changed in pass 14
+
+- **`tacenta_reader/records.py`, new.** The identity pair digest and the
+  verification number (identities-and-devices.md); records, the
+  classification, the lookup and attribution; the two expectations, *known*
+  and *first contact*, with the malformed-expectation check and the check of
+  the bundle's identity key against an expectation (session-establishment.md,
+  Records, expectations and attribution). `constants.py` gains
+  `PAIR_DIGEST_LABEL` and the 60-digit length.
+- **The named identity is replaced by the expectation.** `wire.initiator_check_bundle`
+  and `admission.initiator_prefix` lose `expected_identity` and take a
+  required expectation, in the page's order: a malformed expectation first;
+  the canonical-key and presence checks; the expectation (which applies the
+  identity-key rule first); the identity-key rule; the signatures; then the
+  KEM prekey's input checks, the draws and the agreements. The bundle's own
+  refusals are three subclasses of `BundleRefused` so their kinds stay apart
+  (`../GAPS-14.md` G14-03), and the KEM prekey signature is checked over the
+  key at its own length (G14-06).
+- **`run.py`.** The temporary allowlist of the five identity-record files is
+  gone. Five handlers read them, with the layouts of the vectors README and
+  `acceptable_refusals`; `bundle-admission` establishes under first contact
+  with no records, as the README says; `cases_records` is in the case table.
+- **Cases.** `cases_records.py`, new (18 cases, RC-01 to RC-18). PB-11 and
+  IK-06 rewritten for the expectation; PB-09, PB-10, PB-12, PB-13, PB-15, CK-03
+  and SK-09 pass one; the cite strings of SE-08, IK-12 and IK-14 quote the
+  current text.
+
 ## What changed in pass 13
 
 - **`tacenta_reader/curve25519.py`: Verifying a signature, step 3, and the
@@ -552,7 +640,7 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 |---|---|---|
 | `kdf.py`: HMAC-SHA256, HKDF-SHA256 | RFC 2104, RFC 5869 | `primitives/hmac-sha256.json`, `hkdf-sha256.json` |
 | `curve25519.py`: X25519, Ed25519, XEdDSA signing (with the clamp) and the six verifier steps, **step 3 now `qA` is the identity (pass 13)**, and `is_identity_key`, the identity-key rule | RFC 7748, RFC 8032, identities-and-devices.md Signing, Verifying a signature, Identity keys, Accepting a signed statement check 6 | `primitives/x25519.json`, `ed25519.json`, `xeddsa.json` (the three `reject-mixed-order-A` rows pin step 3); `identity/identity-key.json` |
-| `wire.py`: composite header, ratchet message, `CONCAT`, initial message, prekey bundle, `EncodeEC`/`EncodeKEM`, **the canonical curve-key rule in all three decoders** and `DecodeEC`, every stated decoder refusal, the initiator's bundle refusals, **and from pass 13 `InvalidIdentityKey` and the identity-key check between the canonical checks and the signatures** | message-format.md (Curve public keys), session-establishment.md | `post-quantum/composite.json`, `serialization/*.json`, `malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json`, `initial-message-decode.json` (the curve-key refusals); other refusals by derived cases only |
+| `wire.py`: composite header, ratchet message, `CONCAT`, initial message, prekey bundle, `EncodeEC`/`EncodeKEM`, **the canonical curve-key rule in all three decoders** and `DecodeEC`, every stated decoder refusal, the initiator's bundle refusals, **from pass 13 `InvalidIdentityKey` and the identity-key check before the signatures, and from pass 14 the expectation in place of the named identity, with the bundle's refusal kinds kept apart** | message-format.md (Curve public keys), session-establishment.md | `post-quantum/composite.json`, `serialization/*.json`, `malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json`, `initial-message-decode.json` (the curve-key refusals); other refusals by derived cases only |
 | `aes.py`, `aead.py`: AES-256, CBC, PKCS#7, the HMAC-SHA256 tag, the four receiver steps, one authentication failure | message-format.md Authenticated encryption | `aead/aead-encrypt.json`, `aead-decrypt.json` |
 | `ratchet.py`: the Double Ratchet: initialisation, derivations, expansion, DH triggers, `MAX_SKIP`, store bound, replacement, stale same-chain refusal, ceilings, expiry, eviction | ratchet.md, CONSTANTS.md, key-deletion.md | `ratchet/double-ratchet.json`, `malformed-input/ratchet-reject.json` |
 | `spqr.py`: the sparse ratchet: derivations, send counter, ceilings, refusals, total bound, eviction, retention, and **replacement order (fixed in pass 3, G2-01)** | sparse-pq-ratchet.md, session-persistence.md | `post-quantum/spqr.json` (chain step only) |
@@ -565,7 +653,8 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 | `protobuf.py`: the bounded protobuf profile, both message types | protobuf-profile.md, CONSTANTS.md | `protobuf/protobuf-ratchet-body.json`, `protobuf-prekey-envelope.json` |
 | `prekeys.py`: the two prekey-store rotations, each signing under `identity_public` and refusing any other identity, each stopping silently at `u32::MAX`, `rotate_kem` dropping the wiped key's record entries (pass 7) | key-deletion.md, session-persistence.md Prekey store Semantic rules | no vectors |
 | `identity.py`: the identity secret, application signatures (**the identity-key rule applied first, pass 13**), `admit_identity_key` | identities-and-devices.md | no vectors for application signatures |
-| `admission.py` (pass 13): the initiator's steps from a fetched bundle to the four agreements and the responder's from an initial message to just before decapsulation, in the pages' orders, with a recording source of random bytes and counters; no ML-KEM | session-establishment.md Sending the initial message, Receiving the initial message; identities-and-devices.md Identity keys | `identity/bundle-admission.json`, `identity/initial-message-admission.json` (the valid row is a skip, with its reason) |
+| `admission.py` (pass 13): the initiator's steps from a fetched bundle to the four agreements (**from pass 14 under a required expectation**) and the responder's from an initial message to just before decapsulation, in the pages' orders, with a recording source of random bytes and counters; no ML-KEM | session-establishment.md Sending the initial message, Receiving the initial message; identities-and-devices.md Identity keys | `identity/bundle-admission.json`, `identity/initial-message-admission.json` (the valid row is a skip, with its reason), `identity/initiator-expectation.json` |
+| `records.py` (pass 14): the identity pair digest, the verification number, records, classification, lookup, attribution, and the initiator's two expectations with their refusals (`MalformedRecord`, `UnexpectedIdentity`, `RetiredIdentity`) | identities-and-devices.md The identity pair digest, The verification number; session-establishment.md Records, expectations and attribution; CONSTANTS.md | `identity/pair-digest.json`, `verification-number.json`, `identity-classification.json`, `identity-lookup.json`, `initiator-expectation.json` |
 | `inventory.py` (pass 12): the hosted device-inventory statement, its encoding rules for bytes and for built statements, `binding_commitment`, the signed form, check 6's identity-key test, the seven checks with a caller-supplied policy (**the atomic step after check 7 refuses as `freshness` when its second evaluation refuses, pass 13**), the issuer's duty | identities-and-devices.md Hosted device-inventory statements, Accepting a signed statement; CONSTANTS.md | `groups/inventory-statements-v1.json`, `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`, `inventory-acceptance-v1.json`. Not pinned by any: the issuer's duty, recording a generation after check 7, a statement built in memory, the re-encode refusal (`../GAPS-12.md`, section 3) |
 | `inventory_vectors.py` (pass 12): the four inventory layouts and the scripted policy | tacenta-test-vectors/README.md, The hosted-inventory statements | the same four files |
 
@@ -593,7 +682,8 @@ and each is a row in the runner's table.
 | `cases_stored.py` | 15 | pass 5 (SK-04 and SK-08 changed in pass 13: `p - 1` as a stored identity key). Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). The Rejection table's six persisted formats for the short-buffer/unknown-version overlap, plus the adjacent empty, recognised-version truncation and long enough unknown-version cases (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01, rewritten in pass 7) and REQ-AUTH-11 against the protocol pages (TM-02). BK-01 and SK-08 rewritten in pass 7 for the scoped `key_pair` clause and for `p - 1` as `identity_public` |
 | `cases_inventory.py` | 24 | pass 12 (IV-09 rewritten, IV-23 and IV-24 added in pass 13). A rule applies past the first entry of a list (IV-23); two revoked bindings with one `device_id` (IV-24). The hosted device-inventory statements: the preimage (IV-01), both sort orders, byte boundaries included (IV-02), exact bindings (IV-03), generation ranges (IV-04), the UTF-8 handle (IV-22), a statement built in memory (IV-05), the three refusal kinds (IV-06), the issuer's duty (IV-07), check 4 having no effect of its own and the compare-and-advance (IV-08, IV-09), check 6 from its definition, its five low-order values, the twist, mixed torsion and single spelling (IV-10 to IV-14), check 6 before any policy (IV-15), check 5 (IV-16), check 7 (IV-17), checks 1 and 2 (IV-18), the signature input and the page's verifier (IV-19), `binding_commitment` (IV-20), the unchecked properties (IV-21) |
 | `cases_signed.py` | 12 | pass 7. The prekey store's sixth semantic rule: every signed position (PK-01), what it does not bind (PK-02), `incoherent` as a kind of its own and the other five as malformed (PK-03), its place last of all in the order of checks (PK-04), the flipped byte at offset 69 and the two readers that disagree about it (PK-05), the rule across all five versions (PK-06). The obligation on the operations, and both rotations (PK-07), and forty rotations none of whose states is refused (PK-08). Rejection's paragraph on which format gives which refusal (RJ-02). The Principles' exception to the inductive invariant (IN-03). ADR-0006's point 7 against ASM-05 and AS-12 (TM-03). The epoch relation's boundary, all twelve tags under both readings (EP-01) |
-| `cases_idkeys.py` | 17 | pass 13. Why an honest key passes (IK-01); step 3 of Verifying a signature against a mixed-order key whose signature satisfies the equation (IK-02) and application signatures (IK-03); the initiator's order of checks and what a refusal spends (IK-04 to IK-06); the bundle's other keys (IK-07); the responder's order, the store left alone and the ephemeral (IK-08, IK-09); the stored session and prekey store (IK-10, IK-11); the scans (IK-12); a repeated initial message (IK-13); the three outcomes (IK-14); the decoders (IK-15); a refused state not repaired (IK-16); a mixed-order issuer key (IK-17) |
+| `cases_records.py` | 18 | pass 14. The digest's label, byte order and symmetry (RC-01), its refusals (RC-02) and one digest per key (RC-03); the verification number (RC-04); classification's order and rules (RC-05 to RC-07); the lookup (RC-08); malformed expectations (RC-09); *known* (RC-10) and *first contact* (RC-11); the identity-key rule inside the expectation (RC-12); the expectation's place among the initiator's checks (RC-13, RC-14); no establishment without an expectation (RC-15); attribution against the records as they stand (RC-16); the responder (RC-17); the way forward from a recorded key the rule refuses (RC-18) |
+| `cases_idkeys.py` | 17 | pass 13 (IK-06 rewritten in pass 14 for the expectation). Why an honest key passes (IK-01); step 3 of Verifying a signature against a mixed-order key whose signature satisfies the equation (IK-02) and application signatures (IK-03); the initiator's order of checks and what a refusal spends (IK-04 to IK-06); the bundle's other keys (IK-07); the responder's order, the store left alone and the ephemeral (IK-08, IK-09); the stored session and prekey store (IK-10, IK-11); the scans (IK-12); a repeated initial message (IK-13); the three outcomes (IK-14); the decoders (IK-15); a refused state not repaired (IK-16); a mixed-order issuer key (IK-17) |
 
 ## Deliberate faults
 
@@ -1033,6 +1123,36 @@ named (the cases in the list are those the run reported; a `...` means more).
   bundle checks (`../GAPS-13.md` G13-04), between pinning and presence, or
   between a session's two identity keys.
 
+**Pass 14.** 55 faults and 5 controls (`../work/faults14.py`), each a textual
+change, or a set of changes that moves one check, made in a fresh copy of the
+reader, then the full runner. **54 were caught, 48 of them by a vector file**;
+the one not caught is equivalent. The table and the per-fault account are in
+`../GAPS-14.md`, section 5, and `../work/faults14.txt`.
+
+- The byte order of the key sort (F14-01 to F14-05), the label (F14-06,
+  F14-07), the digit rendering and padding (F14-11 to F14-16), the precedence
+  of *retired* over *same* in a record and of a contact's key over *retired*
+  elsewhere (F14-17, F14-26, F14-31), the identity-key rule on a presented key
+  against record members (F14-19, F14-21, F14-22, F14-41) and the order of the
+  expectation among the initiator's checks (F14-44 to F14-50, F14-55) are each
+  caught by a vector file.
+- **Caught by cases alone, six:** F14-36 (first contact looks up only the first
+  record), F14-40 (an empty first-contact record refused), F14-42 (first
+  contact without the identity-key rule), F14-43 (the malformed expectation
+  after the presence and canonical checks), F14-51 (an ambiguous session
+  attributed) and F14-52 (establishment without an expectation).
+- **Not caught: F14-54**, the expectation moved after the identity-key rule and
+  no longer applying it: equivalent, since the rule then refuses every such key
+  first with the same kind.
+- **The first run missed four** that were written wrong (F14-42, F14-47,
+  F14-48, F14-52: two added a second check without removing the first, one let
+  `None` through only one of two functions, one returned early where the rule
+  refuses anyway); each was rewritten as the change it names and is caught.
+- **C14-01 to C14-05**, the controls, fail nothing: presence before the
+  canonical-key checks, the digest checking `k2` first, `EKA` drawn before the
+  KEM checks, the redundant identity-key rule after the expectation dropped,
+  and both keys' canonical checks before either key's rule.
+
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
@@ -1102,6 +1222,8 @@ to the explicit ML-KEM and Braid-key-generation boundaries listed above.
 python3 reader/run.py                        # from the clean-room directory
 python3 reader/test_skip_allowlist.py        # the skip gate fails when it should
 python3 reader/test_session_e2e_sweep.py     # corrupt sampled bytes of the session vectors
+python3 work/faults14.py               # the pass-14 deliberate faults and controls (about three minutes)
+python3 work/check_new_vectors14.py    # pass 14: the identity-record vectors pass for the stated reasons
 python3 work/faults13.py               # the pass-13 deliberate faults and controls (about four minutes)
 python3 work/check_new_vectors13.py    # pass 13: the new vectors pass for the stated reasons
 python3 work/faults12.py               # the pass-12 deliberate faults and controls
@@ -1109,7 +1231,7 @@ python3 work/check_new_vectors12.py    # pass 12: the 237 inventory vectors pass
 # the pass-4 to pass-7 scripts were not in the tree pass 12 was read from; none of the work/ scripts is in the repository
 ```
 
-The fault scripts and vector checks of passes 4 to 7, 12 and 13 (`work/*.py`)
+The fault scripts and vector checks of passes 4 to 7 and 12 to 14 (`work/*.py`)
 were scratch files of the clean-room directories and are not in the repository.
 
 The runner prints:
@@ -1122,18 +1244,25 @@ The exit status is non-zero on any FAIL, or when the observed skips differ from
 the checked allowlist in `run.py`. A full run takes about ten seconds on a
 laptop; the sweep takes about thirty.
 
-Current result (pass 13). "Vector checks" are the lines that name a vector, and
+Current result (pass 14). "Vector checks" are the lines that name a vector, and
 "derived cases" are the `negative ::` lines, each a case the reader's authors
 derived from a sentence of the specification; the total is their sum, and the
 run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
 the same three numbers. The one skip is on the allowlist in `run.py`, with its
-reason (Not implemented, above):
+reason (Not implemented, above). Three vectors of `initiator-expectation.json`
+were added after pass 14 and pass without a change to the reader; the pass
+itself ended at 1170 PASS, 0 FAIL, 1 SKIP (`../GAPS-14.md`):
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (45 files) | 764 | 763 | 0 | 1 |
-| Derived cases (14 modules) | 264 | 264 | 0 | 0 |
-| **Total** | 1028 | 1027 | 0 | 1 |
+| Vector checks (50 files) | 892 | 891 | 0 | 1 |
+| Derived cases (15 modules) | 282 | 282 | 0 | 0 |
+| **Total** | 1174 | 1173 | 0 | 1 |
+
+At the baseline of pass 14 the runner gave 1027 PASS, 0 FAIL and 126 SKIP:
+763/0/126 for the vectors and 264/0/0 for the derived cases, the 125 vectors of
+the five identity-record files being allowlisted whole until this pass read
+them.
 
 At the baseline of pass 13 (before any change to the reader) the runner gave
 911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
@@ -1179,6 +1308,7 @@ Each gap report re-assesses its predecessors against the revision it names:
 - `../GAPS-8.md` to `../GAPS-10.md`: maintenance records (below).
 - `../GAPS-12.md`: the twelfth pass, the hosted device-inventory statements.
 - `../GAPS-13.md`: the thirteenth pass, identity keys.
+- `../GAPS-14.md`: the fourteenth pass, identity records.
 
 A gap is closed by changing the specification. Its entry is marked closed when
 the reader is next updated from the new text.
@@ -1217,8 +1347,8 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **1027 PASS, 0 FAIL, 1 SKIP** (764 vector checks
-and 264 derived cases). This supersedes the earlier pass-10 skip tally;
+derived cases merged, and the identity work of passes 13 and 14, the current
+run is **1173 PASS, 0 FAIL, 1 SKIP** (892 vector checks and 282 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12
@@ -1242,3 +1372,13 @@ specification and the vectors alone to read the three files under
 of `xeddsa.json`, and the identity-key rule at each boundary the text lists;
 re-assesses every gap left open; and records the deliberate-fault run. Pass 11
 was not used.
+
+### Pass 14
+
+`../GAPS-14.md` is a pass with an isolation record written by its own author
+(Isolation, pass 14), and it is not independent review. It read
+`98591a2c50f82c3f1a134649eafa37140ba43b0e`. It extends this reader from the
+specification and the vectors alone to read the five identity-record files
+under `vectors/identity/`, replaces the named identity with the initiator's
+expectation, re-assesses every gap left open, and records the deliberate-fault
+run.

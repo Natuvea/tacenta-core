@@ -5,7 +5,7 @@
 
 use rand::SeedableRng;
 use tacenta_core::sessions::{
-    self, Session, SessionDecodeError, establish_initiator, establish_responder,
+    self, Expectation, Session, SessionDecodeError, establish_initiator, establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -20,7 +20,8 @@ fn establish(rng: &mut rand::rngs::StdRng) -> (Session, Session, Vec<u8>) {
     let mut bob_prekeys = bob_id.create_prekeys(4, rng);
     let bundle = bob_prekeys.publish();
 
-    let mut alice = establish_initiator(&alice_id, &bundle, rng).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), rng).unwrap();
     let initial = alice.encrypt(b"hello bob", rng).unwrap();
     let (bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, rng).unwrap();
     (alice, bob, first)
@@ -95,7 +96,8 @@ fn a_freshly_established_session_survives_export_and_import() {
     let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
     let bundle = bob_prekeys.publish();
 
-    let alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let bytes = alice.export();
     let mut restored = Session::import(&bytes).unwrap();
 

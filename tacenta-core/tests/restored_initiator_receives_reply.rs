@@ -16,7 +16,9 @@
 //! does not say what an honest responder sends; this test runs one.
 
 use rand::SeedableRng;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 
 /// Byte 0 of a frame is the wire version; byte 1 is the type, which
 /// `serialization::message_type` reads (`tacenta_wire::VERSION`, `TYPE_RATCHET`).
@@ -32,7 +34,13 @@ fn restored_initiator_receives_reply() {
         let mut bob_prekeys = bob_id.create_prekeys(4, &mut rng);
         let bundle = bob_prekeys.publish();
 
-        let mut alice = establish_initiator(&alice_id, &bundle, &mut rng).unwrap();
+        let mut alice = establish_initiator(
+            &alice_id,
+            &bundle,
+            &Expectation::first_contact(&[]),
+            &mut rng,
+        )
+        .unwrap();
         let saved = alice.export();
 
         let initial = alice.encrypt(b"hello bob", &mut rng).unwrap();

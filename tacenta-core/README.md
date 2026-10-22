@@ -17,9 +17,16 @@ tacenta-core and Tacenta are not affiliated with, endorsed by, or sponsored by
 Signal Messenger LLC or the Signal Foundation. "Signal" and "libsignal" are used
 only to name the published protocols and the third-party software they refer to.
 
-Status: the implementation is live. What ships: PQXDH session establishment, the classical Double Ratchet, the sparse
-post-quantum ratchet and the ML-KEM Braid beneath it, their composition as the
-Triple Ratchet, the wire and storage formats, and a protobuf profile. Eight
+Status: the implementation is live. What the library holds: PQXDH session establishment, the classical Double
+Ratchet, the sparse post-quantum ratchet and the ML-KEM Braid beneath it, their
+composition as the Triple Ratchet, the wire and storage formats, a protobuf
+profile, and identity records, that is the identity pair digest, the
+classification and lookup of a key against a party's records, and initiator
+establishment under an expectation (`sessions::identity`, outside the
+translated crates, and tested, not proved). The product (the application, FFI
+and SDK layers above the crate) has not adopted identity records yet, so it
+builds on a revision of this crate from before them, whose initiator
+establishment takes no expectation. Eight
 crates carry T1 panic-freedom and T3 refinement proofs (the erasure crate's T3
 covers its field arithmetic only, not the encoder or decoder; the Braid's T3
 takes a liveness and an unspliced-stream precondition and, for the receive, the bound

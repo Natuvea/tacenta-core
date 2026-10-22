@@ -552,8 +552,13 @@ fn observed(v: &Vector, flow: Flow) -> Result<BTreeMap<String, Vec<u8>>, String>
             ],
         )?,
     );
-    let mut alice_session = sessions::establish_initiator(&alice, &published, &mut establish_rng)
-        .map_err(|e| format!("initiator establishment: {e:?}"))?;
+    let mut alice_session = sessions::establish_initiator(
+        &alice,
+        &published,
+        &sessions::Expectation::first_contact(&[]),
+        &mut establish_rng,
+    )
+    .map_err(|e| format!("initiator establishment: {e:?}"))?;
     establish_rng.finish()?;
 
     let mut send_rng = ExactRng::new(

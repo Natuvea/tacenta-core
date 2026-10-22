@@ -450,6 +450,58 @@ this section says in one place what is not proved.
   at a re-translation. `Proofs.Serialization.decode_encode_composite` rests on three `bv_decide` lemmas. `attest.py`'s
   `COMPILER_TRUSTED_PINS` lists exactly these twelve and refuses an entry whose pin lists no compiler-trust axiom.
 
+- **Identity records are tested and pinned, and the public initiator entry is
+  outside every proof.** The identity pair digest, the verification number, the
+  classification of a key against a record, the lookup across records and
+  initiator establishment under an expectation (ADR-0009; REQ-AUTH-02, -15 and
+  -16) are implemented in `tacenta-core/src/sessions/identity.rs`, outside the
+  translated crates. For `tacenta-core` they are tested only: unit tests there,
+  `tacenta-core/tests/identity_expectation.rs` and `identity_responder.rs`, and
+  128 vectors in five files, generated from the model or checked against it,
+  which the Rust runner checks against the crate and the independent reader reads
+  with no failure (125 of them at its fourteenth pass, and three added after it
+  that pass without a change to the reader). The model states them, and what is
+  proved is about the model alone: the section "Proved (tier T2, in the model:
+  identity records and the initiator's expectation)" claims 35 theorems of the
+  definitions (the digest the same in either order, the classification's order
+  of checks, the lookup giving a result for every identity key and its four
+  outcomes a partition, a malformed expectation
+  refused first, and nothing drawn for a refusal by the expectation). No theorem
+  relates the model's definitions to the crate's functions, and nothing proves
+  SHA-256 or the strength of the 60-digit number: about `2^100` work for an
+  attacker, only when all 60 digits are compared, resting on SHA-256's output
+  reduced mod `10^60` behaving as a random function (REQ-AUTH-16 is assumed,
+  ASM-07). Not provided by this change or by any proof: how an application
+  attributes and shows plaintexts, the records' storage, integrity and
+  rollback, device handling, and key transparency; nothing proves that an
+  identity key belongs to the person a user means (ASM-14 is an assumption).
+  `tacenta_core::sessions::establish_initiator` is now a wrapper in that file:
+  it checks the expectation, then calls the lifecycle leaf's
+  `establish_initiator_for` with the bundle's own identity key, and returns what
+  that call returns. The leaf's `establish_initiator` and
+  `establish_initiator_for` are no longer re-exported, a breaking change to the
+  crate's API. The crate's own callers (its tests, the fuzz targets and the
+  vector runner) call the wrapper, apart from two tests about the leaf itself,
+  which call it on purpose: `tests/identity_boundary.rs`, and the comparison
+  with the leaf in `tests/identity_expectation.rs`. The application, FFI and
+  SDK layers above the crate have not adopted the wrapper yet, so the product
+  does not use it.
+  Every result in this file about `establish_initiator_for` is about the leaf
+  function, and every result on the eight-leaf session unit is about the
+  lifecycle leaf's functions; none is about the wrapper. That those results apply to the session the wrapper returns rests on a
+  reading of the wrapper (it draws nothing and changes nothing before the call,
+  and passes the result on), checked by tests and not in Lean. That hop is
+  unverified. `tooling/check_authentication_boundary.py` now also scans
+  `tacenta-core/src/sessions`, and registers the wrapper and
+  `establish_responder_unattributed`; it reads signatures, not bodies. The
+  responder adds no refusal: `establish_responder_unattributed` calls the leaf's
+  `establish_responder` unchanged and returns its first plaintext as
+  unattributed, for the application to attribute by a lookup (ASM-14). The
+  wrapper keeps the lookup beside the value and does not enforce one: given no
+  records, `attribute` releases the value as unattributed, and the leaf's
+  `establish_responder`, which returns the plaintext unwrapped, is still
+  exported.
+
 The honest one-line summary: **the protocol core is proved to refine a model
 under stated assumptions; the code path a customer's message actually travels
 is not proved as a whole.** `LIMITATIONS.md` gives the detail behind each point
@@ -1064,6 +1116,117 @@ Location: `tacenta-proofs/Proofs/Serialization.lean`.
   headers and asks about bytes the encoder produced, so it says nothing about
   which byte strings the decoder accepts. Canonicality is the other direction
   and is enforced by construction and by test, not yet by proof.
+
+## Proved (tier T2, in the model: identity records and the initiator's expectation)
+
+Location: `tacenta-model/Model/IdentityRecords.lean` and
+`tacenta-model/Model/InitiatorExpectation.lean`.
+
+**What these are about.** The two modules state, from `identities-and-devices.md`
+(The identity pair digest, The verification number) and `session-establishment.md`
+(Records, expectations and attribution; Sending the initial message), the identity
+pair digest, the verification number, the classification of a key against a
+record, the lookup across records, and the initiator's establishment under an
+expectation (ADR-0009; REQ-AUTH-02, REQ-AUTH-15, REQ-AUTH-16). The theorems below
+are properties of those definitions, tier T2. None of them says that the
+definitions compute what the pages say, which rests on a reading of the pages, on
+the vectors and on the independent reader; and none says that `tacenta-core`
+computes them, which is tested only, by the five identity-record vector files
+(`pair-digest.json`, `verification-number.json`, `identity-classification.json`,
+`identity-lookup.json`, `initiator-expectation.json`: 128 vectors), checked against
+`tacenta-core` by the Rust runner, and by the crate's tests. The implementation,
+`tacenta-core/src/sessions/identity.rs`, is outside the translated crates, and no
+theorem in this file is about it ("Read this first", the bullet on identity
+records).
+
+The digest's SHA-256 is `Model.Sha256.hash`, which is checked against the FIPS
+examples and has a length theorem; it is not proved correct, and nothing here
+proves anything about SHA-256's collision resistance or the reduction of its
+output to 60 digits (REQ-AUTH-16 is assumed, ASM-07). In the initiator's step the
+identity-key rule is the lifecycle model's oracle bit `oracle.identityValid`; that
+it agrees with `Model.IdentityKey.valid` is not proved here (the vector generator
+fixes the one to the other). The model has no decoder for the bundle: decoding is
+the caller's, and no order is fixed between it and a malformed expectation.
+
+The two modules declare 66 theorems, two of them private helpers; the 35 named
+below are claimed. Each is pinned under `#guard_msgs` in
+`Proofs/TrustedBase.lean`: 17 rest on `propext` alone, 14 on `propext` and
+`Quot.sound`, and 4 (`verificationNumber_digits`, `decimalValue_verificationNumber`,
+`groupsOfFive_verificationNumber`, `rule_first`) on the kernel's three axioms; none
+rests on a compiler-trust axiom. The 113 `example`s in the two files run the
+definitions on the vectors' cases, and are checked by kernel evaluation
+(`decide +kernel`); they are checks of cases, not theorems.
+
+- `digestOf_comm`, `pairDigest_comm_ok`: the digest of the sorted pair is the
+  same in either argument order, and when one order is accepted the other gives
+  the same digest.
+- `pairDigest_ok_iff`, `pairDigest_error_allowed`, `allowedRefusals_comm`: the
+  digest is given exactly when neither key is refused (the canonical encoding
+  first, then the identity-key rule `Model.IdentityKey.valid`), and a refusal is
+  a refusal of one of the two keys, from a set that is the same in either order.
+  Which of two refusals the model reports is its own choice, the first key's.
+- `digestOf_length`: the digest is 32 bytes, given the length theorem of
+  `Model.Sha256.hash`.
+- `verificationNumber_length`, `verificationNumber_digits`,
+  `decimalValue_verificationNumber`: the number is 60 bytes, each an ASCII digit,
+  and read back in decimal it is the digest's big-endian value mod `10^60`.
+- `groupsOfFive_verificationNumber`: twelve groups of five hold the same digits
+  in the same order.
+- `classify_key_refusal`, `classify_malformed`: the presented key's refusal (a
+  decode failure, or an invalid identity key) comes before any member is read,
+  whatever the record holds; a record with a non-canonical member refuses the
+  classification of an identity key, even when the key matches another member.
+- `classify_retired`, `classify_same`, `classify_new`, `classify_both_retired`:
+  for an identity key and a well-formed record, *retired* if the key is in the
+  retired set, otherwise *same* if it is in the current set, otherwise *new*; a
+  key in both sets is *retired*.
+- `classify_congr`: two records with the same members, in any order and with any
+  repeats, classify every key alike.
+- `classify_member_is_identity_key`: a *same* or *retired* result means the key
+  passed the identity-key rule and is a member, so a canonical member that is not
+  an identity key never matches a presented key.
+- `lookup_key_refusal`, `lookup_total`: a refused key refuses the lookup and no
+  record is reported; for an identity key the lookup gives a result over every
+  list of records.
+- `attributionOf_cases`, `lookup_result`: a lookup's attribution is exactly one
+  of four outcomes of the contacts the key is *same* and *retired* for: a
+  contact's (same for exactly one), ambiguous (same for two or more), a retired
+  key (same for none, retired for one or more) and unattributed (neither); the
+  retired-for contacts and the malformed records are reported beside it.
+- `known_empty_malformed`: a *known* expectation with a record that holds no key
+  is malformed.
+- `check_key_refusal`: a key that is not an identity key is refused as such by the
+  expectation's check, under either form and whatever the records hold.
+- `check_known_none_iff`, `check_firstContact_none_iff`: under *known*, the key
+  goes on exactly when it is an identity key, the record is well formed, and the
+  key is in the current set and not the retired set; under *first contact*,
+  exactly when it is an identity key that is *same* and *retired* for no contact.
+- `malformed_first`: a malformed expectation is refused first, for every bundle,
+  identity and oracle, and the oracle is left as it was.
+- `presence_before_expectation`, `canonical_before_expectation`: a well-formed
+  expectation does not stop a bundle's presence refusal or its canonical-key
+  refusal, which come before the expectation's check, whatever that check would
+  say.
+- `expectation_refusal`, `refusal_keeps_oracle`: a refusal by the expectation is
+  the step's result, and the oracle is left as it was, so in the model nothing is
+  drawn, verified or computed for it.
+- `expectation_refusal_independent`: two oracles that share the identity-key rule
+  and differ in everything else give the same result for a bundle the expectation
+  refuses, so a bad signature, a KEM prekey that fails its input checks or a
+  low-order prekey under a refused key does not change the refusal.
+- `rule_first`: a bundle whose identity key is canonical and 32 bytes but fails
+  the oracle's identity-key rule is refused as an invalid identity key, under
+  either form, whatever the records hold, with the oracle left as it was.
+- `success_is_leaf`, `leaf_key_checks_redundant`: past the expectation the step
+  is the unchanged lifecycle model's `establishInitiator`, called with the
+  bundle's own identity key, and that step's own identity comparison and
+  identity-key rule never end it.
+
+Every hypothesis these take is met by some input: the `example`s include a
+malformed expectation, a presence and a canonical-key refusal, each refusal of
+the expectation, a key the rule refuses, and sessions, in the cases the vectors
+carry, at keys the examples choose. The model's toy oracle (`Model.Lifecycle.Examples.toyOracle`) does
+no cryptography, so the examples say nothing about real signatures or agreements.
 
 ## Proved (tier T1, the translated code cannot fail)
 
@@ -2851,8 +3014,9 @@ of `Decoder::new` is not a theorem.
   "Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)").
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`:
   (`establish_responder_no_panic` took a record with a false field until the repair, see above) the two establishment
-  entry points return, the responder's with room in its
-  last-resort record.
+  entry points of the lifecycle leaf return, the responder's with room in its
+  last-resort record. Neither covers `tacenta_core::sessions::establish_initiator`, the wrapper outside the translated
+  crates through which the initiator is now established ("Read this first", the bullet on identity records).
 - `invariant_gives_preconditions`: given `Ct1LenTotal` (the translated `CT1_LEN`
   returns a value of at most 4096), a session for which `Session::invariant`
   returns `true` has the preconditions the inner Triple and Braid theorems carry.
@@ -4269,6 +4433,12 @@ requires Lean to refuse each at a named declaration or at that pin.
 
 Location: `Translation/UnitLifecycleEstablishInitiatorShape.lean`, `Translation/UnitLifecycleEstablishedDecrypt.lean`.
 
+`establish_initiator_for` here is the lifecycle leaf's function. Since identity records it is not re-exported:
+`tacenta_core::sessions::establish_initiator` is a wrapper outside the translated crates that checks the initiator's
+expectation and then calls it with the bundle's own identity key. No result in this section is about the wrapper; that it
+returns the leaf's session unchanged is a reading of its code, tested and not proved ("Read this first", the bullet on
+identity records).
+
 `decrypt_ratchet_refines_of_invariant` (previous section) takes `Session::invariant`, `SessionRefines` and `CounterHeadroom`
 of the session it runs on, and until these results every session they were shown at was built for them (`sessionOf`,
 `invReal`). These results derive the three from an actual establishment result: for every identity, published bundle,
@@ -4858,6 +5028,10 @@ pin of `restored_decrypt_laws_model`).
 ## Proved (tier T3, session lifecycle: the public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the session a successful send leaves, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleEstablishedEncrypt.lean`.
+
+As in the previous such section, `establish_initiator_for` is the lifecycle leaf's function and not the wrapper
+`tacenta_core::sessions::establish_initiator`; that these results reach a session the wrapper returns is a tested reading,
+not a proof.
 
 These results start from an actual establishment result: for every identity, published bundle, expected identity and
 source `rng0` with `lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 = ok (.Ok s, rng1)`, every plaintext

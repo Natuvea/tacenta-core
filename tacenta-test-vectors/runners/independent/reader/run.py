@@ -35,6 +35,7 @@ EXPECTED_SKIPS = {
     # AEAD and the plaintext.
     "identity/initial-message-admission.json :: honest-initial-message",
 }
+
 _OBSERVED_SKIPS = set()
 
 
@@ -50,8 +51,9 @@ import copy  # noqa: E402
 import re  # noqa: E402
 
 import session_e2e  # noqa: E402
-from tacenta_reader import admission, aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
+from tacenta_reader import admission, aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, records, spqr, triple, wire  # noqa: E402
 from tacenta_reader.kdf import hkdf_sha256, hmac_sha256  # noqa: E402
+from tacenta_reader import constants as K  # noqa: E402
 
 bx = bytes.fromhex
 
@@ -1028,7 +1030,10 @@ def h_bundle_admission(v):
         raise Fail(f"vector: inputs {sorted(i)}")
     rng, ctr = admission.Rng(), admission.Counters()
     try:
-        got = admission.initiator_prefix(bx(i["bundle"]), bx(i["initiator_identity_secret"]), rng, ctr)
+        # Pass 14: establishment takes an expectation. The vectors README: "each case is
+        # establishment under *first contact* with no records, which keeps every outcome".
+        got = admission.initiator_prefix(bx(i["bundle"]), bx(i["initiator_identity_secret"]), rng,
+                                         records.FirstContact(()), ctr)
     except (wire.DecodeError, wire.BundleRefused, wire.InvalidIdentityKey, curve25519.NonContributory,
             admission.pqxdh.KemPrekeyRefused) as e:
         kind = _identity_refusal(e)
@@ -1086,6 +1091,266 @@ def h_initial_message_admission(v):
                "Checked: the store reads, the message decodes, its identity is an identity key, the prekeys it "
                "names are held, its KEM ciphertext has the KEM's length, the four agreements are contributory, "
                "the ratchet message inside decodes. Not checked: decapsulation, SK, the AEAD, the plaintext")
+
+# ------------------------------------------------- identity records (pass 14)
+# identities-and-devices.md, The identity pair digest and The verification
+# number; session-establishment.md, Records, expectations and attribution, with
+# Sending the initial message for the initiator. Layouts: the vectors README,
+# "Identity records". Every invalid vector names its refusal, with `refusal` or
+# `acceptable_refusals`.
+
+_RECORD_REFUSALS = (
+    (records.MalformedRecord, "malformed-record"),
+    (records.UnexpectedIdentity, "unexpected-identity"),
+    (records.RetiredIdentity, "retired-identity"),
+    (wire.InvalidIdentityKey, "invalid-identity-key"),
+    (wire.DecodeError, "decode-failure"),
+    (wire.InconsistentBundle, "inconsistent-bundle"),
+    (wire.NonCanonicalBundleKey, "non-canonical-key"),
+    (wire.BundleSignatureFails, "authentication-failure"),
+    (pqxdh.KemPrekeyRefused, "kem-input"),
+    (curve25519.NonContributory, "non-contributory"),
+)
+_RECORD_REFUSAL_TYPES = tuple(t for t, _ in _RECORD_REFUSALS)
+
+
+def _record_refusal(e):
+    for t, name in _RECORD_REFUSALS:
+        if isinstance(e, t):
+            return name
+    return type(e).__name__
+
+
+def _named_refusals(v):
+    """The refusals an invalid vector allows: `refusal`, or the list in
+    `acceptable_refusals` (never both)."""
+    if "refusal" in v and "acceptable_refusals" in v:
+        raise Fail("vector: carries both refusal and acceptable_refusals")
+    if "acceptable_refusals" in v:
+        allowed = v["acceptable_refusals"]
+        if len(allowed) < 2 or len(set(allowed)) != len(allowed):
+            raise Fail(f"vector: acceptable_refusals {allowed!r}")
+        return set(allowed)
+    if "refusal" not in v:
+        raise Fail("vector: an invalid vector names no refusal")
+    return {v["refusal"]}
+
+
+def _valid(v):
+    return v.get("result", "valid") == "valid"
+
+
+def _keys_of(hexstr, what):
+    """A list of keys: "the keys' 32-byte encodings concatenated, empty for an
+    empty list"."""
+    raw = bx(hexstr)
+    if len(raw) % 32:
+        raise Fail(f"vector: {what} is {len(raw)} bytes, not a list of 32-byte keys")
+    return [raw[j:j + 32] for j in range(0, len(raw), 32)]
+
+
+def _records_of(hexstr):
+    """A list of records: "a 4-byte big-endian count, then for each record a
+    4-byte count of its current keys, those keys, a 4-byte count of its retired
+    keys and those keys. The n-th record, counting from 0, is contact n's.\""""
+    raw = bx(hexstr)
+    pos = 0
+
+    def take(n):
+        nonlocal pos
+        if pos + n > len(raw):
+            raise Fail("vector: records run past the end")
+        out = raw[pos:pos + n]
+        pos += n
+        return out
+
+    out = []
+    for _ in range(int.from_bytes(take(4), "big")):
+        current = [take(32) for _ in range(int.from_bytes(take(4), "big"))]
+        retired = [take(32) for _ in range(int.from_bytes(take(4), "big"))]
+        out.append(records.Record.of(current, retired))
+    if pos != len(raw):
+        raise Fail("vector: trailing bytes after the records")
+    return out
+
+
+_ATTRIBUTION_BYTE = {records.UNATTRIBUTED: 0, records.CONTACT: 1, records.AMBIGUOUS: 2, records.RETIRED_KEY: 3}
+
+
+def _lookup_fields(result):
+    """A lookup's result as the README lays it out: `attribution`, `contact`
+    (only for `01`), `retired_for` and `malformed`, contacts as 4 bytes each in
+    record order."""
+    f = OrderedDict()
+    f["attribution"] = "%02x" % _ATTRIBUTION_BYTE[result.attribution]
+    if result.attribution == records.CONTACT:
+        f["contact"] = _h4(result.contact)
+    f["retired_for"] = "".join(_h4(n) for n in result.retired_for)
+    f["malformed"] = "".join(_h4(n) for n in result.malformed)
+    return f
+
+
+def _check_fields(expected, got):
+    if set(expected) != set(got):
+        raise Fail(f"field names: expected {sorted(expected)}, got {sorted(got)}")
+    for name in expected:
+        d = diff(expected[name], got[name], name)
+        if d:
+            raise Fail(d)
+
+
+def _refused_as(v, e):
+    kind = _record_refusal(e)
+    if _valid(v):
+        raise Fail(f"refused ({kind}: {e}); the vector is valid")
+    allowed = _named_refusals(v)
+    if kind not in allowed:
+        raise Fail(f"refused as {kind}, the vector names {sorted(allowed)}: {e}")
+    return kind
+
+
+def h_pair_digest(v):
+    """identity_pair_digest(k1, k2). A valid vector's `fields` are `digest`
+    and `verification_number`, the 60 ASCII digits."""
+    i = v["inputs"]
+    if set(i) != {"k1", "k2"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    try:
+        digest = records.identity_pair_digest(bx(i["k1"]), bx(i["k2"]))
+    except _RECORD_REFUSAL_TYPES as e:
+        _refused_as(v, e)
+        return
+    if not _valid(v):
+        raise Fail(f"digest computed; expected {sorted(_named_refusals(v))}")
+    # "Both parties compute the same digest, whichever of them computes it"
+    if records.identity_pair_digest(bx(i["k2"]), bx(i["k1"])) != digest:
+        raise Fail("the digest depends on the order of its arguments")
+    _check_fields(v["fields"], {"digest": digest.hex(),
+                                "verification_number": records.verification_number(digest).encode("ascii").hex()})
+
+
+def h_verification_number(v):
+    """verification_number(digest): the `output` is the 60 ASCII digits."""
+    i = v["inputs"]
+    if set(i) != {"digest"} or not _valid(v):
+        raise Fail(f"vector: inputs {sorted(i)}, result {v.get('result')}")
+    check(v["output"], records.verification_number(bx(i["digest"])).encode("ascii"), "verification number")
+
+
+_CLASS_BYTE = {records.SAME: b"\x01", records.NEW: b"\x02", records.RETIRED: b"\x03"}
+
+
+def h_identity_classification(v):
+    """classify(key, record): `output` 01 same, 02 new, 03 retired."""
+    i = v["inputs"]
+    if set(i) != {"key", "current", "retired"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    record = records.Record.of(_keys_of(i["current"], "current"), _keys_of(i["retired"], "retired"))
+    try:
+        cls = records.classify(bx(i["key"]), record)
+    except _RECORD_REFUSAL_TYPES as e:
+        _refused_as(v, e)
+        return
+    if not _valid(v):
+        raise Fail(f"classified as {cls}; expected {sorted(_named_refusals(v))}")
+    check(v["output"], _CLASS_BYTE[cls], "class")
+
+
+def h_identity_lookup(v):
+    """lookup(key, records): a valid vector's `fields` are a lookup's result; a
+    refused key reports no record."""
+    i = v["inputs"]
+    if set(i) != {"key", "records"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    recs = _records_of(i["records"])
+    try:
+        result = records.lookup(bx(i["key"]), recs)
+    except _RECORD_REFUSAL_TYPES as e:
+        _refused_as(v, e)
+        return
+    if not _valid(v):
+        raise Fail(f"looked up as {result.attribution}; expected {sorted(_named_refusals(v))}")
+    _check_fields(v["fields"], _lookup_fields(result))
+
+
+def _bundle_fields(raw):
+    """`bundle_fields`: "the same layout (message-format.md, Prekey bundle) for
+    a bundle it refuses ... A runner reads bundle_fields by the layout, without
+    the decoder." Lengths only: no canonical, kem_prekey_len or padding rule."""
+    pos = 0
+
+    def take(n):
+        nonlocal pos
+        if pos + n > len(raw):
+            raise Fail("vector: bundle_fields run past the end")
+        out = raw[pos:pos + n]
+        pos += n
+        return out
+
+    if take(2) != bytes([K.VERSION, K.TYPE_BUNDLE]):
+        raise Fail("vector: bundle_fields framing")
+    ik, spk, spk_sig = take(32), take(32), take(64)
+    kem = take(int.from_bytes(take(4), "big"))
+    kem_sig = take(64)
+    present, otpk = take(1)[0], take(32)
+    ids = [int.from_bytes(take(4), "big") for _ in range(3)]
+    if pos != len(raw) or present not in (K.ABSENT, K.PRESENT):
+        raise Fail("vector: bundle_fields layout")
+    return wire.PrekeyBundle(ik, spk, spk_sig, kem, kem_sig, otpk if present == K.PRESENT else None, *ids)
+
+
+# The refusals the README says are made "before anything is drawn"; the first
+# six also before either signature is verified (the page orders them so).
+_BEFORE_SIGNATURES = {"malformed-record", "unexpected-identity", "retired-identity", "invalid-identity-key",
+                      "inconsistent-bundle", "non-canonical-key", "decode-failure"}
+
+
+def h_initiator_expectation(v):
+    """Initiator establishment under an expectation. Inputs: `expectation` (`00`
+    first contact over all of `records`; `01` and a 4-byte contact for known,
+    whose record is that contact's), `records`, `initiator_identity_secret`, and
+    `bundle` (decoded) or `bundle_fields` (read by the layout). A valid
+    vector's `fields` are `peer_identity` and the lookup of it in all of
+    `records`."""
+    i = v["inputs"]
+    which = {"bundle", "bundle_fields"} & set(i)
+    if set(i) != {"expectation", "records", "initiator_identity_secret"} | which or len(which) != 1:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    recs = _records_of(i["records"])
+    e = bx(i["expectation"])
+    if e == b"\x00":
+        expectation = records.FirstContact(tuple(recs))
+    elif len(e) == 5 and e[0] == 1:
+        n = int.from_bytes(e[1:], "big")
+        if n >= len(recs):
+            raise Fail("vector: known names a contact with no record")
+        expectation = records.Known(recs[n])
+    else:
+        raise Fail(f"vector: expectation {i['expectation']}")
+    bundle = bx(i["bundle"]) if "bundle" in i else _bundle_fields(bx(i["bundle_fields"]))
+    rng, ctr = admission.Rng(), admission.Counters()
+    try:
+        got = admission.initiator_prefix(bundle, bx(i["initiator_identity_secret"]), rng, expectation, ctr)
+    except _RECORD_REFUSAL_TYPES as err:
+        kind = _refused_as(v, err)
+        # The README: "Every refusal but the last two is made before anything is drawn".
+        # kem-input may follow the draw of EKA ("Whether she has drawn EKA before these
+        # checks is not fixed"), but no agreement ("She has then computed no agreement").
+        if kind not in ("kem-input", "non-contributory") and (rng.draws or ctr.agreements or ctr.encapsulations):
+            raise Fail(f"{kind} after work: draws {rng.draws}, agreements {ctr.agreements}")
+        if kind == "kem-input" and ctr.agreements:
+            raise Fail(f"kem-input after {ctr.agreements} agreement(s)")
+        if kind in _BEFORE_SIGNATURES and ctr.signatures_verified:
+            raise Fail(f"{kind} after {ctr.signatures_verified} signature(s) verified")
+        return
+    if not _valid(v):
+        raise Fail(f"established; expected {sorted(_named_refusals(v))}")
+    if ctr.signatures_verified != 2 or rng.draws != [32, 32]:
+        raise Fail(f"established with {ctr.signatures_verified} signatures verified and draws {rng.draws}")
+    fields = OrderedDict(peer_identity=got.identity_key.hex())
+    fields.update(_lookup_fields(records.lookup(got.identity_key, recs)))
+    _check_fields(v["fields"], fields)
+
 
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
@@ -1216,6 +1481,11 @@ HANDLERS = {
     "identity-key": h_identity_key,
     "bundle-admission": h_bundle_admission,
     "initial-message-admission": h_initial_message_admission,
+    "pair-digest": h_pair_digest,
+    "verification-number": h_verification_number,
+    "identity-classification": h_identity_classification,
+    "identity-lookup": h_identity_lookup,
+    "initiator-expectation": h_initiator_expectation,
 }
 
 
@@ -1420,6 +1690,7 @@ CASE_MODULES = [
     "cases_signed",       # the prekey store's signature rule and its refusal kind, the rotations' obligation (pass 7)
     "cases_inventory",    # hosted device-inventory statements and the seven checks (pass 12)
     "cases_idkeys",       # identity keys at each boundary, step 3 of Verifying a signature (pass 13)
+    "cases_records",      # identity pair digest, verification number, records, lookup, expectations (pass 14)
 ]
 
 

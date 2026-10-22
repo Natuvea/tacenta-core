@@ -29,6 +29,23 @@ class BundleRefused(Exception):
     """The initiator refuses a decoded bundle (session-establishment.md)."""
 
 
+# Pass 14. The page names no kind for the bundle's own refusals; the vectors'
+# schema names them (`inconsistent-bundle`, `non-canonical-key`,
+# `authentication-failure`), so the reader keeps them apart as subclasses.
+class InconsistentBundle(BundleRefused):
+    """The one-time curve prekey and its identifier disagree about presence."""
+
+
+class NonCanonicalBundleKey(BundleRefused):
+    """A bundle's identity key, signed prekey or one-time curve prekey is not
+    the canonical encoding of a curve public key."""
+
+
+class BundleSignatureFails(BundleRefused):
+    """A prekey signature in the bundle does not verify: an authentication
+    failure (error-handling.md)."""
+
+
 class InvalidIdentityKey(Exception):
     """A canonical curve public key that is not an identity key.
 
@@ -429,50 +446,74 @@ def decode_bundle(buf: bytes, kem_prekey_len: Optional[int] = K.MLKEM1024_EK_LEN
 
 
 def initiator_check_bundle(b: PrekeyBundle,
-                           expected_identity: Optional[bytes] = None,
+                           expectation,
                            verify: Optional[Callable[[bytes, bytes, bytes], Optional[bytes]]] = None,
-                           kem_prekey_len: int = K.MLKEM1024_EK_LEN) -> None:
-    """The initiator's refusals before any agreement is computed.
+                           kem_prekey_len: Optional[int] = None) -> None:
+    """The initiator's refusals before any random value is drawn, in the order
+    session-establishment.md gives (pass 14).
 
-    session-establishment.md, Sending the initial message: verify every
-    signature (over the tagged forms, message-format.md), refuse an identity
-    that is not the one named, refuse a one-time prekey / identifier presence
-    disagreement. Identifier 0 in the signed or KEM prekey position is not
-    checked: "an initiator does not check for it in a bundle and echoes it"
-    (message-format.md, Key identifiers).
+    `expectation` is required: "The initiator establishes only with an
+    expectation", and "an implementation that offers initiator establishment
+    without an expectation, or with a named key in place of a record, does not
+    conform" (CHANGELOG, [Unreleased], Changed). It is a `records.Known` or a
+    `records.FirstContact`. The named identity pass 13 read ("when its identity
+    key is not the one she set out to reach (when she names one)") is gone from
+    the page, and with it this function's `expected_identity`.
 
-    Pass 5: "She also refuses a bundle before encapsulating when ... its
-    identity key, signed prekey or one-time curve prekey is not the canonical
-    encoding of a curve public key ... The check is for a bundle that reaches
-    her some other way". The page names no refusal kind; this reader reports
-    BundleRefused, as for the other refusals in the same sentence.
+    1. Malformed expectation: "She refuses an expectation as a malformed record
+       (`MalformedRecord`), before any check of Sending the initial message".
+       The caller (`admission.initiator_prefix`) makes that check before it
+       decodes the bundle; it is made here again, which changes nothing for a
+       well-formed one, so that this function never runs on a malformed one.
+    2. The canonical-key checks and the presence check: "She also refuses a
+       bundle before encapsulating when its one-time curve prekey and that
+       prekey's identifier disagree about whether one is present ..., or when
+       its identity key, signed prekey or one-time curve prekey is not the
+       canonical encoding". Their order among themselves is not fixed (the
+       vectors README: "the order of the presence check and the canonical-key
+       checks (no vector fails both)"); this reader makes the canonical checks
+       first. Identifier 0 in the signed or KEM prekey position is not checked
+       (message-format.md, Key identifiers).
+    3. The expectation: "She checks the bundle's identity key against her
+       expectation ... after the bundle's presence and canonical-key checks,
+       and before the identity-key rule, the signature checks, the KEM
+       prekey's input checks and anything that draws randomness or computes an
+       agreement." The check applies the identity-key rule to the key first.
+    4. The identity-key rule: "She makes that check after the presence and
+       canonical checks above and the check against her expectation, and
+       before she verifies either signature". After step 3 it refuses nothing
+       more (step 3 already applied the rule); it is kept because the page
+       states it.
+    5. Both signatures under IKB, over the tagged forms.
 
-    Pass 13: "A bundle whose canonical `IKB` is not an identity key
-    (identities-and-devices.md, Identity keys) is refused as an invalid
-    identity key. She makes that check after the presence, pinning and
-    canonical checks above and before she verifies either signature, draws a
-    random value or encapsulates". So the order is: presence, pinning and
-    canonical (among which the page fixes none), then the identity-key rule
-    (InvalidIdentityKey), then the signatures. "The other keys of the bundle
-    are not held to it: SPKB and a one-time curve prekey need the canonical
-    encoding and a contributory result, and no more."
+    The KEM prekey's input checks, the draws and the agreements follow, in
+    `admission.initiator_prefix`.
+
+    `kem_prekey_len`: the width of `EncodeKEM` in the KEM prekey signature's
+    input. None takes the key's own length, so a bundle that reached the
+    initiator with a KEM prekey of the wrong length (not from the decoder,
+    which refuses one) has its signature checked over the type byte and the
+    key's bytes; the KEM prekey's input checks refuse the length afterwards
+    (G14-06).
     """
+    from . import records
+    records.check_expectation_wellformed(expectation)
     for what, key in (("identity key", b.identity_key), ("signed prekey", b.signed_prekey),
                       ("one-time curve prekey", b.one_time_prekey)):
         if key is not None and not is_canonical_curve_key(key):
-            raise BundleRefused(f"the bundle's {what} is not the canonical encoding of a curve public key")
-    if expected_identity is not None and bytes(expected_identity) != b.identity_key:
-        raise BundleRefused("identity key is not the one the initiator set out to reach")
+            raise NonCanonicalBundleKey(f"the bundle's {what} is not the canonical encoding of a curve public key")
     has_key = b.one_time_prekey is not None
     has_id = b.one_time_prekey_id != K.ABSENT_ID
     if has_key != has_id:
-        raise BundleRefused("one-time prekey and its identifier disagree about presence")
+        raise InconsistentBundle("one-time prekey and its identifier disagree about presence")
+    records.check_bundle_identity(expectation, b.identity_key)
     from .curve25519 import is_identity_key
     if not is_identity_key(b.identity_key):
         raise InvalidIdentityKey("the bundle's identity key is not an identity key")
     if verify is None:
         from .curve25519 import xeddsa_verify as verify  # noqa: N813
     if verify(b.identity_key, encode_ec(b.signed_prekey), b.signed_prekey_signature) is None:
-        raise BundleRefused("signed prekey signature does not verify")
-    if verify(b.identity_key, encode_kem(b.kem_prekey, kem_prekey_len), b.kem_prekey_signature) is None:
-        raise BundleRefused("KEM prekey signature does not verify")
+        raise BundleSignatureFails("signed prekey signature does not verify")
+    width = len(b.kem_prekey) if kem_prekey_len is None else kem_prekey_len
+    if verify(b.identity_key, encode_kem(b.kem_prekey, width), b.kem_prekey_signature) is None:
+        raise BundleSignatureFails("KEM prekey signature does not verify")

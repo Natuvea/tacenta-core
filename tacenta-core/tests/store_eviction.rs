@@ -19,7 +19,9 @@
 use rand::SeedableRng;
 use tacenta_core::ratchet::{MAX_SKIP, MAX_SKIPPED_STORE};
 use tacenta_core::serialization::{decode_message, encode_message};
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_core::sessions::{
+    self, Expectation, Session, establish_initiator, establish_responder,
+};
 use tacenta_spqr::MAX_SKIP as PQ_MAX_SKIP;
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -31,7 +33,8 @@ fn establish(rng: &mut rand::rngs::StdRng) -> (Session, Session) {
     let bob_id = sessions::Identity::generate(rng);
     let mut bob_prekeys = bob_id.create_prekeys(4, rng);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, rng).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), rng).unwrap();
     let initial = alice.encrypt(b"hello bob", rng).unwrap();
     let (bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, rng).unwrap();
     assert_eq!(first, b"hello bob");

@@ -30,8 +30,9 @@ use tacenta_core::primitives::kem;
 use tacenta_core::serialization::composite::Composite;
 use tacenta_core::serialization::{ABSENT_ID, decode_message, encode_initial, encode_message};
 use tacenta_core::sessions::{
-    Identity, LifecycleError, PreKeyBundle, PrekeyStore, PrekeyStoreDecodeError, PublishedBundle,
-    Session, SessionError, encode_ec, encode_kem, establish_initiator, establish_responder,
+    Expectation, Identity, LifecycleError, PreKeyBundle, PrekeyStore, PrekeyStoreDecodeError,
+    PublishedBundle, Session, SessionError, encode_ec, encode_kem, establish_initiator,
+    establish_responder,
 };
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
@@ -83,9 +84,9 @@ fn establish_initiator_refuses_a_low_order_bundle_key() {
 
     assert!(
         matches!(
-            establish_initiator(&alice, &bundle, &mut r),
-            Err(LifecycleError::Handshake(
-                SessionError::NonContributoryAgreement
+            establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), &mut r),
+            Err(tacenta_core::sessions::InitiatorError::Establish(
+                LifecycleError::Handshake(SessionError::NonContributoryAgreement)
             ))
         ),
         "a low-order signed prekey must be refused as non-contributory"
@@ -147,7 +148,8 @@ fn established_pair(r: &mut rand::rngs::StdRng) -> (Session, Session) {
     let bob_id = Identity::generate(r);
     let mut bob_prekeys = bob_id.create_prekeys(4, r);
     let bundle = bob_prekeys.publish();
-    let mut alice = establish_initiator(&alice_id, &bundle, r).unwrap();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &Expectation::first_contact(&[]), r).unwrap();
     let initial = alice.encrypt(b"hello", r).unwrap();
     let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, r).unwrap();
     // One reply so Alice stops prepending the initial message and her next
@@ -295,7 +297,8 @@ fn a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays() 
 
     // The victim's handshake, delivered once and its bytes kept.
     let victim = Identity::generate(&mut r);
-    let mut v = establish_initiator(&victim, &bundle, &mut r).unwrap();
+    let mut v =
+        establish_initiator(&victim, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
     let captured = v.encrypt(b"the victim's first message", &mut r).unwrap();
     let (_, first) = establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
     assert_eq!(first, b"the victim's first message");
@@ -304,7 +307,8 @@ fn a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays() 
     // entry counts, so BOUND - 1 of these spend the key's budget exactly.
     let attacker_handshake = |r: &mut rand::rngs::StdRng| {
         let attacker = Identity::generate(r);
-        let mut a = establish_initiator(&attacker, &bundle, r).unwrap();
+        let mut a =
+            establish_initiator(&attacker, &bundle, &Expectation::first_contact(&[]), r).unwrap();
         a.encrypt(b"fresh identity", r).unwrap()
     };
     for i in 1..BOUND {
@@ -352,7 +356,8 @@ fn a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays() 
     store.replenish(&bob, 1, &mut r);
     let one_time = store.publish();
     let peer = Identity::generate(&mut r);
-    let mut p = establish_initiator(&peer, &one_time, &mut r).unwrap();
+    let mut p =
+        establish_initiator(&peer, &one_time, &Expectation::first_contact(&[]), &mut r).unwrap();
     let m = p.encrypt(b"through a one-time prekey", &mut r).unwrap();
     let (_, pt) = establish_responder(&bob, &mut store, &m, &mut r)
         .expect("a spent last-resort budget must not affect the one-time path");
@@ -379,7 +384,8 @@ fn one_rotation_gives_the_new_key_a_full_budget_and_keeps_the_old_refusals() {
 
     let handshake = |bundle: &PublishedBundle, r: &mut rand::rngs::StdRng| {
         let peer = Identity::generate(r);
-        let mut s = establish_initiator(&peer, bundle, r).unwrap();
+        let mut s =
+            establish_initiator(&peer, bundle, &Expectation::first_contact(&[]), r).unwrap();
         s.encrypt(b"fresh identity", r).unwrap()
     };
 

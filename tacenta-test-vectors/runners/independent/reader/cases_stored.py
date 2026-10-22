@@ -22,7 +22,7 @@ import cases_persistence as PSC
 import negative_cases as NC
 from _casekit import accepts, put, registry, rejects
 from tacenta_reader import constants as K
-from tacenta_reader import curve25519, ratchet, spqr, wire
+from tacenta_reader import curve25519, ratchet, records, spqr, wire
 from tacenta_reader import persistence as P
 from tacenta_reader import kem_double
 from tacenta_reader.kem_double import byte_encode12
@@ -231,24 +231,26 @@ def _():
             P.prekey_store_to_bytes(PSC.store(signed_prekey_secret=b"\xff" * 32)))
 
 
-@case("SK-09 the initiator refuses a bundle whose identity key, signed prekey or present one-time curve prekey is not canonical, before any agreement, even when the signed prekey's signature verifies over the re-spelled key and even when she names that very spelling as the identity she means to reach; p - 1 as the signed or one-time prekey passes her check; the decoder never returns such a bundle",
+@case("SK-09 the initiator refuses a bundle whose identity key, signed prekey or present one-time curve prekey is not canonical, before any agreement, even when the signed prekey's signature verifies over the re-spelled key; under known, a record naming that very spelling is a malformed expectation, refused before the bundle's checks (pass 14); p - 1 as the signed or one-time prekey passes her check; the decoder never returns such a bundle",
       f"{SE} Sending the initial message: She also refuses a bundle before encapsulating when ... its identity key, signed prekey or one-time curve prekey is not the canonical encoding of a curve public key ... A bundle the bundle decoder returned never holds such a key. The check is for a bundle that reaches her some other way")
 def _():
     from dataclasses import replace
     z = b"\x5e" * 64
     base = NC.signed_bundle(True)
-    accepts(wire.initiator_check_bundle, base)
+    accepts(wire.initiator_check_bundle, base, NC.FIRST_CONTACT)
     for sp in CKC.spellings(NC.SPK_PUB):
         b = replace(base, signed_prekey=sp, signed_prekey_signature=curve25519.xeddsa_sign(NC.IK_PRIV, wire.encode_ec(sp), z))
-        rejects(wire.initiator_check_bundle, b, exc=wire.BundleRefused)
+        rejects(wire.initiator_check_bundle, b, NC.FIRST_CONTACT, exc=wire.BundleRefused)
     for sp in CKC.spellings(NC.IK_PUB):
-        rejects(wire.initiator_check_bundle, replace(base, identity_key=sp), sp, exc=wire.BundleRefused)
+        rejects(wire.initiator_check_bundle, replace(base, identity_key=sp), NC.FIRST_CONTACT, exc=wire.NonCanonicalBundleKey)
+        # pass 14: a record cannot name that spelling; one that does is a malformed expectation, refused first
+        rejects(wire.initiator_check_bundle, replace(base, identity_key=sp), records.Known(records.Record.of([sp])), exc=records.MalformedRecord)
     for sp in CKC.spellings(NC.OPK_PUB):
-        e = rejects(wire.initiator_check_bundle, replace(base, one_time_prekey=sp), exc=wire.BundleRefused)
+        e = rejects(wire.initiator_check_bundle, replace(base, one_time_prekey=sp), NC.FIRST_CONTACT, exc=wire.BundleRefused)
         assert "canonical" in str(e)
     top = replace(base, signed_prekey=TOP, signed_prekey_signature=curve25519.xeddsa_sign(NC.IK_PRIV, wire.encode_ec(TOP), z),
                   one_time_prekey=TOP)
-    accepts(wire.initiator_check_bundle, top)
+    accepts(wire.initiator_check_bundle, top, NC.FIRST_CONTACT)
     for field in ("identity_key", "signed_prekey", "one_time_prekey"):
         rejects(wire.decode_bundle, wire.encode_bundle(replace(base, **{field: CKC.spellings(getattr(base, field))[0]})),
                 exc=wire.DecodeError)

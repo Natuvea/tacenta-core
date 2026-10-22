@@ -70,8 +70,11 @@ keys or group membership.
 
 Unspecified. How devices relate to identities, and how one identity uses
 several devices, are unspecified: protocol/multi-device.md is a scaffold, and
-the devices part of protocol/identities-and-devices.md is a scaffold. No
-requirement covers more than one device per identity.
+general device management in protocol/identities-and-devices.md is a
+scaffold. A record may hold several keys for one contact
+(session-establishment.md, Records, expectations and attribution), and
+nothing here says whether they are one person's devices. No requirement
+covers more than one device per identity.
 
 ## EX-06: key registration and the directory's behaviour
 
@@ -103,9 +106,44 @@ assumes:
 
 ## EX-09: trust in identity keys
 
-How a user comes to trust that an identity key belongs to a contact is outside
-this specification. That covers verification codes, trust on first use, and
-what to do when a contact's key changes (ASM-14).
+How a person comes to trust that an identity key belongs to a contact is
+outside this specification. That covers:
+- whether and how people compare verification numbers, and any scanned or
+  machine-readable form of the digest;
+- trust on first use: recording a key without a comparison;
+- what an application does after a refusal, or after a lookup that finds a
+  key unattributed, ambiguous or a retired key. That includes asking a
+  person to accept a key, un-retire one or add a device's key, how it shows
+  a session that is no contact's, and how it shows past plaintexts after a
+  record changes, except that it shows a plaintext as a contact's only while
+  a lookup finds its session that contact's (session-establishment.md,
+  Records, expectations and attribution; ASM-14);
+- the records: who keeps them, how keys move between current and retired,
+  resolving an ambiguous key, and their protection against loss, rollback,
+  corruption or a writer;
+- any directory or log that attests to which key belongs to which
+  identifier.
+
+For each bundle a directory serves when an initiator establishes, whether
+an initial message follows shows it whether her expectation accepts that
+key:
+- under *known*, whether it is *same* in that contact's record;
+- under *first contact*, whether it is unattributed in her records.
+
+The probe is free, silent and repeatable on every fetch, and a probe she
+accepts is a working substitution. This specification accepts it as a
+limit (security-properties/limitations.md, LIM-15). What an application
+sends after a lookup can show the same, and keeping that unobservable is the
+application's.
+
+This specification fixes:
+- the identity pair digest and the verification number
+  (identities-and-devices.md);
+- records, the classification, the lookup, attribution, the initiator's
+  expectations and her refusals (session-establishment.md, Records,
+  expectations and attribution).
+
+It fixes nothing about the decisions a person makes with them (ASM-14).
 
 ## EX-10: managing several sessions
 
@@ -115,7 +153,9 @@ Choosing among several sessions with one peer is left to the application:
 - what to do with a message an existing session refuses.
 
 session-establishment.md, Receiving the initial message, specifies the refusal
-and nothing after it.
+and, after it, only how the new session is attributed (Records, expectations
+and attribution). A new session replaces a contact's session only if it is
+that contact's.
 
 ## EX-11: authentication against a quantum adversary
 

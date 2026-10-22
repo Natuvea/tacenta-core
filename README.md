@@ -266,6 +266,16 @@ form that takes `Session::invariant` and the four counter ceilings; no theorem c
 The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`). The Braid's four KEM refusals (key generation, both halves of encapsulation, decapsulation) are refined against the model's `Failed` transitions under agreements about the KEM wrapper that are assumed, not proved, and the state witnesses for those theorems additionally assume `KemDrawsSucceed` (the real key generation and first encapsulation each succeed for some random draw), which is tested only, by every Braid test that completes an agreement. The KEM wrapper refuses a restored encapsulation state whose coefficients lie outside the bound libcrux states, so the Braid fails closed; that is tested only (`GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, open), and no theorem relates a restored Braid state to the model.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
+Identity records (ADR-0009: the identity pair digest, the verification number, the classification and lookup of a key
+against a party's records, and initiator establishment under an expectation) are in `tacenta-core/src/sessions/identity.rs`,
+outside the translated crates, and are tested only for `tacenta-core`: tests, a fuzz target (`identity_records`, which the
+hosted workflow does not run), and 128 vectors that the model generates or checks and the independent reader reads. The
+model's theorems about them are about the model alone. The application, FFI and SDK layers above the crate have not adopted
+them yet, so the product does not use them. The initiator is now
+established through that module's `establish_initiator`, which checks the expectation and then calls the leaf's
+`establish_initiator_for`; the results above about `establish_initiator_for` are about the leaf function, and that they hold
+for the session the wrapper returns is a tested reading of the wrapper, not a proof (`tacenta-proofs/CLAIMS.md`, "Read this
+first").
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
 `ASSURANCE.md` records where the project stands against the expectations in
 ADR-0008, component by component, and what comes next.

@@ -27,7 +27,7 @@ import cases_inventory as CI
 import cases_persistence as PSC
 from _casekit import accepts, registry, rejects
 from idkeys_signatures import SIGNATURES
-from tacenta_reader import admission, identity, pqxdh, wire
+from tacenta_reader import admission, identity, pqxdh, records, wire
 from tacenta_reader import constants as K
 from tacenta_reader import curve25519 as C
 from tacenta_reader import persistence as P
@@ -155,10 +155,12 @@ def make_bundle(one_time=True, identity_key=None, identity_sign=None, signed_pre
     return wire.PrekeyBundle(ik, spk, sigs[0], EK, sigs[1], opk if one_time else None, 1, one_time_id, 3)
 
 
-def establish(bundle, **kw):
+def establish(bundle, expectation=records.FirstContact(())):
+    """Pass 14: establishment takes an expectation; these cases use first
+    contact with no records unless they say otherwise."""
     rng, ctr = admission.Rng(), admission.Counters()
     try:
-        out = admission.initiator_prefix(bundle, IKA_SECRET, rng, ctr, **kw)
+        out = admission.initiator_prefix(bundle, IKA_SECRET, rng, expectation, ctr)
         return out, None, rng, ctr
     except Exception as e:  # noqa: BLE001
         return None, e, rng, ctr
@@ -269,21 +271,24 @@ def _():
         accepts(wire.decode_bundle, wire.encode_bundle(make_bundle(identity_key=key)))
 
 
-@case("IK-06 the identity check follows the presence, pinning and canonical checks: with an identity key that is also not what she set out to reach, or a one-time key and identifier that disagree, or a non-canonical spelling, the refusal is that check's, not the invalid identity key; pinned to the very key that fails the rule she still refuses it as an invalid identity key; the wire decoder never returns a non-canonical key, so from bytes that is a decode failure",
-      f"{SE}, Sending the initial message: She makes that check after the presence, pinning and canonical checks above and before she verifies either signature; She also refuses a bundle before encapsulating when its identity key is not the one she set out to reach (when she names one), when its one-time curve prekey and that prekey's identifier disagree about whether one is present, or when its identity key, signed prekey or one-time curve prekey is not the canonical encoding; {IKS}, A refusal: Where a boundary reads a key from bytes, a key that is not canonical is still a decode failure, and the canonical rule is applied first")
+@case("IK-06 the identity check follows the presence and canonical checks and the check against her expectation: with a one-time key and identifier that disagree, or a non-canonical spelling, the refusal is that check's, not the invalid identity key; under known, a key that fails the rule is refused as an invalid identity key, not as an unexpected identity, whether or not the record names those very bytes (pass 14: the expectation applies the rule to the key first; the named identity pass 13 read is gone); the wire decoder never returns a non-canonical key, so from bytes that is a decode failure",
+      f"{SE}, Sending the initial message: She makes that check after the presence and canonical checks above and the check against her expectation, and before she verifies either signature ... The check against her expectation applies the same rule to the key first (Records, expectations and attribution, Classification), so such a bundle is refused as an invalid identity key either way, unless her expectation is itself malformed; {IKS}, A refusal: The canonical rule is applied first. A key that is not canonical is refused as it always was: as a decode failure where a wire encoding is read")
 def _():
     bad = BAD_KEYS["mixed-order"]
-    _, err, rng, ctr = establish(make_bundle(identity_key=bad), expected_identity=x25519_public(IKB_SECRET))
-    assert isinstance(err, wire.BundleRefused) and "set out to reach" in str(err), err
-    _, err, rng, ctr = establish(make_bundle(identity_key=bad, one_time=True, one_time_id=K.ABSENT_ID))
-    assert isinstance(err, wire.BundleRefused) and "presence" in str(err), err
-    _, err, rng, ctr = establish(make_bundle(identity_key=bad, one_time=False, one_time_id=9))
-    assert isinstance(err, wire.BundleRefused) and "presence" in str(err), err
+    known = records.Known(records.Record.of([x25519_public(IKB_SECRET)]))
+    _, err, rng, ctr = establish(make_bundle(identity_key=bad), known)
+    assert isinstance(err, wire.InvalidIdentityKey), err
+    assert spent(rng, ctr) == (0, 0, 0, 0)
+    _, err, rng, ctr = establish(make_bundle(identity_key=bad, one_time=True, one_time_id=K.ABSENT_ID), known)
+    assert isinstance(err, wire.InconsistentBundle) and "presence" in str(err), err
+    _, err, rng, ctr = establish(make_bundle(identity_key=bad, one_time=False, one_time_id=9), known)
+    assert isinstance(err, wire.InconsistentBundle) and "presence" in str(err), err
     noncanon = (int.from_bytes(bad, "little") | 1 << 255).to_bytes(32, "little")
-    _, err, rng, ctr = establish(make_bundle(identity_key=noncanon))
-    assert isinstance(err, wire.BundleRefused) and "canonical" in str(err), err
+    _, err, rng, ctr = establish(make_bundle(identity_key=noncanon), known)
+    assert isinstance(err, wire.NonCanonicalBundleKey) and "canonical" in str(err), err
     for name in ("mixed-order", "p-minus-1"):
-        _, err, rng, ctr = establish(make_bundle(identity_key=BAD_KEYS[name]), expected_identity=BAD_KEYS[name])
+        # a record that names the very bytes: a canonical member is not malformed, and it matches no presented key
+        _, err, rng, ctr = establish(make_bundle(identity_key=BAD_KEYS[name]), records.Known(records.Record.of([BAD_KEYS[name]])))
         assert isinstance(err, wire.InvalidIdentityKey), (name, err)
         assert spent(rng, ctr) == (0, 0, 0, 0)
     for key in (noncanon, ub(PRIME)):
@@ -454,7 +459,7 @@ def _():
 
 
 @case("IK-12 a caller that means to adopt a reader with the rule can find the states it will refuse beforehand by reading the identity keys of every stored state and applying the rule to each: the scan names the keys of a stored session and of a stored prekey store that fail the rule, names none for an honest state, and reads a state the reader would refuse for another reason",
-      f"{SP}, Session, Semantic rules: A session or store written before the identity-key rule existed may be refused by a reader that has it ... A caller that means to adopt a reader with the rule can find the states it will refuse beforehand by reading the identity keys of every stored state and applying the rule to each; tacenta-core provides this as scan_stored_session_identities and scan_stored_prekey_identity")
+      f"{SP}, Session, Semantic rules: A session or store written before the identity-key rule existed may be refused by a reader that has it ... A caller that means to adopt a reader with the rule can find the states it will refuse beforehand by reading the identity keys of every stored state and applying the rule to each (pass 14: the page no longer names the two scan operations; G13-06 closed, and the reader's scans are its own)")
 def _():
     honest = P.session_to_bytes(fresh_session(True))
     assert P.scan_stored_session_identities(honest) == []
@@ -505,7 +510,7 @@ def _():
 
 
 @case("IK-14 an invalid identity key is a third outcome beside decode failure and authentication failure: the three are different refusals in this reader, a non-canonical spelling read from bytes stays a decode failure with the canonical rule applied first, a signature that does not verify is an authentication failure, and a canonical key that fails the rule is an invalid identity key; a verifier that can only say yes or no says no",
-      "error-handling.md, What is required: An invalid identity key is a third outcome ... An implementation reports it as its own refusal wherever it can, and where a boundary can only say yes or no, such as a verifier of an application signature, it says no. A key that is not canonical is still a decode failure; " + IKS + ", A refusal")
+      "error-handling.md, What is required: An invalid identity key is a third outcome ... An implementation reports it as its own refusal wherever it can, and where a boundary can only say yes or no, such as a verifier of an application signature, it says no. A key that is not canonical is refused as it always was: as a decode failure where a wire encoding is read, and by the kind the stored state's page names for it; " + IKS + ", A refusal")
 def _():
     assert not issubclass(wire.InvalidIdentityKey, wire.DecodeError)
     assert not issubclass(wire.DecodeError, wire.InvalidIdentityKey)

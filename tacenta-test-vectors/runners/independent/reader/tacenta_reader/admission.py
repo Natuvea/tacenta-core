@@ -81,37 +81,41 @@ class InitiatorPrefix:
     stopped_at: str = "encapsulation"
 
 
-def initiator_prefix(bundle, initiator_identity_secret: bytes, rng: Rng,
-                     counters: Optional[Counters] = None,
-                     expected_identity: Optional[bytes] = None) -> InitiatorPrefix:
-    """Sending the initial message, in the page's order.
+def initiator_prefix(bundle, initiator_identity_secret: bytes, rng: Rng, expectation,
+                     counters: Optional[Counters] = None) -> InitiatorPrefix:
+    """Sending the initial message, in the page's order (pass 14).
 
+    `expectation` is required, a `records.Known` or `records.FirstContact`:
+    "The initiator establishes only with an expectation. An implementation
+    offers initiator establishment under both forms".
+
+    0. "She refuses an expectation as a malformed record (`MalformedRecord`),
+       before any check of Sending the initial message". The reader makes it
+       before the bundle is decoded as well (G14-02).
     1. The bundle decodes (a decode failure otherwise), unless it arrives
-       already decoded.
-    2. "She also refuses a bundle before encapsulating when its identity key is
-       not the one she set out to reach (when she names one), when its one-time
-       curve prekey and that prekey's identifier disagree about whether one is
-       present, or when its identity key, signed prekey or one-time curve
-       prekey is not the canonical encoding of a curve public key."
-    3. "A bundle whose canonical `IKB` is not an identity key is refused as an
-       invalid identity key. She makes that check after the presence, pinning
-       and canonical checks above and before she verifies either signature,
-       draws a random value or encapsulates."
-    4. She verifies both signatures under `IKB` and aborts if either fails.
-    5. She validates the KEM prekey (FIPS 203 section 7.2) before encapsulating.
-    6. "She then generates EKA, encapsulates (CT, SS) = PQKEM-ENC(PQPKB), and
+       already decoded ("The check is for a bundle that reaches her some other
+       way").
+    2. The canonical-key and presence checks; the check against the
+       expectation, which applies the identity-key rule first; the identity-key
+       rule; both signatures (`wire.initiator_check_bundle`).
+    3. She validates the KEM prekey (FIPS 203 section 7.2) before encapsulating.
+       "Whether she has drawn `EKA` before these checks is not fixed"; this
+       reader draws nothing before them.
+    4. "She then generates EKA, encapsulates (CT, SS) = PQKEM-ENC(PQPKB), and
        computes" DH1 to DH4, refusing a non-contributory output. The draws are
        EKA's 32 bytes and the encapsulation's 32 (Primitives, ML-KEM-1024:
        "Encapsulation draws 32 random bytes m").
     """
+    from . import records
     c = counters if counters is not None else Counters()
+    records.check_expectation_wellformed(expectation)
     b = wire.decode_bundle(bundle) if isinstance(bundle, (bytes, bytearray)) else bundle
 
     def counting_verify(u, msg, sig):
         c.signatures_verified += 1
         return curve25519.xeddsa_verify(u, msg, sig)
 
-    wire.initiator_check_bundle(b, expected_identity, verify=counting_verify)
+    wire.initiator_check_bundle(b, expectation, verify=counting_verify)
     pqxdh.check_kem_prekey(b.kem_prekey)
     eka = rng.draw(32)
     m = rng.draw(32)
