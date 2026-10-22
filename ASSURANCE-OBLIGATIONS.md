@@ -1773,6 +1773,21 @@ What is not refused by any gate. Removing the inventory check from `run-gate-con
 `tooling/required-steps.json`, is not refused by any gate; the diff of `GATE-INVENTORY.md` is the only trace. A pin rewritten as `#guard_msgs (drop info) in`
 with its docstring deleted passes Lean and, once the manifests are regenerated, `attest.py`; the manifest diff is the only trace.
 
+### Tooling for new proof modules and merges (2026-10-21)
+
+Eight tools and their controls were added, each a row of [GATE-INVENTORY.md](tacenta-proofs/GATE-INVENTORY.md)
+with mutations in `tooling/gate-mutations.json`, and their controls run in step `checks_41` through
+`tooling/tests/run-gate-controls.sh`: the module scaffold and pin generator
+(`tacenta-proofs/scripts/new-lifecycle-module.py`, `genpins.py`; `run-new-lifecycle-module-cases.sh`), the
+one-entry-per-line form of the shared lists (`tooling/reflow-shared-lists.py`, whose `--check` also runs there;
+the long tables of this file are lists for that reason), the preflight of a lifecycle module
+(`tooling/check-proof-module-preflight.py`, also run on every lifecycle module against the baseline of findings
+known when it was introduced, `tooling/proof-module-preflight-baseline.json`), the regeneration of generated files
+after a merge (`tooling/regenerate-generated.sh`, with the resolver of insertion conflicts it runs first,
+`tooling/resolve-insertion-conflicts.py`), the merge-exactness check (`tooling/check-merge-exactness.sh`) and the
+check that a merge or a rebase kept what this tooling added (`tooling/check-landing.sh`). They change no claim and no gate's verdict on the proofs. Their controls stub
+Lean: that the pin generator's probe matches a real `lake env lean --json` run was checked by hand, not in CI.
+
 ## Next P1 slices
 
 1. Decide whether `GAP-REGISTER.md` should remain Markdown-only or gain a

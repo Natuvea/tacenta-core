@@ -405,6 +405,36 @@ in `tacenta-core`; `cargo test --locked` in
 `lake build` in `tacenta-model`; `scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
 hook that runs the cheapest of the checks before a push leaves the machine.
 
+A new lifecycle proof module is wired into the gates by
+`tacenta-proofs/scripts/new-lifecycle-module.py`: `scaffold` creates the module and its negatives script from
+`tacenta-proofs/scripts/templates/` and makes every edit to the shared files that does not depend on theorem
+names (the audit import, the `no-sorry.sh` phase and its part, the proof-script cases, the gate inventory and
+mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
+`tacenta-proofs/scripts/genpins.py` and puts its names on the four lists of `attest.py` and in the attestation
+negatives, moving the pinned case count by the cases it adds. Each new entry goes after the entry its name sorts
+after, and the shared lists are kept one entry per line (`python3 tooling/reflow-shared-lists.py --check`, run in
+CI), so two branches that each add a module change different lines. The prose is not written for you: the tool
+marks what it adds with `SCAFFOLD-TODO`, and `python3 tooling/check-proof-module-preflight.py <Module>` (run on
+every lifecycle module in CI against `tooling/proof-module-preflight-baseline.json`, the findings that were in
+the tree when it was introduced; a key added later needs a stated reason) refuses the marker, a negatives
+script missing the names and call sites of the hardened mechanism (a structural check: the script is not run, and
+a stub that calls them only in dead code passes it), a
+count in the prose that does not match the pins or the controls, and a plan identifier, planning path or
+attribution line in the module's text, and warns when the module's not-shown list misses an item of its
+`CLAIMS.md` section. A local list of further terms to keep out can be named with the environment variable
+`TACENTA_PRIVATE_TERMS_FILE` (a file outside the tree, one term per line); without it that part is skipped, and CI
+does not set it. After a merge, `bash tooling/regenerate-generated.sh` resolves the conflicts in the shared lists
+that are only two insertions at one place (`tooling/resolve-insertion-conflicts.py`, which refuses anything else
+and any entry that would appear twice), writes the generated files (the manifests, `GATE-INVENTORY.md`,
+`tooling/required-steps.json`) again from the merged tree, runs their checks, the structural checks of the
+shared lists and `tooling/check-landing.sh` (the inventory rows and the obligations section this tooling added,
+listed in `tooling/landing-rows.txt`, are still there), and refuses while anything else is unresolved. A conflict
+in a shared list that is anything other than two insertions (an edit on one side, prose on both) is left to be
+resolved by hand. `bash tooling/check-merge-exactness.sh <merge>`
+compares a merge with git's own merge of its two parents: a file where it differs and git merges cleanly fails,
+and a file resolved by hand is listed to be read, so an edit that adapts the merged tree goes in a commit of its
+own after the merge. None of these runs Lean in CI: their controls stub it.
+
 Three things run outside this repository, and the gate says so rather than
 pretending to run them. **Regenerating the Rust-to-Lean translation** needs
 the pinned Charon and Aeneas release, which is a linux-x86_64 binary that

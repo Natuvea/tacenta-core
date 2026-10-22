@@ -23,6 +23,20 @@ unsigned merge of its base. Pull requests whose commits are not signed off canno
 be merged. The check covers only commits added on top of `main`, and commits on
 `main` from before it was introduced carry no sign-off.
 
+## Proof modules and merges
+
+A new lifecycle proof module starts with
+`python3 tacenta-proofs/scripts/new-lifecycle-module.py scaffold` and gets its pins with `... pins --lean` once
+the proof is written; both print what is left to write by hand. Before handing a module over, run
+`python3 tooling/check-proof-module-preflight.py <Module> --base origin/main` (with `TACENTA_PRIVATE_TERMS_FILE`
+naming your local list of terms to keep out, if you keep one). After merging a branch that touches
+the generated files, run `bash tooling/regenerate-generated.sh` rather than resolving them by hand, and check a
+merge you resolved with `bash tooling/check-merge-exactness.sh HEAD`; put edits that adapt the merged tree in a
+commit after the merge, not in it. When a conflict in `tooling/gate-inventory.json` or `ASSURANCE-OBLIGATIONS.md`
+is settled by taking one side, re-apply the other side's additions; `bash tooling/check-landing.sh` fails while
+the rows and the section it lists are missing. The "Building and checking" section of
+`README.md` says what each of these holds.
+
 ## Licence of contributions
 
 This project is licensed under the Apache License, Version 2.0 (see `LICENSE`).
