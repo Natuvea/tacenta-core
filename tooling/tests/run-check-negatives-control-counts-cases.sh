@@ -350,7 +350,7 @@ done
 # an early exit, a return, and another end of the script.
 make_case stub-main
 edit stub-main "$sp" $'\ndef main():\n' $'\ndef main():\n    sources = {}\n\n\ndef old_main():\n'
-expect_fail stub-main "$sp: \`main\` never records \`inside\` for a control"
+expect_fail stub-main "$sp has 0 baselines control(s)"
 make_case completeness-check-removed
 edit completeness-check-removed "$sp" $'    check_complete(results, sources)\n' ''
 expect_fail completeness-check-removed "$sp: \`main\` must call \`check_complete(results, sources)\` exactly once"
@@ -387,7 +387,7 @@ edit global-mutants-shortened "$sp" $'\ndef main():\n' $'\ndef main():\n    glob
 expect_fail global-mutants-shortened "$sp binds MUTANTS 3 time(s)"
 make_case function-code-replaced
 edit function-code-replaced "$sp" $'\n\ndef main():\n' $'\ncheck_complete.__code__ = (lambda results, sources: None).__code__\n\n\ndef main():\n'
-expect_fail function-code-replaced "$sp: \`check_complete.__code__\` is assigned or deleted through the module-level name check_complete"
+expect_fail function-code-replaced "$sp uses __code__"
 make_case runs-overwritten
 edit runs-overwritten "$sp" $'    check_complete(results, sources)\n' $'    RUNS[:] = RUNS * 2\n    check_complete(results, sources)\n'
 expect_fail runs-overwritten "$sp: \`RUNS[:]\` is assigned or deleted through the module-level name RUNS"
