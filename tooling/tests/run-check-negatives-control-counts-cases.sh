@@ -3,8 +3,9 @@
 #
 #   bash tooling/tests/run-check-negatives-control-counts-cases.sh
 #
-# check_complete, the shared completeness check each script's main calls, runs second, on the results a
-# whole run would write and on those of a run that skipped a control, an emptied-proof run or a baseline.
+# check_complete, the shared completeness check each script's main calls, runs second, on simulated runs (no
+# Lean runs here): a whole run accepted; a slice, a `continue`, a skipped emptied-proof run, baseline or
+# projection record, and a fabricated run with no Lean run behind it, refused.
 #
 # Part 1 (run third), the count gate (`tacenta-proofs/scripts/check-negatives-control-counts.py`). Each case copies the gate,
 # its record and the five negatives scripts into a fixture directory, changes one thing and runs the real gate
@@ -75,7 +76,7 @@ expect_fail() {
     echo "WRONG  $1: expected refusal ($2), was accepted" >&2
     exit 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$2"; then
+  if ! grep -F -- "$2" >/dev/null <<<"$out"; then
     echo "WRONG  $1: refused, but not for '$2':" >&2
     printf '  %s\n' "$out" >&2
     exit 1
@@ -113,7 +114,7 @@ PY
   if [ "$rc" -eq 0 ] && [ "$out" = NO-PROJECTION ] && [ "$s" = check-responder-reply-negatives.py ]; then
     continue
   fi
-  if [ "$rc" -ne 3 ] || ! printf '%s' "$out" | grep -qF -- "which is not a composing proof"; then
+  if [ "$rc" -ne 3 ] || ! grep -F -- "which is not a composing proof" >/dev/null <<<"$out"; then
     echo "WRONG  projection-with-a-non-composing-place:$s: expected the label check to refuse it, got exit $rc" >&2
     printf '  %s\n' "$out" >&2
     exit 1
@@ -121,8 +122,12 @@ PY
 done
 
 
-# check_complete itself, on the results a whole run would write and on those of a run that sliced
-# MUTANTS, skipped a control with `continue`, skipped an emptied-proof run or a baseline.
+# check_complete itself, on SIMULATED runs: no Lean runs here. For each script, the results and the Lean
+# exit statuses (RUNS) that `main` would leave after a whole run are built from its lists and accepted; then
+# those of a run over a slice of MUTANTS, of one that skipped a leaf control with `continue`, of one that
+# skipped an inside control's emptied-proof run, a baseline or a projection's record, and results with no
+# Lean run behind them (a fabricated run), and a whole run whose results lost a control, are each refused,
+# each for its own reason.
 set +e
 out="$(python3 -B - "$scripts" "${five[@]}" <<'PY' 2>&1
 import ast, importlib.util, sys
@@ -138,31 +143,46 @@ for script in names:
                 and isinstance(n.value, ast.Dict) and any(getattr(t, "id", "") == "sources" for t in n.targets))
     sources = {k.value: None for k in keys}
 
-    def whole():
+    def run(mutants, skip_inside=False, skip_projection=False, baselines=None, lean=True):
+        """The results and RUNS a run over `mutants` would leave."""
+        accepted = list(sources) if baselines is None else baselines
+        runs = [(b, 0) for b in accepted]
         rejected = {}
-        for label, name, _, _, _ in m.MUTANTS:
+        for label, name, _, _, _ in mutants:
             r = {"exit": 1}
-            if name in m.INSIDE:
+            runs.append((name, 1))
+            if name in m.INSIDE and not skip_inside:
                 r["inside"] = m.INSIDE[name]
+                runs.append((name + "-emptied", 0))
+            if name in m.PROJECTION and not skip_projection:
+                r["projection_of"] = m.PROJECTION[name]
             if name in m.STATEMENT_SHAPE:
                 r["projects"] = m.STATEMENT_SHAPE[name]
+                runs.append((name + "-projected", 1))
             rejected[f"{label}/{name}"] = r
-        return {"accepted": list(sources), "rejected": rejected}
+        return {"accepted": accepted, "rejected": rejected}, (runs if lean else [])
 
-    m.check_complete(whole(), sources)
+    results, runs = run(m.MUTANTS)
+    m.RUNS[:] = runs
+    m.check_complete(results, sources)
     ran += 1
-    sliced = whole(); sliced["rejected"].popitem()
-    skipped = whole(); first = next(iter(skipped["rejected"])); del skipped["rejected"][first]
-    emptied = whole(); key = next(k for k in emptied["rejected"] if k.split("/", 1)[1] in m.INSIDE)
-    del emptied["rejected"][key]["inside"]
-    baseline = whole(); baseline["accepted"].pop()
-    for what, results in (("slice", sliced), ("continue", skipped), ("emptied run skipped", emptied),
-                          ("baseline skipped", baseline)):
+    leaf = next(x for x in m.MUTANTS if x[1] not in m.INSIDE and x[1] not in m.PROJECTION
+                and x[1] not in m.STATEMENT_SHAPE)
+    trials = [("slice", run(m.MUTANTS[:-1]), "controls refused, expected"),
+              ("continue", run([x for x in m.MUTANTS if x is not leaf]), "controls refused, expected"),
+              ("emptied-run-skipped", run(m.MUTANTS, skip_inside=True), "emptied-proof run of an inside control"),
+              ("baseline-skipped", run(m.MUTANTS, baselines=list(sources)[:-1]), "unmodified copies accepted"),
+              ("fabricated", run(m.MUTANTS, lean=False), "Lean ran 0 accepting and 0 refusing times"),
+              ("result-dropped", (run(m.MUTANTS[:-1])[0], run(m.MUTANTS)[1]), "controls refused, expected")]
+    if m.PROJECTION:
+        trials.append(("projection-unrecorded", run(m.MUTANTS, skip_projection=True), "place of a projection"))
+    for what, (results, runs), reason in trials:
+        m.RUNS[:] = runs
         try:
             m.check_complete(results, sources)
         except SystemExit as refusal:
-            if "INCOMPLETE RUN" not in str(refusal):
-                sys.exit(f"WRONG  check-complete-{what}:{script}: refused for another reason: {refusal}")
+            if "INCOMPLETE RUN" not in str(refusal) or reason not in str(refusal):
+                sys.exit(f"WRONG  check-complete-{what}:{script}: refused, but not for '{reason}': {refusal}")
             ran += 1
             continue
         sys.exit(f"WRONG  check-complete-{what}:{script}: an incomplete run was accepted")
@@ -346,5 +366,47 @@ expect_fail early-return "$sp: \`main\` holds a \`return\`"
 make_case other-end
 edit other-end "$sp" $'    sys.exit(main())\n' $'    main()\n    sys.exit(0)\n'
 expect_fail other-end "$sp: the script must end its run with exactly"
+
+# Edits that skip controls without a binding the one-text check reads: a second binding of main, MUTANTS or
+# INSIDE, a global, a raise that ends main early, a function's code replaced, a shared list changed in place,
+# and the block that records a projection's place removed.
+make_case main-rebound-to-a-lambda
+edit main-rebound-to-a-lambda "$sp" $'\n\nif __name__ == \'__main__\':\n' $'\n\nmain = lambda: 0\n\n\nif __name__ == \'__main__\':\n'
+expect_fail main-rebound-to-a-lambda "$sp binds main 2 time(s)"
+make_case main-redefined-in-an-if
+edit main-redefined-in-an-if "$sp" $'\n\nif __name__ == \'__main__\':\n' $'\n\nif True:\n    def main():\n        pass\n\n\nif __name__ == \'__main__\':\n'
+expect_fail main-redefined-in-an-if "$sp binds main 2 time(s)"
+make_case global-of-another-name
+edit global-of-another-name "$sp" $'\ndef main():\n' $'\ndef main():\n    global ROOT\n    ROOT = ROOT.parent\n'
+expect_fail global-of-another-name "$sp: a \`global ROOT\` statement rebinds a module-level name"
+make_case raise-ends-main
+edit raise-ends-main "$sp" $'\ndef main():\n' $'\ndef main():\n    raise SystemExit(0)\n'
+expect_fail raise-ends-main "$sp: \`main\` raises \`raise SystemExit(0)\`"
+make_case global-mutants-shortened
+edit global-mutants-shortened "$sp" $'\ndef main():\n' $'\ndef main():\n    global MUTANTS\n    MUTANTS = [m for m in MUTANTS if m[1] in INSIDE]\n'
+expect_fail global-mutants-shortened "$sp binds MUTANTS 3 time(s)"
+make_case function-code-replaced
+edit function-code-replaced "$sp" $'\n\ndef main():\n' $'\ncheck_complete.__code__ = (lambda results, sources: None).__code__\n\n\ndef main():\n'
+expect_fail function-code-replaced "$sp: \`check_complete.__code__\` is assigned or deleted through the module-level name check_complete"
+make_case shared-list-cleared
+edit shared-list-cleared "$sp" $'\ndef main():\n' $'\ndef main():\n    INSIDE.clear()\n'
+expect_fail shared-list-cleared "$sp: \`INSIDE.clear()\` changes the module-level INSIDE in place"
+make_case mutants-popped
+edit mutants-popped "$sp" $'\n\ndef main():\n' $'\nMUTANTS.pop()\n\n\ndef main():\n'
+expect_fail mutants-popped "$sp: \`MUTANTS.pop()\` changes the module-level MUTANTS in place"
+make_case label-deleted-by-subscript
+edit label-deleted-by-subscript "$sp" $'\n\ndef main():\n' $'\ndel INSIDE[\'budget-claimed-unspent\']\n\n\ndef main():\n'
+expect_fail label-deleted-by-subscript "is assigned or deleted through the module-level name INSIDE"
+ss=check-initiator-second-send-negatives.py
+make_case projection-record-removed
+python3 -B - "$work/projection-record-removed/$ss" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+start = text.index("            if name in PROJECTION:\n")
+end = text.index("            if name in STATEMENT_SHAPE:\n", start)
+open(path, "w").write(text[:start] + text[end:])
+PY
+expect_fail projection-record-removed "$ss: \`main\` never records \`projection_of\` for a control"
 
 echo "check-negatives-control-counts cases: $cases passed"

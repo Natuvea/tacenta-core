@@ -33,14 +33,23 @@ naming it.
 
 The counts hold what the script contains, not what it runs, so `main` is read too: it must call the shared
 `check_complete(results, sources)` as a statement of its own body (not inside an `if`, a loop, a `try` or a `with`),
-hold no `return` and call no `exit`, and the script must end its run with exactly `sys.exit(main())`.
-`check_complete` refuses, at the end of a real run, a run that refused fewer controls than `MUTANTS` holds (a slice
-or a `continue`), accepted other baselines than `sources`, or skipped an emptied-proof run.
+hold no `return`, call no `exit` and raise nothing but `SystemExit(<a message>)`, record `inside`, `projection_of`
+and `projects` for its controls, and the script must end its run with exactly `sys.exit(main())`.  `main`,
+`MUTANTS`, `INSIDE`, `PROJECTION`, `STATEMENT_SHAPE`, `COMPOSING` and `PROJECTED` are each bound once, at the top
+level; no `global` or `nonlocal` statement, no assignment or `del` through an attribute or subscript of a
+module-level name (`check_complete.__code__ = ...`, `del INSIDE[...]`), and no in-place method call on one
+(`INSIDE.clear()`, `MUTANTS.pop()`) is accepted, except `RUNS.append` in `run_lean`.  At the end of a real run
+`check_complete` refuses a run that refused fewer controls than `MUTANTS` holds (a slice or a `continue`), accepted
+other baselines, skipped an emptied-proof run or a projection's record, or whose Lean runs, which `run_lean` alone
+records in `RUNS`, do not number one accepting run per baseline and inside control and one refusing run per control
+and statement-shape check.
 
-What it cannot see: whether a control is a good one, or that the record's counts are the right ones (an edit of a
-script and of the record together is accepted, and only the diff shows it); whether the `results` that `main` passes
-to `check_complete` are what Lean said (a `main` that fabricates them is read by review); it reads the scripts by
-importing them, which runs their top-level definitions and nothing else (`main` is not called).
+What it cannot see.  These rules stop an accidental edit and the edits listed; they do not stop a deliberate one.
+The same change made to all five copies of a shared helper is one text and passes, as does a `main` that runs Lean
+the expected number of times on files other than the controls and reports refusals it did not see; a control that
+is a poor one, or a record whose counts are wrong but edited together with its script (only the diff shows it),
+passes too.  It reads the scripts by importing them, which runs their top-level definitions and nothing else
+(`main` is not called).
 """
 import ast
 import importlib.util
@@ -57,7 +66,7 @@ CLASSES = ("inside", "projection", "statement_shape", "pin", "leaf", "baselines"
 # The helpers every lifecycle negatives script carries a copy of, which must be the same text in each.
 SHARED = ("mentions", "binding", "called_theorem", "passed_through", "check_labels", "guard_self_test",
           "not_a_refusal", "error_blocks", "is_timeout", "run_lean", "without_pins", "declaration_lines",
-          "pin_line", "gutted", "check_inside", "check_refused", "check_complete",
+          "pin_line", "gutted", "check_inside", "check_refused", "check_complete", "RUNS",
           "BINDER", "PLACING", "NOT_A_REFUSAL", "TIMEOUT", "ERROR_HEAD", "MESSAGE", "DECL", "COMMAND", "ERROR_AT")
 
 
@@ -75,7 +84,16 @@ def load(path):
 
 
 # Names through which a script could rebind a shared helper without a binding this gate reads.
-DYNAMIC = ("globals", "setattr", "exec", "eval", "__dict__", "modules", "importlib", "__import__", "vars", "locals")
+DYNAMIC = ("globals", "setattr", "exec", "eval", "__dict__", "modules", "importlib", "__import__", "vars", "locals",
+           "__code__", "__globals__", "__builtins__", "delattr")
+# The names each script defines for itself, bound once at the top level and nowhere else, so that `main` and the
+# lists `check_complete` reads cannot be rebound or shortened by a second binding.
+ONCE = ("main", "MUTANTS", "INSIDE", "PROJECTION", "STATEMENT_SHAPE", "COMPOSING", "PROJECTED")
+# Methods that change a list, dict or set in place: called on a module-level name, they change what a shared
+# helper or `check_complete` reads without binding anything. `RUNS.append` in `run_lean` is the one allowed call.
+MUTATORS = ("append", "extend", "insert", "remove", "pop", "popitem", "clear", "update", "add", "discard",
+            "setdefault", "sort", "reverse", "__setitem__", "__delitem__", "difference_update",
+            "intersection_update", "symmetric_difference_update")
 
 
 def targets(node):
@@ -89,7 +107,17 @@ def targets(node):
     return []
 
 
+_BINDINGS = {}
+
+
 def bindings(source):
+    """Memoised: see `_bindings`."""
+    if source not in _BINDINGS:
+        _BINDINGS[source] = _bindings(source)
+    return _BINDINGS[source]
+
+
+def _bindings(source):
     """Every binding of a name in `source`, at any depth, as (name, kind, top level, text): a `def` or `class`
     (its text from its first decorator), a plain assignment (its text), and every other kind with no text."""
     tree = ast.parse(source)
@@ -114,7 +142,7 @@ def bindings(source):
                 plain = isinstance(target, ast.Name) and len(node.targets) == 1
                 for name in targets(target):
                     out.append((name, "assign" if plain else "unpacking", id(node) in top and plain,
-                                ast.get_source_segment(source, node)))
+                                "\n".join(lines[node.lineno - 1:node.end_lineno])))
         elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
             out += [(n, type(node).__name__, False, None) for n in targets(node.target)]
         elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
@@ -148,10 +176,55 @@ def dynamic_uses(source):
     return found
 
 
+def base_name(node):
+    """The name at the root of an attribute or subscript chain (`a` of `a.b[c].d`), or None."""
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def edit_problems(name, source):
+    """The edits that change what the run reads without a binding: a `global` or `nonlocal` anywhere, an
+    assignment or `del` through an attribute or a subscript of a module-level name, and a call of an in-place
+    method on a module-level name (except `RUNS.append` inside `run_lean`); and a second binding of a name in
+    ONCE."""
+    tree = ast.parse(source)
+    module_level = {n for n, _, top, _ in bindings(source) if top} | {
+        t for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign)) for t in
+        targets(node.targets[0] if isinstance(node, ast.Assign) else node.target)} | {
+        a.asname or a.name.split(".")[0] for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))
+        for a in node.names}
+    allowed_calls = {id(node) for f in tree.body if isinstance(f, ast.FunctionDef) and f.name == "run_lean"
+                     for node in ast.walk(f) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                     and node.func.attr == "append" and base_name(node.func.value) == "RUNS"}
+    problems = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Global, ast.Nonlocal)):
+            problems.append(f"{name}: a `{type(node).__name__.lower()} {', '.join(node.names)}` statement rebinds "
+                            "a module-level name from inside a function")
+        targets_of = (node.targets if isinstance(node, (ast.Assign, ast.Delete)) else
+                      [node.target] if isinstance(node, (ast.AugAssign, ast.AnnAssign)) else [])
+        for target in targets_of:
+            if isinstance(target, (ast.Attribute, ast.Subscript)) and base_name(target) in module_level:
+                problems.append(f"{name}: `{ast.unparse(target)}` is assigned or deleted through the module-level "
+                                f"name {base_name(target)}")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in MUTATORS \
+                and base_name(node.func.value) in module_level and id(node) not in allowed_calls:
+            problems.append(f"{name}: `{ast.unparse(node)[:80]}` changes the module-level "
+                            f"{base_name(node.func.value)} in place")
+    for once in ONCE:
+        found = [b for b in bindings(source) if b[0] == once]
+        if len(found) != 1 or not found[0][2]:
+            kinds = ", ".join(sorted(b[1] + ("" if b[2] else " (not at the top level)") for b in found))
+            problems.append(f"{name} binds {once} {len(found)} time(s) ({kinds or 'none'}); it must be bound once, "
+                            "at the top level")
+    return problems
+
+
 def main_problems(name, source):
     """What `main` and the end of the script must hold so that the run is the one the counts describe."""
     tree = ast.parse(source)
-    problems = []
+    problems = edit_problems(name, source)
     mains = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"]
     if len(mains) != 1:
         return [f"{name} has {len(mains)} top-level `main`, not one"]
@@ -164,6 +237,23 @@ def main_problems(name, source):
     if len(calls) != 1 or len(every) != 1:
         problems.append(f"{name}: `main` must call `check_complete(results, sources)` exactly once, as a statement "
                         "of its own body, so that a run that skipped a control fails")
+    for node in ast.walk(main):
+        if isinstance(node, ast.Raise):
+            exc = node.exc
+            failing = (isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name) and exc.func.id == "SystemExit"
+                       and len(exc.args) == 1 and not exc.keywords
+                       and isinstance(exc.args[0], (ast.JoinedStr, ast.Constant, ast.BinOp))
+                       and not (isinstance(exc.args[0], ast.Constant) and not isinstance(exc.args[0].value, str)))
+            if not failing:
+                problems.append(f"{name}: `main` raises `{ast.unparse(node)[:60]}`; a raise in `main` must be "
+                                "`raise SystemExit(<a message>)`, which fails the run")
+    recorded = {target.slice.value for node in ast.walk(main) if isinstance(node, ast.Assign)
+                for target in node.targets if isinstance(target, ast.Subscript)
+                and isinstance(target.slice, ast.Constant)}
+    for key in ("inside", "projection_of", "projects"):
+        if key not in recorded:
+            problems.append(f"{name}: `main` never records `{key}` for a control, so check_complete would refuse "
+                            "every run; the block that records it was removed")
     if any(isinstance(n, ast.Return) for n in ast.walk(main)):
         problems.append(f"{name}: `main` holds a `return`, which can end the run before `check_complete`")
     if any(isinstance(n, ast.Call) and ((isinstance(n.func, ast.Name) and n.func.id in ("exit", "quit"))

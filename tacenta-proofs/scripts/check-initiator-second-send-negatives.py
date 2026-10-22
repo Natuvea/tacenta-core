@@ -214,7 +214,7 @@ STATEMENT_SHAPE = {}
 
 
 BINDER = re.compile(r'\s*(?:· )?(obtain|rcases|have)\b')
-PLACING = {'And.intro', 'Or.inl', 'Or.inr', 'Exists.intro'}
+PLACING = frozenset({'And.intro', 'Or.inl', 'Or.inr', 'Exists.intro'})
 
 
 def mentions(name):
@@ -433,6 +433,11 @@ def guard_self_test(guards):
         raise SystemExit('GUARD BROKEN: an ordinary refusal is taken for a timeout')
 
 
+# Every Lean run this script made, as (file name, exit status), appended by `run_lean` alone; `check_complete`
+# counts the runs from here, not from what `main` reports.
+RUNS = []
+
+
 def run_lean(path, log, timeout):
     with log.open('w') as output:
         try:
@@ -448,6 +453,7 @@ def run_lean(path, log, timeout):
             os.killpg(process.pid, signal.SIGTERM)
             process.wait()
             raise SystemExit(f'TIMEOUT (not a passing control): {path.name}; see {log}')
+    RUNS.append((path.name, status))
     return status, log.read_text()
 
 
@@ -549,10 +555,14 @@ def check_refused(name, status, output, marker, log, mutated, where):
 
 def check_complete(results, sources):
     """The run ran what the script holds: every unmodified copy accepted, in order; every control in `MUTANTS` refused
-    once; and the emptied-proof run of every inside control and of every statement-shape check recorded.  A control
-    skipped by a slice of `MUTANTS` or a `continue`, or a baseline left out, fails the script here instead of leaving
-    a smaller run that passes.  `check-negatives-control-counts.py` requires `main` to call this, and the number of
-    controls to match its record."""
+    once; the emptied-proof run of every inside control and of every statement-shape check, and the place of every
+    projection, recorded; and Lean run, by `run_lean`, as many times as that takes, with an accepting exit status
+    for each baseline and each inside control's emptied run and a refusing one for each control and each
+    statement-shape check's emptied run (`RUNS`, which `main` does not write).  A control skipped by a slice of
+    `MUTANTS` or a `continue`, a baseline left out, or results written without running Lean fails the script here
+    instead of leaving a smaller run that passes.  It does not see Lean run on files other than the controls.
+    `check-negatives-control-counts.py` requires `main` to call this, and the number of controls to match its
+    record."""
     rejected = {key.split('/', 1)[1]: r for key, r in results['rejected'].items()}
     problems = []
     if results['accepted'] != list(sources):
@@ -564,9 +574,15 @@ def check_complete(results, sources):
         problems.append('the emptied-proof run of an inside control is missing')
     if sorted(n for n, r in rejected.items() if 'projects' in r) != sorted(STATEMENT_SHAPE):
         problems.append('the emptied-proof run of a statement-shape check is missing')
+    if sorted(n for n, r in rejected.items() if 'projection_of' in r) != sorted(PROJECTION):
+        problems.append('the place of a projection is not recorded')
+    accepting = sum(1 for _, status in RUNS if status == 0)
+    refusing = len(RUNS) - accepting
+    if (accepting, refusing) != (len(sources) + len(INSIDE), len(MUTANTS) + len(STATEMENT_SHAPE)):
+        problems.append(f'Lean ran {accepting} accepting and {refusing} refusing times, expected '
+                        f'{len(sources) + len(INSIDE)} and {len(MUTANTS) + len(STATEMENT_SHAPE)}')
     if problems:
         raise SystemExit('INCOMPLETE RUN (not a passing control): ' + '; '.join(problems))
-
 
 def main():
     guard_self_test(NOT_A_REFUSAL)
