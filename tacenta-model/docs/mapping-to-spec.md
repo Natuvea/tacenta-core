@@ -158,6 +158,51 @@ which the refinement binds to the translated Rust, and the persisted-state
 readers do compute it. Signatures are still not modelled: the rule decides
 which keys a signature may be checked under, not whether a signature verifies.
 
+## Identity records, the pair digest and the initiator's expectation
+
+Source pages: `tacenta-spec/protocol/identities-and-devices.md`, "Identity keys",
+"The identity pair digest" and "The verification number", and
+`tacenta-spec/protocol/session-establishment.md`, "Sending the initial message"
+and "Records, expectations and attribution". `Model/IdentityRecords.lean` and
+`Model/InitiatorExpectation.lean` are written from those pages and from no
+implementation. They are imported by the axiom audit only; the lifecycle model
+(`Model/Lifecycle.lean`) is unchanged and does not import them.
+
+| Spec section | Model definition | File |
+|---|---|---|
+| Identity keys, a refusal: a key that is not canonical is a decode failure, one that is canonical but not an identity key an invalid identity key | `KeyRefusal`, `canonicalEncoding`, `keyRefusalWith` (the rule as an argument), `keyRefusal` (at `Model.IdentityKey.valid`), `keyRefusalWith_eq_none_iff`, `keyRefusal_eq_none_iff` | `Model/IdentityRecords.lean` |
+| The identity pair digest: `PAIR_DIGEST_LABEL`, the keys sorted as unsigned bytes, `SHA-256(label \|\| lo \|\| hi)`, both keys held to the identity-key rule | `pairDigestLabel`, `bytesLe`, `sortPair`, `digestOf`, `pairDigest`, `allowedRefusals` | `Model/IdentityRecords.lean` |
+| The digest's order, symmetry, and which refusals conform ("either refusal conforms") | `bytesLe_total`, `bytesLe_antisymm`, `sortPair_comm`, `digestOf_comm`, `digestOf_length`, `pairDigest_comm_ok`, `pairDigest_ok_iff`, `pairDigest_error_allowed`, `allowedRefusals_comm`, `pairDigest_error_iff`, `pairDigest_first_refusal`, `pairDigest_self` | `Model/IdentityRecords.lean` |
+| The verification number: the digest as an unsigned big-endian integer, `mod 10^60`, 60 ASCII digits, most significant first, left-padded | `beValue`, `decimalDigits`, `asciiDigit`, `verificationNumber`, `verificationNumber_length`, `verificationNumber_digits`, `decimalValue_verificationNumber`; the layout in twelve groups of five: `groupsOfFive`, `groupsOfFive_verificationNumber` | `Model/IdentityRecords.lean` |
+| Records: two finite sets of canonical keys, *current* and *retired*; a record is held when either is non-empty; members held to the canonical encoding only | `Record`, `Record.wellFormed`, `Record.holds` | `Model/IdentityRecords.lean` |
+| Classification: the presented key's checks first, then every member of both sets (`MalformedRecord`), then *retired*, *same*, *new* | `Class`, `ClassifyRefusal`, `classifyWith`, `classify`, `classify_key_refusal`, `classify_malformed`, `classify_retired`, `classify_same`, `classify_new`, `classify_both_retired`, `classify_empty`, `classify_congr` (duplicates and order are ignored), `classify_member_is_identity_key`, `classify_wellFormed_not_malformed` | `Model/IdentityRecords.lean` |
+| Lookup: classify against every record; a refused key refuses the lookup and reports no record; a malformed record is skipped and reported; *same* for one, *same* for several, *retired* only, neither; the contacts the key is *retired* for are reported with any result | `Attribution`, `LookupResult`, `sameFor`, `retiredFor`, `malformedFor`, `attributionOf`, `lookupWith`, `lookup_key_refusal`, `lookup_total`, `lookup_refuses_or_gives`, `lookup_nil`, `attributionOf_cases` (the four outcomes partition), `lookup_result` | `Model/IdentityRecords.lean` |
+| The initiator's expectation: *known* (a non-empty record) or *first contact* (all her records); a malformed expectation | `Expectation`, `Expectation.malformed`, `known_empty_malformed`, `known_noncanonical_malformed`, `firstContact_noncanonical_malformed`, `firstContact_nil_not_malformed` | `Model/InitiatorExpectation.lean` |
+| The check of the bundle's identity key against the expectation, with the identity-key rule applied first | `Refusal`, `checkWith`, `check_key_refusal`, `check_not_malformed`, `check_known_none_iff`, `check_known_retired`, `check_known_new`, `check_firstContact_none_iff`, `check_firstContact_unexpected`, `check_firstContact_retired`, `check_firstContact_nil`, `check_none_key`, `checkWith_not_bundle` | `Model/InitiatorExpectation.lean` |
+| Sending the initial message, the order: a malformed expectation; the presence and canonical-key checks; the check against the expectation; then the rule, both signatures, the KEM prekey's input checks, randomness and the agreements, which are the unchanged `Model.Lifecycle.establishInitiator` called with the bundle's own identity key | `Step`, `establishInitiatorExpecting`, `malformed_first`, `presence_before_expectation`, `canonical_before_expectation`, `expectation_refusal`, `expectation_refusal_independent` (a refusal of the key holds whatever the signatures, the KEM prekey and the agreements say), `refusal_keeps_oracle` (nothing is drawn), `rule_first`, `success_is_leaf` | `Model/InitiatorExpectation.lean` |
+| The lifecycle step's own comparison and rule check are redundant after the expectation | `leaf_never_unexpected`, `rule_never_fires_after_expectation`, `step_never_leaf_unexpected`, `leaf_key_checks_redundant` | `Model/InitiatorExpectation.lean` |
+
+What this states and what it does not. The definitions are to run, and the
+theorems are properties of the definitions: the digest is symmetric and its sort
+is the unsigned byte order; a classification and a lookup are total on an
+identity key and read only the members of the sets; the order of the initiator's
+checks is the page's. Nothing here says the definitions compute what
+`tacenta-core` computes; the vectors will. The digest's SHA-256 is
+`Model.Sha256.hash`, checked against FIPS examples and a length theorem. Three
+choices are the model's, not the pages': a list that is not 32 bytes is not the
+canonical encoding of a curve public key (a decode failure; the keys the
+decoders return are always 32 bytes); when both keys of a digest are refused the
+model returns the first key's refusal, where the page lets either conform; and
+the classification and the lookup take the identity-key rule as an argument so that
+the initiator can use the lifecycle's oracle bit for it. The model has no
+attribution step, which is `lookupWith` on the session's peer key, and no
+responder entry beyond the unchanged `prepareResponder`.
+
+The lifecycle model's `establishInitiator` stays the internal step it was: it
+compares the bundle's identity key with an expected one before the presence and
+canonical checks. It is not the specification's initiator, which is
+`establishInitiatorExpecting` above.
+
 ## Scope held to the spec
 
 The spec's Scope section excludes the header-encryption variant of the Double
@@ -200,7 +245,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Session encrypt; Braid-first execution, terminal-failure commit and Triple-refusal rollback | `Step`, `encrypt`, `encrypt_terminal_guard`, `encrypt_braid_failure_commits`, `encrypt_triple_refusal_keeps_state` | `Model/Lifecycle.lean` |
 | Session decrypt; working-copy eviction, AEAD commit boundary and pending-initial clearing | `receiveShortfall`, `receiveWithEviction`, `decryptRatchet`, `decrypt`, `decryptRatchet_refusal_keeps_session`, `decrypt_refusal_keeps_session`, `decrypt_success_clears_pending` | `Model/Lifecycle.lean`; leaf eviction transitions in `Model/Ratchet.lean`, `Model/SparseRatchet.lean` and `Model/Triple.lean` |
 | Session decrypt; which oracle fields it reads (`draws`, `braidKem`, `dhPublic`, `dhAgree`, `aeadOpen`), stated as a frame: oracles that agree on those five give the same session, result and remaining draws | `dispatchDecrypt_oracle_frame`, `decryptRatchet_oracle_frame`, `decrypt_oracle_frame` | `Model/LifecycleFrame.lean` |
-| Initiator establishment; identity pinning, bundle validation, exact canonical/identity-key/signature/non-contributory refusals in that order, ordered primitive calls and pending Session construction | `Identity`, `EstablishStep`, `establishInitiator`, `establishInitiator_identity_mismatch`, `establishInitiator_presence_mismatch`, `establishInitiator_noncanonical`, `establishInitiator_invalid_identity`, `establishInitiator_bad_signed_prekey_signature`, `establishInitiator_ephemeral_signed_noncontributory` | `Model/Lifecycle.lean` |
+| Initiator establishment, the internal step the specification's initiator (`Model.InitiatorExpectation.establishInitiatorExpecting`) ends in; identity pinning, bundle validation, exact canonical/identity-key/signature/non-contributory refusals in that order, ordered primitive calls and pending Session construction | `Identity`, `EstablishStep`, `establishInitiator`, `establishInitiator_identity_mismatch`, `establishInitiator_presence_mismatch`, `establishInitiator_noncanonical`, `establishInitiator_invalid_identity`, `establishInitiator_bad_signed_prekey_signature`, `establishInitiator_ephemeral_signed_noncontributory` | `Model/Lifecycle.lean` |
 | Responder establishment; live and retired prekey lookup, SK-bound last-resort replay check, authenticated-decrypt commit boundary and success-only prekey consumption | `PrekeyStore`, `PreparedResponder`, `prepareResponder`, `lastResortReplayCheck`, `consumeResponderPrekeys`, `finishResponderReceive`, `establishResponder`, `prepareResponder_invalid_identity`, `finishResponderReceive_refusal_keeps_store`, `establishResponder_refusal_keeps_store` | `Model/Lifecycle.lean` |
 | Prekey store, consuming a one-time entry (the last entry of the list moves into the slot) | `swapRemove`, `swapRemove_of_no_match`, `swapRemove_length_of_match`, `consumeOneTimeOk` | `Model/SwapRemove.lean`, `Model/PrekeyOperations.lean` |
 | Executable lifecycle properties; exact current/retired/one-time/unknown responder-key lookups, legacy-block precedence, identity/role frame conditions, success-only pending clearing, exact repeat recognition, consumed-message replay refusal, terminal-failure stickiness, exact last-resort replay/budget ordering, session/store refusal no-ops, initiator identity/pending shape, and the responder's exact success-side store effect and decoded-initial identity/role shape | `signed_lookup_*`, `kem_lookup_*`, `curve_lookup_*`, `identityFrame`, `encrypt_frame`, `decryptRatchet_frame`, `decrypt_identity_frame`, `pending_cleared_iff_ok`, `repeated_initial_accepted_iff`, `replay_refused`, `agreement_failed_encrypt_sticky`, `agreement_failed_decrypt_sticky`, `replayed_last_resort_refused`, `full_last_resort_record_refused`, `one_time_path_has_no_replay_record`, `refusal_is_no_op`, `initiator_success_shape`, `responder_refusal_is_no_op`, `responder_success_store_effect`, `prepareResponder_success_shape`, `responder_success_shape` | `Properties/Lifecycle.lean` |

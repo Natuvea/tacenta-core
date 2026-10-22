@@ -34,6 +34,19 @@ time, and the ratchet carries build-time self-consistency checks.
   RFC 8032, with Nat arithmetic modulo `p`; its verdicts are pinned by the
   identity-key vectors, not proved, and the persisted-state readers use it for
   the stored identity keys.
+- `Model/IdentityRecords.lean`: the identity pair digest and the verification
+  number of `../tacenta-spec/protocol/identities-and-devices.md`, and a party's
+  records of identity keys with their classification and lookup
+  (`../tacenta-spec/protocol/session-establishment.md`, "Records, expectations
+  and attribution"). Written from the pages, with theorems of the definitions
+  (symmetry, the order of the checks, totality and the four outcomes of a
+  lookup); the digest and the classification are checked against hand-computed
+  values when it builds, and the vectors will pin them.
+- `Model/InitiatorExpectation.lean`: the initiator's expectation (*known* or
+  *first contact*) and the order of its checks, as the pages fix it, composed
+  over the lifecycle model's `establishInitiator` without editing it. Nothing is
+  drawn for a refusal by the expectation, and the lifecycle step's own comparison
+  and rule check cannot fire after it.
 - `docs/abstraction-boundary.md`: what the model computes versus what it holds at
   the trusted boundary, and why the split is sound.
 - `docs/mapping-to-spec.md`: each model definition mapped to its spec section.

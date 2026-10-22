@@ -6,6 +6,8 @@ import Model.Erasure
 import Model.Gf65536
 import Model.GroupCommitment
 import Model.IdentityKey
+import Model.IdentityRecords
+import Model.InitiatorExpectation
 import Model.Kdf
 import Model.Lifecycle
 import Model.LifecycleFrame
