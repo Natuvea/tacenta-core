@@ -1960,6 +1960,24 @@ replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean"
   $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
 attach_comment
 expect_fail "statement-pin-untyped-proof-hole-behind-a-comment" "prints \`⋯\` in its expected message (line 3 of it)" --check
+# A line comment that holds `/--` is part of the comment, not a docstring: the real docstring above it is
+# still the pin's, and its untyped hole is refused (a lookup that searched the raw text for `/--` read
+# the comment as the docstring, or found no end to it, and let the pin through).
+for entry in 'fake-docstring-in-a-line-comment|-- /-- fake -/' 'docstring-opener-in-a-line-comment|-- /--'; do
+  fake="${entry#*|}"
+  make_case
+  replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" \
+    $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
+  python3 - "$work/tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" "$fake" <<'PY'
+import pathlib, sys
+path, fake = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+head = text.index("info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty")
+end = text.index("-/\n#guard_msgs in\n", head)
+path.write_text(text[:end] + "-/\n" + fake + "\n#guard_msgs in\n" + text[end + len("-/\n#guard_msgs in\n"):])
+PY
+  expect_fail "statement-pin-untyped-proof-hole-behind-a-${entry%%|*}" "prints \`⋯\` in its expected message (line 3 of it)" --check
+done
 make_case
 attach_comment
 expect_fail "statement-pin-comment-after-its-docstring" "has a comment between its docstring and its \`#guard_msgs\`" --check

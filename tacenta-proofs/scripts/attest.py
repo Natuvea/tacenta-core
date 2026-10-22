@@ -4895,26 +4895,62 @@ def scan_statement_pins(words, names, scoped):
     return out
 
 
+def comment_spans(region):
+    """The comments of `region`, a stretch that holds only comments and whitespace, in order, as
+    (start, end, is_docstring), read the way Lean reads them: `--` to the end of the line, and `/-` to its
+    matching `-/` with nesting, a `/--` opening a docstring. A `/--` inside a line comment or inside
+    another comment is part of that comment. None when something other than whitespace or a comment
+    stands in the region."""
+    spans, i, n = [], 0, len(region)
+    while i < n:
+        if region[i].isspace():
+            i += 1
+        elif region.startswith("--", i):
+            j = region.find("\n", i)
+            j = n if j < 0 else j
+            spans.append((i, j, False))
+            i = j
+        elif region.startswith("/-", i):
+            doc = region.startswith("/--", i) and not region.startswith("/--/", i)
+            depth, j = 1, i + (3 if region.startswith("/--", i) or region.startswith("/-!", i) else 2)
+            while j < n and depth:
+                if region.startswith("/-", j):
+                    depth, j = depth + 1, j + 2
+                elif region.startswith("-/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            if depth:
+                return None
+            spans.append((i, j, doc))
+            i = j
+        else:
+            return None
+    return spans
+
+
 def pin_message(text, words, pos):
     """The expected message of the `#guard_msgs` at `pos`, and whether anything stands between it and
     the pin: `(message, detached)`. `words` is `lean_code(text)`, in which comments and docstrings are
-    blank, so everything between the last code before `pos` and `pos` is comments and whitespace; the
-    last docstring there is the one Lean attaches to the `#guard_msgs`, even with a line or block
-    comment after it. `message` is None when there is no docstring (a pin that expects no message);
-    `detached` is true when a comment stands between the docstring and the `#guard_msgs`."""
+    blank, so everything between the last code before `pos` and `pos` is comments and whitespace; that
+    stretch is read as Lean reads it (`comment_spans`), and the last docstring in it is the one Lean
+    attaches to the `#guard_msgs`, even with a comment after it. `message` is None when there is no
+    docstring (a pin that expects no message); `detached` is true when anything but whitespace stands
+    between the docstring's end and the `#guard_msgs`, or when the stretch cannot be read."""
     k = pos
     while k > 0 and words[k - 1].isspace():
         k -= 1
     region = text[k:pos]
-    start = region.rfind("/--")
-    if start < 0:
+    spans = comment_spans(region)
+    if spans is None:
+        return None, True
+    docs = [s for s in spans if s[2]]
+    if not docs:
         return None, False
-    end = region.find("-/", start + 3)
-    if end < 0:
-        return None, False
-    message = region[start + 3:end]
+    start, end, _ = docs[-1]
+    message = region[start + 3:end - 2]
     message = message[1:] if message.startswith("\n") else message
-    return message, bool(region[end + 2:].strip())
+    return message, bool(region[end:].strip())
 
 
 # A `⋯` in a printed term is either a cut (`pp.deepTerms` false: a subterm deeper than 50 levels;
