@@ -137,12 +137,24 @@
       ],
       "implementation": [
         {
-          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
-          "symbol": "establish_initiator_for"
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "establish_initiator"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "expectation_refusal"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "is_malformed"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "InitiatorError"
         },
         {
           "path": "tacenta-core/lifecycle/src/lifecycle.rs",
-          "symbol": "UnexpectedIdentity"
+          "symbol": "establish_initiator_for"
         }
       ],
       "model_properties": [],
@@ -153,6 +165,46 @@
           "path": "tacenta-core/tests/full_session.rs",
           "name": "a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing",
           "coverage": "A bundle whose signatures verify under another identity is refused as UnexpectedIdentity before randomness is drawn, and neither prekey store's bytes change."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "known_and_new_is_an_unexpected_identity",
+          "coverage": "Under known, a substitute bundle that establishes under first contact with no records is refused as UnexpectedIdentity, drawing no randomness."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "known_and_retired_is_a_retired_identity",
+          "coverage": "Under known, a key in the record's retired set is refused as RetiredIdentity, drawing no randomness."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "first_contact_over_her_records",
+          "coverage": "Under first contact, a retired key is RetiredIdentity; a recorded contact's key, one also retired elsewhere, and an ambiguous one are UnexpectedIdentity; a non-canonical record is MalformedRecord; a key in no record establishes, unattributed."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "a_malformed_expectation_is_refused_first",
+          "coverage": "A known expectation with an empty or non-canonical record, and a first contact holding a non-canonical record, are MalformedRecord before any bundle check, over honest, badly signed, non-identity, presence-inconsistent and non-canonical bundles."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "the_expectation_comes_before_the_signatures_and_the_kem_and_agreement_checks",
+          "coverage": "A substitute with a bad signature, an unencodable KEM prekey or a low-order prekey is UnexpectedIdentity with no randomness drawn; under the expected key the same defects give their own refusals."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "retired_and_unexpected_are_never_reported_for_a_malformed_bundle",
+          "coverage": "Presence and canonical-key refusals win over a retired or unexpected identity under every expectation form."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "a_key_that_is_not_an_identity_key_is_refused_as_such_before_the_comparison",
+          "coverage": "A bundle identity key that is not an identity key is an invalid identity key under known and first contact, even when a record holds its bytes, with no randomness drawn."
+        },
+        {
+          "path": "tacenta-core/tests/identity_expectation.rs",
+          "name": "with_no_records_first_contact_is_the_leafs_establishment",
+          "coverage": "First contact with no records gives the lifecycle leaf's session bytes or refusal and the same draws, over honest bundles and a bundle failing each of the leaf's checks."
         }
       ],
       "missing_evidence": [
@@ -1224,11 +1276,87 @@
         "ASM-19"
       ],
       "limitations": [],
-      "implementation": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "classify"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "lookup"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "Record"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "Unattributed"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "establish_responder_unattributed"
+        },
+        {
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
+          "symbol": "peer_identity"
+        }
+      ],
       "model_properties": [],
       "claims": [],
       "vectors": [],
-      "tests": [],
+      "tests": [
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "classification_over_the_cases",
+          "coverage": "Classification gives same, retired (over same), new, decode failure or invalid identity key for the presented key first, MalformedRecord for a non-canonical member wherever it sits, and accepts canonical non-identity members."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "classification_ignores_duplicates",
+          "coverage": "A list with a repeated member classifies as the set of its members."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "non_identity_members_never_match",
+          "coverage": "Members that are not identity keys never match a presented identity key."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "lookup_over_the_cases",
+          "coverage": "The lookup finds a contact's key, an ambiguous key, a retired key or an unattributed key, reports retired and malformed records, and skips malformed ones."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "lookup_refuses_a_presented_key_that_is_not_an_identity_key",
+          "coverage": "A presented key that is not canonical or not an identity key refuses the lookup, with records and without."
+        },
+        {
+          "path": "tacenta-core/tests/identity_responder.rs",
+          "name": "a_key_in_no_record_gives_an_unattributed_session",
+          "coverage": "The responder establishes with a peer in no record, consumes the prekeys, and the first plaintext and the session are unattributed."
+        },
+        {
+          "path": "tacenta-core/tests/identity_responder.rs",
+          "name": "a_retired_key_gives_a_session_attributed_to_nobody",
+          "coverage": "A responder session under a retired key is a retired key of that contact."
+        },
+        {
+          "path": "tacenta-core/tests/identity_responder.rs",
+          "name": "a_malformed_record_is_skipped_and_reported",
+          "coverage": "A malformed record is skipped and reported, and establishment is unchanged."
+        },
+        {
+          "path": "tacenta-core/tests/identity_responder.rs",
+          "name": "retiring_a_key_withdraws_attribution",
+          "coverage": "Attribution follows the records as they stand: retiring a key turns a contact's session into a retired key."
+        },
+        {
+          "path": "tacenta-core/tests/identity_responder.rs",
+          "name": "a_key_same_for_two_records_is_ambiguous",
+          "coverage": "A responder session whose key is same for two records is ambiguous."
+        }
+      ],
       "missing_evidence": [
         {
           "kind": "tests and vectors",
@@ -1256,11 +1384,45 @@
         "ASM-14"
       ],
       "limitations": [],
-      "implementation": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "identity_pair_digest"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "PAIR_DIGEST_LABEL"
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "symbol": "verification_number"
+        }
+      ],
       "model_properties": [],
       "claims": [],
       "vectors": [],
-      "tests": [],
+      "tests": [
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "digest_known_answers_in_both_orders",
+          "coverage": "Known-answer digests and verification numbers, computed independently, are the same in either argument order, including keys whose unsigned byte order disagrees with their value order."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "digest_refuses_keys_that_are_not_identity_keys",
+          "coverage": "A canonical key that is not an identity key is refused as an invalid identity key in either position."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "digest_refuses_non_canonical_keys_as_decode_failures",
+          "coverage": "A non-canonical key is refused as a decode failure in either position."
+        },
+        {
+          "path": "tacenta-core/src/sessions/identity.rs",
+          "name": "verification_number_known_answers",
+          "coverage": "The verification number reads the digest big-endian, reduces it mod 10^60 and pads to 60 digits."
+        }
+      ],
       "missing_evidence": [
         {
           "kind": "tests and vectors",

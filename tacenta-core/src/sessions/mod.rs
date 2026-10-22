@@ -3,6 +3,24 @@
 //! The implementation lives in the translation-leaf `tacenta-lifecycle`
 //! crate. Re-exporting it here preserves the public `tacenta_core::sessions`
 //! API while keeping the code translated as one public call graph.
+//!
+//! [`identity`] is outside the translated surface: identity records, the
+//! classification and the lookup, the identity pair digest, and initiator
+//! establishment under an expectation, *known* or *first contact*
+//! (`tacenta-spec/protocol/session-establishment.md`, Records, expectations
+//! and attribution). Its establishment checks the expectation and then calls
+//! the leaf's establishment unchanged.
+
+pub mod identity;
+
+#[doc(inline)]
+pub use identity::{
+    Attribution, ClassifyError, Expectation, InitiatorError, KeyClass, KeyEvidence, KeyRefusal,
+    Lookup, PAIR_DIGEST_LABEL, PAIR_DIGEST_LEN, Record, Unattributed,
+    VERIFICATION_NUMBER_GROUPED_LEN, VERIFICATION_NUMBER_LEN, classify,
+    establish_responder_unattributed, identity_pair_digest, lookup, verification_number,
+    verification_number_grouped,
+};
 
 #[doc(inline)]
 pub use tacenta_lifecycle::{
