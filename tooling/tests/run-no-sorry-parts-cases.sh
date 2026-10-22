@@ -732,7 +732,7 @@ dispatch_refuses dispatch-empty-slice "selects no control of the" --slice 60/61
 # The real dispatcher's slice of its own list: for each S up to the number of controls and each k, the
 # controls k modulo S, in order, so that the slices of one S select every control once.
 cases=$((cases + 1))
-python3 - "$scripts/check-initial-dispatch-negatives.py" > "$work/out-dispatch-select" 2>&1 <<'PY2' \
+python3 -B - "$scripts/check-initial-dispatch-negatives.py" > "$work/out-dispatch-select" 2>&1 <<'PY2' \
   || wrong dispatch-select "the real dispatcher's slices are not the controls k modulo S"
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("dispatch", sys.argv[1])

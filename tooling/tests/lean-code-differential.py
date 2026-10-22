@@ -51,6 +51,8 @@ import random
 import re
 import subprocess
 import sys
+# This imports a script of the tree; its bytecode must not be left in the checkout.
+sys.dont_write_bytecode = True
 
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", ".."))
 ATTEST = os.path.join(ROOT, "tacenta-proofs", "scripts", "attest.py")

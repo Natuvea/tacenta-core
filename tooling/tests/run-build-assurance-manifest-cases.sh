@@ -51,7 +51,7 @@ expect_validate_fail() {
 
 make_case() {
   local name="$1" program="$2" from="${3:-$fixture}"
-  python3 - "$from" "$work/$name.json" "$program" <<'PY'
+  python3 -B - "$from" "$work/$name.json" "$program" <<'PY'
 import json, pathlib, sys
 source, output, program = map(pathlib.Path, sys.argv[1:])
 data = json.loads(source.read_text())
@@ -230,7 +230,7 @@ tamper review-second-entry 'manifest must retain exactly one pending independent
 # workflow writes the receipts there.
 export PYTHONDONTWRITEBYTECODE=1
 repo="$work/candidate"
-python3 - "$root" "$repo" <<'PY'
+python3 -B - "$root" "$repo" <<'PY'
 import importlib.util, pathlib, shutil, subprocess, sys
 root, dest = map(pathlib.Path, sys.argv[1:3])
 sys.path.insert(0, str(root / "tooling"))
@@ -349,7 +349,7 @@ fi
 
 # The committed schema states the field names the validator holds, so that a
 # reader of the schema is not told something the validator does not enforce.
-python3 - "$root" <<'PY'
+python3 -B - "$root" <<'PY'
 import importlib.util, json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 sys.path.insert(0, str(root / "tooling"))

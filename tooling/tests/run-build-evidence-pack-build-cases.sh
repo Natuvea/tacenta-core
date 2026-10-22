@@ -25,7 +25,7 @@ export ASSURANCE_FIXTURE_COMMIT="$(git -C "$root" rev-parse HEAD)"
 export ASSURANCE_FIXTURE_TREE="$(git -C "$root" rev-parse 'HEAD^{tree}')"
 cases=0
 
-python3 - "$fixture" "$work/receipts.json" <<'PY'
+python3 -B - "$fixture" "$work/receipts.json" <<'PY'
 import json, os, pathlib, sys
 source, output = map(pathlib.Path, sys.argv[1:])
 data = json.loads(source.read_text())

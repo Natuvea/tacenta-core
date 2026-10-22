@@ -25,7 +25,7 @@ cases=0
 #   d['skip_documents'], d['skip_sources'] and d['entries'] (a function that
 #   edits the list of file entries after the digests are known).
 write_pack() {
-  PYTHONPATH="$root/tooling" python3 - "$1" "$2" "$3" "$root" <<'PY'
+  PYTHONPATH="$root/tooling" python3 -B - "$1" "$2" "$3" "$root" <<'PY'
 import copy, hashlib, importlib.util, json, pathlib, sys
 directory, event, program, root = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3]), pathlib.Path(sys.argv[4])
 from assurance_validation import REQUIRED_CHECKS, expected_step_outcomes

@@ -26,6 +26,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+# This imports a script of the tree; its bytecode must not be left in the checkout.
+sys.dont_write_bytecode = True
 
 
 def git(repo: Path, *args: str) -> None:

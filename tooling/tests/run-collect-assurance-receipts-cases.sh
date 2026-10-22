@@ -20,7 +20,7 @@ cases=0
 # The outcomes the workflow records for a receipt id in an event, honest:
 # "step=success,step=success,...".
 outcomes() {
-  PYTHONPATH="$root/tooling" python3 - "$1" "$2" <<'PY'
+  PYTHONPATH="$root/tooling" python3 -B - "$1" "$2" <<'PY'
 import sys
 from assurance_validation import expected_step_outcomes
 print(",".join(f"{step}=success" for step in expected_step_outcomes()[(sys.argv[1], sys.argv[2])]))
@@ -105,7 +105,7 @@ refuse() {
 # The lists come from the receipt steps of tooling/required-steps.json, so they
 # are checked against what the workflow is known to run rather than against
 # themselves.
-PYTHONPATH="$root/tooling" python3 - <<'PY'
+PYTHONPATH="$root/tooling" python3 -B - <<'PY'
 from assurance_validation import expected_step_outcomes
 table = expected_step_outcomes()
 assert table[("rust", "push")] == table[("rust", "pull_request")], "rust runs the same commands for both events"
@@ -123,7 +123,7 @@ cases=$((cases + 1))
 # How the lists are read from a document: the events a receipt step is for,
 # taken from the job's and the step's own condition, and a second receipt step
 # for one id and event refused. Each document is the real one with one change.
-PYTHONPATH="$root/tooling" python3 - "$root" <<'PY'
+PYTHONPATH="$root/tooling" python3 -B - "$root" <<'PY'
 import copy, json, pathlib, sys
 from assurance_validation import expected_from_document, expected_step_outcomes
 

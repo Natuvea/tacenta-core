@@ -35,6 +35,10 @@ g() { git -C "$clone" -c user.name=control -c user.email=control@example.invalid
 tool="tacenta-proofs/scripts/new-lifecycle-module.py"
 cases=0
 last_want=0
+# The scaffold's dry runs, whose "nothing written" is a case, run on a Python that writes bytecode next to the
+# source, as the hosted runner's does (this machine's may not: PYTHONDONTWRITEBYTECODE, or a cache prefix), so a
+# script of the tree the tool imports must not leave a __pycache__ there.
+inplace=(env -u PYTHONDONTWRITEBYTECODE python3 -X pycache_prefix=)
 M=UnitLifecycleScaffoldProbe
 N=check-scaffold-probe-negatives.py
 args=(scaffold --module "$M" --negatives "$N" --part decrypt --description "The probe's one-line description.")
@@ -116,13 +120,13 @@ says packed-list "run \`python3 tooling/reflow-shared-lists.py --write\`"
 g reset -q --hard HEAD~1; unchanged packed-list
 
 # A script name that sorts after every evidence item of the obligations list goes before the last one.
-run late-name 0 python3 "$tool" scaffold --module UnitLifecycleZzProbe --negatives check-zz-probe-negatives.py \
+run late-name 0 "${inplace[@]}" "$tool" scaffold --module UnitLifecycleZzProbe --negatives check-zz-probe-negatives.py \
   --part decrypt --description d --check
 says late-name "+  \`check-zz-probe-negatives.py\` (SCAFFOLD-TODO: the copies accepted"
 unchanged late-name
 
 # ---- scaffold ------------------------------------------------------------------------------------------------
-run dry-run 0 python3 "$tool" "${args[@]}" --check
+run dry-run 0 "${inplace[@]}" "$tool" "${args[@]}" --check
 says dry-run "11 file(s) would change"; unchanged dry-run
 run scaffold 0 python3 "$tool" "${args[@]}"
 says scaffold "tooling/gate-inventory.py --write: exit 0"; says scaffold "tacenta-proofs/scripts/attest.py: exit 0"
@@ -182,7 +186,7 @@ run json 0 python3 -c "import json; json.load(open('tooling/gate-inventory.json'
 run parts-resolve 0 python3 tacenta-proofs/scripts/no-sorry-parts.py resolve --table "$work/table" \
   --parts tacenta-proofs/scripts/no-sorry-parts.txt --part decrypt
 says parts-resolve "scaffold-probe"
-run idempotent 0 python3 "$tool" "${args[@]}" --check
+run idempotent 0 "${inplace[@]}" "$tool" "${args[@]}" --check
 says idempotent "0 file(s) would change"
 run preflight 1 python3 tooling/check-proof-module-preflight.py "$M"
 says preflight "SCAFFOLD-TODO marker(s) to replace"
@@ -230,7 +234,7 @@ PY
   cp "$work/script" "$clone/tacenta-proofs/scripts/$N"
 done
 # The completeness check, on a simulated run that ran no Lean (no Lean here): refused.
-run complete-no-lean 1 python3 - "$clone/tacenta-proofs/scripts/$N" <<'PY'
+run complete-no-lean 1 python3 -B - "$clone/tacenta-proofs/scripts/$N" <<'PY'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("generated", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
@@ -302,7 +306,7 @@ count_before="$(cat "$clone/tacenta-proofs/scripts/attest-negatives-case-count.t
 cp "$clone/tacenta-proofs/scripts/attest.py" "$work/attest-before.py"
 run pins 0 python3 "$tool" pins --module "$M" --no-regenerate
 says pins "2 axiom pins, 3 statement pins, 1 definitions on the print form, 1 compiler-trusted; the attestation negatives gain 6 case(s)"
-run pins-lists 0 python3 - "$work/attest-before.py" tacenta-proofs/scripts/attest.py "$P" <<'PY'
+run pins-lists 0 python3 -B - "$work/attest-before.py" tacenta-proofs/scripts/attest.py "$P" <<'PY'
 import importlib.util, sys
 def load(path):
     spec = importlib.util.spec_from_file_location("a" + str(abs(hash(path))), path)
@@ -324,7 +328,7 @@ grep -qxF "$M $P probe_kernel probe_compiler" "$clone/tacenta-proofs/scripts/che
   && grep -qF '"definition-pin-check-form-ProbeShape"' "$clone/tacenta-proofs/scripts/check-attest-negatives.sh" \
   || fail_case "pins: the deletion-list lines or the print-form case are missing"
 run pins-bash-n 0 bash -n tacenta-proofs/scripts/check-attest-negatives.sh
-run pins-idempotent 0 python3 "$tool" pins --module "$M" --check
+run pins-idempotent 0 "${inplace[@]}" "$tool" pins --module "$M" --check
 says pins-idempotent "0 file(s) would change"
 run pins-ledger 1 python3 tacenta-proofs/scripts/attest.py --check
 says pins-ledger "\`$P.probe_kernel\` is axiom-pinned in"

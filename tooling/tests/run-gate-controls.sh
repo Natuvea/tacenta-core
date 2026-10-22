@@ -55,6 +55,10 @@ if ident="$(git -C "$root" var GIT_COMMITTER_IDENT 2>/dev/null)"; then
   echo "run-gate-controls: git resolves an identity here ($ident); the hosted runner has none" >&2
   exit 1
 fi
+# The hosted runner's Python writes bytecode next to the source; a control that imports a script of the checkout
+# would leave a __pycache__ there. The checkout must be as it was when the controls end (checked at the end).
+unset PYTHONDONTWRITEBYTECODE
+tree_before="$(git -C "$root" status --porcelain --untracked-files=all)"
 # A seam for the mutation harness: stop after the check above, which is all a change to these lines can break.
 if [ "${GATE_CONTROLS_PROBE_ONLY:-}" = 1 ]; then
   echo "run-gate-controls: no git identity here, as on the hosted runner"
@@ -87,3 +91,10 @@ bash "$here/run-check-landing-cases.sh"
 bash "$root/tooling/check-landing.sh"
 bash "$here/run-check-shell-portability-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
+tree_after="$(git -C "$root" status --porcelain --untracked-files=all)"
+if [ "$tree_after" != "$tree_before" ]; then
+  echo "WRONG  run-gate-controls: the controls changed the checkout (a file written or left behind):" >&2
+  diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after") >&2 || true
+  exit 1
+fi
+echo "run-gate-controls: the checkout is as it was before the controls ran"
