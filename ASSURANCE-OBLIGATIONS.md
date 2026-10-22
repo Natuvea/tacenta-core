@@ -1438,6 +1438,13 @@ recorded decision or a target-closing slice:
   that the responder receives the frame,
   or that `encrypt` refuses elsewhere) and `check-port-negatives.sh` (ten broken anchors,
   as in the row above).
+  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in `check-responder-successor-negatives.py`,
+  `check-responder-reply-negatives.py`,
+  `check-responder-reply-receipt-negatives.py`,
+  `check-send-preservation-negatives.py` and `check-initiator-second-send-negatives.py` is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`), which also holds the five copies of their shared helpers to one text, so a control deleted with its label is refused unless the record is edited in the same change;
+  their label check refuses a projection any place of whose refusal is not a composing theorem.
+  `run-check-negatives-control-counts-cases.sh` holds both:
+  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;

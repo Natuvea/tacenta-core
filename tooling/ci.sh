@@ -230,6 +230,14 @@ echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
 bash tooling/tests/run-check-labels-cases.sh
 
+# The lifecycle negatives scripts check their labels at start-up, but not how
+# many controls they have: a control deleted with its label leaves a script
+# that starts and passes. The record beside them holds the counts, and the
+# gate holds their shared helpers to one text.
+echo "== Lifecycle negatives scripts keep their recorded controls =="
+python3 tacenta-proofs/scripts/check-negatives-control-counts.py
+bash tooling/tests/run-check-negatives-control-counts-cases.sh
+
 # The requirements, assumptions and limitations are an assurance ledger, not
 # loose prose. This keeps their IDs and direct dependency lists aligned while
 # the deeper claim/vector/test index is built.
