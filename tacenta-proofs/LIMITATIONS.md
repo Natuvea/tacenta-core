@@ -3050,9 +3050,9 @@ is not done here. Its premises are exhibited together at `KeysSampled` on the re
 `j + 2 < u32::MAX` at the session the initiator's receipt of the reply returns) and at `NoHeaderReceived` with an empty
 decoder on the first frame's run (`responder_successor_via_preservation`, which re-derives the conclusion of
 `responder_first_frame_successor` from the prepared session's invariant with no shape of the session after the call); no
-run here exhibits them at a decoder holding one chunk. The statement pins of those two run results are cut off by Lean's
-`⋯` (after the binder `crcB` and after `ptB`), so their later hypotheses and their whole conclusions are held by the build
-and by reading only (with this module, 17 modules hold such cut-off pins, 40 pins). **The budget.** An in-order receive
+run here exhibits them at a decoder holding one chunk. The statement pins of those two run results print the whole
+statement (the module sets the two `pp` options before its pins), which is still not the whole elaborated statement: what
+Lean's printing leaves out is held by the build and by reading only, as for every statement pin. **The budget.** An in-order receive
 moves the clock by at most one (it clamps at `u32::MAX - 1`), keeps both epochs, and steps one sparse receiving chain by
 one, within the weights of `CounterRoom`; the budget is computed at the initiator's session after its first send (room for
 `j + 1` operations whenever `j + 2 < u32::MAX`) and at the responder's prepared session (room for one), and at no other

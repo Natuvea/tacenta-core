@@ -6407,12 +6407,12 @@ and opaque constants of the unit (`decoder_invariant_parts`, `decoder_invariant_
 `clause_a_of_structural`, `sameKind_of_refines`, `decrypt_ratchet_keeps_invariant_in_order`, `decrypt_ok_inner`,
 `decrypt_keeps_invariant_in_order`, `decrypt_keeps_invariant_model_step`, `initiator_receives_reply_successor`,
 `counterRoom_responder_prepared`, `prepared_decoder_empty`, `responder_successor_via_preservation`). Each of the 50 results carries an axiom pin and a
-statement pin, except that the statement pins of `initiator_receives_reply_successor` and
-`responder_successor_via_preservation` are cut off by Lean's `⋯` (after the binder `crcB` and after `ptB`): each holds the
-binders up to there and not the rest, so their later hypotheses and their whole conclusions (the invariant,
-`CounterHeadroom`, `CounterRoom` and the relation) are held by the build and by reading only, as with every pin that ends
-in `⋯` (with this module, 17 modules hold such cut-off pins, 40 pins; a pin form that prints the whole statement is to be
-fixed separately). Each of the six definitions (`InOrder`, `classicalTail`, `sparseTail`, `KeepsAgreementState`,
+statement pin. The statement pins of `initiator_receives_reply_successor` and `responder_successor_via_preservation`
+print the statement without a cut: the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its pins,
+without which Lean cut them off with `⋯` (after the binder `crcB` and after `ptB`), and `attest.py` refuses a statement
+pin whose message holds a `⋯` other than an omitted proof printed with its proposition. As for every statement pin, the
+pin is not the whole elaborated statement (what Lean's printing leaves out is listed under the initiator's second send
+above), and that the pinned statement is the right one is decided by reading. Each of the six definitions (`InOrder`, `classicalTail`, `sparseTail`, `KeepsAgreementState`,
 `InOrderReceiveStep`, `SameAgreementKind`) a `#print` pin. `check-receive-preservation-negatives.py` plants 23 faults in a
 copy of the module, every one a change to a statement or a definition, and requires Lean to refuse each at a named
 declaration or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the

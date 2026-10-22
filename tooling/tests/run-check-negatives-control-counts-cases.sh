@@ -8,7 +8,7 @@
 # projection record, and a fabricated run with no Lean run behind it, refused.
 #
 # Part 1 (run third), the count gate (`tacenta-proofs/scripts/check-negatives-control-counts.py`). Each case copies the gate,
-# its record and the five negatives scripts into a fixture directory, changes one thing and runs the real gate
+# its record and the negatives scripts the record lists into a fixture directory, changes one thing and runs the real gate
 # there: the unmodified copy is accepted; a control deleted with its label, a control relabelled, a control added,
 # a baseline added, the record missing a script or naming one too many, a record entry without a class, a sixth
 # script defining `check_labels` and not recorded, and one copy of a shared helper changed are each refused for
@@ -17,10 +17,10 @@
 # `main` without the completeness call or the projection record, a template that rebinds a name through
 # `globals()`, and the template missing are each refused.
 #
-# Part 2 (run first), the shared `check_labels` of the five scripts, on the real module texts: a projection whose refusal
+# Part 2 (run first), the shared `check_labels` of those scripts, on the real module texts: a projection whose refusal
 # list also names a declaration that is not a composing theorem is refused, in each script that has a projection
-# (the reply script has none; the count gate holds its copy to the same text as the others), and the unmodified
-# labels are accepted. Needs no Lean toolchain.
+# (a script whose record entry counts no projection has none to plant, and the count gate holds its copy to the same text
+# as the others), and the unmodified labels are accepted. Needs no Lean toolchain.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -29,9 +29,20 @@ scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-five=(check-responder-successor-negatives.py check-responder-reply-negatives.py
+# Every lifecycle negatives script, by name; the list must equal the scripts the record lists (the gate itself requires
+# the record to list exactly the scripts carrying the shared check_labels), so a script added with its entry and not
+# named here fails this runner rather than going unheld.
+named=(check-responder-successor-negatives.py check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py
-  check-initiator-second-send-negatives.py)
+  check-initiator-second-send-negatives.py check-receive-preservation-negatives.py)
+listed="$(printf '%s\n' "${named[@]}" | sort)"
+in_record="$(python3 -B -c 'import json, sys; print("\n".join(sorted(json.load(open(sys.argv[1]))["scripts"])))' \
+  "$scripts/negatives-control-counts.json")"
+if [ "$listed" != "$in_record" ]; then
+  echo "WRONG  the scripts named here are not the ones negatives-control-counts.json lists:" >&2
+  diff <(printf '%s\n' "$listed") <(printf '%s\n' "$in_record") >&2 || true
+  exit 1
+fi
 
 make_case() {
   local dst="$work/$1"
@@ -39,7 +50,7 @@ make_case() {
   cp "$scripts/check-negatives-control-counts.py" "$scripts/negatives-control-counts.json" "$dst/"
   mkdir -p "$dst/templates"
   cp "$scripts/templates/lifecycle-negatives.py.in" "$dst/templates/"
-  for s in "${five[@]}"; do cp "$scripts/$s" "$dst/"; done
+  for s in "${named[@]}"; do cp "$scripts/$s" "$dst/"; done
 }
 
 edit() {  # case file old new [count]
@@ -90,7 +101,7 @@ expect_fail() {
 
 # Part 2 runs first, so a copy of check_labels that lost the rule fails its own case before the gate's
 # identity check sees the copies differ: the shared check_labels on the real module texts.
-for s in "${five[@]}"; do
+for s in "${named[@]}"; do
   set +e
   out="$(python3 -B - "$scripts/$s" <<'PY' 2>&1
 import importlib.util, sys
@@ -116,7 +127,9 @@ PY
   rc=$?
   set -e
   cases=$((cases + 1))
-  if [ "$rc" -eq 0 ] && [ "$out" = NO-PROJECTION ] && [ "$s" = check-responder-reply-negatives.py ]; then
+  if [ "$rc" -eq 0 ] && [ "$out" = NO-PROJECTION ] && [ "$(python3 -B -c 'import json, sys
+print(json.load(open(sys.argv[1]))["scripts"][sys.argv[2]]["projection"])' \
+      "$scripts/negatives-control-counts.json" "$s")" = 0 ]; then
     continue
   fi
   if [ "$rc" -ne 3 ] || ! grep -F -- "which is not a composing proof" >/dev/null <<<"$out"; then
@@ -134,7 +147,7 @@ done
 # Lean run behind them (a fabricated run), and a whole run whose results lost a control, are each refused,
 # each for its own reason.
 set +e
-out="$(python3 -B - "$scripts" "${five[@]}" <<'PY' 2>&1
+out="$(python3 -B - "$scripts" "${named[@]}" <<'PY' 2>&1
 import ast, importlib.util, sys
 scripts, names = sys.argv[1], sys.argv[2:]
 ran = 0
@@ -450,7 +463,7 @@ expect_fail baseline-deleted-from-sources "binds, changes or passes on \`sources
 tp=templates/lifecycle-negatives.py.in
 make_case template-helper-differs
 edit template-helper-differs "$tp" "'unknown namespace', 'does not contain')" "'unknown namespace')"
-expect_fail template-helper-differs "$tp's copy of the shared NOT_A_REFUSAL differs from the copy in 5 of the other scripts"
+expect_fail template-helper-differs "$tp's copy of the shared NOT_A_REFUSAL differs from the copy in ${#named[@]} of the other scripts"
 make_case template-without-completeness
 edit template-without-completeness "$tp" $'    check_complete(results, sources)\n' $'    pass\n'
 expect_fail template-without-completeness "$tp: \`main\` must call \`check_complete(results, sources)\` exactly once"

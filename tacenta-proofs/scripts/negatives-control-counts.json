@@ -2,6 +2,7 @@
   "_note": "The number of controls in each class of each lifecycle negatives script, written by hand and compared with the scripts by check-negatives-control-counts.py. A control removed, added or relabelled changes a count here in the same change.",
   "scripts": {
     "check-initiator-second-send-negatives.py": {"inside": 6, "projection": 1, "statement_shape": 0, "pin": 1, "leaf": 8, "baselines": 2},
+    "check-receive-preservation-negatives.py": {"inside": 12, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 2},
     "check-responder-reply-negatives.py": {"inside": 7, "projection": 0, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 2},
     "check-responder-reply-receipt-negatives.py": {"inside": 7, "projection": 4, "statement_shape": 1, "pin": 1, "leaf": 8, "baselines": 2},
     "check-responder-successor-negatives.py": {"inside": 1, "projection": 2, "statement_shape": 3, "pin": 1, "leaf": 10, "baselines": 2},

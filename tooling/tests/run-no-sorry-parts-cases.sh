@@ -112,6 +112,7 @@ done
 # here after the entry its name sorts after, and the check below names any script the run calls that has no stub.
 py_stubs=(
   check-lifecycle-translation-coverage.py
+  check-receive-preservation-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
   check-send-refusal-negatives.py
