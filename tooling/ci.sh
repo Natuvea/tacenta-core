@@ -163,6 +163,14 @@ bash tooling/check-proof-hygiene.sh
 echo "== No unresolved merge-conflict markers =="
 bash tooling/check-conflict-markers.sh
 
+# A producer piped into `grep -q` races under pipefail: grep exits at its first match, the producer takes
+# SIGPIPE, and the pipeline reports the producer's 141. It failed a Mac run of the case runners above for
+# no reason in the code under test. This refuses the shape in every tracked shell script and workflow, and
+# the cases hold it to each form it must catch and each safe form it must not.
+echo "== No shell script pipes a producer into a quiet grep =="
+bash tooling/check-shell-portability.sh
+bash tooling/tests/run-check-shell-portability-cases.sh
+
 # The Session refinement gives every opaque primitive operation a named,
 # reviewed contract.  Pin the operations actually reachable in the generated
 # lifecycle translation so a new call cannot inherit a contract by accident.

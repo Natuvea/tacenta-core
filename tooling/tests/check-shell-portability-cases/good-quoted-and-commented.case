@@ -1,0 +1,8 @@
+# expect: none
+echo 'printf x | grep -q y'
+echo "printf x | grep -q y"
+echo "it's | grep -q here"
+# printf x | grep -q y
+printf x # | grep -q y
+msg="run: $x | grep -q y"
+x=a\|b

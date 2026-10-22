@@ -1,0 +1,11 @@
+# expect: none
+grep -qF -- "$needle" <<<"$out"
+grep -q needle "$file"
+grep -q needle "$a" "$b"
+case $out in *"$needle"*) echo yes ;; esac
+[[ $out == *"$needle"* ]] && echo yes
+last="$(tail -n 1 <<<"$out")"; grep -qF -- "$x" <<<"$last"
+grep -qF -- "$x" <<<"$(tail -n 1 <<<"$out")"
+grep -q . < <(producer)
+if [ -n "$(git status --porcelain)" ]; then echo dirty; fi
+out="$(producer)" && grep -q needle <<<"$out"

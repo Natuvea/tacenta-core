@@ -1,0 +1,7 @@
+# expect: 2 4 6
+printf '%s\n' "$out" \
+  | grep -q needle
+printf '%s\n' "$out" |
+  grep -q needle
+printf '%s\n' "$out" | # a comment after the pipe
+  grep -q needle

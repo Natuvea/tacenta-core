@@ -1,0 +1,5 @@
+# expect: 2 3 4 5
+found="$(printf '%s' "$out" | grep -q y && echo 1)"
+found=`printf '%s' "$out" | grep -q y && echo 1`
+echo "result: $(printf '%s' "$out" | grep -q y)"
+cat <(printf '%s' "$out" | grep -q y)

@@ -29,6 +29,7 @@
   {"gate": "tooling/check-lifecycle-boundary-surface.py", "kind": "script", "what": "the opaque primitive calls reachable from the five Session roots stay classified", "controls": ["tooling/tests/run-check-lifecycle-boundary-surface-cases.sh"]},
   {"gate": "tooling/check_authentication_boundary.py", "kind": "script", "what": "every receive path is registered under the shape its signature has", "controls": ["tooling/tests/run-source-gate-cases.sh"]},
   {"gate": "tooling/check-conflict-markers.sh", "kind": "script", "what": "no tracked file holds a conflict marker", "controls": ["tooling/tests/run-source-gate-cases.sh"]},
+  {"gate": "tooling/check-shell-portability.sh", "kind": "script", "what": "no tracked shell script or workflow pipes a producer into a quiet grep, which races under pipefail", "controls": ["tooling/tests/run-check-shell-portability-cases.sh"]},
   {"gate": "tooling/check-proof-hygiene.sh", "kind": "script", "what": "no hand-written proof names a generated _proof_<n> constant", "controls": ["tooling/tests/run-source-gate-cases.sh"]},
   {"gate": "tooling/check-vectors.py", "kind": "script", "what": "vector files obey their schemas", "controls": ["tooling/tests/run-check-vectors-cases.sh"]},
   {"gate": "tooling/check-session-operation-traces.py", "kind": "script", "what": "the operation-trace corpus keeps its required families and controls", "controls": ["tooling/tests/run-check-session-operation-traces-cases.sh"]},

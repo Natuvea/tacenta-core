@@ -7,6 +7,7 @@
 #   run-build-evidence-pack-build-cases.sh  the build direction of the evidence-pack builder
 #   run-install-script-cases.sh  the digest and revision checks of the elan, actionlint and Lake installers
 #   check-generation-negatives.sh  the --check mode of the eleven assemble and port scripts
+#   run-check-shell-portability-cases.sh  the shell-portability gate: each form of a producer piped into a quiet grep, and the safe forms beside them
 #   run-regenerate-in-container-cases.sh  the comparison and the --check verdict of regenerate-in-container.sh, with a stub docker
 #   run-attest-negatives-shard-cases.sh  the sharding of check-attest-negatives.sh: a slice that is skipped, run
 #                                  twice or lost, a shard that fails or is killed, and the seam that cannot reach CI
@@ -81,4 +82,5 @@ bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
 bash "$here/run-check-landing-cases.sh"
 bash "$root/tooling/check-landing.sh"
+bash "$here/run-check-shell-portability-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check

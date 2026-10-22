@@ -1,0 +1,3 @@
+# expect: 3
+out="$(some_command)"
+printf '%s\n' "$out" | grep -q needle
