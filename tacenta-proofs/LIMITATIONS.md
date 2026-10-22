@@ -2951,7 +2951,7 @@ message in either direction (a second reply, the header's third chunk, the respo
 initiator's next send is the next paragraph, under a condition, and its step uses no fact relating the two parties'
 Braid KEMs);
 `Session::invariant` or the ceilings after the receipt of the reply (those after the reply are derived in the
-send-preservation paragraph below); that the code's agreement after the
+send-preservation paragraph below, and those after its receipt in the receive-preservation paragraph after it); that the code's agreement after the
 call equals the one before (it refines the same model agreement); that `hfreshB` holds under an honest random source; a
 restored copy of either session; the one-time path in a run.
 
@@ -2980,7 +2980,8 @@ receipt's premises it inherits carry `KemAgreesFor` at both parties' KEMs, as th
 still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every state, and whether it
 could be dropped here is not checked. The relation after the call holds the cloned key pair through `KemCloneAgrees`;
 code-level equality of the key pair is not checked. **Not shown:** `Session::invariant` or the ceilings at the session the
-receipt returns or after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
+receipt returns (the receive-preservation paragraph below derives them there; joining that with this send is not done) or
+after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
 header's third chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt`
 can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere
 are not covered); a restored copy of the session; the one-time path in a run; that the related model sessions hold only
@@ -3023,9 +3024,46 @@ instead, room for `k` more operations, each costing at most one step of the cloc
 per-run budget: it excludes runs longer than its `k` and the parked clock, and asks nothing else of a state. It is in `u32` and `u64` only, so it means the same at both widths. The run's headline computes it
 at the responder's session after the first receipt (clock 1, so room for every `j` with `j + 2 < u32::MAX`) and concludes
 `CounterHeadroom` after the reply; the budget at any other session is not computed. The weights are for operations in general;
-nothing here covers a receive, and whether one receive stays within any of the four weights is not checked. **Not shown:** `encrypt` at
+nothing here covers a receive (an in-order receive at two agreement states stays within them, the next paragraph;
+whether any other receive does is not checked). **Not shown:** `encrypt` at
 a state whose send draws; the session a refused `encrypt` returns; any receive keeping the invariant; that the real key pair
 meets `KemCloneAgrees`; that `Session::invariant` says a session is reachable.
+
+**Receive preservation on an in-order receive** (`UnitLifecycleReceivePreserve.lean`). The general step
+(`decrypt_ratchet_keeps_invariant_in_order`, and `decrypt_keeps_invariant_in_order` for the public call) rests on the
+kernel and opaque constants and assumes the boundary record `KemCloneAgrees` (ASSUMED, as for the send; this step uses the
+key pair's clone answering `header` and `ek_vector`), the decrypt oracle record's `dhPublic` clause and the view's codec
+relation `DhCodecOf` (ASSUMED records: the public key the boundary computes for a private key is the oracle's), and the law
+`DhPublicValid` (ASSUMED, the establishment's: a public key's bytes are canonical); it takes the relation after the call
+and the model step as hypotheses. That relation carries the Triple half (the code Triple's invariant is read off the model
+Triple it relates to), the direction, the sparse epoch and the budget; only the agreement half and clause (a) are read off
+translated code (the walk of `Braid::receive` and the call's own walk of the new ratchet key), and the code's Triple
+receive is never walked. Every instance gets the relation from the decrypt refinement, so the two run results list no
+compiler-trust axiom either. **Its scope is narrow.** The model step must be an `InOrderReceiveStep`: no stored key used in
+either ratchet, no message skipped on either chain (so no store entry is written and no eviction runs), no agreement
+output, and the agreement kept at `NoHeaderReceived` or at `KeysSampled` at the same epoch; at `NoHeaderReceived` the
+decoder holds at most one chunk before the call. The decoder lemmas cover at most two chunks after the call: a general proof
+that `add_chunk` keeps `Decoder::invariant` (the bitset loop of `Decoder::invariant` at any length) was judged a separate
+piece of work and not attempted, and the two-chunk form is enough for the responder's receipt of a second message, which
+is not done here. Its premises are exhibited together at `KeysSampled` on the reply's run
+(`initiator_receives_reply_successor`, which gives `Session::invariant`, `CounterHeadroom` and room for every `j` with
+`j + 2 < u32::MAX` at the session the initiator's receipt of the reply returns) and at `NoHeaderReceived` with an empty
+decoder on the first frame's run (`responder_successor_via_preservation`, which re-derives the conclusion of
+`responder_first_frame_successor` from the prepared session's invariant with no shape of the session after the call); no
+run here exhibits them at a decoder holding one chunk. The statement pins of those two run results are cut off by Lean's
+`⋯` (after the binder `crcB` and after `ptB`), so their later hypotheses and their whole conclusions are held by the build
+and by reading only (with this module, 17 modules hold such cut-off pins, 40 pins). **The budget.** An in-order receive
+moves the clock by at most one (it clamps at `u32::MAX - 1`), keeps both epochs, and steps one sparse receiving chain by
+one, within the weights of `CounterRoom`; the budget is computed at the initiator's session after its first send (room for
+`j + 1` operations whenever `j + 2 < u32::MAX`) and at the responder's prepared session (room for one), and at no other
+session. **Not shown:** a receive that uses a stored key, skips, or evicts, so reordered, delayed or dropped delivery; a
+receive with an agreement output or one that moves the agreement to another state (the header completing, a `ct1` chunk),
+or at any other agreement state; a decoder holding more than one chunk before the call; the session a refused
+`decrypt` returns; that the relation after the call holds or that the model's step is in order (hypotheses, supplied on the
+two runs); the initiator's second send composed with the invariant at the session its receipt returns (the second-send
+paragraph above states its code-level part under that condition; the join is not done); any later message; a restored
+copy of a session; that the real primitives meet the records and laws; that `Session::invariant` says a session is
+reachable.
 
 **What is not shown.**
 

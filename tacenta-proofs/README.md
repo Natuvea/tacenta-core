@@ -64,15 +64,20 @@ analysis excluded by the contributory and round-trip premises), under the receip
 the two oracles' roles swapped and two decrypt boundary records at the initiator's source, with no compiler-trust axiom, and the
 initiator's next `encrypt` at the session that receipt returns, on the same run, whose model step has one outcome (the bare
 second frame carrying the header's chunk at index 1, no draw) and which, if that session passes `Session::invariant` and
-meets the four counter ceilings (not shown), returns those bytes with no draw and refines the step, with no new law or
+meets the four counter ceilings (not shown there; the receive step below shows it at that session, and the two are not joined), returns those bytes with no draw and refines the step, with no new law or
 compiler-trust axiom; a tampered frame being refused, the responder's receipt of that send and later messages in either
 direction not covered; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
 zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
 the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the
 responder's reply is sent, on that run, where it gives the invariant and the ceilings at the session the reply leaves,
-with no compiler-trust axiom; no `encrypt` whose agreement send draws, no refusal and no receive
-covered by a preservation result);
+with no compiler-trust axiom; and a second general step stating that a successful `decrypt_ratchet` or `decrypt` keeps
+`Session::invariant` and spends one unit of that budget on an in-order receive (no stored key used, no message skipped, no
+agreement output) whose agreement stays at `NoHeaderReceived`, holding at most one chunk before the call, or at
+`KeysSampled`, given the relation after the call, the model step, two boundary records and one law, its premises exhibited
+at the initiator's receipt of the reply, where it gives the invariant and the four ceilings at the session that receipt
+returns, and at the responder's receipt of the first frame, with no compiler-trust axiom; no `encrypt` whose agreement send
+draws, no refusal and no receive outside that scope covered by a preservation result);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
