@@ -6144,7 +6144,11 @@ truncated tag comparison, a lenient padding check, a decrypt that ignored traili
 and is about the run, `NotASealing`: no call of the real `encrypt` under the reply's message keys and associated data returns
 the bytes `cT`. It is a condition on the frame, not a law. That an attacker who does not hold the message key cannot produce
 a sealing is the unforgeability of HMAC-SHA256, which no theorem here states and none can prove of the real function; this
-premise is where that assumption sits, and the refusal is scoped to frames that meet it. The other premises are those of
+premise is where that assumption sits, and the refusal is scoped to frames that meet it. Together the law and the premise
+say no more than that the boundary's `decrypt` refuses those bytes under those keys and that associated data; what the
+theorem adds is the session around that call on the run: that the call reaches the boundary's open with exactly the reply's
+message keys and associated data (dispatch, decode, the agreement's receive, the Diffie-Hellman step, the key derivations),
+and that the refusal is `Aead`, leaves the session as it was and takes one draw. The other premises are those of
 `initiator_receives_reply`, unchanged, `hfreshB` included.
 
 - `aeadOpenSealUnique_is`, `notASealing_is`: at the real constants the law and the premise are the statements about the real
