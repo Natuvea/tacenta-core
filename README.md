@@ -245,8 +245,12 @@ contributory and round-trip premises), under the receipt's laws with the two ora
 the initiator's next `encrypt` has one outcome (the bare second frame carrying the header's chunk at index 1, no draw), and
 if that session passes `Session::invariant` and meets the four counter ceilings, which that result does not show (the receive step below shows it at that session), the public `encrypt`
 returns those bytes with no draw and refines the step, with no new law (no compiler-trust axiom): exactly one further send by the
-initiator, under that condition. That a tampered frame is refused is not shown, nor (here) the responder's receipt of that
-send, which is taken below, nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
+initiator, under that condition. Under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to)
+and a per-run premise that the replaced bytes are no sealing under the reply's message keys and associated data, the
+initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
+one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom); neither
+the law nor the premise is shown of the real AEAD, and a frame whose header bytes were changed is not covered. The
+responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
 draw keeps `Session::invariant` and spends one unit of a counter budget whose zero is the four ceilings, given the relation
 after the call and one boundary record (kernel and opaque constants only); the relation after the call carries the Triple
 half and the budget and comes from the encrypt refinement. Its premises are exhibited together only at

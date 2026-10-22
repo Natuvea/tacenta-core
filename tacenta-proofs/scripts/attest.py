@@ -1366,6 +1366,25 @@ REQUIRED_PINS = frozenset(
         "concrete_receive_attempt_store_full_from_retry_bounds",
         "fullStoreOfReal_ne_of_generated_ne",
     )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "aeadOpenSealUnique_is",
+        "notASealing_is",
+        "open_none_of_not_sealing",
+        "not_notASealing_of_seal",
+        "replyHeader_length",
+        "replyFrame_take",
+        "replyFrame_drop",
+        "tampered_reply_model_refusal",
+        "initiator_refuses_tampered_reply",
+        "openModel_ok",
+        "sealModel_val",
+        "modelReply_openSealUnique",
+        "modelReply_notASealing_nil",
+        "modelReply_sealing_excluded",
+        "lenient_roundTrip_not_unique",
+        "tamper_laws_model",
+    )]
     # The screen of the hypotheses that integration adds (`UnitLifecycleIntegrationScreen.lean`).
     + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
         "concreteBranchEvidence_empty",
@@ -2919,6 +2938,31 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "concrete_receive_attempt_store_full_from_retry_bounds",
         "fullStoreOfReal_ne_of_generated_ne",
     )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "aeadOpenSealUnique_is",
+        "notASealing_is",
+        "open_none_of_not_sealing",
+        "not_notASealing_of_seal",
+        "replyHeader_length",
+        "replyFrame_take",
+        "replyFrame_drop",
+        "tampered_reply_model_refusal",
+        "initiator_refuses_tampered_reply",
+        "openModel_ok",
+        "sealModel_val",
+        "modelReply_openSealUnique",
+        "modelReply_notASealing_nil",
+        "modelReply_sealing_excluded",
+        "lenient_roundTrip_not_unique",
+        "tamper_laws_model",
+        "AeadOpenSealUniqueShape",
+        "AeadOpenSealUnique",
+        "NotASealingShape",
+        "NotASealing",
+        "openLenient",
+        "Interp.modelLenient",
+    )]
     + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
         "GenerateFillsOnce64",
         "GenerateFillsOnce64Of",
@@ -4388,6 +4432,15 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "AeadOpenSealUniqueShape",
+        "AeadOpenSealUnique",
+        "NotASealingShape",
+        "NotASealing",
+        "openLenient",
+        "Interp.modelLenient",
     )]
     # The new clauses, laws, records and model of the joint `OracleOf` decision.
     + ["Tacenta.UnitOracleShape." + n for n in (

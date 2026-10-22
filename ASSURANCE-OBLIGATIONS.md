@@ -1015,6 +1015,7 @@ recorded decision or a target-closing slice:
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
   `check-sparse-store-full-negatives.py`,
+  `check-tampered-reply-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
   `check-established-negatives.py`,
   `check-restored-negatives.py`,
@@ -1073,6 +1074,7 @@ recorded decision or a target-closing slice:
   placed unchanged);
   `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, keeps the last-resort path, the commit's single record entry, the fingerprint of the secret read back and the committed store it returns, and its composition keeps the bundle's last-resort key and absent one-time curve key;
   `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
+  the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1480,6 +1482,16 @@ recorded decision or a target-closing slice:
   unused by its proof,
   is removed),
   `check-initiator-second-message-negatives.py` (two unmodified copies accepted and eleven changes refused: seven inside the two composing proofs, three projections and one definition held by its pin),
+  `check-tampered-reply-negatives.py` (two unmodified copies accepted and fifteen changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement or a definition and a proof-breakage check there,
+  seven inside the composing proof `initiator_refuses_tampered_reply` (the frame's header claimed 101 bytes,
+  the reply's ciphertext claimed after 101 bytes, the premise claimed under the peer key's associated data,
+  the freshness premise claimed against the initiator's own key, the uniqueness law replaced by the round trip,
+  the refusal claimed to take no draw, the refusal claimed as the stale-key refusal),
+  each also accepted there with that proof replaced by `sorry`;
+  six on the leaf lemmas and two definitions held by their pins;
+  start-up self-tests on the guard's spellings, on a heartbeat timeout and on the labels),
   `check-initiator-second-send-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,

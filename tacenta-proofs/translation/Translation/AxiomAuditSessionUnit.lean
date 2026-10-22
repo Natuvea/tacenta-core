@@ -29,6 +29,7 @@ import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleReceivePreserve
 import Translation.UnitLifecycleT3
+import Translation.UnitLifecycleTamperedReply
 import Translation.UnitLifecycleInitialDispatch
 import Translation.UnitLifecycleInitiatorSecondMessage
 import Translation.DispatchEvidenceVacuity
@@ -205,6 +206,12 @@ model's `establishResponder`) and the one-time path are not shown.
 that first success returned, on the same run: the repeat is recognised and the inner receive refuses it as out of
 order, the session returned is the one given, the source loses exactly one draw, and the step refines the model's.  No
 law is added beyond the receipt's; a repeat at a later session or of different bytes is not shown.
+`UnitLifecycleTamperedReply.lean` takes, on the run of the reply's receipt, every frame that keeps the reply's
+102-byte header and carries bytes no call of the boundary's `encrypt` returns under the reply's message keys and
+associated data (a per-run premise): the initiator's `decrypt` at the same session from the same source refuses it with
+`Aead`, leaves the session as it was and takes one draw, under the assumed law `AeadOpenSealUnique` (an opened
+ciphertext is the sealing of what it opened to), which a toy model satisfies and the round trip does not imply.
+Neither the law nor the premise is shown of the real AEAD, and a frame with changed header bytes is not covered.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

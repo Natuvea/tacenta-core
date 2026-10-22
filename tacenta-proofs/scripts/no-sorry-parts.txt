@@ -42,6 +42,7 @@ hosted braid:
 hosted decrypt:
   decrypt-ratchet
   responder-receipt
+  tampered-reply
   discharge-native-decide
   receive-preservation
   audit-negatives

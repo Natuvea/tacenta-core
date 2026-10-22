@@ -2946,7 +2946,7 @@ value is the same constant; it cannot tell which key sealed the reply, and that 
 consistent with the other laws rests on reading X25519. It was needed because in `InterpO.modelFirstReceipt` every public key is the base point, so the responder's fresh
 key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
 mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
-plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed); a second
+plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed; a frame with the reply's header and a ciphertext that is no sealing is refused under an assumed law in the tampered-reply paragraph below); a second
 message in either direction (a second reply, the header's third chunk, the responder's first sampling send; the
 initiator's next send is the next paragraph, under a condition, and its step uses no fact relating the two parties'
 Braid KEMs);
@@ -2989,6 +2989,39 @@ are not covered); a restored copy of the session; the one-time path in a run; th
 bytes the parties received; that `hfreshB` holds under an honest random source; that the real primitives meet the records
 or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
 equality.
+
+*The initiator's refusal of a tampered reply.* `UnitLifecycleTamperedReply.lean` takes, on the same run as the receipt of
+the reply, every frame that keeps the reply's first 102 bytes (its header) and carries other bytes in place of its
+ciphertext, and shows that the initiator's `decrypt` at the session its first `encrypt` left, from the source that
+`encrypt` left, refuses it with `Aead`, returns the session as it was and takes exactly the one draw the honest receipt takes
+(`initiator_refuses_tampered_reply`, resting on the kernel and opaque constants, no compiler-trust axiom). It needs one new
+assumed law and one new premise about the run, on top of the reply receipt's premises (`hfreshB` included):
+
+| Statement | Kind | Says | Used for | Model, and when it would be false |
+|---|---|---|---|---|
+| `AeadOpenSealUnique` | law, ASSUMED (`AeadOpenSealUniqueShape` at the real constants) | if `aead::decrypt` of a ciphertext `c` under keys, IV and associated data `ad` returns `Ok v`, then `aead::encrypt` of `v` under the same keys, IV and `ad` returns a ciphertext with the bytes of `c` | the oracle's open of bytes that are no sealing is refused (`open_none_of_not_sealing`), so the model's step refuses `aead` | `InterpO.modelReply`, whose toy AEAD seals by putting a zero byte in front and opens exactly the strings that begin with one, ignoring keys, IV and associated data (`tamper_laws_model`); false of a truncated tag comparison, a lenient padding check, a decrypt that ignores trailing bytes or a random IV; not implied by `AeadRoundTrip` (`lenient_roundTrip_not_unique`); width-free |
+| `NotASealing` | premise about the run, crypto-bearing | no call of `aead::encrypt` under the reply's message keys and associated data returns the frame's replaced bytes | the tampered frame's open is refused | the empty ciphertext in the toy (`modelReply_notASealing_nil`); false of the reply's own ciphertext (a conjunct of the headline) and of every sealing (`modelReply_sealing_excluded`); that an attacker without the message key cannot produce a sealing is the unforgeability of HMAC-SHA256, which no theorem states and none can prove of the real function; width-free |
+
+**The law is not realised against the shipping AEAD.** By reading, it holds of `tacenta-core/boundary/src/aead.rs`: the open
+compares the full 32-byte HMAC-SHA256 tag over `ad ‖ ct` in constant time before it decrypts, so an opened `c` is `ct ‖ tag`
+with that tag, and resealing what `ct` decrypts to gives `c` again when the locked `cipher` 0.4.4 refuses a ciphertext that
+is empty or not whole blocks, the locked `block-padding` 0.3.3 removes PKCS#7 padding strictly, AES-256 encryption inverts its
+decryption on a block, and the seal's tag (`tacenta_kdf::hmac_sha256`) and the open's check (RustCrypto `Mac`) compute the same
+HMAC-SHA256 over the locked `hmac` 0.12.1. None of these is proved: `aead.rs` and its dependencies are outside the
+translation (`TRUSTED_PRIMITIVE_ZONES`), and nothing about RustCrypto's `aes`, `cbc`, `block-padding` or `hmac` is proved
+here. A realisation would need, for the shipping functions, a proof that the tag check precedes decryption and compares all
+32 bytes, a strict-unpad lemma (`unpad y = some x → pad x = y`), whole-block refusal, AES block encryption inverting block
+decryption, and agreement of the two HMAC paths. An independent verified implementation of the same construction proves, for
+its own code and not for the shipping one, that a bad tag is refused and the round trip given AES inversion; that is another
+shape (it does not say that an opened ciphertext is a sealing), it would also need the converse AES inversion and a
+strict-unpad lemma it does not have, and adopting it is an owner decision this work does not make. The law therefore stays
+a reviewed external assumption, and the premise stays a condition on the run for ever. **Not shown:** that the shipping AEAD
+meets the law; that a frame an attacker can produce meets the premise; a frame whose header bytes were changed, a frame
+shorter than the header or of another type; the refusal when the reply's ratchet key is the peer key or the draw's agreement
+is refused; that the refusal's source equals the honest receipt's; a run in which the honest reply is received after a
+refused tampered frame; tamper refusal on any other route; redelivery of the honest reply. The statement pin of
+`initiator_refuses_tampered_reply` is cut off by Lean's `⋯` after the binder `crcB`; it holds the law, its first hypothesis,
+and the later hypotheses and the conclusion are held by the build and by reading only.
 
 **Send preservation where the agreement's send takes no draw** (`UnitTripleInvModel.lean`, `UnitLifecycleSendPreserve.lean`).
 The bridge (`triple_invariant_iff_model`) rests on the kernel alone and assumes nothing beyond the Triple relation. The

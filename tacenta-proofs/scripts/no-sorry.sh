@@ -286,6 +286,14 @@ phase_sparse_store_full() {
 python3 scripts/check-sparse-store-full-negatives.py || fail=1
 }
 
+# Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced
+# (`UnitLifecycleTamperedReply.lean`): fifteen changes (seven inside the composing proof, six on leaf lemmas, two
+# definitions with their pins kept) must each be refused at a named declaration or pin, with a message naming the
+# change, after the unmodified copies are accepted.
+phase_tampered_reply() {
+python3 scripts/check-tampered-reply-negatives.py || fail=1
+}
+
 # The decrypt_ratchet refinement, its retry-loop induction, its refusal closure, its per-run bounds and the public decrypt on
 # frames that are not initial messages
 # (`UnitLifecycleRetryLoopT3.lean`, `UnitLifecycleDecryptRatchetT3.lean`, `UnitLifecycleDecryptRatchetScreen.lean`,
@@ -680,6 +688,7 @@ phases() {
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
+  run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message

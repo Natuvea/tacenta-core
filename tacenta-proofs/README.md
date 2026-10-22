@@ -65,8 +65,12 @@ the two oracles' roles swapped and two decrypt boundary records at the initiator
 initiator's next `encrypt` at the session that receipt returns, on the same run, whose model step has one outcome (the bare
 second frame carrying the header's chunk at index 1, no draw) and which, if that session passes `Session::invariant` and
 meets the four counter ceilings (not shown there; the receive step below shows it at that session, and the two are joined below), returns those bytes with no draw and refines the step, with no new law or
-compiler-trust axiom; a tampered frame being refused, the responder's receipt of that send (taken below) and later messages
-in either direction not covered there; and a general step stating that a successful `encrypt`
+compiler-trust axiom, and, under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to) and a
+per-run premise that the replaced bytes are no sealing under the reply's message keys, the initiator's `decrypt` at the
+session its first `encrypt` left, from the source that `encrypt` left, refusing with `Aead`, its session unchanged and one draw taken, every frame that keeps the
+reply's header and replaces its ciphertext, with no compiler-trust axiom (neither the law nor the premise shown of the real
+AEAD; a frame with changed header bytes not covered); the responder's receipt of that send (taken below) and later messages in
+either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
 zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
 the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the

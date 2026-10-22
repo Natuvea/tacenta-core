@@ -184,6 +184,13 @@ this section says in one place what is not proved.
   code, no KEM operation), with no new law and no compiler-trust axiom ("Proved (tier T3, session lifecycle: the responder's
   `decrypt` of the initiator's second message ...)"). Exactly one reply received by the initiator, one further send by the
   initiator and its receipt by the responder on this route are covered; every later message in either direction is not.
+  Under one more assumed law of the boundary AEAD, that an opened ciphertext is the sealing of what it opened to
+  (`AeadOpenSealUnique`, true by reading and not proved), and a per-run premise that the replaced bytes are no sealing under
+  the reply's message keys and associated data (`NotASealing`; that an attacker cannot produce a sealing is the
+  unforgeability of HMAC-SHA256, not stated), the initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses
+  with `Aead`, leaves the session as it was and takes one draw for every frame that keeps the reply's 102-byte header and
+  replaces its ciphertext, with no compiler-trust axiom; a frame whose header bytes were changed is not covered ("Proved
+  (tier T3, session lifecycle: the initiator's `decrypt` refuses a reply whose ciphertext was replaced ...)").
   A successful `encrypt` at a session that passes `Session::invariant` and refines a model session whose agreement's send
   takes no draw (the statement covers nine of the twelve agreement states) keeps `Session::invariant` and spends one unit
   of a counter budget whose zero is the four ceilings, given the relation after the call and one boundary record
@@ -5887,7 +5894,9 @@ reply, the initiator's `decrypt` of the reply's bytes, under the theorems' premi
 the reply's ratchet key is the peer key the initiator holds and otherwise returns the responder's plaintext (the four-arm
 statement is the general analysis; its `Handshake` and `Aead` arms are excluded by the contributory and round-trip premises):
 exactly one reply received by the initiator on this route. **Not shown:** that a tampered or foreign reply frame is refused
-(no AEAD authenticity law is assumed; the excluded `Aead` arm is the responder's own seal failing to open); a second message in either direction (a second reply, the
+(no AEAD authenticity law is assumed; the excluded `Aead` arm is the responder's own seal failing to open; a frame with the
+reply's header and a ciphertext that is no sealing is refused under an assumed law in the section "the initiator's `decrypt`
+refuses a reply whose ciphertext was replaced"); a second message in either direction (a second reply, the
 header's third chunk, the responder's first sampling send; the initiator's next send is the next section, under a condition
 on the session this receipt returns, and its emission of the header's second chunk uses no fact relating the two parties'
 Braid KEMs; by reading, completing the header (the responder's receipt of the initiator's later chunks) checks only its MAC
@@ -6097,6 +6106,141 @@ the pin of `secondFrame`). Several refusals are structural (a type mismatch at t
 is a proof that the invariant or the ceilings hold at `s''`, that the responder receives the frame, or that `encrypt` refuses
 anything. An error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or
 deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: the initiator's `decrypt` refuses a reply whose ciphertext was replaced, under an assumed AEAD law, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleTamperedReply.lean`.
+
+The section "the initiator's `decrypt` of the responder's reply" shows that, on the run of the initiator's first send,
+the responder's receipt of it and the responder's reply, the initiator's public `Session::decrypt` at the session `s'` its
+first `encrypt` left, from the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`. These results take, on
+the same run, every frame that keeps the reply's first 102 bytes (its header) and carries in place of the reply's ciphertext
+bytes `cT` that no call of the boundary's `encrypt` returns under the reply's message keys and associated data, and show that
+the same call, at the same `s'` from the same `rng'`, refuses it.
+
+**How, and its scope.** The bridge `open_none_of_not_sealing` turns the new law into a fact about the oracle the decrypt
+refinement reads: under `AeadOpenSealUnique` and the decrypt oracle record's open clause, the oracle's open of bytes that are
+no sealing under the given keys and associated data is `none`. The model lemma `tampered_reply_model_refusal` shows that the
+model's public `decrypt` of the reply's header followed by any ciphertext, at the sender after its first message with the
+agreement at `keysSampled`, takes the reply's steps (dispatch, decode, the agreement's receive, the first agreement, the
+draw, the draw's agreement, one Diffie-Hellman step on a fresh ratchet key) and refuses `aead` with the session as it was
+when that open is refused. `replyFrame_take` and `replyFrame_drop` split the reply frame into its 102-byte header and its
+seal. On the run, `initiator_receives_reply` gives the honest receipt, `initiator_first_send_responder_replies` and
+`established_encrypt_successor_hypotheses` on the same first send give the key equations and the invariant, relation,
+ceilings and honest chunks at `s'`, and `decrypt_refines_ratchet_frame_of_counter_headroom` relates the call on the
+tampered frame to the model's step. The scope is a frame whose header bytes are the reply's: its ratchet key, counters,
+epochs, agreement type and chunk are the reply's, so the call derives the reply's message key and associated data.
+
+**Laws and premises.** One law is new and assumed, `AeadOpenSealUnique` (`AeadOpenSealUniqueShape` at the real constants):
+if the boundary's `decrypt` of a ciphertext `c` under keys, IV and associated data `ad` returns `Ok v`, then its `encrypt` of
+`v` under the same keys, IV and `ad` returns a ciphertext with the bytes of `c`. It is a functional uniqueness law, not an
+unforgeability statement: it says what an opened ciphertext is, not who can compute one. It is true of the shipping AEAD by
+reading and is not proved: `tacenta-core/boundary/src/aead.rs` compares the full 32-byte HMAC-SHA256 tag over `ad ‖ ct` in
+constant time before it decrypts and removes the padding, and resealing what `ct` decrypts to gives `c` again when three
+facts about the locked dependencies hold (each read, none proved): `cipher` 0.4.4 refuses a ciphertext that is empty or not
+whole blocks, `block-padding` 0.3.3 removes PKCS#7 padding strictly, and AES-256 encryption inverts its decryption on a
+block; the seal's tag and the open's check are both HMAC-SHA256 over the locked `hmac` 0.12.1. It would be false of a
+truncated tag comparison, a lenient padding check, a decrypt that ignored trailing bytes or a random IV. One premise is new
+and is about the run, `NotASealing`: no call of the real `encrypt` under the reply's message keys and associated data returns
+the bytes `cT`. It is a condition on the frame, not a law. That an attacker who does not hold the message key cannot produce
+a sealing is the unforgeability of HMAC-SHA256, which no theorem here states and none can prove of the real function; this
+premise is where that assumption sits, and the refusal is scoped to frames that meet it. The other premises are those of
+`initiator_receives_reply`, unchanged, `hfreshB` included.
+
+- `aeadOpenSealUnique_is`, `notASealing_is`: at the real constants the law and the premise are the statements about the real
+  `decrypt` and `encrypt`.
+- `open_none_of_not_sealing`: under `AeadOpenSealUnique` and the decrypt oracle record's open clause, for keys of 32, 32 and 16
+  bytes and a ciphertext and associated data that fit a slice, the oracle's open of a ciphertext that is `NotASealing` is
+  `none`.
+- `not_notASealing_of_seal`: under the oracle record's seal clause alone, the oracle's seal of a plaintext slice under keys of
+  32, 32 and 16 bytes and associated data that fits a slice is not `NotASealing`.
+- `replyHeader_length`, `replyFrame_take`, `replyFrame_drop`: the reply's header is 102 bytes when its ratchet key is 32 bytes,
+  and the reply frame is that header followed by the seal of the plaintext under the reply's associated data; model only.
+- `tampered_reply_model_refusal`: the model's public `decrypt` of the reply's header (a fresh ratchet key of 32 canonical
+  bytes) followed by any ciphertext, at a model session with the Triple `senderAfterFirst` and the agreement at `keysSampled`,
+  whose first agreement with the ratchet key returns `dSend`, whose oracle's next draw agrees with it, and whose oracle's open
+  of that ciphertext under the receive's message key and the reply's associated data is refused, refuses `aead`, consumes the
+  draw and leaves the session as it was; model only.
+- `initiator_refuses_tampered_reply`: under `AeadOpenSealUnique` and the hypotheses of `initiator_receives_reply`, at every
+  successful return of `establish_responder` on the bytes a successful first `encrypt` at an establishment output emitted,
+  for every reply plaintext within the reply's bound and every responder source state: the responder's `encrypt` returns
+  `bytesR`, the reply frame under the key the initiator's receiving chain derives; the initiator's `decrypt` of `bytesR` at
+  `s'` from `rng'` returns `Ok` of the responder's plaintext and takes exactly the draw `dA`; the bytes of `bytesR` after its
+  first 102 are a sealing under the reply's message keys and associated data, so `NotASealing` excludes the reply's own
+  ciphertext; and for every slice `frame` whose bytes are the first 102 bytes of `bytesR` followed by bytes `cT` that are
+  `NotASealing` under those keys and that associated data, the same call on `frame` returns `Err(Aead)` with the session
+  `s'` as it was and a source holding exactly the draws after `dA`.
+- `openModel_ok`, `sealModel_val`: the toy open accepts exactly a leading zero byte and returns the rest, and the toy seal
+  puts a zero byte in front of a plaintext that leaves room for it; no hypothesis beyond that room.
+- `modelReply_openSealUnique`: `AeadOpenSealUniqueShape` holds at `Interp.modelReply`.
+- `modelReply_notASealing_nil`: the empty ciphertext is `NotASealingShape` at `Interp.modelReply` under every key, IV and
+  associated data.
+- `modelReply_sealing_excluded`: at `Interp.modelReply`, for keys of 32, 32 and 16 bytes and associated data that fits a slice,
+  the one-byte ciphertext `[0]`, the toy's seal of the empty plaintext, is not `NotASealingShape`.
+- `lenient_roundTrip_not_unique`: an interpretation whose open skips the toy's check of the leading byte meets
+  `AeadRoundTripShape` and fails `AeadOpenSealUniqueShape`.
+- `tamper_laws_model`: `AeadRoundTripShape`, `AeadOpenSealUniqueShape` and `NotASealingShape` of the empty ciphertext hold
+  together at `Interp.modelReply`.
+
+**Non-vacuity.** `tamper_laws_model` puts the round trip, the new law and the new premise in `Interp.modelReply`, the
+interpretation at which `reply_receipt_laws_model` puts every other law the reply's receipt takes, in the substitution sense
+of `LIMITATIONS.md`. Its AEAD is a toy (seal puts a zero byte in front; open accepts exactly the strings that begin with one)
+that ignores keys, IV and associated data, so a frame sealed under another key is a sealing there: the toy shows that the law
+and the premise are satisfiable together, not that any AEAD authenticates. `lenient_roundTrip_not_unique` shows the law is
+not implied by the round trip: it excludes an interpretation `AeadRoundTrip` admits. `modelReply_sealing_excluded` and the
+headline's conjunct on the reply's own ciphertext show the premise excludes sealings, so the refusal and the honest receipt
+cannot both apply to one frame. The run's other premises are reached at the real constants under the laws by
+`first_send_reply_receipt_reachable`; no frame meeting `NotASealing` at the real constants is exhibited, since that would need
+a fact about the real `encrypt`'s outputs that no law here gives.
+
+**What this establishes, and what it does not.** On the run of the initiator's first send, the responder's receipt and its
+reply, under `AeadOpenSealUnique` and the reply receipt's premises, the initiator's `decrypt` at `s'` from `rng'` accepts the
+reply and refuses with `Aead`, leaving the session as it was, every frame with the reply's header whose ciphertext is no
+sealing under the reply's message keys and associated data. **Not shown:** that the shipping AEAD meets `AeadOpenSealUnique`
+(it is assumed and true by reading, not proved; an independent verified implementation's statements, a bad tag refused and
+the round trip given AES inversion, are of another shape and about another implementation); that a frame an attacker can
+produce meets `NotASealing` (that is the unforgeability of HMAC-SHA256, not stated here); a frame whose header bytes were
+changed (ratchet key, counters, epochs, agreement type or chunk), a frame shorter than the header, or a frame of another
+type (those reach other associated data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered
+frame's refusal when the reply's ratchet key is the peer key the initiator holds, or when the initiator's draw's agreement is
+refused (`hfreshB` and the contributory law are kept); that the source the refusal leaves equals the one the honest receipt
+leaves (both hold the rest of the draws after `dA`; equality of the source states is not shown); a run in which the tampered
+frame is refused and the honest reply then received (the refusal leaves the session as it was, but the receipt after it, from
+a source one draw further on, is not composed); tamper refusal on any other route (the responder's receipt of the first frame,
+a restored session, later messages); redelivery of the honest reply; that the real primitives meet the boundary records or
+the other laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`), or that ML-KEM decapsulation
+agrees on a run (`FirstKemAgrees`).
+
+**Compiler trust and pins.** `initiator_refuses_tampered_reply` applies `initiator_receives_reply`,
+`initiator_first_send_responder_replies`, `established_encrypt_successor_hypotheses` and
+`decrypt_refines_ratchet_frame_of_counter_headroom` and lists the kernel's three axioms and opaque constants of the unit, and
+no compiler-trust axiom. Of the other 15 results, 6 rest on `propext`, `Classical.choice` and `Quot.sound` alone or on a
+subset of them (`replyHeader_length` on one of the three, `replyFrame_take` and `replyFrame_drop` on two,
+`tampered_reply_model_refusal`, `openModel_ok` and `sealModel_val` on all three) and 9 on those and opaque constants of the
+unit. Each of the 16 results carries an axiom pin and a statement pin, and each of the six definitions
+(`AeadOpenSealUniqueShape`, `AeadOpenSealUnique`, `NotASealingShape`, `NotASealing`, `openLenient`, `Interp.modelLenient`) a
+`#print` pin. The statement pin of `initiator_refuses_tampered_reply` is cut off by Lean's `⋯` after the binder `crcB`: it
+holds the law `AeadOpenSealUnique`, which is the theorem's first hypothesis, and the binders up to `crcB`, and the later
+hypotheses and the whole conclusion are held by the build and by reading only, as for the other cut-off pins.
+`check-tampered-reply-negatives.py` plants fifteen faults in a copy of the module, every one a change to a statement or a
+definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false). Seven sit inside the composing proof
+`initiator_refuses_tampered_reply` and none is a projection of a called theorem's conjunct; the script holds both labels, at
+start-up, to the syntactic form of that standard the other lifecycle controls use, and runs each inside control again with
+that proof replaced by `sorry`, requiring it to be accepted there (which verifies the refusal's attribution only; that the
+proof composes rather than projects is decided by reading). Inside: the frame claimed to keep only the reply's first 101
+bytes, the reply's ciphertext claimed to start after 101 bytes, the frame's premise claimed under the associated data of the
+peer key the initiator holds, the freshness premise claimed against the initiator's own ratchet key, the uniqueness law
+replaced by `AeadRoundTrip`, the refused call claimed to take no draw, and the refusal claimed to be the stale-key refusal
+`Triple(Classical(NoReceivingChain))`. Six are on the leaf lemmas: the law weakened to equal ciphertext lengths (refused in
+`open_none_of_not_sealing`), the model's refusal claimed to leave the oracle's draws untouched and claimed on the peer key
+(both refused in `tampered_reply_model_refusal`), the reply's header claimed to be 103 bytes (refused in `replyFrame_take`), the
+toy's seal of the empty plaintext claimed to be no sealing (refused in `modelReply_notASealing_nil`), and the lenient open
+made to check the leading byte (refused in `lenient_roundTrip_not_unique`). Two hold definitions with the pins kept: the
+premise reversed (refused at the pin of `NotASealingShape`) and the law weakened to equal lengths (refused at the pin of
+`AeadOpenSealUniqueShape`). None is a proof that `decrypt` refuses any frame outside the statement. An error that is not a
+refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts
+as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: `Session::encrypt` keeps `Session::invariant` where the agreement's send takes no draw, and `Triple::invariant` read on the model, on the eight-leaf unit)
 
