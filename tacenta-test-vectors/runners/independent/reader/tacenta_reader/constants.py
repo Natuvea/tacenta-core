@@ -75,6 +75,13 @@ PQXDH_F = b"\xff" * 32
 APP_SIGNATURE_LABEL = b"tacenta:application-signature:v1"
 APP_SIGNATURE_PREFIX = APP_SIGNATURE_LABEL + b"\xff"
 
+# identities-and-devices.md, The identity pair digest; CONSTANTS.md,
+# PAIR_DIGEST_LABEL: "31 ASCII bytes, no NUL, then 0xFF" (32 bytes); capital T.
+PAIR_DIGEST_LABEL = b"Tacenta:identity:pair-digest:v1" + b"\xff"
+assert len(PAIR_DIGEST_LABEL) == 32
+# CONSTANTS.md, Bounds: "Verification number length | 60 ASCII decimal digits"
+VERIFICATION_NUMBER_DIGITS = 60
+
 # mlkem-braid.md, Parameters and derivations: the two MAC suffixes, with bytes
 # given on the page (the other two are BRAID_SCKA_KEY and BRAID_AUTH_UPDATE)
 BRAID_EKHEADER = b":ekheader"

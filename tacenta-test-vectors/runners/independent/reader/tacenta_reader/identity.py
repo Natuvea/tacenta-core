@@ -43,9 +43,10 @@ def verify_application(identity_public: bytes, message: bytes, signature: bytes)
 def admit_identity_key(key: bytes, read_from_bytes: bool = True) -> bytes:
     """The rule at a boundary that admits a long-lived identity key.
 
-    "Where a boundary reads a key from bytes, a key that is not canonical is
-    still a decode failure, and the canonical rule is applied first."
-    (Identity keys, A refusal.) So a non-canonical spelling is a DecodeError
+    "The canonical rule is applied first. A key that is not canonical is
+    refused as it always was: as a decode failure where a wire encoding is
+    read, and by the kind that session-persistence.md, Rejection, names for a
+    stored state." (Identity keys, A refusal; pass 14 cite.) So a non-canonical spelling is a DecodeError
     when `read_from_bytes`; a canonical key that fails the rule is
     InvalidIdentityKey. Returns the key."""
     key = bytes(key)

@@ -25,4 +25,5 @@ __all__ = [
     "identity",
     "inventory",
     "admission",
+    "records",
 ]
