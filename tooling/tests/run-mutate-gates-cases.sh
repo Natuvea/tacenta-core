@@ -14,6 +14,9 @@
 #   an edit listed `equivalent` that a case sees   "STALE", exit 1
 #   an edit whose runner fails for another reason  "WRONG-REASON", exit 1
 #   an edit whose `old` text is not there once     exit 1, naming the edit
+#   a runner that builds through a Cargo-like cache in `$CARGO_TARGET_DIR`, with the caller's
+#   `CARGO_TARGET_DIR` naming a directory shared with a checkout: the edit is still seen ("accepted"), and
+#   nothing is written to the shared directory (each worktree builds into a target directory of its own)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -93,6 +96,42 @@ harness 'an edit that turns the runner red for another reason' 1 'WRONG-REASON'
 write_edits '{"mutations": [{'"$edit"', "old": "nowhere in the file", "new": "x", "expect": "WRONG"}]}'
 harness 'an edit whose old text is not in the file' 1 'E1' 'holds the edit'
 
+# A runner that builds the way Cargo does: into `$CARGO_TARGET_DIR` (default `target`), reusing a build that is
+# already there, as Cargo reuses a workspace member's build whose relative path matches and whose sources are not
+# newer. With the caller's CARGO_TARGET_DIR shared, the baseline's honest build would hide the edit (it survives),
+# or an edit's build would be left for the next run in the checkout to reuse.
+shared="$work/shared-target"
+mkdir -p "$shared"
+cat >"$repo/cached-runner.sh" <<'RUNNER'
+#!/usr/bin/env bash
+set -uo pipefail
+target="${CARGO_TARGET_DIR:-target}"
+mkdir -p "$target"
+[ -f "$target/gate.sh" ] || cp gate.sh "$target/gate.sh"
+printf bad > input.txt
+bash "$target/gate.sh" >/dev/null 2>&1 && { echo "WRONG  cached-refused-input: expected refusal, was accepted" >&2; exit 1; }
+echo "cached runner: the bad input was refused"
+RUNNER
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "cached runner"
+write_edits '{"mutations": [{"id": "cached-build", "file": "gate.sh", "what": "w", "runner": "bash cached-runner.sh", "old": "exit 1", "new": "exit 0", "expect": "WRONG  cached-refused-input"}]}'
+set +e
+out="$(cd "$repo" && CARGO_TARGET_DIR="$shared" python3 tooling/mutate-gates.py 2>&1)"
+rc=$?
+set -e
+cases=$((cases + 1))
+if [ "$rc" -ne 0 ] || ! grep -qF '1 seen as accepted' <<<"$out"; then
+  echo "WRONG  mutate-gates a shared CARGO_TARGET_DIR: expected the edit seen as accepted with exit 0, got exit $rc" >&2
+  printf '%s\n' "$out" >&2
+  exit 1
+fi
+cases=$((cases + 1))
+if [ -n "$(ls -A "$shared")" ]; then
+  echo "WRONG  mutate-gates a shared CARGO_TARGET_DIR: the harness built into the caller's target directory:" \
+    "$(ls -A "$shared" | tr '\n' ' ')" >&2
+  exit 1
+fi
+
 # A runner that is red before any edit: the harness stops and says so, and runs no edit.
 write_edits '{"mutations": [{'"$edit"', "old": "exit 1", "new": "exit 0", "expect": "WRONG  refused-input"}]}'
 printf 'exit 1\n' >> "$repo/runner.sh"
@@ -104,4 +143,4 @@ if grep -qF 'seen as accepted' <<<"$(cd "$repo" && python3 tooling/mutate-gates.
 fi
 cases=$((cases + 1))
 
-echo "mutate-gates-cases: $cases cases (a red baseline, accepted, behaviour, message only and survived edits, listed and stale reasons, a wrong reason, an edit that does not apply) gave the expected result"
+echo "mutate-gates-cases: $cases cases (a red baseline, accepted, behaviour, message only and survived edits, listed and stale reasons, a wrong reason, an edit that does not apply, a build cache in a shared CARGO_TARGET_DIR) gave the expected result"

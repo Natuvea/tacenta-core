@@ -44,6 +44,18 @@ The harness reads the commit, not the working tree: commit the control, then run
 `link`, paths whose build output is symlinked into the worktree from this checkout (a `.lake` directory), for
 a control that needs a built Lean workspace.
 
+Build output. Every worktree the harness makes (a baseline's, an edit's, which the run to the end that
+classifies the edit shares, a guard's) gets a Cargo target directory of its own, a fresh temporary directory
+outside the worktree that is removed with it:
+the harness sets `CARGO_TARGET_DIR` for the runner, whatever the caller's environment says. A target directory
+shared with a checkout is not safe: Cargo names a workspace member's build by its path relative to the workspace
+root and judges it fresh by the times of its source files, so a mutated build left in a shared directory is
+taken as current by a later `cargo test` in the clean checkout, whose files are older, which then runs the
+mutated library (in a fraction of a second, failing exactly the mutation's pattern). The `.lake` directories a
+mutation `link`s are the checkout's own, not copies: a runner that built an edited Lean module would write into
+them. Read on 2026-10-22, none does: the linked edits to Lean files are elaborated with `lake env lean`, which
+writes no build output, and the other linked edits are to shell scripts, whose runners build nothing they change.
+
 Guard removal. `--guards FILE...` does not read `tooling/gate-mutations.json`. For each gate file it finds
 every guard (an `if` or `elif` whose next line fails: `fail(`, `return 1`, `raise`, `sys.exit(1)`, `exit 1`,
 an `ERROR` or a message to stderr), makes one mutant per guard whose condition is `False` (`false` in a shell
@@ -86,7 +98,21 @@ FAILURE_LINE = re.compile(r"^(?:WRONG|generation negative |audit-reach negative 
                           r"|boundary-surface case: |::error::lifecycle coverage gate)")
 
 
+# The Cargo target directory of each live worktree (see "Build output" above).
+TARGETS = {}
+
+
+def isolated_env(cwd):
+    """The caller's environment with `CARGO_TARGET_DIR` set to the target directory of the worktree `cwd`."""
+    if cwd not in TARGETS:
+        raise SystemExit(f"mutate-gates: {cwd} is not a worktree of this run, so it has no target directory")
+    env = dict(os.environ)
+    env["CARGO_TARGET_DIR"] = TARGETS[cwd]
+    return env
+
+
 def run(cmd, cwd, timeout, env=None):
+    env = isolated_env(cwd) if env is None else env
     started = time.time()
     try:
         proc = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True,
@@ -101,6 +127,7 @@ class Worktree:
 
     def __init__(self, links=()):
         self.path = tempfile.mkdtemp(prefix="mutate-gates-")
+        TARGETS[self.path] = tempfile.mkdtemp(prefix="mutate-gates-target-")
         subprocess.run(["git", "-C", ROOT, "worktree", "add", "-q", "--detach", self.path, "HEAD"],
                        check=True, capture_output=True)
         for link in links:
@@ -118,6 +145,7 @@ class Worktree:
         subprocess.run(["git", "-C", ROOT, "worktree", "remove", "--force", self.path],
                        capture_output=True)
         shutil.rmtree(self.path, ignore_errors=True)
+        shutil.rmtree(TARGETS.pop(self.path), ignore_errors=True)
 
 
 def apply_edit(wt, mutation):

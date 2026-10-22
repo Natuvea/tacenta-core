@@ -1880,7 +1880,9 @@ standard and labels, the guard's self-test of each of its six error spellings, `
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
 the script's own counts, its stub and the phase count in `tooling/tests/run-no-sorry-parts-cases.sh` (which now names
 the edit when a phase or a called script is missing from its fixture), and the two pretty-printer options in the
-module, so that its pins print whole. The controls stub Lean as before; one generated script,
+module, so that its pins print whole. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
+own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
+`cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,
 given two controls of the send-preservation module, was run against Lean by hand.
 
 ## Next P1 slices

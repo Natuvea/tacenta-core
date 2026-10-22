@@ -620,3 +620,20 @@ first (the exit status was right).
 | GA-port-unit-arg | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh accepts an argument it does not know | `check-generation-negatives.sh` | seen as accepted |
 | GA-port-session-unit-arg | `tacenta-proofs/scripts/port-session-unit-proofs.sh` | port-session-unit-proofs.sh accepts an argument it does not know | `check-generation-negatives.sh` | seen as accepted |
 | GN-port-unit-diff-all | `tacenta-proofs/scripts/port-unit-proofs.sh` | port-unit-proofs.sh reports only the first copy that differs | `check-generation-negatives.sh` | seen as another wrong verdict |
+
+## The harness's build output, 2026-10-22
+
+`tooling/mutate-gates.py` ran each runner with the caller's environment, so with `CARGO_TARGET_DIR` set to a
+directory shared with a checkout, every edit's Rust build went there. Cargo names a workspace member's build by its
+path relative to the workspace root and judges it fresh by the times of its source files, so the last edit's build
+was taken as current by a later `cargo test` in the clean checkout, whose files are older: it ran the mutated library
+in a fraction of a second and failed exactly the mutation's pattern. The harness now gives each worktree (a
+baseline's, an edit's, a guard's) a target directory of its own, outside the worktree and removed with it, whatever
+the caller's environment says; every build of a Rust runner is then a full one. `run-mutate-gates-cases.sh` holds it
+with a runner that builds through a cache in `$CARGO_TARGET_DIR`: with the caller's directory shared, the edit is
+hidden by the baseline's build and survives, and the shared directory is written; with the fix the edit is seen and
+the directory stays empty (mutation `MG-target`). The `.lake` directories an edit `link`s are still the checkout's
+own. Read on this date, no linked runner builds a module an edit changes: the linked edits to Lean files
+(`PN1`, `PN2`) are elaborated with `lake env lean`, which writes no build output, and the other linked edits are to
+shell scripts.
+
