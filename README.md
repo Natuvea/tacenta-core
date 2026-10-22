@@ -446,7 +446,9 @@ every lifecycle module by `tooling/ci.sh` and in CI, step `checks_42`, against
 failing there on errors only; a key that no longer occurs fails there, and a key added later must occur and needs a stated reason) refuses the marker, a module with no `CLAIMS.md` section or no negatives
 script, a negatives script missing the names and call sites of the hardened mechanism (a structural check: the script is not run, and
 a stub that calls them only in dead code passes it), a
-count in the prose that does not match the pins or the controls, and a plan identifier, planning path or
+count in the prose that does not match the pins or the controls (only counts written in the forms it reads: on
+main, the axiom-pin count in 13 of the 19 lifecycle sections that have pins, the definitions count in 12 and the
+"of the other N results" count in 8; a phrase that looks like a count in another form is a warning), and a plan identifier, planning path or
 attribution line in the module's text, and warns when the module's not-shown list misses an item of its
 `CLAIMS.md` section. A local list of further terms to keep out can be named with the environment variable
 `TACENTA_PRIVATE_TERMS_FILE` (a file outside the tree, one term per line); without it that part is skipped, and CI

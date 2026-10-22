@@ -17,7 +17,9 @@
 #   section of UnitLifecycleResponderReply)         of a pin's name; a kernel-only result padded into the named
 #                                                   list with the counts moved to match; an unnamed result made
 #                                                   compiler-trusted with the counts moved to match; a count
-#                                                   whose two parts do not add up: each named
+#                                                   whose two parts do not add up: each named; a count in a
+#                                                   form the check does not read: a warning; the axiom-pin count
+#                                                   in its "theorems ... has" form off by one: named
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
 #   a stub that defines every name and calls nothing fails it; then, all planted at once and each required by name
 #   in one run:
@@ -165,6 +167,16 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('Of the other 14 results, 6 rest on
 run other-compiler 1 UnitLifecycleResponderReply --baseline "$baseline"
 says other-compiler "\`array_clone_u8\` is compiler-trusted, and is not among the results named first"
 g checkout -q -- tacenta-proofs/CLAIMS.md tacenta-proofs/translation/Translation/UnitLifecycleResponderReply.lean
+# A count written in a form the check does not read is a warning, not a pass in silence; the theorems form of the
+# axiom-pin count is read.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Of the other 14 results, 6 rest on', 'Of the other 14, 6 rest on', 1)"
+run count-unread 0 UnitLifecycleResponderReply --baseline "$baseline"
+says count-unread "a count the preflight does not read, so it is not checked: \"Of the other 14, 6 rest on"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 19 theorems has an axiom pin', 'Each of the 20 theorems has an axiom pin', 1)"
+run count-theorems-form 1 --all --baseline "$baseline"
+says count-theorems-form "says 20 results with an axiom pin; there are 19"
+g checkout -q -- tacenta-proofs/CLAIMS.md
 # The two parts of the other results must add up to them.
 edit tacenta-proofs/CLAIMS.md "t = t.replace(') and 8 on those and opaque constants of the unit. Each of the 19', ') and 7 on those and opaque constants of the unit. Each of the 19', 1)"
 run other-sum 1 UnitLifecycleResponderReply --baseline "$baseline"
@@ -288,4 +300,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; an unread count warned and the theorems form read; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"

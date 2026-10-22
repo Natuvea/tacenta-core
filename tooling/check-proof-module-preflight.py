@@ -23,9 +23,12 @@ since the checks below would then have nothing to read:
                      `Unknown identifier`, the kernel's `unknown constant` and a heartbeat timeout; a non-empty
                      `TIMEOUT` read by `is_timeout`; the two baselines (`module`, `pinned`); and the `sorry` probe
                      (`gutted`, `check_inside`, checking `declaration uses \`sorry\``) called from `main`. An error.
-  (c) counts         the numbers the prose gives match what they count: in the section, "each of the N results"
-                     (the module's axiom pins), "each of the N definitions" (its `#print` pins), "of the other N
-                     results, A rest on ... alone ... and B on" (the pins other than the results the section's
+  (c) counts         the numbers the prose gives match what they count, where the prose writes them in one of
+                     these forms (any other "of the other N" or "each of the N results/theorems/definitions/lemmas"
+                     in the section is a warning, so a rephrased count shows rather than passing unread): in the
+                     section, "each of the N results (or theorems) carries (or has) an axiom pin" (the module's axiom
+                     pins), "each of the N definitions" (its `#print` pins), "of the other N results, A rest on
+                     ... alone ... and [the other] B on" (the pins other than the results the section's
                      **Compiler trust and pins.** paragraph names before its verb; then kernel only and opaque among
                      them, A + B = N, none of them compiler-trusted, every named result pinned and of the trust the
                      paragraph's first sentence gives it; with no such names, the pins `attest.py` labels other
@@ -64,7 +67,9 @@ Test seam: with `PREFLIGHT_SEAM=tests-only`, `PREFLIGHT_PLAN_ID=<regex>` adds a 
 Each only adds to what is refused.
 
 What it does not do: judge the prose. A not-shown item reworded beyond recognition is a warning, and a count the
-patterns above do not match is not checked.
+patterns above do not match is not checked (a phrase that looks like one is a warning). On main at its
+introduction the axiom-pin form is read in 13 of the 19 lifecycle sections that have pins, the definitions form
+in 12, and the "of the other" form in 8.
 """
 import argparse
 import ast
@@ -502,6 +507,16 @@ def section_pins(body, attest):
     return total
 
 
+# The count sentences the check reads. A count written another way is not checked: COUNT_LIKE finds the phrases
+# that look like one ("of the other N", "each of the N results/theorems/definitions") outside these, and each is a
+# warning, so a rephrasing shows instead of passing unread.
+COUNT_RESULTS = rf"[Ee]ach of the {NUMBER} (?:results|theorems) (?:carries|has) an axiom pin"
+COUNT_DEFINITIONS = rf"[Ee]ach of the {NUMBER} definitions"
+COUNT_OTHER = (rf"Of the other {NUMBER} results, {NUMBER} rest(?:s)? on `propext`, `Classical\.choice` and "
+               rf"`Quot\.sound` alone(?:[^.]*?)and (?:the other )?{NUMBER} on")
+COUNT_LIKE = rf"\b(?:[Oo]f the other {NUMBER}\b|[Ee]ach of the {NUMBER} (?:results|theorems|definitions|lemmas)\b)"
+
+
 def single_module(path):
     """Whether a negatives script holds one module (a script over several plants per-module faults)."""
     return len(set(re.findall(r"translation/Translation/(\w+)\.lean", path.read_text(encoding="utf-8")))) == 1
@@ -518,14 +533,17 @@ def check_counts(report, module, text, sections, scripts, attest):
         where = f"CLAIMS.md section `{title[:70]}`"
         flat = " ".join(body.split())
         if pins:
-            for m in re.finditer(rf"[Ee]ach of the {NUMBER} results carries an axiom pin", flat):
+            read = []  # the spans of the count sentences read below; any other count-like phrase is a warning
+            for m in re.finditer(COUNT_RESULTS, flat):
+                read.append(m.span())
                 count_mismatch(report, f"{module}|count|results", where, "results with an axiom pin",
                                number(m.group(1)), pins["axiom"])
-            for m in re.finditer(rf"each of the {NUMBER} definitions", flat):
+            for m in re.finditer(COUNT_DEFINITIONS, flat):
+                read.append(m.span())
                 count_mismatch(report, f"{module}|count|definitions", where, "definitions with a `#print` pin",
                                number(m.group(1)), pins["print"])
-            for m in re.finditer(rf"Of the other {NUMBER} results, {NUMBER} rest(?:s)? on `propext`, "
-                                 rf"`Classical\.choice` and `Quot\.sound` alone(?:[^.]*?)and {NUMBER} on", flat):
+            for m in re.finditer(COUNT_OTHER, flat):
+                read.append(m.span())
                 other = other_results(report, module, where, flat, body, attest)
                 if other is None:
                     what, total = "results other than the compiler-trusted", pins["kernel"] + pins["opaque"]
@@ -543,6 +561,11 @@ def check_counts(report, module, text, sections, scripts, attest):
                                number(m.group(2)), kernel)
                 count_mismatch(report, f"{module}|count|opaque", where, "results on opaque constants",
                                number(m.group(3)), opaque)
+            for m in re.finditer(COUNT_LIKE, flat):
+                if not any(start <= m.start() < end for start, end in read):
+                    phrase = flat[m.start():m.start() + 80]
+                    report.add("warning", f"{module}|count|unread|{hashlib.sha256(phrase.encode()).hexdigest()[:12]}",
+                               f"{where}: a count the preflight does not read, so it is not checked: \"{phrase}\"")
         for path in scripts:
             if not single_module(path):
                 continue
