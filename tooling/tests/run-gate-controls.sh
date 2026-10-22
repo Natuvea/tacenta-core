@@ -18,6 +18,8 @@
 #   run-gate-inventory-cases.sh and run-mutate-gates-cases.sh  the inventory generator and the mutation harness
 #   run-reflow-shared-lists-cases.sh, reflow-shared-lists.py --check  the lists every new proof module edits are
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
+#   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
+#                                  a scaffold writes, the pins step's lists and count, with no Lean
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
@@ -45,4 +47,5 @@ bash "$here/run-mutate-gates-cases.sh"
 bash "$here/run-regenerate-in-container-cases.sh"
 bash "$here/run-reflow-shared-lists-cases.sh"
 python3 "$root/tooling/reflow-shared-lists.py" --check
+bash "$here/run-new-lifecycle-module-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
