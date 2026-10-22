@@ -6,7 +6,8 @@
 
 For each module `tacenta-proofs/translation/Translation/<Module>.lean`, its section of `tacenta-proofs/CLAIMS.md`
 (the `## Proved` section whose `Location:` line names the module) and the negatives scripts that name it
-(`tacenta-proofs/scripts/check-*-negatives.py`):
+(`tacenta-proofs/scripts/check-*-negatives.py`); a module with no such section, or no such script, is an error,
+since the checks below would then have nothing to read:
 
   (a) not-shown      every item of the section's not-shown list (the paragraph that begins **Not shown**,
                      **Not shown here** or **What it does not show**, split at `;`) has its words in the
@@ -701,6 +702,15 @@ def main():
         text = path.read_text(encoding="utf-8")
         sections = claims_section(module)
         scripts = negatives_scripts(module)
+        # Without a section or a script, (a) to (c) have nothing to read: that is a finding, not a pass.
+        if not sections:
+            report.add("error", f"{module}|no-section",
+                       f"{module}: no `## Proved` section of tacenta-proofs/CLAIMS.md names it in its `Location:` "
+                       f"line, so its not-shown list and counts are not checked")
+        if not scripts:
+            report.add("error", f"{module}|no-negatives-script",
+                       f"{module}: no tacenta-proofs/scripts/check-*-negatives.py names it, so no control's "
+                       f"mechanism is checked")
         for script in scripts:
             if script not in check_mechanism.cache:
                 check_mechanism.cache[script] = check_mechanism(report, script)

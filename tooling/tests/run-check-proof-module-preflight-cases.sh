@@ -9,6 +9,8 @@
 #                                                   when `reasons` gives it none or a placeholder; passes with a
 #                                                   reason a reviewer can read
 #   a baselined count at another wrong value        fails (count keys carry both numbers)
+#   a module with no CLAIMS.md section and no       two errors
+#   negatives script
 #   a base that is empty or does not resolve        fails (it would let the baseline grow unseen); warnings alone
 #                                                   do not fail the run
 #   the results a section names first (in the       a named result with no pin, or matched only by a substring
@@ -72,7 +74,7 @@ PY
 }
 
 run committed 0 --all --baseline "$baseline"
-says committed "0 error(s), 10 known"
+says committed "0 error(s), 15 known"
 says committed "private-term scan skipped: no list"
 # Edit the baseline: `bl add KEY` lists a key, `bl reason KEY TEXT` gives it a reason.
 bl() {
@@ -175,7 +177,18 @@ says warning-only "warning  UnitLifecycleResponderFirstReceipt: CLAIMS.md lists 
 says warning-only "0 error(s)"
 g checkout -q -- tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean
 
-# The clean fixture of the mechanism: the template's script for a module, with one control planted.
+# A module with no CLAIMS.md section and no negatives script: each is an error, since the checks have nothing
+# to read.
+sed -e 's/@MODULE@/UnitLifecycleOrphanProbe/g' -e 's/@IMPORT@/Translation.UnitLifecycleT3/g' \
+  -e 's/@DESCRIPTION@/A probe./g' "$clone/tacenta-proofs/scripts/templates/lifecycle-module.lean.in" \
+  | sed 's/SCAFFOLD-TODO: //' > "$clone/tacenta-proofs/translation/Translation/UnitLifecycleOrphanProbe.lean"
+run no-section-no-script 1 UnitLifecycleOrphanProbe
+says no-section-no-script "UnitLifecycleOrphanProbe: no \`## Proved\` section of tacenta-proofs/CLAIMS.md names it"
+says no-section-no-script "UnitLifecycleOrphanProbe: no tacenta-proofs/scripts/check-*-negatives.py names it"
+rm "$clone/tacenta-proofs/translation/Translation/UnitLifecycleOrphanProbe.lean"
+
+# The clean fixture of the mechanism: the template's script for a module, with one control planted, and a
+# section of its own.
 module=UnitLifecyclePreflightProbe
 script="tacenta-proofs/scripts/check-preflight-probe-negatives.py"
 sed -e "s/@MODULE@/$module/g" -e 's/@IMPORT@/Translation.UnitLifecycleT3/g' -e 's/@DESCRIPTION@/A probe./g' \
@@ -183,6 +196,8 @@ sed -e "s/@MODULE@/$module/g" -e 's/@IMPORT@/Translation.UnitLifecycleT3/g' -e '
 sed -e "s/@MODULE@/$module/g" -e 's/@IMPORT@/Translation.UnitLifecycleT3/g' -e 's/@DESCRIPTION@/A probe./g' \
   "$clone/tacenta-proofs/scripts/templates/lifecycle-module.lean.in" \
   | sed 's/SCAFFOLD-TODO: //' > "$clone/tacenta-proofs/translation/Translation/$module.lean"
+printf '\n## Proved (a probe)\n\nLocation: `tacenta-proofs/translation/Translation/%s.lean`\n\n' "$module" \
+  >> "$clone/tacenta-proofs/CLAIMS.md"
 edit "$script" "t = t.replace('MUTANTS = [\n', 'MUTANTS = [\n    (\'module\', \'a-planted-change\', [(\'a\', \'b\')], r\'x\', [\'composed\']),\n', 1).replace('COMPOSING = set()', 'COMPOSING = {\'composed\'}').replace('INSIDE = {}', 'INSIDE = {\'a-planted-change\': \'composed\'}').replace('SCAFFOLD-TODO: ', '')"
 g add -A
 run clean-template 0 "$module"
@@ -273,4 +288,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
