@@ -73,6 +73,9 @@ import Translation.UnitLifecycleResponderFirstReceipt
 import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
+import Translation.UnitTripleInvModel
+import Translation.UnitLifecycleSendPreserve
+import Translation.UnitLifecycleInitiatorSecondSend
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -154,6 +157,20 @@ when the reply's ratchet key is the peer key it already holds, and otherwise ret
 one draw, clears the pending initial message and relates to the model's step.  The laws are the receipt's, with the roles swapped; a new joint model
 with a public key that varies holds them all, and the reach's law `DhPublicNotConstant` with them.  One reach run's
 initiator receives the reply, and another, whose responder draws its own signed prekey secret, refuses it.
+`UnitTripleInvModel.lean` states `Triple::invariant` on the model: at every code Triple that refines a model Triple,
+the invariant returns `true` exactly when the model predicate `ModelTripleInv` holds, in both directions, from the
+leaves' `Inv` and the canonicity transport; kernel only.  `UnitLifecycleSendPreserve.lean` proves that a successful
+`Session::encrypt` at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a
+counter budget whose zero is the four ceilings, given the relation after the call, under `KemCloneAgrees` only and
+resting on the kernel and opaque constants; on the run it gives the invariant and the ceilings at the session the
+responder's reply leaves, under the reply's hypotheses.  Draw states, an agreement output, refusals and receives are
+not covered.
+`UnitLifecycleInitiatorSecondSend.lean` takes the initiator's next `Session::encrypt` at the session that receipt
+returns, on the same run: the model's step there has one outcome (the bare second frame, agreement type `hdr` with the
+header's chunk at index 1, no draw), and if that session passes `Session::invariant` and meets the four counter ceilings,
+which is not shown, the call returns those bytes, leaves the source as given and relates to the model's step.  The
+encrypt route's providers come from the invariant and the ceilings, for every session whose agreement send reads no
+draw.  No law is added, and no run is exhibited at which the invariant and the ceilings hold there.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

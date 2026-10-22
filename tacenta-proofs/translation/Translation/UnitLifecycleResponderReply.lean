@@ -91,8 +91,10 @@ run's encrypt records, since the two parties share the oracle and the byte-strea
   fail at `NoHeaderReceived`, the Triple's send succeeds from counters 0 with a sending chain, the composite header is
   defined); the refusals reachable elsewhere in a session (the terminal guard, `ChainExhausted`, `NoSendingChain`)
   are not covered.
-* `Session::invariant` or the ceilings at `sB''`, a second reply, a second message from the initiator, the header's
-  later chunks, the responder's first sampling send, a restored copy of `sB'`.
+* A second reply, the header's later chunks, the responder's first sampling send, a restored copy of `sB'`.
+  `Session::invariant` and the ceilings at `sB''` are derived on this run in `UnitLifecycleSendPreserve`, and a second
+  message from the initiator is taken, under a condition on the session the receipt of the reply returns, in
+  `UnitLifecycleInitiatorSecondSend`.
 * That the model session the successor refines holds only bytes the responder received (the receipt's relation is at
   the view that attributes the received codeword).  (The statement does not tie `rngR` to the source
   `establish_responder` left; it holds for every source state, that one included, and the reach takes it.)

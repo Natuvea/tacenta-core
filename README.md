@@ -241,8 +241,18 @@ reply, at the session its first `encrypt` left, on the same run, refuses `NoRece
 key is the peer key the initiator holds and otherwise returns the responder's plaintext with one draw (the general analysis
 has four arms; the handshake and `Aead` arms, the latter the responder's own seal failing to open, are excluded by the
 contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
-(no compiler-trust axiom): exactly one reply received by the initiator. That a tampered frame is refused is not shown, nor any later
-message in either direction.
+(no compiler-trust axiom): exactly one reply received by the initiator. At the session that receipt returns, the model's step for
+the initiator's next `encrypt` has one outcome (the bare second frame carrying the header's chunk at index 1, no draw), and
+if that session passes `Session::invariant` and meets the four counter ceilings, which is not shown, the public `encrypt`
+returns those bytes with no draw and refines the step, with no new law (no compiler-trust axiom): exactly one further send by the
+initiator, under that condition. That a tampered frame is refused is not shown, nor the responder's receipt of that send,
+nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
+draw keeps `Session::invariant` and spends one unit of a counter budget whose zero is the four ceilings, given the relation
+after the call and one boundary record (kernel and opaque constants only); the relation after the call carries the Triple
+half and the budget and comes from the encrypt refinement. Its premises are exhibited together only at
+the state where the responder's reply is sent, on the same run, where it gives the invariant and the four ceilings at the
+session that reply leaves (no compiler-trust axiom); no run exhibits them at the other eight states. No `encrypt` whose agreement send draws, no refusal and no receive is
+covered by a preservation result.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three

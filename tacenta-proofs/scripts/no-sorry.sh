@@ -365,7 +365,9 @@ python3 scripts/check-discharge-native-decide-negatives.py || fail=1
 # or without its chunk count, either walk claimed to keep what the code changes, the composition claimed of the
 # prepared model, the initiator's session or the plaintext, and a copy of the session definition with its pins kept
 # must each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
-# are accepted.
+# are accepted; the one change inside a composing proof must be accepted there with that proof emptied, the two
+# projections refused where the proof places a called theorem's conjunct unchanged, and the three statement-shape
+# checks still refused with the projected proof emptied.
 phase_responder_successor() {
 python3 scripts/check-responder-successor-negatives.py || fail=1
 }
@@ -378,7 +380,8 @@ python3 scripts/check-responder-successor-negatives.py || fail=1
 # reply header's sparse number, the headroom's header room, the composite's agreement type or the model step's
 # pending premise changed, the reach's source changed, and a copy of the frame definition with its pins kept must
 # each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
-# accepted; the seven changes inside composing proofs must be accepted there with that proof emptied.
+# accepted; the seven changes inside composing proofs, none a projection, must be accepted there with that proof
+# emptied.
 phase_responder_reply() {
 python3 scripts/check-responder-reply-negatives.py || fail=1
 }
@@ -392,11 +395,48 @@ python3 scripts/check-responder-reply-negatives.py || fail=1
 # changed, the joint model's public key made constant, the fresh private key's reading, the first agreement's key, the
 # model's stale-key outcome or the first send's agreement epoch changed, the reach's decrypt claimed at the
 # responder's session, and a copy of the receipt session definition with its pins kept must each be refused at a
-# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the ten
-# changes labelled inside composing proofs must be accepted there with that proof emptied, and the statement-shape
-# check still refused with the projected proof emptied.
+# named declaration or pin, with a message naming the change, after the unmodified copies are accepted; the seven
+# changes labelled inside composing proofs must be accepted there with that proof emptied, the four projections
+# refused where the proof places a called theorem's conjunct unchanged, and the statement-shape check still refused
+# with the projected proof emptied.
 phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
+}
+
+# The bridge between `Triple::invariant` and the model (`UnitTripleInvModel.lean`) and send preservation at an
+# agreement state that takes no draw (`UnitLifecycleSendPreserve.lean`): a copy with the no-draw premise weakened, the
+# key-pair clone record swapped for the erasure one, the budget claimed unspent or the relation after the call claimed
+# to the model before it (in the general step), the budget after the reply claimed beyond the clock or two operations
+# longer (in the run's headline), the establishment's law swapped (in the re-derivation), the reply's call or relation
+# changed where the headline forwards them, the sparse send's frame claimed with an agreement output, the budget claimed
+# kept with no unit to spend, `next_chunk` claimed to change the codewords, the key-generation state claimed to send
+# without a draw, the structural clauses claimed blind to the sparse epoch, the bridge without its roles clause or with
+# a plain-sum window, the reply's corollary claimed at the initiator's session, and a copy of the bridge's predicate
+# regrouped with its pins kept must each be refused at a named declaration or pin, with a message naming the change,
+# after the unmodified copies are accepted; the seven changes labelled inside composing proofs must be accepted there
+# with that proof emptied, the two projections must be refused where a composing proof places a conjunct of
+# `initiator_first_send_responder_replies` unchanged, every change refused in a composing proof must carry one of the
+# two labels, checked at start-up against the module's text, and the statement-shape check must still be refused with
+# the projected proof emptied.
+phase_send_preservation() {
+python3 scripts/check-send-preservation-negatives.py || fail=1
+}
+
+# The initiator's second `encrypt` at the session its receipt of the reply returned
+# (`UnitLifecycleInitiatorSecondSend.lean`): a copy with the model's second step claimed to take a draw, the call
+# claimed to leave the source before the receipt, the second frame claimed at chunk index 0 or sealed on the sparse
+# chain the initiator receives on, the relation after the call claimed with the receipt's Triple or the header encoder
+# not advanced, the session after the call claimed to keep the first send's pending initial message, the agreement's
+# send at `KeysSampled` claimed to change the source or keep the encoder, the providers claimed at a drawing state, the
+# draw record claimed with an exhausted encoder, the second header's previous chain length or sparse number changed,
+# the model step claimed to keep the encoder, the first send's encoder claimed at position 0, and a copy of the frame
+# definition with its pins kept must each be refused at a named declaration or pin, with a message naming the change,
+# after the unmodified copies are accepted; the six changes labelled inside the composing proof must be accepted
+# there with that proof emptied, and the one labelled a projection (the pending initial message) must be refused where
+# that proof places a conjunct of `initiator_receives_reply` unchanged; every change refused in the composing proof
+# must carry one of the two labels, checked at start-up against the module's text.
+phase_initiator_second_send() {
+python3 scripts/check-initiator-second-send-negatives.py || fail=1
 }
 
 # The generated files' axiom sets, as the environment has them. The axiom
@@ -590,6 +630,8 @@ phases() {
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
+  run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model

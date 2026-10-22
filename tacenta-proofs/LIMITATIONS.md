@@ -2726,8 +2726,12 @@ The successor relation is to the model's step at a codeword view that reads the 
 source (`attributedView`); the proof shows that the received codeword is a codeword of that source (the codeword half of the
 chunk relation is derived; the erasure code is systematic, so codeword index 0 carries the source's first 32 bytes and the derived half fixes only those; the other 64 bytes of the source in the successor's model decoder (the hash and the header MAC) come from the attribution), and the view constrains only the model session the successor is compared against, not the
 bytes, the store, the draws or the call's result. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt branch's law)
-gives that source its 96 bytes. The two oracles need not be equal; the header's later chunks and the steps after them
-need the two oracles' Braid KEMs to agree, which nothing here states. The responder's `encrypt` of its reply does not:
+gives that source its 96 bytes. The two oracles need not be equal. The initiator's emission of the header's second chunk does
+not need their Braid KEMs to agree (the second-send paragraph below). By reading, completing the header (the responder's
+receipt of the initiator's later chunks) checks only its MAC under the shared authenticator and needs no KEM relation; the
+first step at which both parties' KEMs act on one key pair is the responder's first sampling send, whose `encapsulate1`
+(model `encaps1`) takes the initiator's header seed and hash and can refuse; the hash check of the completed encapsulation
+key follows; no theorem states either. The responder's `encrypt` of its reply needs no KEM relation either:
 its agreement waits for the header, and neither the code's send nor the model's reads randomness or the KEM there (the
 reply paragraph below), and neither does the initiator's receipt of the reply: at its `KeysSampled` agreement the code's
 receive (by reading) and the model's change state only on a `Ct1` chunk (the reply receipt paragraph below). On `Kem`: `FirstKemAgrees` stays a premise. By reading,
@@ -2782,9 +2786,9 @@ bytes on a 32-bit target. No refusal is possible at this state: the terminal gua
 `NoHeaderReceived` does not refuse, and the model's Triple send from the receipt's Triple succeeds (counters 0, a sending
 chain), so the statement has one outcome and not a refused arm; the refusals `encrypt` can reach elsewhere in a session (the
 terminal guard, the Triple's `ChainExhausted` and `NoSendingChain`) are not covered. **Not shown:** the initiator's receipt of
-the reply (the next paragraph); `Session::invariant` or the ceilings
-after the reply; a second reply, a second message from the initiator, the header's later chunks and the responder's first
-sampling send; a restored copy of the session; that the model session the successor refines holds only bytes the responder
+the reply (the next paragraph); `Session::invariant` and the ceilings
+after the reply are derived on this run in the send-preservation paragraph below; a second reply, the header's later chunks and the responder's first sampling send (a second message from
+the initiator is taken, under a condition, in the second-send paragraph below); a restored copy of the session; that the model session the successor refines holds only bytes the responder
 received (the relation is at the receipt's attributed view); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`);
 `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality; the one-time path in a
 run. The statement does not tie the source state to the one `establish_responder` left; it holds for every source state,
@@ -2833,11 +2837,80 @@ consistent with the other laws rests on reading X25519. It was needed because in
 key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
 mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
 plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed); a second
-message in either direction (a second reply, the initiator's next send, the
-header's later chunks, which do need the two parties' Braid KEMs to agree on a run, the responder's first sampling send);
-`Session::invariant` or the ceilings after the receipt of the reply or after the reply; that the code's agreement after the
+message in either direction (a second reply, the header's third chunk, the responder's first sampling send; the
+initiator's next send is the next paragraph, under a condition, and its step uses no fact relating the two parties'
+Braid KEMs);
+`Session::invariant` or the ceilings after the receipt of the reply (those after the reply are derived in the
+send-preservation paragraph below); that the code's agreement after the
 call equals the one before (it refines the same model agreement); that `hfreshB` holds under an honest random source; a
 restored copy of either session; the one-time path in a run.
+
+*The initiator's second send.* `UnitLifecycleInitiatorSecondSend.lean` takes the initiator's next `Session::encrypt`, on the
+same run, at the session the receipt of the reply returns and from the source that receipt left. The model's step there has
+one outcome: the bare second frame (agreement type `hdr` with the header's chunk at index 1, previous chain length 1,
+message number 0 on the chain the receipt derived, sparse epoch 0 and number 2, no initial wrapper), no draw, the header
+encoder advanced (`second_model_step`). The code-level part is **conditional**: if that session passes `Session::invariant`
+and meets the four counter ceilings, the call returns those bytes, leaves its source as given and refines the step
+(`initiator_second_send_after_reply`); neither premise is derived here, and no run is exhibited at which they hold, so that
+part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
+the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
+results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
+2026-10-21. The headline's statement pin is cut off by Lean's
+`⋯` after the binder `crcB`, so the headline's later binders and its whole conclusion are held by the build and by reading
+only, not by a pin (with this module, 16 modules hold such cut-off pins, 38 pins; a pin form that prints the whole
+statement is to be fixed separately). **No new law and no new per-run premise**: beyond
+the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
+which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
+at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
+returns the source as given (`braid_send_keysSampled`, hypothesis-free), so the step takes no draw and runs no
+encapsulation, decapsulation or key generation, and no fact relating the two parties' KEMs is used for this step (the
+receipt's premises it inherits carry `KemAgreesFor` at both parties' KEMs, as the reply paragraph records); the Braid send record
+still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every state, and whether it
+could be dropped here is not checked. The relation after the call holds the cloned key pair through `KemCloneAgrees`;
+code-level equality of the key pair is not checked. **Not shown:** `Session::invariant` or the ceilings at the session the
+receipt returns or after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
+header's third chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt`
+can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere
+are not covered); a restored copy of the session; the one-time path in a run; that the related model sessions hold only
+bytes the parties received; that `hfreshB` holds under an honest random source; that the real primitives meet the records
+or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
+equality.
+
+**Send preservation where the agreement's send takes no draw** (`UnitTripleInvModel.lean`, `UnitLifecycleSendPreserve.lean`).
+The bridge (`triple_invariant_iff_model`) rests on the kernel alone and assumes nothing beyond the Triple relation. The
+general step (`encrypt_keeps_invariant_no_draw`) rests on the kernel and opaque constants and assumes the boundary record
+`KemCloneAgrees` (ASSUMED, a field of `BraidSendRefinementContracts`: a key pair's clone answers `header`, `ek_vector` and
+`decapsulate` as the original did, and an encapsulation state's clone answers `encapsulate2`; this step uses the first
+two) and takes the relation after the call as a hypothesis. That relation carries the Triple half (the code Triple's
+invariant is read off the model Triple it relates to), the three Triple fields the structural clauses read and the
+budget; only the agreement half is a walk of translated code, and the code's Triple send is never walked. Every instance
+gets the relation from the encrypt refinement, which rests on the kernel and opaque constants since its nine
+`native_decide` constants became kernel proofs on 2026-10-21, so the run results list no compiler-trust axiom either.
+The statement pins of the two run headlines, `initiator_first_send_responder_reply_successor` and
+`initiator_first_send_responder_reply_admissible`, are cut off by Lean's `⋯` after the binder `AeadRoundTrip →`, so each
+headline's later hypotheses and its whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are
+held by the build and by reading only, not by a pin (these two are among the 38 cut-off pins in 16 modules; a pin form that
+prints the whole statement is to be fixed separately).
+Its statement covers the nine agreement
+states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
+only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after
+the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at those states). It does
+not cover `KeysUnsampled` or `HeaderReceived`, whose sends draw and (at `HeaderReceived`) hand the Triple an
+agreement output; a Triple send with an output (`advance`, a new chain pair, `clearOldEpochs`) is not covered. **The
+ceilings are a budget, not preserved.** The refinement theorems ask for one step below each ceiling (`CounterHeadroom`),
+and by reading the code refuses one step later: the ratchet's clock clamps at `u32::MAX - 1` and never refuses
+(`tacenta-core/ratchet/src/lib.rs`, `age_store`), a sparse chain counter steps to `u64::MAX` (the send after it refuses,
+`ChainExhausted`), and the sparse epoch and the Braid epoch (transitions (5) and (13)) reach `u64::MAX - 1`. So a session
+whose sending chain is at `u64::MAX - 1` meets `CounterHeadroom`, a send from it succeeds, and the session it leaves does
+not meet it: "an operation keeps the ceilings or refuses" is false of the code. The statements spend `CounterRoom s k`
+instead, room for `k` more operations, each costing at most one step of the clock and of each epoch and at most
+`MAX_SKIP + 1` of a chain counter; `CounterRoom s 0` is `CounterHeadroom s` (`counterRoom_zero`). `CounterRoom` is a
+per-run budget: it excludes runs longer than its `k` and the parked clock, and asks nothing else of a state. It is in `u32` and `u64` only, so it means the same at both widths. The run's headline computes it
+at the responder's session after the first receipt (clock 1, so room for every `j` with `j + 2 < u32::MAX`) and concludes
+`CounterHeadroom` after the reply; the budget at any other session is not computed. The weights are for operations in general;
+nothing here covers a receive, and whether one receive stays within any of the four weights is not checked. **Not shown:** `encrypt` at
+a state whose send draws; the session a refused `encrypt` returns; any receive keeping the invariant; that the real key pair
+meets `KemCloneAgrees`; that `Session::invariant` says a session is reachable.
 
 **What is not shown.**
 
