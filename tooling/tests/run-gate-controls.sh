@@ -23,6 +23,8 @@
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
 #   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
 #                                  a scaffold writes, the pins step's lists and count, with no Lean
+#   run-regenerate-statement-pins-cases.sh  the statement-pin regenerator, on a stub Lean: options and rewrite,
+#                                  refusals with the module left as it was
 #   run-check-proof-module-preflight-cases.sh  the preflight of a lifecycle module (not-shown lists, the controls'
 #                                  mechanism, counts in the prose, terms kept out of the text) against planted
 #                                  faults; the preflight of every module against its baseline is step checks_42
@@ -77,6 +79,7 @@ bash "$here/run-regenerate-in-container-cases.sh"
 bash "$here/run-reflow-shared-lists-cases.sh"
 python3 "$root/tooling/reflow-shared-lists.py" --check
 bash "$here/run-new-lifecycle-module-cases.sh"
+bash "$here/run-regenerate-statement-pins-cases.sh"
 bash "$here/run-check-proof-module-preflight-cases.sh"
 bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
