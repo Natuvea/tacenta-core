@@ -131,7 +131,7 @@ EOF
       elif [ "$rc" -eq 0 ]; then
         echo "WRONG  $name: expected refused ($expect), was accepted" >&2
         wrong=$((wrong + 1))
-      elif ! printf '%s' "$out" | grep -qF -- "$expect"; then
+      elif ! grep -qF -- "$expect" <<<"$out"; then
         echo "WRONG  $name: refused, but not for '$expect':" >&2
         printf '  %s\n' "$out" >&2
         wrong=$((wrong + 1))
@@ -156,7 +156,7 @@ set +e
 empty_out="$(cd "$empty_repo" && env -u GITHUB_ACTIONS bash "$checker" 2>&1)"
 empty_rc=$?
 set -e
-if [ "$empty_rc" -eq 0 ] || ! printf '%s' "$empty_out" | grep -qF -- 'no workflow files found'; then
+if [ "$empty_rc" -eq 0 ] || ! grep -qF -- 'no workflow files found' <<<"$empty_out"; then
   echo 'WRONG  empty-tree: missing workflows did not fail closed' >&2
   printf '%s\n' "$empty_out" >&2
   exit 1
@@ -427,7 +427,7 @@ required_input() {  # name expected-exit expected-text script <env words...>
   out="$(cd "$empty_repo" && env -u GITHUB_ACTIONS "$@" "$bash_bin" "$script" 2>&1)"
   rc=$?
   set -e
-  if [ "$rc" -ne "$want" ] || ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if [ "$rc" -ne "$want" ] || ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  required-input $name: expected exit $want and '$needle', got exit $rc:" >&2
     printf '%s\n' "$out" >&2
     exit 1

@@ -1,0 +1,7 @@
+# expect: none
+printf '%s\n' "$out" | grep -c needle
+printf '%s\n' "$out" | grep -v needle
+printf '%s\n' "$out" | grep needle
+printf '%s\n' "$out" | grep -F -- "$needle" >/dev/null
+printf '%s\n' "$out" | grep -o 'a.b' | sort -u
+count="$(printf '%s\n' "$out" | grep -c needle || true)"

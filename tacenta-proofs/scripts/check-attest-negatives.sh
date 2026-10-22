@@ -1910,6 +1910,101 @@ for entry in "drop all|$covers" "drop info|$covers" "pass info|$covers" "pass al
   expect_fail "statement-pin-option-$option-says-why" "$reason" --check
 done
 
+# A pin whose expected message Lean cut off with `⋯` holds the statement only up to the cut, so
+# a change after it builds. The headline of the send-preservation module, cut where Lean cut it
+# before its module set `pp.deepTerms` (after the binder `AeadRoundTrip →`), is refused; so is an
+# omitted proof printed without its proposition (`⟨[], ⋯⟩`, `pp.proofs.withType` off), while the
+# same hole with its proposition, `(⋯ : P)`, is accepted by the unmodified tree above.
+cut_name="Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_admissible"
+cut_file="tacenta-proofs/translation/Translation/UnitLifecycleSendPreserve.lean"
+make_case
+python3 - "$work/$cut_file" "$cut_name" <<'PY'
+import pathlib, re, sys
+path, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+pin = re.compile(r"(/--\ninfo: )((?:(?!-/).)*?)(\n-/\n#guard_msgs in\n#check @" + re.escape(name) + r"\n)", re.S)
+hits = pin.findall(text)
+assert len(hits) == 1, len(hits)
+message = hits[0][1]
+cut = message.index("AeadRoundTrip →") + len("AeadRoundTrip →")
+assert "⋯" not in message
+new, n = pin.subn(lambda m: m.group(1) + message[:cut] + "\n" + " " * 64 + "⋯" + m.group(3), text)
+assert n == 1
+path.write_text(new)
+PY
+expect_fail "statement-pin-cut-off" "the statement pin of \`$cut_name\` at $cut_file:" --check
+expect_fail "statement-pin-cut-off-says-why" "prints \`⋯\` in its expected message" --check
+
+make_case
+replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" \
+  $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
+expect_fail "statement-pin-untyped-proof-hole" "the statement pin of \`Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty\` at tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean:" --check
+
+# Lean attaches a docstring to the `#guard_msgs` after it across a line comment, so the docstring is
+# found through the comments: the untyped hole is refused there too (the lookup that read only a
+# docstring ending just above the pin skipped it), and the comment between is refused on its own,
+# with the typed holes left as they are.
+attach_comment() {
+  python3 - "$work/tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+head = text.index("info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty")
+end = text.index("-/\n#guard_msgs in\n", head)
+path.write_text(text[:end] + "-/\n-- the pin of the empty agreement\n#guard_msgs in\n"
+                + text[end + len("-/\n#guard_msgs in\n"):])
+PY
+}
+make_case
+replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" \
+  $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
+attach_comment
+expect_fail "statement-pin-untyped-proof-hole-behind-a-comment" "prints \`⋯\` in its expected message (line 3 of it)" --check
+# A line comment that holds `/--` is part of the comment, not a docstring: the real docstring above it is
+# still the pin's, and its untyped hole is refused (a lookup that searched the raw text for `/--` read
+# the comment as the docstring, or found no end to it, and let the pin through).
+for entry in 'fake-docstring-in-a-line-comment|-- /-- fake -/' 'docstring-opener-in-a-line-comment|-- /--'; do
+  fake="${entry#*|}"
+  make_case
+  replace_in "tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" \
+    $'⟨[], (⋯ : 0 ≤ Usize.max)⟩ ⟨[], (⋯ : 0 ≤ Usize.max)⟩' $'⟨[], ⋯⟩ ⟨[], ⋯⟩'
+  python3 - "$work/tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" "$fake" <<'PY'
+import pathlib, sys
+path, fake = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+head = text.index("info: Tacenta.DispatchEvidenceVacuity.same_ephemeral_agreement_empty")
+end = text.index("-/\n#guard_msgs in\n", head)
+path.write_text(text[:end] + "-/\n" + fake + "\n#guard_msgs in\n" + text[end + len("-/\n#guard_msgs in\n"):])
+PY
+  expect_fail "statement-pin-untyped-proof-hole-behind-a-${entry%%|*}" "prints \`⋯\` in its expected message (line 3 of it)" --check
+done
+make_case
+attach_comment
+expect_fail "statement-pin-comment-after-its-docstring" "has a comment between its docstring and its \`#guard_msgs\`" --check
+
+# A pretty-printer option other than the two that only widen a pin's message is refused wherever it
+# is set: at file level before the pins (`pp.oneline` prints the first line and `[...]`, with no
+# `⋯`), as an `... in` before a theorem, and inside a section.
+for entry in "file|pp.oneline true" "file|pp.deepTerms false" "file|pp.maxSteps 100" \
+             "file|pp.structureInstances.defaults false" "file|pp.proofs.withType false" \
+             "in|pp.deepTerms false" "section|pp.proofs true"; do
+  where="${entry%%|*}"
+  option="${entry#*|}"
+  make_case
+  python3 - "$work/tacenta-proofs/translation/Translation/DispatchEvidenceVacuity.lean" "$where" "$option" <<'PY'
+import pathlib, sys
+path, where, option = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+text = path.read_text()
+anchor = "set_option pp.deepTerms true\nset_option pp.proofs.withType true\n"
+assert text.count(anchor) == 1
+added = {"file": f"set_option {option}\n",
+         "in": f"set_option {option} in\ntheorem pp_option_case : True := trivial\n",
+         "section": f"section PpOptionCase\nset_option {option}\nend PpOptionCase\n"}[where]
+path.write_text(text.replace(anchor, anchor + added))
+PY
+  expect_fail "pp-option-$where-${option// /-}" "\`set_option ${option}\` is a pretty-printer option PP_OPTIONS_ALLOWED does not hold" --check
+done
+
 # A definition pin (`#print`) with its `#guard_msgs` removed is refused for that, not as an
 # absent pin.
 print_name="Tacenta.BraidPreserve.Braid.sized"

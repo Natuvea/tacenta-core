@@ -52,7 +52,6 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-full_line='no-sorry: all 39 phases passed'
 
 wrong() {  # name message...
   local name="$1"
@@ -109,12 +108,30 @@ for s in check-lifecycle-translation-coverage-negatives.sh check-refuted-records
   check-hypothesis-witnesses.sh check-braid-agreement-negatives.sh; do
   stub_sh "$s"
 done
-for s in check-lifecycle-translation-coverage.py check-atomicity-negatives.py check-repair-negatives.py \
-  check-send-refusal-negatives.py check-sparse-store-full-negatives.py check-decrypt-ratchet-negatives.py \
-  check-established-negatives.py check-restored-negatives.py check-encrypt-negatives.py \
-  check-responder-negatives.py check-responder-frame-negatives.py check-responder-receipt-negatives.py \
-  check-responder-successor-negatives.py check-responder-reply-negatives.py \
-  check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py check-discharge-native-decide-negatives.py check-initiator-second-send-negatives.py attest.py; do
+# The Python scripts the run calls, one per line: `new-lifecycle-module.py scaffold` adds a new negatives script
+# here after the entry its name sorts after, and the check below names any script the run calls that has no stub.
+py_stubs=(
+  check-lifecycle-translation-coverage.py
+  check-atomicity-negatives.py
+  check-repair-negatives.py
+  check-send-refusal-negatives.py
+  check-sparse-store-full-negatives.py
+  check-decrypt-ratchet-negatives.py
+  check-established-negatives.py
+  check-restored-negatives.py
+  check-encrypt-negatives.py
+  check-responder-negatives.py
+  check-responder-frame-negatives.py
+  check-responder-receipt-negatives.py
+  check-responder-successor-negatives.py
+  check-responder-reply-negatives.py
+  check-responder-reply-receipt-negatives.py
+  check-send-preservation-negatives.py
+  check-discharge-native-decide-negatives.py
+  check-initiator-second-send-negatives.py
+  attest.py
+)
+for s in "${py_stubs[@]}"; do
   stub_py "$s"
 done
 # The dispatcher: ten controls over two sources, with the real script's options and result file.
@@ -242,6 +259,31 @@ ran_nothing() {  # name: no phase script was called (a refusal before anything r
     wrong "$1" "refused, but only after calling $(grep -v -- '--list$' "$work/calls-$1" | head -n 1)"
   fi
 }
+
+# ---- the fixture against the script it copies -------------------------------------------------------------
+# The line a full run prints names the number of phases the fixture's no-sorry.sh lists (read here, not written
+# by hand, so that two branches that each add a phase do not change one line). So a phase dropped from both
+# no-sorry.sh and the parts file is not caught here: run-proof-script-cases.sh holds that, since its honest run
+# lists every stubbed script no-sorry.sh must call ("no-sorry honest: ... was not called") and requires the success
+# line of the real check-translation-coverage.sh, which it does not stub. The stubs above are written by
+# hand (and by `new-lifecycle-module.py scaffold`, for the script it adds): a called script added without one
+# fails here, naming the edit, instead of later as a genuine part that fails.
+(cd "$proofs" && "${clean_env[@]}" PATH="$work/bin:$PATH" STUB_CALLS="$work/calls-fixture-table" \
+  NO_SORRY_LIST=1 bash scripts/no-sorry.sh) > "$work/fixture-table" 2>&1 \
+  || wrong fixture-table "the fixture's no-sorry.sh did not list its phases"
+cases=$((cases + 1))
+listed="$(awk -F'\t' '$1 == "phase" { n++ } END { print n + 0 }' "$work/fixture-table")"
+[ "$listed" -ge 10 ] || wrong fixture-phases "the fixture's no-sorry.sh lists $listed phases"
+full_line="no-sorry: all $listed phases passed"
+cases=$((cases + 1))
+called="$(grep -vE '^[[:space:]]*#' "$proofs/scripts/no-sorry.sh" \
+  | grep -oE '(python3|bash) scripts/[A-Za-z0-9_.-]+\.(py|sh)' | sed 's|.* scripts/||' | sort -u)"
+for s in $called; do
+  if [ ! -f "$proofs/scripts/$s" ]; then
+    wrong fixture-stubs "no-sorry.sh calls scripts/$s, which has no stub here: add it to py_stubs (a .py) or to" \
+      "the stub_sh loop (a .sh) in tooling/tests/run-no-sorry-parts-cases.sh"
+  fi
+done
 
 # ---- the genuine sets ----------------------------------------------------------------------------------
 hosted_parts="$(awk '$1 == "hosted" { sub(":", "", $2); print $2 }' "$proofs/scripts/no-sorry-parts.txt")"
@@ -690,7 +732,7 @@ dispatch_refuses dispatch-empty-slice "selects no control of the" --slice 60/61
 # The real dispatcher's slice of its own list: for each S up to the number of controls and each k, the
 # controls k modulo S, in order, so that the slices of one S select every control once.
 cases=$((cases + 1))
-python3 - "$scripts/check-initial-dispatch-negatives.py" > "$work/out-dispatch-select" 2>&1 <<'PY2' \
+python3 -B - "$scripts/check-initial-dispatch-negatives.py" > "$work/out-dispatch-select" 2>&1 <<'PY2' \
   || wrong dispatch-select "the real dispatcher's slices are not the controls k modulo S"
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("dispatch", sys.argv[1])

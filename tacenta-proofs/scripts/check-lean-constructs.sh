@@ -174,6 +174,7 @@ program="$(mktemp)"
 trap 'rm -f "$program"' EXIT
 cat > "$program" <<'PY'
 import hashlib, os, re, sys
+from collections import Counter
 
 # A reserved word as a token: not glued to an identifier character or a dot
 # (`Foo.axiom` would be a name, not the keyword, though no such name exists
@@ -310,6 +311,98 @@ ALLOW = {
         BT + "Lean.reduceBool]",
     ],
 }
+
+# Instances and coercions. A statement pin prints the statement as Lean shows it,
+# and Lean does not show the instance behind `<`, `+` or a numeral, or the
+# function behind a coercion arrow; so a new `instance` in scope, or a function
+# given the `coe` attribute, can change what a pinned statement means while its
+# pin still matches. This is a textual guard on the stripped source, with these
+# rules:
+#   - an `instance` declaration (`local`, `scoped`, `noncomputable`, after
+#     `open ... in` or anything else on its line) is refused unless its whole
+#     declaration, from the line holding `instance` to the next blank line or
+#     line at column 0, whitespace collapsed, is listed below for its file and
+#     namespace, and each listed declaration must occur exactly once (a second
+#     copy, in another namespace too, or a changed class or value on a
+#     continuation line, is refused; matching is by text, so lines may move);
+#   - `deriving instance C for T` is accepted when every `T` is written as a name
+#     the file gives one of its own declarations (compared as written, with no
+#     namespace resolution), and is otherwise an instance declaration like the
+#     above;
+#   - an attribute list, `@[...]` or `attribute [...]`, read on the whole file
+#     so that a list split over lines is one list, may not name `instance`,
+#     `default_instance` or `coe`; and the tokens `coe` and `default_instance`
+#     are refused anywhere in code, whatever carries them.
+# It does not see an instance a dependency declares `scoped` and an `open` brings
+# into scope, a `deriving` clause of a `structure`, `inductive` or `def`, nor a
+# class whose parent is a notation class (its use needs a binder the pin
+# prints). A new entry is a diff for review.
+INSTANCE_ALLOW = {
+    "tacenta-model/Model/IdentityRecords.lean": [("Model.IdentityRecords", "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α) | .error a, .error b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .ok a, .ok b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .error _, .ok _ => isFalse (by intro h; cases h) | .ok _, .error _ => isFalse (by intro h; cases h)")],
+    "tacenta-model/Model/InitiatorExpectation.lean": [("Model.InitiatorExpectation", "local instance {ε α : Type} [DecidableEq ε] [DecidableEq α] : DecidableEq (Except ε α) | .error a, .error b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .ok a, .ok b => if h : a = b then isTrue (by rw [h]) else isFalse (by intro h'; cases h'; exact h rfl) | .error _, .ok _ => isFalse (by intro h; cases h) | .ok _, .error _ => isFalse (by intro h; cases h)")],
+    "tacenta-model/Model/PersistedState.lean": [
+        ("Model.PersistedState", "deriving instance DecidableEq for Model.State.State"),
+        ("Model.PersistedState", "deriving instance DecidableEq for Model.SparseRatchet.State"),
+        ("Model.PersistedState.TripleState", "deriving instance DecidableEq for Model.Triple.State")],
+    "tacenta-proofs/translation/Translation/ErasureWitness.lean": [
+        ("Tacenta.ErasureWitness", "instance : Fintype (BitVec 8) := Fintype.ofEquiv (Fin (2 ^ 8)) ⟨BitVec.ofFin, BitVec.toFin, fun _ => rfl, fun _ => rfl⟩"),
+        ("Tacenta.ErasureWitness", "instance : Fintype Std.U8 := Fintype.ofEquiv (BitVec 8) ⟨fun b => ⟨b⟩, fun u => u.bv, fun _ => rfl, fun _ => rfl⟩"),
+        ("Tacenta.ErasureWitness", "instance : Fintype Data32 := Fintype.ofEquiv _ data32Equiv.symm"),
+        ("Tacenta.ErasureWitness", "noncomputable instance : Fintype F := Fintype.ofFinite F")],
+    "tacenta-proofs/translation/Translation/ImportInv.lean": [("Tacenta.ImportInv", 'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} : DecidableEq (Array α N) := fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm')],
+    "tacenta-proofs/translation/Translation/SessionUnitRatchetImportInv.lean": [
+        ("Tacenta.SessionUnitRatchetImportInv", 'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} : DecidableEq (Array α N) := fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm')],
+    "tacenta-proofs/translation/Translation/SessionUnitSpqrT1.lean": [("Tacenta.SessionUnitSpqrT1", 'instance spqrChainsInhabited : Inhabited Chains := ⟨{ send := none, receive := none }⟩')],
+    "tacenta-proofs/translation/Translation/SpqrT1.lean": [("Tacenta.SpqrT1", 'instance spqrChainsInhabited : Inhabited Chains := ⟨{ send := none, receive := none }⟩')],
+    "tacenta-proofs/translation/Translation/UnitSpqrT1.lean": [("Tacenta.UnitSpqrT1", 'instance spqrChainsInhabited : Inhabited Chains := ⟨{ send := none, receive := none }⟩')],
+}
+if os.environ.get("INSTANCE_ALLOW_COUNT") == "1":
+    # The number of allow-listed instance declarations, for the line this scan prints when it passes.
+    print(sum(len(entries) for entries in INSTANCE_ALLOW.values()))
+    sys.exit(0)
+INSTANCE_KEYWORD = re.compile(r"(?<![\w.«])instance(?![\w.'])")
+# An attribute list, `@[...]` or `attribute [...]` (with `local` or `scoped` inside it), read on the
+# whole stripped file so that a list split over lines is one list.
+ATTRIBUTE_LIST = re.compile(r"(?:@|(?<![\w.«])attribute)\s*\[([^\]]*)\]")
+INSTANCE_ATTRIBUTE_NAME = re.compile(r"(?<![\w.«])(?:instance|default_instance|coe)(?![\w.'])")
+# `coe` and `default_instance` name nothing else in hand-written Lean here, so either token anywhere
+# in code is refused as well, whatever attribute syntax carries it.
+COERCION_TOKEN = re.compile(r"(?<![\w.«])(?:coe|default_instance)(?![\w.'])")
+DECLARED_TYPE = re.compile(r"(?<![\w.«])(?:structure|inductive|class|abbrev|def)\s+([\w.'«»]+)")
+DERIVING_INSTANCE = re.compile(r"(?<![\w.«])deriving\s+instance\s+(.*?)\s+for\s+(.*)$")
+
+def instance_declarations(text, collapse):
+    """Every instance declaration of the stripped text `text`: (line, namespace, declaration, kind). The
+    declaration is the collapsed text from the line holding `instance` to the next blank line or the next
+    line at column 0; the namespace is the dotted list of the open `namespace`s, sections and mutual blocks
+    counting as frames with no name. A scope may carry an attribute list and modifiers (`noncomputable section`,
+    `@[expose] public section`);
+    `namespace A.B` opens one frame per component and `end A.B` closes as many, as Lean does. `kind` is
+    `deriving` for `deriving instance ... for` and `instance` otherwise."""
+    lines = text.split("\n")
+    frames, out = [], []
+    for k, line in enumerate(lines):
+        head = re.match(r"\s*(?:@\[[^\]]*\]\s*)?(?:(?:noncomputable|public|private|protected)\s+)*"
+                        r"(namespace|section|mutual|end)"
+                        r"(?![\w.'])\s*([\w.'«»]*)", line)
+        if head:
+            parts = [p for p in head.group(2).split(".") if p] if head.group(2) else []
+            if head.group(1) == "end":
+                for _ in range(max(1, len(parts))):
+                    if frames:
+                        frames.pop()
+            elif head.group(1) == "namespace":
+                frames.extend(parts or [""])
+            else:
+                frames.extend([""] * max(1, len(parts)))
+        for m in INSTANCE_KEYWORD.finditer(line):
+            deriving = re.search(r"(?<![\w.«])deriving\s+$", line[:m.start()])
+            end = k + 1
+            while end < len(lines) and lines[end].strip() and lines[end][:1].isspace():
+                end += 1
+            decl = collapse(" ".join(lines[k:end]))
+            out.append((k + 1, ".".join(f for f in frames if f), decl, "deriving" if deriving else "instance"))
+    return out
 
 # A lakefile that sets any Lean option, or names the option, is refused: none
 # of the three sets any today, and the one option that matters here is the
@@ -548,6 +641,34 @@ for path in lean_paths.split():
                     and allowed_entry(collapse(raw_lines[lineno - 1]), allowed) is None:
                 hits.append(f"{path}:{lineno}: audit-module-shape: an audit module holds only "
                             f"imports, pins and the audit invocations, one per line: {line.strip()}")
+    # Instances and coercions, on the whole stripped file (names kept, so a guillemet name is read).
+    whole = strip_lean(raw)
+    for m in ATTRIBUTE_LIST.finditer(whole):
+        if INSTANCE_ATTRIBUTE_NAME.search(m.group(1)):
+            hits.append(f"{path}:{whole.count(chr(10), 0, m.start()) + 1}: instance-or-coe-attribute: "
+                        f"{collapse(m.group(0))}")
+    for m in COERCION_TOKEN.finditer(whole):
+        hits.append(f"{path}:{whole.count(chr(10), 0, m.start()) + 1}: coercion-token: `{m.group(0)}`")
+    # A type the file declares, by the name as the declaration writes it (no namespace resolution: a
+    # qualified name in `for` that the file does not write as such is read as another file's type).
+    declared = set(DECLARED_TYPE.findall(whole))
+    allowed_instances = Counter(INSTANCE_ALLOW.get(path, []))
+    seen_instances = Counter()
+    for lineno, namespace, decl, kind in instance_declarations(whole, collapse):
+        if kind == "deriving":
+            derived = DERIVING_INSTANCE.search(decl)
+            if derived and all(t.strip() in declared for t in derived.group(2).split(",")):
+                continue
+        seen_instances[(namespace, decl)] += 1
+        if (namespace, decl) not in allowed_instances:
+            hits.append(f"{path}:{lineno}: instance-declaration: {decl[:160]}")
+        elif seen_instances[(namespace, decl)] > allowed_instances[(namespace, decl)]:
+            hits.append(f"{path}:{lineno}: instance-declaration: a second copy of an allow-listed instance: "
+                        f"{decl[:160]}")
+    for key in allowed_instances:
+        if seen_instances[key] == 0:
+            hits.append(f"{path}: instance allow-list entry missing (the declaration moved, changed or went; "
+                        f"edit INSTANCE_ALLOW in the same change): {key[0]}: {key[1][:160]}")
     for lineno, line in enumerate(text.split("\n"), 1):
         for kind, rule in LEAN_RULES:
             if rule.search(line):
@@ -640,7 +761,10 @@ if [ -n "$found" ]; then
   echo "An axiom, an opaque, an implemented_by/extern attribute, a partial def, an" >&2
   echo "unsafe declaration, a name in the compiler's _unsafe_rec/_native namespace," >&2
   echo 'a disabled warn.sorry diagnostic, a debug.* option, or a lakefile that sets Lean options widens the trust' >&2
-  echo "base of every theorem downstream of it without a compiler warning; and" >&2
+  echo "base of every theorem downstream of it without a compiler warning; an instance" >&2
+  echo "declaration not on INSTANCE_ALLOW, or an instance, default_instance or coe attribute," >&2
+  echo "can change what a pinned statement means while its pin still matches, since Lean" >&2
+  echo "prints neither the instance nor the coercion function; and" >&2
   echo "elaboration-time code (run_cmd, #eval, elab, macro, syntax, initialize," >&2
   echo "addDecl, any reference to the Lean namespace) could plant a compiler-trust" >&2
   echo "axiom the environment audit accepts by shape. If one is genuinely needed," >&2
@@ -650,7 +774,8 @@ if [ -n "$found" ]; then
 fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
+allowed_instances=$(INSTANCE_ALLOW_COUNT=1 python3 "$program")
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option and match their pins"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation, no instance declaration outside the $allowed_instances allow-listed and no instance, default_instance or coe attribute or token; 3 lakefiles set no Lean option and match their pins"
 fi
 exit "$status"

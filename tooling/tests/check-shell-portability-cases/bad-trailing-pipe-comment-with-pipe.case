@@ -1,0 +1,5 @@
+# expect: 2 4
+printf x | # keep a|b apart
+  grep -q needle
+printf x | # "quoted | words" and a|b
+  grep --quiet needle

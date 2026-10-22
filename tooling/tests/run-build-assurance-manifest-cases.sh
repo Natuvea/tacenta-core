@@ -24,7 +24,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -42,7 +42,7 @@ expect_validate_fail() {
     echo "WRONG  $name: expected validation refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -51,7 +51,7 @@ expect_validate_fail() {
 
 make_case() {
   local name="$1" program="$2" from="${3:-$fixture}"
-  python3 - "$from" "$work/$name.json" "$program" <<'PY'
+  python3 -B - "$from" "$work/$name.json" "$program" <<'PY'
 import json, pathlib, sys
 source, output, program = map(pathlib.Path, sys.argv[1:])
 data = json.loads(source.read_text())
@@ -230,7 +230,7 @@ tamper review-second-entry 'manifest must retain exactly one pending independent
 # workflow writes the receipts there.
 export PYTHONDONTWRITEBYTECODE=1
 repo="$work/candidate"
-python3 - "$root" "$repo" <<'PY'
+python3 -B - "$root" "$repo" <<'PY'
 import importlib.util, pathlib, shutil, subprocess, sys
 root, dest = map(pathlib.Path, sys.argv[1:3])
 sys.path.insert(0, str(root / "tooling"))
@@ -269,7 +269,7 @@ expect_dirty_refusal() {
     echo "WRONG  $name: a dirty candidate was built without --allow-dirty" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -324,7 +324,7 @@ dirty_validate="$(python3 "$repo/tooling/build-assurance-manifest.py" --validate
 dirty_rc=$?
 set -e
 refusals=$((refusals + 1))
-if [ "$dirty_rc" -eq 0 ] || ! printf '%s' "$dirty_validate" | grep -qF 'manifest does not assert a clean source tree'; then
+if [ "$dirty_rc" -eq 0 ] || ! grep -qF 'manifest does not assert a clean source tree' <<<"$dirty_validate"; then
   echo "WRONG  dirty-build-validates: $dirty_validate" >&2
   exit 1
 fi
@@ -338,18 +338,18 @@ bare="$(python3 "$root/tooling/build-assurance-manifest.py" --receipts "$work/pa
 bare_rc=$?
 set -e
 refusals=$((refusals + 2))
-if [ "$both_rc" -eq 0 ] || ! printf '%s' "$both" | grep -qF -- '--validate cannot be combined with --receipts or --output'; then
+if [ "$both_rc" -eq 0 ] || ! grep -qF -- '--validate cannot be combined with --receipts or --output' <<<"$both"; then
   echo "WRONG  validate-with-build-arguments: $both" >&2
   exit 1
 fi
-if [ "$bare_rc" -eq 0 ] || ! printf '%s' "$bare" | grep -qF -- '--receipts and --output are required to build'; then
+if [ "$bare_rc" -eq 0 ] || ! grep -qF -- '--receipts and --output are required to build' <<<"$bare"; then
   echo "WRONG  build-without-output: $bare" >&2
   exit 1
 fi
 
 # The committed schema states the field names the validator holds, so that a
 # reader of the schema is not told something the validator does not enforce.
-python3 - "$root" <<'PY'
+python3 -B - "$root" <<'PY'
 import importlib.util, json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 sys.path.insert(0, str(root / "tooling"))

@@ -26,7 +26,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1

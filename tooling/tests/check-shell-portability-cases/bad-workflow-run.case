@@ -1,0 +1,9 @@
+# expect: 5 8
+jobs:
+  checks:
+    steps:
+      - run: printf '%s' "$x" | grep -q y
+      - run: |
+          echo start
+          printf '%s' "$x" \
+            | grep -qF y

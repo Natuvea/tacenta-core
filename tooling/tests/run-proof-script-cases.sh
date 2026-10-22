@@ -154,6 +154,10 @@ run_nosorry() {
 # ---- no-sorry.sh --------------------------------------------------------------------------------
 honest_logs
 run_nosorry honest 0 'no-sorry: the model and its property theorems is complete'
+# The translation-coverage phase runs the real check-translation-coverage.sh, which no stub records, so the honest
+# run must print its success line: a phase dropped from no-sorry.sh (and the parts file) is a failed case here.
+honest_logs
+run_nosorry 'honest, the translation coverage ran' 0 'translation-coverage: all '
 # Every control the script owns is called, and the kernel replay reaches all three packages.
 for called in \
   check-translation-coverage.sh \
@@ -200,7 +204,7 @@ for called in \
   'leanchecker tacenta-model Model.Delta' \
   'leanchecker tacenta-model Properties.Epsilon'; do
   case "$called" in
-    check-translation-coverage.sh) continue ;;  # the real script runs; its own cases are below
+    check-translation-coverage.sh) continue ;;  # the real script runs: its success line is required above
   esac
   grep -qF -- "$called" "$work/calls" || fail_case "no-sorry honest: '$called' was not called" "$(cat "$work/calls")"
   cases=$((cases + 1))

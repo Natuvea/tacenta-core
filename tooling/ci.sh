@@ -163,6 +163,14 @@ bash tooling/check-proof-hygiene.sh
 echo "== No unresolved merge-conflict markers =="
 bash tooling/check-conflict-markers.sh
 
+# A producer piped into `grep -q` races under pipefail: grep exits at its first match, the producer takes
+# SIGPIPE, and the pipeline reports the producer's 141. It failed a Mac run of the case runners above for
+# no reason in the code under test. This refuses the shape in every tracked shell script and workflow, and
+# the cases hold it to each form it must catch and each safe form it must not.
+echo "== No shell script pipes a producer into a quiet grep =="
+bash tooling/check-shell-portability.sh
+bash tooling/tests/run-check-shell-portability-cases.sh
+
 # The Session refinement gives every opaque primitive operation a named,
 # reviewed contract.  Pin the operations actually reachable in the generated
 # lifecycle translation so a new call cannot inherit a contract by accident.
@@ -229,6 +237,14 @@ bash tacenta-proofs/scripts/port-session-braid-preserve.sh --check
 echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
 bash tooling/tests/run-check-labels-cases.sh
+
+# The lifecycle negatives scripts check their labels at start-up, but not how
+# many controls they have: a control deleted with its label leaves a script
+# that starts and passes. The record beside them holds the counts, and the
+# gate holds their shared helpers to one text.
+echo "== Lifecycle negatives scripts keep their recorded controls =="
+python3 tacenta-proofs/scripts/check-negatives-control-counts.py
+bash tooling/tests/run-check-negatives-control-counts-cases.sh
 
 # The requirements, assumptions and limitations are an assurance ledger, not
 # loose prose. This keeps their IDs and direct dependency lists aligned while
@@ -337,7 +353,10 @@ done
 # rule the advisory audit below follows.
 msrv=1.87
 echo "== Rust: the workspace compiles on the minimum supported version ($msrv) =="
-if rustup toolchain list 2>/dev/null | grep -q "^${msrv//./\\.}"; then
+# The installed list is captured before the test: `rustup ... | grep -q` races under pipefail (grep
+# exits at its first match and rustup takes SIGPIPE), which `tooling/check-shell-portability.sh` refuses.
+toolchains="$(rustup toolchain list 2>/dev/null || true)"
+if grep -q "^${msrv//./\\.}" <<<"$toolchains"; then
   (cd tacenta-core && cargo "+$msrv" check --locked --workspace --all-targets)
 elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
   echo "ci: no $msrv toolchain on the runner; install it with 'rustup toolchain install $msrv'" >&2
@@ -423,7 +442,7 @@ echo "== Coverage-guided fuzzing (smoke) =="
 if ! command -v cargo-fuzz >/dev/null 2>&1; then
   echo "ci: cargo-fuzz not installed, skipping the fuzz smoke run"
   echo "ci: install with 'cargo install cargo-fuzz' (needs a nightly toolchain)"
-elif ! rustup toolchain list 2>/dev/null | grep -q '^nightly'; then
+elif ! grep -q '^nightly' <<<"$(rustup toolchain list 2>/dev/null || true)"; then
   echo "ci: no nightly toolchain, skipping the fuzz smoke run"
   echo "ci: install one with 'rustup toolchain install nightly'"
 else
@@ -431,7 +450,7 @@ else
 fi
 
 echo "== Rust: the 32-bit target still compiles =="
-if rustup target list --installed 2>/dev/null | grep -q '^armv7-linux-androideabi$'; then
+if grep -q '^armv7-linux-androideabi$' <<<"$(rustup target list --installed 2>/dev/null || true)"; then
   (cd tacenta-core && cargo check --locked --workspace --target armv7-linux-androideabi)
 elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
   echo "ci: armv7-linux-androideabi is not installed on the runner; install it with 'rustup target add armv7-linux-androideabi'" >&2

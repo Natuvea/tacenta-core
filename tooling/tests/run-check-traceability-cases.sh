@@ -112,7 +112,7 @@ expect_fail() {
     echo "WRONG  $name: expected refused ($expect), was accepted" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$expect"; then
+  if ! grep -qF -- "$expect" <<<"$out"; then
     echo "WRONG  $name: refused, but not for '$expect':" >&2
     printf '  %s\n' "$out" >&2
     return 1

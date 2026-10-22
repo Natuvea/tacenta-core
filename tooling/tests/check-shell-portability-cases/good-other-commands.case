@@ -1,0 +1,9 @@
+# expect: none
+printf x | awk '/q/'
+printf x | sed -n 1p
+printf x | tr a b
+printf x | wc -l
+printf x | sort | uniq -c
+printf x | quiet -q
+printf x | mygrep -q y
+printf x | grepper -q y

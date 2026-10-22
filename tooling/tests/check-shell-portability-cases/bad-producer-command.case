@@ -1,0 +1,5 @@
+# expect: 2 3 4 5
+rustup toolchain list | grep -q '^nightly'
+git -C "$tree" worktree list --porcelain | grep -qF "worktree $dir/"
+cat "$file" | grep -q needle
+find "$dir" -name '*.lean' | grep -q .

@@ -15,6 +15,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# A script of the tree is imported below; writing its bytecode would leave a __pycache__ in the checkout
+# (on a Python whose bytecode goes next to the source, as on the hosted runner).
+sys.dont_write_bytecode = True
+
 from assurance_validation import ALLOWED_STATUSES, REQUIRED_CHECKS, validate_receipts
 
 ROOT = Path(__file__).resolve().parents[1]

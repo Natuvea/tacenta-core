@@ -1,0 +1,5 @@
+# expect: none
+case $x in
+  a|b) grep -q y "$file" ;;
+  c|d|e) echo other ;;
+esac

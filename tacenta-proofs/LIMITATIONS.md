@@ -1903,7 +1903,7 @@ narrower than the claim that was removed:
   `len + 48 ≤ usize::MAX` have no shape) and nothing in the tree checks it. Those
   theorems are about shapes and are joined to no theorem; their statements are
   held by `#guard_msgs in #check` pins in the build; `attest.py` requires each pin
-  to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says.
+  to exist (`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`.
 - The store bounds the classical ratchet's `receive` carries are satisfied by
   every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
   `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
@@ -2596,7 +2596,7 @@ These are the successor-headroom premises that
 
 *What holds these results.* Each has an axiom pin that `attest.py` requires. Nineteen of the 51 also have a
 `#guard_msgs in #check` statement pin, which the build compares and `attest.py` requires to exist (`REQUIRED_STATEMENT_PINS`;
-it does not read what a pin says, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
+it reads a pin's message only to refuse a cut-off `⋯`, so a statement changed together with its pin's expected message is accepted). The other 32 are held by the build
 and by their axiom pin alone, and the axiom pin lists axioms and not the statement, so a weaker statement of any of them that
 keeps its axiom list passes every gate; `CLAIMS.md` names the 32, among them the width bound and the four controls.
 
@@ -2965,10 +2965,12 @@ and meets the four counter ceilings, the call returns those bytes, leaves its so
 part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
 the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
 results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
-2026-10-21. The headline's statement pin is cut off by Lean's
-`⋯` after the binder `crcB`, so the headline's later binders and its whole conclusion are held by the build and by reading
-only, not by a pin (with this module, 16 modules hold such cut-off pins, 38 pins; a pin form that prints the whole
-statement is to be fixed separately). **No new law and no new per-run premise**: beyond
+2026-10-21. The headline's statement pin prints the statement without a cut (the module sets `pp.deepTerms true` and
+`pp.proofs.withType true` before its pins; without them Lean cut it off with `⋯` after the binder `crcB`). It is not the
+whole elaborated statement: Lean's printing leaves out, among other things, instance arguments, the function behind a coercion `↑`, implicit arguments, the binder types of `∃` and `fun`, universe levels, and the types behind numerals, anonymous constructors and structure instances. A
+definition the statement names changed under the same name, a new instance in scope or a function given the `coe`
+attribute can change what it means without changing the pin; `check-lean-constructs.sh`, a textual guard on the source, refuses in hand-written Lean an `instance` declaration whose whole text is not one of those it lists for that file and namespace (fourteen today: eleven `instance` and three `deriving instance` declarations), any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code. A `deriving instance` needs no entry when each of its types is written as a name the file gives one of its own declarations; the names are compared as written, with no namespace resolution, so a type of another file written by a short name that the file also declares is accepted. It does not read a `deriving` clause of a `structure`, `inductive` or `def`, a class whose parent is a notation class, or a scoped instance of a dependency that an `open` brings into scope. That the pinned statement is the right one
+is decided by reading. **No new law and no new per-run premise**: beyond
 the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
 which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
 at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
@@ -2997,10 +2999,13 @@ budget; only the agreement half is a walk of translated code, and the code's Tri
 gets the relation from the encrypt refinement, which rests on the kernel and opaque constants since its nine
 `native_decide` constants became kernel proofs on 2026-10-21, so the run results list no compiler-trust axiom either.
 The statement pins of the two run headlines, `initiator_first_send_responder_reply_successor` and
-`initiator_first_send_responder_reply_admissible`, are cut off by Lean's `⋯` after the binder `AeadRoundTrip →`, so each
-headline's later hypotheses and its whole conclusion (the invariant, `CounterHeadroom`, `CounterRoom` and the relation) are
-held by the build and by reading only, not by a pin (these two are among the 38 cut-off pins in 16 modules; a pin form that
-prints the whole statement is to be fixed separately).
+`initiator_first_send_responder_reply_admissible`, print their statements without a cut, through the conclusion (the
+invariant, `CounterHeadroom`, `CounterRoom` and the relation; without the module's `pp.deepTerms` and `pp.proofs.withType`
+options Lean cut both off with `⋯` after `AeadRoundTrip →`). They are not the whole elaborated statements: Lean leaves out,
+among other things, instance arguments, coercion functions, implicit arguments, the binder types of `∃` and `fun`,
+universe levels and the types behind numerals and structure instances, so a definition the
+statements name changed under the same name, a new instance or a `coe` function can change their meaning without
+changing the pins, and that they are the right statements is decided by reading.
 Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
 only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after
@@ -3240,7 +3245,7 @@ following and leave the following open.
 - **What holds the statements.** Each result has an axiom pin that `attest.py` requires. The statements and the
   definitions that carry the claim (`State.sized`, `Braid.Run` with its constructors, `Good`, `Laws`) are held by
   `#guard_msgs in #check` and `#guard_msgs in #print` pins that the build checks and `attest.py` requires to exist
-  (`REQUIRED_STATEMENT_PINS`). `attest.py` does not read what a pin says, so a statement changed together with its pin's
+  (`REQUIRED_STATEMENT_PINS`). `attest.py` reads a pin's message only to refuse a cut-off `⋯`, so a statement changed together with its pin's
   expected message is accepted, and weakening a result that has no pin fails no gate. The results with no
   statement pin are `api_newMsgLen`, `model_for_both_widths`, `message_length_le`, `Good.msg`, `Good.add` and
   `Good.clone`; the other results have one.

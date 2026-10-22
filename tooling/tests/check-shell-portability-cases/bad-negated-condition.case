@@ -1,0 +1,8 @@
+# expect: 2 5 8
+if ! printf '%s' "$out" | grep -qF -- "$expect"; then
+  echo no
+fi
+if [ "$rc" -eq 0 ] || ! printf '%s' "$out" | grep -qF 'text'; then
+  echo no
+fi
+while printf '%s' "$out" | grep -q x; do break; done

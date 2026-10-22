@@ -27,7 +27,7 @@ expect_fail() {
     printf '%s\n' "$out" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: refused, but without '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1

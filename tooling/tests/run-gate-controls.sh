@@ -7,6 +7,7 @@
 #   run-build-evidence-pack-build-cases.sh  the build direction of the evidence-pack builder
 #   run-install-script-cases.sh  the digest and revision checks of the elan, actionlint and Lake installers
 #   check-generation-negatives.sh  the --check mode of the eleven assemble and port scripts
+#   run-check-shell-portability-cases.sh  the shell-portability gate: each form of a producer piped into a quiet grep, and the safe forms beside them
 #   run-regenerate-in-container-cases.sh  the comparison and the --check verdict of regenerate-in-container.sh, with a stub docker
 #   run-attest-negatives-shard-cases.sh  the sharding of check-attest-negatives.sh: a slice that is skipped, run
 #                                  twice or lost, a shard that fails or is killed, and the seam that cannot reach CI
@@ -22,6 +23,8 @@
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
 #   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
 #                                  a scaffold writes, the pins step's lists and count, with no Lean
+#   run-regenerate-statement-pins-cases.sh  the statement-pin regenerator, on a stub Lean: options and rewrite,
+#                                  refusals with the module left as it was
 #   run-check-proof-module-preflight-cases.sh  the preflight of a lifecycle module (not-shown lists, the controls'
 #                                  mechanism, counts in the prose, terms kept out of the text) against planted
 #                                  faults; the preflight of every module against its baseline is step checks_42
@@ -52,6 +55,10 @@ if ident="$(git -C "$root" var GIT_COMMITTER_IDENT 2>/dev/null)"; then
   echo "run-gate-controls: git resolves an identity here ($ident); the hosted runner has none" >&2
   exit 1
 fi
+# The hosted runner's Python writes bytecode next to the source; a control that imports a script of the checkout
+# would leave a __pycache__ there. The checkout must be as it was when the controls end (checked at the end).
+unset PYTHONDONTWRITEBYTECODE
+tree_before="$(git -C "$root" status --porcelain --untracked-files=all)"
 # A seam for the mutation harness: stop after the check above, which is all a change to these lines can break.
 if [ "${GATE_CONTROLS_PROBE_ONLY:-}" = 1 ]; then
   echo "run-gate-controls: no git identity here, as on the hosted runner"
@@ -76,9 +83,18 @@ bash "$here/run-regenerate-in-container-cases.sh"
 bash "$here/run-reflow-shared-lists-cases.sh"
 python3 "$root/tooling/reflow-shared-lists.py" --check
 bash "$here/run-new-lifecycle-module-cases.sh"
+bash "$here/run-regenerate-statement-pins-cases.sh"
 bash "$here/run-check-proof-module-preflight-cases.sh"
 bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
 bash "$here/run-check-landing-cases.sh"
 bash "$root/tooling/check-landing.sh"
+bash "$here/run-check-shell-portability-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
+tree_after="$(git -C "$root" status --porcelain --untracked-files=all)"
+if [ "$tree_after" != "$tree_before" ]; then
+  echo "WRONG  run-gate-controls: the controls changed the checkout (a file written or left behind):" >&2
+  diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after") >&2 || true
+  exit 1
+fi
+echo "run-gate-controls: the checkout is as it was before the controls ran"

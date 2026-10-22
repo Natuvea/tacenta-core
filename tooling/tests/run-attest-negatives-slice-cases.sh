@@ -171,7 +171,7 @@ left_nothing() {
   if [ -d "$work/tmp-$name" ] && [ -n "$(ls -A "$work/tmp-$name")" ]; then
     wrong "$name" "left $(ls -A "$work/tmp-$name" | tr '\n' ' ') in its TMPDIR"
   fi
-  if git -C "$tree" worktree list --porcelain | grep -qF "worktree $work/tmp-$name/"; then
+  if grep -qF "worktree $work/tmp-$name/" <<<"$(git -C "$tree" worktree list --porcelain)"; then
     wrong "$name" "left a registered worktree"
   fi
 }

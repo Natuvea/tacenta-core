@@ -216,7 +216,7 @@ main() {
   for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
     if [ "$t" = "$host" ]; then
       linux_present=1
-    elif printf '%s\n' "$installed" | grep -qx "$t"; then
+    elif grep -qx "$t" <<<"$installed"; then
       targets+=("$t")
       linux_present=1
     else

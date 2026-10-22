@@ -1,0 +1,5 @@
+# expect: 2 3 4 5
+printf x | grep -l needle >/dev/null
+printf x | grep -L needle >/dev/null
+printf x | grep --files-with-matches needle >/dev/null
+printf x | grep -Fl needle >/dev/null

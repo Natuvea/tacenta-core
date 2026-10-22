@@ -1,0 +1,13 @@
+# expect: none
+printf x | grep -- needle -q
+printf x | grep needle -- -q
+printf x | timeout 5 grep -c y
+printf x | stdbuf -oL grep -v y
+printf x | grep -e -q file
+printf x | grep --regexp -q file
+# a comment that ends in a backslash \
+echo the next line is code
+printf x # | grep -q y \
+echo still code
+echo a\\
+echo b | grep -c c

@@ -4744,6 +4744,14 @@ def axiom_pins():
 #     it compares the message with its whitespace removed, so it is not the text the
 #     build is claimed to compare. An option this reading does not know is refused,
 #     so a new Lean option fails closed;
+#   * the expected message (the docstring just above the `#guard_msgs`) must not hold a `⋯`
+#     other than an omitted proof printed with its proposition, `(⋯ : P)`
+#     (`check_statement_pin_messages`, for every live pin, on the floor or not): Lean prints a
+#     subterm deeper than 50 levels as `⋯` unless `pp.deepTerms` is set, and a long theorem's
+#     binders are that deep, so its pin held the statement only up to the cut; and no
+#     `set_option pp.*` other than `pp.deepTerms true` and `pp.proofs.withType true` may appear
+#     in the first-party trees (`check_pp_options`), since `pp.oneline` or
+#     `pp.structureInstances.defaults false` narrow a message without printing `⋯`;
 #   * the pin's module must be reachable by imports from an audit module (a file
 #     named `AxiomAudit*.lean` that holds a `run_cmd _root_.Model.AxiomAudit.run` line), which
 #     is `check-audit-reach.sh`'s rule read from the header text instead of
@@ -4757,10 +4765,10 @@ def axiom_pins():
 # know that the name resolves to a declaration of the shape the claim describes (the
 # build does: the docstring holds the printed statement); it does not run Lean, so a
 # pin that elaborates to a message that matches a docstring written to match it is
-# as good as the build says; it does not read what a pin says, so a statement weakened
+# as good as the build says; it reads what a pin says only for a `⋯`, so a statement weakened
 # together with its pin's expected message is accepted (the build compares the text;
-# the diff of the pin shows the change); it does not follow `open`, a file-level
-# `set_option` that elides the printed statement, a macro that expands to
+# the diff of the pin shows the change); it does not follow `open`, a pretty-printer
+# option set by a macro, a `run_cmd`, the lakefile or the command line, a macro that expands to
 # `#guard_msgs`, `#guard_msgs` written inside a `run_cmd`, or a header that is more
 # than 20,000 characters long; a definition changed under an unchanged name changes
 # no pin that mentions it by name; it reads the first-party trees in `PROOF_TREES`
@@ -4887,6 +4895,127 @@ def scan_statement_pins(words, names, scoped):
     return out
 
 
+def comment_spans(region):
+    """The comments of `region`, a stretch that holds only comments and whitespace, in order, as
+    (start, end, is_docstring), read the way Lean reads them: `--` to the end of the line, and `/-` to its
+    matching `-/` with nesting, a `/--` opening a docstring. A `/--` inside a line comment or inside
+    another comment is part of that comment. None when something other than whitespace or a comment
+    stands in the region."""
+    spans, i, n = [], 0, len(region)
+    while i < n:
+        if region[i].isspace():
+            i += 1
+        elif region.startswith("--", i):
+            j = region.find("\n", i)
+            j = n if j < 0 else j
+            spans.append((i, j, False))
+            i = j
+        elif region.startswith("/-", i):
+            doc = region.startswith("/--", i) and not region.startswith("/--/", i)
+            depth, j = 1, i + (3 if region.startswith("/--", i) or region.startswith("/-!", i) else 2)
+            while j < n and depth:
+                if region.startswith("/-", j):
+                    depth, j = depth + 1, j + 2
+                elif region.startswith("-/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            if depth:
+                return None
+            spans.append((i, j, doc))
+            i = j
+        else:
+            return None
+    return spans
+
+
+def pin_message(text, words, pos):
+    """The expected message of the `#guard_msgs` at `pos`, and whether anything stands between it and
+    the pin: `(message, detached)`. `words` is `lean_code(text)`, in which comments and docstrings are
+    blank, so everything between the last code before `pos` and `pos` is comments and whitespace; that
+    stretch is read as Lean reads it (`comment_spans`), and the last docstring in it is the one Lean
+    attaches to the `#guard_msgs`, even with a comment after it. `message` is None when there is no
+    docstring (a pin that expects no message); `detached` is true when anything but whitespace stands
+    between the docstring's end and the `#guard_msgs`, or when the stretch cannot be read."""
+    k = pos
+    while k > 0 and words[k - 1].isspace():
+        k -= 1
+    region = text[k:pos]
+    spans = comment_spans(region)
+    if spans is None:
+        return None, True
+    docs = [s for s in spans if s[2]]
+    if not docs:
+        return None, False
+    start, end, _ = docs[-1]
+    message = region[start + 3:end - 2]
+    message = message[1:] if message.startswith("\n") else message
+    return message, bool(region[end:].strip())
+
+
+# A `⋯` in a printed term is either a cut (`pp.deepTerms` false: a subterm deeper than 50 levels;
+# `pp.maxSteps` reached) or an omitted proof (`pp.proofs` false). With `pp.proofs.withType` an
+# omitted proof prints as `(⋯ : P)`, its proposition kept, and two proofs of `P` are interchangeable;
+# every other `⋯` hides part of the statement.
+_CUT_OFF = re.compile(r"(?<!\()⋯|⋯(?!\s+:)")
+# The only pretty-printer options the first-party trees may set, each of which only widens what a
+# pin prints. Any other `set_option pp.*` (`pp.oneline`, `pp.deepTerms false`, a small `pp.maxSteps`,
+# `pp.structureInstances.defaults false`, ...) can hide part of a statement from its pin.
+PP_OPTIONS_ALLOWED = frozenset({("pp.deepTerms", "true"), ("pp.proofs.withType", "true")})
+_SET_OPTION = re.compile(r"(?<![\w.'«])set_option(?![\w.'!?])\s+(\S+)(?:\s+(\S+))?")
+
+
+def check_statement_pin_messages(survey):
+    """Refuse a live statement pin whose expected message holds a `⋯` that is not an omitted proof
+    with its proposition, `(⋯ : P)`: the pin then holds the statement only up to the cut, and a change
+    after it builds. Every live `#check`/`#print` pin is read, on the floor or not."""
+    problems = []
+    for d in survey["live"]:
+        if d["command"] not in ("check", "print"):
+            continue
+        if d.get("detached"):
+            problems.append(
+                f"the statement pin of `{d['name']}` at {d['file']}:{d['line']} has a comment between its "
+                "docstring and its `#guard_msgs`; Lean still compares the docstring, so write the docstring "
+                "directly above the `#guard_msgs` and the comment elsewhere")
+        if not d.get("message"):
+            continue
+        cut = _CUT_OFF.search(d["message"])
+        if cut:
+            line = d["message"][:cut.start()].count("\n")
+            problems.append(
+                f"the statement pin of `{d['name']}` at {d['file']}:{d['line']} prints `⋯` in its expected "
+                f"message (line {line + 1} of it), so it holds the statement only up to the cut: put "
+                "`set_option pp.deepTerms true` and `set_option pp.proofs.withType true` before the module's "
+                "statement pins and regenerate them (scripts/regenerate-statement-pins.py)")
+    return problems
+
+
+def check_pp_options():
+    """Refuse a `set_option pp.*` in the first-party Lean trees other than the two on
+    PP_OPTIONS_ALLOWED, in any position (file level, `... in`, inside a section): a pretty-printer
+    option can narrow what a statement pin prints without a `⋯` (`pp.oneline`), or bring the cut
+    back. Read on the comment- and string-stripped text; an option set by a macro, a `run_cmd`, the
+    lakefile or the command line is not seen."""
+    problems = []
+    for p in proof_files():
+        text = _lean_text(p)
+        if "pp" not in text:
+            continue
+        code = lean_code(text, keep_names=True)
+        for m in _SET_OPTION.finditer(code):
+            name = m.group(1).replace("«", "").replace("»", "")
+            if not name.startswith("pp."):
+                continue
+            if (name, m.group(2)) not in PP_OPTIONS_ALLOWED:
+                problems.append(
+                    f"{p.relative_to(ROOT)}:{code.count(chr(10), 0, m.start()) + 1}: `set_option {name} "
+                    f"{m.group(2)}` is a pretty-printer option PP_OPTIONS_ALLOWED does not hold; only "
+                    "`pp.deepTerms true` and `pp.proofs.withType true` are allowed, since another can change "
+                    "what a statement pin prints")
+    return problems
+
+
 def statement_pin_survey():
     """Every statement pin in the first-party Lean trees: `live` (Lean elaborates
     it), `raw_only` (the same shape inside a comment, docstring or string) and
@@ -4905,7 +5034,8 @@ def statement_pin_survey():
 
         live = scan_statement_pins(words, names, True)
         survey["guards"] += len(live)
-        survey["live"] += [located(d) for d in live]
+        survey["live"] += [dict(located(d), **dict(zip(("message", "detached"), pin_message(text, words, d["pos"]))))
+                           for d in live]
         seen = {d["pos"] for d in live}
         # The same text with the comment markers (`--`, `/-`, `/--`, `-/`) blanked, so a
         # pin that sits in a comment reads as a pin; offsets are unchanged.
@@ -5944,6 +6074,8 @@ def build():
     problems += check_pin_lists(pins)
     survey = statement_pin_survey()
     problems += check_statement_pins(survey)
+    problems += check_statement_pin_messages(survey)
+    problems += check_pp_options()
     problems += check_statement_floor_recorded()
     problems += check_session_t1_claim_pins(claim_list, pins)
     problems += check_zones_match_translation()

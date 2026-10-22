@@ -1,0 +1,4 @@
+# expect: 3
+steps:
+  - run: |
+      if ! git show -s "$sha" | grep -qxF -- "$author"; then exit 1; fi

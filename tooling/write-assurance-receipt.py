@@ -21,6 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # The workflow runs this file with `python3 -I`, which leaves the script's own
 # directory off the import path, so the import below names it.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# A script of the tree is imported below; writing its bytecode would leave a __pycache__ in the checkout
+# (on a Python whose bytecode goes next to the source, as on the hosted runner).
+sys.dont_write_bytecode = True
+
 from assurance_validation import check_step_outcomes  # noqa: E402
 
 

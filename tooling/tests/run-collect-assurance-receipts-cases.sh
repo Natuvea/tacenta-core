@@ -20,7 +20,7 @@ cases=0
 # The outcomes the workflow records for a receipt id in an event, honest:
 # "step=success,step=success,...".
 outcomes() {
-  PYTHONPATH="$root/tooling" python3 - "$1" "$2" <<'PY'
+  PYTHONPATH="$root/tooling" python3 -B - "$1" "$2" <<'PY'
 import sys
 from assurance_validation import expected_step_outcomes
 print(",".join(f"{step}=success" for step in expected_step_outcomes()[(sys.argv[1], sys.argv[2])]))
@@ -54,7 +54,7 @@ expect_fail() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -74,7 +74,7 @@ expect_writer_fail() {
     echo "WRONG  $name: the writer accepted it" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -105,7 +105,7 @@ refuse() {
 # The lists come from the receipt steps of tooling/required-steps.json, so they
 # are checked against what the workflow is known to run rather than against
 # themselves.
-PYTHONPATH="$root/tooling" python3 - <<'PY'
+PYTHONPATH="$root/tooling" python3 -B - <<'PY'
 from assurance_validation import expected_step_outcomes
 table = expected_step_outcomes()
 assert table[("rust", "push")] == table[("rust", "pull_request")], "rust runs the same commands for both events"
@@ -123,7 +123,7 @@ cases=$((cases + 1))
 # How the lists are read from a document: the events a receipt step is for,
 # taken from the job's and the step's own condition, and a second receipt step
 # for one id and event refused. Each document is the real one with one change.
-PYTHONPATH="$root/tooling" python3 - "$root" <<'PY'
+PYTHONPATH="$root/tooling" python3 -B - "$root" <<'PY'
 import copy, json, pathlib, sys
 from assurance_validation import expected_from_document, expected_step_outcomes
 
@@ -233,7 +233,7 @@ set +e
 poisoned="$(PYTHONPATH="$work/poison" GITHUB_EVENT_NAME=push GITHUB_RUN_ID=control python3 "$root/tooling/write-assurance-receipt.py" --id rust --classification required --command c --required-outcomes "$(outcomes rust push)" --output "$work/poisoned.json" 2>&1)"
 poisoned_rc=$?
 set -e
-if [ "$poisoned_rc" -eq 0 ] || ! printf '%s' "$poisoned" | grep -qF "poisoned interpreter setting was honoured"; then
+if [ "$poisoned_rc" -eq 0 ] || ! grep -qF "poisoned interpreter setting was honoured" <<<"$poisoned"; then
   echo "WRONG  interpreter-setting control: the setting did not reach an ordinary interpreter" >&2
   exit 1
 fi

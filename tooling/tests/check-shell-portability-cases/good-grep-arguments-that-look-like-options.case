@@ -1,0 +1,9 @@
+# expect: none
+printf x | grep -e q
+printf x | grep -F -- -q
+printf x | grep -e -q -e y
+printf x | grep -f q
+printf x | grep -A 3 y
+printf x | grep -m 1 y
+printf x | grep -c q
+printf x | grep 'q'

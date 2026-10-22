@@ -94,7 +94,7 @@ This file states definitions and lemmas that carry no axiom pin of their own. -/
 
 The definitions that carry the claim.  A change to a clause, a constructor or a law fails the
 build while its pin is present; `attest.py` requires each definition pin to exist
-(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
+(`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`. -/
 
 /--
 info: inductive Tacenta.BraidPreserveDecoder.Reach : tacenta_erasure.Decoder → tacenta_erasure.Decoder → Prop

@@ -35,6 +35,28 @@ item 2. The counts were recomputed from that tree. The update was made by the
 author with tool assistance; no reader independent of the maintainer has read
 it.
 
+Also on 2026-10-22, the 38 statement pins in 16 translation modules that Lean had
+printed with a `⋯` (a term deeper than 50 levels, or a proof inside a term) were
+regenerated to print each statement without a cut, each module setting
+`pp.deepTerms` and `pp.proofs.withType` before its pins, and `attest.py` now
+refuses a statement pin whose message holds a `⋯` other than an omitted proof
+with its proposition, and any other pretty-printer option. A pin is still not
+the whole elaborated statement: Lean does not print, among other things,
+instance arguments, coercion functions, implicit arguments, the binder types of
+`∃` and `fun`, universe levels or the types behind numerals and structure
+instances. `check-lean-constructs.sh`, a textual guard, now refuses in
+hand-written Lean an instance declaration that is not one of those it lists
+whole (fourteen today: eleven `instance` and three `deriving instance`),
+attribute lists naming `instance`, `default_instance` or `coe`, and the `coe`
+and `default_instance` tokens. A `deriving instance` needs no entry when each
+of its types is written as a name the file gives one of its own declarations,
+compared as written with no namespace resolution, so another file's type
+written by a short name the file also declares is accepted. It does not read a
+`deriving` clause of a `structure`, `inductive` or `def`, a class whose parent
+is a notation class, or a dependency's scoped instance brought in by `open`. No pin was added or removed, so no count above
+changes. The change was made by the author with tool assistance; no reader
+independent of the maintainer has read it.
+
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
 checks and reviews are evidence of what they ran, not independent review.

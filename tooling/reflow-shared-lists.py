@@ -38,6 +38,9 @@ import json
 import re
 import sys
 from pathlib import Path
+# A script of the tree is imported below; writing its bytecode would leave a __pycache__ in the checkout
+# (on a Python whose bytecode goes next to the source, as on the hosted runner).
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 PARTS = "tacenta-proofs/scripts/no-sorry-parts.txt"

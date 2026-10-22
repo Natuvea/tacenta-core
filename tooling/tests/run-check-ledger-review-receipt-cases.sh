@@ -100,7 +100,7 @@ refuse() {
     echo "WRONG  $name: expected refusal" >&2
     return 1
   fi
-  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: missing diagnostic '$needle'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -238,7 +238,7 @@ expect_refused_for_pack() {
   out="$(run_checker "$work/$name.json" "" "$packdir" 2>&1)"
   rc=$?
   set -e
-  if [ "$rc" -eq 0 ] || ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if [ "$rc" -eq 0 ] || ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: expected '$needle', got rc=$rc: $out" >&2
     return 1
   fi
@@ -385,7 +385,7 @@ expect_tool_fail() {
   out="$(tool "$@" 2>&1)"
   rc=$?
   set -e
-  if [ "$rc" -eq 0 ] || ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if [ "$rc" -eq 0 ] || ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: expected '$needle', got rc=$rc: $out" >&2
     return 1
   fi
@@ -400,7 +400,7 @@ set +e
 unfilled="$(run_checker "$work/template.json" 2>&1)"
 unfilled_rc=$?
 set -e
-if [ "$unfilled_rc" -eq 0 ] || ! printf '%s' "$unfilled" | grep -qF 'still holds a template placeholder'; then
+if [ "$unfilled_rc" -eq 0 ] || ! grep -qF 'still holds a template placeholder' <<<"$unfilled"; then
   echo "WRONG  unfilled-template: $unfilled" >&2
   exit 1
 fi
@@ -442,7 +442,7 @@ expect_reviewed_fail() {
   out="$(reviewed "$@" 2>&1)"
   rc=$?
   set -e
-  if [ "$rc" -eq 0 ] || ! printf '%s' "$out" | grep -qF -- "$needle"; then
+  if [ "$rc" -eq 0 ] || ! grep -qF -- "$needle" <<<"$out"; then
     echo "WRONG  $name: expected '$needle', got rc=$rc: $out" >&2
     return 1
   fi
@@ -506,7 +506,7 @@ set +e
 elsewhere="$(cd "$work/other/repo" && python3 tooling/validate-reviewed-evidence.py --manifest "$work/other/hosted/assurance-manifest.json" --pack "$pack" --receipt "$work/pass.json" 2>&1)"
 elsewhere_rc=$?
 set -e
-if [ "$elsewhere_rc" -eq 0 ] || ! printf '%s' "$elsewhere" | grep -qF 'is not in the repository'; then
+if [ "$elsewhere_rc" -eq 0 ] || ! grep -qF 'is not in the repository' <<<"$elsewhere"; then
   echo "WRONG  reviewed-pack-of-another-checkout: $elsewhere" >&2
   exit 1
 fi

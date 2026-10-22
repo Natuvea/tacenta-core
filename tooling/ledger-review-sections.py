@@ -28,6 +28,9 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+# A script of the tree is imported below; writing its bytecode would leave a __pycache__ in the checkout
+# (on a Python whose bytecode goes next to the source, as on the hosted runner).
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("tacenta_review_checker", ROOT / "tooling/check-ledger-review-receipt.py")

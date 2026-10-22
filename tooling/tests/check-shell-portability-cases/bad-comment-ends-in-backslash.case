@@ -1,0 +1,5 @@
+# expect: 3
+# a note that ends in a backslash \
+printf x | grep -q needle
+# and one more \
+  echo this line is code, not part of the comment

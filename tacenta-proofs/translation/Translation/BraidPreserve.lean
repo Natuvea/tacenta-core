@@ -1187,7 +1187,7 @@ info: 'Tacenta.BraidPreserve.Braid.Run.exists_send' depends on axioms: [propext,
 
 The axiom pins hold the constants a result depends on and not what it says.  These hold the
 statements of the results below; `attest.py` requires each statement pin to exist
-(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
+(`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`. -/
 
 /--
 info: Tacenta.BraidPreserve.Braid.step_send_sized {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -1309,7 +1309,7 @@ info: Tacenta.BraidPreserve.State.sized_ct1_bounded {s : State} (h : Tacenta.Bra
 
 The definitions that carry the claim.  A change to a clause, a constructor or a law fails the
 build while its pin is present; `attest.py` requires each definition pin to exist
-(`REQUIRED_STATEMENT_PINS`) and does not read what it says. -/
+(`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`. -/
 
 /--
 info: def Tacenta.BraidPreserve.State.sized : State → Prop :=

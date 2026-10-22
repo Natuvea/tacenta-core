@@ -434,10 +434,13 @@ in `tacenta-core`; `cargo test --locked` in
 hook that runs the cheapest of the checks before a push leaves the machine.
 
 A new lifecycle proof module is wired into the gates by
-`tacenta-proofs/scripts/new-lifecycle-module.py`: `scaffold` creates the module and its negatives script from
-`tacenta-proofs/scripts/templates/` and makes every edit to the shared files that does not depend on theorem
-names (the audit import, the `no-sorry.sh` phase and its part, the proof-script cases, the gate inventory and
-mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
+`tacenta-proofs/scripts/new-lifecycle-module.py`: `scaffold` creates the module (with the two pretty-printer
+options that make its statement pins print whole) and its negatives script from
+`tacenta-proofs/scripts/templates/` (the negatives template carries the helpers the other lifecycle negatives
+scripts share, and `check-negatives-control-counts.py` holds it to them) and makes every edit to the shared files
+that does not depend on theorem names (the audit import, the `no-sorry.sh` phase and its part, the proof-script
+cases, the parts runner's stub, the script's entry in `negatives-control-counts.json`, the gate
+inventory and mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
 `tacenta-proofs/scripts/genpins.py` and puts its names on the four lists of `attest.py` and in the attestation
 negatives, moving the pinned case count by the cases it adds. Each new entry goes after the entry its name sorts
 after, and the shared lists are kept one entry per line (`python3 tooling/reflow-shared-lists.py --check`, run in

@@ -966,6 +966,9 @@ info: 'Tacenta.UnitHeldKemWitness.LawGenerateSucceeds_is' depends on axioms: [pr
 #guard_msgs in
 #print axioms Tacenta.UnitHeldKemWitness.LawGenerateSucceeds_is
 
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
+
 /--
 info: Tacenta.UnitHeldKemWitness.LawGenerateSucceeds_is : Tacenta.UnitHeldKemWitness.LawGenerateSucceeds ↔
   Tacenta.UnitHeldKemWitness.LawGenerateSucceedsShape Interp.real
@@ -1127,7 +1130,7 @@ info: Tacenta.UnitHeldKemWitness.held_encoder : Tacenta.SessionUnitDecoderBound.
   ErasureAgrees →
     ∀ (m : Bytes) (hm : List.length m = 96),
       ∃ enc0 enc1 c,
-        tacenta_erasure.Encoder.new (sliceOfBytes m ⋯) = ok enc0 ∧
+        tacenta_erasure.Encoder.new (sliceOfBytes m (⋯ : List.length m ≤ Usize.max)) = ok enc0 ∧
           enc0.next_chunk = ok (some c, enc1) ∧
             ↑c.index = 0 ∧
               CodewordOf m c ∧

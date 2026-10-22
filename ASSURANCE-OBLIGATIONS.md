@@ -636,6 +636,15 @@ recorded decision or a target-closing slice:
   The floor lists names;
   for the 89 definition pins on `REQUIRED_PRINT_FORM` it also requires the form,
   `#print name`, and refuses `#check @name`, which prints the type of a definition and not its body.
+  Every live statement pin, on the floor or not, is refused when its expected message holds a `⋯` other than an omitted proof printed with its proposition,
+  `(⋯ : P)`, so a pin Lean cut off at depth 50 cannot stand;
+  every `set_option pp.*` in the first-party Lean trees other than `pp.deepTerms true` and `pp.proofs.withType true` is refused, so no option can bring the cut back or narrow a message without a `⋯` (`pp.oneline`).
+  The docstring is found through any comment between it and the `#guard_msgs` (Lean attaches it across one), and such a comment is refused.
+  A message without a cut is still not the whole elaborated statement:
+  Lean does not print, among other things, instance arguments, the function behind a coercion `↑`, implicit arguments, the binder types of `∃` and `fun`, universe levels or the types behind numerals and structure instances, so a new instance, a `coe` function or a definition changed under its name can change what a pinned statement means with its pin unchanged.
+  `check-lean-constructs.sh` (row below) is a textual guard against the first two in hand-written Lean, and does not see a dependency's scoped instance brought in by `open`;
+  the third is a matter for review.
+  The docstring is found by reading the comments between the last code and the `#guard_msgs` as Lean reads them, so a `/--` inside a line comment is not taken for it.
 
   **Current negative-control evidence:**
   `tacenta-proofs/scripts/check-attest-negatives.sh` runs the statement-pin cases:
@@ -654,6 +663,13 @@ recorded decision or a target-closing slice:
   five spellings that are accepted,
   a `#print` definition pin with its `#guard_msgs` removed,
   an unimported module,
+  a pin cut off with `⋯` where Lean cut it before its module set `pp.deepTerms`,
+  an omitted proof printed without its proposition,
+  the same behind a line comment,
+  behind `-- /-- fake -/` and behind `-- /--` (a docstring opener inside a line comment is part of the comment),
+  a comment between a docstring and its `#guard_msgs`,
+  seven pretty-printer options (at file level,
+  as an `... in` prefix and in a section),
   the floor shortened with and without a hand edit of the manifest,
   and the recorded floor missing,
   unreadable,
@@ -662,9 +678,9 @@ recorded decision or a target-closing slice:
   empty,
   or the script's floor emptied.
   The scanner reads text, so it does not see the elaborated environment:
-  it cannot tell that a pin names the declaration the claim means, and it does not read what a pin says, so a statement weakened together with its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the pin show it;
+  it cannot tell that a pin names the declaration the claim means, and it reads what a pin says only for a `⋯`, so a statement weakened together with its pin's expected message is accepted by this check, and only the build, which compares the text, and the diff of the pin show it;
   a pin holds the printed statement, in which a definition appears by name, so changing a definition changes no pin unless the definition has its own `#print` pin.
-  It does not follow `open`, a file-level `set_option` that elides or changes the printed statement, a macro that writes `#guard_msgs`, or a header longer than 20,000 characters.
+  It does not follow `open`, a pretty-printer option set by a macro, a `run_cmd`, the lakefile or the command line, a macro that writes `#guard_msgs`, or a header longer than 20,000 characters.
   A `macro`,
   `syntax`,
   `#exit` or `run_cmd` in front of or around a pin is refused by `check-lean-constructs.sh` (run by `no-sorry.sh` in the translation job), not by this check.
@@ -1431,6 +1447,54 @@ recorded decision or a target-closing slice:
   that the responder receives the frame,
   or that `encrypt` refuses elsewhere) and `check-port-negatives.sh` (ten broken anchors,
   as in the row above).
+  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in `check-responder-successor-negatives.py`,
+  `check-responder-reply-negatives.py`,
+  `check-responder-reply-receipt-negatives.py`,
+  `check-send-preservation-negatives.py` and `check-initiator-second-send-negatives.py` is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`), which also holds the five copies of their shared helpers to one text, so a control deleted with its label is refused unless the record is edited in the same change;
+  their label check refuses a projection any place of whose refusal is not a composing theorem.
+  `run-check-negatives-control-counts-cases.sh` holds both:
+  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
+  Each script's `main` calls the shared `check_complete`,
+  which refuses a run that refused fewer controls than `MUTANTS` holds,
+  accepted other baselines,
+  skipped an emptied-proof run or a projection's record,
+  or whose Lean runs,
+  recorded by `run_lean` alone in `RUNS`,
+  do not number one per baseline,
+  control and emptied-proof run,
+  at least one accepting per baseline and one refusing per control and statement-shape check;
+  the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
+  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
+  The gate holds the scaffold's negatives template (`tacenta-proofs/scripts/templates/lifecycle-negatives.py.in`) to the same shared text and reads its `main` by the same rules, without counting it;
+  its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (97 cases in all, the completeness check run on simulated results with no Lean).
+  The gate also refuses a second binding of `main`,
+  `MUTANTS`,
+  `INSIDE`,
+  `PROJECTION`,
+  `STATEMENT_SHAPE`,
+  `COMPOSING` or `PROJECTED`, any `global` or `nonlocal`, a `raise` in `main` other than `SystemExit(<a message>)`, an assignment or `del` through an attribute or subscript of a module-level name, an in-place method call on one, and a `main` that does not record `inside`,
+  `projection_of` and `projects`.
+  Anywhere in a script it refuses a `SystemExit` not raised directly with one argument written as a message (a string, an f-string or a `+` with one; how the argument is written is read, not its value),
+  and any use, import under any name or binding of `exit`,
+  `quit`,
+  `_exit`,
+  `abort`,
+  `kill`,
+  `killpg`,
+  the `exec*`,
+  `spawn*` and `posix_spawn*` calls,
+  `fork` or `forkpty` other than the texts `sys.exit(main())` and `os.killpg(process.pid, signal.SIGTERM)`, accepted wherever they are written;
+  `main` must bind `sources` once and only read it.
+  Seven cases hold these: an arithmetic `SystemExit` argument, `exit` imported under another name, a helper that raises or calls an exit, an exit reached through `ctypes`, a baseline skipped with `sources` narrowed to match, and a baseline deleted from `sources`.
+  The rules on the scripts' text are a tripwire for the spellings listed, not a check of what a run does; they stop accidents and the edits listed, not a deliberate edit.
+  Not seen, by class: a decorator or wrapper around `main` or a helper that catches `SystemExit` and returns, so that a refused control or `check_complete`'s refusal ends the run with status 0;
+  a key written twice in the `sources` literal, which the gate counts twice and the run once;
+  operator overloading and other dunder methods (an operand whose `__radd__` turns the message into a number);
+  reflection through names not listed (`operator.attrgetter`, `__getattribute__`, `__subclasses__`);
+  another module the script imports;
+  any other way of ending the run with status 0;
+  the same change to all five copies of a shared helper, which is one text;
+  and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see.
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;
@@ -1447,12 +1511,39 @@ recorded decision or a target-closing slice:
   `implemented_by`,
   `extern`,
   `partial` or `unsafe` name, and no elaboration-time code outside the seven audit invocations, each exact and standing alone, with nothing in the invoking modules but imports, pins and the invocation, one per line, and none of the text found at review to redirect, wrap, forge or hide around them;
+  a textual guard on instances and coercions, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin:
+  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of those listed for its file and namespace (fourteen today: eleven `instance` and three `deriving instance`,
+  each exactly once,
+  so a copy elsewhere or a changed continuation line is refused,
+  while lines may move),
+  a `deriving instance` for a type whose name, as written, the file does not give one of its own declarations (compared as written, with no namespace resolution, so another file's type written by a short name the file also declares is accepted),
+  an attribute list `@[...]` or `attribute [...]`,
+  read on the whole file so a list split over lines is one,
+  naming `instance`,
+  `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code;
+  it does not see a dependency's scoped instance brought in by `open`, a `deriving` clause of a `structure`, `inductive` or `def`, or a class whose parent is a notation class;
   every first-party module is in the audit's import closure;
   every translation module built;
   no incomplete declaration.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-lean-constructs-cases.sh` (63 cases on a copy of the audit modules:
+  `tooling/tests/run-lean-constructs-cases.sh` (93 cases on a copy of the audit modules:
+  instance declarations,
+  `local`,
+  `scoped`,
+  after `open … in` and with a priority,
+  instance,
+  `default_instance` and `coe` attributes on one line and split over two,
+  the bare tokens,
+  a derived instance for another file's type and the coercion counterexample from review in the held-encoder module,
+  refused;
+  a derived instance of a type the file declares accepted;
+  an allow-listed instance changed on its first or a continuation line,
+  copied into another namespace,
+  copied twice,
+  moved to another namespace or with a changed default,
+  refused,
+  and one moved down a line accepted;
   a wrapper before an invocation,
   an indented invocation,
   a continuation,
@@ -1628,14 +1719,17 @@ recorded decision or a target-closing slice:
   Vector currency (`proofs_vectors`, inline in `ci.yml`) and the differential harness's required-input rule (`differential.rs:4817`)
 
   **Protected property:**
-  The committed vectors equal the model's output;
+  The committed vectors equal the model's output, and the four hosted-inventory files equal what their own generator produces;
   the harness fails, and does not skip, in CI when the model binary is missing.
 
   **Current negative-control evidence:**
   `tooling/check-vectors-current.sh` is the workflow's inline step as a script,
-  with `tooling/tests/run-check-vectors-current-cases.sh` (a committed vector changed by one hex digit is refused,
-  naming its file;
-  `VC1` to `VC3` re-run red),
+  with `tooling/tests/run-check-vectors-current-cases.sh` (a committed vector,
+  a changed initiator vector and a changed inventory vector,
+  each by one hex digit,
+  are refused,
+  naming their file;
+  `VC1` to `VC6` re-run red),
   and `tooling/tests/run-differential-required-input-cases.sh` shows the harness failing with the model executable missing when the variable or `GITHUB_ACTIONS` requires it and skipping otherwise (`DF1` to `DF3`).
   Neither is a CI step yet, and the workflow's step does not yet call the script.
   A committed vector that the model no longer generates stays in the tree, because the regeneration overwrites and never deletes.
@@ -1703,7 +1797,7 @@ recorded decision or a target-closing slice:
   It does not check that a `boundary` or `unwitnessed` classification is right, that a witness state is reachable, or that a theorem outside the table is witnessed;
   it does not tie the state a `sat_` proof uses to the state the invariant theorems are about.
   The statements of the 61 shape theorems (`NumericShapeWitness.lean`) are held by `#guard_msgs in #check` pins in the build;
-  `attest.py` requires each pin to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says.
+  `attest.py` requires each pin to exist (`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`.
   No hosted run is recorded.
 
 <!-- End of the list. -->
@@ -1797,6 +1891,32 @@ Lean: that the pin generator's probe matches a real `lake env lean --json` run w
 `run-gate-controls.sh` runs every control through `tooling/tests/with-no-git-identity.sh`, with no global or
 system git configuration and no git identity, as the hosted runner has none, so a fixture that commits without
 its own identity fails on a developer's machine too (one did, and failed only on the runner).
+
+On 2026-10-22 the scaffold was brought up to what a module it starts needs to pass the gates. Its negatives
+template carries the helpers of the five lifecycle negatives scripts character for character (the projection
+standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
+`check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
+rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
+the script's own counts, its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
+of a full run from its fixture's `no-sorry.sh` instead of a number written by hand, and names the edit when a script
+the run calls has no stub; a phase dropped from both `no-sorry.sh` and the parts file is therefore no longer caught
+there, and is caught by `tooling/tests/run-proof-script-cases.sh`, whose honest run lists every stubbed script
+`no-sorry.sh` must call and requires the success line of the real `check-translation-coverage.sh`, the one phase
+script it does not stub), and the two pretty-printer options in the module, so that its pins print whole. The two
+lists it now edits are among the files `tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
+scaffold a module still merge through `tooling/regenerate-generated.sh`. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
+own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
+`cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,
+given two controls of the send-preservation module, was run against Lean by hand.
+
+Two gates of that change failed a second hostile read for the same reason, respellings of the shapes they name: the
+control-count gate's rules for `main` (`checks_43`) and the quiet-grep gate (`checks_44`). Both are kept, and are
+described as textual tripwires for the shapes listed, each with the classes it does not see. Recorded as decisions,
+**not built**: (1) a check of what each lifecycle negatives run produced, comparing its `result.json` (the baselines
+accepted and the controls refused, by class) with `tacenta-proofs/scripts/negatives-control-counts.json`, which would
+refuse a run wrapped so that its refusals exit 0 and a baseline hidden behind a duplicated key; (2) a quiet-grep gate
+that reads the shell through a parser (for example `shfmt --tojson`) and so sees the real pipelines and command words
+instead of a tokenizer's reading of them.
 
 ## Next P1 slices
 

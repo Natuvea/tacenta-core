@@ -713,7 +713,8 @@ its own oracle disagrees, and
 
     python3 tacenta-test-vectors/generate-inventory-vectors.py --check
 
-regenerates the files in memory and compares them with the committed ones. That
+regenerates the files in memory and compares them with the committed ones;
+`tooling/check-vectors-current.sh` runs it beside the model's regeneration. That
 is one implementation of the page. `tacenta-core` and the independent reader
 are checked against these bytes, and the reader is the second reading. Each
 file has a closed shape that `tooling/check-vectors.py` enforces, so a runner
