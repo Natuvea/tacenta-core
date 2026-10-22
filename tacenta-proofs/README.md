@@ -65,8 +65,8 @@ the two oracles' roles swapped and two decrypt boundary records at the initiator
 initiator's next `encrypt` at the session that receipt returns, on the same run, whose model step has one outcome (the bare
 second frame carrying the header's chunk at index 1, no draw) and which, if that session passes `Session::invariant` and
 meets the four counter ceilings (not shown there; the receive step below shows it at that session, and the two are joined below), returns those bytes with no draw and refines the step, with no new law or
-compiler-trust axiom; a tampered frame being refused, the responder's receipt of that send and later messages in either
-direction not covered; and a general step stating that a successful `encrypt`
+compiler-trust axiom; a tampered frame being refused, the responder's receipt of that send (taken below) and later messages
+in either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
 zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
 the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the
@@ -80,8 +80,12 @@ returns, and at the responder's receipt of the first frame, with no compiler-tru
 run, under the receipt's hypotheses and a bound on the second plaintext, with no new law or per-run premise, so that the
 second `encrypt` at the session the receipt returns yields the bare second frame with no draw and refines the model's step
 with no condition, and the session it leaves passes `Session::invariant` and meets the four ceilings, with no
-compiler-trust axiom and a reach at the real constants under the reply's reach laws (assumed); the responder's receipt of
-that second message and later steps not covered; no `encrypt` whose agreement send
+compiler-trust axiom and a reach at the real constants under the reply's reach laws (assumed); the responder's `decrypt`
+of that second message at its session after the reply returning the initiator's plaintext and keeping `Session::invariant`
+and the four ceilings under one further per-run premise (the initiator's new ratchet key is not its first), or refusing
+`OutOfOrder` with the session unchanged when it fails, with one draw (and, by reading the code, no KEM operation), no new law and no compiler-trust
+axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
+covered; no `encrypt` whose agreement send
 draws, no refusal and no receive outside that scope covered by a preservation result);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
