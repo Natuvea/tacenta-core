@@ -437,8 +437,9 @@ negatives, moving the pinned case count by the cases it adds. Each new entry goe
 after, and the shared lists are kept one entry per line (`python3 tooling/reflow-shared-lists.py --check`, run in
 CI), so two branches that each add a module change different lines. The prose is not written for you: the tool
 marks what it adds with `SCAFFOLD-TODO`, and `python3 tooling/check-proof-module-preflight.py <Module>` (run on
-every lifecycle module in CI against `tooling/proof-module-preflight-baseline.json`, the findings that were in
-the tree when it was introduced; a key added later needs a stated reason) refuses the marker, a negatives
+every lifecycle module by `tooling/ci.sh` and in CI, step `checks_42`, against
+`tooling/proof-module-preflight-baseline.json`, the findings that were in the tree when it was introduced, and
+failing there on errors only; a key added later needs a stated reason) refuses the marker, a negatives
 script missing the names and call sites of the hardened mechanism (a structural check: the script is not run, and
 a stub that calls them only in dead code passes it), a
 count in the prose that does not match the pins or the controls, and a plan identifier, planning path or

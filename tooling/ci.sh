@@ -107,6 +107,14 @@ bash tooling/tests/run-check-constant-time-asm-cases.sh
 # in the checks job through run-gate-controls.sh.
 bash tooling/tests/run-check-fast-cases.sh
 
+# The preflight of every lifecycle proof module against the baseline of findings known when it was
+# introduced, for its errors only (a warning is printed and does not fail); a key the baseline gained
+# since origin/main needs a stated reason. It reads the tree and runs no Lean. Hosted CI runs the same
+# command as step checks_42 of the checks job.
+echo "== Lifecycle proof modules pass the preflight (errors only) =="
+python3 tooling/check-proof-module-preflight.py --all --baseline tooling/proof-module-preflight-baseline.json \
+  --baseline-base origin/main
+
 # Every commit this branch adds on top of origin/main is signed off by its
 # author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
 # `sign-off` job runs the same script against the pull request's base branch.

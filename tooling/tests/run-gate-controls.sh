@@ -22,10 +22,9 @@
 #                                  one entry per line (a packed list refused, the rewrite keeps every entry)
 #   run-new-lifecycle-module-cases.sh  the module scaffold and pin generator: refused anchors, the files and lines
 #                                  a scaffold writes, the pins step's lists and count, with no Lean
-#   run-check-proof-module-preflight-cases.sh, check-proof-module-preflight.py --all  the preflight of a lifecycle
-#                                  module (not-shown lists, the controls' mechanism, counts in the prose, terms
-#                                  kept out of the text) against planted faults, and every module against its
-#                                  baseline of known findings
+#   run-check-proof-module-preflight-cases.sh  the preflight of a lifecycle module (not-shown lists, the controls'
+#                                  mechanism, counts in the prose, terms kept out of the text) against planted
+#                                  faults; the preflight of every module against its baseline is step checks_42
 #   run-check-merge-exactness-cases.sh, run-regenerate-generated-cases.sh  the merge-exactness check and the
 #                                  regeneration of generated files after a merge
 #   run-check-landing-cases.sh, check-landing.sh  the additions of the tooling change survive a merge or a rebase
@@ -59,13 +58,6 @@ bash "$here/run-reflow-shared-lists-cases.sh"
 python3 "$root/tooling/reflow-shared-lists.py" --check
 bash "$here/run-new-lifecycle-module-cases.sh"
 bash "$here/run-check-proof-module-preflight-cases.sh"
-# The baseline may not grow unseen: where the checkout has origin/main, a key added since then needs a reason.
-if git -C "$root" rev-parse --verify --quiet origin/main >/dev/null; then
-  python3 "$root/tooling/check-proof-module-preflight.py" --all --baseline "$root/tooling/proof-module-preflight-baseline.json" \
-    --baseline-base origin/main
-else
-  python3 "$root/tooling/check-proof-module-preflight.py" --all --baseline "$root/tooling/proof-module-preflight-baseline.json"
-fi
 bash "$here/run-check-merge-exactness-cases.sh"
 bash "$here/run-regenerate-generated-cases.sh"
 bash "$here/run-check-landing-cases.sh"

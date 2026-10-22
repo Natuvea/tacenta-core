@@ -6,6 +6,8 @@
 #   a baseline key that no longer occurs            a warning to delete it; an error with --strict
 #   a baseline that omits a known finding           fails
 #   a key the baseline gained since a base          fails with --baseline-base, unless `reasons` gives it a reason
+#   a base that does not resolve to a commit        fails (it would let the baseline grow unseen); warnings alone
+#                                                   do not fail the run
 #   a section's first-named result with no pin      the "of the other N results" count falls back to the results
 #                                                   other than the compiler-trusted, and is then wrong
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
@@ -87,6 +89,8 @@ json.dump(d, open(sys.argv[1], "w"))
 PY
 run baseline-grew-with-reason 0 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-grew-with-reason "note     the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1: a reviewed exception"
+run base-unresolved 1 --all --baseline "$baseline" --baseline-base refs/heads/no-such-base
+says base-unresolved "ERROR    the base refs/heads/no-such-base does not resolve to a commit"
 g reset -q --hard HEAD~1
 python3 - "$clone/$baseline" <<'PY'
 import json, sys
@@ -104,6 +108,12 @@ edit tacenta-proofs/CLAIMS.md "t = t.replace('**Compiler trust and pins.** \`res
 run named-without-pin 1 UnitLifecycleResponderReply --baseline "$baseline"
 says named-without-pin "says 14 results other than the compiler-trusted; there are 19"
 g checkout -q -- tacenta-proofs/CLAIMS.md
+# A warning alone does not fail the run (CI runs the check for its errors only).
+edit tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean "t = t.replace('* That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.\n', '', 1)"
+run warning-only 0 UnitLifecycleResponderFirstReceipt --baseline "$baseline"
+says warning-only "warning  UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
+says warning-only "0 error(s)"
+g checkout -q -- tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean
 
 # The clean fixture of the mechanism: the template's script for a module, with one control planted.
 module=UnitLifecyclePreflightProbe
@@ -203,4 +213,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline and a grown one without a reason refused; the template's mechanism passed and a stub of it refused; a first-named result with no pin counted by compiler trust; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline, a grown one without a reason and an unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin counted by compiler trust; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"

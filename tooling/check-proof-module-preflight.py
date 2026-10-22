@@ -50,6 +50,8 @@ was introduced (`findings`): those are reported as known and do not fail. With `
 occurs is reported as a stale key to delete (an error only with `--strict`). `--baseline-base REF` compares the
 baseline with the one at REF: a key added since REF fails unless the file's `reasons` gives it a reason, so the
 list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a reviewed exception.
+A REF that does not resolve to a commit is an error (a base with no baseline file is only noted). Warnings never
+fail the run, which is how CI runs it (`--all --baseline-base origin/main`, step `checks_42`): errors only.
 Exit 0 when no error is left, 1 otherwise.
 
 Test seam: with `PREFLIGHT_SEAM=tests-only`, `PREFLIGHT_PLAN_ID=<regex>` adds a plan-identifier pattern and
@@ -680,8 +682,15 @@ def main():
     if args.baseline and args.baseline_base:
         rel = str(args.baseline.resolve().relative_to(ROOT)) if args.baseline.resolve().is_relative_to(ROOT) \
             else str(args.baseline)
+        resolves = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{args.baseline_base}^{{commit}}"],
+                                  cwd=ROOT, capture_output=True, text=True)
         old = subprocess.run(["git", "show", f"{args.baseline_base}:{rel}"], cwd=ROOT, capture_output=True, text=True)
-        if old.returncode:
+        if resolves.returncode:
+            # A base that does not resolve would let the baseline grow unseen: that is a failure, not a skip.
+            print(f"ERROR    the base {args.baseline_base} does not resolve to a commit, so the baseline's growth "
+                  f"cannot be checked: fetch it, or name another base")
+            errors += 1
+        elif old.returncode:
             print(f"note     no baseline at {args.baseline_base}; nothing to compare it with")
         else:
             for key in sorted(known - set(json.loads(old.stdout)["findings"])):

@@ -1757,7 +1757,7 @@ What the pass added, by where it runs.
 - Already in CI through `no-sorry.sh` (the translation job), which now calls them: `check-audit-reach-negatives.sh`, `check-pin-negatives.sh` and
   `check-kernel-replay-negative.sh`.
 - CI steps of their own: `tooling/tests/run-gate-controls.sh` (step `checks_41`: the source-gate, proof-script, installer, evidence-pack build and
-  generation controls, the cases of the fast local check (`tooling/fast.sh`), the controls of the inventory generator and of the mutation harness, and the inventory check),
+  generation controls, the cases of the fast local check (`tooling/fast.sh`), the controls of the inventory generator and of the mutation harness, the controls of the tooling for new proof modules and merges (below), and the inventory check),
   `tooling/tests/run-differential-required-input-cases.sh` (step `vectors_differential_cases`), and `tooling/check-vectors-current.sh` with its control
   `tooling/tests/run-check-vectors-current-cases.sh` (steps `proofs_vectors` and `proofs_vectors_control`).
 
@@ -1782,7 +1782,8 @@ with mutations in `tooling/gate-mutations.json`, and their controls run in step 
 one-entry-per-line form of the shared lists (`tooling/reflow-shared-lists.py`, whose `--check` also runs there;
 the long tables of this file are lists for that reason), the preflight of a lifecycle module
 (`tooling/check-proof-module-preflight.py`, also run on every lifecycle module against the baseline of findings
-known when it was introduced, `tooling/proof-module-preflight-baseline.json`), the regeneration of generated files
+known when it was introduced, `tooling/proof-module-preflight-baseline.json`, in a step of its own, `checks_42`,
+and in `tooling/ci.sh`, failing on errors only), the regeneration of generated files
 after a merge (`tooling/regenerate-generated.sh`, with the resolver of insertion conflicts it runs first,
 `tooling/resolve-insertion-conflicts.py`), the merge-exactness check (`tooling/check-merge-exactness.sh`) and the
 check that a merge or a rebase kept what this tooling added (`tooling/check-landing.sh`). They change no claim and no gate's verdict on the proofs. Their controls stub
