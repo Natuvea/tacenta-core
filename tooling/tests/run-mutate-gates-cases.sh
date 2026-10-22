@@ -16,7 +16,8 @@
 #   an edit whose `old` text is not there once     exit 1, naming the edit
 #   a runner that builds through a Cargo-like cache in `$CARGO_TARGET_DIR`, with the caller's
 #   `CARGO_TARGET_DIR` naming a directory shared with a checkout: the edit is still seen ("accepted"), and
-#   nothing is written to the shared directory (each worktree builds into a target directory of its own)
+#   nothing is written to the shared directory (each worktree builds into a target directory of its own,
+#   one per run, in the harness's temporary directory, and none is left there after the run)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -106,6 +107,7 @@ cat >"$repo/cached-runner.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -uo pipefail
 target="${CARGO_TARGET_DIR:-target}"
+[ -z "${CACHED_LOG:-}" ] || echo "$target" >> "$CACHED_LOG"
 mkdir -p "$target"
 [ -f "$target/gate.sh" ] || cp gate.sh "$target/gate.sh"
 printf bad > input.txt
@@ -116,7 +118,11 @@ git -C "$repo" add -A
 git -C "$repo" commit -q -m "cached runner"
 write_edits '{"mutations": [{"id": "cached-build", "file": "gate.sh", "what": "w", "runner": "bash cached-runner.sh", "old": "exit 1", "new": "exit 0", "expect": "WRONG  cached-refused-input"}]}'
 set +e
-out="$(cd "$repo" && CARGO_TARGET_DIR="$shared" python3 tooling/mutate-gates.py 2>&1)"
+harness_tmp="$work/harness-tmp"
+mkdir -p "$harness_tmp"
+: > "$work/targets.log"
+out="$(cd "$repo" && CARGO_TARGET_DIR="$shared" TMPDIR="$harness_tmp" CACHED_LOG="$work/targets.log" \
+  python3 tooling/mutate-gates.py 2>&1)"
 rc=$?
 set -e
 cases=$((cases + 1))
@@ -131,6 +137,25 @@ if [ -n "$(ls -A "$shared")" ]; then
     "$(ls -A "$shared" | tr '\n' ' ')" >&2
   exit 1
 fi
+# Each run had a target directory of its own, in the harness's temporary directory, and none is left there.
+cases=$((cases + 1))
+used="$(sort -u "$work/targets.log")"
+if [ "$(wc -l < "$work/targets.log" | tr -d ' ')" -lt 2 ] || [ "$(wc -l <<<"$used" | tr -d ' ')" -ne "$(wc -l < "$work/targets.log" | tr -d ' ')" ]; then
+  echo "WRONG  mutate-gates target directories: expected one per run, at least two, got: $(tr '\n' ' ' < "$work/targets.log")" >&2
+  exit 1
+fi
+cases=$((cases + 1))
+for d in $used; do
+  case "$d" in
+    "$harness_tmp"/mutate-gates-target-*) ;;
+    *) echo "WRONG  mutate-gates target directories: $d is not a target directory of the harness's own" >&2; exit 1 ;;
+  esac
+done
+left="$(find "$harness_tmp" -maxdepth 1 -name 'mutate-gates-*' -print)"
+if [ -n "$left" ]; then
+  echo "WRONG  mutate-gates target directories: left behind after the run: $(tr '\n' ' ' <<<"$left")" >&2
+  exit 1
+fi
 
 # A runner that is red before any edit: the harness stops and says so, and runs no edit.
 write_edits '{"mutations": [{'"$edit"', "old": "exit 1", "new": "exit 0", "expect": "WRONG  refused-input"}]}'
@@ -143,4 +168,4 @@ if grep -qF 'seen as accepted' <<<"$(cd "$repo" && python3 tooling/mutate-gates.
 fi
 cases=$((cases + 1))
 
-echo "mutate-gates-cases: $cases cases (a red baseline, accepted, behaviour, message only and survived edits, listed and stale reasons, a wrong reason, an edit that does not apply, a build cache in a shared CARGO_TARGET_DIR) gave the expected result"
+echo "mutate-gates-cases: $cases cases (a red baseline, accepted, behaviour, message only and survived edits, listed and stale reasons, a wrong reason, an edit that does not apply, a build cache in a shared CARGO_TARGET_DIR, one target directory per run and none left behind) gave the expected result"
