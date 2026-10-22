@@ -8,8 +8,11 @@
 #   a key the baseline gained since a base          fails with --baseline-base, unless `reasons` gives it a reason
 #   a base that does not resolve to a commit        fails (it would let the baseline grow unseen); warnings alone
 #                                                   do not fail the run
-#   a section's first-named result with no pin      the "of the other N results" count falls back to the results
-#                                                   other than the compiler-trusted, and is then wrong
+#   the results a section names first (in the       a named result with no pin, or matched only by a substring
+#   section of UnitLifecycleResponderReply)         of a pin's name; a kernel-only result padded into the named
+#                                                   list with the counts moved to match; an unnamed result made
+#                                                   compiler-trusted with the counts moved to match; a count
+#                                                   whose two parts do not add up: each named
 #   a negatives script from the template, with one control planted, is the clean fixture of the mechanism check;
 #   a stub that defines every name and calls nothing fails it; then, all planted at once and each required by name
 #   in one run:
@@ -102,11 +105,34 @@ run baseline-omits 1 --all --baseline "$baseline"
 says baseline-omits "check-responder-receipt-negatives.py: lacks the hardened mechanism"
 g checkout -q -- "$baseline"
 
-# The results a section names first are excluded from its "of the other N results" by name, only when every name
-# has a pin; with one name that has none, the count is of the results other than the compiler-trusted.
-edit tacenta-proofs/CLAIMS.md "t = t.replace('**Compiler trust and pins.** \`responder_reply_refines\`, ', '**Compiler trust and pins.** \`responder_reply_refines_unpinned\`, ', 1)"
+# The results a section names first are excluded from its "of the other N results" by name. A named result with no
+# pin is an error, and a name matches a pin only as its full name or its last parts after a dot.
+lead="**Compiler trust and pins.** \`responder_reply_refines\`, "
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('refines', 'refines_unpinned'), 1)"
 run named-without-pin 1 UnitLifecycleResponderReply --baseline "$baseline"
-says named-without-pin "says 14 results other than the compiler-trusted; there are 19"
+says named-without-pin "names \`responder_reply_refines_unpinned\` first, which has no pin in the section's modules"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+edit tacenta-proofs/CLAIMS.md "t = t.replace('$lead', '$lead'.replace('responder_reply_refines', 'reply_refines'), 1)"
+run named-substring 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-substring "names \`reply_refines\` first, which has no pin in the section's modules"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+# A kernel-only result padded into the named list, with the counts moved so that they still match: the paragraph
+# says the named results rest on opaque constants, and this one does not.
+edit tacenta-proofs/CLAIMS.md "t = t.replace(' and \`first_send_reply_reachable\`\napply', ', \`first_send_reply_reachable\` and \`array_clone_u8\`\napply', 1).replace('Of the other 14 results, 6 rest on', 'Of the other 13 results, 5 rest on', 1)"
+run named-padded 1 UnitLifecycleResponderReply --baseline "$baseline"
+says named-padded "names \`array_clone_u8\` first as resting on opaque constants; its pin rests on the kernel's axioms alone"
+g checkout -q -- tacenta-proofs/CLAIMS.md
+# An unnamed result made compiler-trusted, with the kernel-only count moved to match: the other results' sentence
+# does not state it, so it is named as an error.
+edit tacenta-proofs/translation/Translation/UnitLifecycleResponderReply.lean "t = t.replace(\"array_clone_u8' depends on axioms: [propext, Classical.choice, Quot.sound]\", \"array_clone_u8' depends on axioms: [propext, Classical.choice, Quot.sound, Lean.ofReduceBool]\", 1)"
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Of the other 14 results, 6 rest on', 'Of the other 14 results, 5 rest on', 1)"
+run other-compiler 1 UnitLifecycleResponderReply --baseline "$baseline"
+says other-compiler "\`array_clone_u8\` is compiler-trusted, and is not among the results named first"
+g checkout -q -- tacenta-proofs/CLAIMS.md tacenta-proofs/translation/Translation/UnitLifecycleResponderReply.lean
+# The two parts of the other results must add up to them.
+edit tacenta-proofs/CLAIMS.md "t = t.replace(') and 8 on those and opaque constants of the unit. Each of the 19', ') and 7 on those and opaque constants of the unit. Each of the 19', 1)"
+run other-sum 1 UnitLifecycleResponderReply --baseline "$baseline"
+says other-sum "says 6 and 7 of the other 14 results, which do not add up"
 g checkout -q -- tacenta-proofs/CLAIMS.md
 # A warning alone does not fail the run (CI runs the check for its errors only).
 edit tacenta-proofs/translation/Translation/UnitLifecycleResponderFirstReceipt.lean "t = t.replace('* That a tampered or foreign frame is refused: no AEAD authenticity law is assumed.\n', '', 1)"
@@ -213,4 +239,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline, a grown one without a reason and an unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin counted by compiler trust; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline, a grown one without a reason and an unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
