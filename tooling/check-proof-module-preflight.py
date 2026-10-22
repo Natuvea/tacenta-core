@@ -56,6 +56,7 @@ was introduced (`findings`): those are reported as known and do not fail. A coun
 number said and the number found, so a baselined count is known only at that value. With `--all`, a listed key
 that no longer occurs is reported as a stale key to delete (an error with `--strict` or `--baseline-base`).
 `--baseline-base REF` compares the baseline with the one at REF: a key added since REF fails unless it occurs now
+(among the findings of the modules the run checks)
 and the file's `reasons` gives it a reason of at least 40 characters and six different words (not a
 placeholder), so the list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a
 reviewed exception. A REF that is empty or does not resolve to a commit is an error; a base with no baseline file

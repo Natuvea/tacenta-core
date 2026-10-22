@@ -127,11 +127,15 @@ run stale-baseline-key 0 --all --baseline "$baseline"
 says stale-baseline-key "warning  stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
 run stale-baseline-key-strict 1 --all --baseline "$baseline" --strict
 says stale-baseline-key-strict "ERROR    stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
+g commit -qam "a key added that does not occur"
+# With the key in the base's baseline too, only the stale check refuses it.
 run stale-baseline-key-base 1 --all --baseline "$baseline" --baseline-base HEAD
 says stale-baseline-key-base "ERROR    stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
-# A key added since the base for a finding that does not occur is refused, whatever its reason.
-g commit -qam "a key added that does not occur"
+# A key added since the base for a finding that does not occur is refused, whatever its reason: in a run over
+# named modules (where staleness is not judged) by this check alone, and with --all by both.
 bl reason "UnitLifecycleNotAModule|terms|x" "$good_reason"
+run baseline-gained-absent-module 1 UnitLifecycleResponderReply --baseline "$baseline" --baseline-base HEAD~1
+says baseline-gained-absent-module "the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1, which does not occur"
 run baseline-gained-absent 1 --all --baseline "$baseline" --baseline-base HEAD~1
 says baseline-gained-absent "the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1, which does not occur"
 g reset -q --hard HEAD~1
