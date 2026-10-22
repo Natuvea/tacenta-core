@@ -639,6 +639,10 @@ recorded decision or a target-closing slice:
   Every live statement pin, on the floor or not, is refused when its expected message holds a `⋯` other than an omitted proof printed with its proposition,
   `(⋯ : P)`, so a pin Lean cut off at depth 50 cannot stand;
   every `set_option pp.*` in the first-party Lean trees other than `pp.deepTerms true` and `pp.proofs.withType true` is refused, so no option can bring the cut back or narrow a message without a `⋯` (`pp.oneline`).
+  The docstring is found through any comment between it and the `#guard_msgs` (Lean attaches it across one), and such a comment is refused.
+  A message without a cut is still not the whole elaborated statement:
+  Lean does not print instance arguments, the function behind a coercion `↑`, implicit arguments or the binder types of `∃` and `fun`, so a new instance, a `coe` function or a definition changed under its name can change what a pinned statement means with its pin unchanged;
+  `check-lean-constructs.sh` refuses the first two in hand-written Lean (row below), and the third is a matter for review.
 
   **Current negative-control evidence:**
   `tacenta-proofs/scripts/check-attest-negatives.sh` runs the statement-pin cases:
@@ -659,6 +663,8 @@ recorded decision or a target-closing slice:
   an unimported module,
   a pin cut off with `⋯` where Lean cut it before its module set `pp.deepTerms`,
   an omitted proof printed without its proposition,
+  the same behind a line and a block comment,
+  a comment between a docstring and its `#guard_msgs`,
   seven pretty-printer options (at file level,
   as an `... in` prefix and in a section),
   the floor shortened with and without a hand edit of the manifest,
@@ -1445,6 +1451,11 @@ recorded decision or a target-closing slice:
   their label check refuses a projection any place of whose refusal is not a composing theorem.
   `run-check-negatives-control-counts-cases.sh` holds both:
   twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
+  Each script's `main` calls the shared `check_complete`, which refuses a run that refused fewer controls than `MUTANTS` holds, accepted other baselines or skipped an emptied-proof run;
+  the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
+  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script (60 cases in all).
+  Not read:
+  whether the results `main` passes to `check_complete` are Lean's.
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;
@@ -1461,12 +1472,18 @@ recorded decision or a target-closing slice:
   `implemented_by`,
   `extern`,
   `partial` or `unsafe` name, and no elaboration-time code outside the seven audit invocations, each exact and standing alone, with nothing in the invoking modules but imports, pins and the invocation, one per line, and none of the text found at review to redirect, wrap, forge or hide around them;
+  no `instance` declaration outside an allow-list of the eleven existing ones (file and exact line) and no `instance`,
+  `default_instance` or `coe` attribute, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin;
   every first-party module is in the audit's import closure;
   every translation module built;
   no incomplete declaration.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-lean-constructs-cases.sh` (63 cases on a copy of the audit modules:
+  `tooling/tests/run-lean-constructs-cases.sh` (75 cases on a copy of the audit modules:
+  four instance declarations and five instance,
+  `default_instance` or `coe` attributes refused,
+  a derived instance accepted,
+  an allow-listed instance changed or gone refused;
   a wrapper before an invocation,
   an indented invocation,
   a continuation,
@@ -1717,7 +1734,7 @@ recorded decision or a target-closing slice:
   It does not check that a `boundary` or `unwitnessed` classification is right, that a witness state is reachable, or that a theorem outside the table is witnessed;
   it does not tie the state a `sat_` proof uses to the state the invariant theorems are about.
   The statements of the 61 shape theorems (`NumericShapeWitness.lean`) are held by `#guard_msgs in #check` pins in the build;
-  `attest.py` requires each pin to exist (`REQUIRED_STATEMENT_PINS`) and does not read what it says.
+  `attest.py` requires each pin to exist (`REQUIRED_STATEMENT_PINS`) and reads what it says only to refuse a cut-off `⋯`.
   No hosted run is recorded.
 
 <!-- End of the list. -->
