@@ -65,7 +65,11 @@
 //! the session is. `Session::decrypt` returns plaintexts unwrapped; a caller
 //! attributes them by a lookup of the session's peer key. For the responder's
 //! first plaintext, [`establish_responder_unattributed`] returns it wrapped
-//! in [`Unattributed`], which releases it only together with a lookup.
+//! in [`Unattributed`], whose [`Unattributed::attribute`] releases it beside
+//! a lookup of the session's peer key in the records it is given. That is a
+//! nudge, not an enforcement: given no records, `attribute` releases the
+//! value as unattributed, and the leaf's `establish_responder`, which returns
+//! the plaintext unwrapped, is still exported.
 
 use rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
@@ -507,7 +511,7 @@ pub enum InitiatorError {
     /// under *first contact*, a recorded contact's key or an ambiguous one.
     UnexpectedIdentity,
     /// The bundle's identity key is *retired* in the record under *known*, or,
-    /// under *first contact*, a retired key (*same* for no record).
+    /// under *first contact*, a retired key (*same* for no contact).
     RetiredIdentity,
     /// A refusal the lifecycle leaf names, with its kind: a presence
     /// disagreement (`InconsistentBundle`), a non-canonical bundle key
@@ -570,8 +574,9 @@ fn expectation_refusal(key: &PublicKeyBytes, expectation: &Expectation) -> Optio
 /// message.
 ///
 /// The checks run in the order the specification fixes (see the module
-/// documentation): a malformed expectation first, then the bundle's presence
-/// and canonical-key checks, then the bundle's identity key against the
+/// documentation): a malformed expectation first
+/// ([`Expectation::is_malformed`]), then the bundle's presence and
+/// canonical-key checks, then the bundle's identity key against the
 /// expectation with the identity-key rule applied first, then the signatures,
 /// the KEM prekey's input checks and the agreements. Every refusal before the
 /// signatures draws nothing from `rng`.
@@ -623,12 +628,29 @@ pub fn establish_initiator<R: RngCore + CryptoRng>(
 }
 
 /// A value from a session that no lookup has attributed yet. It gives the
-/// session's peer identity key, and releases the value only together with a
-/// [`lookup`] of that key.
-#[derive(Debug)]
+/// session's peer identity key, and [`Unattributed::attribute`] releases the
+/// value beside a [`lookup`] of that key in the records it is given.
+///
+/// The type cannot check that those are the party's records: given none,
+/// `attribute` releases the value as unattributed, which conforms. Nor is it
+/// the only way to a first plaintext: the leaf's `establish_responder`,
+/// re-exported by `tacenta_core::sessions`, returns it unwrapped. The wrapper
+/// keeps the lookup beside the value; it does not enforce one.
+///
+/// Its `Debug` output shows the peer identity key and never the value, so a
+/// plaintext does not reach a log through it.
 pub struct Unattributed<T> {
     peer_identity: PublicKeyBytes,
     value: T,
+}
+
+impl<T> core::fmt::Debug for Unattributed<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Unattributed")
+            .field("peer_identity", &self.peer_identity)
+            .field("value", &"<withheld>")
+            .finish()
+    }
 }
 
 impl<T> Unattributed<T> {
@@ -641,7 +663,8 @@ impl<T> Unattributed<T> {
     /// `records`. The value is attributed exactly as the lookup finds the key:
     /// a contact's, or no contact's (ambiguous, a retired key, or
     /// unattributed). A peer key that is not an identity key refuses, and
-    /// keeps the value back; a session never holds one.
+    /// the value is dropped; a session never holds one, so this path is not
+    /// reached.
     pub fn attribute(self, records: &[Record]) -> Result<(Lookup, T), KeyRefusal> {
         match lookup(&self.peer_identity, records) {
             Ok(found) => Ok((found, self.value)),

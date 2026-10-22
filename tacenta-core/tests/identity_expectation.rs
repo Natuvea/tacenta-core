@@ -718,6 +718,60 @@ fn known_and_same_elsewhere_establishes_an_ambiguous_session() {
     );
 }
 
+/// Under *known*, a key that is *same* in the selected record and *retired*
+/// in another contact's record goes on: *known* reads the selected record
+/// only. The lookup then finds the selected contact, and reports the other
+/// record as retiring the key.
+#[test]
+fn known_and_same_but_retired_elsewhere_establishes_a_contacts_session() {
+    let w = world();
+    let records = [
+        current(&[w.bob.public()]),
+        Record::new(vec![w.dave.public()], vec![w.bob.public()]),
+    ];
+    let (result, _) = establish(&w, &bundle_of(&w.bob, 21), &Expectation::known(&records[0]));
+    let session = result.expect("same in the selected record goes on");
+    let found = lookup(&session.peer_identity(), &records).unwrap();
+    assert_eq!(found.attribution, Attribution::Contact(0));
+    assert_eq!(found.same_for, vec![0]);
+    assert_eq!(found.retired_for, vec![1]);
+    assert!(found.malformed.is_empty());
+}
+
+/// Under *first contact*, a record with both sets empty is a contact with no
+/// record, not a malformed one: a key in no other record goes on, and the
+/// session is unattributed. A key current in another record is still refused,
+/// so the empty record changes nothing.
+#[test]
+fn first_contact_over_records_including_an_empty_one() {
+    let w = world();
+    let records = [Record::default(), current(&[w.dave.public()])];
+    let first_contact = Expectation::first_contact(&records);
+    assert!(!first_contact.is_malformed());
+    let (result, _) = establish(&w, &bundle_of(&w.stranger, 22), &first_contact);
+    let session = result.expect("an empty record does not refuse first contact");
+    let found = lookup(&session.peer_identity(), &records).unwrap();
+    assert_eq!(found.attribution, Attribution::Unattributed);
+    assert!(found.malformed.is_empty());
+    let only_empty = [Record::default()];
+    assert!(
+        establish(
+            &w,
+            &bundle_of(&w.stranger, 23),
+            &Expectation::first_contact(&only_empty)
+        )
+        .0
+        .is_ok()
+    );
+    refused_before_randomness(
+        &w,
+        &bundle_of(&w.dave, 24),
+        &first_contact,
+        InitiatorError::UnexpectedIdentity,
+        "first contact, an empty record and a recorded contact's key",
+    );
+}
+
 /// First contact with no records gives an unattributed session, and the
 /// responder reads it.
 #[test]

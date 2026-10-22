@@ -149,6 +149,7 @@ accept hygiene-generated-file-exempt "${hygiene[@]}"
 boundary=(python3 tooling/check_authentication_boundary.py)
 registry=tacenta-core/AUTHENTICATION-BOUNDARY.md
 braid=tacenta-core/braid/src/lib.rs
+sessions=tacenta-core/src/sessions
 accept boundary-baseline "${boundary[@]}"
 reset
 plant "$braid" "t += '\npub fn handle_control_probe(_msg: &[u8]) {}\n'"
@@ -195,6 +196,16 @@ refuse boundary-unbalanced-braces "braces do not balance outside strings and com
 reset
 plant "$braid" "t += '\nstruct DupProbe;\nimpl DupProbe { pub fn receive_dup(&self) {} }\nimpl DupProbe { pub fn receive_dup(&self) {} }\n'"
 refuse boundary-duplicate-declaration 'is declared more than once in that file' "${boundary[@]}"
+# The sessions zone holds initiator establishment under an expectation. A probe planted there, in the module
+# and in a nested file, must be discovered on its own, not only through the rows that happen to live there.
+# These run after the braid cases, so that a mutation that names one of those is reported by that case first.
+reset
+plant "$sessions/identity.rs" "t += '\npub fn establish_sessions_zone_probe(_bundle: &[u8]) {}\n'"
+refuse boundary-sessions-zone-module 'establish_sessions_zone_probe` consumes a message and is not registered' "${boundary[@]}"
+reset
+mkdir -p "$tree/$sessions/nested_probe"
+printf '%s\n' 'pub fn receive_nested_zone_probe(_msg: &[u8]) {}' >"$tree/$sessions/nested_probe/probe.rs"
+refuse boundary-sessions-zone-nested-file 'receive_nested_zone_probe` consumes a message and is not registered' "${boundary[@]}"
 reset
 mv "$tree/$registry" "$tree/$registry.gone"
 refuse boundary-registry-missing 'missing' "${boundary[@]}"

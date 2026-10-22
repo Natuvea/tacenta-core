@@ -11,7 +11,7 @@ for readiness gate 4 in [`ASSURANCE.md`](../ASSURANCE.md), and it is an inventor
 - A control that exists has not been shown to fail unless the **Mutations** column lists single edits
   to the gate that `tooling/mutate-gates.py` applies and requires the control to catch.
 
-92 rows: 77 with a control in CI, 3 with a control that runs only locally, 12 with none. 47 rows carry at least one re-runnable mutation (372 edits).
+92 rows: 77 with a control in CI, 3 with a control that runs only locally, 12 with none. 47 rows carry at least one re-runnable mutation (373 edits).
 
 | # | Gate | Kind | Runs in CI | Controls | State | Mutations | What would hold it, if nothing does |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ for readiness gate 4 in [`ASSURANCE.md`](../ASSURANCE.md), and it is an inventor
 | 18 | `tooling/check-traceability.py`: requirement, status, assumption and evidence references do not drift | script | checks_27 | `tooling/tests/run-check-traceability-cases.sh` (CI, checks_28) | control in CI | AL-traceability | |
 | 19 | `tooling/check-precondition-shapes.py`: no listed vacuous numeric precondition shape enters first-party Lean | script | checks_12 | `tooling/tests/run-check-precondition-shapes-cases.sh` (CI, checks_13) | control in CI | AL-precondition | |
 | 20 | `tooling/check-lifecycle-boundary-surface.py`: the opaque primitive calls reachable from the five Session roots stay classified | script | checks_10 | `tooling/tests/run-check-lifecycle-boundary-surface-cases.sh` (CI, checks_11) | control in CI | AL-boundary-surface | |
-| 21 | `tooling/check_authentication_boundary.py`: every receive path is registered under the shape its signature has | script | checks_29 | `tooling/tests/run-source-gate-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | AB1, AB10, AB11, AB12, AB3, AB4, AB5, AB6, AB7, AB8, AB9 | |
+| 21 | `tooling/check_authentication_boundary.py`: every receive path is registered under the shape its signature has | script | checks_29 | `tooling/tests/run-source-gate-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | AB1, AB10, AB11, AB12, AB13, AB3, AB4, AB5, AB6, AB7, AB8, AB9 | |
 | 22 | `tooling/check-conflict-markers.sh`: no tracked file holds a conflict marker | script | checks_09 | `tooling/tests/run-source-gate-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | CM1, CM2, CM3, CM4, CM5, CM6, CM7, CM8 | |
 | 23 | `tooling/check-proof-hygiene.sh`: no hand-written proof names a generated _proof_<n> constant | script | checks_08 | `tooling/tests/run-source-gate-cases.sh` (CI, checks_41 through run-gate-controls.sh) | control in CI | PH1, PH2, PH3, PH4, PH5, PH6 | |
 | 24 | `tooling/check-vectors.py`: vector files obey their schemas | script | checks_30 | `tooling/tests/run-check-vectors-cases.sh` (CI, checks_31) | control in CI | AL-vectors | |

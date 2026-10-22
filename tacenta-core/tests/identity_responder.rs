@@ -276,3 +276,33 @@ fn a_canonical_non_identity_member_does_not_make_a_record_malformed() {
     assert_eq!(found.attribution, Attribution::Contact(1));
     assert!(found.malformed.is_empty());
 }
+
+/// The wrapper's `Debug` output names the peer identity key and never the
+/// plaintext, so formatting it (into a log, say) does not release the value.
+#[test]
+fn the_unattributed_debug_output_withholds_the_plaintext() {
+    let mut r = rng(19);
+    let bob = Identity::generate(&mut r);
+    let carol = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(2, &mut r);
+    let secret = b"SECRET-PLAINTEXT-0123456789";
+    let initial = initial_from(&carol, &store, secret, 20);
+    let (_, first) = establish_responder_unattributed(&bob, &mut store, &initial, &mut r).unwrap();
+    let shown = format!("{first:?}");
+    let pretty = format!("{first:#?}");
+    // A derived `Debug` would print the `Vec<u8>` as decimal bytes, on one
+    // line or one per line. With whitespace removed, the first eight of them
+    // must not appear in either layout.
+    let squeeze = |t: &str| t.split_whitespace().collect::<String>();
+    let bytes = squeeze(&format!("{:?}", &secret[..8]));
+    let bytes = bytes.trim_start_matches('[').trim_end_matches(']');
+    for text in [&shown, &pretty] {
+        assert!(!text.contains("SECRET"), "{text}");
+        assert!(!squeeze(text).contains(bytes), "{text}");
+        assert!(text.contains("<withheld>"), "{text}");
+    }
+    assert!(shown.contains(&format!("{:?}", carol.public())), "{shown}");
+    // The value is still there, and `attribute` releases it.
+    let (_, plaintext) = first.attribute(&[]).unwrap();
+    assert_eq!(plaintext, secret);
+}

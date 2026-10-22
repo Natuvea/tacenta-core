@@ -91,3 +91,10 @@ path = "fuzz_targets/triple_receive.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "identity_records"
+path = "fuzz_targets/identity_records.rs"
+test = false
+doc = false
+bench = false

@@ -15,7 +15,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here/tacenta-core"
 
-# Seconds per target. Six targets today, so the whole step is about a minute. Long
+# Seconds per target. Seven targets today, so the whole step is about a minute. Long
 # enough to replay every corpus entry and take a few thousand fresh runs;
 # short enough that nobody starts wondering whether to skip it.
 seconds="${FUZZ_SMOKE_SECONDS:-10}"
