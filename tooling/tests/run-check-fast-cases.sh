@@ -100,6 +100,14 @@ case "${1:-}" in
 esac
 exit 3
 EOF
+  cat > "$sandbox/tooling/gate-inventory.py" <<'STUB'
+#!/usr/bin/env python3
+# stub of tooling/gate-inventory.py for the fast wrapper's cases
+import os, sys
+with open(os.environ["STUB_LOG"], "a") as log:
+    log.write("gate-inventory " + " ".join(sys.argv[1:]) + "\n")
+sys.exit(1 if os.path.exists(os.path.join(os.environ["SANDBOX"], "inventory-fails")) else 0)
+STUB
   printf '.lake/\n' > "$sandbox/.gitignore"
   mkdir -p "$sandbox/tacenta-core/kem/src" "$sandbox/tacenta-core/wire/src" "$sandbox/tacenta-core/src" \
     "$sandbox/tacenta-core/fuzz/fuzz_targets" "$sandbox/tacenta-test-vectors/runners/rust/src" \
@@ -121,7 +129,7 @@ EOF
     tacenta-core/fuzz/fuzz_targets/t.rs tacenta-test-vectors/runners/rust/src/main.rs \
     tacenta-test-vectors/vectors/v.json tacenta-spec/pages/p.md .github/workflows/ci.yml \
     tacenta-model/Model/A.lean tacenta-proofs/Proofs/B.lean tacenta-proofs/translation/Translation/C.lean \
-    tacenta-model/lakefile.lean; do
+    tacenta-model/lakefile.lean tooling/check-labels.sh; do
     echo "// base" > "$sandbox/$f"
   done
   # The Lean projects are built (the directories lake would have made).
@@ -192,7 +200,9 @@ plan_of plan-lean-only "$(nlj ci-fast 'lean tacenta-model Model/A.lean' 'lean ta
   tacenta-model/Model/A.lean tacenta-proofs/Proofs/B.lean tacenta-proofs/translation/Translation/C.lean
 plan_of plan-lean-config "$(nlj ci-fast 'lean-config tacenta-model lakefile.lean')" tacenta-model/lakefile.lean
 plan_of plan-spec-only "$(nlj ci-fast 'covered spec')" tacenta-spec/pages/p.md tacenta-test-vectors/vectors/v.json
-plan_of plan-workflow-only "$(nlj ci-fast 'covered workflows')" .github/workflows/ci.yml
+plan_of plan-workflow-only "$(nlj ci-fast 'covered workflows' gate-inventory)" .github/workflows/ci.yml
+plan_of plan-tooling-script "$(nlj ci-fast gate-inventory 'other 1')" tooling/check-labels.sh
+plan_of plan-gate-inventory-file "$(nlj ci-fast gate-inventory 'other 1')" tacenta-proofs/GATE-INVENTORY.md
 plan_of plan-cargo-toml "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/kem/Cargo.toml
 plan_of plan-cargo-lock "$(nlj ci-fast 'rust tacenta-core ALL')" tacenta-core/Cargo.lock tacenta-core/kem/src/lib.rs
 plan_of plan-vectors-runner "$(nlj ci-fast 'rust tacenta-test-vectors/runners/rust ALL')" \
@@ -252,6 +262,20 @@ echo '-- changed' >> "$sandbox/tacenta-proofs/translation/Translation/C.lean"
 run_fast with-tools "" --base base
 has_log run-lean-translation "lake tacenta-proofs/translation | env lean Translation/C.lean"
 
+# A change under tooling/ or .github/ also runs the gate-inventory check, and it can fail the run.
+new_sandbox
+echo '# changed' >> "$sandbox/tooling/check-labels.sh"
+run_fast with-tools "" --base base
+rc_is run-tooling-change 0
+has_log run-tooling-change-inventory "gate-inventory --check"
+has_log run-tooling-change-ci "ci --fast"
+touch "$sandbox/inventory-fails"
+run_fast with-tools "" --base base
+rc_is failing-gate-inventory 1
+has_out failing-gate-inventory-named "tooling/gate-inventory.py --check"
+has_log failing-gate-inventory-ci-ran "ci --fast"
+rm -f "$sandbox/inventory-fails"
+
 new_sandbox
 echo 'changed' >> "$sandbox/tacenta-spec/pages/p.md"
 echo '{}' > "$sandbox/tacenta-test-vectors/vectors/v.json"
@@ -259,6 +283,7 @@ run_fast with-tools "" --base base
 rc_is run-spec-only 0
 has_log run-spec-only-ci "ci --fast"
 lacks_log run-spec-only-no-cargo "cargo "
+lacks_log run-spec-only-no-inventory "gate-inventory"
 lacks_log run-spec-only-no-lake "lake "
 
 new_sandbox

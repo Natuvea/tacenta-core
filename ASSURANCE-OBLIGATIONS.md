@@ -1757,7 +1757,7 @@ What the pass added, by where it runs.
 - Already in CI through `no-sorry.sh` (the translation job), which now calls them: `check-audit-reach-negatives.sh`, `check-pin-negatives.sh` and
   `check-kernel-replay-negative.sh`.
 - CI steps of their own: `tooling/tests/run-gate-controls.sh` (step `checks_41`: the source-gate, proof-script, installer, evidence-pack build and
-  generation controls, the controls of the inventory generator and of the mutation harness, and the inventory check),
+  generation controls, the cases of the fast local check (`tooling/fast.sh`), the controls of the inventory generator and of the mutation harness, and the inventory check),
   `tooling/tests/run-differential-required-input-cases.sh` (step `vectors_differential_cases`), and `tooling/check-vectors-current.sh` with its control
   `tooling/tests/run-check-vectors-current-cases.sh` (steps `proofs_vectors` and `proofs_vectors_control`).
 

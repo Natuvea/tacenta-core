@@ -328,6 +328,28 @@ builds from nothing, and every run replays the modules under `Translation/`,
 GitHub-hosted machines; a push to main runs the two Lean jobs on a self-hosted
 runner that GitHub lets only this workflow, as it is on main, use.
 
+Before each commit, `bash tooling/fast.sh` is the quick check, a few minutes where the gate takes much
+longer. It runs `bash tooling/ci.sh --fast`, which is every step of `ci.sh` above the line that file marks
+(the workflow, proof-hygiene, label, vector-schema, traceability and authentication-boundary checks, the
+generated-unit checks, the independent reader, the sign-off check, and the case files that hold each of
+them), and then, for the diff against `origin/main` (committed, staged, unstaged and new files; `--base REF`
+names another base), `cargo fmt --check`, `cargo clippy` and `cargo test` for the Rust packages whose files
+changed (the whole workspace when a `Cargo.toml` or `Cargo.lock` did) and `lake env lean` for each changed
+Lean module under `tacenta-model`, `tacenta-proofs` or the translation, and, when a file under `tooling/` or
+`.github/` changed, the gate-inventory check. It continues past a failing step,
+exits non-zero if any failed, and ends with what ran, what failed, what it skipped, a list of what it did not
+run and its wall time. A step the diff asks for and the machine cannot run (no `cargo`, no `lake`, no build of
+the Lean project) is printed as a SKIP and ends the run as "ok WITH SKIPS"; with `GITHUB_ACTIONS` set it is a
+failure. On the laptop it was measured on, with another gate running beside it, the run took between three and
+four minutes whatever the diff (no change, a specification change, a small Rust crate, the core crate, three
+Lean modules), nearly all of it the cheap section; a Rust package with long tests takes what its tests take. It does not run the Lean model,
+proofs and translation builds with their `sorry` scans, the attestation check and its negative cases, the
+vector currency check, the packages that depend on one it touched, the minimum-version, 32-bit,
+advisory-audit and fuzz steps, the steps only the workflow runs, or any hosted job, and `lake env lean` checks
+one module against the build it finds, not the modules that import it. A pass from it is not a pass of the
+gate: run `bash tooling/ci.sh` and read the hosted CI before a merge. `bash tooling/fast.sh --plan` prints what
+it would run, and `FAST_PRE_PUSH=1` makes the pre-push hook run it before each push (CONTRIBUTING.md).
+
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Five of those steps need tooling the workflow
 installs and a developer's machine may not have; the workflow always runs

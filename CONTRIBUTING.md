@@ -72,7 +72,13 @@ implementation of it
 
 The README's "Building and checking" section lists the prerequisites and the
 one command, `bash tooling/ci.sh`, that runs the gate. Run it before opening
-a pull request. The public CI runs the same steps, split into jobs, and the
+a pull request. Before each commit, run the quick check, `bash tooling/fast.sh`:
+the cheap part of the gate (`bash tooling/ci.sh --fast`) and, for the files your
+change touches, `cargo fmt`, `cargo clippy` and `cargo test` on the affected
+Rust packages, `lake env lean` on each changed Lean module and, for a change
+under `tooling/` or `.github/`, the gate-inventory check. It takes a few
+minutes, says at the end what it did not run, and is not a substitute for the
+gate or the hosted CI. The public CI runs the same steps, split into jobs, and the
 README states the two ways they differ: the steps the workflow always runs
 that the script skips when their tooling is absent (it prints a line for
 each), and the two the script runs that the workflow does not. Any other
@@ -86,3 +92,7 @@ by cloning; enable it once per clone with
 
 `.githooks/pre-push` says why the check has to run somewhere other than
 inside the workflow it protects.
+
+The hook also runs the quick check before a push if you ask it to: set
+`FAST_PRE_PUSH=1` in your environment (or for one push, `FAST_PRE_PUSH=1 git
+push`). Without that variable the hook is unchanged.

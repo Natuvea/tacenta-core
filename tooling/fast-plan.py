@@ -15,6 +15,9 @@ case runner can hold the selection to exact output. The lines:
     lean PROJECT FILE                 `lake env lean FILE` from PROJECT (FILE relative to PROJECT)
     lean-config PROJECT FILE          a lakefile, manifest or toolchain pin changed: only a full
                                       `lake build` shows what it did
+    gate-inventory                    a file under tooling/ or .github/, or the generated inventory itself,
+                                      changed: `tooling/gate-inventory.py --check`, which no step of `ci.sh`
+                                      runs (hosted CI runs it in the checks job)
     covered AREA                      the checks for AREA (spec, workflows) are steps of `ci.sh --fast`,
                                       which always runs, so the diff adds nothing to run
     uncovered WORKSPACE N             N changed paths in a Cargo workspace no fast check reads (the fuzz
@@ -47,6 +50,8 @@ LEAN_CONFIG = ("lakefile.lean", "lakefile.toml", "lake-manifest.json", "lean-too
 WORKFLOW_PREFIXES = (".github/workflows/", ".github/actions/")
 WORKFLOW_FILES = ("tooling/check-workflows.sh", "tooling/check-actionlint.sh", "tooling/required-steps.json",
                   "tooling/install-actionlint.sh")
+INVENTORY_PREFIXES = ("tooling/", ".github/")
+INVENTORY_FILE = "tacenta-proofs/GATE-INVENTORY.md"
 SPEC_PREFIXES = ("tacenta-spec/", "tacenta-test-vectors/vectors/", "tacenta-test-vectors/schema/",
                  "tacenta-test-vectors/traces/", "tacenta-test-vectors/runners/independent/")
 
@@ -168,6 +173,8 @@ def plan(root, paths):
             lines.add("covered spec")
             continue
         other += 1
+    if any(rel.startswith(INVENTORY_PREFIXES) or rel == INVENTORY_FILE for rel in paths):
+        lines.add("gate-inventory")
     for workspace, selected in sorted(rust.items()):
         names = "ALL" if selected == "ALL" else ",".join(sorted(selected))
         lines.add(f"rust {workspace or '.'} {names}")

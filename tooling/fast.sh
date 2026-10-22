@@ -21,7 +21,10 @@
 #      which packages of each), `cargo fmt --check`, `cargo clippy` and `cargo test` as
 #      `tooling/ci.sh` runs them, restricted to the touched packages with `-p`. A change to a
 #      Cargo.toml or Cargo.lock selects the whole workspace.
-#   3. For each changed Lean module under tacenta-model, tacenta-proofs or the translation project,
+#   3. When a file under tooling/ or .github/ changed, `tooling/gate-inventory.py --check`: every
+#      step the required workflow runs has a row in the generated inventory. Hosted CI runs it
+#      (through run-gate-controls.sh); no step of `tooling/ci.sh` does.
+#   4. For each changed Lean module under tacenta-model, tacenta-proofs or the translation project,
 #      `lake env lean <module>` from its project directory, which elaborates that one file against
 #      the already-built modules it imports. It needs the project's build; without it the step is
 #      skipped, loudly (see below).
@@ -167,6 +170,13 @@ fi
 # --- 2. the cheap section of the gate ----------------------------------------
 step "tooling/ci.sh --fast (the cheap section)" bash tooling/ci.sh --fast
 
+# --- 2b. the gate inventory, when a gate, a workflow or the inventory itself changed ------
+# Hosted CI checks that every step it runs has a row in tacenta-proofs/GATE-INVENTORY.md (the
+# last line of run-gate-controls.sh); no step of tooling/ci.sh does.
+if grep -qx 'gate-inventory' "$work/plan"; then
+  step "tooling/gate-inventory.py --check" python3 tooling/gate-inventory.py --check
+fi
+
 # --- 3. clippy and tests of the touched Rust packages ------------------------
 if [ "$rust_ok" = 1 ]; then
   export PROPTEST_CASES="${PROPTEST_CASES:-256}"
@@ -238,7 +248,8 @@ else
   note_failed "the NOT RUN list could not be read from tooling/ci.sh"
 fi
 echo "  Rust packages this diff did not touch, and the packages that depend on those it did"
-echo "  the CI-only steps: the SPQR erasure regression, the portable-backend KEM tests, the 32-bit premises run"
+echo "  the CI-only steps: the SPQR erasure regression, the portable-backend KEM tests, the 32-bit premises run,"
+echo "    the gate-inventory and mutation-harness cases (run-gate-controls.sh)"
 echo "  hosted jobs: the sliced attestation negatives, the translation parts, the assurance receipts"
 echo "  the full 'lake build' of the translation, no-sorry.sh and attest-negatives, MSRV, armv7, cargo audit and the fuzz smoke run"
 if [ -n "$lean_config" ]; then
