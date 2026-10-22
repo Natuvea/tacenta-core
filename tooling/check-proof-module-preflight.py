@@ -47,11 +47,14 @@ For each module `tacenta-proofs/translation/Translation/<Module>.lean`, its sect
                      net.
 
 `--all` checks every `UnitLifecycle*.lean` module. `--baseline FILE` reads the finding keys known when the check
-was introduced (`findings`): those are reported as known and do not fail. With `--all`, a listed key that no longer
-occurs is reported as a stale key to delete (an error only with `--strict`). `--baseline-base REF` compares the
-baseline with the one at REF: a key added since REF fails unless the file's `reasons` gives it a reason, so the
-list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a reviewed exception.
-A REF that does not resolve to a commit is an error (a base with no baseline file is only noted). Warnings never
+was introduced (`findings`): those are reported as known and do not fail. A count finding's key carries the
+number said and the number found, so a baselined count is known only at that value. With `--all`, a listed key
+that no longer occurs is reported as a stale key to delete (an error with `--strict` or `--baseline-base`).
+`--baseline-base REF` compares the baseline with the one at REF: a key added since REF fails unless it occurs now
+and the file's `reasons` gives it a reason of at least 40 characters and six different words (not a
+placeholder), so the list does not grow unseen; a new finding is fixed rather than listed, and a reasoned key is a
+reviewed exception. A REF that is empty or does not resolve to a commit is an error; a base with no baseline file
+(the commit that introduces it) is only noted. Warnings never
 fail the run, which is how CI runs it (`--all --baseline-base origin/main`, step `checks_42`): errors only.
 Exit 0 when no error is left, 1 otherwise.
 
@@ -469,8 +472,20 @@ def controls_of(values):
 
 
 def count_mismatch(report, key, where, what, said, actual):
+    # The key carries both numbers, so a baselined count is known only at the value it was baselined at.
     if said is not None and actual is not None and said != actual:
-        report.add("error", key, f"{where}: says {said} {what}; there are {actual}")
+        report.add("error", f"{key}|{said}|{actual}", f"{where}: says {said} {what}; there are {actual}")
+
+
+PLACEHOLDER = re.compile(r"(?i)\W*(?:x+|todo|tbd|fixme|reason|n/?a|none|placeholder|ok|fine|known|\.+)\W*")
+
+
+def trivial_reason(reason):
+    """Whether a baseline reason is too short or too empty to be reviewed: under 40 characters, fewer than six
+    different words of two letters or more, or a placeholder."""
+    text = str(reason or "").strip()
+    words = {w.lower() for w in re.findall(r"[A-Za-z]{2,}", text)}
+    return len(text) < 40 or len(words) < 6 or PLACEHOLDER.fullmatch(text) is not None
 
 
 def section_pins(body, attest):
@@ -673,6 +688,8 @@ def main():
         print(f"note     private-term scan skipped: no list ({TERMS_VARIABLE} is not set)")
     if args.all == bool(args.modules):
         parser.error("name modules, or give --all")
+    if args.baseline_base is not None and (not args.baseline_base.strip() or not args.baseline):
+        parser.error("--baseline-base needs a non-empty REF and --baseline")
     modules = sorted(p.stem for p in TRANSLATION.glob("UnitLifecycle*.lean")) if args.all else args.modules
     attest = load_attest()
     report = Report()
@@ -695,8 +712,8 @@ def main():
         check_added(report, args.base)
     seen, items = set(), []
     for level, key, message in report.items:
-        if key not in seen:
-            seen.add(key)
+        if (key, message) not in seen:
+            seen.add((key, message))
             items.append((level, key, message))
     known, reasons = set(), {}
     if args.baseline:
@@ -716,7 +733,9 @@ def main():
     stale = [k for k in sorted(known - {k for lvl, k, _ in items if lvl == "error"})
              if TERMS is not None or not k.endswith("|private term")] if args.all else []
     for key in stale:
-        if args.strict:
+        # With a base to compare with (as CI runs it), a key that no longer occurs must be deleted: the baseline
+        # only shrinks.
+        if args.strict or args.baseline_base:
             print(f"ERROR    stale key: delete it from {args.baseline}: {key}")
             errors += 1
         else:
@@ -735,10 +754,19 @@ def main():
         elif old.returncode:
             print(f"note     no baseline at {args.baseline_base}; nothing to compare it with")
         else:
+            # Once a base has a baseline, a key may be added only for a finding that occurs now, and only with a
+            # reason a reviewer can read. (The commit that introduces the file is the one place keys come in
+            # without one; each must still occur, or it is stale.)
+            occurring = {k for lvl, k, _ in items if lvl == "error"}
             for key in sorted(known - set(json.loads(old.stdout)["findings"])):
-                if not str(reasons.get(key, "")).strip():
-                    print(f"ERROR    the baseline gained {key} since {args.baseline_base} with no reason: fix the "
-                          f"finding, or give the key a reason under `reasons` for review")
+                if key not in occurring and (TERMS is not None or not key.endswith("|private term")):
+                    print(f"ERROR    the baseline gained {key} since {args.baseline_base}, which does not occur: "
+                          f"a key is added only for a finding that occurs")
+                    errors += 1
+                elif trivial_reason(reasons.get(key)):
+                    print(f"ERROR    the baseline gained {key} since {args.baseline_base} with no reason, or one too "
+                          f"short to review (at least 40 characters and six different words): fix the finding, "
+                          f"or give the key a reason under `reasons` for review")
                     errors += 1
                 else:
                     print(f"note     the baseline gained {key} since {args.baseline_base}: {reasons[key]}")

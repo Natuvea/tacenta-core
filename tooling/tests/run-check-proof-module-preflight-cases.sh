@@ -3,10 +3,13 @@
 #
 #   the tree as committed, with its baseline        passes (the known findings reported as known); the private-term
 #                                                   scan says it was skipped
-#   a baseline key that no longer occurs            a warning to delete it; an error with --strict
+#   a baseline key that no longer occurs            a warning to delete it; an error with --strict or --baseline-base
 #   a baseline that omits a known finding           fails
-#   a key the baseline gained since a base          fails with --baseline-base, unless `reasons` gives it a reason
-#   a base that does not resolve to a commit        fails (it would let the baseline grow unseen); warnings alone
+#   a key the baseline gained since a base          fails with --baseline-base when its finding does not occur, and
+#                                                   when `reasons` gives it none or a placeholder; passes with a
+#                                                   reason a reviewer can read
+#   a baselined count at another wrong value        fails (count keys carry both numbers)
+#   a base that is empty or does not resolve        fails (it would let the baseline grow unseen); warnings alone
 #                                                   do not fail the run
 #   the results a section names first (in the       a named result with no pin, or matched only by a substring
 #   section of UnitLifecycleResponderReply)         of a pin's name; a kernel-only result padded into the named
@@ -71,29 +74,60 @@ PY
 run committed 0 --all --baseline "$baseline"
 says committed "0 error(s), 10 known"
 says committed "private-term scan skipped: no list"
-python3 - "$clone/$baseline" <<'PY'
+# Edit the baseline: `bl add KEY` lists a key, `bl reason KEY TEXT` gives it a reason.
+bl() {
+  python3 - "$clone/$baseline" "$@" <<'PY'
 import json, sys
-d = json.load(open(sys.argv[1]))
-d["findings"].append("UnitLifecycleNotAModule|terms|x")
-json.dump(d, open(sys.argv[1], "w"))
+path, op, key = sys.argv[1:4]
+d = json.load(open(path))
+if op == "add":
+    d["findings"].append(key)
+else:
+    d.setdefault("reasons", {})[key] = sys.argv[4]
+json.dump(d, open(path, "w"), indent=1)
 PY
+}
+good_reason="the count is wrong on purpose in this fixture, to show that a reviewed exception is accepted"
+# A key that no longer occurs: a warning to delete it; an error with --strict, and with --baseline-base (as CI
+# runs it), so the baseline only shrinks.
+bl add "UnitLifecycleNotAModule|terms|x"
 run stale-baseline-key 0 --all --baseline "$baseline"
 says stale-baseline-key "warning  stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
 run stale-baseline-key-strict 1 --all --baseline "$baseline" --strict
 says stale-baseline-key-strict "ERROR    stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
-g commit -qam "a key added"
+run stale-baseline-key-base 1 --all --baseline "$baseline" --baseline-base HEAD
+says stale-baseline-key-base "ERROR    stale key: delete it from $baseline: UnitLifecycleNotAModule|terms|x"
+# A key added since the base for a finding that does not occur is refused, whatever its reason.
+g commit -qam "a key added that does not occur"
+bl reason "UnitLifecycleNotAModule|terms|x" "$good_reason"
+run baseline-gained-absent 1 --all --baseline "$baseline" --baseline-base HEAD~1
+says baseline-gained-absent "the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1, which does not occur"
+g reset -q --hard HEAD~1
+# A key for a finding that occurs (a count off by one), added since the base: refused with no reason and with a
+# placeholder, accepted with a reason a reviewer can read.
+key="UnitLifecycleResponderFirstReceipt|count|results|43|42"
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 42 results carries an axiom pin', 'Each of the 43 results carries an axiom pin', 1)"
+bl add "$key"
+g commit -qam "a count finding baselined"
 run baseline-grew 1 --all --baseline "$baseline" --baseline-base HEAD~1
-says baseline-grew "the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1 with no reason"
-python3 - "$clone/$baseline" <<'PY'
-import json, sys
-d = json.load(open(sys.argv[1]))
-d["reasons"]["UnitLifecycleNotAModule|terms|x"] = "a reviewed exception"
-json.dump(d, open(sys.argv[1], "w"))
-PY
+says baseline-grew "the baseline gained $key since HEAD~1 with no reason"
+bl reason "$key" "x"
+run baseline-grew-trivial-reason 1 --all --baseline "$baseline" --baseline-base HEAD~1
+says baseline-grew-trivial-reason "the baseline gained $key since HEAD~1 with no reason, or one too short to review"
+bl reason "$key" "reviewed, fine"
+run baseline-grew-short-reason 1 --all --baseline "$baseline" --baseline-base HEAD~1
+says baseline-grew-short-reason "one too short to review"
+bl reason "$key" "$good_reason"
 run baseline-grew-with-reason 0 --all --baseline "$baseline" --baseline-base HEAD~1
-says baseline-grew-with-reason "note     the baseline gained UnitLifecycleNotAModule|terms|x since HEAD~1: a reviewed exception"
+says baseline-grew-with-reason "note     the baseline gained $key since HEAD~1: $good_reason"
+# The key carries the numbers: the same count at another wrong value is a new finding.
+edit tacenta-proofs/CLAIMS.md "t = t.replace('Each of the 43 results carries an axiom pin', 'Each of the 44 results carries an axiom pin', 1)"
+run baseline-key-numbers 1 --all --baseline "$baseline"
+says baseline-key-numbers "says 44 results with an axiom pin; there are 42"
 run base-unresolved 1 --all --baseline "$baseline" --baseline-base refs/heads/no-such-base
 says base-unresolved "ERROR    the base refs/heads/no-such-base does not resolve to a commit"
+run base-empty 2 --all --baseline "$baseline" --baseline-base ""
+says base-empty "--baseline-base needs a non-empty REF and --baseline"
 g reset -q --hard HEAD~1
 python3 - "$clone/$baseline" <<'PY'
 import json, sys
@@ -239,4 +273,4 @@ grep -qF "are a test seam" <<<"$out" || fail_case "seam-without-switch: the seam
 run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 says planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
-echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict; a short baseline, a grown one without a reason and an unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result and other counts that do not add up named; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
