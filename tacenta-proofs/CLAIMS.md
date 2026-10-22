@@ -5005,8 +5005,8 @@ and of every statement here lists only the first. `check-discharge-native-decide
 checks that the theorem's statement and the axiom's type are the same expression. Removing the dependency needs the message
 dropped from the Rust `debug_assert_eq!` (whether Charon then emits no string literal is not checked) or an Aeneas `toStr`
 whose bound the kernel discharges, at a re-translation. Of the
-other 97 results, 68 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
-`model_kemCiphertextLenBound` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
+other 97 results, 69 rest on `propext`, `Classical.choice` and `Quot.sound` alone (`slice_ne_self`,
+`model_kemCiphertextLenBound`, `export_message_fits` and 66 of the codec module's), and 28 on those three and between 1 and 51 opaque constants of the
 unit, which the types and definitions they mention refer to. Each of the 108 results carries an axiom pin and a statement
 pin, and each of the 34 definitions the three modules add a `#print` pin. `check-restored-negatives.py` plants twelve faults in
 copies of the three modules and requires Lean to refuse each at a named declaration or pin, with a message that names the
