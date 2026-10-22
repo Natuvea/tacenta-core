@@ -2180,11 +2180,22 @@ island or unit, is about any function in it.
   hosted workflow neither builds nor runs it; `tooling/ci.sh` runs it briefly
   from its three committed seeds when `cargo-fuzz` and a nightly toolchain
   are present. Whether the nightly search on private infrastructure
-  (`ASSURANCE.md`, practice 10) runs it has not been checked. So they have
-  each element of ADR-0008's L1 and L2, with two qualifications: the hosted
-  workflow does not run the fuzz target, and `initiator-expectation.json`
-  is written by a script with each outcome checked against the model, not
-  generated from it.
+  (`ASSURANCE.md`, practice 10) runs it has not been checked.
+- **Where that leaves them against ADR-0008's levels.** They have no
+  property test of their own (no proptest names them, in their own tests or
+  in `tests/fuzz.rs`; the fuzz target's assertions run only under
+  `cargo-fuzz`), and their fuzzing reaches the presented key and the records
+  but not the rest of an untrusted bundle. So they meet L1 only in part: its
+  unit tests, yes; its property tests, no; its fuzzing of untrusted input,
+  partly, and not in the hosted workflow. Since L2 includes L1, they do not
+  reach L2 either, although they have its other elements: the model states
+  them, and vectors pin them that are checked against the implementation and
+  read by the independent reader (`initiator-expectation.json` is written by
+  a script with each outcome checked against the model, not generated from
+  it). The Session row in `ASSURANCE.md` stays at L2, because a tick there
+  means that the component has that kind of evidence, not that every part of
+  it does, and a level is lowered only by a recorded decision (ADR-0008); the
+  row says the same of these functions.
 - **What is proved, and about what.** `Model.IdentityRecords` and
   `Model.InitiatorExpectation` state the same rules, and `CLAIMS.md` ("Proved
   (tier T2, in the model: identity records and the initiator's expectation)")
