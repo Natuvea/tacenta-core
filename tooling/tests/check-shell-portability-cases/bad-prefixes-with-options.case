@@ -1,0 +1,9 @@
+# expect: 2 3 4 5 6 7 8 9
+printf x | timeout 5 grep -q y
+printf x | timeout -s KILL 5 grep -q y
+printf x | stdbuf -oL grep -q y
+printf x | stdbuf -o L grep -q y
+printf x | env -u LANG grep -q y
+printf x | command -p grep -q y
+printf x | nice -n 5 grep -q y
+printf x | env -i PATH=/usr/bin grep -q y

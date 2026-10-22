@@ -1,0 +1,4 @@
+# expect: 2 3 4
+printf x | grep needle -q
+printf x | grep -F needle -sq
+printf x | grep needle file --silent

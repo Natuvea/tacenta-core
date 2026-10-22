@@ -4,10 +4,14 @@
 #   bash tooling/check-shell-portability.sh                 # every tracked shell script and workflow
 #   bash tooling/check-shell-portability.sh --files F...    # exactly these files (the case runner uses this)
 #
-# The shape refused is `producer | grep -q pattern` (also -qF, -Eq, --quiet, --silent, and egrep, fgrep,
-# ugrep and rg in the same position), with any number of stages before it, wherever it appears: a command,
-# an `if` or `while` condition, `! producer | grep -q`, inside `$( )`, backticks, `{ }` or `( )`, across a
-# backslash continuation or a trailing pipe, and in the `run:` text of a workflow or action file.
+# The shape refused is `producer | grep -q pattern` (also -qF, -Eq, --quiet, --silent, and -l, -L,
+# --files-with-matches and --files-without-match, which stop at the first match too; and egrep, fgrep, ugrep
+# and rg in the same position), with the option before or after the pattern (GNU grep and the BSD grep of
+# macOS both take options after it; up to `--`), with any number of stages before it, wherever it appears: a
+# command, an `if` or `while` condition, `! producer | grep -q`, inside `$( )`, backticks, `{ }` or `( )`,
+# across a backslash continuation or a trailing pipe (with or without a comment after the pipe), and in the
+# `run:` text of a workflow or action file. A comment is told apart from code with the quotes read: a
+# backslash at the end of a comment does not continue the line, as in bash.
 #
 # Why. `grep -q` exits at its first match. The producer is still writing, takes SIGPIPE, and under
 # `set -o pipefail` the pipeline's status is the producer's 141, not grep's 0. Whether that happens depends
@@ -30,12 +34,15 @@
 # not stop reading early.
 #
 # What it does not see, said plainly. It is a textual tokenizer, not a shell parser. It reads the command
-# word of the last stage after skipping `!`, `command`, `builtin`, `exec`, `env`, `sudo`, `nice`, `time`
-# and `NAME=value`, so `xargs grep -q`, a variable that holds the command (`$GREP -q`), `eval` and a
-# quiet grep built from a function are not seen. A heredoc body is read as shell, so a fixture that has to
-# contain the refused text must live in a file this gate does not scan (the cases use `.case` files and
-# `--files`). Other early-exit consumers (`head -n 1`, `sed q`, `grep -m1`) race the same way and are not
-# refused here; the diagnostic `| head -20 >&2` forms are not worth the churn.
+# word of the last stage after skipping `!`, `{`, `}`, `NAME=value`, and `command`, `builtin`, `exec`,
+# `nohup`, `time`, `env`, `sudo`, `nice`, `timeout` (and its duration) and `stdbuf` with their options, so
+# another prefix (`ionice`, `chrt`, `caffeinate`, `xargs grep -q`), a variable that holds the command
+# (`$GREP -q`), an alias, `eval` and a quiet grep built from a function are not seen; nor is an option of a
+# prefix it does not list that takes a separate argument. Lines are read one at a time apart from the joins
+# above, so a quote that spans lines can hide or invent a comment. A heredoc body is read as shell, so a
+# fixture that has to contain the refused text must live in a file this gate does not scan (the cases use
+# `.case` files and `--files`). Other early-exit consumers (`head -n 1`, `sed q`, `grep -m1`, `grep -o -m`)
+# race the same way and are not refused here; the diagnostic `| head -20 >&2` forms are not worth the churn.
 #
 # The cases are the files under tooling/tests/check-shell-portability-cases/, run by
 # tooling/tests/run-check-shell-portability-cases.sh.
@@ -53,10 +60,27 @@ import subprocess
 import sys
 
 GREPS = {"grep", "egrep", "fgrep", "ugrep", "ug", "rg"}
-# Words that may stand in front of the command word of a stage.
-PREFIX = {"!", "command", "builtin", "exec", "env", "sudo", "nice", "time", "{", "}"}
+# Words that may stand in front of the command word of a stage, each with the options of its own that take a
+# separate argument and the number of operands it takes before the command (`timeout DURATION`).
+PREFIX = {
+    "!": ((), 0), "{": ((), 0), "}": ((), 0),
+    "command": ((), 0), "builtin": ((), 0), "exec": (("-a",), 0), "nohup": ((), 0),
+    "time": (("-f", "-o"), 0),
+    "env": (("-u", "--unset", "-C", "--chdir", "-S", "--split-string"), 0),
+    "sudo": (("-u", "-g", "-C", "-h", "-p", "-r", "-t", "-U", "-D"), 0),
+    "nice": (("-n", "--adjustment"), 0),
+    "timeout": (("-s", "--signal", "-k", "--kill-after"), 1),
+    "stdbuf": (("-i", "-o", "-e", "--input", "--output", "--error"), 0),
+}
 # Single-letter grep options that take an argument: the letters after one are not options.
 TAKES_ARG = set("efmABCdD")
+# Long grep options that take an argument, which may be the next word.
+LONG_TAKES_ARG = {"--regexp", "--file", "--max-count", "--after-context", "--before-context", "--context",
+                  "--label", "--include", "--exclude", "--exclude-from", "--exclude-dir", "--binary-files",
+                  "--devices", "--directories", "--group-separator"}
+# Options that stop reading at the first match: quiet, and the file-name listings.
+STOPS_SHORT = set("qlL")
+STOPS_LONG = {"--quiet", "--silent", "--files-with-matches", "--files-without-match"}
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 SHEBANG = re.compile(r"^#!\s*\S*(?:/env\s+)?(?:ba|z|da|k)?sh\b")
 
@@ -200,15 +224,37 @@ def scan_text(text):
 
 
 def command_word_and_args(stage):
+    """The command word of a stage and its arguments, after the prefixes (with their own options and operands)
+    and `NAME=value` assignments."""
     j = 0
-    while j < len(stage) and (stage[j] in PREFIX or ASSIGN.match(stage[j])):
+    while j < len(stage):
+        word = stage[j]
+        if ASSIGN.match(word):
+            j += 1
+            continue
+        if word not in PREFIX:
+            break
+        with_arg, operands = PREFIX[word]
         j += 1
+        while j < len(stage) and stage[j].startswith("-") and stage[j] != "-":
+            option = stage[j]
+            j += 1
+            if option == "--":
+                break
+            if option in with_arg:
+                j += 1  # the option's argument
+        while j < len(stage) and ASSIGN.match(stage[j]):
+            j += 1
+        j += operands
     if j >= len(stage):
         return None, []
     return stage[j], stage[j + 1:]
 
 
 def is_quiet_grep(stage):
+    """Whether a stage is a grep with an option that stops it at the first match. GNU grep and the BSD grep of
+    macOS take options after the pattern too, so every word is read up to `--`; a word that is an option's
+    argument (`-e x`, `--regexp x`) is skipped."""
     cmd, args = command_word_and_args(stage)
     if cmd is None or cmd.rsplit("/", 1)[-1] not in GREPS:
         return False
@@ -218,24 +264,51 @@ def is_quiet_grep(stage):
         if a == "--":
             return False
         if a.startswith("--"):
-            if a in ("--quiet", "--silent"):
+            name = a.split("=", 1)[0]
+            if name in STOPS_LONG:
                 return True
+            if name in LONG_TAKES_ARG and "=" not in a:
+                k += 1  # the next word is this option's argument
         elif a.startswith("-") and len(a) > 1:
             for pos, ch in enumerate(a[1:], 1):
-                if ch == "q":
+                if ch in STOPS_SHORT:
                     return True
                 if ch in TAKES_ARG:
                     if pos == len(a) - 1:
                         k += 1  # the next word is this option's argument
                     break
-        else:
-            return False  # the pattern: options are over
         k += 1
     return False
 
 
+def split_comment(line):
+    """(code, comment found): the text of `line` before a comment, read with its quotes and escapes. A `#`
+    starts a comment at the start of a word, outside quotes; a quote left open runs to the end of the line."""
+    i, n, quote = 0, len(line), None
+    while i < n:
+        c = line[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+        elif quote == '"':
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                quote = None
+        elif c == "\\":
+            i += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1] in " \t;|&()"):
+            return line[:i], True
+        i += 1
+    return line, False
+
+
 def logical_lines(raw):
-    """Yield (first physical line number, text) after joining continuations and trailing pipes."""
+    """Yield (first physical line number, text) after joining continuations and trailing pipes. A backslash
+    continues a line only at its very end and outside a comment (bash does not continue a comment); a pipe at
+    the end of the code continues it, whatever comment follows."""
     lines = raw.split("\n")
     out = []
     i = 0
@@ -243,11 +316,12 @@ def logical_lines(raw):
         start = i + 1
         cur = lines[i]
         while i + 1 < len(lines):
-            stripped = cur.rstrip()
-            if stripped.endswith("\\"):
-                cur = stripped[:-1] + " " + lines[i + 1]
-            elif re.search(r"(?<![|])\|\s*(?:#.*)?$", stripped) and not stripped.lstrip().startswith("#"):
-                cur = re.sub(r"\s*#[^|]*$", "", stripped) + " " + lines[i + 1]
+            code, commented = split_comment(cur)
+            trailing = len(code) - len(code.rstrip("\\"))
+            if not commented and trailing % 2 == 1:
+                cur = code[:-1] + " " + lines[i + 1]
+            elif re.search(r"(?<![|])\|$", code.rstrip()):
+                cur = code.rstrip() + " " + lines[i + 1]
             else:
                 break
             i += 1

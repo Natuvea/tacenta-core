@@ -1,0 +1,4 @@
+# expect: 2 3 4
+printf x | grep --regexp needle -q
+printf x | grep --file patterns.txt -q
+printf x | grep --max-count 5 needle --quiet

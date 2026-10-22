@@ -10,7 +10,11 @@
 #   `.case` file and not a `.sh` so that the gate, which reads every tracked shell script, does not read
 #   the text it is being shown. The `bad-*` fixtures are the forms that race; the `good-*` fixtures are the
 #   forms that look like them and do not (a here-string, a grep that reads to the end, a quoted or commented
-#   pipe, `grep -e q`, `grep -- -q`, a `case` alternation, `||` and `&&`).
+#   pipe, `grep -e q`, `grep -- -q`, a `case` alternation, `||` and `&&`, an option word after `--` or as the
+#   argument of `--regexp`, a comment that ends in a backslash). The racy forms include an option after the
+#   pattern, `-l`/`-L`, a long option's separate argument, a prefix with options (`timeout 5`, `stdbuf -o L`,
+#   `env -u X`, `command -p`, `nice -n 5`), a comment ending in a backslash above the racy line, and a
+#   comment holding `|` after a trailing pipe.
 #
 #   Tracked-file selection, in a throwaway repository: which files the gate reads when it is given none. A
 #   `.sh`, a script with a shell shebang and no extension, a file under `.githooks/`, and a `run:` line in a
