@@ -4208,7 +4208,9 @@ per-declaration `native_decide` axioms, the nine `UnitTripleT3.receive_refines_d
 under the Session unit's names: eight from the Session unit's sparse ratchet refinement (its four labels, its `MAX_SKIP`
 constants, its store cap and one step of `receive_refines_continuation`) and the Triple's `combine_info_agrees`. Those nine
 constants are kernel proofs now, pinned in `AxiomAuditSessionUnit.lean` (the section "Proved (the Session unit's refinement
-constants, by the kernel)"). The other 32 results here rest on no compiler-evaluated constant either: seven (`receiveWithEvictionLoopResult_stop`,
+constants, by the kernel)"). The other 32 results here (the section's pins less `or_unless_closed` and
+`decrypt_ratchet_refines_or_open`, which `UnitLifecycleDecryptRatchetT3` also holds and the next section describes) rest
+on no compiler-evaluated constant either: seven (`receiveWithEvictionLoopResult_stop`,
 `shortfall_covers`, `cMax_usize`, `RetryRunBounds.toRetryReceiveBounds`, `retryRunBounds_not_trivial`,
 `evict_decode_model` and `receiveWithEviction_first_round`) are kernel-only, and the other 25 each rest on between 1 and
 49 of the Session unit's opaque-operation axioms, as the T1 theorems do. Each result carries an axiom pin and a statement
