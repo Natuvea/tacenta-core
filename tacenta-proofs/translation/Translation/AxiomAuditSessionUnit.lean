@@ -30,6 +30,7 @@ import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleReceivePreserve
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleInitialDispatch
+import Translation.UnitLifecycleInitiatorSecondMessage
 import Translation.DispatchEvidenceVacuity
 import Translation.SessionUnitBraidPreserveFacts
 import Translation.UnitHeadroomSatisfiable
@@ -179,7 +180,13 @@ output) leaving the agreement at `NoHeaderReceived` (at most one chunk held) or 
 `KemCloneAgrees`, the oracle's `dhPublic` clause, the view's codec and `DhPublicValid`; no law is added.  On the
 runs it gives the invariant and the four ceilings at the session the initiator's receipt of the reply returns,
 and re-derives them at the session the responder's receipt of the first frame returns.  A receive outside that
-scope, a refused call and the join with the initiator's second send are not covered.
+scope and a refused call are not covered; the join with the initiator's second send is the next module's.
+`UnitLifecycleInitiatorSecondMessage.lean` joins the initiator's second `encrypt` with that receive step on one
+run: under the hypotheses of the receipt of the reply and a bound on the second plaintext, with no new law, the
+session the receipt returns passes `Session::invariant` and meets the four ceilings, the second `encrypt` there
+returns the bare second frame with no draw and refines the model's step, and the session it leaves passes the
+invariant and meets the ceilings; a reach exhibits such a run at the real constants under assumed laws.  The
+responder's receipt of that message and every later step are not covered.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

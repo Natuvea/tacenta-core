@@ -1731,6 +1731,11 @@ REQUIRED_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "initiator_sends_second_message",
+        "first_send_second_message_reachable",
+    )]
     # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Tacenta.SessionUnitDecodeEc." + n for n in (
         "decodeEc_eq_some_iff",
@@ -3421,6 +3426,12 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "initiator_sends_second_message",
+        "first_send_second_message_reachable",
+        "SecondMessageRun",
+    )]
     # The model's repeat comparison, whose body the refinement states (`UnitLifecycleInitialAgreementT3`).
     + ["Model.Lifecycle." + n for n in (
         "sameEphemeralAgreement",
@@ -4609,6 +4620,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "sentTriple",
         "sentSession",
         "EstablishedEncryptSuccessorHypotheses",
+    )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "SecondMessageRun",
     )]
     + ["Tacenta.UnitLifecycleEstablishResponder." + n for n in (
         "z32",

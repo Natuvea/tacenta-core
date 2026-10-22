@@ -80,6 +80,7 @@ sh_controls=(
 py_controls=(
   check-lifecycle-translation-coverage.py
   check-initial-dispatch-negatives.py
+  check-initiator-second-message-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
   check-send-refusal-negatives.py
@@ -169,6 +170,7 @@ for called in \
   check-session-satisfiability-negatives.sh \
   check-port-negatives.sh \
   check-initial-dispatch-negatives.py \
+  check-initiator-second-message-negatives.py \
   'attest.py --compare-audit' \
   check-lean-constructs.sh \
   check-audit-reach.sh \

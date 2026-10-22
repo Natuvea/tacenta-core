@@ -296,6 +296,17 @@ phase_established() {
 python3 scripts/check-established-negatives.py || fail=1
 }
 
+# The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings
+# at the session the receipt returns derived on that run and kept through the send
+# (`UnitLifecycleInitiatorSecondMessage.lean`): eleven changes to statements and one definition (the budget after
+# the send, the fresh-key premise, the second plaintext's bound and the ceilings at the receipt's session in the
+# headline; the plaintext bound and the source-choosing law in the reach; three projections; the run's definition
+# at its pin), each of which must be refused at a named declaration or pin, with a message naming the change,
+# after the two unmodified copies are accepted.
+phase_initiator_second_message() {
+python3 scripts/check-initiator-second-message-negatives.py || fail=1
+}
+
 # What an accepted `Session::import` guarantees, the restored relation and the round trip of an established
 # initiator session (`UnitLifecycleRestoredSession.lean`, `UnitLifecycleSessionRoundTrip.lean`,
 # `UnitLifecycleSessionCodec.lean`): a copy with the `Inconsistent` refusal, a ceiling clause, a law or a
@@ -631,6 +642,7 @@ phases() {
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
+  run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
   run_phase responder plain "establish_responder proof-dependency control" phase_responder

@@ -93,13 +93,16 @@ parent is a notation class, or a dependency's scoped instance brought in by `ope
 No law is added, so `reply_receipt_laws_model` still puts every law the statement takes in one interpretation, the
 toy `InterpO.modelReply`.  `first_send_reply_receipt_reachable` exhibits, at the real constants under its laws, a run
 at which every hypothesis of `initiator_receives_reply` holds, and the added plaintext bound holds of the empty
-plaintext.  No run is exhibited at which the implication's premises hold: that `s''` passes `Session::invariant` and
-meets `CounterHeadroom` is not shown, so the code-level part of the statement is not shown to apply to any run.
+plaintext.  No run is exhibited here at which the implication's premises hold: this module does not show that `s''`
+passes `Session::invariant` and meets `CounterHeadroom`, so the code-level part of the statement is not shown here to
+apply to any run; `UnitLifecycleInitiatorSecondMessage` derives both on the same run and exhibits such a run
+(`first_send_second_message_reachable`).
 
 ## What it does not show
 
 * `Session::invariant` or `CounterHeadroom` at `s''` (the implication's premises) or at `s'''` after the send; a run
-  at which the code-level part applies.
+  at which the code-level part applies (`UnitLifecycleInitiatorSecondMessage` joins this result with the receive step
+  that derives the premises at `s''` and shows all three; this module does not).
 * The responder's receipt of this second message, a second reply and its receipt, the header's third chunk, the
   responder's first sampling send and every later step.  The statement covers exactly one further send by the
   initiator on this route, not a second exchange.

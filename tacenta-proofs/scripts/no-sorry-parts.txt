@@ -13,6 +13,7 @@
 # initial dispatcher's 50 controls took 3024 s there and are split eight ways.
 hosted kernel:
   kernel-replay-translation
+  initiator-second-message
   kernel-replay-proofs
   kernel-replay-model
   kernel-replay-negative

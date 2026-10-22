@@ -111,7 +111,7 @@ case of the decoder lemma is proved but not used on a run.
 * That the ceilings are kept or refused at (false of the code, `UnitLifecycleSendPreserve`); the budget at any session
   other than the initiator's after its first send and the responder's prepared session.
 * The initiator's second send at `s''` composed with this result (`UnitLifecycleInitiatorSecondSend` states its code-level
-  part under the invariant and the ceilings at `s''`; joining the two is not done here), the responder's receipt of a
+  part under the invariant and the ceilings at `s''`; `UnitLifecycleInitiatorSecondMessage` joins the two, not this module), the responder's receipt of a
   second message, a second reply, the header's later chunks and every later step.
 * The regression at the hypotheses of `initiator_first_send_responder_successor_admissible`: it is stated at those of
   `responder_first_frame_successor`, on the first frame's run.

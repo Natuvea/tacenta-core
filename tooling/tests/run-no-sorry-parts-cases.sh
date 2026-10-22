@@ -119,6 +119,7 @@ py_stubs=(
   check-sparse-store-full-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
+  check-initiator-second-message-negatives.py
   check-restored-negatives.py
   check-encrypt-negatives.py
   check-responder-negatives.py
