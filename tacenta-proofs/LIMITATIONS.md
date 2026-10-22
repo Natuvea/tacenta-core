@@ -3020,8 +3020,9 @@ meets the law; that a frame an attacker can produce meets the premise; a frame w
 shorter than the header or of another type; the refusal when the reply's ratchet key is the peer key or the draw's agreement
 is refused; that the refusal's source equals the honest receipt's; a run in which the honest reply is received after a
 refused tampered frame; tamper refusal on any other route; redelivery of the honest reply. The statement pin of
-`initiator_refuses_tampered_reply` is cut off by Lean's `⋯` after the binder `crcB`; it holds the law, its first hypothesis,
-and the later hypotheses and the conclusion are held by the build and by reading only.
+`initiator_refuses_tampered_reply` prints the whole statement, the law (its first hypothesis) included (the module sets
+the two `pp` options before its pins), which is still not the whole elaborated statement: what Lean's printing leaves out
+is held by the build and by reading only, as for every statement pin.
 
 **Send preservation where the agreement's send takes no draw** (`UnitTripleInvModel.lean`, `UnitLifecycleSendPreserve.lean`).
 The bridge (`triple_invariant_iff_model`) rests on the kernel alone and assumes nothing beyond the Triple relation. The

@@ -6223,9 +6223,11 @@ subset of them (`replyHeader_length` on one of the three, `replyFrame_take` and 
 `tampered_reply_model_refusal`, `openModel_ok` and `sealModel_val` on all three) and 9 on those and opaque constants of the
 unit. Each of the 16 results carries an axiom pin and a statement pin, and each of the six definitions
 (`AeadOpenSealUniqueShape`, `AeadOpenSealUnique`, `NotASealingShape`, `NotASealing`, `openLenient`, `Interp.modelLenient`) a
-`#print` pin. The statement pin of `initiator_refuses_tampered_reply` is cut off by Lean's `⋯` after the binder `crcB`: it
-holds the law `AeadOpenSealUnique`, which is the theorem's first hypothesis, and the binders up to `crcB`, and the later
-hypotheses and the whole conclusion are held by the build and by reading only, as for the other cut-off pins.
+`#print` pin. The statement pin of `initiator_refuses_tampered_reply` prints the whole statement, the law
+`AeadOpenSealUnique` (the theorem's first hypothesis) included: the module sets `pp.deepTerms true` and
+`pp.proofs.withType true` before its pins, without which Lean cut it off with `⋯` after the binder `crcB`. As for every
+statement pin, a printed pin is not the whole elaborated statement (what Lean's printing leaves out is listed under the
+initiator's second send above), and that the pinned statement is the right one is decided by reading.
 `check-tampered-reply-negatives.py` plants fifteen faults in a copy of the module, every one a change to a statement or a
 definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false). Seven sit inside the composing proof

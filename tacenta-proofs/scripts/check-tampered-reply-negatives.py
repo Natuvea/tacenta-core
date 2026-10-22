@@ -226,7 +226,7 @@ STATEMENT_SHAPE = {}
 
 
 BINDER = re.compile(r'\s*(?:· )?(obtain|rcases|have)\b')
-PLACING = {'And.intro', 'Or.inl', 'Or.inr', 'Exists.intro'}
+PLACING = frozenset({'And.intro', 'Or.inl', 'Or.inr', 'Exists.intro'})
 
 
 def mentions(name):
@@ -325,11 +325,7 @@ def check_labels(text):
     """The inside, projection and statement-shape labels are consistent with each other, with where each control is
     refused, and, for the controls refused in a composing proof, with the syntactic form of the projection standard
     (`passed_through`) read off `text`, the module without its pins."""
-    if not MUTANTS:
-        raise SystemExit('NO CONTROLS: MUTANTS is empty; a control with no planted change holds nothing')
     wheres = {name: where for _, name, _, _, where in MUTANTS}
-    if len(wheres) != len(MUTANTS):
-        raise SystemExit('LABELS BROKEN: two controls have one name')
     markers = {name: marker for _, name, _, marker, _ in MUTANTS}
     for name, _ in list(INSIDE.items()) + list(PROJECTION.items()) + list(STATEMENT_SHAPE.items()):
         if name not in wheres:
@@ -349,13 +345,20 @@ def check_labels(text):
         if called is not None:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled inside {decl}, but is refused where {decl} places a '
                              f'conjunct of {called} unchanged, a projection')
+    # Every place a projection is refused must be a composing proof that places the conjunct unchanged: a refusal
+    # list that also names a leaf or another declaration would let the control be refused there instead.
     for name, called in PROJECTION.items():
-        places = [] if isinstance(wheres[name], tuple) else [d for d in wheres[name] if d in COMPOSING]
+        places = [] if isinstance(wheres[name], tuple) else list(wheres[name])
         if not places:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection but is not refused in a composing proof')
-        if passed_through(text, places[0], markers[name]) != called:
-            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection of {called}, but is not refused where '
-                             f'{places[0]} places a conjunct of {called} unchanged')
+        others = [d for d in places if d not in COMPOSING]
+        if others:
+            raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection, but it may be refused in '
+                             f'{", ".join(others)}, which is not a composing proof')
+        for place in places:
+            if passed_through(text, place, markers[name]) != called:
+                raise SystemExit(f'LABELS BROKEN: {name} is labelled a projection of {called}, but is not refused '
+                                 f'where {place} places a conjunct of {called} unchanged')
     for name, decl in STATEMENT_SHAPE.items():
         if isinstance(wheres[name], tuple) or any(d in COMPOSING for d in wheres[name]):
             raise SystemExit(f'LABELS BROKEN: the statement-shape check {name} is refused in a composing proof')
@@ -442,6 +445,11 @@ def guard_self_test(guards):
         raise SystemExit('GUARD BROKEN: an ordinary refusal is taken for a timeout')
 
 
+
+# Every Lean run this script made, as (file name, exit status), appended by `run_lean` alone; `check_complete`
+# counts the runs from here, not from what `main` reports.
+RUNS = []
+
 def run_lean(path, log, timeout):
     with log.open('w') as output:
         try:
@@ -457,6 +465,7 @@ def run_lean(path, log, timeout):
             os.killpg(process.pid, signal.SIGTERM)
             process.wait()
             raise SystemExit(f'TIMEOUT (not a passing control): {path.name}; see {log}')
+    RUNS.append((path.name, status))
     return status, log.read_text()
 
 
@@ -489,10 +498,11 @@ def declaration_lines(text, name):
 
 
 def pin_line(text, name):
-    """The 1-based line of the `#guard_msgs in` that precedes `#print name`, or None."""
+    """The 1-based line of the `#guard_msgs in` that precedes `#print name` (a definition's pin) or `#check @name` (a
+    statement pin), or None."""
     lines = text.split('\n')
     for k in range(1, len(lines)):
-        if lines[k] == f'#print {name}' and lines[k - 1].startswith('#guard_msgs'):
+        if lines[k] in (f'#print {name}', f'#check @{name}') and lines[k - 1].startswith('#guard_msgs'):
             return k
     return None
 
@@ -537,8 +547,8 @@ def check_refused(name, status, output, marker, log, mutated, where):
     if isinstance(where, tuple):
         line = pin_line(mutated, where[1])
         if line is None:
-            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` pin, so '
-                             f'its refusal cannot be the pin\'s; {log}')
+            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` or `#check @{where[1]}` '
+                             f'pin, so its refusal cannot be the pin\'s; {log}')
         spans = [(where[1], (line, line))]
     else:
         spans = []
@@ -556,8 +566,46 @@ def check_refused(name, status, output, marker, log, mutated, where):
                      f'not a timeout matches `{marker}`; {log}')
 
 
+def check_complete(results, sources):
+    """The run ran what the script holds: every unmodified copy accepted, in order; every control in `MUTANTS` refused
+    once; the emptied-proof run of every inside control and of every statement-shape check, and the place of every
+    projection, recorded; and Lean run, by `run_lean`, once for each of those runs, at least once accepting per
+    baseline and once refusing per control and statement-shape check (`RUNS`, which `main` does not write; an
+    inside control's emptied run may exit either way, since only its own declaration must be accepted).  A control skipped by a slice of
+    `MUTANTS` or a `continue`, a baseline left out, or results written without running Lean fails the script here
+    instead of leaving a smaller run that passes.  It does not see Lean run on files other than the controls.
+    `check-negatives-control-counts.py` requires `main` to call this, and the number of controls to match its
+    record."""
+    rejected = {key.split('/', 1)[1]: r for key, r in results['rejected'].items()}
+    problems = []
+    if results['accepted'] != list(sources):
+        problems.append(f'unmodified copies accepted {results["accepted"]}, expected {list(sources)}')
+    if len(results['rejected']) != len(MUTANTS) or sorted(rejected) != sorted(m[1] for m in MUTANTS):
+        problems.append(f'{len(results["rejected"])} controls refused, expected the {len(MUTANTS)} in MUTANTS; not run: '
+                        f'{sorted(set(m[1] for m in MUTANTS) - set(rejected))}')
+    if sorted(n for n, r in rejected.items() if 'inside' in r) != sorted(INSIDE):
+        problems.append('the emptied-proof run of an inside control is missing')
+    if sorted(n for n, r in rejected.items() if 'projects' in r) != sorted(STATEMENT_SHAPE):
+        problems.append('the emptied-proof run of a statement-shape check is missing')
+    if sorted(n for n, r in rejected.items() if 'projection_of' in r) != sorted(PROJECTION):
+        problems.append('the place of a projection is not recorded')
+    accepting = sum(1 for _, status in RUNS if status == 0)
+    refusing = len(RUNS) - accepting
+    runs = len(sources) + len(MUTANTS) + len(INSIDE) + len(STATEMENT_SHAPE)
+    if len(RUNS) != runs or accepting < len(sources) or refusing < len(MUTANTS) + len(STATEMENT_SHAPE):
+        problems.append(f'Lean ran {accepting} accepting and {refusing} refusing times, expected {runs} runs, at least '
+                        f'{len(sources)} accepting and {len(MUTANTS) + len(STATEMENT_SHAPE)} refusing')
+    if problems:
+        raise SystemExit('INCOMPLETE RUN (not a passing control): ' + '; '.join(problems))
+
 def main():
     guard_self_test(NOT_A_REFUSAL)
+    # Kept from this script's own start-up checks (the shared check_labels no longer holds them): a control list that
+    # is empty, or two controls with one name, stop the run before Lean does.
+    if not MUTANTS:
+        raise SystemExit('NO CONTROLS: MUTANTS is empty; a control with no planted change holds nothing')
+    if len({name for _, name, _, _, _ in MUTANTS}) != len(MUTANTS):
+        raise SystemExit('LABELS BROKEN: two controls have one name')
     check_labels(without_pins(MODULE.read_text(), MODULE))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
@@ -633,6 +681,7 @@ def main():
                 check_refused(name, status, output, marker, elog, emptied, where)
                 results['rejected'][f'{label}/{name}']['projects'] = decl
                 print(f'PASS: {label}/{name} still refused with the proof of {decl} emptied', flush=True)
+    check_complete(results, sources)
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
     inside = sum(1 for r in results['rejected'].values() if 'inside' in r)
     shape = sum(1 for r in results['rejected'].values() if 'projects' in r)
