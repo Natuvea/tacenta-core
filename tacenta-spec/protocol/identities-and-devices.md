@@ -280,7 +280,8 @@ identity_pair_digest(k1, k2):
 ### The verification number
 
 An implementation that renders the digest as digits renders the
-verification number:
+verification number. Its input is the 32-byte digest that
+`identity_pair_digest` returns:
 
 ```
 verification_number(digest):
@@ -289,8 +290,10 @@ verification_number(digest):
            left-padded with '0' to 60 digits
 ```
 
-The digits may be laid out in twelve groups of five. A comparison of fewer
-than 60 digits is not a comparison of the verification number.
+The verification number is the 60 digits. For display they may be laid out
+in twelve groups of five; how the groups are separated, like any other layout,
+is the application's and not part of the number. A comparison of fewer than
+60 digits is not a comparison of the verification number.
 
 **What the length buys.** An attacker between two parties chooses the key
 each sees for the other, so it needs `identity_pair_digest(A, M1)` and

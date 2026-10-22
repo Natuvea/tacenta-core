@@ -128,6 +128,15 @@ prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy. She verifies them only under an `IKB` that is an identity key,
 which she checks before either signature (below).
 
+The KEM prekey's signature is over `EncodeKEM` of the key the bundle holds:
+the type byte, then that key's bytes, however many there are (message-format.md,
+Prekey bundle: a verifier re-tags the key it reads). She verifies both
+signatures before the KEM prekey's input checks (Primitives, ML-KEM-1024),
+which are part of encapsulating (security-properties/authentication.md,
+REQ-AUTH-01). So a bundle that reaches her without the bundle decoder, with a
+KEM prekey that is not 1,568 bytes, is refused as an authentication failure
+when that signature does not verify, and otherwise by the input checks.
+
 She also refuses a bundle before encapsulating when its one-time curve prekey
 and that prekey's identifier disagree about whether one is present
 (message-format.md), or when its identity key, signed prekey or one-time curve
@@ -154,6 +163,23 @@ attribution, Classification), so such a bundle is refused as an invalid
 identity key either way, unless her expectation is itself malformed. The other
 keys of the bundle are not held to it: `SPKB` and a one-time curve prekey need
 the canonical encoding and a contributory result, and no more.
+
+Each of her refusals of a bundle is reported as its own kind, since this page
+fixes an order among them and an order can be seen only between refusals that
+are told apart (error-handling.md). Beside the invalid identity key and the
+refusals of her expectation (Records, expectations and attribution), they are:
+- an *inconsistent bundle*: the one-time curve prekey and its identifier
+  disagree about presence (message-format.md, Prekey bundle);
+- a *non-canonical key*: her own canonical-key check refuses a key. The bundle
+  decoder refuses the same key as a decode failure, so her check meets one only
+  in a bundle that did not come from the decoder;
+- an *authentication failure*: a prekey signature does not verify;
+- a *KEM input* refusal: the KEM prekey fails the input checks (Primitives,
+  ML-KEM-1024);
+- a *non-contributory* agreement (Notation).
+
+No order is fixed between the first two. What an implementation calls them is
+its own.
 
 She then generates `EKA`, encapsulates `(CT, SS) = PQKEM-ENC(PQPKB)`, and
 computes:
@@ -440,6 +466,17 @@ Wherever a lookup finds the key *retired* for a contact, that is reported
 alongside its result. An implementation provides this lookup, under any
 name.
 
+A lookup's result is three things:
+- the attribution: the key is a contact's (and which contact), ambiguous, a
+  retired key, or unattributed;
+- the contacts the key is *retired* for, which for a retired key are the
+  contacts it is a retired key of;
+- the records skipped as malformed.
+
+The two lists are sets: their order is not part of the result. A lookup may
+also say which contacts an ambiguous key is *same* for. That is not part of
+the result, and nothing on this page depends on it.
+
 The classification and the lookup are required of an implementation, unlike
 its error types (error-handling.md), because two implementations must reach
 the same attribution from the same records. Their results are fixed here;
@@ -487,6 +524,10 @@ She refuses an expectation as a malformed record (`MalformedRecord`), before
 any check of Sending the initial message, when it holds a non-canonical key,
 in the record under *known* or in any of her records under *first contact*,
 or when it is *known* with a record whose two sets are both empty.
+Decoding the bundle is the decoder's (message-format.md), not a check of
+Sending the initial message, and no order is fixed between decoding and this
+refusal: for a malformed expectation and bundle bytes that do not decode,
+either refusal conforms.
 
 Then, after the bundle's presence and canonical-key checks, and before the
 identity-key rule, the signature checks, the KEM prekey's input checks and
@@ -773,7 +814,9 @@ depends on that choice.
 - **Validating the encapsulation key.** Before encapsulating, `PQKEM-ENC(PK)`
   applies FIPS 203 section 7.2's input checks to the bundle's KEM prekey:
   - its length is 1,568 bytes, which the bundle decoder already requires
-    (message-format.md, Prekey bundle);
+    (message-format.md, Prekey bundle). A bundle that did not come from the
+    decoder can fail it, after its signatures are checked (Sending the
+    initial message);
   - `ByteEncode12(ByteDecode12(ek[0:1536]))` equals `ek[0:1536]`.
 
   Alice refuses a bundle whose key fails either check. She has then computed no

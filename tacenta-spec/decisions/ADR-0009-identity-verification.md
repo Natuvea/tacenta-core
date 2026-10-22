@@ -18,10 +18,9 @@ Proposed.
   then the signatures. Whether to refuse such keys in the protocol flows was
   therefore no longer open. What remained open was whether the new functions
   apply the rule.
-- **`tacenta-core` has not changed yet.** It offers initiator establishment
-  with a named key and without one, and has none of what this record
-  decides. Until it changes, it does not conform to the pages this record
-  amends.
+- **`tacenta-core` had not changed when this record was proposed.** It
+  offered initiator establishment with a named key and without one, and had
+  none of what this record decides.
 
 ## Decision
 
@@ -149,9 +148,10 @@ Proposed.
 
 ## Consequences
 
-- **What `tacenta-core` will change.** It will drop initiator establishment
-  without an expectation, and provide the classification, the lookup and the
-  digest. Until then it does not conform to these pages.
+- **What `tacenta-core` changes.** Its session API establishes the initiator
+  only under an expectation, and no longer offers establishment with a named
+  key or without one. It provides the classification, the lookup, the digest
+  and the verification number. The responder's establishment is unchanged.
 - **Attribution follows the records as they stand.** A record change
   re-attributes past plaintexts. An application may show a plaintext as
   having been a contact's when it arrived.
@@ -169,8 +169,8 @@ Proposed.
   - never fill a record from an inventory statement;
   - show a session that is no contact's, whose label names a contact, as
     "unknown, claims to be X".
-- **`KeyEvidence`.** `tacenta-core` will reserve `KeyEvidence`, a type with
-  no public constructor, in its API only. Giving it a constructor would add a
+- **`KeyEvidence`.** `tacenta-core` reserves `KeyEvidence`, a type with no
+  values, in its API only. Giving it a constructor would add a
   check and a refusal, so it would be a specification-first change (ADR-0006
   point 3).
 - **Stretching** was not adopted. Reopen it with the digit count if the

@@ -694,6 +694,38 @@ is SemVer against the specified protocol (not the implementation).
 - `security-properties/evidence-index.json`: entries for REQ-AUTH-15 and
   -16; REQ-AUTH-02's property and the reasons of its missing evidence.
 - `README.md`.
+- `protocol/session-establishment.md`, `protocol/identities-and-devices.md`,
+  `protocol/error-handling.md` and `decisions/ADR-0009-identity-verification.md`:
+  six of the gaps the fourteenth independent reader pass recorded
+  (`tacenta-test-vectors/runners/independent/GAPS-14.md`). G14-01, the
+  status lines, is left to the change that sets the requirements' statuses.
+  - G14-02: decoding the bundle is not a check of Sending the initial
+    message, and no order is fixed between it and a malformed expectation;
+    either refusal conforms. The page had left it open, and a malformed
+    expectation with bundle bytes that do not decode tells the readings
+    apart.
+  - G14-03: the initiator's refusals of a bundle are named as kinds (an
+    inconsistent bundle, a non-canonical key, an authentication failure, a
+    KEM input refusal, a non-contributory agreement), and error-handling.md
+    lists them. The page fixed an order among them, and against her
+    expectation, without naming them, and an order can be seen only between
+    refusals that are told apart. The vectors already used these names.
+  - G14-04: the verification number's input is the 32-byte digest, and the
+    number is the 60 digits; the twelve groups of five, and how they are
+    separated, are a display only.
+  - G14-05: a lookup's result is stated: the attribution, the contacts the
+    key is *retired* for and the records skipped as malformed, as sets.
+    Naming the contacts an ambiguous key is *same* for is optional.
+  - G14-06: the KEM prekey's signature is over the type byte and the key's
+    bytes as the bundle holds them, and both signatures come before the KEM
+    prekey's input checks. A bundle that did not come from the decoder, with
+    a KEM prekey of the wrong length whose signature does not verify, tells
+    the readings apart: it is an authentication failure.
+  - G14-07: ADR-0009 no longer says that `tacenta-core` has not changed; it
+    says what changed.
+
+  No byte, constant or stored format changes, and no existing vector's
+  outcome changes.
 
 ### Fixed
 - `protocol/session-establishment.md`: the repeated-initial rule names the key

@@ -22,6 +22,13 @@ implementation.
   such as a verifier of an application signature, it says no. A key that is not
   canonical is refused as it always was: as a decode failure where a wire
   encoding is read, and by the kind the stored state's page names for it.
+- **The initiator's refusals of a bundle have kinds.** session-establishment.md,
+  Sending the initial message, names them: an inconsistent bundle, a
+  non-canonical key (her own check of a bundle that did not come from the
+  decoder), an authentication failure, a KEM input refusal and a
+  non-contributory agreement. It fixes an order among them and against her
+  expectation's refusals, and an order can be seen only between refusals that
+  are told apart.
 - **A stored state's refusal says which kind it is**, to the extent
   session-persistence.md's Rejection section names kinds: wrong version, short
   or malformed, non-canonical, and, for a session, inconsistent or, for a prekey
@@ -63,7 +70,8 @@ implementation.
     after the bundle's presence and canonical-key checks, and before the
     identity-key rule, the signature checks, the KEM prekey's input checks
     and anything that draws randomness or computes an agreement. The
-    identity-key rule comes before either signature.
+    identity-key rule comes before either signature, and both signatures
+    before the KEM prekey's input checks.
   - It fixes the responder's identity-key check: once the signed prekey and
     the KEM prekey the message names are found, and before a one-time prekey
     is looked up, a ciphertext decapsulated or any private key used on the
