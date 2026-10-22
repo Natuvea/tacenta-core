@@ -10,7 +10,9 @@
 # job's phases took at most about nine minutes in a hosted run of the whole script (run 39533849612), before the
 # `reply` part took on `send-preservation` and `initiator-second-send`; its five phases took 340 s locally and are
 # estimated at about eleven to thirteen minutes hosted (an estimate, not a hosted measurement); the
-# initial dispatcher's 50 controls took 3024 s there and are split eight ways.
+# `responder` part then took on `responder-second-receipt`, whose control alone took about 310 s locally under
+# `nice` (not a hosted measurement); the initial dispatcher's 50 controls took 3024 s there and are split eight
+# ways.
 hosted kernel:
   kernel-replay-translation
   initiator-second-message
@@ -48,6 +50,7 @@ hosted responder:
   encrypt
   responder
   responder-frame
+  responder-second-receipt
 hosted reply:
   responder-successor
   responder-reply

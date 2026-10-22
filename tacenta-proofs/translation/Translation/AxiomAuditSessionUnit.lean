@@ -75,6 +75,7 @@ import Translation.UnitLifecycleResponderFirstReceipt
 import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
+import Translation.UnitLifecycleResponderSecondReceipt
 import Translation.UnitTripleInvModel
 import Translation.UnitLifecycleSendPreserve
 import Translation.UnitLifecycleInitiatorSecondSend
@@ -186,7 +187,13 @@ run: under the hypotheses of the receipt of the reply and a bound on the second 
 session the receipt returns passes `Session::invariant` and meets the four ceilings, the second `encrypt` there
 returns the bare second frame with no draw and refines the model's step, and the session it leaves passes the
 invariant and meets the ceilings; a reach exhibits such a run at the real constants under assumed laws.  The
-responder's receipt of that message and every later step are not covered.
+responder's receipt of that message is the next module's.
+`UnitLifecycleResponderSecondReceipt.lean` takes that second message to the responder on the same run: its public
+`decrypt` at its session after the reply either refuses `OutOfOrder` with the session unchanged, exactly when the
+initiator's new ratchet key is its first, or returns the initiator's plaintext; under the per-run premises that the
+new key is not the first and that the responder's source holds a draw, the session it leaves passes
+`Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
+constants under assumed laws.  A second reply and every later step are not covered.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

@@ -414,6 +414,19 @@ phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 }
 
+# The responder's decrypt of the initiator's second message at its session after the reply, with Session::invariant
+# and the four ceilings kept through the receive (`UnitLifecycleResponderSecondReceipt.lean`): nineteen changes to
+# statements and definitions (the draw, the plaintext, the stale arm's refusal and the decoder after the receipt in
+# the two-outcome theorem; the fresh-key premise and the budget after the receipt in the success headline; the
+# responder's further bytes and the source-choosing law in the run and the reaches; two projections; the model's
+# stale receive, the Triple after the receipt, the decoder at the responder's session and the in-order step's premise
+# in the leaf lemmas; the two runs' definitions at their pins), each of which must be refused at a named declaration
+# or pin, with a message naming the change, after the two unmodified copies are accepted; the eleven changes
+# labelled inside composing proofs must be accepted there with that proof emptied.
+phase_responder_second_receipt() {
+python3 scripts/check-responder-second-receipt-negatives.py || fail=1
+}
+
 # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel.lean`) and send preservation at an
 # agreement state that takes no draw (`UnitLifecycleSendPreserve.lean`): a copy with the no-draw premise weakened, the
 # key-pair clone record swapped for the erasure one, the budget claimed unspent or the relation after the call claimed
@@ -652,6 +665,7 @@ phases() {
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase responder-second-receipt plain "responder-second-receipt proof-dependency control" phase_responder_second_receipt
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
   run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation

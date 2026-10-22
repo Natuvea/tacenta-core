@@ -1024,6 +1024,7 @@ recorded decision or a target-closing slice:
   `check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
+  `check-responder-second-receipt-negatives.py`,
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
@@ -1059,7 +1060,15 @@ recorded decision or a target-closing slice:
   the Session unit's refinement constants, kernel proofs since 2026-10-21, keep deciding the bytes and bounds they state, the live pin of a constant refuses `native_decide` restored under it, and `export_message_fits` states exactly the type of the compiler-trust axiom `export` carries;
   the initiator's second `encrypt` at the session its receipt of the reply returns keeps the no-draw walk at `KeysSampled`, the second frame's chunk and key, the providers' no-draw premise and the model step it rests on, and its composing proof uses the receipt's session, the source it left and its relation;
   `check-receive-preservation-negatives.py`: the in-order receive step keeps its decoder scope, the key-pair clone record, the budget it spends, its dependence on the relation after the call, the canonical-key law and the oracle's public-key clause, the public step keeps its scope and budget, and on the reply's run the budget and the fresh-key premise are the ones the proof composes;
-  `check-initiator-second-message-negatives.py`: the initiator's second message keeps the budget after the send, the fresh-key premise and the second plaintext's bound it composes, and places the ceilings at the session the receipt returns, and its reach keeps the plaintext bound and the law that chooses the responder's source (the receipt's call and the relations after the send are conjuncts of called theorems, placed unchanged);
+  `check-initiator-second-message-negatives.py`:
+  the initiator's second message keeps the budget after the send, the fresh-key premise and the second plaintext's bound it composes, and places the ceilings at the session the receipt returns, and its reach keeps the plaintext bound and the law that chooses the responder's source (the receipt's call and the relations after the send are conjuncts of called theorems, placed unchanged);
+  `check-responder-second-receipt-negatives.py`:
+  the responder's receipt of the initiator's second message keeps the draw,
+  the plaintext,
+  the stale arm's refusal and the two-chunk decoder it composes,
+  its success headline keeps the fresh-key premise and the budget after the receipt,
+  and its run and reaches keep the responder's further bytes and the law that chooses the responder's source (the initiator's second send and its receipt of the reply are conjuncts of called theorems,
+  placed unchanged);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1265,6 +1274,7 @@ recorded decision or a target-closing slice:
   the other-key control sits on the model step the composition rests on,
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
+  `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused: eleven inside the five composing proofs, two projections, four on leaf lemmas and two definitions held by their pins),
   `check-responder-successor-negatives.py` (two unmodified copies accepted and seventeen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1579,7 +1589,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (103 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (105 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).

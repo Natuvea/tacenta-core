@@ -103,9 +103,9 @@ apply to any run; `UnitLifecycleInitiatorSecondMessage` derives both on the same
 * `Session::invariant` or `CounterHeadroom` at `s''` (the implication's premises) or at `s'''` after the send; a run
   at which the code-level part applies (`UnitLifecycleInitiatorSecondMessage` joins this result with the receive step
   that derives the premises at `s''` and shows all three; this module does not).
-* The responder's receipt of this second message, a second reply and its receipt, the header's third chunk, the
-  responder's first sampling send and every later step.  The statement covers exactly one further send by the
-  initiator on this route, not a second exchange.
+* The responder's receipt of this second message (shown, on the same run, in `UnitLifecycleResponderSecondReceipt`), a
+  second reply and its receipt, the header's third chunk, the responder's first sampling send and every later step.  The
+  statement covers exactly one further send by the initiator on this route, not a second exchange.
 * A refusal `encrypt` can reach: at this state none occurs (the terminal guard is false, the agreement's send at
   `KeysSampled` does not refuse, the model's Triple send succeeds from message number 0 on the chain the receipt
   derived, the composite header is defined); the refusals reachable elsewhere in a session (the terminal guard,

@@ -128,6 +128,7 @@ py_stubs=(
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-second-receipt-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py

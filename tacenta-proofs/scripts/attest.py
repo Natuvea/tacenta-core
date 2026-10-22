@@ -2342,6 +2342,28 @@ REQUIRED_PINS = frozenset(
         "first_send_reply_receipt_reachable",
         "first_send_reply_stale_reachable",
     )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "second_receive_key",
+        "second_receive_stale",
+        "secondFrame_messageType",
+        "secondFrame_decodeDetailed",
+        "second_receipt_model_outcomes",
+        "modelCounterRoom_replier",
+        "secondReceipt_inOrderStep",
+        "agreement_swap",
+        "second_codeword",
+        "established_responder_decoder_small",
+        "second_receipt_run_inputs",
+        "secondAd_length_le",
+        "responder_receives_second_message_two_outcomes",
+        "responder_receives_second_message",
+        "reach_establishment_secret",
+        "byteTrace_pair",
+        "second_receipt_reach_run",
+        "first_send_second_receipt_reachable",
+        "first_send_second_receipt_stale_reachable",
+    )]
     # `Triple::invariant` read on the model through the Triple relation, both directions (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
         "keyOf_injective",
@@ -4214,6 +4236,34 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
     )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "second_receive_key",
+        "second_receive_stale",
+        "secondFrame_messageType",
+        "secondFrame_decodeDetailed",
+        "second_receipt_model_outcomes",
+        "modelCounterRoom_replier",
+        "secondReceipt_inOrderStep",
+        "agreement_swap",
+        "second_codeword",
+        "established_responder_decoder_small",
+        "second_receipt_run_inputs",
+        "secondAd_length_le",
+        "responder_receives_second_message_two_outcomes",
+        "responder_receives_second_message",
+        "reach_establishment_secret",
+        "byteTrace_pair",
+        "second_receipt_reach_run",
+        "first_send_second_receipt_reachable",
+        "first_send_second_receipt_stale_reachable",
+        "responderAfterSecond",
+        "secondAd",
+        "replierSession",
+        "secondReceiptSession",
+        "SecondReceiptRun",
+        "SecondReceiptStaleRun",
+    )]
     # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
         "keyOf_injective",
@@ -4722,6 +4772,15 @@ REQUIRED_PRINT_FORM = frozenset(
         "kemViewReply",
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
+    )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "responderAfterSecond",
+        "secondAd",
+        "replierSession",
+        "secondReceiptSession",
+        "SecondReceiptRun",
+        "SecondReceiptStaleRun",
     )]
     # The five model and code predicates of the bridge (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
