@@ -243,7 +243,7 @@ has four arms; the handshake and `Aead` arms, the latter the responder's own sea
 contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
 (no compiler-trust axiom): exactly one reply received by the initiator. At the session that receipt returns, the model's step for
 the initiator's next `encrypt` has one outcome (the bare second frame carrying the header's chunk at index 1, no draw), and
-if that session passes `Session::invariant` and meets the four counter ceilings, which that result does not show (the receive step below shows it at that session; the two are not joined), the public `encrypt`
+if that session passes `Session::invariant` and meets the four counter ceilings, which that result does not show (the receive step below shows it at that session), the public `encrypt`
 returns those bytes with no draw and refines the step, with no new law (no compiler-trust axiom): exactly one further send by the
 initiator, under that condition. That a tampered frame is refused is not shown, nor the responder's receipt of that send,
 nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
@@ -257,8 +257,13 @@ in-order receive (no stored key used, no message skipped, no agreement output) w
 holding at most one chunk before the call, or at `KeysSampled`, given the relation after the call, the model step, two
 boundary records and one law (kernel and opaque constants only); its premises are exhibited at the initiator's receipt of
 the reply, where it gives the invariant and the four ceilings at the session that receipt returns, and at the responder's
-receipt of the first frame (no compiler-trust axiom). No `encrypt` whose agreement send draws, no refusal and no receive
-outside that scope is covered by a preservation result.
+receipt of the first frame (no compiler-trust axiom). The two are joined on the reply's run: under the receipt's
+hypotheses and a bound on the second plaintext, with no new law or per-run premise, the session the receipt returns passes
+`Session::invariant` and meets the four ceilings, the initiator's second `encrypt` there returns the bare second frame with
+no draw and refines the model's step with no condition, and the session it leaves passes `Session::invariant` and meets
+the ceilings (no compiler-trust axiom); a reach exhibits such a run at the real constants under the reply's reach laws,
+which are assumed. The responder's receipt of that second message and every later step are not covered. No `encrypt`
+whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three

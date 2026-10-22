@@ -2961,8 +2961,9 @@ one outcome: the bare second frame (agreement type `hdr` with the header's chunk
 message number 0 on the chain the receipt derived, sparse epoch 0 and number 2, no initial wrapper), no draw, the header
 encoder advanced (`second_model_step`). The code-level part is **conditional**: if that session passes `Session::invariant`
 and meets the four counter ceilings, the call returns those bytes, leaves its source as given and refines the step
-(`initiator_second_send_after_reply`); neither premise is derived here, and no run is exhibited at which they hold, so that
-part is not shown to apply to any run. The encrypt route's two Triple condition records are derived from the invariant and
+(`initiator_second_send_after_reply`); neither premise is derived in that module, and no run is exhibited there at which
+they hold, so there that part is not shown to apply to any run (the second-message paragraph below joins it with the
+receive step that derives both premises, and exhibits such a run). The encrypt route's two Triple condition records are derived from the invariant and
 the ceilings at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`). The two composed
 results list no compiler-trust axiom: the nine `native_decide` constants they used to inherit are kernel proofs since
 2026-10-21. The headline's statement pin prints the statement without a cut (the module sets `pp.deepTerms true` and
@@ -2980,8 +2981,8 @@ receipt's premises it inherits carry `KemAgreesFor` at both parties' KEMs, as th
 still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every state, and whether it
 could be dropped here is not checked. The relation after the call holds the cloned key pair through `KemCloneAgrees`;
 code-level equality of the key pair is not checked. **Not shown:** `Session::invariant` or the ceilings at the session the
-receipt returns (the receive-preservation paragraph below derives them there; joining that with this send is not done) or
-after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
+receipt returns (the receive-preservation paragraph below derives them there, and the second-message paragraph below
+joins that with this send; this module does neither) or after the second send; the responder's receipt of the second frame, a second reply and its receipt, the
 header's third chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt`
 can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere
 are not covered); a restored copy of the session; the one-time path in a run; that the related model sessions hold only
@@ -3061,9 +3062,36 @@ receive with an agreement output or one that moves the agreement to another stat
 or at any other agreement state; a decoder holding more than one chunk before the call; the session a refused
 `decrypt` returns; that the relation after the call holds or that the model's step is in order (hypotheses, supplied on the
 two runs); the initiator's second send composed with the invariant at the session its receipt returns (the second-send
-paragraph above states its code-level part under that condition; the join is not done); any later message; a restored
+paragraph above states its code-level part under that condition; the next paragraph joins the two, this module does
+not); any later message; a restored
 copy of a session; that the real primitives meet the records and laws; that `Session::invariant` says a session is
 reachable.
+
+**The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
+joins the second send with the receive step on one run, under exactly the hypotheses of `initiator_second_send_after_reply`
+(those of `initiator_receives_reply` and the bound on the second plaintext): the session the initiator's receipt of the
+reply returns passes `Session::invariant` and meets the four ceilings (from `initiator_receives_reply_successor`), so the
+second `encrypt` there returns the bare second frame, takes no draw and refines the model's step with no condition, and
+the session it leaves passes `Session::invariant`, meets the ceilings and has room for every `j` with `j + 3 < u32::MAX`
+(`encrypt_keeps_invariant_no_draw` at `KeysSampled`). The two composed theorems name their sessions separately; they are
+identified because both state the same two calls on the same inputs and the calls are functions. It adds no law and no
+per-run premise; the preservation step's record `KemCloneAgrees` (ASSUMED, as above) comes from the initiator's Braid send
+record. `first_send_second_message_reachable` exhibits, at the real constants under the laws of
+`first_send_reply_receipt_reachable` (all ASSUMED, `DhPublicNotConstant` included), a run at which every hypothesis of the
+headline holds; its conclusion is the definition `SecondMessageRun`. Both rest on the kernel and opaque constants with no
+compiler-trust axiom. The headline's statement pin is cut off by Lean's `⋯` after the binder `trace rng' = dA :: restA`
+(the bound on the second plaintext is placed first, so the pin holds it), so its responder binders, `hfreshB` and its
+whole conclusion are held by the build and by reading only (with this module, 18 modules hold such cut-off pins, 41 pins);
+the reach's pin and the `#print` pin of `SecondMessageRun` are printed in full. **The budget** after the send is what the
+composition derives, not the exact room: the preservation step charges a unit for the send although the clock does not
+move. **Not shown:** the responder's receipt of the second message, a second reply and its receipt, the header's third
+chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt` can reach
+(none at this state; those reachable elsewhere are not covered); code-level equality of the key pair before and after the
+call; the reply's bytes as `replyFrame` and the frame equation of the receipt's session against the session before it (not
+carried); a restored copy of either session; the one-time path in a run; that the related model sessions hold only bytes
+the parties received; that `hfreshB` holds under an honest random source; that the real primitives meet the records or the
+laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder` equality;
+that `Session::invariant` says a session is reachable.
 
 **What is not shown.**
 
