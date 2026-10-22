@@ -246,7 +246,8 @@ else
 fi
 
 author="$(git show -s --format='%an <%ae>' "$merge")"
-if git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$merge" | grep -qxF -- "$author"; then
+trailers="$(git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$merge")" || trailers=""
+if grep -qxF -- "$author" <<<"$trailers"; then
   echo "merge-exactness: signed off by its author ($author)"
 else
   echo "merge-exactness: NOT signed off by its author ($author)"
