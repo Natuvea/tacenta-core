@@ -40,6 +40,7 @@ hosted decrypt:
   decrypt-ratchet
   responder-receipt
   discharge-native-decide
+  receive-preservation
   audit-negatives
 hosted responder:
   restored

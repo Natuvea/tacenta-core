@@ -97,6 +97,7 @@ py_controls=(
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py
+  check-receive-preservation-negatives.py
   attest.py
 )
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
@@ -194,6 +195,7 @@ for called in \
   check-responder-reply-receipt-negatives.py \
   check-send-preservation-negatives.py \
   check-initiator-second-send-negatives.py \
+  check-receive-preservation-negatives.py \
   check-discharge-native-decide-negatives.py \
   'lake build translation' \
   'lake build tacenta-proofs' \

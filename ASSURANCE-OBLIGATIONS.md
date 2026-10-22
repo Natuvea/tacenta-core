@@ -1026,6 +1026,7 @@ recorded decision or a target-closing slice:
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
+  `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
@@ -1056,6 +1057,7 @@ recorded decision or a target-closing slice:
   placed unchanged);
   the Session unit's refinement constants, kernel proofs since 2026-10-21, keep deciding the bytes and bounds they state, the live pin of a constant refuses `native_decide` restored under it, and `export_message_fits` states exactly the type of the compiler-trust axiom `export` carries;
   the initiator's second `encrypt` at the session its receipt of the reply returns keeps the no-draw walk at `KeysSampled`, the second frame's chunk and key, the providers' no-draw premise and the model step it rests on, and its composing proof uses the receipt's session, the source it left and its relation;
+  `check-receive-preservation-negatives.py`: the in-order receive step keeps its decoder scope, the key-pair clone record, the budget it spends, its dependence on the relation after the call, the canonical-key law and the oracle's public-key clause, the public step keeps its scope and budget, and on the reply's run the budget and the fresh-key premise are the ones the proof composes;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1123,6 +1125,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
+  `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused: 12 inside the four composing proofs, 2 projections, 7 on leaf lemmas, one statement-shape check and one definition held by its pin),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
@@ -1573,7 +1576,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (99 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (101 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).

@@ -439,6 +439,16 @@ phase_initiator_second_send() {
 python3 scripts/check-initiator-second-send-negatives.py || fail=1
 }
 
+# Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the
+# two receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes to statements and one definition
+# (the decoder scope, the clone record, the budget, the relation after the call, the canonical-key law and the
+# public-key clause in the general step; the budget and the fresh-key premise on the reply's run; the leaf
+# lemmas), each of which must be refused at a named declaration or pin, with a message naming the change, after
+# the two unmodified copies are accepted.
+phase_receive_preservation() {
+python3 scripts/check-receive-preservation-negatives.py || fail=1
+}
+
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -632,6 +642,7 @@ phases() {
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
+  run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model

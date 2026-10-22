@@ -3798,7 +3798,7 @@ Not shown: that a store passes `PrekeyStore::invariant` or that the invariant bo
 a pending initial message or an established ephemeral key passes `Session::invariant`; that any session here is one
 `establish_initiator` or `establish_responder` returns; that a send or a receive keeps the invariant (not here; a send at an
 agreement state whose send takes no draw is in the section "`Session::encrypt` keeps `Session::invariant` where the
-agreement's send takes no draw", and no receive is covered).
+agreement's send takes no draw", and an in-order receive at two agreement states in the section after it).
 
 ## Proved (what a refused lifecycle call leaves behind, on the translated code)
 
@@ -5889,7 +5889,7 @@ the responder's first sampling send, whose `encapsulate1` (model `encaps1`) take
 can refuse, and the hash check of the completed encapsulation key follows; no theorem here states either);
 `Session::invariant` or the ceilings at the session the receipt of the reply returns (those at the responder's session
 after its reply are derived in the section "`Session::encrypt` keeps `Session::invariant` where the agreement's send takes
-no draw"); that the code's agreement after the call equals the one before (it refines the same model agreement; code
+no draw", and those at this session in the section after it); that the code's agreement after the call equals the one before (it refines the same model agreement; code
 equality is not checked); that `hfreshB` holds of a run with an honest random source; the receipt on a restored copy of either
 session; the one-time path in a run; that the related model sessions hold only bytes the parties received (the responder's
 relation is at the view that attributes the received codeword); that the responder's source is the one `establish_responder`
@@ -6028,7 +6028,8 @@ not shown, so the code-level part of the headline is not shown to apply to any r
 step for the initiator's next `encrypt` has one outcome (the second header chunk, no draw, no KEM operation), and, if the
 session the receipt returns passes `Session::invariant` and meets the four counter ceilings, the public `encrypt` there
 returns that frame, takes no draw and refines the step: exactly one further send by the initiator on this route, under
-that condition. **Not shown:** `Session::invariant` or `CounterHeadroom` at `s''` (the implication's premises) or at `s'''`
+that condition. **Not shown:** `Session::invariant` or `CounterHeadroom` at `s''` (the implication's premises; the section
+on an in-order receive derives them at `s''`, and joining that with this send is not done) or at `s'''`
 after the send, and a run at which the code-level part applies; the responder's receipt of this second message, a second
 reply and its receipt, the header's third chunk, the responder's first sampling send and every later step, so no second
 exchange; a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted`
@@ -6181,8 +6182,8 @@ headline takes exactly the hypotheses of `initiator_first_send_responder_replies
 `u64::MAX - 1` meets `CounterHeadroom`, a send succeeds from it, and the session it leaves does not: "keeps the ceilings or
 refuses" is false, and the statements spend `CounterRoom` instead. One operation costs at most one step of the clock and of
 each epoch and at most `MAX_SKIP + 1` steps of a chain counter; a send costs one step of the one chain counter it moves and
-nothing else. The weights are for operations in general; nothing here covers a receive, and whether one receive stays
-within any of the four weights is not checked.
+nothing else. The weights are for operations in general; nothing here covers a receive (an in-order receive at two
+agreement states stays within them, the next section; whether any other receive does is not checked).
 
 **Non-vacuity.** No law is added. The headline's hypotheses are those of `initiator_first_send_responder_replies`, which
 `first_send_reply_reachable` exhibits at the real constants under the laws (a toy model holds the laws together); no new
@@ -6199,7 +6200,8 @@ rests on the encrypt refinement, which supplies the relation after the call, and
 and opaque constants only. **Not shown:** the general step on a run at any of the other eight states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
 with an agreement output (`advance`, a new chain pair, `clearOldEpochs`): the initiator's first send is not an instance,
 only its Triple leaf is re-derived; any statement about the session a refused `encrypt` returns; `decrypt` or
-`decrypt_ratchet` keeping the invariant (no receive is covered); that the ceilings are kept or refused at (false of the code,
+`decrypt_ratchet` keeping the invariant (no receive is covered here; the next section covers an in-order receive at two
+agreement states); that the ceilings are kept or refused at (false of the code,
 above); the budget at any session other than the model session after the first receipt; that the relation after the call
 holds (a hypothesis of the general step, supplied on the run by the encrypt refinement); a second message in either
 direction, the header's later chunks, the responder's first sampling send, a restored copy of a session; that the real
@@ -6259,6 +6261,199 @@ the script runs it again with the headline's proof replaced by `sorry` and requi
 mismatch at the named place), not an unprovable goal. None shows that `encrypt` keeps the invariant at a state whose send
 draws, that a receive keeps it, or anything about a refused call. An error that is not a refusal voids a run anywhere in the
 copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: `Session::decrypt` keeps `Session::invariant` on an in-order receive at `NoHeaderReceived` or `KeysSampled`, and at the two receipts, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleReceivePreserve.lean`.
+
+The section above states one send step for many sessions; no receive was covered. The responder's session after the
+first frame had its invariant rebuilt by hand at one literal shape, and the initiator's session after the reply had none.
+These results state one receive step for every invariant session, restricted to an in-order receive that leaves the
+agreement where it was, and apply it to both receipts on their runs.
+
+**How, and its scope.** The scope is `InOrder`, a condition on the model Triple and the header only: the header names no
+stored key in either ratchet; on the classical chain the peer holds it does not skip ahead; on a new ratchet key nothing
+is skipped on the chain being left and the message is the first of the new chain; on the sparse receiving chain of the
+header's epoch it does not skip ahead. In that scope each leaf receive is its last step (no stored key, no skip), the
+session's receive with eviction is the Triple's receive (the store is never full), and the model Triple's receive without
+an agreement output keeps `ModelTripleInv`, given a canonical header key and, on a Diffie-Hellman step, a canonical
+candidate key. A model step is an `InOrderReceiveStep` when the agreement stays at `noHeaderReceived` or at `keysSampled`
+at the same epoch (`KeepsAgreementState`) and the Triple and ratchet key are as they were or are such a receive, the ratchet
+key replaced by the draw exactly when the sending key changed; the model's own `decryptRatchet` and public `decrypt` are
+such steps on every message whose decoded headers are in order and leave the agreement in such a state. The Triple half
+goes through the model, as for the send: the bridge reads the code Triple's invariant off the model Triple it relates to.
+The agreement half is a walk of the translated `Braid::receive`: at `KeysSampled` the state is its clone with the key pair
+cloned, and at `NoHeaderReceived` the decoder is the one given or one `add_chunk` of it, which keeps `Decoder::invariant`
+for a decoder holding at most one chunk (two after, of distinct indices). Clause (a) of the structural clauses is read off
+the call's own walk: unchanged when the sending key is, and otherwise the new key is the drawn candidate, whose public
+key is the model's new sending key by the oracle's `dhPublic` clause and the view's codec, and whose bytes are canonical by
+`DhPublicValid`. The other structural clauses read the Triple only through its direction and sparse epoch, which an
+in-order receive keeps, and the agreement through what the walk keeps; clearing the pending initial message, as the
+public `decrypt` does on success, keeps them. The budget `CounterRoom` (the section above) is spent by at most one unit:
+the clock rises by at most one, both epochs are kept, one sparse receiving chain steps by one. The relation after the call
+and the model step are hypotheses of the general step and carry the Triple half, the direction, the sparse epoch and the
+budget; the code's Triple receive is never walked.
+
+**Laws and premises.** None is added. The general step takes `KemCloneAgrees`, the decrypt oracle record's `dhPublic`
+clause, `DhCodecOf` and the law `DhPublicValid`, each already a premise of the runs it is applied on; `InOrder` and
+`KeepsAgreementState` are scope restrictions inside `InOrderReceiveStep`, computed on each run and never a run premise;
+`CounterRoom` is internal (the run headlines conclude `CounterHeadroom`). The reply's headline takes exactly the hypotheses
+of `initiator_receives_reply`, and the regression exactly those of `responder_first_frame_successor`. No premise names a
+platform width.
+
+- `skip_noop`, `ratchet_receive_inOrder`, `spqr_receive_inOrder`: a classical skip with nothing to skip leaves the state;
+  in the scope `InOrder`, the classical receive is its last step `classicalTail` of the state or of the Diffie-Hellman
+  step, and the sparse receive without an agreement output is its last step `sparseTail`. Model only.
+- `classicalTail_ok`, `modelRatchetInv_tail`, `modelRatchetInv_receive_inOrder`, `ratchet_receive_frame`: the classical
+  tail steps the chain below the ceiling and ages the store; it keeps `ModelRatchetInv`; so does the in-order classical
+  receive, given a canonical header key and, on a Diffie-Hellman step, a canonical candidate key; on the peer's chain the
+  sending key is kept, on a new key it is the candidate, the clock rises by at most one and a receiving chain is held. Model
+  only.
+- `sparseTail_ok`, `modelSpqrInv_tail`, `modelTripleInv_receive_inOrder`, `triple_receive_parts`: the sparse tail steps the
+  receiving chain of an entry the table holds by one, below the ceiling, keeps `ModelSpqrInv`, and leaves the epoch, the
+  direction and the store; the model Triple's in-order receive without an agreement output keeps `ModelTripleInv` and is
+  its two leaf receives. Model only.
+- `keeps_output_none`, `keeps_epoch`, `decode_dh_canonical`, `classicalTail_err`, `sparseTail_err`,
+  `receiveWithEviction_inOrder`: a model agreement receive that keeps the state (`KeepsAgreementState`) has no output and
+  keeps the epoch; the
+  model decoder reads a canonical ratchet key; neither tail refuses for a full store, so in order the session's receive
+  with eviction is the Triple's receive. Model only.
+- `decryptRatchet_inOrderStep`, `decrypt_inOrderStep`, `modelCounterRoom_receive`, `step_frame`: the model's
+  `decryptRatchet`, and its public `decrypt` on a message the dispatch passes on, are `InOrderReceiveStep`s under the scope,
+  for every view, oracle and session; a step spends at most one unit of the budget, keeps the direction and the
+  sparse epoch, and changes the sending key only to the oracle's public key of the new ratchet key. Model only.
+- `pow_and_pow_ne`, `two_chunk_loop`, `decoder_invariant_parts`, `add_chunk_one`, `decoder_invariant_le_two`,
+  `decoder_step_keeps`: two distinct bits of a byte share no set bit; the loop of `Decoder::invariant` over two chunks of
+  distinct indices returns `true`; a passing decoder's `needed` is the chunk count of its size, at most `MAX_CODEWORDS`;
+  `add_chunk` at a decoder holding one chunk leaves it or adds a second of another index; a decoder holding at most two
+  chunks, of distinct indices when two, passes `Decoder::invariant`; one receive's change to a decoder holding at most one
+  chunk keeps `Decoder::invariant` and its size.
+- `braid_receive_keysSampled`, `braid_receive_keeps`, `sameKind_of_refines`: `Braid::receive` at
+  `KeysSampled` staying there returns the state's clone with the key pair cloned (no hypothesis); at `NoHeaderReceived`
+  (holding at most one chunk) or `KeysSampled`, staying in the same kind at the same epoch, it keeps `Braid::invariant` and
+  the `failed`, `is_initiator`, `epoch` and `state_tag` the structural clauses read, under `KemCloneAgrees`; the agreement
+  relations and a model step that keeps the state give the translated states' kind (`SameAgreementKind`).
+- `structural_receive`, `mono_bind`, `mono_ite`, `strip_bind`, `strip_ite`, `structural_clear_pending`,
+  `clause_a_of_structural`, `keyOf_dhs`, `code_dir_epoch`: `Session::structural_invariant` survives a new Triple, agreement
+  and ratchet key whose public key bytes are the new sending key and which agree with the old on the fields above, and
+  survives clearing the pending initial message; it gives clause (a); the code Triple's sending key, direction and sparse
+  epoch are read through the relation. No hypothesis beyond those equations.
+- `decrypt_ratchet_keeps_invariant_in_order`: for every session `s` that passes `Session::invariant`, has room for `k + 1`
+  operations and refines a model session `m`, whose agreement is at `NoHeaderReceived` holding at most one chunk or at
+  `KeysSampled`, and every successful return `(Ok pt, s', rng')` of `decrypt_ratchet` there whose session refines a model
+  session that is an `InOrderReceiveStep` from `m`, `s'` passes `Session::invariant` and has room for `k`. Under
+  `KemCloneAgrees`, the oracle's `dhPublic` clause, `DhCodecOf` and `DhPublicValid`.
+- `decrypt_ok_inner`, `decrypt_keeps_invariant_in_order`, `decrypt_keeps_invariant_model_step`: a successful `decrypt` is a
+  successful inner `decrypt_ratchet` with the pending initial message cleared (no hypothesis); the same step for the public
+  `decrypt`; and with the relation after the call taken at the model's own public `decrypt` of a message the model's
+  dispatch passes on, every header of which is in the scope.
+- `firstReceipt_inOrderStep`, `replyReceipt_inOrderStep`, `modelCounterRoom_afterFirstSend`: the responder's model step on
+  the first frame (from the receiver pair form, agreement waiting for the header at epoch 1) and the initiator's model step
+  on the reply (from the sender after its first message, agreement at `keysSampled`, on a canonical reply key that is not
+  the peer key it holds) are in-order steps; the model session after the first send has room for `j + 1` operations
+  whenever `j + 2 < u32::MAX`. Model only.
+- `initiator_receives_reply_successor`: under the hypotheses of `initiator_receives_reply` and no other, the responder's
+  `encrypt` at `sB'` returns `bytesR`, the initiator's public `decrypt` of them at `s'` from `rng'` returns `Ok ptA` with
+  `ptA` the bytes of `ptR` and a session `s''` that passes `Session::invariant`, meets `CounterHeadroom`, has room for
+  every `j` with `j + 2 < u32::MAX` further operations (the clock there is 1, so the bound is exact) and refines
+  `replyReceiptSession`. The step is at `KeysSampled`.
+- `counterRoom_responder_prepared`, `prepared_decoder_empty`, `responder_successor_via_preservation`: the responder's
+  prepared session has room for one operation and holds an empty header decoder (no hypothesis); under the hypotheses of
+  `responder_first_frame_successor`, at every return `Ok (sB', ptB)` of `establish_responder`, `sB'` refines
+  `firstReceiptSession`, passes `Session::invariant` and meets `CounterHeadroom`, the last two derived from the prepared
+  session's invariant (`responder_prepared_invariant`) through the general step at `NoHeaderReceived`, with no shape of
+  `sB'` (`responder_first_frame_successor` gets them by fixing the shape).
+
+**Non-vacuity.** No law is added. The reply's headline takes the hypotheses of `initiator_receives_reply`, which
+`first_send_reply_receipt_reachable` exhibits at the real constants under the reach's laws (a toy model holds the laws
+together), and the regression those of `responder_first_frame_successor`, which `first_send_receive_successor_reachable`
+exhibits through the composed theorem; no new reach is added. The general step's premises are exhibited together at
+`KeysSampled` on the reply's run and at `NoHeaderReceived` with an empty decoder on the first frame's run; no run here
+exhibits them at a decoder holding one chunk, so the two-chunk case of the decoder lemmas is proved and not used on a
+run.
+
+**What this establishes, and what it does not.** The general step states that an in-order `decrypt_ratchet` or `decrypt`
+whose agreement stays at `NoHeaderReceived` (holding at most one chunk) or `KeysSampled` keeps `Session::invariant` and
+spends one unit of the budget, given the relation after the call and the model step; on the runs it gives
+`Session::invariant` and the four ceilings at the session the initiator's receipt of the reply returns, which no result
+showed before, and re-derives them at the session the responder's receipt of the first frame returns. Those uses rest on
+the decrypt and encrypt refinements, which supply the relations, and, like the general step, on the kernel and opaque
+constants only. **Not shown:** a receive that uses a stored key, skips a message on either chain, or evicts from a full
+store (outside `InOrder`), so reordered, delayed or dropped delivery is not covered; a receive with an agreement output (the
+sparse ratchet's `advance`, a new chain pair, `clearOldEpochs`), one that moves the agreement to another state (the header
+completing at `NoHeaderReceived`, a `ct1` chunk at `KeysSampled`), or one at any other agreement state; a header decoder
+holding more than one chunk before the call, and the two-chunk case on a run; any statement about the session a refused
+`decrypt` or `decrypt_ratchet` returns; that the relation after the call holds or that the model's step is an in-order
+step (hypotheses of the general step, supplied on the two runs by the decrypt refinement and by the model's own step
+there); that the ceilings are kept or refused at (false of the code, the section above); the budget at any session other
+than the initiator's after its first send and the responder's prepared session; the initiator's second send at `s''`
+composed with this result (the second-send section states its code-level part under the invariant and the ceilings at
+`s''`; joining the two is not done here), the responder's receipt of a second message, a second reply, the header's
+later chunks and every later step; the regression at the hypotheses of
+`initiator_first_send_responder_successor_admissible` (it is stated at those of `responder_first_frame_successor`); a
+restored copy of a session; the one-time path in a run; that the real primitives meet `KemCloneAgrees`, `DhPublicValid`
+or the records and laws the runs rest on; that `Session::invariant` says a session is reachable (it is a predicate on
+fields).
+
+**Compiler trust and pins.** No result here lists a compiler-trust axiom. `initiator_receives_reply_successor` and
+`responder_successor_via_preservation` apply `initiator_receives_reply`, `initiator_first_send_responder_replies`,
+`established_encrypt_successor_hypotheses` and `responder_first_frame_inner_succeeds`, whose nine `native_decide`
+constants are kernel proofs since 2026-10-21. There is no compiler-trusted result to set apart. Of the other 50 results,
+33 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them (the 21 model results of the first five items
+above, `pow_and_pow_ne`, `two_chunk_loop`, `add_chunk_one`, the four monotonicity lemmas, `keyOf_dhs`, `code_dir_epoch`,
+`firstReceipt_inOrderStep`, `replyReceipt_inOrderStep` and `modelCounterRoom_afterFirstSend`), and the other 17 on those
+and opaque constants of the unit (`decoder_invariant_parts`, `decoder_invariant_le_two`, `decoder_step_keeps`,
+`braid_receive_keysSampled`, `braid_receive_keeps`, `structural_receive`, `structural_clear_pending`,
+`clause_a_of_structural`, `sameKind_of_refines`, `decrypt_ratchet_keeps_invariant_in_order`, `decrypt_ok_inner`,
+`decrypt_keeps_invariant_in_order`, `decrypt_keeps_invariant_model_step`, `initiator_receives_reply_successor`,
+`counterRoom_responder_prepared`, `prepared_decoder_empty`, `responder_successor_via_preservation`). Each of the 50 results carries an axiom pin and a
+statement pin, except that the statement pins of `initiator_receives_reply_successor` and
+`responder_successor_via_preservation` are cut off by Lean's `⋯` (after the binder `crcB` and after `ptB`): each holds the
+binders up to there and not the rest, so their later hypotheses and their whole conclusions (the invariant,
+`CounterHeadroom`, `CounterRoom` and the relation) are held by the build and by reading only, as with every pin that ends
+in `⋯` (with this module, 17 modules hold such cut-off pins, 40 pins; a pin form that prints the whole statement is to be
+fixed separately). Each of the six definitions (`InOrder`, `classicalTail`, `sparseTail`, `KeepsAgreementState`,
+`InOrderReceiveStep`, `SameAgreementKind`) a `#print` pin. `check-receive-preservation-negatives.py` plants 23 faults in a
+copy of the module, every one a change to a statement or a definition, and requires Lean to refuse each at a named
+declaration or pin, against a message naming the change (a proof-breakage check at that place, not a proof that the
+changed statement is false). Fourteen are refused in the four composing proofs: twelve labelled inside them and two
+projections. A control refused there is a projection when it is refused where the proof places a conjunct of a called
+theorem's conclusion unchanged, and is labelled inside otherwise; the script holds both labels, once at start-up (at run
+time it checks only that each change is refused at its labelled place), to the declaration each is refused in and to a
+syntactic form of that standard read off the module (the refusal names a hypothesis the proof binds by destructuring a
+called theorem's conclusion and never rewrites, simplifies or substitutes), requires every control refused in a
+composing proof to carry one of the two, and runs each inside control with that proof replaced by `sorry`, requiring Lean
+to accept the change there. That probe verifies attribution only; that the syntactic form is the right standard, and
+that the four theorems compose rather than project, is decided by reading. In
+`decrypt_ratchet_keeps_invariant_in_order`: the decoder scope widened to two chunks held and the key-pair clone record
+swapped for the erasure clone record (both refused where the agreement walk is applied), the budget claimed unspent
+(refused where the model's budget step is carried back), the relation after the call claimed to the model session before
+the call (refused where the agreement's kind is read through the relations and the step), `DhPublicValid` swapped
+(refused where the new sending key is read as canonical) and the oracle's public-key clause claimed at one key only
+(refused where it is applied to the drawn candidate); in `decrypt_keeps_invariant_in_order`: the decoder scope widened
+and the budget claimed unspent; in `initiator_receives_reply_successor`: the budget after the receipt claimed for every
+`j` with `j + 1 < u32::MAX` and for `j + 1` further operations under the headline's bound (both false, both refused where
+the general step's result on the run is applied) and the fresh-key premise claimed against the initiator's own key
+(refused where the receipt is taken); in `responder_successor_via_preservation`: the session claimed to have room for one
+more operation (a true statement, refused where the general step's budget is placed, so it shows only that the proof
+derives no more room than that). Two are projections, labelled as such: the initiator's `decrypt` claimed from the source
+before its first send, and the session after the receipt claimed to refine the model session before it; both are refused
+at the headline's final term, where it passes the call and the relation of `initiator_receives_reply` through unchanged,
+so they show forwarding, not composition. Seven are on the leaf lemmas: the sparse receive claimed with an agreement
+output (refused in `spqr_receive_inOrder`), the budget claimed kept with no unit to spend (refused at `omega` in
+`modelCounterRoom_receive`), the two-chunk loop claimed for equal indices (refused in `two_chunk_loop`), the decoder step
+claimed for two chunks held (refused in `decoder_step_keeps`, whose three-chunk case is then open), `KeepsAgreementState`
+widened to the completion of `ct2`, which moves to `noHeaderReceived` with an output (refused in `keeps_output_none` and
+`keeps_epoch`), clearing the established ephemeral claimed in place of the pending initial message (refused in
+`structural_clear_pending`, at the step that reads a cleared field already `none` as the session itself: a structural
+refusal), and the scope without its first-message condition (refused in `modelTripleInv_receive_inOrder`). One is a
+statement-shape check: the corollary `decrypt_keeps_invariant_model_step` claimed with the relation at the model's
+`decryptRatchet` (refused there; the script runs it again with the proof of `decrypt_keeps_invariant_in_order` replaced by
+`sorry` and requires the same refusal). The last is `KeepsAgreementState` with its epoch equation reversed, the pins kept
+(refused at its pin). Several refusals are structural (a type mismatch at the named place), not an unprovable goal. None
+shows that a receive outside the scope keeps the invariant, or anything about a refused call. An error that is not a
+refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never
+counts as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
