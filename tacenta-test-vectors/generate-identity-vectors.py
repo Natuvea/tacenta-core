@@ -969,15 +969,19 @@ def build():
         if draws is True and model[1] == "0":
             problems.append("%s: the model drew nothing" % c.vid)
         # A session's fields are read only when the model also gives a
-        # session; a model refusal the script admits is reported above.
-        if isinstance(outcome, tuple) and model[0] == name and len(model) >= 7:
-            dash = lambda s: "" if s == "-" else s  # noqa: E731
-            want = dict(lookup_fields(outcome[1]))
-            got = {"attribution": model[3], "retired_for": dash(model[5]), "malformed": dash(model[6])}
-            if model[4] != "-":
-                got["contact"] = model[4]
-            if model[2] != c.bundle.identity_key.hex() or got != want:
-                problems.append("%s: the model's session or lookup differs: %s" % (c.vid, model))
+        # session; a model refusal the script admits is reported above. A
+        # session line too short to carry the fields is a problem, not a skip.
+        if isinstance(outcome, tuple) and model[0] == name:
+            if len(model) < 7:
+                problems.append("%s: the model's session line is short: %s" % (c.vid, model))
+            else:
+                dash = lambda s: "" if s == "-" else s  # noqa: E731
+                want = dict(lookup_fields(outcome[1]))
+                got = {"attribution": model[3], "retired_for": dash(model[5]), "malformed": dash(model[6])}
+                if model[4] != "-":
+                    got["contact"] = model[4]
+                if model[2] != c.bundle.identity_key.hex() or got != want:
+                    problems.append("%s: the model's session or lookup differs: %s" % (c.vid, model))
         rows.append(render_vector(c, outcome))
     problems += check_model_files()
     if problems:
