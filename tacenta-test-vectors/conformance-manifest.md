@@ -201,10 +201,12 @@ same cap the Double Ratchet uses here, so the store is bounded independently of
 how many messages are skipped within an epoch.
 `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves it of
 one skip: a skip that succeeds leaves the store no longer than the larger of
-its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
-across this ratchet's `send`, `receive` or `advance`, or across a sequence of
-them, so over a session the evidence is the vectors and the tests described
-next. Recorded here because it is an addition to the specification.
+its previous length and `MAX_SKIPPED_STORE`.
+`Proofs.SparseReachableStore.run_store_bounded` carries it, in the model, across
+any sequence of this ratchet's sends, receives and evictions from a state within
+it. No theorem carries it across a session's operations or says it of the code,
+so over a session the evidence is the vectors and the tests described next.
+Recorded here because it is an addition to the specification.
 
 The classical replacement-bound vector starts with 1,999 entries, including
 the two pairs about to be re-derived, and pins the resulting count at 1,999.

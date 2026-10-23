@@ -1029,6 +1029,44 @@ REQUIRED_PINS = frozenset(
         "witness_premises_hold",
         "witness_refused_one_key_further",
     )]
+    # The sparse ratchet's reachable store (Proofs/SparseReachableStore.lean): no stored key at or
+    # past its chain's counter and the store within the total bound, kept by every operation and over
+    # any sequence from `init`, the skip that deletes nothing there, and the witnesses.
+    + ["Proofs.SparseReachableStore." + n for n in (
+        "init_keysBelowCounter",
+        "init_chainsNotAhead",
+        "init_reachableStore",
+        "advance_keysBelowCounter",
+        "advance_chainsNotAhead",
+        "receiveAdvance_keysBelowCounter",
+        "send_keysBelowCounter",
+        "send_chainsNotAhead",
+        "send_store_bounded",
+        "trySkipped_keysBelowCounter",
+        "skipMessageKeys_keysAtMostCounter",
+        "skipMessageKeys_keysBelowCounter_off",
+        "receive_keysBelowCounter",
+        "receive_chainsNotAhead",
+        "receive_store_bounded",
+        "evictOldest_keysBelowCounter",
+        "evictOldest_store_bounded",
+        "clearOldEpochs_keysBelowCounter",
+        "skipSurvivors_eq_of_keysAtMostCounter",
+        "skipSurvivors_eq_of_keysBelowCounter",
+        "apply_reachableStore",
+        "run_reachableStore",
+        "run_store_bounded",
+        "reachable_keysBelowCounter",
+        "reachable_store_bounded",
+        "reachable_skipSurvivors_eq",
+        "witness_reachable_holds_stored_keys",
+        "witness_store_past_its_counter_fails",
+        "skip_alone_leaves_a_key_at_the_counter",
+        "chainsNotAhead_needed_for_advance",
+        "receive_breaks_without_chainsNotAhead",
+        "receiveAdvance_reachableStore",
+        "decoded_chainsNotAhead_store_bounded",
+    )]
     # The headroom results: every axiom pin of the two UnitHeadroom modules.  They show the four headroom
     # records satisfiable, the exact numeric conditions they impose, what `Session::invariant` gives for
     # every session, and a session over fresh states that passes it.  A pin outside this list can be
@@ -3311,6 +3349,50 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.SpqrT3." + n for n in (
         "skip_message_keys_refines",
     )]
+    # The sparse ratchet's reachable-store results and the definitions they are stated with
+    # (Proofs/SparseReachableStore.lean).
+    + ["Proofs.SparseReachableStore." + n for n in (
+        "KeysBelowCounter",
+        "KeysAtMostCounter",
+        "ChainsNotAhead",
+        "ReachableStore",
+        "Op",
+        "Op.apply",
+        "run",
+        "init_keysBelowCounter",
+        "init_chainsNotAhead",
+        "init_reachableStore",
+        "advance_keysBelowCounter",
+        "advance_chainsNotAhead",
+        "receiveAdvance_keysBelowCounter",
+        "send_keysBelowCounter",
+        "send_chainsNotAhead",
+        "send_store_bounded",
+        "trySkipped_keysBelowCounter",
+        "skipMessageKeys_keysAtMostCounter",
+        "skipMessageKeys_keysBelowCounter_off",
+        "receive_keysBelowCounter",
+        "receive_chainsNotAhead",
+        "receive_store_bounded",
+        "evictOldest_keysBelowCounter",
+        "evictOldest_store_bounded",
+        "clearOldEpochs_keysBelowCounter",
+        "skipSurvivors_eq_of_keysAtMostCounter",
+        "skipSurvivors_eq_of_keysBelowCounter",
+        "apply_reachableStore",
+        "run_reachableStore",
+        "run_store_bounded",
+        "reachable_keysBelowCounter",
+        "reachable_store_bounded",
+        "reachable_skipSurvivors_eq",
+        "witness_reachable_holds_stored_keys",
+        "witness_store_past_its_counter_fails",
+        "skip_alone_leaves_a_key_at_the_counter",
+        "chainsNotAhead_needed_for_advance",
+        "receive_breaks_without_chainsNotAhead",
+        "receiveAdvance_reachableStore",
+        "decoded_chainsNotAhead_store_bounded",
+    )]
     # Package F: the statements of the retry-loop and decrypt_ratchet results, and the bodies of the
     # definitions they are written in (`#print`).
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
@@ -4591,6 +4673,17 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleT3." + n for n in (
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
+    )]
+    # The definitions the sparse ratchet's reachable-store results are stated with
+    # (Proofs/SparseReachableStore.lean).
+    + ["Proofs.SparseReachableStore." + n for n in (
+        "KeysBelowCounter",
+        "KeysAtMostCounter",
+        "ChainsNotAhead",
+        "ReachableStore",
+        "Op",
+        "Op.apply",
+        "run",
     )]
     # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
     + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
