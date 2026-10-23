@@ -13,7 +13,8 @@ that starts and passes.  This gate compares, for each script, the number of its 
   inside           controls labelled inside a composing proof (`INSIDE`)
   projection       controls labelled projections of a called theorem's conjunct (`PROJECTION`)
   statement_shape  statement-shape checks (`STATEMENT_SHAPE`)
-  pin              controls refused at a pin (`MUTANTS` entries whose place is `('pin', name)`)
+  pin              controls refused at a pin (`MUTANTS` entries whose place is `('pin', name)` or
+                   `('pin', name, 'check')`)
   leaf             every other control (refused in a leaf lemma)
   baselines        the unmodified copies the script requires Lean to accept first (the keys written in the `sources`
                    literal in `main`, as written: a key written twice counts twice here and once at run time)
@@ -21,7 +22,7 @@ that starts and passes.  This gate compares, for each script, the number of its 
 A count the script and the record disagree on is refused, naming the script and the class, so removing, adding or
 relabelling a control fails here unless the record is edited in the same change, where the diff of the record shows
 it.  The record must list exactly the negatives scripts of this directory that define the shared `check_labels`, so
-a sixth such script is not left out.
+a newly added such script is not left out.
 
 The scripts keep their own copies of the shared helpers (`check_labels`, `passed_through`, the guard, the refusal
 check, `check_complete` and the rest named in SHARED); this gate also requires each named helper to be bound exactly

@@ -102,7 +102,8 @@ REPLAY_CONC = "    lifecycle.responder_replay_fingerprint store kemId sk true =\
 
 # (copy, name, [(old text, new text), ...] each occurring exactly once, a regular expression the refused
 #  output must contain, where the refusal must be: declarations one of whose lines holds an error, or
-#  ('pin', name) for the `#guard_msgs` line of the statement pin `#check @name`)
+#  ('pin', name) for the `#guard_msgs` line of the `#print` pin of `name`, or ('pin', name, 'check') for that of
+#  its statement pin `#check @name`)
 MUTANTS = [
     # inside the composing proofs
     ('module', 'second-call-claimed-on-the-one-time-path',
@@ -146,7 +147,7 @@ MUTANTS = [
      [(REPLAY_HEAD, REPLAY_HEAD.replace("(kemId : U32)", "(kem : U32)")),
       (REPLAY_CONC, REPLAY_CONC.replace("store kemId sk", "store kem sk"))],
      r'Docstring on `#guard_msgs` does not match generated message',
-     ('pin', 'Tacenta.UnitLifecycleResponderEstablishReplay.replay_refused_of_mem')),
+     ('pin', 'Tacenta.UnitLifecycleResponderEstablishReplay.replay_refused_of_mem', 'check')),
 ]
 
 COMPOSING = {
@@ -287,6 +288,11 @@ def check_labels(text):
     (`passed_through`) read off `text`, the module without its pins."""
     wheres = {name: where for _, name, _, _, where in MUTANTS}
     markers = {name: marker for _, name, _, marker, _ in MUTANTS}
+    for name, where in wheres.items():
+        if isinstance(where, tuple) and not (where[:1] == ('pin',) and (len(where) == 2 or (len(where) == 3 and
+                                                                                           where[2] == 'check'))):
+            raise SystemExit(f'LABELS BROKEN: {name} is refused at {where}, which is neither (\'pin\', name), a '
+                             f'`#print` pin, nor (\'pin\', name, \'check\'), a `#check @` pin')
     for name, _ in list(INSIDE.items()) + list(PROJECTION.items()) + list(STATEMENT_SHAPE.items()):
         if name not in wheres:
             raise SystemExit(f'LABELS BROKEN: {name} is labelled but is not a control')
@@ -457,12 +463,14 @@ def declaration_lines(text, name):
     return None
 
 
-def pin_line(text, name):
-    """The 1-based line of the `#guard_msgs in` that precedes `#print name` (a definition's pin) or `#check @name` (a
-    statement pin), or None."""
+def pin_line(text, name, form='print'):
+    """The 1-based line of the `#guard_msgs in` that precedes the pin of `name` in the one form its control names:
+    `#print name` (a definition's pin, `form` 'print') or `#check @name` (a statement pin, `form` 'check'), or None.
+    Only that form is matched, so a name pinned both ways cannot resolve to the other pin."""
+    command = {'print': f'#print {name}', 'check': f'#check @{name}'}[form]
     lines = text.split('\n')
     for k in range(1, len(lines)):
-        if lines[k] in (f'#print {name}', f'#check @{name}') and lines[k - 1].startswith('#guard_msgs'):
+        if lines[k] == command and lines[k - 1].startswith('#guard_msgs'):
             return k
     return None
 
@@ -505,10 +513,12 @@ def check_refused(name, status, output, marker, log, mutated, where):
                          f'exit={status}; {log}')
     blocks = error_blocks(output)
     if isinstance(where, tuple):
-        line = pin_line(mutated, where[1])
+        form = where[2] if len(where) == 3 else 'print'
+        line = pin_line(mutated, where[1], form)
         if line is None:
-            raise SystemExit(f'FAILED control {name}: the copy has no `#print {where[1]}` or `#check @{where[1]}` '
-                             f'pin, so its refusal cannot be the pin\'s; {log}')
+            shown = f'#print {where[1]}' if form == 'print' else f'#check @{where[1]}'
+            raise SystemExit(f'FAILED control {name}: the copy has no `{shown}` pin, so its refusal cannot be the '
+                             f'pin\'s; {log}')
         spans = [(where[1], (line, line))]
     else:
         spans = []

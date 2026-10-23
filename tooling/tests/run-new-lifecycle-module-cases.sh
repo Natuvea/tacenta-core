@@ -127,7 +127,7 @@ unchanged late-name
 
 # ---- scaffold ------------------------------------------------------------------------------------------------
 run dry-run 0 "${inplace[@]}" "$tool" "${args[@]}" --check
-says dry-run "11 file(s) would change"; unchanged dry-run
+says dry-run "12 file(s) would change"; unchanged dry-run
 run scaffold 0 python3 "$tool" "${args[@]}"
 says scaffold "tooling/gate-inventory.py --write: exit 0"; says scaffold "tacenta-proofs/scripts/attest.py: exit 0"
 cases=$((cases + 1))
@@ -143,6 +143,7 @@ $audit
 tacenta-proofs/translation/Translation/$M.lean
 tooling/gate-inventory.json
 tooling/gate-mutations.json
+tooling/tests/run-check-negatives-control-counts-cases.sh
 tooling/tests/run-no-sorry-parts-cases.sh
 tooling/tests/run-proof-script-cases.sh"
 got="$(g status --porcelain | awk '{print $2}' | sort)"
@@ -159,6 +160,8 @@ next_line build-controls tooling/gate-inventory.json '    "tacenta-proofs/script
   "    \"tacenta-proofs/scripts/$N\","
 next_line gate-list ASSURANCE-OBLIGATIONS.md '  `check-restored-negatives.py`,' "  \`$N\`,"
 next_line parts-stubs tooling/tests/run-no-sorry-parts-cases.sh "  check-restored-negatives.py" "  $N"
+next_line counts-cases-named tooling/tests/run-check-negatives-control-counts-cases.sh \
+  "  check-responder-successor-negatives.py" "  $N"
 next_line record tacenta-proofs/scripts/negatives-control-counts.json \
   "$(grep '^    "check-responder-successor-negatives.py": ' "$root/tacenta-proofs/scripts/negatives-control-counts.json")" \
   "    \"$N\": {\"inside\": 0, \"projection\": 0, \"statement_shape\": 0, \"pin\": 0, \"leaf\": 0, \"baselines\": 2},"
@@ -184,6 +187,9 @@ recorded="$(python3 -B -c 'import json, sys; print(len(json.load(open(sys.argv[1
 says counts-gate "$((recorded + 1)) scripts match negatives-control-counts.json"
 run parts-runner 0 bash tooling/tests/run-no-sorry-parts-cases.sh
 says parts-runner "no-sorry-parts-cases:"
+# A fresh scaffold passes the count gate's case runner too: its list of scripts names the new one.
+run counts-cases 0 bash tooling/tests/run-check-negatives-control-counts-cases.sh
+says counts-cases "check-negatives-control-counts cases:"
 run json 0 python3 -c "import json; json.load(open('tooling/gate-inventory.json')); json.load(open('tooling/gate-mutations.json'))"
 (cd "$clone/tacenta-proofs" && NO_SORRY_LIST=1 bash scripts/no-sorry.sh) > "$work/table"
 run parts-resolve 0 python3 tacenta-proofs/scripts/no-sorry-parts.py resolve --table "$work/table" \

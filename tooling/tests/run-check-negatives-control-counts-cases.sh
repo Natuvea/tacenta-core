@@ -10,7 +10,7 @@
 # Part 1 (run third), the count gate (`tacenta-proofs/scripts/check-negatives-control-counts.py`). Each case copies the gate,
 # its record and the negatives scripts the record lists into a fixture directory, changes one thing and runs the real gate
 # there: the unmodified copy is accepted; a control deleted with its label, a control relabelled, a control added,
-# a baseline added, the record missing a script or naming one too many, a record entry without a class, a sixth
+# a baseline added, the record missing a script or naming one too many, a record entry without a class, one more
 # script defining `check_labels` and not recorded, and one copy of a shared helper changed are each refused for
 # their own reason; a control deleted with its label and the record edited in the same change is accepted. The
 # scaffold's template (`templates/lifecycle-negatives.py.in`) is held too: a helper of the template changed, its
@@ -29,15 +29,24 @@ scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cases=0
-# Every lifecycle negatives script, by name; the list must equal the scripts the record lists (the gate itself requires
+# Every lifecycle negatives script, by name, one per line (`new-lifecycle-module.py scaffold` adds a new script here
+# after the entry its name sorts after); the list must equal the scripts the record lists (the gate itself requires
 # the record to list exactly the scripts carrying the shared check_labels), so a script added with its entry and not
 # named here fails this runner rather than going unheld.
-named=(check-responder-successor-negatives.py check-responder-reply-negatives.py
-  check-responder-reply-receipt-negatives.py check-send-preservation-negatives.py
-  check-initiator-second-send-negatives.py check-receive-preservation-negatives.py
-  check-initiator-second-message-negatives.py check-responder-second-receipt-negatives.py
-  check-responder-repeated-frame-negatives.py check-responder-establish-replay-negatives.py
-  check-tampered-reply-negatives.py check-sparse-skip-kind-negatives.py)
+named=(
+  check-responder-successor-negatives.py
+  check-responder-reply-negatives.py
+  check-responder-reply-receipt-negatives.py
+  check-send-preservation-negatives.py
+  check-initiator-second-send-negatives.py
+  check-receive-preservation-negatives.py
+  check-initiator-second-message-negatives.py
+  check-responder-second-receipt-negatives.py
+  check-responder-repeated-frame-negatives.py
+  check-responder-establish-replay-negatives.py
+  check-tampered-reply-negatives.py
+  check-sparse-skip-kind-negatives.py
+)
 listed="$(printf '%s\n' "${named[@]}" | sort)"
 in_record="$(python3 -B -c 'import json, sys; print("\n".join(sorted(json.load(open(sys.argv[1]))["scripts"])))' \
   "$scripts/negatives-control-counts.json")"
@@ -111,6 +120,10 @@ import importlib.util, re, sys
 spec = importlib.util.spec_from_file_location("negatives", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+if not m.MUTANTS:
+    # A script just scaffolded holds no control yet (and refuses to run); its module may have no pins section.
+    print("NO-CONTROLS")
+    sys.exit(0)
 text = m.without_pins(m.MODULE.read_text(), m.MODULE)
 m.check_labels(text)
 if not m.PROJECTION:
@@ -134,6 +147,12 @@ PY
   rc=$?
   set -e
   cases=$((cases + 1))
+  if [ "$rc" -eq 0 ] && [ "$out" = NO-CONTROLS ] && [ "$(python3 -B -c 'import json, sys
+entry = json.load(open(sys.argv[1]))["scripts"][sys.argv[2]]
+print(sum(entry[k] for k in ("inside", "projection", "statement_shape", "pin", "leaf")))' \
+      "$scripts/negatives-control-counts.json" "$s")" = 0 ]; then
+    continue
+  fi
   if [ "$rc" -eq 0 ] && [ "$out" = NO-PROJECTION ] && [ "$(python3 -B -c 'import json, sys
 print(json.load(open(sys.argv[1]))["scripts"][sys.argv[2]]["projection"])' \
       "$scripts/negatives-control-counts.json" "$s")" = 0 ]; then
@@ -146,6 +165,61 @@ print(json.load(open(sys.argv[1]))["scripts"][sys.argv[2]]["projection"])' \
   fi
 done
 
+
+# A pin control names the form of the pin it is refused at, and the shared pin_line matches that form only. A module
+# that pins one name both ways (a `#check @X` statement pin above its `#print X` pin) is built here, and a refusal at
+# the `#print` pin is checked to count for a control placed at ('pin', X) and not for one placed at
+# ('pin', X, 'check'), and the reverse; a place of another shape is refused at start-up. The widened helper this
+# replaced took the first pin of either form and reported the `#print` control's refusal as at no named place.
+set +e
+out="$(python3 -B - "$scripts" "${named[@]}" <<'PY' 2>&1
+import importlib.util, sys
+scripts, names = sys.argv[1], sys.argv[2:]
+ran = 0
+text = "\n".join(["theorem X : True := trivial", "/--", "info: X : True", "-/", "#guard_msgs in", "#check @X",
+                  "/--", "info: theorem X : True :=", "trivial", "-/", "#guard_msgs in", "#print X", ""])
+lean_output = "copy.lean:11:0: error: Docstring on `#guard_msgs` does not match generated message:\n  changed\n"
+for script in names:
+    spec = importlib.util.spec_from_file_location("negatives", f"{scripts}/{script}")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    if m.pin_line(text, "X") != 11 or m.pin_line(text, "X", "print") != 11 or m.pin_line(text, "X", "check") != 5:
+        sys.exit(f"WRONG  pin-form:{script}: pin_line resolved {m.pin_line(text, 'X')}, "
+                 f"{m.pin_line(text, 'X', 'check')}, expected 11 for #print and 5 for #check @")
+    place, _ = m.check_refused("probe", 1, lean_output, "does not match", "log", text, ("pin", "X"))
+    if place != "the pin of X":
+        sys.exit(f"WRONG  pin-form:{script}: a refusal at the #print pin was placed at {place}")
+    try:
+        m.check_refused("probe", 1, lean_output, "does not match", "log", text, ("pin", "X", "check"))
+    except SystemExit as refusal:
+        if "no error at the named place" not in str(refusal):
+            sys.exit(f"WRONG  pin-form:{script}: refused for another reason: {refusal}")
+    else:
+        sys.exit(f"WRONG  pin-form:{script}: a refusal at the #print pin was counted for the #check @ pin")
+    ran += 2
+    if not m.MUTANTS:  # a script just scaffolded: no labels to check yet
+        continue
+    saved = m.MUTANTS
+    m.MUTANTS = list(saved) + [("module", "probe-bad-place", [], "x", ("pin", "X", "statement"))]
+    try:
+        m.check_labels(m.without_pins(m.MODULE.read_text(), m.MODULE))
+    except SystemExit as refusal:
+        if "LABELS BROKEN: probe-bad-place is refused at" not in str(refusal):
+            sys.exit(f"WRONG  pin-form:{script}: a bad place refused for another reason: {refusal}")
+    else:
+        sys.exit(f"WRONG  pin-form:{script}: a pin place of another shape was accepted")
+    m.MUTANTS = saved
+    ran += 1
+print(ran)
+PY
+)"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ]; then
+  printf '%s\n' "$out" >&2
+  exit 1
+fi
+cases=$((cases + out))
 
 # check_complete itself, on SIMULATED runs: no Lean runs here. For each script, the results and the Lean
 # exit statuses (RUNS) that `main` would leave after a whole run are built from its lists and accepted; then
@@ -163,6 +237,8 @@ for script in names:
     spec = importlib.util.spec_from_file_location("negatives", path)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
+    if not m.MUTANTS:  # a script just scaffolded: nothing to simulate; it refuses to run with no control
+        continue
     main = next(n for n in ast.parse(open(path).read()).body if isinstance(n, ast.FunctionDef) and n.name == "main")
     keys = next(n.value.keys for n in ast.walk(main) if isinstance(n, ast.Assign)
                 and isinstance(n.value, ast.Dict) and any(getattr(t, "id", "") == "sources" for t in n.targets))
@@ -330,10 +406,10 @@ make_case record-unreadable
 printf '{"scripts": ' > "$work/record-unreadable/negatives-control-counts.json"
 expect_fail record-unreadable "negatives-control-counts.json cannot be read as a record of scripts"
 
-# A sixth script that carries the shared label check is not left out of the record.
-make_case sixth-script-unrecorded
-cp "$work/sixth-script-unrecorded/$sp" "$work/sixth-script-unrecorded/check-new-step-negatives.py"
-expect_fail sixth-script-unrecorded "check-new-step-negatives.py carries the shared check_labels and is not in negatives-control-counts.json"
+# One more script that carries the shared label check is not left out of the record.
+make_case unrecorded-script
+cp "$work/unrecorded-script/$sp" "$work/unrecorded-script/check-new-step-negatives.py"
+expect_fail unrecorded-script "check-new-step-negatives.py carries the shared check_labels and is not in negatives-control-counts.json"
 
 # One copy of a shared helper changed.
 make_case helper-copy-differs
@@ -343,7 +419,7 @@ edit helper-copy-differs check-initiator-second-send-negatives.py \
 expect_fail helper-copy-differs "check-initiator-second-send-negatives.py's copy of the shared check_labels differs from"
 
 # Ways around the one-text check: a decorator, a second binding of a shared name of any kind, a name
-# rebound through globals(), and a sixth script that carries check_labels under another spelling.
+# rebound through globals(), and one more script that carries check_labels under another spelling.
 make_case decorated-helper
 edit decorated-helper "$sp" $'\ndef check_labels(text):\n' $'\n@(lambda f: (lambda text: None))\ndef check_labels(text):\n'
 expect_fail decorated-helper "$sp's copy of the shared check_labels differs"
@@ -366,9 +442,9 @@ make_case rebinding-through-globals
 edit rebinding-through-globals "$sp" $'\ndef main():\n' $'\ndef main():\n    globals()[\'check_refused\'] = print\n'
 expect_fail rebinding-through-globals "$sp uses globals"
 for shape in $'def check_labels (text):\n    return None\n' $'from negatives import check_labels\n' $'import negatives\nnegatives.check_labels(\'\')\n'; do
-  make_case sixth-script-spelling
-  printf '%s' "$shape" > "$work/sixth-script-spelling/check-other-negatives.py"
-  expect_fail sixth-script-spelling "check-other-negatives.py carries the shared check_labels and is not in"
+  make_case unrecorded-script-spelling
+  printf '%s' "$shape" > "$work/unrecorded-script-spelling/check-other-negatives.py"
+  expect_fail unrecorded-script-spelling "check-other-negatives.py carries the shared check_labels and is not in"
 done
 
 # A main that does not run what the record counts: a stub, a missing or guarded completeness check,

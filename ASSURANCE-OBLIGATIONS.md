@@ -1552,7 +1552,7 @@ recorded decision or a target-closing slice:
   control and emptied-proof run,
   at least one accepting per baseline and one refusing per control and statement-shape check;
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
-  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
+  Its cases add seven ways around the one-text check, three spellings of one more script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
   The gate holds the scaffold's negatives template (`tacenta-proofs/scripts/templates/lifecycle-negatives.py.in`) to the same shared text and reads its `main` by the same rules, without counting it;
   its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (97 cases in all, the completeness check run on simulated results with no Lean).
   The gate also refuses a second binding of `main`,
@@ -1985,7 +1985,8 @@ template carries the helpers of the lifecycle negatives scripts character for ch
 standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
 `check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
-the script's own counts, its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
+the script's own counts, its name among the scripts `run-check-negatives-control-counts-cases.sh` copies (a list that
+must equal the record's), its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
 of a full run from its fixture's `no-sorry.sh` instead of a number written by hand, and names the edit when a script
 the run calls has no stub; a phase dropped from both `no-sorry.sh` and the parts file is therefore no longer caught
 there, and is caught by `tooling/tests/run-proof-script-cases.sh`, whose honest run lists every stubbed script

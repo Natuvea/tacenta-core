@@ -468,7 +468,8 @@ options that make its statement pins print whole) and its negatives script from
 `tacenta-proofs/scripts/templates/` (the negatives template carries the helpers the other lifecycle negatives
 scripts share, and `check-negatives-control-counts.py` holds it to them) and makes every edit to the shared files
 that does not depend on theorem names (the audit import, the `no-sorry.sh` phase and its part, the proof-script
-cases, the parts runner's stub, the script's entry in `negatives-control-counts.json`, the gate
+cases, the parts runner's stub, the script's entry in `negatives-control-counts.json` and its name in the count
+gate's case runner, the gate
 inventory and mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
 `tacenta-proofs/scripts/genpins.py` and puts its names on the four lists of `attest.py` and in the attestation
 negatives, moving the pinned case count by the cases it adds. Each new entry goes after the entry its name sorts
