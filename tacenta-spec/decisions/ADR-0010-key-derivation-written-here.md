@@ -14,17 +14,22 @@ does and why; it does not decide it.
   vetted, permissively licensed Rust crate provided it. That record describes
   its own decision and is not edited here.
 - **What the rule cost the key derivation.** `tacenta-kdf` wrapped RustCrypto's
-  `hmac`, `hkdf` and `sha2`. Charon and Aeneas could not read those crates
-  (their trait hierarchy and type-level block sizes do not elaborate), so
-  `hmac_sha256` and `hkdf_sha256` were two opaque axioms in every translation,
-  and the agreement hypotheses the T1 and T3 theorems take about them
+  `hmac`, `hkdf` and `sha2`. Translating those crates was tried under an
+  earlier Charon and Aeneas pin and failed: RustCrypto's trait hierarchy came
+  into the generated Lean, which ran to 57,272 lines that would not build
+  (`tacenta-proofs/upstream/README.md`), and that is why the KDF became its own
+  crate. It has not been re-tried at the current pin. So `hmac_sha256` and
+  `hkdf_sha256` were two opaque axioms in every translation, and the agreement
+  hypotheses the T1 and T3 theorems take about them
   (`HmacAgrees`, `HkdfAgrees` and their siblings, ASM-05) could not be shown of
   the code at all, only assumed.
-- **What was available.** The maintainer had written, in a separate,
-  unpublished repository, a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 in the
-  subset Aeneas translates, with Lean proofs that the translated code computes
-  a model written from FIPS 180-4, FIPS 198-1 and RFC 5869, and that this model
-  equals tacenta-model's `Model.Sha256` and `Model.Kdf`.
+- **What was available.** A SHA-256, an HMAC-SHA256 and an HKDF-SHA256 in the
+  subset Aeneas translates, written by the maintainer with tool assistance in a
+  separate, unpublished repository, with Lean proofs that the translated code
+  computes a model written from FIPS 180-4, FIPS 198-1 and RFC 5869, and that
+  this model equals tacenta-model's `Model.Sha256` and `Model.Kdf`. The code and
+  its proofs have been read so far only by tool-assisted sessions; no human has
+  yet read the three Rust files or their proofs.
 
 ## Decision
 
@@ -50,10 +55,10 @@ does and why; it does not decide it.
 - **Adopt the code as an external dependency.** Depend on a published crate
   instead of copying it. Rejected for now: the source is not published, so
   there is nothing to depend on, and a dependency would add a supply-chain
-  input for code whose only reader is its author. Publishing the source is
-  still open (Consequences).
-- **Translate RustCrypto's crates.** Not possible with the toolchain pinned
-  here, for the reason in Context.
+  input for code no human has yet read. Publishing the source is still open
+  (Consequences).
+- **Translate RustCrypto's crates.** Tried under an earlier pin and failed, for
+  the reason in Context; not re-tried at the current pin.
 
 ## Consequences
 
@@ -62,8 +67,8 @@ does and why; it does not decide it.
   differential test against the RustCrypto crates it replaced
   (`kdf/tests/differential.rs`); the RFC test vectors; and an exact inventory
   of the compiled code's branches and indexed accesses, compared in CI
-  (`tooling/check-constant-time-asm.sh`). None of these is a reading by
-  someone other than the author.
+  (`tooling/check-constant-time-asm.sh`). None of these is a human reading:
+  every review so far was by tool-assisted sessions.
 - **Limits.**
   - Provenance: the source repository is unpublished and carries no licence
     statement, so a reader cannot check the pinned commit or digests. Whether

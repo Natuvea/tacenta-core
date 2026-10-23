@@ -63,9 +63,10 @@ neither use (ADR-0002). The `F` prefix is what keeps the handshake's key
 derivation separate from signing (session-establishment.md, Notation).
 
 XEdDSA is implemented in `tacenta-core` over `curve25519-dalek` and
-`ed25519-dalek`, not taken from a vetted crate. That is the deliberate exception
-recorded in ADR-0002 and LIMITATIONS.md, "Trusted, not verified". Not assumed
-against ADV-03.
+`ed25519-dalek`, not taken from a vetted crate: the exception recorded in
+ADR-0002. Since 2026-10-22 it is one of two, with the key derivation (ASM-05),
+proposed in ADR-0010; LIMITATIONS.md, "Trusted, not verified", lists both. Not
+assumed against ADV-03.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.
 - **Proofs:** none. The signature check is translated in the lifecycle leaf
@@ -99,9 +100,11 @@ HMAC-SHA256 is a pseudorandom function, and HKDF-SHA256 is a dual pseudorandom
 function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
-own SHA-256, HMAC and HKDF: code that `tacenta-core`'s maintainer wrote in a
-separate, unpublished repository and copied here, pinned in `kdf/src/lib.rs` by
-commit and file digests. Eight translations include those bodies. That they compute
+own SHA-256, HMAC and HKDF: code written by `tacenta-core`'s maintainer with
+tool assistance in a separate, unpublished repository and copied here, pinned in
+`kdf/src/lib.rs` by commit and file digests. It has been read so far only by
+tool-assisted sessions; no human has yet read the three Rust files or their
+proofs. Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
 vectors check against those RFCs and nothing proves to be them, and on the
 agreement proofs below. Their timing is not measured.
@@ -141,8 +144,12 @@ In particular:
   - The refinements take agreement hypotheses saying the key derivation
     computes what the model's HMAC and HKDF compute: `HmacAgrees` and
     `HkdfAgrees` (`Translation/T3.lean`), `SessionT3.HkdfAgrees`,
-    `SpqrHkdfAgrees`, `BraidHmacAgrees` and `BraidHkdfAgrees`. The theorems
-    still take them. They are also proved of the translated code (HKDF for
+    `SpqrHkdfAgrees`, `BraidHmacAgrees`, `BraidHkdfAgrees` and
+    `TripleHkdfAgrees`, with their copies on the units. The T1 theorems and the
+    satisfiability witnesses take totality hypotheses about the same functions:
+    `HmacTotal` and `HkdfTotal` (`Translation/T1.lean`, `SessionT1.lean`),
+    `HmacSha256Total` and `HkdfSha256Total` (`BraidT1.lean`) and `LawHkdf`.
+    The theorems still take all of them. They are also proved of the translated code (HKDF for
     outputs of at most 8160 bytes) in the six translations whose theorems take
     them: the Session unit's (`UnitLifecycleKdf`); the classical ratchet's, the
     PQXDH session's, the sparse ratchet's and the Braid's
