@@ -1,5 +1,5 @@
-/- Copied from a separate, unpublished repository of this project's maintainer that holds a SHA-256,
-HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
+/- Copied from a separate, unpublished repository, written by the maintainer with tool assistance, that
+holds a SHA-256, HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
 commit and file digests): its proofs file `T1Kdf.lean`, at commit `646fcdadb943`. Elaborated
 here against the Session unit's own translation of those bodies. Changes from the source: the
 translated crate's namespace is `tacenta_session_unit.tacenta_kdf`, the Session unit's

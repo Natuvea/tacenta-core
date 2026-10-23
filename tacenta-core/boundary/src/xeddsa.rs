@@ -8,9 +8,9 @@
 //! (negating the scalar when the derived point's sign bit is one), signing is
 //! Ed25519 with the nonce derived as `hash_1(a || M || Z)` for 64 random bytes
 //! `Z`, and verification is the standard Ed25519 equation against the converted
-//! public key. This module is the deliberate exception to the rule that
-//! primitives come from vetted libraries; the curve arithmetic underneath is
-//! still curve25519-dalek and ed25519-dalek.
+//! public key. This module is one of two exceptions to the rule that primitives
+//! come from vetted libraries (ADR-0002; the other is `tacenta-kdf`, ADR-0010);
+//! the curve arithmetic underneath is still curve25519-dalek and ed25519-dalek.
 //!
 //! **There are no published known-answer vectors for XEdDSA**, and none can be
 //! obtained: the specification does not carry any. So this primitive cannot be

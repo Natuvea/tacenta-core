@@ -169,16 +169,18 @@ flowchart TD
   are trusted and not verified here. A proof reaches the boundary through
   contracts that appear as hypotheses of the theorems that take them. The key
   derivation crate is translated rather than opaque: its HMAC-SHA256 and
-  HKDF-SHA256 are code copied from a separate, unpublished repository of this project's maintainer
-  (pinned in `tacenta-core/kdf/src/lib.rs` by commit and file digests). Eight
+  HKDF-SHA256 are code written by the maintainer with tool assistance in a
+  separate, unpublished repository and copied here (pinned in
+  `tacenta-core/kdf/src/lib.rs` by commit and file digests). Eight
   translations include it, and the six whose theorems take hypotheses about it
   prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),
   the classical ratchet's, the PQXDH session's, the sparse ratchet's and the
   Braid's (`KdfLeafAgreements`), and the three-leaf unit's
   (`KdfTripleUnitAgreements`); the lifecycle and Braid-and-erasure translations
   include it with no theorem about it. That the model is the RFCs', the code's
-  timing and its erasure are not proved, and no human has read the copied code
-  yet. Writing it here is a second exception to the rule that primitives are not
+  timing and its erasure are not proved, and the code has been read so far only
+  by tool-assisted sessions: no human has yet read the three Rust files or their
+  proofs. Writing it here is a second exception to the rule that primitives are not
   implemented in this repository, after XEdDSA, proposed in ADR-0010 and not yet
   accepted.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
@@ -474,7 +476,7 @@ workflow runs.
 | `rustup toolchain install 1.87` | 1.87, the `rust-version` every crate names | the MSRV compile check; skipped locally when absent, failed in CI |
 | `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
 | `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
-| `rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu` | matching the toolchain | the constant-time disassembly gate (`tooling/check-constant-time-asm.sh`), which reads the release assembly of `mac_eq` and `calculate_key_pair`; the host is always read, a missing Linux target is skipped locally, and CI fails with neither present |
+| `rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu` | matching the toolchain | the constant-time disassembly gate (`tooling/check-constant-time-asm.sh`), which reads the release assembly of `mac_eq` and `calculate_key_pair`; the host is always read, a missing Linux target is skipped locally, and CI fails unless both are present |
 | `rustup toolchain install nightly-2026-07-15 --profile minimal` (and `--target` each Linux target to read) | the toolchain `tooling/ct-baselines/rust-toolchain.txt` names | the same gate's key-derivation half, which builds `tacenta-kdf` alone with that toolchain and compares its inventory with baselines read from it; skipped locally when absent, failed in CI |
 | Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, vector regeneration, and the differential harness the vector runner drives (`tacenta-model/Difftest.lean`) |
 | the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when the cache has not been fetched (the test is for a built `Mathlib.olean`, not the package directory) |

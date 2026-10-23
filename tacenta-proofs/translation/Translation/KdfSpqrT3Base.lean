@@ -2,8 +2,8 @@
 -- Translation/KdfT3Base.lean. Do not edit: the script's `--check` mode
 -- regenerates this count-checked port and rejects drift.
 
-/- Copied from a separate, unpublished repository of this project's maintainer that holds a SHA-256,
-HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
+/- Copied from a separate, unpublished repository, written by the maintainer with tool assistance, that
+holds a SHA-256, HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
 commit and file digests): its proofs file `T3Base.lean`, at commit `646fcdadb943`. Elaborated
 here against the `TacentaSpqr` translation of those bodies. Changes from the source: the
 translated crate's namespace is `tacenta_spqr.tacenta_kdf`, that translation's

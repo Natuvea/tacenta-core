@@ -54,10 +54,11 @@ itself is a report we want.
 
 ## What is in scope
 
-- The primitives, and their composition: X25519, HKDF/HMAC-SHA256, the
-  AES-CBC + HMAC AEAD, ML-KEM-1024, Ed25519 and **XEdDSA in particular**, which
-  is our custom implementation and the deliberate exception to using vetted
-  code.
+- The primitives, and their composition: X25519, the AES-CBC + HMAC AEAD,
+  ML-KEM-1024, Ed25519, and **in particular the two we implement ourselves
+  rather than take from vetted code**: XEdDSA (ADR-0002) and, since 2026-10-22,
+  `tacenta-kdf`'s SHA-256, HMAC-SHA256 and HKDF-SHA256 (ADR-0010, proposed),
+  which no human has yet read.
 - PQXDH session establishment, the Double and Triple Ratchets, the sparse
   post-quantum ratchet, the braid, and erasure coding.
 - Every decoder. They parse attacker-controlled bytes and the panic-freedom

@@ -19,8 +19,8 @@ The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied b
 return and equal tacenta-model's: `HmacAgrees` and `HkdfAgrees` as theorems, the other KDF propositions the
 lifecycle results take, and `decrypt_ratchet`'s complete refinement without them.
 
-`tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from a separate, unpublished
-repository of this project's maintainer (`tacenta-core/kdf/src/lib.rs` pins it by commit and file digests and
+`tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 written by the maintainer with tool
+assistance in a separate, unpublished repository and copied here (`tacenta-core/kdf/src/lib.rs` pins it by commit and file digests and
 says what changed). Charon translates them
 into the Session unit (`run-aeneas.sh`, `--include-kdf`), so `tacenta_session_unit.tacenta_kdf.hmac_sha256`
 and `hkdf_sha256` are definitions there, one-line wrappers over `hmac.hmac_sha256` and

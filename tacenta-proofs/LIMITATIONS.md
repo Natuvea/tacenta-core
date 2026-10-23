@@ -269,8 +269,9 @@ excludes it.
   vetted crates for X25519, AES-256-CBC, Ed25519, the SHA-256 and HMAC that the root crate's identity and group
   digests and the AEAD's tag check on decryption call, the SHA-512 inside XEdDSA, and ML-KEM-1024 from
   libcrux-ml-kem. Since 2026-10-22
-  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF copied from
-  a separate, unpublished repository of this project's maintainer (pinned in `kdf/src/lib.rs` by commit and file digests), translated, and proved of the
+  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF written by the maintainer
+  with tool assistance in a separate, unpublished repository and copied here (pinned in `kdf/src/lib.rs` by commit
+  and file digests), translated, and proved of the
   Session unit's translation to compute tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf`
   (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the classical ratchet's, the PQXDH session's, the sparse
   ratchet's, the Braid's and the three-leaf unit's copies by the same proofs ported (`KdfLeafAgreements`,
@@ -280,8 +281,8 @@ excludes it.
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
   The copied code is about 1.5 to 2.1 times slower than RustCrypto on these three functions by its source's own
-  measurement, not repeated here, and no human has read it or its proofs; every review so far was by
-  tool-assisted sessions. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
+  measurement, not repeated here, and it has been read so far only by tool-assisted sessions: no human has yet read
+  the three Rust files or their proofs. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
   translation, and no theorem says how it computes its tag. On encryption that tag now comes from the copied
   HMAC, while decryption checks it with RustCrypto's `hmac` and `sha2` (`boundary/src/aead.rs`); that the two
   compute the same tag rests on tests (`kdf/tests/differential.rs` and the AEAD round-trip tests), not on
@@ -532,7 +533,8 @@ from it. This holds here by delegation and discipline, not by proof.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
 - **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
-  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied from a separate, unpublished repository of this project's maintainer,
+  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF written by the maintainer with tool assistance in a
+  separate, unpublished repository and copied here,
   whose comments say every branch and every index is on a length or a loop counter. They are loops, and this
   workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
   rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`

@@ -3,9 +3,9 @@
 //!
 //! # Where the bodies come from
 //!
-//! The three modules below were written by this project's maintainer in a
-//! separate repository that is not published, from FIPS 180-4, FIPS 198-1 and
-//! RFC 5869, in the subset Charon and Aeneas translate, and copied here. A
+//! The three modules below were written by the maintainer with tool assistance
+//! in a separate, unpublished repository, from FIPS 180-4, FIPS 198-1 and RFC
+//! 5869, in the subset Charon and Aeneas translate, and copied here. A
 //! reader outside the project cannot fetch that repository, so what pins the
 //! copy is its commit, `646fcdadb943`, and the SHA-256 digests of the three
 //! source files:

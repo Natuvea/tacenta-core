@@ -283,10 +283,10 @@ this section says in one place what is not proved.
   `Ratchet.decoded_receive_refines`, and an open premise for the other two.
   The panic-freedom theorems are untouched: every `decoded_*_no_panic` in
   `ImportInv.lean` is unconditional in the counters.
-- **The primitives are opaque, except the KDF.** X25519, ML-KEM, the AEAD, and the SHA-256 and HMAC
-  that the root crate and the AEAD's tag check on decryption call directly, are assumed at the boundary,
+- **The primitives are opaque, except the KDF.** X25519, ML-KEM, the AEAD, the SHA-256 and HMAC
+  that the root crate and the AEAD's tag check on decryption call directly, and the SHA-512 inside XEdDSA, are assumed at the boundary,
   and no proof here says anything about them. Since 2026-10-22 `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256
-  are bodies copied from a separate, unpublished repository of this project's maintainer (pinned in `tacenta-core/kdf/src/lib.rs` by
+  are bodies written by the maintainer with tool assistance in a separate, unpublished repository and copied here (pinned in `tacenta-core/kdf/src/lib.rs` by
   commit and file digests) and translated into every unit that calls them. For the Session unit's translation, `UnitLifecycleKdf.hmacAgrees` and `UnitLifecycleKdf.hkdfAgrees`
   prove that they return and equal tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf` (HKDF for outputs of
   at most 8160 bytes), on the kernel's three axioms. The same proofs, ported onto the classical ratchet's, the session's,
@@ -4471,8 +4471,8 @@ case; a heartbeat or deterministic timeout never counts as the named refusal.
 
 Location: `Translation/UnitLifecycleKdf.lean`.
 
-Since 2026-10-22 `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from a separate,
-unpublished repository of this project's maintainer (`tacenta-core/kdf/src/lib.rs` names the files, their digests and
+Since 2026-10-22 `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 written by the maintainer with
+tool assistance in a separate, unpublished repository and copied here (`tacenta-core/kdf/src/lib.rs` names the files, their digests and
 the one changed line in two of them), and `scripts/run-aeneas.sh` translates them into every unit that calls them. In the Session unit
 `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256` are now definitions, one-line wrappers over the translated
 `hmac.hmac_sha256` and `hkdf.hkdf_sha256`, where they were two opaque axioms. The proofs that came with the copied code
@@ -4534,8 +4534,8 @@ decryption and the identity and group digests, which still call RustCrypto; that
 compiled Rust (Charon and Aeneas are trusted, as for every translated result); the other fields of
 `DecryptRatchetAgreements` and every other premise of the lifecycle results, which stay open.
 
-**Review.** Every review of the copied Rust and of its proofs so far was made by tool-assisted sessions; no human
-reading is recorded. The source repository is not published, so a reader outside the project can check the copy only
+**Review.** The copied Rust and its proofs have been read so far only by tool-assisted sessions; no human has yet read
+the three Rust files or their proofs. The source repository is not published, so a reader outside the project can check the copy only
 against the digests `lib.rs` records and through the proofs carried here. The copied code is about 1.5 to 2.1 times
 slower than RustCrypto on SHA-256, HMAC and HKDF by a measurement made in the source repository, not repeated here.
 
