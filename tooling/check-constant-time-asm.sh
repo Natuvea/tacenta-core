@@ -378,7 +378,7 @@ main() {
     fail "tooling/ct-baselines/rust-toolchain.txt is missing or empty; the KDF baselines name no toolchain"
   elif [ -z "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
     fail "tooling/ct-baselines/rustc-version.txt is missing or empty; the KDF baselines name no compiler"
-  elif ! rustup toolchain list 2>/dev/null | grep -Eq "^${kdf_tc}(-| |$)"; then
+  elif ! grep -Eq "^${kdf_tc}(-| |$)" <<<"$(rustup toolchain list 2>/dev/null || true)"; then
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
       fail "this is CI and the KDF's toolchain $kdf_tc is not installed; the workflow's rust_target step installs it"
     fi
@@ -446,7 +446,7 @@ main() {
   # built and read only with the toolchain the baselines were read from.
   local kdf_file kdf_base kdf_inv divides
   [ -z "$kdf_skip" ] || continue
-  if [ "$t" != "$host" ] && ! printf '%s\n' "$kdf_targets" | grep -qx "$t"; then
+  if [ "$t" != "$host" ] && ! grep -qx "$t" <<<"$kdf_targets"; then
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
       say "$t: tacenta_kdf: the KDF's toolchain $kdf_tc has no $t target; the workflow's rust_target step adds it" >&2
       kdf_status=1; kdf_reason="the key derivation's toolchain lacks a target CI reads"
