@@ -80,6 +80,7 @@ sh_controls=(
 py_controls=(
   check-lifecycle-translation-coverage.py
   check-initial-dispatch-negatives.py
+  check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
@@ -100,6 +101,7 @@ py_controls=(
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
   check-responder-second-receipt-negatives.py
+  check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py
@@ -175,6 +177,7 @@ for called in \
   check-session-satisfiability-negatives.sh \
   check-port-negatives.sh \
   check-initial-dispatch-negatives.py \
+  check-initiator-repeated-reply-negatives.py \
   check-initiator-second-message-negatives.py \
   'attest.py --compare-audit' \
   check-lean-constructs.sh \
@@ -205,6 +208,7 @@ for called in \
   check-responder-reply-negatives.py \
   check-responder-reply-receipt-negatives.py \
   check-responder-second-receipt-negatives.py \
+  check-responder-second-send-negatives.py \
   check-send-preservation-negatives.py \
   check-initiator-second-send-negatives.py \
   check-receive-preservation-negatives.py \

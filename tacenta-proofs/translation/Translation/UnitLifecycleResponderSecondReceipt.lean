@@ -118,7 +118,8 @@ taken.  The laws are assumed at the real constants, not shown of them.
 
 ## What it does not show
 
-* A second reply (the responder's next `encrypt` at `sB'''`) and its receipt, the header's third chunk, the responder's
+* A second reply (the responder's next `encrypt` at `sB'''`; shown, on the same run, in
+  `UnitLifecycleResponderSecondSend`) and its receipt, the header's third chunk, the responder's
   first sampling send and every later step; the responder's check of the completed encapsulation key, the first step
   at which both parties' KEMs act on one key pair.
 * That a tampered, foreign or replayed second frame is refused: no AEAD authenticity law is assumed, and the `Aead` arm

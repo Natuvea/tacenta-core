@@ -3019,7 +3019,8 @@ a reviewed external assumption, and the premise stays a condition on the run for
 meets the law; that a frame an attacker can produce meets the premise; a frame whose header bytes were changed, a frame
 shorter than the header or of another type; the refusal when the reply's ratchet key is the peer key or the draw's agreement
 is refused; that the refusal's source equals the honest receipt's; a run in which the honest reply is received after a
-refused tampered frame; tamper refusal on any other route; redelivery of the honest reply. The statement pin of
+refused tampered frame; tamper refusal on any other route; redelivery of the honest reply, here (its delivery a second
+time after the first receipt is the paragraph on the reply delivered a second time). The statement pin of
 `initiator_refuses_tampered_reply` prints the whole statement, the law (its first hypothesis) included (the module sets
 the two `pp` options before its pins), which is still not the whole elaborated statement: what Lean's printing leaves out
 is held by the build and by reading only, as for every statement pin.
@@ -3149,7 +3150,7 @@ statement: what Lean's printing leaves out is held by the build and by reading o
 success headline's conclusion only the four calls, the plaintext equation and the invariant and ceilings after the
 receive are consumed by a later proof; its other conjuncts are pinned and used by no later proof. **The budget** after
 the receive (room for every `j` with `j + 3 < u32::MAX`) is what the composition derives; by reading it is exact there (the
-clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply and its receipt, the header's third chunk, the responder's first sampling send
+clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply (shown, on the same run, in the next paragraph) and its receipt, the header's third chunk, the responder's first sampling send
 and every later step, among them the responder's check of the completed encapsulation key, the first step at which both
 parties' KEMs act on one key pair; a tampered, foreign or replayed second frame's refusal (no AEAD authenticity law); a
 receive out of order, with a stored or skipped key, or with more than one chunk held before it; code-level equality of the
@@ -3158,6 +3159,37 @@ related model sessions hold only bytes the parties received; that the per-run pr
 that the real primitives meet the records or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from
 `PrekeyStore::invariant`; the model's own `establishResponder` equality; that `Session::invariant` says a session is
 reachable.
+
+**The responder's second reply** (`UnitLifecycleResponderSecondSend.lean`). `responder_sends_second_reply` takes the
+responder's next operation on the run of `responder_receives_second_message`, under exactly that theorem's hypotheses
+(its two per-run premises, the responder's draw after the reply and `hfreshA`, included) and a bound on the plaintext
+`ptR2`: the public `encrypt` at the session the receipt returns, from the source the receipt left, returns the bare second
+reply frame, takes no draw, writes only the Triple Ratchet and refines the model's step, and the session it leaves passes
+`Session::invariant` (`encrypt_keeps_invariant_no_draw` at `NoHeaderReceived`, from the invariant and one unit of the
+budget the receipt leaves) and meets the four ceilings. The encrypt route's providers come from the invariant and the
+ceilings at the receipt's session (`encryptProviders_of_invariant`). No new law and no new per-run
+premise; the records are the reply's at the responder's source (ASSUMED, as above), `KemCloneAgrees` from its
+`DecryptRatchetAgreements`. The agreement's send at `NoHeaderReceived` takes no draw (`braid_send_noHeader`) and, by reading the
+walk of the translated send and the Rust, runs no KEM operation, and no fact relating the two parties' Braid KEMs is used by this step; the Braid send record
+still carries `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state (whether it could
+be dropped here is not checked). `first_send_second_reply_reachable` exhibits, at the real constants under the laws of
+`first_send_second_receipt_reachable` (all ASSUMED), a run at which every hypothesis holds; its conclusion is the
+definition `SecondReplyRun`. The encrypt there has one outcome, so no second arm is reached. All rest on the kernel and
+opaque constants with no compiler-trust axiom. Every statement pin and the `#print` pins of the five definitions print the
+whole statement (the module sets the two `pp` options before its pins), which is still not the whole elaborated
+statement: what Lean's printing leaves out is held by the build and by reading only, as for every statement pin. Of the
+headline's conclusion only the five calls, the two plaintext equations, the frame equation of the session after the send
+and its invariant and ceilings are consumed by a later proof; its other conjuncts are pinned and used by no later proof.
+**The budget** after the send (room for every `j` with `j + 3 < u32::MAX`) is read off the model session after the step:
+the send does not advance the clock, which is 2 there; more room is not claimed. **Not shown:** the initiator's `decrypt`
+of the second reply and every later step, among them the header's third chunk, the responder's first sampling send and
+the responder's check of the completed encapsulation key, the first step at which both parties' KEMs act on one key pair;
+a refusal `encrypt` can reach (none at this state; those reachable elsewhere are not covered); a tampered, foreign or
+replayed frame's refusal on this route; delivery out of order, a stored or skipped key, or more than one chunk held before
+a receive; a restored copy of either session; the one-time path in a run; that the related model sessions hold only
+bytes the parties received; that the per-run premises hold under honest random sources; that the real primitives meet
+the records or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own
+`establishResponder` equality; that `Session::invariant` says a session is reachable.
 
 **The first frame delivered a second time** (`Translation/UnitLifecycleResponderRepeatedFrame.lean`,
 `Translation/UnitLifecycleResponderEstablishReplay.lean`). On the run of the initiator's first send, the same bytes
@@ -3180,9 +3212,33 @@ call's success as a hypothesis. It is a statement about the translated code alon
 store and the model's exists in the tree, so that the model's `establishResponder` refuses the same delivery is not shown.
 Its statement pin prints the whole statement, with the same proviso. **Not shown:** a repeat at
 any later session (after the responder's reply, after the initiator's second message, on a restored copy) or of the reply
-at the initiator; a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
+at the initiator (the next paragraph takes the reply's, right after the first receipt); a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
 because the commit removed the key; a second delivery after a refused first call or after another store change; that the
 replay record keeps the entry for the store's life.
+
+**The reply delivered a second time** (`Translation/UnitLifecycleInitiatorRepeatedReply.lean`). On the run of the
+initiator's first send, the responder's receipt and its reply, the reply's bytes delivered again to the initiator, at the
+session `s''` its first receipt of them returned, are refused with no durable effect on the session.
+`initiator_repeated_reply_refused`: the public `Session::decrypt` passes the bare frame to its inner receive, which
+refuses it as out of order (`Triple(Classical(OutOfOrder))`: the reply's ratchet key is now the peer key held, no stored
+key matches and message 0 is below the receive count 1), and it returns `s''` itself, refining the model's step; `s''`
+passes `Session::invariant` and meets the four ceilings (from `initiator_receives_reply_successor` on the same run), so the
+session after the refusal does too. It takes one draw from the source, the candidate key drawn before the Triple's receive,
+as the model's step does, so "no effect" holds of the session and not of the random source. It rests on the kernel and
+opaque constants and on the hypotheses of `initiator_receives_reply` (the receipt's laws `AeadRoundTrip`,
+`DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, and the other laws and records named there, ASSUMED, with the
+per-run premise `hfreshB`), with one per-run premise more, that the second source holds a draw; `DhAgreeContributory` also
+carries the agreements of `s''`'s ratchet key and of the second draw with the reply's key, without which the refusal would
+be `handshake nonContributoryAgreement` instead. The general step `reply_again_refused_of_invariant` takes the invariant,
+`CounterHeadroom` and the relation to `replyReceiptSession` as hypotheses; on the run they are derived. The statement pins
+print the whole statement, which is still not the whole elaborated statement, as for every statement pin. **Not shown:** a
+delivery of the reply again at any other point (after the initiator's second send, after the responder's second message, on
+a restored copy, or after a first receipt that refused, where `hfreshB` fails); a frame that differs from the reply in its
+bytes on the run (a tampered reply at `s''`; the general step covers a frame that keeps the reply's header
+and changes its ciphertext, but no statement takes one on the run) and any other out-of-order delivery (a later message
+of the same chain arriving first,
+delay or loss, a receive that uses a stored skipped key); the arms an empty source or a refused agreement would give; that a
+refused call keeps `Session::invariant` in general (here the session returned is `s''` itself); every step that runs a KEM.
 
 **What is not shown.**
 

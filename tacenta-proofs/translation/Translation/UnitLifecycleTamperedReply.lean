@@ -103,7 +103,8 @@ real constants is exhibited.
 * A run in which the tampered frame is refused and the honest reply then received: the refusal leaves the session as it
   was, but the receipt after it, from a source one draw further on, is not composed.
 * Tamper refusal on any other route: the responder's receipt of the first frame, a restored session, later messages.
-* Redelivery of the honest reply.
+* Redelivery of the honest reply, here (its delivery a second time at the session the first receipt returns is refused
+  by `initiator_repeated_reply_refused` in `UnitLifecycleInitiatorRepeatedReply`).
 * That the real primitives meet the boundary records or the other laws (`AeadRoundTrip`, `DhAgreeContributory`,
   `DhAgreeSymmetric`, `DhPublicValid`), or that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`).
 -/

@@ -31,6 +31,7 @@ import Translation.UnitLifecycleReceivePreserve
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleTamperedReply
 import Translation.UnitLifecycleInitialDispatch
+import Translation.UnitLifecycleInitiatorRepeatedReply
 import Translation.UnitLifecycleInitiatorSecondMessage
 import Translation.DispatchEvidenceVacuity
 import Translation.SessionUnitBraidPreserveFacts
@@ -80,6 +81,7 @@ import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
 import Translation.UnitLifecycleResponderSecondReceipt
+import Translation.UnitLifecycleResponderSecondSend
 import Translation.UnitTripleInvModel
 import Translation.UnitLifecycleSendPreserve
 import Translation.UnitLifecycleInitiatorSecondSend
@@ -197,7 +199,8 @@ per-run premise that the responder's source after its reply holds a draw, its pu
 the reply either refuses `OutOfOrder` with the session unchanged, exactly when the initiator's new ratchet key is its
 first, or returns the initiator's plaintext; under the second per-run premise that the new key is not the first, the
 session it leaves passes `Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
-constants under assumed laws.  A second reply and every later step are not covered.
+constants under assumed laws.  The responder's next send is taken in `UnitLifecycleResponderSecondSend.lean` below;
+the initiator's receipt of it and every later step are not covered.
 `UnitLifecycleResponderEstablishReplay.lean` delivers the initiator's first frame to `establish_responder` a second
 time, at the store the first success committed, on the same run: when the bundle names the store's last-resort KEM key
 and no one-time curve prekey, the commit appends one replay-record entry and nothing else, and the second call returns
@@ -218,6 +221,20 @@ Neither the law nor the premise is shown of the real AEAD, and a frame with chan
 refusal leaves the state as it was and returns the error that maps to the model's refusal, of the same kind (the
 mapping is injective).  It adds no law; `VecRetainAgrees` stays assumed.  It is about one skip on the Session unit's
 copy of the code: the leaf statement and the three-leaf unit's copy still pin the kind in one direction only.
+`UnitLifecycleResponderSecondSend.lean` takes the responder's next operation on the run that ends in its receipt of
+the initiator's second message, under the receipt's two per-run premises (the responder's draw, and the initiator's
+new key not its first) and a bound on the plaintext: its public `encrypt` at the session the receipt returns returns
+the bare second reply frame with no draw, writes only the Triple Ratchet, refines the model's step, and leaves a
+session that passes `Session::invariant` and meets the four ceilings.  No law is added; a reach exhibits such a run at
+the real constants under assumed laws.  The initiator's receipt of that frame and every later step are not covered.
+`UnitLifecycleInitiatorRepeatedReply.lean` delivers the responder's reply to the initiator's `Session::decrypt` a second
+time, at the session its first receipt returned, on the same run, under the hypotheses of `initiator_receives_reply`
+(the receipt's laws, records and per-run premises, among them `hfreshB`, the responder's fresh ratchet key not being the
+peer key the initiator held) and one per-run premise more, that the second source holds a draw: the inner receive
+refuses it as out of order (the reply's ratchet key is now the peer key held and its
+number 0 is below the receive count 1), the session returned is the one given (which passes `Session::invariant` and
+meets the four ceilings), the source loses exactly one draw, and the step refines the model's.  No law is added beyond
+the receipt's; a delivery at a later session, of different bytes, or after a first receipt that refused is not shown.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

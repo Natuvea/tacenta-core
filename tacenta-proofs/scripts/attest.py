@@ -1758,6 +1758,17 @@ REQUIRED_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # the responder's reply delivered again to the initiator after its first receipt is refused as out of order with no durable effect (`UnitLifecycleInitiatorRepeatedReply`).
+    + ["Tacenta.UnitLifecycleInitiatorRepeatedReply." + n for n in (
+        "reply_again_receive_outOfOrder",
+        "reply_again_with_eviction",
+        "reply_again_model_refused",
+        "reply_key_agreement",
+        "reply_again_refused_of_invariant",
+        "initiator_repeated_reply_refused",
+        "byteTrace_seed_two_extra",
+        "repeated_reply_refused_reachable",
+    )]
     # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
     + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
         "initiator_sends_second_message",
@@ -2406,6 +2417,17 @@ REQUIRED_PINS = frozenset(
         "second_receipt_reach_run",
         "first_send_second_receipt_reachable",
         "first_send_second_receipt_stale_reachable",
+    )]
+    # the responder's encrypt at the session its receipt of the initiator's second message returned (`UnitLifecycleResponderSecondSend`).
+    + ["Tacenta.UnitLifecycleResponderSecondSend." + n for n in (
+        "second_reply_send_key",
+        "secondReplyFrame_with_draws",
+        "second_reply_model_step",
+        "modelCounterRoom_secondReplier",
+        "noHeader_of_refines",
+        "responder_second_send_refines",
+        "responder_sends_second_reply",
+        "first_send_second_reply_reachable",
     )]
     # `Triple::invariant` read on the model through the Triple relation, both directions (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
@@ -3524,6 +3546,17 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # the responder's reply delivered again to the initiator after its first receipt is refused as out of order with no durable effect (`UnitLifecycleInitiatorRepeatedReply`).
+    + ["Tacenta.UnitLifecycleInitiatorRepeatedReply." + n for n in (
+        "reply_again_receive_outOfOrder",
+        "reply_again_with_eviction",
+        "reply_again_model_refused",
+        "reply_key_agreement",
+        "reply_again_refused_of_invariant",
+        "initiator_repeated_reply_refused",
+        "byteTrace_seed_two_extra",
+        "repeated_reply_refused_reachable",
+    )]
     # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
     + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
         "initiator_sends_second_message",
@@ -4356,6 +4389,22 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "SecondReceiptRun",
         "SecondReceiptStaleRun",
     )]
+    # the responder's encrypt at the session its receipt of the initiator's second message returned (`UnitLifecycleResponderSecondSend`).
+    + ["Tacenta.UnitLifecycleResponderSecondSend." + n for n in (
+        "second_reply_send_key",
+        "secondReplyFrame_with_draws",
+        "second_reply_model_step",
+        "modelCounterRoom_secondReplier",
+        "noHeader_of_refines",
+        "responder_second_send_refines",
+        "responder_sends_second_reply",
+        "first_send_second_reply_reachable",
+        "responderAfterSecondSend",
+        "secondReplyKey",
+        "secondReplyComposite",
+        "secondReplyFrame",
+        "SecondReplyRun",
+    )]
     # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
         "keyOf_injective",
@@ -4882,6 +4931,14 @@ REQUIRED_PRINT_FORM = frozenset(
         "secondReceiptSession",
         "SecondReceiptRun",
         "SecondReceiptStaleRun",
+    )]
+    # the responder's encrypt at the session its receipt of the initiator's second message returned (`UnitLifecycleResponderSecondSend`).
+    + ["Tacenta.UnitLifecycleResponderSecondSend." + n for n in (
+        "responderAfterSecondSend",
+        "secondReplyKey",
+        "secondReplyComposite",
+        "secondReplyFrame",
+        "SecondReplyRun",
     )]
     # The five model and code predicates of the bridge (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (

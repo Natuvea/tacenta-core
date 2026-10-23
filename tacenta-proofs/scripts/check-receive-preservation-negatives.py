@@ -10,23 +10,27 @@ session `establish_responder` returns on the first frame does, by the same step.
 fact it rests on is removed would hold nothing, so this script makes one change to a copy of the module and requires
 Lean to refuse it, at a named place, with an error that names what the change removed.
 
-Twelve controls are labelled inside the proofs that compose: the general step `decrypt_ratchet_keeps_invariant_in_order`
-(which composes the bridge, the model's in-order receive, the agreement walk, clause (a) from the call's walk, the
-structural clauses and the budget), the public step `decrypt_keeps_invariant_in_order`, and the two theorems on the
-runs, and two are projections.  Each is a change to a composing theorem's statement.  A control refused in a composing
-theorem is a projection when it is refused where that proof places a conjunct of a called theorem's conclusion
-unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic
-form of that standard read off the module (`passed_through`: the refusal names a hypothesis the proof binds by
-destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor),
-and requires every control refused in a composing theorem to carry one of them.  For each inside control it also runs the
-changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is
-attributable to that proof.  That probe verifies attribution only: it cannot tell a composing step from a
-projection.  That the syntactic form is the right standard, and that the four theorems named in `COMPOSING` compose
-rather than project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with
-the declaration it is refused in and with a composing theorem; no control carries two labels; every place a projection
-may be refused must be a composing theorem; a statement-shape check may not be refused in a composing theorem, and the
-theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
-at its labelled place):
+The proofs that compose are the general step `decrypt_ratchet_keeps_invariant_in_order` (which composes the bridge, the
+model's in-order receive, the agreement walk, clause (a) from the call's walk, the structural clauses and the budget),
+the public step `decrypt_keeps_invariant_in_order`, and the two theorems on the runs.  What a run establishes is that
+each control is refused at its named place, and that each control it labels inside a composing proof is also accepted
+there when that proof is replaced by `sorry` (attribution to that proof, nothing more); controls it labels projections
+are not probed.  The labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling
+and are guidance, not a claim: the helper that tells inside from projection reads Lean's error text and can read some
+projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Each control labelled
+inside is a change to a composing theorem's statement.  A control refused in a composing theorem is a projection when it
+is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition step,
+labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that standard read off the
+module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called theorem's conclusion,
+never rewrites, simplifies or substitutes, and places with a constructor), and requires every control refused in a
+composing theorem to carry one of them.  For each inside control it also runs the changed copy with that theorem's proof
+replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to that proof.  That
+probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic form is the
+right standard, and that the four theorems named in `COMPOSING` compose rather than project, is decided by reading.  The
+labels are also held consistent (an inside control must be labelled with the declaration it is refused in and with a
+composing theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
+statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
+start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `decrypt_ratchet_keeps_invariant_in_order`: the decoder scope widened to two chunks held (refused where the
     agreement walk is applied); the key-pair clone record `KemCloneAgrees` swapped for the erasure clone record
@@ -46,27 +50,27 @@ at its labelled place):
     operation instead of meeting the ceilings (refused where the general step's budget is placed; a true statement,
     so this shows only that the proof derives no more room than the prepared session's one unit less one).
 
-Two are projections, labelled neither inside nor statement-shape: the initiator's `decrypt` claimed from the source
-before its first send, and the session after the receipt claimed to refine the model session before it.  Both are
-refused in `initiator_receives_reply_successor`, at the final term, where that theorem passes the call and the relation
-of `initiator_receives_reply` through unchanged; they show that the headline forwards them, not that it composes them,
-and no emptied-proof run is made for them.
+Labelled projections, neither inside nor statement-shape: the initiator's `decrypt` claimed from the source before its
+first send, and the session after the receipt claimed to refine the model session before it.  Both are refused in
+`initiator_receives_reply_successor`, at the final term, where that theorem passes the call and the relation of
+`initiator_receives_reply` through unchanged; they show that the headline forwards them, not that it composes them, and
+no emptied-proof run is made for them.
 
-Seven are on the leaf lemmas: the sparse receive claimed with an agreement output (refused in `spqr_receive_inOrder`,
-whose state is then the advanced one); the budget claimed kept with no unit to spend (refused at `omega` in
+On the leaf lemmas: the sparse receive claimed with an agreement output (refused in `spqr_receive_inOrder`, whose state
+is then the advanced one); the budget claimed kept with no unit to spend (refused at `omega` in
 `modelCounterRoom_receive`); the two-chunk loop claimed for chunks of equal index (refused in `two_chunk_loop`); the
 decoder step claimed for a decoder holding two chunks (refused in `decoder_step_keeps`, whose three-chunk case is then
-open); `KeepsAgreementState` widened to the completion of `ct2`, which moves `ekSentCt1Received` to
-`noHeaderReceived` with an output (refused in `keeps_output_none` and `keeps_epoch`); clearing the established ephemeral
-claimed in place of the pending initial message (refused in `structural_clear_pending`, at the step that reads a
-cleared `none` field as the session itself); and the in-order scope without its first-message condition on a new
-ratchet key (refused in `modelTripleInv_receive_inOrder`, where the scope is handed to the classical receive).
+open); `KeepsAgreementState` widened to the completion of `ct2`, which moves `ekSentCt1Received` to `noHeaderReceived`
+with an output (refused in `keeps_output_none` and `keeps_epoch`); clearing the established ephemeral claimed in place
+of the pending initial message (refused in `structural_clear_pending`, at the step that reads a cleared `none` field as
+the session itself); and the in-order scope without its first-message condition on a new ratchet key (refused in
+`modelTripleInv_receive_inOrder`, where the scope is handed to the classical receive).
 
-One is a statement-shape check: the corollary `decrypt_keeps_invariant_model_step` claimed with the relation at the
-model's `decryptRatchet` instead of its public `decrypt` (refused there because the model step it builds is the public
-call's; the script runs it again with the proof of `decrypt_keeps_invariant_in_order` replaced by `sorry` and requires
-the same refusal).  One holds a definition: `KeepsAgreementState` with its epoch equation reversed, the module's pins
-kept (refused at the pin of `KeepsAgreementState`).
+Labelled statement-shape: the corollary `decrypt_keeps_invariant_model_step` claimed with the relation at the model's
+`decryptRatchet` instead of its public `decrypt` (refused there because the model step it builds is the public call's;
+the script runs it again with the proof of `decrypt_keeps_invariant_in_order` replaced by `sorry` and requires the same
+refusal).  At a pin: `KeepsAgreementState` with its epoch equation reversed, the module's pins kept (refused at the pin
+of `KeepsAgreementState`).
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
 a named place: it shows that the proof there depends on what the change removed (or, for the last, that the pin holds

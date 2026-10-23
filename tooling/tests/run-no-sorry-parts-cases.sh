@@ -122,6 +122,7 @@ py_stubs=(
   check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
+  check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-restored-negatives.py
   check-encrypt-negatives.py
@@ -133,6 +134,7 @@ py_stubs=(
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
   check-responder-second-receipt-negatives.py
+  check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py

@@ -9,19 +9,24 @@ skip's result is related to `Model.SparseRatchet.skipMessageKeysDetailed`, a suc
 the state unchanged, to its refusal of the same kind.  `sparseReceiveRefusalOfReal_injective` says the mapping sends
 different errors to different reasons.
 
-Four controls.  Three controls are labelled inside the composing proof `skip_message_keys_refines_detailed`: each is
-refused there and accepted there with that proof replaced by `sorry`:
+Four controls.  What a run establishes is that each control is refused at its named place, and that each control it
+labels inside a composing proof is also accepted there when that proof is replaced by `sorry` (attribution to that
+proof, nothing more); controls it labels projections are not probed.  The labels and the per-class counts in
+`negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the helper that tells
+inside from projection reads Lean's error text and can read some projections as composition steps
+(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Refused in the composing proof
+`skip_message_keys_refines_detailed`, each also accepted there with that proof replaced by `sorry`:
   * the refusal's kind claimed under a mapping that swaps `TooManySkipped` and `SkippedStoreFull` (refused where the
     kind from `spqr_skip_refusal_refines` is placed);
   * every refusal claimed to be `skippedStoreFull` (refused at the same place);
   * a success claimed to leave the state it was given (refused where the success conjunct of
     `skip_message_keys_refines` is placed, after the model's detailed answer is rewritten to `skipMessageKeys`).
 That the first two are composition steps and the third places the called theorem's conjunct after that rewriting is
-decided by reading; the `sorry` probe verifies attribution to the proof only.  One is on the leaf lemma: the mapping
+decided by reading; the `sorry` probe verifies attribution to the proof only.  Refused in the leaf lemma: the mapping
 claimed injective after `TooManySkipped` is sent to `skippedStoreFull` (refused in
-`sparseReceiveRefusalOfReal_injective`, whose case split is left with the two kinds equal).  There is no
-statement-shape check and no definition held by a pin (the module defines nothing).  The first three refusals are
-structural (a type mismatch at the named place), not an unprovable goal.
+`sparseReceiveRefusalOfReal_injective`, whose case split is left with the two kinds equal).  There is no statement-shape
+check and no definition held by a pin (the module defines nothing).  The first three refusals are structural (a type
+mismatch at the named place), not an unprovable goal.
 
 A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one
 change to a copy of the module and requires Lean to refuse it, at a named place, with an error that names what

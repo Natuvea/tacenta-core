@@ -90,15 +90,24 @@ reply holds a draw, refusing `OutOfOrder` with the session unchanged exactly whe
 first and otherwise returning the initiator's plaintext, and, under the second per-run premise that the new key is not the
 first, returning the plaintext and keeping `Session::invariant` and the four ceilings, with the one draw taken in either
 case (and, by reading the code, no KEM operation), no new law and no compiler-trust
-axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
-covered; no `encrypt` whose agreement send
+axiom, both outcomes reached at the real constants under the same assumed laws; under the same two per-run premises and
+a bound on the plaintext, the responder's next `encrypt` at the session that receipt returns, returning the bare second
+reply frame with no draw, writing only the Triple Ratchet, refining the model's step and leaving a session that passes
+`Session::invariant` and meets the four ceilings, with no new law or per-run premise, no compiler-trust axiom and a
+reach at the real constants under the same assumed laws; the initiator's receipt of that second reply and later steps
+not covered; no `encrypt` whose agreement send
 draws, no refusal and no receive outside that scope covered by a preservation result; and the initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw
 taken, refining the model's step) and by `establish_responder` at the store the first success committed
 (`ReplayedLastResort`, store and source unchanged, when the bundle names the store's last-resort KEM key and no one-time
 curve prekey), with no new law or compiler-trust axiom; the model's side of the latter, the one-time path and a repeat
-at a later session or of other bytes not covered);
+at a later session or of other bytes not covered; and the responder's reply delivered to the initiator a second time on
+that run, right after a first receipt that succeeded, refused by the initiator's `decrypt` at the session that receipt
+returned (out of order, that session returned unchanged, so it still passes `Session::invariant` and meets the four
+ceilings, one draw taken, refining the model's step), under the receipt's hypotheses and a per-run premise that the
+second source holds a draw, with no new law or compiler-trust axiom; a delivery at a later point, after a first receipt
+that refused, or of other bytes not covered);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two
