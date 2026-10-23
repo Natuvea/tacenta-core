@@ -273,7 +273,11 @@ the success outcome only, the initiator's new ratchet key is not its first. Unde
 `OutOfOrder` with the session unchanged, exactly when the initiator's new key is its first, or returns the initiator's
 plaintext; under both it returns the plaintext and leaves a session that passes `Session::invariant` and meets the four
 ceilings. It takes the one draw in either case (and, by reading the code, no KEM operation), adds no law and lists no compiler-trust axiom, and reaches at
-the real constants exhibit both outcomes under the same assumed laws. A second reply and every later step are not
+the real constants exhibit both outcomes under the same assumed laws. Under the same two per-run premises and a bound
+on the plaintext, the responder's next `encrypt`, at the session that receipt returns, returns the bare second reply
+frame with no draw, writes only the Triple Ratchet, refines the model's step and leaves a session that passes
+`Session::invariant` and meets the four ceilings (no new law or per-run premise, no compiler-trust axiom; a reach at the
+real constants under the same assumed laws). The initiator's receipt of that second reply and every later step are not
 covered. No `encrypt`
 whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
 receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its

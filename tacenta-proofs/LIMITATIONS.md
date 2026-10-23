@@ -3149,7 +3149,7 @@ statement: what Lean's printing leaves out is held by the build and by reading o
 success headline's conclusion only the four calls, the plaintext equation and the invariant and ceilings after the
 receive are consumed by a later proof; its other conjuncts are pinned and used by no later proof. **The budget** after
 the receive (room for every `j` with `j + 3 < u32::MAX`) is what the composition derives; by reading it is exact there (the
-clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply and its receipt, the header's third chunk, the responder's first sampling send
+clock is 2), and exactness also follows from the headline's relation conjunct, which no theorem here states. **Not shown:** a second reply (shown, on the same run, in the next paragraph) and its receipt, the header's third chunk, the responder's first sampling send
 and every later step, among them the responder's check of the completed encapsulation key, the first step at which both
 parties' KEMs act on one key pair; a tampered, foreign or replayed second frame's refusal (no AEAD authenticity law); a
 receive out of order, with a stored or skipped key, or with more than one chunk held before it; code-level equality of the
@@ -3158,6 +3158,37 @@ related model sessions hold only bytes the parties received; that the per-run pr
 that the real primitives meet the records or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from
 `PrekeyStore::invariant`; the model's own `establishResponder` equality; that `Session::invariant` says a session is
 reachable.
+
+**The responder's second reply** (`UnitLifecycleResponderSecondSend.lean`). `responder_sends_second_reply` takes the
+responder's next operation on the run of `responder_receives_second_message`, under exactly that theorem's hypotheses
+(its two per-run premises, the responder's draw after the reply and `hfreshA`, included) and a bound on the plaintext
+`ptR2`: the public `encrypt` at the session the receipt returns, from the source the receipt left, returns the bare second
+reply frame, takes no draw, writes only the Triple Ratchet and refines the model's step, and the session it leaves passes
+`Session::invariant` (`encrypt_keeps_invariant_no_draw` at `NoHeaderReceived`, from the invariant and one unit of the
+budget the receipt leaves) and meets the four ceilings. The encrypt route's providers come from the invariant and the
+ceilings at the receipt's session (`encryptProviders_of_invariant`). No new law and no new per-run
+premise; the records are the reply's at the responder's source (ASSUMED, as above), `KemCloneAgrees` from its
+`DecryptRatchetAgreements`. The agreement's send at `NoHeaderReceived` runs no KEM operation and no draw (the walk of the
+translated send names none), and no fact relating the two parties' Braid KEMs is used by this step; the Braid send record
+still carries `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state (whether it could
+be dropped here is not checked). `first_send_second_reply_reachable` exhibits, at the real constants under the laws of
+`first_send_second_receipt_reachable` (all ASSUMED), a run at which every hypothesis holds; its conclusion is the
+definition `SecondReplyRun`. The encrypt there has one outcome, so no second arm is reached. All rest on the kernel and
+opaque constants with no compiler-trust axiom. Every statement pin and the `#print` pins of the five definitions print the
+whole statement (the module sets the two `pp` options before its pins), which is still not the whole elaborated
+statement: what Lean's printing leaves out is held by the build and by reading only, as for every statement pin. Of the
+headline's conclusion only the five calls, the two plaintext equations, the frame equation of the session after the send
+and its invariant and ceilings are consumed by a later proof; its other conjuncts are pinned and used by no later proof.
+**The budget** after the send (room for every `j` with `j + 3 < u32::MAX`) is read off the model session after the step:
+the send does not advance the clock, which is 2 there; more room is not claimed. **Not shown:** the initiator's `decrypt`
+of the second reply and every later step, among them the header's third chunk, the responder's first sampling send and
+the responder's check of the completed encapsulation key, the first step at which both parties' KEMs act on one key pair;
+a refusal `encrypt` can reach (none at this state; those reachable elsewhere are not covered); a tampered, foreign or
+replayed frame's refusal on this route; delivery out of order, a stored or skipped key, or more than one chunk held before
+a receive; a restored copy of either session; the one-time path in a run; that the related model sessions hold only
+bytes the parties received; that the per-run premises hold under honest random sources; that the real primitives meet
+the records or the laws; `FirstKemAgrees`; `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own
+`establishResponder` equality; that `Session::invariant` says a session is reachable.
 
 **The first frame delivered a second time** (`Translation/UnitLifecycleResponderRepeatedFrame.lean`,
 `Translation/UnitLifecycleResponderEstablishReplay.lean`). On the run of the initiator's first send, the same bytes

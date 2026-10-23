@@ -90,8 +90,12 @@ reply holds a draw, refusing `OutOfOrder` with the session unchanged exactly whe
 first and otherwise returning the initiator's plaintext, and, under the second per-run premise that the new key is not the
 first, returning the plaintext and keeping `Session::invariant` and the four ceilings, with the one draw taken in either
 case (and, by reading the code, no KEM operation), no new law and no compiler-trust
-axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
-covered; no `encrypt` whose agreement send
+axiom, both outcomes reached at the real constants under the same assumed laws; under the same two per-run premises and
+a bound on the plaintext, the responder's next `encrypt` at the session that receipt returns, returning the bare second
+reply frame with no draw, writing only the Triple Ratchet, refining the model's step and leaving a session that passes
+`Session::invariant` and meets the four ceilings, with no new law or per-run premise, no compiler-trust axiom and a
+reach at the real constants under the same assumed laws; the initiator's receipt of that second reply and later steps
+not covered; no `encrypt` whose agreement send
 draws, no refusal and no receive outside that scope covered by a preservation result; and the initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw
