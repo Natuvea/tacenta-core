@@ -569,6 +569,19 @@ if t:
     refused("audit-an-interpreted-definition-other-than-the-kdf", t + "\n" + audit,
             "definitions interpreted that are not the two KDF wrappers")
 
+# 1c. one of the two KDF wrappers not interpreted by its definition: `Interp.real` gives the HMAC field
+# a constant function, so only one KDF wrapper is among the interpreted definitions. The module refuses
+# this copy on its own as well (the `Iff.rfl` bindings of the HMAC shapes no longer hold), so without the
+# audit's guard the case still sees a refusal, for another reason; what the case holds is that the audit
+# names it. A term that keeps those bindings by unfolding the wrapper, such as its body
+# `tacenta_kdf.hmac.hmac_sha256`, is an interpreted definition other than the two wrappers, which the
+# guard of case 1b refuses first.
+t = once(joint, "  hmacSha256 := tacenta_kdf.hmac_sha256\n",
+         "  hmacSha256 := fun _ _ => ok (Array.repeat 32#usize 0#u8)\n", "KDF wrapper not interpreted")
+if t:
+    refused("audit-a-kdf-wrapper-not-interpreted", t + "\n" + audit,
+            "the two KDF wrappers are not both interpreted definitions")
+
 # 2. an axiom a record reaches that the interpretation leaves out (in the audit's start list)
 a = once(audit, "  Tacenta.SessionUnitT1.DerivedKeysModel\n#audit_axiom_part",
          "  Tacenta.SessionUnitT1.DerivedKeysModel Tacenta.UnitLifecycleT1.XeddsaSignTotal\n#audit_axiom_part",
