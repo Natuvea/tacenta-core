@@ -8,22 +8,26 @@ bytes the initiator emitted commits a store whose replay record gains `(kem_id, 
 A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one change to a
 copy of the module and requires Lean to refuse it, at a named place, with an error that names what the change removed.
 
-Six controls are labelled inside the proofs that compose: the generic step `establish_responder_again_refused` (which
-composes the commit, the replay check and the prepare phase's steps carried to the committed store) and the run's
-headline `initiator_first_send_responder_replay_refused`.  Each is a change to a composing theorem's statement.  A control
-refused in a composing theorem is a projection when it is refused where that proof places a conjunct of a called
-theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two
-labels to a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the
-proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
-constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside control it
-also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so
-the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing step from a
-projection.  That the syntactic form is the right standard, and that the two theorems named in `COMPOSING` compose rather
-than project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with the
-declaration it is refused in and with a composing theorem; no control carries two labels; every place a projection may
-be refused must be a composing theorem; a statement-shape check may not be refused in a composing theorem, and the
-theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
-at its labelled place):
+The proofs that compose are the generic step `establish_responder_again_refused` (which composes the commit, the replay
+check and the prepare phase's steps carried to the committed store) and the run's headline
+`initiator_first_send_responder_replay_refused`.  What a run establishes is that each control is refused at its named
+place, and that each control it runs against a composing proof is accepted there when that proof is replaced by `sorry`
+(attribution to that proof, nothing more).  The labels and the per-class counts in `negatives-control-counts.json` are
+the script's own labelling and are guidance, not a claim: the helper that tells inside from projection reads Lean's
+error text and can read some projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not
+built).  Each is a change to a composing theorem's statement.  A control refused in a composing theorem is a projection
+when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition
+step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that standard read off
+the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called theorem's
+conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every control
+refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with that
+theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to that
+proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
+form is the right standard, and that the two theorems named in `COMPOSING` compose rather than project, is decided by
+reading.  The labels are also held consistent (an inside control must be labelled with the declaration it is refused in
+and with a composing theorem; no control carries two labels; every place a projection may be refused must be a composing
+theorem; a statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in
+`PROJECTED`), at start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `establish_responder_again_refused`: the second call claimed on the one-time path (`p.lastResort = false`,
     refused where the first call's KEM lookup is carried to the committed store); the commit claimed on the one-time
@@ -40,13 +44,13 @@ that theorem places the record conjunct of `commit_last_resort` unchanged (after
 the commit it is applied to); it shows that the headline forwards it, not that it composes it, and no emptied-proof
 run is made for it.
 
-Two are statement-shape checks on the reach, each projecting `initiator_first_send_responder_replay_refused`: the
-reach's record claimed empty after the first call, and the reach's second call claimed to take a draw (the source
-returned claimed to be its tail).  Each is refused in `first_send_replay_refused_reachable` because its statement no
-longer matches the headline's, and the script runs it again with the headline's proof replaced by `sorry` and requires
-the same refusal, so it is refused whatever that proof does.
+Labelled statement-shape, on the reach, each projecting `initiator_first_send_responder_replay_refused`: the reach's
+record claimed empty after the first call, and the reach's second call claimed to take a draw (the source returned
+claimed to be its tail).  Each is refused in `first_send_replay_refused_reachable` because its statement no longer
+matches the headline's, and the script runs it again with the headline's proof replaced by `sorry` and requires the same
+refusal, so it is refused whatever that proof does.
 
-Two are on the leaf lemmas: the replay check claimed to refuse when no entry holds the fingerprint (refused in
+On the leaf lemmas: the replay check claimed to refuse when no entry holds the fingerprint (refused in
 `replay_refused_of_mem`), and the commit claimed with a one-time curve prekey named (refused in `commit_last_resort`,
 where the one-time removal is then not the identity).  One holds a statement: `replay_refused_of_mem` with a bound
 variable renamed, with the module's pins kept (refused at that theorem's statement pin; the pins hold the statement's

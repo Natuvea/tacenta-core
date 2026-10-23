@@ -9,8 +9,12 @@ skip's result is related to `Model.SparseRatchet.skipMessageKeysDetailed`, a suc
 the state unchanged, to its refusal of the same kind.  `sparseReceiveRefusalOfReal_injective` says the mapping sends
 different errors to different reasons.
 
-Four controls.  Three controls are labelled inside the composing proof `skip_message_keys_refines_detailed`: each is
-refused there and accepted there with that proof replaced by `sorry`:
+Four controls.  What a run establishes is that each control is refused at its named place, and that each control it runs
+against a composing proof is accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing
+more).  The labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling and are
+guidance, not a claim: the helper that tells inside from projection reads Lean's error text and can read some
+projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Refused in the composing
+proof `skip_message_keys_refines_detailed`, each also accepted there with that proof replaced by `sorry`:
   * the refusal's kind claimed under a mapping that swaps `TooManySkipped` and `SkippedStoreFull` (refused where the
     kind from `spqr_skip_refusal_refines` is placed);
   * every refusal claimed to be `skippedStoreFull` (refused at the same place);

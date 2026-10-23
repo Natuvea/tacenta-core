@@ -12,14 +12,19 @@ both, and the two reaches take its fresh and its stale arm.  A proof that Lean a
 removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to refuse it, at a
 named place, with an error that names what the change removed.
 
-The five theorems named in `COMPOSING` compose (decided by reading).  A control refused in a composing theorem is a
-projection when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a
-composition step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that
-standard read off the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called
-theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every
-control refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with
-that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to
-that proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
+The five theorems named in `COMPOSING` compose (decided by reading).  What a run establishes is that each control is
+refused at its named place, and that each control it runs against a composing proof is accepted there when that proof is
+replaced by `sorry` (attribution to that proof, nothing more).  The labels and the per-class counts in
+`negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the helper that tells
+inside from projection reads Lean's error text and can read some projections as composition steps
+(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  A control refused in a composing theorem is a projection
+when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition
+step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that standard read off
+the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called theorem's
+conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every control
+refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with that
+theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to that
+proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
 form is the right standard, and that the five theorems compose rather than project, is decided by reading.  The labels
 are also held consistent (an inside control must be labelled with the declaration it is refused in and with a composing
 theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
@@ -46,20 +51,21 @@ start-up (at run time the script checks only that each change is refused at its 
     initiator's new ratchet key not its first (refused where the reach places the equation it derives from its first
     ratchet key's bytes and the oracle's public-key record).
 
-Two are projections, labelled neither inside nor statement-shape: the initiator's second `encrypt` claimed at the session
-before its receipt of the reply, refused in `responder_receives_second_message_two_outcomes` where it places the
-conjunct of `initiator_sends_second_message` unchanged, and the initiator's receipt of the reply claimed to return the
-second plaintext, refused in `responder_receives_second_message` where it places the conjunct of
+Labelled projections, neither inside nor statement-shape: the initiator's second `encrypt` claimed at the session before
+its receipt of the reply, refused in `responder_receives_second_message_two_outcomes` where it places the conjunct of
+`initiator_sends_second_message` unchanged, and the initiator's receipt of the reply claimed to return the second
+plaintext, refused in `responder_receives_second_message` where it places the conjunct of
 `responder_receives_second_message_two_outcomes` unchanged.  They show that the composing theorems forward those
 conjuncts, not that they compose them, and no emptied-proof run is made for them.
 
-Four are on leaf lemmas: the model's receive of the second message on the peer key claimed to refuse `noReceivingChain`
+On the leaf lemmas: the model's receive of the second message on the peer key claimed to refuse `noReceivingChain`
 (refused in `second_receive_stale`), the responder's Triple after the receipt claimed with previous chain length 0
 (refused in `second_receive_key`), the decoder at the session `establish_responder` returns claimed empty (refused in
 `established_responder_decoder_small`), and the in-order step claimed on a key that is not the reply's instead of one
-that is not the peer key (refused in `secondReceipt_inOrderStep`).  Two hold definitions: `SecondReceiptStaleRun` with
-`OutOfOrder` replaced by `NoReceivingChain`, and `SecondReceiptRun` with `Session::invariant` at `sB'''` replaced by
-`True`, each with the module's pins kept (refused at that definition's pin).  There is no statement-shape check.
+that is not the peer key (refused in `secondReceipt_inOrderStep`).  The pin controls hold definitions:
+`SecondReceiptStaleRun` with `OutOfOrder` replaced by `NoReceivingChain`, and `SecondReceiptRun` with
+`Session::invariant` at `sB'''` replaced by `True`, each with the module's pins kept (refused at that definition's pin).
+There is no statement-shape check.
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
 a named place: it shows that the proof there depends on what the change removed (or, for the last two, that the pin

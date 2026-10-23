@@ -10,20 +10,24 @@ plaintext when the responder's fresh ratchet key is not that peer key.  A proof 
 rests on is removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to
 refuse it, at a named place, with an error that names what the change removed.
 
-Seven controls are labelled inside the proofs that compose the run and four are projections.  A control refused in a
-composing theorem is a projection when it is refused where that proof places a conjunct of a called theorem's
-conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two labels to
-a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the proof
-binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
-constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside
-control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the
-change there, so the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a
-composing step from a projection (a corollary's statement-shape check passes it too).  That the syntactic form is the
-right standard, and that the three theorems named in `COMPOSING` compose rather than project, is decided by reading.
-The labels are also held consistent (an inside control must be labelled with the declaration it is refused in and
-with a composing theorem; no control carries two labels; every place a projection may be refused must be a composing
-theorem; a statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in
-`PROJECTED`), at start-up (at run time the script checks only that each change is refused at its labelled place):
+What a run establishes is that each control is refused at its named place, and that each control it runs against a
+composing proof is accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more).  The
+labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling and are guidance, not
+a claim: the helper that tells inside from projection reads Lean's error text and can read some projections as
+composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  A control refused in a composing
+theorem is a projection when it is refused where that proof places a conjunct of a called theorem's conclusion
+unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic
+form of that standard read off the module (`passed_through`: the refusal names a hypothesis the proof binds by
+destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor),
+and requires every control refused in a composing theorem to carry one of them.  For each inside control it also runs
+the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the
+refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing step from a
+projection (a corollary's statement-shape check passes it too).  That the syntactic form is the right standard, and that
+the three theorems named in `COMPOSING` compose rather than project, is decided by reading. The labels are also held
+consistent (an inside control must be labelled with the declaration it is refused in and with a composing theorem; no
+control carries two labels; every place a projection may be refused must be a composing theorem; a statement-shape check
+may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up (at run time
+the script checks only that each change is refused at its labelled place):
 
   * inside `initiator_receives_reply_outcomes`: the reply's bytes claimed to carry the peer key the initiator holds
     instead of the fresh ratchet key (refused at the step that closes the bytes equation from the reply's run); the
@@ -47,7 +51,7 @@ theorem; a statement-shape check may not be refused in a composing theorem, and 
     `initiator_receives_reply`, where the draw conjunct of `initiator_receives_reply_two_outcomes` is placed
     unchanged).
 
-Eight are on the leaf lemmas:
+On the leaf lemmas:
 
   * the model's receive on a fresh key claimed under a premise about the sender's own ratchet key instead of the
     peer key (refused in `reply_receive_key`, which then cannot decide whether to take the Diffie-Hellman step);
