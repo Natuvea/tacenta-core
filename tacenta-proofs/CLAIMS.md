@@ -286,8 +286,8 @@ this section says in one place what is not proved.
 - **The primitives are opaque, except the KDF.** X25519, ML-KEM, the AEAD, and the SHA-256 and HMAC
   that the root crate and the AEAD's tag check on decryption call directly, are assumed at the boundary,
   and no proof here says anything about them. Since 2026-10-22 `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256
-  are bodies copied from an independent verified implementation and translated into every unit that calls
-  them. For the Session unit's translation, `UnitLifecycleKdf.hmacAgrees` and `UnitLifecycleKdf.hkdfAgrees`
+  are bodies copied from a separate, unpublished repository of this project's maintainer (pinned in `tacenta-core/kdf/src/lib.rs` by
+  commit and file digests) and translated into every unit that calls them. For the Session unit's translation, `UnitLifecycleKdf.hmacAgrees` and `UnitLifecycleKdf.hkdfAgrees`
   prove that they return and equal tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf` (HKDF for outputs of
   at most 8160 bytes), on the kernel's three axioms. The same proofs, ported onto the classical ratchet's, the session's,
   the sparse ratchet's, the Braid's and the three-leaf unit's translations, prove those translations' own KDF
@@ -338,20 +338,24 @@ this section says in one place what is not proved.
   `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), jointly where one theorem
   takes two about the same wrapper (`T1.ZeroizingTotal` or
   `T3.ZeroizingRoundTrips` with `T1.DerivedKeysModel`, and the sparse ratchet's
-  two round trips), and every HMAC and HKDF agreement and `OptionCloneTotal` the
-  classical, sparse, session and Braid refinements take, from the model's output
-  lengths and the identity clone. The session's HKDF totality and wrapper model,
-  the sparse ratchet's array wipe and the erasure crate's `div_ceil` and
-  `truncate` are witnessed there too, and the remaining key-derivation totalities
-  follow from witnessed agreements by named theorems.
+  two round trips), and `OptionCloneTotal`, from the identity clone. The session's wrapper model, the sparse
+  ratchet's array wipe and the erasure crate's `div_ceil` and `truncate` are witnessed there too. Its witnesses
+  of the HMAC and HKDF agreements and totalities, from the model's output lengths, say nothing since 2026-10-22:
+  the KDF is a translated definition in these translations, so their bridges are void. Those hypotheses are
+  proved instead (`KdfLeafAgreements`, the section on the leaf and three-leaf KDF hypotheses), and the remaining
+  key-derivation totalities follow from the proved agreements by named theorems. `check-hypothesis-witnesses.sh`
+  reports 14 void bridges on the leaf crates and the three-leaf unit (10 and 4): 9 for the KDF (7 and 2), each
+  connected instead by a derivation in `KdfLeafAgreements` or `KdfTripleUnitAgreements`, and 5 for the removal
+  helpers (3 and 2), connected by the derivations of the section named above.
   `Translation/UnitSatisfiabilityTriple.lean`, which cannot share an
   environment with the rest, does the same for the Triple Ratchet's two
   (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`) and for the
   inner refinements' boundary as restated about the unit, jointly where two
   hypotheses there constrain one constant: the `zeroize` wrapper family with
   `DerivedKeysModel`, `Option`'s clone and
-  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements; its pair of removal
-  hypotheses is a void bridge, as above. A satisfiable hypothesis is still only
+  the general array `ZeroizeTotal`; its witnesses of the HMAC and HKDF agreements are void bridges since the
+  KDF is translated, and `KdfTripleUnitAgreements` proves them; its pair of removal hypotheses is a void
+  bridge, as above. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -3348,8 +3352,9 @@ exact residual is in `LIMITATIONS.md`.
   witnesses are separate, one for each contract of the first Session proof layer; that the contracts hold together is the joint model.
 
 Each result is pinned under `#guard_msgs`, and `attest.py` requires every one of these pins (`REQUIRED_PINS`), so
-deleting one fails it. The pins of the results about `Interp.real` and the records list the 49 interpreted
-constants and the error type inside `RngCore`; the pins of the results about the model list the three standard
+deleting one fails it. The pins of the results about `Interp.real` and the records list the 47 interpreted
+axioms (the 49 interpreted constants but the two KDF wrappers, translated definitions since 2026-10-22) and the
+error type inside `RngCore`; the pins of the results about the model list the three standard
 axioms and that error type. None depends on a compiler-trust axiom. The pins hold axiom lists, not statements.
 The statements of `axiom_base_satisfiable`, `axiom_base_satisfiable_for_total_rng` and `records_of_axiom_base`
 (in `UnitSatisfiabilityRecords.lean`) and of `vec_pop_satisfiable` (in `UnitSatisfiabilitySession.lean`) are pinned by
@@ -3594,8 +3599,8 @@ table and the two skipped-key stores; not the general `LawVecZeroize` of the lea
   `Interp.model`, the interpretation in which every axiom-level field of the four contract records holds. So the five
   laws are consistent with each other and with those fields in the substitution sense of `UnitSatisfiabilityJoint.lean`,
   an argument about derivations and not a theorem inside Lean. `UnitSatisfiabilityZeroizeScope.faithful_SpqrSessionLaws`
-  (the previous section) gives a second interpretation that meets them. The binding's pin lists the 49 interpreted
-  constants and `rand_core`'s error type; the model's lists only the error type.
+  (the previous section) gives a second interpretation that meets them. The binding's pin lists the 47 interpreted
+  axioms (the two KDF wrappers being translated definitions since 2026-10-22) and `rand_core`'s error type; the model's lists only the error type.
 - `spqrSessionLawsShape_fails_of_noop_pop`: an interpretation whose `Vec::pop` returns every vector unchanged fails the
   shape, so the shape is not met by every interpretation.
 
@@ -4466,9 +4471,9 @@ case; a heartbeat or deterministic timeout never counts as the named refusal.
 
 Location: `Translation/UnitLifecycleKdf.lean`.
 
-Since 2026-10-22 `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from an independent
-verified implementation (`tacenta-core/kdf/src/lib.rs` names the files, their digests and the one changed line in two of
-them), and `scripts/run-aeneas.sh` translates them into every unit that calls them. In the Session unit
+Since 2026-10-22 `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from a separate,
+unpublished repository of this project's maintainer (`tacenta-core/kdf/src/lib.rs` names the files, their digests and
+the one changed line in two of them), and `scripts/run-aeneas.sh` translates them into every unit that calls them. In the Session unit
 `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256` are now definitions, one-line wrappers over the translated
 `hmac.hmac_sha256` and `hkdf.hkdf_sha256`, where they were two opaque axioms. The proofs that came with the copied code
 are in the tree, elaborated against the unit's translation after renames only (each file's header lists them): the
@@ -4501,6 +4506,13 @@ pinned one by one; the two results below compose them and are pinned.
   with its record built that way: the same conclusion, under every hypothesis of that theorem except the record's `hmac`
   and `hkdf` fields. It adds nothing else and removes nothing else; the other premises of the complete refinement stay
   as that section states them.
+- `modelT3_hmac_eq_real`, `modelT3_hkdf_eq_real`, `toy_models_share_modelT3_kdf`, `toU8_u8`: `Interp.modelT3`'s two KDF
+  fields, the model's HMAC and HKDF as arrays, are the unit's real `tacenta_kdf.hmac_sha256` on every key and message
+  and its real `tacenta_kdf.hkdf_sha256` at every output length of at most 8160 bytes; the seven interpretations of
+  the lifecycle screens built on it (`modelShipped`, `modelDecrypt`, `modelFirstReceipt`, `modelEncrypt`,
+  `modelEstablished`, `modelFirstFrame`, `modelReply`) keep those two fields (by `rfl`); and a translated byte read as
+  a `UInt8` and written back is the same byte. What this does for the substitution argument, and what it leaves, is
+  in `LIMITATIONS.md` ("The two KDF fields of `Interp`").
 
 **Laws and premises.** None new. The eleven propositions above were hypotheses of the results that take them, and still
 are: no statement changed. A result that takes one can now be supplied with it from this module. Only
@@ -4520,15 +4532,18 @@ decryption and the identity and group digests, which still call RustCrypto; that
 compiled Rust (Charon and Aeneas are trusted, as for every translated result); the other fields of
 `DecryptRatchetAgreements` and every other premise of the lifecycle results, which stay open.
 
-**Review.** Every review of the copied Rust and of its proofs so far was made by tool-assisted sessions; no independent
-human reading is recorded. The copied code is about 1.5 to 2.1 times slower than RustCrypto on SHA-256, HMAC and HKDF by
-the source implementation's own measurement, which was not repeated here.
+**Review.** Every review of the copied Rust and of its proofs so far was made by tool-assisted sessions; no human
+reading is recorded. The source repository is not published, so a reader outside the project can check the copy only
+against the digests `lib.rs` records and through the proofs carried here. The copied code is about 1.5 to 2.1 times
+slower than RustCrypto on SHA-256, HMAC and HKDF by a measurement made in the source repository, not repeated here.
 
-**Compiler trust and pins.** No result here lists a compiler-trust axiom. The pins of eleven list `propext`,
-`Classical.choice` and `Quot.sound` alone (`hmacAgrees`, `hkdfAgrees`, the four copies and the five totality results),
-and those of four list those and opaque constants of the unit (`hmacShape_real` and `hkdfShape_real` 48, the ones
-`Interp.real` interprets other than the two KDF wrappers, `DecryptRatchetAgreements.of_kdf` 23 and
-`decrypt_ratchet_refines_complete_of_kdf` 47, the complete refinement's). Each of the 15 results carries an axiom pin and
+**Compiler trust and pins.** No result here lists a compiler-trust axiom. The pins of twelve list at most `propext`,
+`Classical.choice` and `Quot.sound` (`hmacAgrees`, `hkdfAgrees`, the four copies, the five totality results and
+`toU8_u8`), and those of seven list those and opaque constants of the unit: `hmacShape_real`, `hkdfShape_real`,
+`modelT3_hmac_eq_real` and `modelT3_hkdf_eq_real` 48 (the 47 axioms `Interp.real` interprets other than the two KDF
+wrappers, and the error type inside `RngCore`), `toy_models_share_modelT3_kdf` 1 (that error type),
+`DecryptRatchetAgreements.of_kdf` 23 and `decrypt_ratchet_refines_complete_of_kdf` 47, the complete refinement's. Each
+of the 19 results carries an axiom pin and
 a statement pin, and the record `KdfFreeAgreements` a `#print` pin; `attest.py` requires them.
 `check-kdf-realisation-negatives.py` plants 8 faults in a copy of the module, each a change to a statement or a
 definition, and requires Lean to refuse each at a named declaration or pin: HKDF's bound moved to 8161 bytes (refused in

@@ -673,3 +673,18 @@ commit that added it; the baseline (`check-generation-negatives.sh`) passed and 
 |---|---|---|---|---|
 | GN-port-kdf-diff | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
 | GN-port-kdf-count | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+
+The reader was then widened (x86 index-only operands such as `K(,%rcx,4)`, aarch64 register post-index such as
+`[x9], x10`) and the key-derivation part pinned to the compiler its baselines were read from
+(`tooling/ct-baselines/rustc-version.txt`). `python3 tooling/mutate-gates.py --only CT20 CT21 CT22 CT23 CT24 CT25
+CT26 CT27 CT28 CT29`, on an aarch64 Mac, against ebdfffbe: the baseline passed, and ten edits gave four seen as accepted,
+five as another wrong verdict and one message only, listed equivalent; none survived. CT20 and CT21 now remove the
+widened regexes; their results are unchanged. The x86 cases were reordered so that CT21 and CT26 each fail at their
+own case rather than at the jump-table case, which also lists an indexed operand.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT26 | `tooling/check-constant-time-asm.sh` | an x86 index-only operand is not listed as indexed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT27 | `tooling/check-constant-time-asm.sh` | an aarch64 register post-index is not listed as indexed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT28 | `tooling/check-constant-time-asm.sh` | the key derivation's inventory is compared under another compiler than its baselines were read from | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT29 | `tooling/check-constant-time-asm.sh` | baselines that name no compiler are not refused as such | `run-check-constant-time-asm-cases.sh` | message only, listed equivalent |

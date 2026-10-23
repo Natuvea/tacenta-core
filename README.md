@@ -168,11 +168,12 @@ flowchart TD
 - **Where trust sits.** The boundary crate and the Charon and Aeneas toolchain
   are trusted and not verified here. A proof reaches the boundary through
   contracts that appear as hypotheses of the theorems that take them. The key
-  derivation crate is no longer such a boundary: its HMAC-SHA256 and HKDF-SHA256 are
-  code copied from an independent verified implementation, translated, and proved in
-  each translation that includes it to compute tacenta-model's (`UnitLifecycleKdf`,
-  `KdfLeafAgreements`, `KdfTripleUnitAgreements`); that the model is
-  the RFCs', the code's timing and its erasure are not proved, and no independent
+  derivation crate is translated rather than opaque: its HMAC-SHA256 and
+  HKDF-SHA256 are code copied from a separate, unpublished repository of this project's maintainer
+  (pinned in `tacenta-core/kdf/src/lib.rs` by commit and file digests), and each
+  translation that includes it proves that it computes tacenta-model's
+  (`UnitLifecycleKdf`, `KdfLeafAgreements`, `KdfTripleUnitAgreements`). That the
+  model is the RFCs', the code's timing and its erasure are not proved, and no
   human has read the copied code yet.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.

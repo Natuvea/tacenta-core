@@ -167,13 +167,16 @@ ASSEMBLED_ZONES = {
     },
 }
 
-# The crates the verified zones bottom out in but that are NOT translated:
-# every `HmacTotal`/`HkdfAgrees`/`Encapsulate2Total`-style hypothesis is a
-# statement about *these* bytes, so a proof that names them as its boundary is
-# a proof about a particular `kdf` and `kem`. Hashed so that the attestation
-# can tell a reader which boundary a refinement was proved against. Listed
-# apart from `VERIFIED_ZONES` because nothing in them is proved; they are what
-# the proofs assume.
+# The crates the verified zones bottom out in: every `Encapsulate2Total`-style
+# hypothesis is a statement about *these* bytes, so a proof that names them as
+# its boundary is a proof about a particular `boundary` and `kem`. Hashed so
+# that the attestation can tell a reader which boundary a refinement was proved
+# against. `boundary` and `kem` are NOT translated and nothing in them is
+# proved; they are what the proofs assume. `tacenta-core/kdf` is still listed
+# although, since 2026-10-22, every translation that calls it translates its
+# bodies (`--include-kdf`) and its `HmacTotal`/`HkdfAgrees`-style hypotheses are
+# proved of those copies; moving it to `VERIFIED_ZONES` is a separate decision,
+# and until then it is hashed here as a trusted input like the other two.
 TRUSTED_PRIMITIVE_ZONES = [
     "tacenta-core/boundary",
     "tacenta-core/kdf",
@@ -1431,6 +1434,10 @@ REQUIRED_PINS = frozenset(
         "hkdfShape_real",
         "DecryptRatchetAgreements.of_kdf",
         "decrypt_ratchet_refines_complete_of_kdf",
+        "toU8_u8",
+        "modelT3_hmac_eq_real",
+        "modelT3_hkdf_eq_real",
+        "toy_models_share_modelT3_kdf",
     )]
     # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).
     + ["Tacenta.KdfLeafAgreements." + n for n in (
@@ -3088,6 +3095,10 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "hkdfShape_real",
         "DecryptRatchetAgreements.of_kdf",
         "decrypt_ratchet_refines_complete_of_kdf",
+        "toU8_u8",
+        "modelT3_hmac_eq_real",
+        "modelT3_hkdf_eq_real",
+        "toy_models_share_modelT3_kdf",
         "KdfFreeAgreements",
     )]
     # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).

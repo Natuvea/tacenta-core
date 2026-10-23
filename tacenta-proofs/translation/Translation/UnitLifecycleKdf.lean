@@ -3,6 +3,14 @@ import Translation.KdfBridgeHmac
 import Translation.KdfBridgeHkdf
 import Translation.UnitSatisfiabilityJoint
 import Translation.UnitLifecycleDecryptRatchetCompleteT3
+import Translation.UnitSatisfiabilityBraidAgreements
+import Translation.UnitLifecycleDecryptScreen
+import Translation.UnitLifecycleDecryptRatchetScreen
+import Translation.UnitLifecycleResponderFirstReceipt
+import Translation.UnitLifecycleEstablishedEncrypt
+import Translation.UnitLifecycleEstablishedDecrypt
+import Translation.UnitLifecycleResponderFirstFrame
+import Translation.UnitLifecycleResponderReplyReceipt
 
 /-!
 # UnitLifecycleKdf
@@ -11,11 +19,12 @@ The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied b
 return and equal tacenta-model's: `HmacAgrees` and `HkdfAgrees` as theorems, the other KDF propositions the
 lifecycle results take, and `decrypt_ratchet`'s complete refinement without them.
 
-`tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from an independent verified
-implementation (`tacenta-core/kdf/src/lib.rs` says which files and what changed). Charon translates them
+`tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied from a separate, unpublished
+repository of this project's maintainer (`tacenta-core/kdf/src/lib.rs` pins it by commit and file digests and
+says what changed). Charon translates them
 into the Session unit (`run-aeneas.sh`, `--include-kdf`), so `tacenta_session_unit.tacenta_kdf.hmac_sha256`
 and `hkdf_sha256` are definitions there, one-line wrappers over `hmac.hmac_sha256` and
-`hkdf.hkdf_sha256`. The `Kdf*` modules are that implementation's own proofs, copied and elaborated
+`hkdf.hkdf_sha256`. The `Kdf*` modules are that repository's own proofs, copied and elaborated
 against the unit's translation:
 
 * `KdfT1Sha`, `KdfT1Kdf`: the translated functions never fail (HKDF for outputs of at most 8160 bytes);
@@ -188,6 +197,84 @@ theorem decrypt_ratchet_refines_complete_of_kdf {R : Type}
   Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete rngCore cryptoRng trace
     dh view oracle oracleOf codec contracts (DecryptRatchetAgreements.of_kdf rest) real model message rng
     hrel headroom htrace run
+
+/-! ## The toy interpretations whose KDF is the model's
+
+`Interp.modelT3` gives the two KDF fields the model's HMAC and HKDF as arrays (`hmacImpl`, `hkdfImpl`).
+Since the unit's KDF is a definition, the substitution argument behind the joint models does not reach
+those two fields; these theorems show that for `Interp.modelT3`, and for the seven interpretations built on
+it, the fields are the real definitions on HMAC's whole domain and on HKDF's up to 8160 bytes. -/
+
+/-- A translated byte read as a `UInt8` and written back is the same byte. -/
+theorem toU8_u8 (x : Std.U8) :
+    Tacenta.UnitSatisfiabilityBraidAgreements.toU8 (Tacenta.SessionUnitBraidT3.u8 x) = x := by
+  cases x with
+  | mk bv =>
+    simp only [Tacenta.UnitSatisfiabilityBraidAgreements.toU8, Tacenta.SessionUnitBraidT3.u8,
+      UScalar.val]
+    congr 1
+    simp
+
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+/-- `Interp.modelT3`'s HMAC is the unit's real HMAC, on every key and message. -/
+theorem modelT3_hmac_eq_real (key data : Slice Std.U8) :
+    Interp.modelT3.hmacSha256 key data = Interp.real.hmacSha256 key data := by
+  obtain ⟨r, hr, hv⟩ := hmacAgrees key data
+  show ok (hmacImpl key data) = tacenta_kdf.hmac_sha256 key data
+  rw [hr]
+  congr 1
+  apply Subtype.ext
+  show (Model.Kdf.hmac (Tacenta.SessionUnitBraidT3.sliceOf key)
+    (Tacenta.SessionUnitBraidT3.sliceOf data)).map toU8 = r.val
+  have hv' : r.val.map Tacenta.SessionUnitBraidT3.u8 =
+      Model.Kdf.hmac (Tacenta.SessionUnitBraidT3.sliceOf key) (Tacenta.SessionUnitBraidT3.sliceOf data) := hv
+  rw [← hv', List.map_map]
+  conv_rhs => rw [← List.map_id r.val]
+  exact List.map_congr_left (fun x _ => toU8_u8 x)
+
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+/-- `Interp.modelT3`'s HKDF is the unit's real HKDF, at every output length of at most 8160 bytes. -/
+theorem modelT3_hkdf_eq_real (N : Usize) (salt ikm info : Slice Std.U8) (hN : N.val ≤ 8160) :
+    Interp.modelT3.hkdfSha256 N salt ikm info = Interp.real.hkdfSha256 N salt ikm info := by
+  obtain ⟨r, hr, hv⟩ := hkdfAgrees N salt ikm info hN
+  show ok (hkdfImpl N salt ikm info) = tacenta_kdf.hkdf_sha256 N salt ikm info
+  rw [hr]
+  congr 1
+  apply Subtype.ext
+  show (Model.Kdf.hkdf (Tacenta.SessionUnitBraidT3.sliceOf salt) (Tacenta.SessionUnitBraidT3.sliceOf ikm)
+    (Tacenta.SessionUnitBraidT3.sliceOf info) N.val).map toU8 = r.val
+  have hv' : r.val.map Tacenta.SessionUnitBraidT3.u8 =
+      Model.Kdf.hkdf (Tacenta.SessionUnitBraidT3.sliceOf salt) (Tacenta.SessionUnitBraidT3.sliceOf ikm)
+        (Tacenta.SessionUnitBraidT3.sliceOf info) N.val := hv
+  rw [← hv', List.map_map]
+  conv_rhs => rw [← List.map_id r.val]
+  exact List.map_congr_left (fun x _ => toU8_u8 x)
+
+open Tacenta.UnitSatisfiabilityJoint Tacenta.UnitSatisfiabilityBraidAgreements in
+/-- The seven interpretations of the lifecycle screens and models built on `Interp.modelT3` keep its two
+KDF fields. -/
+theorem toy_models_share_modelT3_kdf :
+    (Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped).hmacSha256 = Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped).hkdfSha256 = Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleDecryptRatchetScreen.Interp.modelDecrypt).hmacSha256 = Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleDecryptRatchetScreen.Interp.modelDecrypt).hkdfSha256 = Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt).hmacSha256 =
+      Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt).hkdfSha256 =
+      Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleEstablishedEncrypt.Interp.modelEncrypt).hmacSha256 = Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleEstablishedEncrypt.Interp.modelEncrypt).hkdfSha256 = Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished).hmacSha256 =
+      Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished).hkdfSha256 =
+      Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame).hmacSha256 =
+      Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame).hkdfSha256 =
+      Interp.modelT3.hkdfSha256 ∧
+    (Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply).hmacSha256 = Interp.modelT3.hmacSha256 ∧
+    (Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply).hkdfSha256 = Interp.modelT3.hkdfSha256 :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 end Tacenta.UnitLifecycleKdf
 
@@ -462,6 +549,133 @@ info: 'Tacenta.UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf' depends
 #print axioms Tacenta.UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf
 
 /--
+info: 'Tacenta.UnitLifecycleKdf.toU8_u8' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleKdf.toU8_u8
+
+/--
+info: 'Tacenta.UnitLifecycleKdf.modelT3_hmac_eq_real' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleKdf.modelT3_hmac_eq_real
+
+/--
+info: 'Tacenta.UnitLifecycleKdf.modelT3_hkdf_eq_real' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.tacenta_kem.CT1_LEN,
+ tacenta_session_unit.tacenta_kem.CT2_LEN,
+ tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
+ tacenta_session_unit.tacenta_kem.EncapsState,
+ tacenta_session_unit.tacenta_kem.HEADER_LEN,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
+ tacenta_session_unit.tacenta_kem.encapsulate1,
+ tacenta_session_unit.tacenta_kem.encapsulate2,
+ tacenta_session_unit.tacenta_kem.validate_ek,
+ tacenta_session_unit.zeroize.Zeroizing,
+ tacenta_session_unit.rand_core_1.error.Error,
+ tacenta_session_unit.tacenta_boundary.aead.decrypt,
+ tacenta_session_unit.tacenta_boundary.aead.encrypt,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public,
+ tacenta_session_unit.tacenta_boundary.kem.KeyPair,
+ tacenta_session_unit.tacenta_boundary.kem.decapsulate,
+ tacenta_session_unit.tacenta_boundary.kem.encapsulate,
+ tacenta_session_unit.tacenta_boundary.xeddsa.verify,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header,
+ tacenta_session_unit.zeroize.Zeroizing.new,
+ tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.alloc.vec.Vec.capacity,
+ tacenta_session_unit.alloc.vec.Vec.pop,
+ tacenta_session_unit.alloc.vec.Vec.truncate,
+ tacenta_session_unit.core.num.Usize.div_ceil,
+ tacenta_session_unit.core.option.Option.as_mut,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleKdf.modelT3_hkdf_eq_real
+
+/--
+info: 'Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_session_unit.rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf
+
+/--
 info: Tacenta.UnitLifecycleKdf.hmacAgrees : Tacenta.SessionUnitT3.HmacAgrees
 -/
 #guard_msgs in
@@ -572,6 +786,64 @@ info: @Tacenta.UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf : ∀ {R
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf
+
+/--
+info: Tacenta.UnitLifecycleKdf.toU8_u8 : ∀ (x : Aeneas.Std.U8),
+  Tacenta.UnitSatisfiabilityBraidAgreements.toU8 (Tacenta.SessionUnitBraidT3.u8 x) = x
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleKdf.toU8_u8
+
+/--
+info: Tacenta.UnitLifecycleKdf.modelT3_hmac_eq_real : ∀ (key data : Aeneas.Std.Slice Aeneas.Std.U8),
+  Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 key data =
+    Tacenta.UnitSatisfiabilityJoint.Interp.real.hmacSha256 key data
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleKdf.modelT3_hmac_eq_real
+
+/--
+info: Tacenta.UnitLifecycleKdf.modelT3_hkdf_eq_real : ∀ (N : Aeneas.Std.Usize)
+  (salt ikm info : Aeneas.Std.Slice Aeneas.Std.U8),
+  ↑N ≤ 8160 →
+    Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 N salt ikm info =
+      Tacenta.UnitSatisfiabilityJoint.Interp.real.hkdfSha256 N salt ikm info
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleKdf.modelT3_hkdf_eq_real
+
+/--
+info: Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf : Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.hmacSha256 =
+    Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+  Tacenta.UnitLifecycleDecryptScreen.Interp.modelShipped.hkdfSha256 =
+      Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+    Tacenta.UnitLifecycleDecryptRatchetScreen.Interp.modelDecrypt.hmacSha256 =
+        Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+      Tacenta.UnitLifecycleDecryptRatchetScreen.Interp.modelDecrypt.hkdfSha256 =
+          Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+        Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt.hmacSha256 =
+            Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+          Tacenta.UnitLifecycleResponderFirstReceipt.Interp.modelFirstReceipt.hkdfSha256 =
+              Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+            Tacenta.UnitLifecycleEstablishedEncrypt.Interp.modelEncrypt.hmacSha256 =
+                Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+              Tacenta.UnitLifecycleEstablishedEncrypt.Interp.modelEncrypt.hkdfSha256 =
+                  Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+                Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished.hmacSha256 =
+                    Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+                  Tacenta.UnitLifecycleEstablishedDecrypt.Interp.modelEstablished.hkdfSha256 =
+                      Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+                    Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame.hmacSha256 =
+                        Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+                      Tacenta.UnitLifecycleResponderFirstFrame.Interp.modelFirstFrame.hkdfSha256 =
+                          Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256 ∧
+                        Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply.hmacSha256 =
+                            Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hmacSha256 ∧
+                          Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply.hkdfSha256 =
+                            Tacenta.UnitSatisfiabilityBraidAgreements.Interp.modelT3.hkdfSha256
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf
 
 /--
 info: structure Tacenta.UnitLifecycleKdf.KdfFreeAgreements (K : Model.Braid.Kem) : Prop

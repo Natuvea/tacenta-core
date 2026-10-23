@@ -268,8 +268,8 @@ excludes it.
 - The cryptographic primitives are trusted, except the key derivation of the Session unit. tacenta-core uses
   vetted crates for X25519, AES-256-CBC, Ed25519, the SHA-256 and HMAC that the root crate's identity and group
   digests and the AEAD's tag check on decryption call, and ML-KEM-1024 from libcrux-ml-kem. Since 2026-10-22
-  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 (and the AEAD's tag on encryption, which calls them) are a
-  SHA-256, an HMAC and an HKDF copied from an independent verified implementation, translated, and proved of the
+  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF copied from
+  a separate, unpublished repository of this project's maintainer (pinned in `kdf/src/lib.rs` by commit and file digests), translated, and proved of the
   Session unit's translation to compute tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf`
   (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the leaf and three-leaf translations' copies by the same
   proofs ported (`KdfLeafAgreements`, `KdfTripleUnitAgreements`). What stays trusted about them: that tacenta-model's KDF is
@@ -277,9 +277,12 @@ excludes it.
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
   The copied code is about 1.5 to 2.1 times slower than RustCrypto on these three functions by its source's own
-  measurement, not repeated here, and no independent human has read it or its proofs; every review so far was
-  by tool-assisted sessions. The same KDF hypotheses of the leaf translations and the three-leaf unit are
-  proved of their own translations' copies too (`KdfLeafAgreements`, `KdfTripleUnitAgreements`). The crate's top-level ML-KEM-1024 functions carry hax and F*
+  measurement, not repeated here, and no human has read it or its proofs; every review so far was by
+  tool-assisted sessions. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
+  translation, and no theorem says how it computes its tag. On encryption that tag now comes from the copied
+  HMAC, while decryption checks it with RustCrypto's `hmac` and `sha2` (`boundary/src/aead.rs`); that the two
+  compute the same tag rests on tests (`kdf/tests/differential.rs` and the AEAD round-trip tests), not on
+  proof. The crate's top-level ML-KEM-1024 functions carry hax and F*
   annotations by its own account, and this project has not checked which are
   discharged. The three top-level functions this project calls are marked
   `verification_status(panic_free)` in the pinned source, and the verification
@@ -524,20 +527,23 @@ from it. This holds here by delegation and discipline, not by proof.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
 - **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
-  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied from an independent verified implementation,
-  whose source says every branch and every index is on a length or a loop counter. They are loops, and this
+  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied from a separate, unpublished repository of this project's maintainer,
+  whose comments say every branch and every index is on a length or a loop counter. They are loops, and this
   workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
   rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`
-  instead lists every conditional branch of the crate's release assembly with the instruction before it, every
-  indirect transfer, table reference, register-indexed access, named callee and hardware divide, and requires the
+  instead lists every conditional branch of the crate's assembly, built in the release profile with one codegen
+  unit (which the shipped build does not set), with the instruction before it, and every indirect transfer, table
+  reference, register-indexed access, named callee and hardware divide, and requires the
   list to equal a baseline per target (`tooling/ct-baselines/`), whose items were read against the rule that each
   depends only on a length, a loop counter, the SHA-256 buffer's fill count, HKDF's block counter or position, or
   a constant (`tooling/ct-baselines/kdf-review-notes.txt`). That reading was made by a tool-assisted session, not
-  an independent human reader. The baselines were written on an aarch64 Mac for its own target and, cross-compiled,
-  for the two Linux targets, with the default nightly toolchain; stable 1.98.1 gave the same inventory on the Mac,
-  and whether it gives the same on the Linux targets is not checked (a different one fails the gate until it is
-  read). Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and an LTO build, which would
-  inline these functions into their callers, is not covered.
+  a human reader. The baselines were read from one compiler, rustc 1.99.0-nightly (da80ed070), on an aarch64 Mac
+  for its own target and, cross-compiled, for the two Linux targets; the gate refuses to compare under any other
+  compiler (`tooling/ct-baselines/rustc-version.txt`), and CI's `rust_ct_asm` step pins that toolchain
+  (`nightly-2026-07-15`). Stable 1.98.1 gave the same inventory on the Mac; no inventory from a stable toolchain
+  was produced for either Linux target. The reader is a tripwire, not a proof: an address computed into a register
+  before it is used is not listed. Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and
+  an LTO build, which would inline these functions into their callers, is not covered.
 - **The Braid's MAC comparison is a hand-written loop.** `mac_eq` in
   `tacenta-braid` ORs the XOR of every byte pair and tests the accumulator
   once at the end -- the textbook shape -- but nothing in the language stops
@@ -2076,13 +2082,14 @@ bundles discharged. What that does and does not buy:
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
 * **The boundary hypotheses of the discharged theorems about opaque constants are
-  witnessed on the unit, and the four about translated functions follow from laws.**
+  witnessed on the unit, and the six about translated functions follow from laws or are proved.**
   `UnitSatisfiabilityTriple.lean` witnesses those about the unit's opaque
-  constants, including the HMAC and HKDF agreements (from the model's output
-  lengths). Where two constrain one constant it witnesses them jointly: the
+  constants. Its witnesses of the HMAC and HKDF agreements (from the model's output lengths) are void bridges
+  since 2026-10-22, the KDF being a translated definition in the unit, and `KdfTripleUnitAgreements` proves
+  `UnitT3.HmacAgrees` and `UnitT3.HkdfAgrees` instead. Where two constrain one constant it witnesses them jointly: the
   classical round trip, which is also the Triple's, the sparse round trips at 96
   and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
-  family. The four about translated functions, `UnitT1.RemoveSkippedAtTotal`,
+  family. The four other ones about translated functions, `UnitT1.RemoveSkippedAtTotal`,
   `UnitSpqrT3.RemoveSkippedAtAgrees`, `UnitSpqrT3.VecRetainAgrees` and `UnitSpqrT1.VecRetainTotal`, have a void bridge or no
   witness there, and `UnitSatisfiabilityTripleLaws.lean` proves each from named laws
   (`CLAIMS.md`).
@@ -2473,13 +2480,27 @@ field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 `Interp.real` interprets, `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256`, are definitions, not axioms. The
 substitution argument this section and the ones below rest on replaces axioms only, so it covers the other 47; for the
 two KDF fields what stands in its place is proof: the KDF laws the records take hold of the real definitions
-(`UnitLifecycleKdf`, and `hmacShape_real`, `hkdfShape_real` there). The toy interpretations still give the KDF fields
-toy functions; whether each joint model's laws still hold with the real KDF in place
-of its toy KDF is not checked. `check-session-satisfiability-negatives.sh` admits exactly these two definitions among
+(`UnitLifecycleKdf.hmacShape_real`, `hkdfShape_real`). The toy interpretations give the KDF fields functions of their
+own, and how far those are the real ones is proved for one family and open for the other:
+- `Interp.modelT3`, and the seven interpretations of the lifecycle screens built on it (`modelShipped`,
+  `modelDecrypt`, `modelFirstReceipt`, `modelEncrypt`, `modelEstablished`, `modelFirstFrame`, `modelReply`), give
+  them the model's HMAC and HKDF, and those are the real definitions on every key and message (HMAC) and at every
+  output length up to 8160 bytes (HKDF): `UnitLifecycleKdf.modelT3_hmac_eq_real`, `modelT3_hkdf_eq_real` and
+  `toy_models_share_modelT3_kdf`. Above 8160 bytes the real HKDF refuses and `modelT3`'s returns; whether any law of
+  those models reads the HKDF past that bound is not checked.
+- `Interp.model`, whose KDF returns zero bytes, and the interpretations that keep its KDF fields
+  (`Interp.faithful`, and those the record, headroom and oracle modules build from it) give different functions from
+  the real KDF. Whether their joint laws still hold with the real KDF in place of theirs is not checked.
+- The leaf and three-leaf witness files (`Satisfiability.lean`, `UnitSatisfiabilityTriple.lean`) are in the same
+  position for their translations: their KDF witnesses are void bridges now, the KDF hypotheses there are proved
+  (`KdfLeafAgreements`, `KdfTripleUnitAgreements`), and whether their witnesses of other hypotheses still hold
+  together with the real KDF is not checked.
+ `check-session-satisfiability-negatives.sh` admits exactly these two definitions among
 the interpreted constants and refuses a third.
 
-**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 of the opaque axioms of
-`TacentaSessionUnit.lean` (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
+**What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 constants of
+`TacentaSessionUnit.lean`, 47 opaque axioms and the two KDF wrappers, translated definitions since 2026-10-22
+(6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
 by no field, and the 39th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
 interpreted because no contract looks at it) in one structure, and shows that one
 interpretation satisfies every field of the four records that mentions only those constants,
@@ -2492,9 +2513,10 @@ axiom parts of the four records, the class `SessionUnitT1.DerivedKeysModel` and 
 the four records, and that they have a model (`records_of_axiom_base`, `axiom_base_satisfiable`).
 
 **The sense of "inhabited".** Every axiom of the unit that a record reaches is an uninterpreted constant. The
-unit has 231 axioms in all: 88 uninterpreted constants (50 reached by the records, 38 not) and 143 compiler-trust
+unit has 229 axioms in all: 86 uninterpreted constants (48 reached by the records, 38 not) and 143 compiler-trust
 facts about the byte length of format strings, none of which mentions an interpreted constant, so replacing the
-49 constants leaves them true. The first of the two theorems holds, under the base, for every assignment of the
+47 interpreted axioms leaves them true (the other two of the 49 interpreted constants, the KDF wrappers, are
+translated definitions since 2026-10-22; "The two KDF fields of `Interp`" above). The first of the two theorems holds, under the base, for every assignment of the
 constants; the second exhibits an assignment under which the base holds. So a derivation of `False` from a record at the real constants would, after the constants are replaced by
 the model's terms, become a derivation of `False` from facts that hold in the model. That last step is an
 argument about derivations and not a theorem inside Lean. Making it one needs a copy of every translated body

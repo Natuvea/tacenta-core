@@ -57,8 +57,8 @@ is a notation class, or a dependency's scoped instance brought in by `open`. No 
 changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 
-On 2026-10-22, for the key derivation (`tacenta-kdf`'s bodies copied from an independent verified implementation
-and translated, `UnitLifecycleKdf`), these parts were updated against the head of that change and nothing else was
+On 2026-10-22, for the key derivation (`tacenta-kdf`'s bodies copied from a separate, unpublished repository of the
+maintainer and translated, `UnitLifecycleKdf`), these parts were updated against the head of that change and nothing else was
 re-read: the pin and claim counts in practice 2 and the trusted list in practice 3. The update was made by the author
 with tool assistance; no reader independent of the maintainer has read it.
 
