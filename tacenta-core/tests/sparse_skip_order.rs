@@ -15,8 +15,9 @@
 //! bytes in the layout of `session-persistence.md`, Sparse ratchet state, read
 //! with `State::from_bytes`, driven by `receive`, and read back with
 //! `to_bytes`. Most starts hold keys past a chain's counter, which the page
-//! says the operations do not produce (proved of the model's operations, not
-//! of the code); the decoder accepts them, so a restored state can hold them.
+//! says the operations do not produce (proved of the model from
+//! initialisation, not of the code); the decoder accepts them, so a restored
+//! state can hold them.
 //!
 //! What they add over the unit tests: a request that breaks both bounds,
 //! which the order decides (the kind is `TooManySkipped`; checking the store
