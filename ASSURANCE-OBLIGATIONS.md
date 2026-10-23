@@ -860,7 +860,8 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated; the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
+  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved.
@@ -929,7 +930,8 @@ recorded decision or a target-closing slice:
   `check-braid-agreement-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated; the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
+  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved;
@@ -1042,7 +1044,8 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated; the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
+  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the frame proofs of the four lifecycle bodies keep refusing a write on a refusal path;
