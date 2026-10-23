@@ -710,3 +710,16 @@ CT4, CT13, CT17, CT20, CT27 and CT28 followed the changed lines.
 | CT35 | `tooling/check-constant-time-asm.sh` | in CI, a missing KDF toolchain skips the key derivation instead of failing | `run-check-constant-time-asm-cases.sh` | seen as accepted |
 | CT36 | `tooling/check-constant-time-asm.sh` | in CI, a Linux target the KDF's toolchain lacks is not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
 | CT37 | `tooling/check-constant-time-asm.sh` | baselines that name no toolchain are not refused | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+
+In CI the gate then required both Linux targets of the running toolchain (on the runner's x86_64 Linux host the
+host alone had satisfied the old "neither" rule), and CT9, which had removed both one-assembly-file guards at once,
+was split: CT9 now removes the straight-line half's guard and CT38 the key derivation's, each caught by a case
+aimed at one crate. `python3 tooling/mutate-gates.py --only CT1` to `CT38` (all 38), on an aarch64 Mac, against the
+commit that made those changes: the baseline passed; 38 edits, 14 seen as accepted, 24 as another wrong verdict,
+none message only, none survived.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT4 | `tooling/check-constant-time-asm.sh` | in CI, a missing Linux target of the running toolchain is skipped, not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT9 | `tooling/check-constant-time-asm.sh` | several assembly files for a straight-line crate are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT38 | `tooling/check-constant-time-asm.sh` | several assembly files for the key derivation are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
