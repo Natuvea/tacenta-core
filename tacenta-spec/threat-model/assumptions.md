@@ -99,9 +99,9 @@ HMAC-SHA256 is a pseudorandom function, and HKDF-SHA256 is a dual pseudorandom
 function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
-own SHA-256, HMAC and HKDF, code copied from a separate, unpublished
-implementation by the same maintainer and pinned in `kdf/src/lib.rs` by commit
-and file digests; the translated crates include those bodies. That they compute
+own SHA-256, HMAC and HKDF: code that `tacenta-core`'s maintainer wrote in a
+separate, unpublished repository and copied here, pinned in `kdf/src/lib.rs` by
+commit and file digests. Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
 vectors check against those RFCs and nothing proves to be them, and on the
 agreement proofs below. Their timing is not measured.
@@ -142,12 +142,16 @@ In particular:
     computes what the model's HMAC and HKDF compute: `HmacAgrees` and
     `HkdfAgrees` (`Translation/T3.lean`), `SessionT3.HkdfAgrees`,
     `SpqrHkdfAgrees`, `BraidHmacAgrees` and `BraidHkdfAgrees`. The theorems
-    still take them; for each translation that includes the copied code, they
-    are also proved of its translated code (HKDF for outputs of at most 8160
-    bytes): `UnitLifecycleKdf`, `KdfLeafAgreements` and
-    `KdfTripleUnitAgreements`. They say the code equals the model, not that the
-    model is the RFCs or that it is a pseudorandom function, which stays the
-    assumption above.
+    still take them. They are also proved of the translated code (HKDF for
+    outputs of at most 8160 bytes) in the six translations whose theorems take
+    them: the Session unit's (`UnitLifecycleKdf`); the classical ratchet's, the
+    PQXDH session's, the sparse ratchet's and the Braid's
+    (`KdfLeafAgreements`); and the three-leaf unit's
+    (`KdfTripleUnitAgreements`). The lifecycle and the Braid-and-erasure
+    translations include the code too, but no theorem takes a hypothesis about
+    it there; only their axiom audits import them. The proofs say the code
+    equals the model, not that the model is the RFCs or that it is a
+    pseudorandom function, which stays the assumption above.
   - The model's own HMAC and HKDF are anchored to RFC 4231 and RFC 5869 values
     (CLAIMS.md, "Evidence, not proof").
   - The symbolic theorems take one-wayness as ASM-10.
@@ -444,13 +448,15 @@ depends on.
 
 The named hypotheses the T1 and T3 theorems take about operations the
 translation cannot see into hold of the real operations. They cover:
-- the key derivation's agreement with the model, which the translation can now
-  see into and which is proved of the translated code (ASM-05), though the
-  theorems still take it;
 - the `zeroize` wrapper's round trips;
 - `Vec::remove`, `retain` and `append`;
 - `Option`'s clone;
 - the KEM and erasure agreements.
+
+The key derivation's agreement with the model was among them until
+2026-10-22. The translation now sees into the key derivation, and the agreement
+is proved of the translated code (ASM-05), although the theorems still take it
+as a hypothesis, so it is no longer an assumption of this kind.
 
 Each is stated under the Rust operation's own precondition. Most are witnessed
 satisfiable (`Translation/Satisfiability.lean`,
