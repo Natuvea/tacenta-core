@@ -170,6 +170,18 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `threat-model/assumptions.md` ASM-05, ASM-06 and ASM-18,
+  `security-properties/limitations.md` LIM-06 and the implementation note of
+  `protocol/message-format.md`: `tacenta-core`'s HMAC-SHA256 and HKDF-SHA256
+  are now `tacenta-kdf`'s own code, copied from a separate, unpublished
+  implementation by the same maintainer, and no longer RustCrypto's. The
+  translated crates include that code, and its agreement with the model's
+  HMAC and HKDF is proved of the translated code; the pages say so, and that
+  the model's are the RFCs', the pseudorandom-function property, timing and
+  erasure are not shown. The AEAD's tag is computed on encryption by that
+  HMAC and checked on decryption by RustCrypto's, which agree by tests. No
+  protocol behaviour, byte or refusal changes.
+
 - `protocol/session-establishment.md`:
   - the initiator establishes only with an expectation, which replaces the
     named identity the page let her state;

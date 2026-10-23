@@ -128,10 +128,15 @@ a step. It does not check the session against a model scenario.
 
 ### LIM-06: primitives and boundary hypotheses
 
-X25519, XEdDSA, ML-KEM-1024, HMAC, HKDF, AES and the hashes are opaque in every
-proof (ASM-02 to ASM-07). The T1 and T3 theorems take boundary hypotheses about
-opaque operations (ASM-18). These are witnessed satisfiable, but not shown to
-hold of the real operations.
+X25519, XEdDSA, ML-KEM-1024, AES, the AEAD and the hashes are opaque in every
+proof (ASM-02 to ASM-07), with one exception: `tacenta-kdf`'s HMAC-SHA256 and
+HKDF-SHA256, and the SHA-256 beneath them, are translated, and their agreement
+with the model's HMAC and HKDF is proved of the translated code (ASM-05). That
+the model's are the RFCs', their timing and their erasure are not shown. The
+SHA-256 and HMAC called outside `tacenta-kdf` (the AEAD's tag check on
+decryption, the identity and group digests) stay opaque. The T1 and T3 theorems
+take boundary hypotheses about opaque operations (ASM-18). These are witnessed
+satisfiable, but not shown to hold of the real operations.
 
 The KEM carries two further limits:
 - The model's `Kem.Correct` rounds ML-KEM's decapsulation-failure probability

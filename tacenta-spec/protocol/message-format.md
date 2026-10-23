@@ -242,7 +242,8 @@ comparison in step 2 runs in constant time. The padding check needs no such
 care, because it is reached only after a tag has verified.
 
 `tacenta-core` takes AES-256, CBC and PKCS#7 padding from RustCrypto's `aes`
-and `cbc`, and HMAC-SHA256 from `hmac` and `sha2`. Those libraries are one
+and `cbc`; it computes the tag with `tacenta-kdf`'s HMAC-SHA256 and checks it
+with RustCrypto's `hmac` and `sha2`. Those libraries are one
 implementation of these standards; this section, not they, defines the
 behaviour.
 

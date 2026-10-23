@@ -98,9 +98,13 @@ against ADV-03.
 HMAC-SHA256 is a pseudorandom function, and HKDF-SHA256 is a dual pseudorandom
 function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
-adversary and against ADV-03. `hkdf` 0.12, `hmac` 0.12 and `sha2` 0.10
-(RustCrypto) compute RFC 2104 and RFC 5869. The translated leaf crates reach
-them through the `tacenta-kdf` crate.
+adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
+own SHA-256, HMAC and HKDF, code copied from a separate, unpublished
+implementation by the same maintainer and pinned in `kdf/src/lib.rs` by commit
+and file digests; the translated crates include those bodies. That they compute
+RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
+vectors check against those RFCs and nothing proves to be them, and on the
+agreement proofs below. Their timing is not measured.
 
 In particular:
 - **`KDF_CK`:** neither the next chain key nor the message key reveals the
@@ -134,10 +138,16 @@ In particular:
   REQ-CONF-04, REQ-CONF-05, REQ-CONF-06, REQ-CONF-07, REQ-FS-01, REQ-FS-05,
   REQ-FS-06, REQ-PCS-01, REQ-PCS-03.
 - **Proofs:**
-  - The refinements take agreement hypotheses saying the opaque operations
-    compute what the model's HMAC and HKDF compute: `HmacAgrees` and
+  - The refinements take agreement hypotheses saying the key derivation
+    computes what the model's HMAC and HKDF compute: `HmacAgrees` and
     `HkdfAgrees` (`Translation/T3.lean`), `SessionT3.HkdfAgrees`,
-    `SpqrHkdfAgrees`, `BraidHmacAgrees` and `BraidHkdfAgrees`.
+    `SpqrHkdfAgrees`, `BraidHmacAgrees` and `BraidHkdfAgrees`. The theorems
+    still take them; for each translation that includes the copied code, they
+    are also proved of its translated code (HKDF for outputs of at most 8160
+    bytes): `UnitLifecycleKdf`, `KdfLeafAgreements` and
+    `KdfTripleUnitAgreements`. They say the code equals the model, not that the
+    model is the RFCs or that it is a pseudorandom function, which stays the
+    assumption above.
   - The model's own HMAC and HKDF are anchored to RFC 4231 and RFC 5869 values
     (CLAIMS.md, "Evidence, not proof").
   - The symbolic theorems take one-wayness as ASM-10.
@@ -149,8 +159,10 @@ ADV-03. So AES-256-CBC is IND-CPA secure for a key that encrypts one plaintext
 under an IV the adversary cannot predict. HMAC-SHA256 with its full 32-byte tag
 is strongly unforgeable. Their encrypt-then-MAC composition (message-format.md,
 Authenticated encryption) is therefore confidential and integrity-protecting for
-a key used for one message. `aes` 0.8, `cbc` 0.1, `hmac` 0.12 and `sha2` 0.10
-compute FIPS 197, SP 800-38A and RFC 2104.
+a key used for one message. `aes` 0.8 and `cbc` 0.1 (RustCrypto) compute
+FIPS 197 and SP 800-38A. The tag is computed on encryption by `tacenta-kdf`'s
+HMAC-SHA256 (ASM-05) and checked on decryption by RustCrypto's `hmac` 0.12
+over `sha2` 0.10; that the two compute the same tag is tested, not proved.
 
 - **Relied on by:** REQ-AUTH-03, REQ-AUTH-06, REQ-AUTH-07, REQ-CONF-01,
   REQ-CONF-06.
@@ -432,7 +444,9 @@ depends on.
 
 The named hypotheses the T1 and T3 theorems take about operations the
 translation cannot see into hold of the real operations. They cover:
-- the key derivation's agreement with the model;
+- the key derivation's agreement with the model, which the translation can now
+  see into and which is proved of the translated code (ASM-05), though the
+  theorems still take it;
 - the `zeroize` wrapper's round trips;
 - `Vec::remove`, `retain` and `append`;
 - `Option`'s clone;
