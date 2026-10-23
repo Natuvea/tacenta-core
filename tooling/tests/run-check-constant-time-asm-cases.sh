@@ -295,8 +295,9 @@ reset_fixtures
 main_case 'another compiler than the baselines were read from is a failure' 1 'but the baselines were read from rustc fixture 1.0; the compiler differs' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
 main_case 'a compiler mismatch is named as the cause' 1 'its pinned toolchain is not the compiler its baselines were read from' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
 rm "$sandbox/tooling/ct-baselines/rustc-version.txt"
-main_case 'baselines that name no compiler are a failure' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
+# Without the pinned toolchain first: with the refusal removed, that run would skip the KDF half and pass.
 main_case 'baselines that name no compiler are a failure even without the pinned toolchain' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-x86_64-unknown-linux-gnu (default)'
+main_case 'baselines that name no compiler are a failure' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
 rm "$sandbox/tooling/ct-baselines/rust-toolchain.txt"
 main_case 'baselines that name no toolchain are a failure' 1 'rust-toolchain.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
