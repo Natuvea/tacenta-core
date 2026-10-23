@@ -178,7 +178,10 @@ run bash-n 0 bash -n tacenta-proofs/scripts/no-sorry.sh
 run bash-n-cases 0 bash -n tooling/tests/run-proof-script-cases.sh
 run bash-n-parts 0 bash -n tooling/tests/run-no-sorry-parts-cases.sh
 run counts-gate 0 python3 tacenta-proofs/scripts/check-negatives-control-counts.py
-says counts-gate "6 scripts match negatives-control-counts.json"
+# The scaffolded script is one more than the scripts the committed record lists.
+recorded="$(python3 -B -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["scripts"]))' \
+  "$root/tacenta-proofs/scripts/negatives-control-counts.json")"
+says counts-gate "$((recorded + 1)) scripts match negatives-control-counts.json"
 run parts-runner 0 bash tooling/tests/run-no-sorry-parts-cases.sh
 says parts-runner "no-sorry-parts-cases:"
 run json 0 python3 -c "import json; json.load(open('tooling/gate-inventory.json')); json.load(open('tooling/gate-mutations.json'))"
