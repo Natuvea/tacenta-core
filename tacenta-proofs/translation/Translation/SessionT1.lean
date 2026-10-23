@@ -368,8 +368,8 @@ theorem decode_ec_spec (bytes : Slice U8) :
 
 /-! ## The derivation
 
-`kdf_sk` prefixes the domain separator and hands the result to the opaque key
-derivation. Its precondition is the one real bound in this file: the keying
+`kdf_sk` prefixes the domain separator and hands the result to the key
+derivation (opaque until 2026-10-22, translated since). Its precondition is the one real bound in this file: the keying
 material is a slice of arbitrary length, so the caller has to say it leaves room
 for thirty-two more bytes.
 

@@ -42,7 +42,7 @@ noncomputable section
 namespace Tacenta.UnitSatisfiabilityRatchet
 
 
-/-- The opaque HKDF returns on every triple of slices, for an output length within RFC 5869's
+/-- The HKDF (opaque until 2026-10-22, a translated definition since) returns on every triple of slices, for an output length within RFC 5869's
 bound.  This is the field `HkdfTotal` of the records. -/
 def LawHkdf : Prop :=
   ∀ (N : Usize) (salt ikm info : Slice U8), N.val ≤ 8160 →

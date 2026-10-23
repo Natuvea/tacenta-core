@@ -27,11 +27,14 @@ nothing.  This module shows the four records are not that, in the sense below.
 
 ## The sense of "inhabited"
 
-Every axiom of the unit that a record reaches is an uninterpreted constant.  The unit has 231 axioms
-in all: 88 uninterpreted constants (50 reached by the records, 38 not) and 143 compiler-trust facts
+Every axiom of the unit that a record reaches is an uninterpreted constant.  The unit has 229 axioms
+in all: 86 uninterpreted constants (48 reached by the records, 38 not) and 143 compiler-trust facts
 about the byte length of format strings, none of which mentions an interpreted constant, so replacing
-the 49 interpreted constants leaves them true.  The 50th reached axiom is the error type inside
-`RngCore`, which no contract looks at and which is not interpreted.  `records_of_axiom_base` is a
+the 47 interpreted axioms leaves them true.  The 48th reached axiom is the error type inside
+`RngCore`, which no contract looks at and which is not interpreted.  The other two of the 49
+interpreted constants, the two KDF wrappers, are translated definitions since 2026-10-22: replacing
+them is not a substitution of uninterpreted constants, and `LIMITATIONS.md` ("The two KDF fields of
+`Interp`") says what that leaves open.  `records_of_axiom_base` is a
 theorem in the real environment, so, under the base, it holds for every assignment of the constants.
 `axiom_base_satisfiable` exhibits an assignment, `Interp.model`, of the 49 interpreted constants,
 under which the base holds.  So a derivation of `False` from a record at the real constants would, after the constants
@@ -231,9 +234,10 @@ end Tacenta.UnitSatisfiabilityRecords
 
 /-! ## Axiom pins
 
-The axiom bases of the results above, held by the build.  A list names the constants that occur in
-the statement of a result, and these are the 49 interpreted constants the records reach, plus the error
-type inside `RngCore`; the proofs assume about them exactly the hypotheses in the statements
+The axiom bases of the results above, held by the build.  A list names the axioms that occur in
+the statement of a result, and these are the 47 interpreted constants the records reach that are axioms
+(the two KDF wrappers, translated definitions since 2026-10-22, are not axioms and are not listed), plus
+the error type inside `RngCore`; the proofs assume about them exactly the hypotheses in the statements
 (`EncryptAxiom`, `StdLaws` and so on).  `axiom_base_satisfiable` and
 `axiom_base_satisfiable_for_total_rng` are statements about an interpretation and list the standard
 axioms and the error type only. -/

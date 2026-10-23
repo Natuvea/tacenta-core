@@ -8,7 +8,8 @@ import Translation.SessionUnitBraidT3
 and `Braid.receive_refines` about the complete Session translation unit.  Besides the contract
 fields of `UnitLifecycleT1`, they take six agreements about the unit's opaque constants:
 `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`, `BraidHkdfAgrees` and
-`BraidHmacAgrees`.  Each relates an opaque KEM or KDF constant to `Model.Braid.Kem` or `Model.Kdf`.
+`BraidHmacAgrees`.  Each relates a KEM or KDF constant (the KEM's opaque; the KDF's opaque until
+2026-10-22, translated definitions since) to `Model.Braid.Kem` or `Model.Kdf`.
 
 `UnitSatisfiabilityJoint.lean` interprets the unit's opaque constants (`Interp`) and shows that one
 interpretation satisfies every axiom-level field of the four contract records.  Its model leaves

@@ -3168,7 +3168,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     exact hout
 
 -- The axiom audit for the two refinements, enforced rather than asserted: the
--- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM, KDF,
+-- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM,
 -- `zeroize`, and the library types and operations Aeneas does not model), and
 -- nothing else. No `native_decide` reaches either. A proof that starts
 -- trusting something new fails here.

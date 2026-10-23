@@ -26,8 +26,9 @@ merely that it returns.
 
 Unlike the ML-KEM Braid, this crate carries no key-encapsulation boundary and no
 erasure-coding boundary: `Output` arrives as a value from whichever crate
-produced it, and this crate does nothing with it but fold it in. The opaque
-calls this file assumes anything *about the value of* are `hkdf_sha256` and
+produced it, and this crate does nothing with it but fold it in. The
+calls this file assumes anything *about the value of* are `hkdf_sha256` (opaque
+until 2026-10-22, translated since) and
 the `zeroize` wrapper its expansion goes through, both inside the translated
 (non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so there is one KDF
 assumption below and one wrapper round trip per width rather than a family of
@@ -84,7 +85,8 @@ def sliceOf (s : Slice Std.U8) : List UInt8 := s.val.map u8
 
 `SpqrT1.lean` assumed `kdf_rk`/`kdf_ck` (the translated wrapping functions)
 cannot fail. Refinement needs more, and states it one level down, at the
-opaque primitive itself: that when `hkdf_sha256` returns, it returns what
+primitive itself (opaque until 2026-10-22, translated since; `KdfLeafAgreements`,
+`KdfTripleUnitAgreements` and `UnitLifecycleKdf` prove this of the translated copies): that when `hkdf_sha256` returns, it returns what
 `Model.Kdf.hkdf` computes. Argument order follows the Rust and the model
 alike: salt, then the input keying material, then the info string --
 `kdf_init`/`kdf_rk`/`kdf_ck` all call `hkdf_sha256` this way, and

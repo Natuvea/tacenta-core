@@ -107,8 +107,8 @@ def ChainsZeroizeTotal : Prop :=
   ∀ (c : Chains), ∃ r, Chains.Insts.ZeroizeZeroize.zeroize c = ok r
 
 /-- The root-key derivation returns. A sixth, for the same reason as
-`KdfCkTotal`: translated, but bottoming out in this crate's opaque
-`hkdf_sha256`. -/
+`KdfCkTotal`: translated, bottoming out in this crate's copy of
+`hkdf_sha256` (opaque until 2026-10-22, translated since). -/
 def KdfRkTotal : Prop :=
   ∀ (rk : Array U8 32#usize) (k : Array U8 32#usize),
     ∃ r, kdf_rk rk k = ok r
