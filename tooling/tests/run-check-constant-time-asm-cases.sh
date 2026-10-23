@@ -155,14 +155,15 @@ printf '  blr x8\n  bl _memcpy\n  ret\n' \
   | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf call _memcpy\nITEM fixture_kdf indirect blr x8' 'kdf aarch64 indirect call and named callee'
 printf '  cmpq $63, %%rdi\n  ja .LBB5_44\n  retq\n' \
   | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf branch ja L | cmpq $63, %rdi' 'kdf x86 branch listed with its compare'
-printf '  callq *memcpy@GOTPCREL(%%rip)\n  callq *%%rax\n  jmp *.LJTI0_0(,%%rax,8)\n  retq\n' \
-  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indexed jmp *L(,%rax,8)\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
-printf '  movl K(,%%rcx,4), %%eax\n  retq\n' \
-  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf indexed movl K(,%rcx,4), %eax' 'kdf x86 index-only operand listed'
-printf '  ldr w8, [x9], x10\n  ret\n' \
-  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldr w8, [x9], x10' 'kdf aarch64 register post-index listed'
+# Order matters for the mutation record: the first x86 case a weakened indexed-access regex fails names it.
 printf '  movzbl (%%r15,%%rbx), %%eax\n  divq %%rcx\n  retq\n' \
   | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf divide divq %rcx\nITEM fixture_kdf indexed movzbl (%r15,%rbx), %eax' 'kdf x86 indexed load and divide listed'
+printf '  movl K(,%%rcx,4), %%eax\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf indexed movl K(,%rcx,4), %eax' 'kdf x86 index-only operand listed'
+printf '  callq *memcpy@GOTPCREL(%%rip)\n  callq *%%rax\n  jmp *.LJTI0_0(,%%rax,8)\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indexed jmp *L(,%rax,8)\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
+printf '  ldr w8, [x9], x10\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldr w8, [x9], x10' 'kdf aarch64 register post-index listed'
 
 # `analyse` reports no function at all when the symbol is absent; `main` must refuse that, and the other
 # findings, and in CI must refuse a run with neither Linux target. These run the production script in a
