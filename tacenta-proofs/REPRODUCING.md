@@ -284,7 +284,7 @@ fb7976957f7fd80fea3a7216d0c5c0d851f99fc357c157c38f9ef17eb9d3e26a  TacentaSpqr.le
 646bce56a8fcbac1068e3e64aa407e7e51d83be436c876fe2208c749fa4f6db8  TacentaWire.lean
 ```
 
-These digests are those of the tree the run read. The generated files have changed since; on 2026-10-22 eight of
+These digests are those of the tree the run read. The generated files have changed since; with the KDF change (ADR-0010) eight of
 them were regenerated with the key derivation's bodies included (`--include-kdf`), on an Apple-silicon Mac with the
 macOS build of the same pinned release, and no linux-x86_64 run of that tree is recorded here.
 

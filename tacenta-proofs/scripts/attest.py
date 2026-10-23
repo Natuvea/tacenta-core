@@ -173,7 +173,7 @@ ASSEMBLED_ZONES = {
 # that the attestation can tell a reader which boundary a refinement was proved
 # against. `boundary` and `kem` are NOT translated and nothing in them is
 # proved; they are what the proofs assume. `tacenta-core/kdf` is still listed
-# although, since 2026-10-22, every translation that calls it translates its
+# although, since the KDF change (ADR-0010), every translation that calls it translates its
 # bodies (`--include-kdf`) and its `HmacTotal`/`HkdfAgrees`-style hypotheses are
 # proved wherever a theorem takes them; moving it to `VERIFIED_ZONES` is a separate decision,
 # and until then it is hashed here as a trusted input like the other two.

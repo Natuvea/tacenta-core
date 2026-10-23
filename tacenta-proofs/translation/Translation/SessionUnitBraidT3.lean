@@ -78,8 +78,9 @@ theorem u8_injective {x y : Std.U8} (h : u8 x = u8 y) : x = y := by
 /-! ## The KDF boundary: braid's own copy of `HmacAgrees`/`HkdfAgrees`
 
 Same shape as `Tacenta.T3`'s, but a separate declaration: Aeneas gives this
-crate its own `tacenta_session_unit.tacenta_kdf.hkdf_sha256`/`hmac_sha256` axioms (the counting
-trap `BraidT1.lean` already documents for their totality-only versions), so
+crate its own `tacenta_session_unit.tacenta_kdf.hkdf_sha256`/`hmac_sha256` (axioms until the KDF change,
+ADR-0010; translated definitions since), the counting
+trap `BraidT1.lean` already documents for their totality-only versions, so
 one proof of the ratchet's agreement does not discharge braid's. Argument
 order matches how `Auth.update`/`Auth.mac_hdr`/`Auth.mac_ct`/`kdf_ok` call
 them and how `Model.Kdf.hkdf salt ikm info len`/`Model.Kdf.hmac key data`

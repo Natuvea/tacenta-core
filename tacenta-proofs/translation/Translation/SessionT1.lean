@@ -369,7 +369,7 @@ theorem decode_ec_spec (bytes : Slice U8) :
 /-! ## The derivation
 
 `kdf_sk` prefixes the domain separator and hands the result to the key
-derivation (opaque until 2026-10-22, translated since). Its precondition is the one real bound in this file: the keying
+derivation (opaque until the KDF change (ADR-0010), translated since). Its precondition is the one real bound in this file: the keying
 material is a slice of arbitrary length, so the caller has to say it leaves room
 for thirty-two more bytes.
 
@@ -493,7 +493,7 @@ rather than pushed onto the caller.
 
 What it rests on, all of it named:
 
-* `HkdfTotal`, the key derivation, opaque until 2026-10-22 by the choice that kept the
+* `HkdfTotal`, the key derivation, opaque until the KDF change (ADR-0010) by the choice that kept the
   translation tractable, and a translated definition since. Same boundary as the ratchet's, and a separate constant
   because each generated module declares its own.
 * `ZeroizingModel`, the external `zeroize` crate. Stated as a model -- a contents

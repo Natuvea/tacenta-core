@@ -15,7 +15,7 @@ no out-of-bounds index, no unwrap of a missing value. The translated ratchet
 calls two kinds of thing, so each statement carries one hypothesis and no more:
 
 * our own code, which is what these theorems are about, and
-* the key derivation, which the translation saw as axioms until 2026-10-22 and
+* the key derivation, which the translation saw as axioms until the KDF change (ADR-0010) and
   sees as translated definitions since, and which is assumed total here. That assumption is named rather than left implicit,
   so a reader can see exactly what the proofs rest on.
 -/
@@ -123,7 +123,7 @@ theorem is_canonical_x25519_spec (k : Array U8 32#usize) :
 
 /-- The key-derivation boundary: the HMAC returns a value on every input. When
 this was written the HMAC was an opaque wrapper over a vetted implementation, so
-the fact is stated here and used explicitly. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
+the fact is stated here and used explicitly. (The KDF's bodies are translated since the KDF change (ADR-0010), so this is a hypothesis about a
 translated definition; `KdfLeafAgreements`, `KdfTripleUnitAgreements` and
 `UnitLifecycleKdf` prove it of each translation's copy.) -/
 def HmacTotal : Prop :=
@@ -978,7 +978,7 @@ never the counter's full range. `skip_gap_le` is that guard, stated once.
 -/
 
 -- The axiom audit, enforced rather than asserted. The proofs rest on Lean's
--- three standard axioms (and, until the KDF's bodies were translated on
--- 2026-10-22, the opaque key-derivation primitive), and on nothing else: no `sorry`, and no assumption about our own code. A later
+-- three standard axioms (and, until the KDF's bodies were translated by
+-- the KDF change (ADR-0010), the opaque key-derivation primitive), and on nothing else: no `sorry`, and no assumption about our own code. A later
 -- change that smuggled one in would fail this check.
 

@@ -268,7 +268,7 @@ excludes it.
 - The cryptographic primitives are trusted, except the key derivation. tacenta-core uses
   vetted crates for X25519, AES-256-CBC, Ed25519, the SHA-256 and HMAC that the root crate's identity and group
   digests and the AEAD's tag check on decryption call, the SHA-512 inside XEdDSA, and ML-KEM-1024 from
-  libcrux-ml-kem. Since 2026-10-22
+  libcrux-ml-kem. Since the KDF change (ADR-0010)
   `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF written by the maintainer
   with tool assistance in a separate, unpublished repository and copied here (pinned in `kdf/src/lib.rs` by commit
   and file digests), translated, and proved of the
@@ -295,11 +295,13 @@ excludes it.
   carries no such annotations in the pinned version 0.0.10. Both are trusted,
   not verified. Two primitives are implemented here rather than taken from a
   vetted crate: XEdDSA, over curve25519-dalek and ed25519-dalek, the exception
-  recorded in ADR-0002, and since 2026-10-22 the key derivation's SHA-256, HMAC
+  recorded in ADR-0002, and since the KDF change (ADR-0010) the key derivation's SHA-256, HMAC
   and HKDF above, the exception ADR-0010 proposes and the owner has not yet
-  accepted. The model computes SHA-256, HMAC, and HKDF
-  itself only to serve as the vector oracle, and those are anchored to RFC and
-  NIST values.
+  accepted. The model computes SHA-256, HMAC, and HKDF itself as the vector
+  oracle and, in the six translations whose theorems take the key derivation's
+  hypotheses, as the definitions the copied code is proved to compute; that
+  those definitions are the RFCs' rests on the vectors, which anchor them to RFC
+  and NIST values.
 - Diffie-Hellman agreement and the AEAD are boundary primitives in the model: it
   consumes DH outputs as bytes and stops at the AEAD material. The model's
   vectors therefore assert the key schedule, not ciphertext bytes.
@@ -313,7 +315,7 @@ excludes it.
   `SessionT1.HkdfTotal`, the Braid's and the Triple's `HkdfSha256Total`,
   `BraidHkdfAgrees`, `SpqrHkdfAgrees` and `TripleHkdfAgrees` -- carry
   `N.val ≤ 8160`, RFC 5869's `255 · HashLen`, which is the bound the crate's
-  `assert!` enforces (its `expect` until 2026-10-22, with the same panic text); every call site asks for 32, 64, 80 or 96 bytes and the
+  `assert!` enforces (its `expect` until the KDF change (ADR-0010), with the same panic text); every call site asks for 32, 64, 80 or 96 bytes and the
   premise closes from the literal (`KdfCkTotal` and `KdfRkTotal` are about
   the sparse ratchet's own fixed-length wrappers, total in Rust, and were
   never in this list). The classical `T1.RemoveSkippedAtTotal` and
@@ -476,7 +478,8 @@ way that is unsound.
 
 **Clean across `tacenta-protobuf`, `tacenta-kdf`, `tacenta-ratchet`,
 `tacenta-session`, and `tacenta-triple`** (`tooling/miri.sh`), with no undefined
-behaviour reported. The first three run in seconds; `tacenta-triple`'s
+behaviour reported. For `tacenta-kdf` that run was of its RustCrypto wrapper: miri
+has not been re-run on the copied SHA-256, HMAC and HKDF (ADR-0010). The first three run in seconds; `tacenta-triple`'s
 conversation tests take minutes under the interpreter, so the script is meant to run
 nightly rather than on every push. No workflow in this repository runs it, and the
 date and commit of the last clean run are not recorded.
@@ -533,15 +536,16 @@ from it. This holds here by delegation and discipline, not by proof.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
 - **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
-  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF written by the maintainer with tool assistance in a
-  separate, unpublished repository and copied here,
+  the KDF change (ADR-0010) `tacenta-kdf` is a SHA-256, an HMAC and an HKDF written by the maintainer with tool assistance in a
+  separate, unpublished repository, read so far only by tool-assisted sessions, and copied here,
   whose comments say every branch and every index is on a length or a loop counter. They are loops, and this
   workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
   rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`
   instead lists every conditional branch of the crate's assembly, built in the release profile with one codegen
   unit (which the shipped build does not set), with the instruction before it, and every indirect transfer, table
   reference, register-indexed access, named callee and hardware divide, and requires the
-  list to equal a baseline per target (`tooling/ct-baselines/`), whose items were read against the rule that each
+  list to equal a baseline per target (`tooling/ct-baselines/`; CI compares the two Linux baselines, and the
+  macOS one is compared only on a local run), whose items were read against the rule that each
   depends only on a length, a loop counter, the SHA-256 buffer's fill count, HKDF's block counter or position, or
   a constant (`tooling/ct-baselines/kdf-review-notes.txt`). That reading was made by a tool-assisted session, not
   a human reader. The baselines were read from one compiler, rustc 1.99.0-nightly (da80ed070), on an aarch64 Mac
@@ -565,7 +569,7 @@ from it. This holds here by delegation and discipline, not by proof.
   `subtle::ConstantTimeEq` is available and the translation sees an opaque
   call, changes the translated source and so waits for the next
   re-translation window. (This passage named the `kdf` crate for it; since
-  2026-10-22 that crate is translated and has no dependencies, so it is no
+  the KDF change (ADR-0010) that crate is translated and has no dependencies, so it is no
   longer such a boundary.) Until then the guarantee is the loop's shape and
   `tooling/check-constant-time-asm.sh`, which CI runs: it reads the body of
   `mac_eq` in the release assembly built by the running toolchain (in CI, the
@@ -966,7 +970,7 @@ reported, and the state transitioned to -- across every branch each can
 take, not merely that they cannot fail. Unlike the ML-KEM Braid this crate
 has no KEM boundary and no erasure-coding boundary to assume agreement at;
 the only call this file assumes anything about the *value* of is
-`hkdf_sha256` (opaque until 2026-10-22, a translated definition since; `SpqrHkdfAgrees` is still the
+`hkdf_sha256` (opaque until the KDF change (ADR-0010), a translated definition since; `SpqrHkdfAgrees` is still the
 hypothesis here, and `KdfLeafAgreements.spqr_hkdfAgrees` proves it of this translation's KDF). `Vec::pop`, `Vec::capacity`, `Zeroize` and `Option::clone` are opaque too, each its own
 assumption below, and the retain and removal scans are translated loops whose results the file assumes
 (`VecRetainAgrees` and `RemoveSkippedAtAgrees`, from the boundary stated below). `find_chains` is proved
@@ -1050,7 +1054,7 @@ translated alone, it drifted from the leaves once.
 
 **`tacenta-triple` has T3, against a composed model of its own.**
 `Model.TripleRatchet.lean` carries `splitSecret`/`combine`, the two
-KDF calls this composition makes on its own (opaque until 2026-10-22); `Model.Triple.lean` is
+KDF calls this composition makes on its own (opaque until the KDF change (ADR-0010)); `Model.Triple.lean` is
 the composed `State`/`send`/`receive`/`commit` state machine, mirroring the
 real crate's clone-candidate-commit shape (`receive` returns a candidate
 state without mutating its input; `commit` is a separate, near-trivial step,
@@ -1092,7 +1096,7 @@ wider hypothesis.
 `hcounter` already rules out the post-quantum counter's own exhaustion.
 
 The one primitive `split_secret`/`combine` call that is not the two
-ratchets' public calling surface is `hkdf_sha256` (opaque until 2026-10-22, a translated definition
+ratchets' public calling surface is `hkdf_sha256` (opaque until the KDF change (ADR-0010), a translated definition
 since). Its agreement,
 `TripleHkdfAgrees`, is on the unit the same proposition as the classical
 ratchet's `HkdfAgrees`.
@@ -1334,7 +1338,7 @@ push against.
 
 `KdfCkTotal` and `ZeroizeTotal` are there for the same reason: the sparse
 ratchet's chain-key derivation bottoms out in its own copy of
-`hkdf_sha256` (opaque until 2026-10-22, a translated definition since), and its buffer wipe in its own copy of the `Zeroize` blanket
+`hkdf_sha256` (opaque until the KDF change (ADR-0010), a translated definition since), and its buffer wipe in its own copy of the `Zeroize` blanket
 implementation. `send` and `receive` need two more:
 `OptionCloneTotal`, since both functions clone the *other* direction's chain
 through an `Option`, which has no clone specification in Aeneas's own library;
@@ -1345,7 +1349,7 @@ that one file, none of them the same proposition as its namesake elsewhere.**
 **So both `tacenta-spqr` and `tacenta-braid` are fully covered by T1.**
 `tacenta-braid` alone assumes twenty-six named constants over twenty-six
 distinct operations -- the erasure coder, the KEM, the two KDF calls (opaque until
-2026-10-22, translated definitions since, with their hypotheses kept),
+the KDF change (ADR-0010), translated definitions since, with their hypotheses kept),
 `Option::clone`, and since CR-15 the `zeroize` crate's wrapper round trip,
 its in-place wipe of a fixed-size array and the `RangeFull` slice index
 (`ZeroizingArrayRoundTrip`, `ArrayZeroizeTotal`, `RangeFullIndexTotal`,
@@ -2097,7 +2101,7 @@ bundles discharged. What that does and does not buy:
   witnessed on the unit, and the six about translated functions follow from laws or are proved.**
   `UnitSatisfiabilityTriple.lean` witnesses those about the unit's opaque
   constants. Its witnesses of the HMAC and HKDF agreements (from the model's output lengths) are void bridges
-  since 2026-10-22, the KDF being a translated definition in the unit, and `KdfTripleUnitAgreements` proves
+  since the KDF change (ADR-0010), the KDF being a translated definition in the unit, and `KdfTripleUnitAgreements` proves
   `UnitT3.HmacAgrees` and `UnitT3.HkdfAgrees` instead. Where two constrain one constant it witnesses them jointly: the
   classical round trip, which is also the Triple's, the sparse round trips at 96
   and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
@@ -2177,7 +2181,7 @@ all 113 and `AxiomAuditLifecycle.lean` checks the elaborated module against
 that exact set. Of the 113, 53 are first-party leaf operations the lifecycle
 calls across a crate boundary (`tacenta_session`, `tacenta_wire`,
 `tacenta_triple::State`, `tacenta_braid::Braid`, `tacenta_ratchet`,
-`tacenta_spqr`; until 2026-10-22 also `tacenta_kdf`'s HMAC, translated since): each has a body and, for most, a theorem in
+`tacenta_spqr`; until the KDF change (ADR-0010) also `tacenta_kdf`'s HMAC, translated since): each has a body and, for most, a theorem in
 its own translation, but on this island they are bare axioms with no
 precondition, exactly the standalone-Triple shape the three-leaf unit was
 built to remove. Twenty-two are `tacenta_boundary` declarations, the primitive
@@ -2488,7 +2492,7 @@ hypotheses of the Session lifecycle theorems. A theorem whose hypothesis nothing
 satisfy is true and says nothing, and two of the four records contained such a
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
 
-**The two KDF fields of `Interp`.** Since 2026-10-22 the KDF's bodies are translated, so two of the 49 constants
+**The two KDF fields of `Interp`.** Since the KDF change (ADR-0010) the KDF's bodies are translated, so two of the 49 constants
 `Interp.real` interprets, `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256`, are definitions, not axioms. The
 substitution argument this section and the ones below rest on replaces axioms only, so it covers the other 47; for the
 two KDF fields what stands in its place is proof: the KDF laws the records take hold of the real definitions
@@ -2514,7 +2518,7 @@ own, and how far those are the real ones is proved for one family and open for t
 the interpreted constants and refuses a third.
 
 **What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 constants of
-`TacentaSessionUnit.lean`, 47 opaque axioms and the two KDF wrappers, translated definitions since 2026-10-22
+`TacentaSessionUnit.lean`, 47 opaque axioms and the two KDF wrappers, translated definitions since the KDF change (ADR-0010)
 (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
 by no field, and the 39th, the error type inside `RngCore`, is reached through the type `RngCore` and is not
 interpreted because no contract looks at it) in one structure, and shows that one
@@ -2531,7 +2535,7 @@ the four records, and that they have a model (`records_of_axiom_base`, `axiom_ba
 unit has 229 axioms in all: 86 uninterpreted constants (48 reached by the records, 38 not) and 143 compiler-trust
 facts about the byte length of format strings, none of which mentions an interpreted constant, so replacing the
 47 interpreted axioms leaves them true (the other two of the 49 interpreted constants, the KDF wrappers, are
-translated definitions since 2026-10-22; "The two KDF fields of `Interp`" above). The first of the two theorems holds, under the base, for every assignment of the
+translated definitions since the KDF change (ADR-0010); "The two KDF fields of `Interp`" above). The first of the two theorems holds, under the base, for every assignment of the
 constants; the second exhibits an assignment under which the base holds. So a derivation of `False` from a record at the real constants would, after the constants are replaced by
 the model's terms, become a derivation of `False` from facts that hold in the model. That last step is an
 argument about derivations and not a theorem inside Lean. Making it one needs a copy of every translated body
@@ -3548,7 +3552,7 @@ following and leave the following open.
 about each (`CLAIMS.md`, the section on the Braid refinement agreements).
 
 **Assumed, about opaque constants and the KDF.** Six agreements relate the KEM and the KDF to `Model.Braid.Kem`
-and `Model.Kdf` (the KDF's two are about translated definitions since 2026-10-22, and are proved of them by
+and `Model.Kdf` (the KDF's two are about translated definitions since the KDF change (ADR-0010), and are proved of them by
 `UnitLifecycleKdf.braidHkdfAgrees` and `braidHmacAgrees`, though these theorems still take them): `KemAgreesFor K`, `KemLenAgrees K`, `ValidateEkAgrees K`, `KemCloneAgrees`,
 `BraidHkdfAgrees` and `BraidHmacAgrees`. A seventh premise, `KemDrawsSucceed`
 (`UnitSatisfiabilityBraidAgreements.lean`), says the real key generation and `encapsulate1` each succeed for
@@ -4076,7 +4080,7 @@ argument to sixteen closed cases, which the kernel evaluates.
   - **The trusted primitives are opaque, and the translation builds.** The
     key derivation is its own crate, `tacenta-core/kdf` (`tacenta-kdf`), which
     put it outside the translated package and therefore opaque until
-    2026-10-22: `hkdf_sha256` and `hmac_sha256` appeared in the generated Lean as axioms.
+    the KDF change (ADR-0010): `hkdf_sha256` and `hmac_sha256` appeared in the generated Lean as axioms.
     Since then its bodies are a SHA-256, an HMAC and an HKDF in the subset Aeneas
     models, and `run-aeneas.sh` translates them into every unit that calls them
     (`--include-kdf`), so they are definitions there (`CLAIMS.md`, the section on
@@ -4102,7 +4106,7 @@ argument to sixteen closed cases, which the kernel evaluates.
 
     First, **what the proofs rest on.** Nothing about our own code is assumed.
     Four boundaries are, each a named hypothesis: `HmacTotal` and `HkdfTotal`
-    for the key-derivation primitives, which were opaque by design until 2026-10-22 (translated
+    for the key-derivation primitives, which were opaque by design until the KDF change (ADR-0010) (translated
     definitions since; the hypotheses stay, and `KdfLeafAgreements` proves them of this translation's KDF); `ZeroizingTotal`
     for the external `zeroize` crate, whose wrapper and projection cannot fail;
     `DerivedKeysModel`, the same crate's wrapper around the vector of derived
@@ -4307,7 +4311,7 @@ argument to sixteen closed cases, which the kernel evaluates.
   theorem, as `CLAIMS.md`'s "translated is not proved" lists. It holds modulo
   agreement of the key-derivation primitives, the same boundary T1 rests on: in this
   translation it is a hypothesis of these theorems (about a translated definition since
-  2026-10-22), which `KdfLeafAgreements` proves of this translation's KDF and `UnitLifecycleKdf` of the
+  the KDF change (ADR-0010)), which `KdfLeafAgreements` proves of this translation's KDF and `UnitLifecycleKdf` of the
   Session unit's; that the model's KDF is the RFCs' is covered by vectors, not proof. It also excludes the cases
   where the Rust's `u32` counters and the model's `Nat` part company, which are
   real behaviours rather than gaps in the proof. The isolated-verified-zone

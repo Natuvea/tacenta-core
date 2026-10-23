@@ -31,7 +31,7 @@ cannot be shown to agree with anything. So agreement is a stated hypothesis
 (`HmacAgrees`, `HkdfAgrees`), and what this file proves is refinement **modulo
 that agreement** rather than refinement outright.
 
-Since 2026-10-22 the KDF's bodies are translated, and the hypotheses are about
+Since the KDF change (ADR-0010) the KDF's bodies are translated, and the hypotheses are about
 translated definitions. This file still takes them; `KdfLeafAgreements`,
 `KdfTripleUnitAgreements` and `UnitLifecycleKdf` prove them of each translation's
 copy (the HKDF at every length up to 8160 bytes), from the copied KDF's own proofs
@@ -204,7 +204,7 @@ return, they return what the model computes. Both are stated against the model's
 own definitions, so there is no third description of the derivation to keep in
 step. -/
 
-/-- The HMAC returns, and returns the model's HMAC. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
+/-- The HMAC returns, and returns the model's HMAC. (The KDF's bodies are translated since the KDF change (ADR-0010), so this is a hypothesis about a
 translated definition; `KdfLeafAgreements`, `KdfTripleUnitAgreements` and
 `UnitLifecycleKdf` prove it of each translation's copy.) Stated as one
 assumption rather than two because the real primitive does both, and because a
@@ -2134,7 +2134,7 @@ Two limits stand, and neither is a formality.
 
 Refinement is **modulo agreement of the key-derivation primitives**: this file
 takes `HmacAgrees` and `HkdfAgrees` as hypotheses. They were opaque when it was
-written, and an axiom cannot be shown to agree with anything; since 2026-10-22
+written, and an axiom cannot be shown to agree with anything; since the KDF change (ADR-0010)
 the KDF's bodies are translated, and `KdfLeafAgreements`, `KdfTripleUnitAgreements`
 and `UnitLifecycleKdf` prove the two of each translation's copy (the HKDF up to
 8160 bytes). That the model's HMAC and HKDF are the RFCs' is checked by the

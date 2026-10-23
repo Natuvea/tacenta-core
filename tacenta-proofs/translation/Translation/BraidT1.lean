@@ -58,7 +58,7 @@ theorem mac_eq_no_panic (a b : Slice U8) : mac_eq a b ⦃ fun _ => True ⦄ := b
 
 `tacenta-braid` does not loop beyond `mac_eq`, but it calls out to two other
 verified-adjacent crates and a KDF crate. When this was written Aeneas could see
-inside none of them; since 2026-10-22 the KDF's bodies are translated, and its two
+inside none of them; since the KDF change (ADR-0010) the KDF's bodies are translated, and its two
 totality hypotheses below are about translated definitions (proved of the
 translated copies in `KdfLeafAgreements` and `UnitLifecycleKdf`). Each operation gets its own totality assumption below, per this
 project's established rule: one axiom per crate that touches it, not one per
@@ -186,7 +186,7 @@ def ValidateEkTotal : Prop :=
 /-- The two KDF calls, braid's own copies distinct from the sparse ratchet's
 `KdfCkTotal`/`KdfRkTotal` and the classical ratchet's, per the counting trap:
 each translated crate gets its own copy of `hkdf_sha256` (opaque until
-2026-10-22, translated since), and one proof does
+the KDF change (ADR-0010), translated since), and one proof does
 not discharge another crate's copy. The HKDF premise is RFC 5869's output
 bound of 8160 bytes, which the crate's own `assert!` enforces, so the
 hypothesis is stated exactly where the real operation returns

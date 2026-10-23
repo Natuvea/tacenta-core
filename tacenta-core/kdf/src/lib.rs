@@ -5,7 +5,9 @@
 //!
 //! The three modules below were written by the maintainer with tool assistance
 //! in a separate, unpublished repository, from FIPS 180-4, FIPS 198-1 and RFC
-//! 5869, in the subset Charon and Aeneas translate, and copied here. A
+//! 5869, in the subset Charon and Aeneas translate, and copied here. They have
+//! been read so far only by tool-assisted sessions; no human has yet read the
+//! three files or their proofs. A
 //! reader outside the project cannot fetch that repository, so what pins the
 //! copy is its commit, `646fcdadb943`, and the SHA-256 digests of the three
 //! source files:
@@ -62,9 +64,10 @@
 //! are not erased, as RustCrypto's were not either with the features this
 //! crate enabled.
 //!
-//! Not every SHA-256 or HMAC in the workspace moved: the AEAD's tag check on
-//! decryption (`boundary/src/aead.rs`) and the identity and group digests in
-//! the root crate still call RustCrypto directly.
+//! Not every SHA-2 or HMAC in the workspace moved: the AEAD's tag check on
+//! decryption (`boundary/src/aead.rs`), XEdDSA's SHA-512
+//! (`boundary/src/xeddsa.rs`) and the identity and group digests in the root
+//! crate still call RustCrypto directly.
 
 // No `unsafe` in this library crate, enforced by the attribute rather than
 // observed; every library crate in the workspace carries it. The one `unsafe`

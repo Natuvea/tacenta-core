@@ -32,7 +32,7 @@ in all: 86 uninterpreted constants (48 reached by the records, 38 not) and 143 c
 about the byte length of format strings, none of which mentions an interpreted constant, so replacing
 the 47 interpreted axioms leaves them true.  The 48th reached axiom is the error type inside
 `RngCore`, which no contract looks at and which is not interpreted.  The other two of the 49
-interpreted constants, the two KDF wrappers, are translated definitions since 2026-10-22: replacing
+interpreted constants, the two KDF wrappers, are translated definitions since the KDF change (ADR-0010): replacing
 them is not a substitution of uninterpreted constants, and `LIMITATIONS.md` ("The two KDF fields of
 `Interp`") says what that leaves open.  `records_of_axiom_base` is a
 theorem in the real environment, so, under the base, it holds for every assignment of the constants.
@@ -236,7 +236,7 @@ end Tacenta.UnitSatisfiabilityRecords
 
 The axiom bases of the results above, held by the build.  A list names the axioms that occur in
 the statement of a result, and these are the 47 interpreted constants the records reach that are axioms
-(the two KDF wrappers, translated definitions since 2026-10-22, are not axioms and are not listed), plus
+(the two KDF wrappers, translated definitions since the KDF change (ADR-0010), are not axioms and are not listed), plus
 the error type inside `RngCore`; the proofs assume about them exactly the hypotheses in the statements
 (`EncryptAxiom`, `StdLaws` and so on).  `axiom_base_satisfiable` and
 `axiom_base_satisfiable_for_total_rng` are statements about an interpretation and list the standard

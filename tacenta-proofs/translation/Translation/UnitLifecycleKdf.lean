@@ -20,7 +20,8 @@ return and equal tacenta-model's: `HmacAgrees` and `HkdfAgrees` as theorems, the
 lifecycle results take, and `decrypt_ratchet`'s complete refinement without them.
 
 `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 written by the maintainer with tool
-assistance in a separate, unpublished repository and copied here (`tacenta-core/kdf/src/lib.rs` pins it by commit and file digests and
+assistance in a separate, unpublished repository, read so far only by tool-assisted sessions (no human has yet
+read the three Rust files or their proofs), and copied here (`tacenta-core/kdf/src/lib.rs` pins it by commit and file digests and
 says what changed). Charon translates them
 into the Session unit (`run-aeneas.sh`, `--include-kdf`), so `tacenta_session_unit.tacenta_kdf.hmac_sha256`
 and `hkdf_sha256` are definitions there, one-line wrappers over `hmac.hmac_sha256` and

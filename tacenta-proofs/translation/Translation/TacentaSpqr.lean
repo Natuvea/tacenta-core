@@ -1123,7 +1123,7 @@ def tacenta_kdf.hkdf.hkdf_sha256
   ok (to_slice_mut_back s1)
 
 /-- [tacenta_kdf::hkdf_sha256]:
-    Source: 'kdf/src/lib.rs', lines 94:0-94:83
+    Source: 'kdf/src/lib.rs', lines 97:0-97:83
     Name pattern: [tacenta_kdf::hkdf_sha256]
     Visibility: public -/
 @[rust_fun "tacenta_kdf::hkdf_sha256"]

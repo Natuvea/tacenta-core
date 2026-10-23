@@ -58,7 +58,7 @@ changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 
 On 2026-10-22, for the key derivation (`tacenta-kdf`'s bodies written by the maintainer with tool assistance in a
-separate, unpublished repository, copied here and translated, `UnitLifecycleKdf`), these parts were updated against the head of that change and nothing else was
+separate, unpublished repository, read so far only by tool-assisted sessions, copied here and translated, `UnitLifecycleKdf`), these parts were updated against the head of that change and nothing else was
 re-read: the pin and claim counts in practice 2 and the trusted list in practice 3. The update was made by the author
 with tool assistance; no reader independent of the maintainer has read it.
 

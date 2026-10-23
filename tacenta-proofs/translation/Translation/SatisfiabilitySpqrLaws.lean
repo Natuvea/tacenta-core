@@ -5,7 +5,7 @@ import Translation.SpqrCodecT1
 # The sparse ratchet's hypotheses about translated functions, from laws about opaque constants
 
 Most boundary hypotheses of the leaf sparse ratchet's T1 and T3 theorems are statements about
-opaque constants (`Vec::pop`, `Zeroizing::new`, and the HKDF until 2026-10-22, a translated definition
+opaque constants (`Vec::pop`, `Zeroizing::new`, and the HKDF until the KDF change (ADR-0010), a translated definition
 since). Six are statements about functions the
 translation defines, with a body: `SpqrT1.RemoveSkippedAtTotal`, `SpqrT1.KdfRkTotal`,
 `SpqrT1.KdfCkTotal`, `SpqrT1.VecRetainTotal` (with its three loop contracts),
@@ -59,7 +59,7 @@ namespace Tacenta.SatisfiabilitySpqrLaws
 
 
 
-/-- The HKDF (opaque until 2026-10-22, a translated definition since) returns on every triple of slices, for an output length within RFC 5869's
+/-- The HKDF (opaque until the KDF change (ADR-0010), a translated definition since) returns on every triple of slices, for an output length within RFC 5869's
 bound. -/
 def LawHkdf : Prop :=
   ∀ (N : Usize) (salt ikm info : Slice U8), N.val ≤ 8160 →

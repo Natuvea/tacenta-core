@@ -681,7 +681,7 @@ end BraidRefutations
 
 The classical ratchet and the Braid each declare their own `hmac_sha256`
 and `hkdf_sha256`, and the sparse ratchet and the session their own `hkdf_sha256`
-(opaque until 2026-10-22, translated definitions since),
+(opaque until the KDF change (ADR-0010), translated definitions since),
 by the per-crate counting rule `SpqrT1.lean` describes, and the refinements take
 an agreement hypothesis about each. The classical ratchet, the sparse ratchet and
 the Braid each declare an opaque `Option` clone, and the sparse ratchet's and the

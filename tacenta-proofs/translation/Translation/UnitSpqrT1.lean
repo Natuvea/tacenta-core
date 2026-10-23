@@ -108,7 +108,7 @@ def ChainsZeroizeTotal : Prop :=
 
 /-- The root-key derivation returns. A sixth, for the same reason as
 `KdfCkTotal`: translated, bottoming out in this crate's copy of
-`hkdf_sha256` (opaque until 2026-10-22, translated since). -/
+`hkdf_sha256` (opaque until the KDF change (ADR-0010), translated since). -/
 def KdfRkTotal : Prop :=
   ∀ (rk : Array U8 32#usize) (k : Array U8 32#usize),
     ∃ r, kdf_rk rk k = ok r
