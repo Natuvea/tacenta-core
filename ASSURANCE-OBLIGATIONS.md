@@ -1034,6 +1034,7 @@ recorded decision or a target-closing slice:
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
+  `check-kdf-realisation-negatives.py`,
   `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
@@ -1065,6 +1066,7 @@ recorded decision or a target-closing slice:
   placed unchanged);
   the Session unit's refinement constants, kernel proofs since 2026-10-21, keep deciding the bytes and bounds they state, the live pin of a constant refuses `native_decide` restored under it, and `export_message_fits` states exactly the type of the compiler-trust axiom `export` carries;
   the initiator's second `encrypt` at the session its receipt of the reply returns keeps the no-draw walk at `KeysSampled`, the second frame's chunk and key, the providers' no-draw premise and the model step it rests on, and its composing proof uses the receipt's session, the source it left and its relation;
+  the Session unit's translated HMAC and HKDF keep their agreement with tacenta-model's: HKDF's 8160-byte bound, the order of HMAC's key and message and of HKDF's salt and input keying material, and the direction of the output each stay refused when changed, and the corollary without the KDF fields keeps the complete refinement's other premises (`check-kdf-realisation-negatives.py`);
   `check-receive-preservation-negatives.py`: the in-order receive step keeps its decoder scope, the key-pair clone record, the budget it spends, its dependence on the relation after the call, the canonical-key law and the oracle's public-key clause, the public step keeps its scope and budget, and on the reply's run the budget and the fresh-key premise are the ones the proof composes;
   `check-initiator-second-message-negatives.py`:
   the initiator's second message keeps the budget after the send, the fresh-key premise and the second plaintext's bound it composes, and places the ceilings at the session the receipt returns, and its reach keeps the plaintext bound and the law that chooses the responder's source (the receipt's call and the relations after the send are conjuncts of called theorems, placed unchanged);
@@ -1160,6 +1162,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
+  `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise, each at its named declaration, and the record held by its `#print` pin),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
   each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;

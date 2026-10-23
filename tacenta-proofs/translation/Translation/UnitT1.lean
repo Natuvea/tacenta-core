@@ -20,8 +20,8 @@ no out-of-bounds index, no unwrap of a missing value. The translated ratchet
 calls two kinds of thing, so each statement carries one hypothesis and no more:
 
 * our own code, which is what these theorems are about, and
-* the trusted key-derivation boundary, which the translation sees as axioms and
-  which is assumed total. That assumption is named rather than left implicit,
+* the key derivation, which the translation saw as axioms until 2026-10-22 and
+  sees as translated definitions since, and which is assumed total here. That assumption is named rather than left implicit,
   so a reader can see exactly what the proofs rest on.
 -/
 
@@ -126,15 +126,16 @@ theorem is_canonical_x25519_spec (k : Array U8 32#usize) :
   · all_goals repeat' (first | simp only [WP.spec_ok] | (step with hl) | step | split)
     all_goals (try simp_all)
 
-/-- The trusted boundary: the opaque HMAC primitive returns a value on every
-input. It wraps a vetted implementation that cannot fail, but the translation
-cannot see inside it, so the fact is stated here and used explicitly. -/
+/-- The key-derivation boundary: the HMAC returns a value on every input. When
+this was written the HMAC was an opaque wrapper over a vetted implementation, so
+the fact is stated here and used explicitly. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
+translated definition; `UnitLifecycleKdf` proves it of the Session unit's copy.) -/
 def HmacTotal : Prop :=
   ∀ key data, ∃ r, tacenta_kdf.hmac_sha256 key data = ok r
 
-/-- The other half of that boundary: the opaque HKDF expansion returns a value
+/-- The other half of that boundary: the HKDF expansion returns a value
 on every input whose output length is within RFC 5869's `255 · HashLen`, which
-for SHA-256 is 8160 bytes. That is the bound the crate's own `expect` enforces
+for SHA-256 is 8160 bytes. That is the bound the crate's own `assert!` enforces
 (`tacenta-core/kdf/src/lib.rs`), so this is exactly the condition under which
 the real operation returns, and not a wider one; every call in the verified
 zone asks for 32, 64 or 80 bytes, and the stepping rule below discharges the
@@ -981,7 +982,7 @@ never the counter's full range. `skip_gap_le` is that guard, stated once.
 -/
 
 -- The axiom audit, enforced rather than asserted. The proofs rest on Lean's
--- three standard axioms and on the opaque key-derivation primitive, and on
--- nothing else: no `sorry`, and no assumption about our own code. A later
+-- three standard axioms (and, until the KDF's bodies were translated on
+-- 2026-10-22, the opaque key-derivation primitive), and on nothing else: no `sorry`, and no assumption about our own code. A later
 -- change that smuggled one in would fail this check.
 

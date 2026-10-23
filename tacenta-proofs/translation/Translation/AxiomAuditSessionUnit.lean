@@ -45,6 +45,7 @@ import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
+import Translation.UnitLifecycleKdf
 import Translation.UnitOracleShape
 import Translation.UnitOracleModel
 import Translation.UnitOracleDh
@@ -180,6 +181,12 @@ header's chunk at index 1, no draw), and if that session passes `Session::invari
 which is not shown, the call returns those bytes, leaves the source as given and relates to the model's step.  The
 encrypt route's providers come from the invariant and the ceilings, for every session whose agreement send reads no
 draw.  No law is added, and no run is exhibited at which the invariant and the ceilings hold there.
+`UnitLifecycleKdf.lean` proves `HmacAgrees` and `HkdfAgrees` of the unit's `tacenta_kdf.hmac_sha256` and
+`hkdf_sha256`, which are translated definitions since the KDF's bodies are translated: they return, and equal
+tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf` (HKDF for outputs of at most 8160 bytes), on the kernel's
+three axioms, by the copied `Kdf*` proofs. It derives the other KDF propositions the unit's results take from
+them, and states `decrypt_ratchet`'s complete refinement without the record's two KDF fields. No law is added.
+It does not show that tacenta-model's KDF is the RFCs', any cryptographic property, constant time or erasure.
 `UnitLifecycleReceivePreserve.lean` states one receive step for every invariant session: a successful
 `decrypt_ratchet` or `decrypt` whose model step is an in-order receive (no stored key, no skip, no agreement
 output) leaving the agreement at `NoHeaderReceived` (at most one chunk held) or `KeysSampled` keeps

@@ -198,16 +198,17 @@ return, they return what the model computes. Both are stated against the model's
 own definitions, so there is no third description of the derivation to keep in
 step. -/
 
-/-- The opaque HMAC returns, and returns the model's HMAC. Stated as one
+/-- The HMAC returns, and returns the model's HMAC. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
+translated definition; `UnitLifecycleKdf` proves it of the Session unit's copy.) Stated as one
 assumption rather than two because the real primitive does both, and because a
 separate totality assumption would then have to be kept in step with T1's. -/
 def HmacAgrees : Prop :=
   ∀ key data, ∃ r, tacenta_kdf.hmac_sha256 key data = ok r ∧
     keyOf r = Model.Kdf.hmac (sliceOf key) (sliceOf data)
 
-/-- The opaque HKDF returns, and returns the model's HKDF, for every output
+/-- The HKDF returns, and returns the model's HKDF, for every output
 length within RFC 5869's bound of 8160 bytes -- the bound the crate's own
-`expect` enforces, and so exactly where the real operation returns
+`assert!` enforces, and so exactly where the real operation returns
 (`T1.HkdfTotal` says why). Argument order follows the Rust: the first slice is
 the salt and the second the input keying material, which is how `kdf_rk` calls
 it and how `Model.State.kdfRk` is written. -/

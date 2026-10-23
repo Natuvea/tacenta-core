@@ -2430,8 +2430,8 @@ specific bound its call site needed.
 
 **Eight assumptions back this file, five of them new constants and three reused
 outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`).** `SpqrHkdfAgrees` states agreement one level
-below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
-`hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
+below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the
+`hkdf_sha256` call itself (opaque until 2026-10-22, a translated definition since), and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
 through on its way to being split -- subsumes both, so this file states the
 KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`

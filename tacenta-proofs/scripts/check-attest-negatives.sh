@@ -1473,6 +1473,7 @@ UnitPins Tacenta.UnitSpqrT3 receive_store_full_refines
 UnitPins Tacenta.UnitTripleT3 receive_store_full_refines_discharged
 AxiomAuditSessionUnit Tacenta.UnitLifecycleT3 concrete_receive_attempt_store_full_from_contracts concrete_receive_attempt_store_full_from_retry_bounds fullStoreOfReal_ne_of_generated_ne
 UnitLifecycleIntegrationScreen Tacenta.UnitLifecycleIntegrationScreen concreteBranchEvidence_empty endToEndEvidence_empty agreementEndToEndEvidence_empty byte_random32 random32Clause_of_oracleOf sigSignClause_of_oracleOf kemClauses_of_oracleOf sigSignClause_of_law kemClauses_of_law changed_rng_clauses_have_a_model changed_rng_clauses_of_laws braid_send_keysUnsampled_generate braidSendTrace_conflicts_with_sigSign retryReceiveBounds_initAlice retryReceiveBounds_not_trivial generatedTripleRefusalConditions_initAlice generatedTripleSuccessConditions_initAlice oracleOf_dhAgree_off_view encodedEphemeralAgreement_unconstrained sameEphemeralAgreement_of_view_agree concreteBranchEvidenceRun_of_run_parts runRandomDraw_byte braid_send_keysUnsampled_byte_trace braidSendTraceCounted_with_sigSign_byte
+UnitLifecycleKdf Tacenta.UnitLifecycleKdf hmacAgrees hkdfAgrees braidHmacAgrees braidHkdfAgrees spqrHkdfAgrees tripleHkdfAgrees hmacTotal hkdfTotal sessionHkdfTotal braidHkdfSha256Total braidHmacSha256Total hmacShape_real hkdfShape_real DecryptRatchetAgreements.of_kdf decrypt_ratchet_refines_complete_of_kdf
 UnitLifecycleReceivePreserve Tacenta.UnitLifecycleReceivePreserve skip_noop ratchet_receive_inOrder spqr_receive_inOrder classicalTail_ok modelRatchetInv_tail modelRatchetInv_receive_inOrder ratchet_receive_frame sparseTail_ok modelSpqrInv_tail modelTripleInv_receive_inOrder keeps_output_none keeps_epoch decode_dh_canonical classicalTail_err sparseTail_err receiveWithEviction_inOrder decryptRatchet_inOrderStep triple_receive_parts modelCounterRoom_receive step_frame decrypt_inOrderStep pow_and_pow_ne two_chunk_loop decoder_invariant_parts add_chunk_one decoder_invariant_le_two decoder_step_keeps braid_receive_keysSampled braid_receive_keeps structural_receive mono_bind mono_ite strip_bind strip_ite structural_clear_pending clause_a_of_structural sameKind_of_refines keyOf_dhs code_dir_epoch decrypt_ratchet_keeps_invariant_in_order decrypt_ok_inner decrypt_keeps_invariant_in_order decrypt_keeps_invariant_model_step firstReceipt_inOrderStep replyReceipt_inOrderStep modelCounterRoom_afterFirstSend initiator_receives_reply_successor counterRoom_responder_prepared prepared_decoder_empty responder_successor_via_preservation
 UnitLifecycleRetryLoopT3 Tacenta.UnitLifecycleRetryLoopT3 receive_with_eviction_loop_refines receive_with_eviction_refines receiveWithEvictionLoopResult_stop shortfall_covers evict_for_retry_covers
 UnitLifecycleDecryptRatchetT3 Tacenta.UnitLifecycleDecryptRatchetT3 DecryptOracleOf.of_oracleOf cMax_usize decrypt_ratchet_refines decrypt_ratchet_refines_statement RetryRunBounds.toRetryReceiveBounds DecryptPrefix.triple_refusal DecryptPrefix.aead_refusal DecryptPrefix.success tripleRefusalOpen_exactly tripleRefusalOpen_false_unless_triple decrypt_ratchet_refines_unless_open
@@ -2142,6 +2143,7 @@ UnitLifecycleResponderSecondSend Tacenta.UnitLifecycleResponderSecondSend second
 UnitTripleInvModel Tacenta.UnitTripleInvModel keyOf_injective keyOf_inj_iff canonicalKey_keyOf u32_max_eq_model u64_max_eq_model ratchet_inv_iff_model window_end_val spqr_inv_iff_model triple_invariant_true_iff rolesAgree_iff_model triple_invariant_iff_model ModelRatchetInv ModelSpqrInv ModelRolesAgree ModelTripleInv RolesAgree
 UnitLifecycleSendPreserve Tacenta.UnitLifecycleSendPreserve ratchet_send_frame modelRatchetInv_send findChains_mem spqr_send_frame mem_sent_chains modelSpqrInv_send modelTripleInv_send braid_send_no_draw_model encrypt_session_cases counterRoom_zero epoch_val_refines counterRoom_iff_model modelCounterRoom_encrypt sendsWithoutDraw_of_refines vec_clone_u8 encoder_clone_eq decoder_clone_eq next_chunk_keeps encoder_sized_congr key_pair_valid_clone braid_send_no_draw session_invariant_iff structural_congr encrypt_ok_not_failed encrypt_keeps_invariant_no_draw modelCounterRoom_firstReceipt initiator_first_send_responder_reply_successor initiator_first_send_responder_reply_admissible established_encrypt_triple_invariant_via_preservation CounterRoom ModelCounterRoom SendsWithoutDraw
 UnitLifecycleInitiatorSecondSend Tacenta.UnitLifecycleInitiatorSecondSend send_output_none_of_no_draw sparseOutput_none_of_no_draw encryptProviders_of_invariant braid_send_keysSampled braidSendTraceCounted_of_keysSampled second_send_key secondFrame_with_draws second_model_step initiator_second_send_refines first_send_model_session_encoder initiator_second_send_after_reply initiatorAfterSecond secondHeader secondKey secondComposite secondFrame
+UnitLifecycleKdf Tacenta.UnitLifecycleKdf hmacAgrees hkdfAgrees braidHmacAgrees braidHkdfAgrees spqrHkdfAgrees tripleHkdfAgrees hmacTotal hkdfTotal sessionHkdfTotal braidHkdfSha256Total braidHmacSha256Total hmacShape_real hkdfShape_real DecryptRatchetAgreements.of_kdf decrypt_ratchet_refines_complete_of_kdf KdfFreeAgreements
 UnitLifecycleReceivePreserve Tacenta.UnitLifecycleReceivePreserve skip_noop ratchet_receive_inOrder spqr_receive_inOrder classicalTail_ok modelRatchetInv_tail modelRatchetInv_receive_inOrder ratchet_receive_frame sparseTail_ok modelSpqrInv_tail modelTripleInv_receive_inOrder keeps_output_none keeps_epoch decode_dh_canonical classicalTail_err sparseTail_err receiveWithEviction_inOrder decryptRatchet_inOrderStep triple_receive_parts modelCounterRoom_receive step_frame decrypt_inOrderStep pow_and_pow_ne two_chunk_loop decoder_invariant_parts add_chunk_one decoder_invariant_le_two decoder_step_keeps braid_receive_keysSampled braid_receive_keeps structural_receive mono_bind mono_ite strip_bind strip_ite structural_clear_pending clause_a_of_structural sameKind_of_refines keyOf_dhs code_dir_epoch decrypt_ratchet_keeps_invariant_in_order decrypt_ok_inner decrypt_keeps_invariant_in_order decrypt_keeps_invariant_model_step firstReceipt_inOrderStep replyReceipt_inOrderStep modelCounterRoom_afterFirstSend initiator_receives_reply_successor counterRoom_responder_prepared prepared_decoder_empty responder_successor_via_preservation InOrder classicalTail sparseTail KeepsAgreementState InOrderReceiveStep SameAgreementKind
 UnitLifecycleResponderEstablishReplay Tacenta.UnitLifecycleResponderEstablishReplay replay_refused_of_mem commit_last_resort establish_responder_again_refused initiator_first_send_responder_replay_refused first_send_replay_refused_reachable
 LIST
@@ -2260,8 +2262,11 @@ make_case
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleInitiatorSecondSend.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame\n'
 expect_fail "definition-pin-check-form-secondFrame" "is \`#check @Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame\`, which prints the type and not the body" --check
 
-# `UnitLifecycleReceivePreserve`'s `InOrder` is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
+# `UnitLifecycleKdf`'s `KdfFreeAgreements` is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
 make_case
+replace_in "tacenta-proofs/translation/Translation/UnitLifecycleKdf.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleKdf.KdfFreeAgreements\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleKdf.KdfFreeAgreements\n'
+expect_fail "definition-pin-check-form-KdfFreeAgreements" "is \`#check @Tacenta.UnitLifecycleKdf.KdfFreeAgreements\`, which prints the type and not the body" --check
+# `UnitLifecycleReceivePreserve`'s `InOrder` is on REQUIRED_PRINT_FORM: its pin rewritten as `#check @` is refused.
 replace_in "tacenta-proofs/translation/Translation/UnitLifecycleReceivePreserve.lean" $'#guard_msgs in\n#print Tacenta.UnitLifecycleReceivePreserve.InOrder\n' $'#guard_msgs in\n#check @Tacenta.UnitLifecycleReceivePreserve.InOrder\n'
 expect_fail "definition-pin-check-form-InOrder" "is \`#check @Tacenta.UnitLifecycleReceivePreserve.InOrder\`, which prints the type and not the body" --check
 
@@ -2453,6 +2458,30 @@ expect_fail "zone-source-edited" "translation is stale for tacenta-core/ratchet"
 make_case
 printf '\n# workspace edit\n' >> "$work/tacenta-core/Cargo.toml"
 expect_fail "workspace-input-edited" "the workspace inputs" --check-translation
+
+# The KDF's bodies are translated into every unit that calls them (`--include-kdf`), and its tree is a
+# workspace input: a change to the copied Rust without a re-translation makes every record stale.
+make_case
+printf '\n// kdf edit\n' >> "$work/tacenta-core/kdf/src/hmac.rs"
+expect_fail "kdf-source-edited" "the workspace inputs" --check-translation
+
+# The KDF restored as an opaque axiom in the Session unit's translation (what a translation without
+# `--include-kdf` would declare) is a declaration the allowlist no longer holds.
+make_case
+python3 - "$work/$gen/TacentaSessionUnit.lean" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+body = """def tacenta_kdf.hmac_sha256
+  (key : Slice Std.U8) (data : Slice Std.U8) :
+  Result (Array Std.U8 32#usize)
+  := do
+  tacenta_kdf.hmac.hmac_sha256 key data
+"""
+assert text.count(body) == 1
+path.write_text(text.replace(body, "axiom tacenta_kdf.hmac_sha256\n  : Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 32#usize)\n"))
+PY
+expect_fail "kdf-hmac-restored-as-axiom" "added: tacenta_session_unit.tacenta_kdf.hmac_sha256" --refresh-translation
 
 make_case
 printf 'namespace tacenta_nothing\nend tacenta_nothing\n' > "$work/$gen/TacentaNothing.lean"

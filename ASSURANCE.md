@@ -57,6 +57,11 @@ is a notation class, or a dependency's scoped instance brought in by `open`. No 
 changes. The change was made by the author with tool assistance; no reader
 independent of the maintainer has read it.
 
+On 2026-10-22, for the key derivation (`tacenta-kdf`'s bodies copied from an independent verified implementation
+and translated, `UnitLifecycleKdf`), these parts were updated against the head of that change and nothing else was
+re-read: the pin and claim counts in practice 2 and the trusted list in practice 3. The update was made by the author
+with tool assistance; no reader independent of the maintainer has read it.
+
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
 checks and reviews are evidence of what they ran, not independent review.

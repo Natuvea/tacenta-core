@@ -167,7 +167,12 @@ flowchart TD
   axioms. Nothing links against a unit and none is published.
 - **Where trust sits.** The boundary crate and the Charon and Aeneas toolchain
   are trusted and not verified here. A proof reaches the boundary through
-  contracts that appear as hypotheses of the theorems that take them.
+  contracts that appear as hypotheses of the theorems that take them. The key
+  derivation crate is no longer such a boundary: its HMAC-SHA256 and HKDF-SHA256 are
+  code copied from an independent verified implementation, translated, and proved on
+  the Session unit to compute tacenta-model's (`UnitLifecycleKdf`); that the model is
+  the RFCs', the code's timing and its erasure are not proved, and no independent
+  human has read the copied code yet.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.
 - **What holds the record in place.** `attest.py` compares the ledger with the
@@ -297,7 +302,8 @@ two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the re
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
 row `SESSION-SPARSE-AGREEMENTS`); the three fields of the contract record it takes that were stronger than the crate
 are now stated at the instances the unit passes, and that the real `zeroize` functions return there is assumed; not
-checked against the real functions.
+checked against the real functions. Its record's two KDF agreements are theorems about the unit's translated KDF, and
+`UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf` states the result without them.
 The same result is carried through the public `Session::decrypt` on frames that are not initial messages
 (`decrypt_refines_ratchet_frame`, on the same axioms), under the same hypotheses and one premise on the input, also in a
 form that takes `Session::invariant` and the four counter ceilings; no theorem covers an initial message.

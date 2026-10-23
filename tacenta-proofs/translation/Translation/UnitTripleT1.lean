@@ -85,8 +85,8 @@ the leaves' real preconditions, and there are three:
 
 Two more bundles bottom out in `tacenta_spqr.kdf_init`, which no leaf proof
 covers, so `KdfInitTotal` is declared here, in the same shape as
-`UnitSpqrT1.KdfRkTotal`: a translated function bottoming out in the opaque
-`hkdf_sha256`, at 96 bytes. That trade is worth naming -- it replaces two
+`UnitSpqrT1.KdfRkTotal`: a translated function bottoming out in
+`hkdf_sha256` (opaque until 2026-10-22, translated since), at 96 bytes. That trade is worth naming -- it replaces two
 opaque-crate-boundary assumptions (`SpqrInitAliceTotal`, `SpqrInitBobTotal`
 as `TripleT1.lean` stated them) with one assumption of a kind other proofs in
 this tree already rely on. "Trusted KDF" undersells what it bundles: besides

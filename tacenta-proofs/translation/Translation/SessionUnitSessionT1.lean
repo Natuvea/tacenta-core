@@ -498,8 +498,8 @@ rather than pushed onto the caller.
 
 What it rests on, all of it named:
 
-* `HkdfTotal`, the key derivation, opaque by the choice that keeps the
-  translation tractable. Same boundary as the ratchet's, and a separate constant
+* `HkdfTotal`, the key derivation, opaque until 2026-10-22 by the choice that kept the
+  translation tractable, and a translated definition since. Same boundary as the ratchet's, and a separate constant
   because each generated module declares its own.
 * `ZeroizingModel`, the external `zeroize` crate. Stated as a model -- a contents
   function and the equations relating the three operations to it -- rather than
