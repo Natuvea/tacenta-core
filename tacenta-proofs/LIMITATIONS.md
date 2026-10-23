@@ -511,6 +511,21 @@ from it. This holds here by delegation and discipline, not by proof.
   with a constant-time comparison (`Mac::verify_slice`), not a byte-wise `==`.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
+- **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
+  2026-10-22 `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied from an independent verified implementation,
+  whose source says every branch and every index is on a length or a loop counter. They are loops, and this
+  workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
+  rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`
+  instead lists every conditional branch of the crate's release assembly with the instruction before it, every
+  indirect transfer, table reference, register-indexed access, named callee and hardware divide, and requires the
+  list to equal a baseline per target (`tooling/ct-baselines/`), whose items were read against the rule that each
+  depends only on a length, a loop counter, the SHA-256 buffer's fill count, HKDF's block counter or position, or
+  a constant (`tooling/ct-baselines/kdf-review-notes.txt`). That reading was made by a tool-assisted session, not
+  an independent human reader. The baselines were written on an aarch64 Mac for its own target and, cross-compiled,
+  for the two Linux targets, with the default nightly toolchain; stable 1.98.1 gave the same inventory on the Mac,
+  and whether it gives the same on the Linux targets is not checked (a different one fails the gate until it is
+  read). Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and an LTO build, which would
+  inline these functions into their callers, is not covered.
 - **The Braid's MAC comparison is a hand-written loop.** `mac_eq` in
   `tacenta-braid` ORs the XOR of every byte pair and tests the accumulator
   once at the end -- the textbook shape -- but nothing in the language stops

@@ -1,0 +1,117 @@
+FUNC RNvCs_11tacenta_kdf11hmac_sha256
+FUNC RNvCs_11tacenta_kdf16hkdf_sha256_into
+FUNC RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+FUNC RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize
+FUNC RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize
+FUNC RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into
+FUNC RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 branch b.eq L | cmn x8, #1
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 branch b.eq L | subs x20, x20, #1
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 branch b.hi L | cmp x0, #63
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 branch b.ne L | stp x0, x8, [sp, #160]
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 branch cbz x20, L | bl _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 call _RNvNtCs_4core9panicking18panic_bounds_check
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 call _RNvNtNtCs_4core9panicking11panic_const24panic_const_add_overflow
+ITEM RNvCs_11tacenta_kdf11hmac_sha256 indexed strb w8, [x23, x0]
+ITEM RNvCs_11tacenta_kdf16hkdf_sha256_into call _RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.eq L | cmn x8, #1
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.eq L | cmn x8, #1
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.eq L | cmp x20, #64
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.eq L | subs x20, x20, #1
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.hi L | cmp x0, #63
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.hi L | cmp x0, #63
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.ls L | stp q0, q0, [sp, #96]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.ne L | stp x0, x8, [x29, #-48]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch b.ne L | stp x0, x8, [x29, #-48]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new branch cbz x20, L | b L
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call _RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call _RNvNtCs_4core9panicking18panic_bounds_check
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call _RNvNtNtCs_4core9panicking11panic_const24panic_const_add_overflow
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new call memcpy
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new indexed ldrb w8, [x22, x20]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new indexed strb w8, [x21, x0]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new indexed strb w8, [x23, x0]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.eq L | cmn x8, #1
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.eq L | cmn x8, #1
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.eq L | cmp x20, #32
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.eq L | cmp x22, #64
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.hi L | cmp x0, #63
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.hi L | cmp x0, #63
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.ne L | stp x0, x8, [sp, #128]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize branch b.ne L | stp x0, x8, [sp, #128]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvNtCs_4core9panicking18panic_bounds_check
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize call _RNvNtNtCs_4core9panicking11panic_const24panic_const_add_overflow
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize indexed ldrb w8, [x20, x22]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize indexed ldrb w8, [x22, x20]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize indexed strb w8, [x21, x0]
+ITEM RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize indexed strb w8, [x23, x0]
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize branch b.eq L | cmp x0, #55
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize branch b.eq L | cmp x0, #63
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize branch b.hi L | stp q1, q0, [sp, #64]
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize branch b.lo L | add x8, x0, #1
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize call _RNvNtCs_4core9panicking18panic_bounds_check
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize call memset
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize call memset
+ITEM RNvMNtCs_11tacenta_kdf6sha256NtB2_6Sha2568finalize indexed strb w9, [x8, x0]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmn x8, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmn x8, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmn x8, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmn x8, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmp w26, #255
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | cmp x21, #32
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | subs x21, x21, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.eq L | subs x23, x23, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hi L | cmp x0, #63
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hi L | cmp x0, #63
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hi L | cmp x0, #63
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hi L | cmp x0, #63
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hi L | cmp x9, #30
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hs L | cmp x28, x19
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hs L | cmp x7, x8
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.hs L | mov x28, x8
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.lo L | add x9, x9, #1
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.lo L | cmp w26, #2
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | add x28, x28, #2
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | cmp x23, x9
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | stp x0, x8, [sp, #248]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | stp x0, x8, [sp, #248]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | stp x0, x8, [sp, #248]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch b.ne L | stp x8, x9, [sp, #248]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch cbz w10, L | b.lo L
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch cbz x19, L | stp q0, q0, [sp, #48]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch cbz x20, L | b L
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch cbz x21, L | bl memcpy
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into branch cbz x23, L | bl _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2563new
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvMNtCs_11tacenta_kdf4hmacNtB2_10HmacSha2568finalize
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_11tacenta_kdf6sha2568compress
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_4core9panicking18panic_bounds_check
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtCs_4core9panicking9panic_fmt
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtNtCs_4core9panicking11panic_const24panic_const_add_overflow
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call _RNvNtNtCs_4core9panicking11panic_const24panic_const_add_overflow
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into call memcpy
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into indexed ldrb w8, [x27, x21]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into indexed strb w26, [x25, x0]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into indexed strb w8, [x25, x0]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into indexed strb w8, [x25, x0]
+ITEM RNvNtCs_11tacenta_kdf4hkdf16hkdf_sha256_into indexed strb w8, [x26, x0]
+ITEM RNvNtCs_11tacenta_kdf6sha2568compress branch b.ne L | mov w7, w6
+ITEM RNvNtCs_11tacenta_kdf6sha2568compress branch b.ne L | str w10, [x8], #4
+ITEM RNvNtCs_11tacenta_kdf6sha2568compress indexed ldr w20, [x3, x11]
+ITEM RNvNtCs_11tacenta_kdf6sha2568compress indexed ldr w23, [x5, x11]

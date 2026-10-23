@@ -1,0 +1,56 @@
+# What the items of tooling/ct-baselines/tacenta_kdf-<target triple>.txt depend on.
+#
+# Read on 2026-10-22 from the assembly `tooling/check-constant-time-asm.sh` builds:
+# `tacenta-kdf` in this workspace's release profile (`overflow-checks = true`), one codegen
+# unit, `--emit=asm`, rustc 1.99.0-nightly (da80ed070 2026-07-14). rustc 1.98.1 (stable)
+# gave an identical inventory for aarch64-apple-darwin; the two Linux inventories were
+# built only with the nightly (stable's Linux targets were not installed here), so whether
+# stable produces the same Linux inventories is not checked, and a CI run on another rustc
+# fails until its differences are read. The two Linux targets were cross-compiled on an
+# aarch64 Mac: the assembly was read, nothing ran on Linux hardware, and nothing here
+# measures time.
+#
+# Who read it: a tool-assisted session, not an independent human reader. The
+# aarch64-apple-darwin assembly of `compress`, `hmac_sha256`, `HmacSha256::new`,
+# `Sha256::finalize`, `HmacSha256::finalize` and the HKDF was read branch by branch; the
+# two Linux inventories were read item by item against the same classes, with the x86_64
+# HKDF's two branches that are not preceded by their compare (`movzbl 7(%rsp)` before a
+# `je`, `testb %dl, %dl` before a `je`) traced to their flags: the first `je` tests a copy
+# count against 32 (`cmpq %rcx, %r13` two lines up, the load of the block counter `i` in
+# between), the second tests `pos < out.len()` (`setb %dl`).
+#
+# The rule for every item: it may depend on a length (key, message, salt, input keying
+# material, info or output), a loop counter, the SHA-256 buffer's fill count, the HKDF
+# block counter `i`, the output position `pos`, or a constant; never on a key, message,
+# state or derived byte. An `indexed` item is a load or store whose index register is one
+# of those; the buffer it addresses may hold secrets.
+#
+# The source says the same of itself (`kdf/src/sha256.rs`: "Every branch and every index
+# is on a length or a loop counter, never on message bytes"); this file records that the
+# compiled code still has that property in this workspace's profile.
+#
+# function                       items depend on
+6sha2568compress                 the schedule loop counter (48 steps) and the round loop counter (64
+                                 steps, by 4 bytes to 256); K[t] and W[t] loads at the round counter
+hmac_sha256 (wrapper)            the message length (zero, and the per-byte loop count); the buffer fill
+                                 count against 63 (bounds), 64 (block full) and its +1 overflow check;
+                                 the buffer store at the fill count
+HmacSha256::new                  key.len() > 64; key.len() == 0 before the copy; the per-byte loop
+                                 counts over the key and over the 64-byte pad; the buffer fill count as
+                                 above; loads and stores at those counters
+HmacSha256::finalize             the 32-byte digest and 64-byte pad copy counters; the buffer fill count
+                                 as above; loads and stores at those counters
+Sha256::finalize                 the fill count against 55, 56 and 63: one or two final blocks, a
+                                 function of the message length; the 0x80 store at the fill count
+hkdf::hkdf_sha256_into           out.len() against 8161 (the assert); ikm, info and output lengths;
+                                 `pos < out.len()`; the block counter `i` (`i > 1`, its u8 +1 overflow
+                                 check); the copy count `j` against 32; the buffer fill count as above;
+                                 x86_64 only: the copy's vectorisation thresholds (counts against 15 and
+                                 30); loads and stores at `pos`, `j` and the fill count
+hkdf_sha256_into (wrapper)       none: a tail call
+#
+# Calls: `compress`, `Sha256::finalize`, `HmacSha256::new`/`finalize` within the crate;
+# `memcpy` and `bzero`/`memset` with public lengths; the panic paths (`panic_bounds_check`,
+# `panic_const_add_overflow`, `panic_fmt` for the HKDF assert), which run only on a length
+# or counter condition. No hardware divide, no indirect jump or call, and no jump or
+# lookup table on any of the three targets.

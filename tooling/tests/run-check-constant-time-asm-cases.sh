@@ -129,6 +129,37 @@ printf '  leaq 8(%%rdi), %%rax\n  cmpq %%rsi, %%rcx\n  jne .LBB0_9\n  retq\n' \
 printf '  callq _ZN6subtle9black_box17h0123456789abcdefE\n  retq\n' \
   | fixture x86 0 'black_box' 'found=1 branches=0 allowed=0 callees=1 bad_callees=0' 'a subtle::black_box callee is allowed when listed'
 
+# The key derivation's inventory reader. Each fixture is read by the production `kdf_inventory`; the
+# expected items are exact, so a case fails when the reader drops, adds or respells an item.
+#   inv_case <arch> <expected inventory> <name>   (the function body is read from stdin)
+inv_case() {
+  local arch="$1" want="$2" name="$3" got
+  { printf '_fixture_kdf:\n  .cfi_startproc\n'; cat; printf '  .cfi_endproc\n'; } >"$tmp/kdf.s"
+  got="$(kdf_inventory "$tmp/kdf.s" "$arch" | LC_ALL=C sort)"
+  if [ "$got" != "$want" ]; then
+    echo "constant-time asm control $name ($arch): expected:" >&2; printf '%s\n' "$want" >&2
+    echo "got:" >&2; printf '%s\n' "$got" >&2
+    exit 1
+  fi
+  echo . >>"$tmp/checked"
+}
+printf '  cmp x0, #64\n  b.ne LBB3_2\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf branch b.ne L | cmp x0, #64' 'kdf aarch64 branch listed with its compare'
+printf '  ldrb w8, [x0]\n  cbz w8, LBB3_2\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf branch cbz w8, L | ldrb w8, [x0]' 'kdf aarch64 a branch on a loaded byte is listed with the load'
+printf '  ldrb w8, [x22, x20]\n  strb w8, [x21, x0]\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldrb w8, [x22, x20]\nITEM fixture_kdf indexed strb w8, [x21, x0]' 'kdf aarch64 register-indexed accesses listed'
+printf '  udiv x0, x1, x2\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf divide udiv x0, x1, x2' 'kdf aarch64 divide listed'
+printf '  blr x8\n  bl _memcpy\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf call _memcpy\nITEM fixture_kdf indirect blr x8' 'kdf aarch64 indirect call and named callee'
+printf '  cmpq $63, %%rdi\n  ja .LBB5_44\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf branch ja L | cmpq $63, %rdi' 'kdf x86 branch listed with its compare'
+printf '  callq *memcpy@GOTPCREL(%%rip)\n  callq *%%rax\n  jmp *.LJTI0_0(,%%rax,8)\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
+printf '  movzbl (%%r15,%%rbx), %%eax\n  divq %%rcx\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf divide divq %rcx\nITEM fixture_kdf indexed movzbl (%r15,%rbx), %eax' 'kdf x86 indexed load and divide listed'
+
 # `analyse` reports no function at all when the symbol is absent; `main` must refuse that, and the other
 # findings, and in CI must refuse a run with neither Linux target. These run the production script in a
 # disposable tree, with `rustc`, `rustup` and `cargo` replaced by stubs that write the fixture assembly.
@@ -165,15 +196,32 @@ braid_ok() { printf 'fixture_mac_eq:\n  .cfi_startproc\n  cmpq %%rsi, %%rcx\n  j
 boundary_ok() { printf 'fixture_calculate_key_pair:\n  .cfi_startproc\n  callq _ZN4demo8compress17h0123456789abcdefE\n  retq\n  .cfi_endproc\n'; }
 fixtures="$tmp/fixtures"
 mkdir -p "$fixtures"
-reset_fixtures() { braid_ok >"$fixtures/tacenta_braid.s"; boundary_ok >"$fixtures/tacenta_boundary.s"; }
+kdf_ok() { printf '_fixture_kdf:\n  .cfi_startproc\n  cmpq $63, %%rdi\n  ja .LBB5_44\n  retq\n  .cfi_endproc\n'; }
+# The reviewed baselines of the sandbox: the fixture's own inventory, per target the cases use.
+write_kdf_baselines() {
+  local t a
+  mkdir -p "$sandbox/tooling/ct-baselines"
+  for t in x86_64-unknown-linux-gnu aarch64-apple-darwin aarch64-unknown-linux-gnu; do
+    case "$t" in x86_64-*) a=x86 ;; *) a=aarch64 ;; esac
+    kdf_inventory "$fixtures/tacenta_kdf.s" "$a" | LC_ALL=C sort >"$sandbox/tooling/ct-baselines/tacenta_kdf-$t.txt"
+  done
+}
+reset_fixtures() {
+  braid_ok >"$fixtures/tacenta_braid.s"; boundary_ok >"$fixtures/tacenta_boundary.s"; kdf_ok >"$fixtures/tacenta_kdf.s"
+  write_kdf_baselines
+}
 
-# main <name> <expected exit: 0|1> <expected text> [VAR=value ...]
+# main <name> <expected exit: 0|1> <expected text> [VAR=value ...] [--argument ...]
 main_case() {
-  local name="$1" want_rc="$2" needle="$3" out rc
+  local name="$1" want_rc="$2" needle="$3" out rc a
+  local -a vars=() args=()
   shift 3
+  for a in "$@"; do
+    case "$a" in --*) args+=("$a") ;; *) vars+=("$a") ;; esac
+  done
   set +e
-  out="$(cd "$sandbox" && env -u GITHUB_ACTIONS PATH="$sandbox/bin:$PATH" STUB_FIXTURES="$fixtures" "$@" \
-    bash tooling/check-constant-time-asm.sh 2>&1)"
+  out="$(cd "$sandbox" && env -u GITHUB_ACTIONS PATH="$sandbox/bin:$PATH" STUB_FIXTURES="$fixtures" ${vars[@]+"${vars[@]}"} \
+    bash tooling/check-constant-time-asm.sh ${args[@]+"${args[@]}"} 2>&1)"
   rc=$?
   set -e
   if [ "$rc" -ne "$want_rc" ] || ! grep -qF -- "$needle" <<<"$out"; then
@@ -199,5 +247,23 @@ printf 'fixture_calculate_key_pair:\n  .cfi_startproc\n  callq memcmp\n  retq\n 
 main_case 'an unexpected callee is a failure' 1 'the gate refuses or does not know' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
 main_case 'two assembly files for one crate are a failure' 1 'expected one assembly file' STUB_HOST=x86_64-unknown-linux-gnu STUB_FILES=2
+reset_fixtures
+main_case 'the key derivation at its baseline is accepted' 0 'tacenta_kdf: inventory matches the reviewed baseline (1 items in 1 functions, 1 of them branches)' STUB_HOST=x86_64-unknown-linux-gnu
+printf '_fixture_kdf:\n  .cfi_startproc\n  cmpq $63, %%rdi\n  ja .LBB5_44\n  testb %%al, %%al\n  jne .LBB5_45\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_kdf.s"
+main_case 'a new branch in the key derivation is a failure' 1 'the inventory differs from tooling/ct-baselines/tacenta_kdf-x86_64-unknown-linux-gnu.txt' STUB_HOST=x86_64-unknown-linux-gnu
+printf '_fixture_kdf:\n  .cfi_startproc\n  cmpq $64, %%rdi\n  ja .LBB5_44\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_kdf.s"
+main_case 'a changed compare in the key derivation is a failure' 1 'every new or changed item must be read' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+rm "$sandbox/tooling/ct-baselines/tacenta_kdf-x86_64-unknown-linux-gnu.txt"
+main_case 'a missing key-derivation baseline is a failure' 1 'tacenta_kdf: no reviewed baseline' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+printf '_fixture_kdf:\n  .cfi_startproc\n  cmpq $63, %%rdi\n  ja .LBB5_44\n  divq %%rcx\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_kdf.s"
+write_kdf_baselines
+main_case 'a hardware divide in the key derivation is a failure even in its baseline' 1 'hardware divide instruction(s)' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+printf 'some_data:\n  .quad 0\n' >"$fixtures/tacenta_kdf.s"
+main_case 'a key derivation with no function is a failure' 1 'tacenta_kdf: no function found' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+main_case 'rewriting the baselines in CI is refused' 1 'is not run in CI' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu --update-kdf-baseline
 
-echo "constant-time asm controls: $(wc -l <"$tmp/checked" | tr -d ' ') further cases (branch counter on x86_64 and aarch64, indirect transfers, subtle and conditional_ callees, the length compare, the rules of main including the CI rule) each gave the expected result"
+echo "constant-time asm controls: $(wc -l <"$tmp/checked" | tr -d ' ') further cases (branch counter on x86_64 and aarch64, indirect transfers, subtle and conditional_ callees, the length compare, the key derivation's inventory reader and baseline rules, the rules of main including the CI rule) each gave the expected result"
