@@ -70,6 +70,7 @@ make_case() {
   cp "$root/tacenta-proofs/Proofs/MemorySafety.lean" "$dst/tacenta-proofs/Proofs/MemorySafety.lean"
   cp "$root/tacenta-proofs/Proofs/SparseRatchetCorrectness.lean" "$dst/tacenta-proofs/Proofs/SparseRatchetCorrectness.lean"
   cp "$root/tacenta-proofs/Proofs/SparseReplacementBound.lean" "$dst/tacenta-proofs/Proofs/SparseReplacementBound.lean"
+  cp "$root/tacenta-proofs/Proofs/SparseReachableStore.lean" "$dst/tacenta-proofs/Proofs/SparseReachableStore.lean"
   cp "$root/tacenta-proofs/Proofs/SessionTrace.lean" "$dst/tacenta-proofs/Proofs/SessionTrace.lean"
   cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/T3.lean" "$dst/tacenta-proofs/translation/Translation/T3.lean"

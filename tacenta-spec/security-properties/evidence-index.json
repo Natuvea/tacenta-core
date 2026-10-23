@@ -2824,6 +2824,11 @@
           "path": "tacenta-proofs/Proofs/SparseReplacementBound.lean",
           "theorem": "skipMessageKeys_refused_iff",
           "coverage": "T2 sparse model proof that a skip within the per-chain bound is refused exactly when the survivors plus the keys to store pass the store bound."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/SparseReachableStore.lean",
+          "theorem": "run_store_bounded",
+          "coverage": "T2 sparse model proof that any sequence of sends, receives and evictions from a state within the store bound leaves a state within it."
         }
       ],
       "claims": [
@@ -2851,6 +2856,13 @@
           "references": [
             "Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch",
             "Proofs.SparseReplacementBound.skipMessageKeys_refused_iff"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach)",
+          "references": [
+            "Proofs.SparseReachableStore.run_store_bounded"
           ]
         },
         {
@@ -2899,7 +2911,7 @@
       "missing_evidence": [
         {
           "kind": "whole-session sparse proof",
-          "reason": "The sparse store bound is proved per relevant operation, not across every receive/session sequence; counter-ceiling ageing remains limited.",
+          "reason": "The sparse store bound is proved of the model across sequences of sends, receives and evictions, not across a session's operations (eviction and retry) or of the code; counter-ceiling ageing remains limited.",
           "references": [
             "LIM-18"
           ]
