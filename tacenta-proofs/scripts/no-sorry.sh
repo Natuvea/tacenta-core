@@ -342,7 +342,7 @@ python3 scripts/check-initiator-repeated-reply-negatives.py || fail=1
 
 # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the
 # session the receipt returns derived on that run and kept through the send
-# (`UnitLifecycleInitiatorSecondMessage.lean`): eleven changes to statements and a definition (the budget after the
+# (`UnitLifecycleInitiatorSecondMessage.lean`): eleven changes, to statements and a definition (the budget after the
 # send, the fresh-key premise, the second plaintext's bound and the ceilings at the receipt's session in the headline;
 # the plaintext bound and the source-choosing law in the reach; forwarded conjuncts; the run's definition at its pin),
 # each of which must be refused at a named declaration or pin, with a message naming the change, after the two
@@ -535,7 +535,7 @@ python3 scripts/check-initiator-second-send-negatives.py || fail=1
 }
 
 # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two
-# receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes to statements and a definition (the decoder
+# receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes, to statements and a definition (the decoder
 # scope, the clone record, the budget, the relation after the call, the canonical-key law and the public-key clause in
 # the general step; the budget and the fresh-key premise on the reply's run; the leaf lemmas), each of which must be
 # refused at a named declaration or pin, with a message naming the change, after the two unmodified copies are

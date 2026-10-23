@@ -14,8 +14,9 @@
 # `nice` (not a hosted measurement); the initial dispatcher's 50 controls took 3024 s there and are split eight
 # ways. The `braid` part later took on `responder-second-send`, whose control took between about 85 s and 105 s in
 # local runs under `nice` (not a hosted measurement). The `reply` part later took on `initiator-repeated-reply`: in one
-# sequential local run under `nice` on 2026-10-23 its six phases' controls took about 510 s (75, 72, 92, 93, 61 and
-# 115 s); the hosted time is not re-estimated.
+# sequential local run under `nice` on 2026-10-23 its six phases' controls took about 510 s in all (the times of the
+# separate phases were not kept); the hosted time is not re-estimated and, by the ratio above, may be well over the nine
+# minutes this part was made for.
 hosted kernel:
   kernel-replay-translation
   initiator-second-message
