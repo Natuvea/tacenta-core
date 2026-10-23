@@ -165,10 +165,13 @@
 # hardware.
 #
 # Targets. The host is always checked. Of the two Linux targets, each that
-# `rustup target list --installed` lists is checked and each that is not is
-# skipped with a line saying so; in CI (`GITHUB_ACTIONS`), where the workflow
-# installs the aarch64 target beside the x86_64 host, a run with neither Linux
-# target present fails rather than reporting green on the host alone.
+# `rustup target list --installed` lists (for the running toolchain) is checked
+# and each that is not is skipped with a line saying so; in CI
+# (`GITHUB_ACTIONS`), where the workflow installs the aarch64 target beside the
+# x86_64 host, a run missing either Linux target fails rather than reporting
+# green without it, and the KDF half fails for any of those targets its pinned
+# toolchain lacks, so in CI both Linux baselines of the key derivation are
+# compared.
 set -euo pipefail
 shopt -s nullglob
 
@@ -355,13 +358,13 @@ main() {
       targets+=("$t")
       linux_present=1
     else
+      if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        fail "this is CI and $t is not installed for the running toolchain; the workflow's rust_target step adds it, beside the KDF's pinned toolchain"
+      fi
       say "$t is not installed, skipping it (rustup target add $t)"
     fi
   done
   if [ "$linux_present" -eq 0 ]; then
-    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-      fail "this is CI and neither Linux target is installed; the workflow's rust_target step adds aarch64-unknown-linux-gnu to the job's toolchain and to the KDF's pinned one"
-    fi
     say "neither Linux target is installed; checking the host only"
   fi
 

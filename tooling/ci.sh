@@ -375,7 +375,7 @@ fi
 # is the instrument for them. The host target is always read; each Linux
 # target the machine has installed is read too, a missing one is skipped with
 # a line saying so, and in CI, where the workflow installs the aarch64 target
-# beside its x86_64 host, a run with neither Linux target fails. The script
+# beside its x86_64 host, a run missing either Linux target fails. The script
 # builds with `--emit=asm`, which needs no linker, so a target needs only its
 # `rust-std` (`rustup target add <target>`). The key derivation's half builds
 # `tacenta-kdf` alone with the toolchain `tooling/ct-baselines/rust-toolchain.txt`

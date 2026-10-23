@@ -170,7 +170,7 @@ printf '  cmp x0, #64\n  bc.ne LBB3_2\n  ret\n' \
   | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf branch bc.ne L | cmp x0, #64' 'kdf aarch64 bc.cond branch listed with its compare'
 
 # `analyse` reports no function at all when the symbol is absent; `main` must refuse that, and the other
-# findings, and in CI must refuse a run with neither Linux target. These run the production script in a
+# findings, and in CI must refuse a run missing either Linux target. These run the production script in a
 # disposable tree, with `rustc`, `rustup` and `cargo` replaced by stubs that write the fixture assembly.
 sandbox="$tmp/sandbox"
 mkdir -p "$sandbox/tooling" "$sandbox/tacenta-core" "$sandbox/bin"
@@ -212,7 +212,8 @@ done
 stem="${crate//-/_}"
 [ -n "${STUB_LOG:-}" ] && echo "$crate $target $tc" >>"$STUB_LOG"
 mkdir -p "target/$target/release/deps"
-for n in $(seq 1 "${STUB_FILES:-1}"); do
+files=1; [ "${STUB_FILES_CRATE:-$crate}" = "$crate" ] && files="${STUB_FILES:-1}"
+for n in $(seq 1 "$files"); do
   cp "$STUB_FIXTURES/$stem.s" "target/$target/release/deps/${stem}-$n.s"
 done
 STUB
@@ -263,8 +264,10 @@ main_case() {
 reset_fixtures
 main_case 'clean fixtures on a Linux host are accepted' 0 'every constant-time function compiles to straight-line code' STUB_HOST=x86_64-unknown-linux-gnu
 main_case 'no Linux target outside CI checks the host only' 0 'neither Linux target is installed; checking the host only' STUB_HOST=aarch64-apple-darwin
-main_case 'no Linux target in CI is a failure' 1 'this is CI and neither Linux target is installed' STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true
-main_case 'a Linux target installed in CI is accepted' 0 'every constant-time function compiles to straight-line code' STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu
+# The runner's real shape first: an x86_64 Linux host, where the host alone is a Linux target.
+main_case 'in CI, on an x86_64 Linux host, a missing aarch64 target is a failure' 1 'this is CI and aarch64-unknown-linux-gnu is not installed' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED= STUB_KDF_INSTALLED=aarch64-unknown-linux-gnu
+main_case 'no Linux target in CI is a failure' 1 'this is CI and x86_64-unknown-linux-gnu is not installed' STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true
+main_case 'both Linux targets in CI, on an x86_64 Linux host, are accepted' 0 'every constant-time function compiles to straight-line code, on: x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu
 printf 'some_other_function:\n  .cfi_startproc\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_braid.s"
 main_case 'an absent mac_eq symbol is a failure' 1 'is not in' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
@@ -274,7 +277,9 @@ reset_fixtures
 printf 'fixture_calculate_key_pair:\n  .cfi_startproc\n  callq memcmp\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_boundary.s"
 main_case 'an unexpected callee is a failure' 1 'the gate refuses or does not know' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
-main_case 'two assembly files for one crate are a failure' 1 'expected one assembly file' STUB_HOST=x86_64-unknown-linux-gnu STUB_FILES=2
+main_case 'two assembly files for a straight-line crate are a failure' 1 'expected one assembly file for tacenta-braid' STUB_HOST=x86_64-unknown-linux-gnu STUB_FILES=2 STUB_FILES_CRATE=tacenta-braid
+reset_fixtures
+main_case 'two assembly files for the key derivation are a failure' 1 'expected one assembly file for tacenta-kdf' STUB_HOST=x86_64-unknown-linux-gnu STUB_FILES=2 STUB_FILES_CRATE=tacenta-kdf
 reset_fixtures
 main_case 'the key derivation at its baseline is accepted' 0 'tacenta_kdf: inventory matches the reviewed baseline (1 items in 1 functions, 1 of them branches)' STUB_HOST=x86_64-unknown-linux-gnu
 printf '_fixture_kdf:\n  .cfi_startproc\n  cmpq $63, %%rdi\n  ja .LBB5_44\n  testb %%al, %%al\n  jne .LBB5_45\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_kdf.s"
@@ -303,9 +308,9 @@ rm "$sandbox/tooling/ct-baselines/rust-toolchain.txt"
 main_case 'baselines that name no toolchain are a failure' 1 'rust-toolchain.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
 main_case 'without the pinned toolchain, outside CI, the key derivation is skipped and named' 0 'the key derivation was not checked: the toolchain fixture-tc its baselines were read from is not installed' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-x86_64-unknown-linux-gnu (default)'
-main_case 'without the pinned toolchain, in CI, the run fails' 1 "this is CI and the KDF's toolchain fixture-tc is not installed" STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-aarch64-apple-darwin (default)'
+main_case 'without the pinned toolchain, in CI, the run fails' 1 "this is CI and the KDF's toolchain fixture-tc is not installed" STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-x86_64-unknown-linux-gnu (default)'
 main_case 'a Linux target the pinned toolchain lacks is skipped outside CI' 0 'skipping, fixture-tc has no aarch64-unknown-linux-gnu target' STUB_HOST=aarch64-apple-darwin STUB_INSTALLED=aarch64-unknown-linux-gnu STUB_KDF_INSTALLED=
-main_case 'a Linux target the pinned toolchain lacks fails in CI' 1 'has no aarch64-unknown-linux-gnu target; the workflow' STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu STUB_KDF_INSTALLED=
+main_case 'a Linux target the pinned toolchain lacks fails in CI' 1 'has no aarch64-unknown-linux-gnu target; the workflow' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu STUB_KDF_INSTALLED=
 # Which toolchain built which crate: the straight-line functions with the running toolchain, the key
 # derivation with the pinned one, on every target read.
 : >"$tmp/toolchains.log"
