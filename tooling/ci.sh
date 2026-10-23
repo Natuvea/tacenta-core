@@ -14,9 +14,10 @@
 # (`cargo-audit`), the MSRV compile check (a 1.87 toolchain), the 32-bit
 # compile check (the armv7 target), the Linux halves of the constant-time
 # disassembly gate (the x86_64 and aarch64 Linux targets; the host is always
-# read), and the translation build with its `sorry` scan (`no-sorry.sh`,
-# which needs the translation's Mathlib cache and is the heavy one). The
-# first four fail rather than skip when `GITHUB_ACTIONS` is set, so a runner
+# read), the gate's key-derivation half (the pinned nightly toolchain
+# `tooling/ct-baselines/rust-toolchain.txt` names), and the translation build
+# with its `sorry` scan (`no-sorry.sh`, which needs the translation's Mathlib
+# cache and is the heavy one). The first five fail rather than skip when `GITHUB_ACTIONS` is set, so a runner
 # cannot report green on a check it did not run. Steps this script runs and
 # the workflow does not: the interoperability harness, which is not in this
 # public tree and skips here, and the fuzz smoke run, which needs
@@ -27,7 +28,7 @@
 # receipt writers in the jobs, and the `assurance-receipts` aggregation job,
 # which downloads the evidence pack it uploaded and verifies that copy against
 # the commit. The
-# README's "Building and checking" section lists the same five and two and
+# README's "Building and checking" section lists the same six and two and
 # those steps, and says what runs outside this repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
@@ -376,7 +377,10 @@ fi
 # a line saying so, and in CI, where the workflow installs the aarch64 target
 # beside its x86_64 host, a run with neither Linux target fails. The script
 # builds with `--emit=asm`, which needs no linker, so a target needs only its
-# `rust-std` (`rustup target add <target>`).
+# `rust-std` (`rustup target add <target>`). The key derivation's half builds
+# `tacenta-kdf` alone with the toolchain `tooling/ct-baselines/rust-toolchain.txt`
+# names and compares its inventory with the reviewed baselines; without that
+# toolchain it is skipped here with a line saying so, and fails in CI.
 echo "== Rust: the constant-time functions compile to straight-line code =="
 bash tooling/check-constant-time-asm.sh
 

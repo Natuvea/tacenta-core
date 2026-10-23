@@ -78,7 +78,7 @@ done
 printf '  jmp .LBB0_2\n  retq\n' | fixture x86 0 '' "$none" 'x86 jmp to a local label is straight-line'
 printf '  cmovne %%rcx, %%rax\n  sete %%dl\n  retq\n' | fixture x86 0 '' "$none" 'x86 cmov and setcc are selects, not branches'
 # aarch64: `b.<cond>`, cbz, cbnz, tbz and tbnz are conditional branches; `b` to a local label is not.
-for ins in 'b.eq LBB0_2' 'b.ne LBB0_2' 'b.cs LBB0_2' 'b.hs LBB0_2' 'b.cc LBB0_2' 'b.lo LBB0_2' 'b.mi LBB0_2' 'b.pl LBB0_2' 'b.vs LBB0_2' 'b.vc LBB0_2' 'b.hi LBB0_2' 'b.ls LBB0_2' 'b.ge LBB0_2' 'b.lt LBB0_2' 'b.gt LBB0_2' 'b.le LBB0_2' 'cbz x0, LBB0_2' 'cbnz x0, LBB0_2' 'tbz w0, #0, LBB0_2' 'tbnz w0, #0, LBB0_2'; do
+for ins in 'b.eq LBB0_2' 'b.ne LBB0_2' 'b.cs LBB0_2' 'b.hs LBB0_2' 'b.cc LBB0_2' 'b.lo LBB0_2' 'b.mi LBB0_2' 'b.pl LBB0_2' 'b.vs LBB0_2' 'b.vc LBB0_2' 'b.hi LBB0_2' 'b.ls LBB0_2' 'b.ge LBB0_2' 'b.lt LBB0_2' 'b.gt LBB0_2' 'b.le LBB0_2' 'cbz x0, LBB0_2' 'cbnz x0, LBB0_2' 'tbz w0, #0, LBB0_2' 'tbnz w0, #0, LBB0_2' 'bc.eq LBB0_2' 'bc.ne LBB0_2'; do
   printf '  %s\n  ret\n' "$ins" | fixture aarch64 0 '' "$one_branch" "aarch64 ${ins%% *} counted"
 done
 printf '  b LBB0_2\n  csel x0, x1, x2, ne\n  cset w8, eq\n  ret\n' | fixture aarch64 0 '' "$none" 'aarch64 b to a local label and csel are straight-line'
@@ -164,6 +164,10 @@ printf '  callq *memcpy@GOTPCREL(%%rip)\n  callq *%%rax\n  jmp *.LJTI0_0(,%%rax,
   | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indexed jmp *L(,%rax,8)\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
 printf '  ldr w8, [x9], x10\n  ret\n' \
   | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldr w8, [x9], x10' 'kdf aarch64 register post-index listed'
+printf '  ldr w8, [sp, x9, lsl #2]\n  ldrb w10, [sp, x11]\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldr w8, [sp, x9, lsl #2]\nITEM fixture_kdf indexed ldrb w10, [sp, x11]' 'kdf aarch64 stack-pointer base with a register offset listed'
+printf '  cmp x0, #64\n  bc.ne LBB3_2\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf branch bc.ne L | cmp x0, #64' 'kdf aarch64 bc.cond branch listed with its compare'
 
 # `analyse` reports no function at all when the symbol is absent; `main` must refuse that, and the other
 # findings, and in CI must refuse a run with neither Linux target. These run the production script in a
@@ -171,19 +175,34 @@ printf '  ldr w8, [x9], x10\n  ret\n' \
 sandbox="$tmp/sandbox"
 mkdir -p "$sandbox/tooling" "$sandbox/tacenta-core" "$sandbox/bin"
 cp "$root/tooling/check-constant-time-asm.sh" "$sandbox/tooling/"
+# `rustc +TOOLCHAIN -V` is the pinned toolchain's compiler (`STUB_RUSTC`); plain `rustc -V` the running one.
 cat >"$sandbox/bin/rustc" <<'STUB'
 #!/usr/bin/env bash
+tc=""; case "$1" in +*) tc="${1#+}"; shift ;; esac
 [ "$1" = "-vV" ] && { echo "host: ${STUB_HOST:-x86_64-unknown-linux-gnu}"; exit 0; }
-[ "$1" = "-V" ] && { echo "${STUB_RUSTC:-rustc fixture 1.0}"; exit 0; }
+[ "$1" = "-V" ] && [ -n "$tc" ] && { echo "${STUB_RUSTC:-rustc fixture 1.0}"; exit 0; }
+[ "$1" = "-V" ] && { echo "rustc stable-fixture 9.0"; exit 0; }
 exit 1
 STUB
+# `rustup toolchain list`; `rustup target list --installed` (the running toolchain's targets) and
+# `rustup +TOOLCHAIN target list --installed` (the pinned one's, `STUB_KDF_INSTALLED`, by default the same).
 cat >"$sandbox/bin/rustup" <<'STUB'
 #!/usr/bin/env bash
-printf '%s' "${STUB_INSTALLED:-}"
+tc=""; case "$1" in +*) tc="${1#+}"; shift ;; esac
+if [ "$1" = "toolchain" ]; then
+  printf '%s\n' "${STUB_TOOLCHAINS-stable-x86_64-unknown-linux-gnu (default)
+fixture-tc-x86_64-unknown-linux-gnu}"
+elif [ -n "$tc" ]; then
+  printf '%s' "${STUB_KDF_INSTALLED-${STUB_INSTALLED:-}}"
+else
+  printf '%s' "${STUB_INSTALLED:-}"
+fi
 STUB
 cat >"$sandbox/bin/cargo" <<'STUB'
 #!/usr/bin/env bash
-# `cargo clean ...` and `cargo rustc ... --target T -p CRATE ...`: write one assembly file per crate.
+# `cargo [+TOOLCHAIN] clean ...` and `cargo [+TOOLCHAIN] rustc ... --target T -p CRATE ...`: write one
+# assembly file per crate, and, when `STUB_LOG` names a file, record which toolchain built which crate.
+tc=default; case "$1" in +*) tc="${1#+}"; shift ;; esac
 [ "$1" = "clean" ] && exit 0
 crate="" target=""
 while [ $# -gt 0 ]; do
@@ -191,6 +210,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 stem="${crate//-/_}"
+[ -n "${STUB_LOG:-}" ] && echo "$crate $target $tc" >>"$STUB_LOG"
 mkdir -p "target/$target/release/deps"
 for n in $(seq 1 "${STUB_FILES:-1}"); do
   cp "$STUB_FIXTURES/$stem.s" "target/$target/release/deps/${stem}-$n.s"
@@ -212,6 +232,7 @@ write_kdf_baselines() {
     kdf_inventory "$fixtures/tacenta_kdf.s" "$a" | LC_ALL=C sort >"$sandbox/tooling/ct-baselines/tacenta_kdf-$t.txt"
   done
   echo 'rustc fixture 1.0' >"$sandbox/tooling/ct-baselines/rustc-version.txt"
+  echo 'fixture-tc' >"$sandbox/tooling/ct-baselines/rust-toolchain.txt"
 }
 reset_fixtures() {
   braid_ok >"$fixtures/tacenta_braid.s"; boundary_ok >"$fixtures/tacenta_boundary.s"; kdf_ok >"$fixtures/tacenta_kdf.s"
@@ -271,10 +292,31 @@ reset_fixtures
 printf 'some_data:\n  .quad 0\n' >"$fixtures/tacenta_kdf.s"
 main_case 'a key derivation with no function is a failure' 1 'tacenta_kdf: no function found' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
-main_case 'another compiler than the baselines were read from is a failure' 1 'the baselines were read from rustc fixture 1.0' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
+main_case 'another compiler than the baselines were read from is a failure' 1 'but the baselines were read from rustc fixture 1.0; the compiler differs' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
+main_case 'a compiler mismatch is named as the cause' 1 'its pinned toolchain is not the compiler its baselines were read from' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
 rm "$sandbox/tooling/ct-baselines/rustc-version.txt"
 main_case 'baselines that name no compiler are a failure' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
+main_case 'baselines that name no compiler are a failure even without the pinned toolchain' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-x86_64-unknown-linux-gnu (default)'
 reset_fixtures
+rm "$sandbox/tooling/ct-baselines/rust-toolchain.txt"
+main_case 'baselines that name no toolchain are a failure' 1 'rust-toolchain.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+main_case 'without the pinned toolchain, outside CI, the key derivation is skipped and named' 0 'the key derivation was not checked: the toolchain fixture-tc its baselines were read from is not installed' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-x86_64-unknown-linux-gnu (default)'
+main_case 'without the pinned toolchain, in CI, the run fails' 1 "this is CI and the KDF's toolchain fixture-tc is not installed" STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu 'STUB_TOOLCHAINS=stable-aarch64-apple-darwin (default)'
+main_case 'a Linux target the pinned toolchain lacks is skipped outside CI' 0 'skipping, fixture-tc has no aarch64-unknown-linux-gnu target' STUB_HOST=aarch64-apple-darwin STUB_INSTALLED=aarch64-unknown-linux-gnu STUB_KDF_INSTALLED=
+main_case 'a Linux target the pinned toolchain lacks fails in CI' 1 'has no aarch64-unknown-linux-gnu target; the workflow' STUB_HOST=aarch64-apple-darwin GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu STUB_KDF_INSTALLED=
+# Which toolchain built which crate: the straight-line functions with the running toolchain, the key
+# derivation with the pinned one, on every target read.
+: >"$tmp/toolchains.log"
+main_case 'the straight-line functions and the key derivation are read' 0 'the key derivation matches its reviewed inventory under fixture-tc, on: aarch64-apple-darwin aarch64-unknown-linux-gnu' STUB_HOST=aarch64-apple-darwin STUB_INSTALLED=aarch64-unknown-linux-gnu "STUB_LOG=$tmp/toolchains.log"
+want_log=$'tacenta-boundary aarch64-apple-darwin default\ntacenta-boundary aarch64-unknown-linux-gnu default\ntacenta-braid aarch64-apple-darwin default\ntacenta-braid aarch64-unknown-linux-gnu default\ntacenta-kdf aarch64-apple-darwin fixture-tc\ntacenta-kdf aarch64-unknown-linux-gnu fixture-tc'
+got_log="$(LC_ALL=C sort "$tmp/toolchains.log")"
+if [ "$got_log" != "$want_log" ]; then
+  echo "constant-time asm control the toolchain each crate is built with: expected:" >&2
+  printf '%s\n' "$want_log" >&2; echo "got:" >&2; printf '%s\n' "$got_log" >&2
+  exit 1
+fi
+echo . >>"$tmp/checked"
 main_case 'rewriting the baselines in CI is refused' 1 'is not run in CI' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu --update-kdf-baseline
 
 echo "constant-time asm controls: $(wc -l <"$tmp/checked" | tr -d ' ') further cases (branch counter on x86_64 and aarch64, indirect transfers, subtle and conditional_ callees, the length compare, the key derivation's inventory reader and baseline rules, the rules of main including the CI rule) each gave the expected result"

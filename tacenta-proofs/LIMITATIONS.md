@@ -538,11 +538,16 @@ from it. This holds here by delegation and discipline, not by proof.
   depends only on a length, a loop counter, the SHA-256 buffer's fill count, HKDF's block counter or position, or
   a constant (`tooling/ct-baselines/kdf-review-notes.txt`). That reading was made by a tool-assisted session, not
   a human reader. The baselines were read from one compiler, rustc 1.99.0-nightly (da80ed070), on an aarch64 Mac
-  for its own target and, cross-compiled, for the two Linux targets; the gate refuses to compare under any other
-  compiler (`tooling/ct-baselines/rustc-version.txt`), and CI's `rust_ct_asm` step pins that toolchain
-  (`nightly-2026-07-15`). Stable 1.98.1 gave the same inventory on the Mac; no inventory from a stable toolchain
-  was produced for either Linux target. The reader is a tripwire, not a proof: an address computed into a register
-  before it is used is not listed. Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and
+  for its own target and, cross-compiled, for the two Linux targets. The gate builds this crate alone with the
+  toolchain `tooling/ct-baselines/rust-toolchain.txt` names (`nightly-2026-07-15`) and first checks that the
+  version rustup's `rustc` reports for it is the recorded one (`tooling/ct-baselines/rustc-version.txt`); on
+  another it fails and names the compiler as the cause. That check reads the `rustc` proxy, so a `RUSTC`,
+  `RUSTC_WRAPPER` or `build.rustc` override would bypass it and leave the exact comparison as the only check.
+  Where the toolchain is not installed, a local run skips the KDF half with a line saying so; CI's `rust_target`
+  step installs it and the run fails without it. The two straight-line functions below are read with the running
+  toolchain, in CI the job's stable. Stable 1.98.1 gave the same inventory on the Mac; no inventory from a stable
+  toolchain was produced for either Linux target. The reader is a tripwire, not a proof: an address computed into a
+  register before it is used is not listed. Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and
   an LTO build, which would inline these functions into their callers, is not covered.
 - **The Braid's MAC comparison is a hand-written loop.** `mac_eq` in
   `tacenta-braid` ORs the XOR of every byte pair and tests the accumulator
@@ -556,8 +561,8 @@ from it. This holds here by delegation and discipline, not by proof.
   2026-10-22 that crate is translated and has no dependencies, so it is no
   longer such a boundary.) Until then the guarantee is the loop's shape and
   `tooling/check-constant-time-asm.sh`, which CI runs: it reads the body of
-  `mac_eq` in the release assembly on the host and on the x86_64 and aarch64
-  Linux targets, from its label to its `.cfi_endproc`, and fails on any
+  `mac_eq` in the release assembly built by the running toolchain (in CI, the
+  job's stable) on the host and on the x86_64 and aarch64 Linux targets, from its label to its `.cfi_endproc`, and fails on any
   conditional-branch mnemonic or indirect jump in that body beyond the
   public length compare, and on any call out of it (the function calls
   nothing today; a `memcmp` appearing there would be the short-circuit the

@@ -2,8 +2,10 @@
 #
 # Read on 2026-10-22 from the assembly `tooling/check-constant-time-asm.sh` builds:
 # `tacenta-kdf` in this workspace's release profile (`overflow-checks = true`), one codegen
-# unit, `--emit=asm`, rustc 1.99.0-nightly (da80ed070 2026-07-14), the toolchain
-# `nightly-2026-07-15` that `rustc-version.txt` names and CI's `rust_ct_asm` step pins.
+# unit, `--emit=asm`, rustc 1.99.0-nightly (da80ed070 2026-07-14): the toolchain
+# `nightly-2026-07-15` that `rust-toolchain.txt` names, whose version `rustc-version.txt`
+# records, and with which the gate builds this crate alone (in CI too, where the workflow's
+# `rust_target` step installs it; the gate's other two functions use the running toolchain).
 # rustc 1.98.1 (stable) gave an identical inventory for aarch64-apple-darwin; no stable
 # inventory was produced for either Linux target (stable's Linux targets were not
 # installed here). The two Linux targets were cross-compiled on an aarch64 Mac: the

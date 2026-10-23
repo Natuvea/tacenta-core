@@ -133,17 +133,29 @@
 # baselines of the targets this run checks, and refuses in CI, and every
 # changed item must be read before the result is committed.
 #
-# The toolchain. The baselines were read from one compiler,
-# `tooling/ct-baselines/rustc-version.txt`; on any other `rustc -V` the KDF
-# half refuses rather than compare, since register allocation and loop shapes
-# move between compiler versions. CI pins that toolchain for this step (the
-# workflow's `rust_target` and `rust_ct_asm`). No inventory from a stable
-# toolchain was produced for the Linux targets.
+# The toolchain. The two straight-line functions are read with whatever
+# toolchain runs the script (in CI, the job's stable, the compiler consumers
+# build with). The KDF half is read only with the toolchain its baselines were
+# read from: it builds with `cargo +<toolchain>`, the toolchain named in
+# `tooling/ct-baselines/rust-toolchain.txt`, and first compares `rustc
+# +<toolchain> -V` with `tooling/ct-baselines/rustc-version.txt`, since register
+# allocation and loop shapes move between compiler versions. That check reads
+# the version rustup's `rustc` proxy reports for the toolchain; a `RUSTC`,
+# `RUSTC_WRAPPER` or `build.rustc` override would change what cargo runs without
+# changing it, and then the exact inventory comparison is the only check. When
+# the toolchain differs from the one recorded, the KDF half fails and says the
+# compiler is the cause. When the toolchain is not installed, or lacks a Linux
+# target, the KDF half (or that target of it) is skipped with a line saying so,
+# and fails in CI, where the workflow's `rust_target` step installs it. No
+# inventory from a stable toolchain was produced for the Linux targets.
 #
 # What it does not see, so it is a tripwire and not a proof: an address
 # computed into a register first (`add xD, xA, xB`, `leaq (%rA,%rB), %rD`) and
 # used later as a plain base (`[xD]`, `(%rD)`) or passed to a callee is listed
 # only when the `leaq` form itself names an index (x86_64), never on aarch64;
+# aarch64 register offsets are listed with a general-purpose or stack-pointer
+# base (`[xA, xB]`, `[sp, xB, lsl #2]`), and `bc.<cond>` (FEAT_HBC) is read as
+# a branch like `b.<cond>`; neither occurs in today's baselines;
 # whether a listed index register holds a secret is the reading's question,
 # not the reader's. It does not read the callees' bodies (`memcpy`, `bzero`
 # and the panic functions, all of which take public lengths here), cover an
@@ -210,7 +222,7 @@ analyse() {
         # address without touching it.
         else if ($0 ~ /\(/ && mn !~ /^lea/) is_load = 1
       } else {
-        if (mn ~ /^b\./ || mn ~ /^(cbz|cbnz|tbz|tbnz)$/) is_branch = 1
+        if (mn ~ /^bc?\./ || mn ~ /^(cbz|cbnz|tbz|tbnz)$/) is_branch = 1
         else if (mn ~ /^(b|bl|br|blr)$/) is_transfer = 1
         else if (mn ~ /^ld/) is_load = 1
       }
@@ -301,11 +313,11 @@ kdf_inventory() {
         if (mn ~ /^(div|idiv)/) emit("divide", ins)
         if (line ~ /\([^)]*,%[a-z0-9]+/) emit("indexed", ins)
       } else {
-        if (mn ~ /^b\./ || mn ~ /^(cbz|cbnz|tbz|tbnz)$/) emit("branch", ins " | " prev)
+        if (mn ~ /^bc?\./ || mn ~ /^(cbz|cbnz|tbz|tbnz)$/) emit("branch", ins " | " prev)
         else if (mn ~ /^(br|blr)$/) emit("indirect", ins)
         else if (mn ~ /^(b|bl)$/ && $2 !~ /^\.?L[A-Za-z]*[0-9]/) emit("call", norm($2))
         if (mn ~ /^(udiv|sdiv)$/) emit("divide", ins)
-        if (line ~ /\[[xw][0-9]+, *[xw][0-9]+/ || line ~ /\[[xw][0-9]+\], *[xw][0-9]+/) emit("indexed", ins)
+        if (line ~ /\[([xw][0-9]+|sp), *[xw][0-9]+/ || line ~ /\[([xw][0-9]+|sp)\], *[xw][0-9]+/) emit("indexed", ins)
       }
       if (line ~ /(LJTI|switch\.table)/) emit("table", ins)
       prev = ins
@@ -328,7 +340,6 @@ main() {
 
   local host installed linux_present t arch crate file_stem sym allow label
   local callee_allow out summary found branches allowed callees bad_callees
-  local status=0
   local -a targets files
 
   host="$(rustc -vV | sed -n 's/^host: //p')"
@@ -349,9 +360,35 @@ main() {
   done
   if [ "$linux_present" -eq 0 ]; then
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-      fail "this is CI and neither Linux target is installed; the workflow's rust job runs 'rustup target add aarch64-unknown-linux-gnu'"
+      fail "this is CI and neither Linux target is installed; the workflow's rust_target step adds aarch64-unknown-linux-gnu to the job's toolchain and to the KDF's pinned one"
     fi
     say "neither Linux target is installed; checking the host only"
+  fi
+
+  # The key derivation's toolchain, decided once: the one its baselines were read
+  # from, or the reason the KDF half is not read (see the header's "The toolchain").
+  local kdf_tc want_rustc have_rustc kdf_skip="" kdf_targets="" kdf_checked=""
+  local ct_status=0 kdf_status=0 kdf_reason=""
+  kdf_tc="$(tr -d '[:space:]' <"$root/tooling/ct-baselines/rust-toolchain.txt" 2>/dev/null || true)"
+  want_rustc="$(cat "$root/tooling/ct-baselines/rustc-version.txt" 2>/dev/null || true)"
+  if [ -z "$kdf_tc" ]; then
+    fail "tooling/ct-baselines/rust-toolchain.txt is missing or empty; the KDF baselines name no toolchain"
+  elif [ -z "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
+    fail "tooling/ct-baselines/rustc-version.txt is missing or empty; the KDF baselines name no compiler"
+  elif ! rustup toolchain list 2>/dev/null | grep -Eq "^${kdf_tc}(-| |$)"; then
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      fail "this is CI and the KDF's toolchain $kdf_tc is not installed; the workflow's rust_target step installs it"
+    fi
+    kdf_skip="the toolchain $kdf_tc its baselines were read from is not installed (rustup toolchain install $kdf_tc --profile minimal)"
+    say "tacenta_kdf: skipping the key derivation: $kdf_skip"
+  else
+    have_rustc="$(RUSTUP_AUTO_INSTALL=0 rustc +"$kdf_tc" -V)"
+    if [ "$have_rustc" != "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
+      say "tacenta_kdf: the toolchain $kdf_tc reports $have_rustc, but the baselines were read from $want_rustc; the compiler differs, so the inventory is not compared (read the new inventory and rewrite the baselines and rustc-version.txt, or restore that toolchain)" >&2
+      kdf_skip="compiler mismatch"; kdf_status=1
+      kdf_reason="the key derivation's inventory was not compared, because its pinned toolchain is not the compiler its baselines were read from"
+    fi
+    kdf_targets="$(RUSTUP_AUTO_INSTALL=0 rustup +"$kdf_tc" target list --installed 2>/dev/null || true)"
   fi
 
   for t in "${targets[@]}"; do
@@ -390,33 +427,34 @@ main() {
     bad_callees="$(sed -n 's/.*bad_callees=\([0-9]*\).*/\1/p' <<<"$summary")"
     if [ "$found" -eq 0 ]; then
       say "$t: $label is not in ${files[0]} -- inlined away or renamed; a function the gate cannot find is one it is not checking" >&2
-      status=1
+      ct_status=1
     elif [ "$branches" -ne 0 ]; then
       say "$t: $label has $branches conditional branch(es) or indirect jump(s) beyond the allowed length compare; read them above" >&2
-      status=1
+      ct_status=1
     elif [ "$bad_callees" -ne 0 ]; then
       say "$t: $label calls $bad_callees function(s) the gate refuses or does not know; read them above and, if they are what they say, add them to the allow-list by name" >&2
-      status=1
+      ct_status=1
     else
       say "$t: $label: 0 conditional branches, 0 indirect jumps ($found function(s), $allowed allowed length compare, $callees distinct callee(s), all on the allow-list)"
     fi
   done
 
   # The key derivation: the whole crate's inventory against its reviewed baseline,
-  # read only with the compiler the baselines were read from.
-  local kdf_file kdf_base kdf_inv divides want_rustc have_rustc
-  want_rustc="$(cat "$root/tooling/ct-baselines/rustc-version.txt" 2>/dev/null || true)"
-  have_rustc="$(rustc -V)"
-  if [ -z "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
-    fail "tooling/ct-baselines/rustc-version.txt is missing or empty; the KDF baselines name no compiler"
-  elif [ "$have_rustc" != "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
-    say "$t: tacenta_kdf: this is $have_rustc; the baselines were read from $want_rustc, so the inventory is not compared (pin the toolchain, or read the new inventory and rewrite the baselines and rustc-version.txt)" >&2
-    status=1
+  # built and read only with the toolchain the baselines were read from.
+  local kdf_file kdf_base kdf_inv divides
+  [ -z "$kdf_skip" ] || continue
+  if [ "$t" != "$host" ] && ! printf '%s\n' "$kdf_targets" | grep -qx "$t"; then
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      say "$t: tacenta_kdf: the KDF's toolchain $kdf_tc has no $t target; the workflow's rust_target step adds it" >&2
+      kdf_status=1; kdf_reason="the key derivation's toolchain lacks a target CI reads"
+    else
+      say "$t: tacenta_kdf: skipping, $kdf_tc has no $t target (rustup target add --toolchain $kdf_tc $t)"
+    fi
     continue
   fi
-  cargo clean --release --target "$t" -p tacenta-kdf --quiet
+  RUSTUP_AUTO_INSTALL=0 cargo +"$kdf_tc" clean --release --target "$t" -p tacenta-kdf --quiet
   rm -f "target/$t/release/deps/tacenta_kdf"-*.s
-  cargo rustc --release --locked -p tacenta-kdf --lib --target "$t" --quiet -- \
+  RUSTUP_AUTO_INSTALL=0 cargo +"$kdf_tc" rustc --release --locked -p tacenta-kdf --lib --target "$t" --quiet -- \
     --emit=asm -C codegen-units=1
   files=( "target/$t/release/deps/tacenta_kdf"-*.s )
   [ "${#files[@]}" -eq 1 ] \
@@ -427,30 +465,43 @@ main() {
   divides="$(grep -c '^ITEM [^ ]* divide ' <<<"$kdf_inv" || true)"
   if ! grep -q '^FUNC ' <<<"$kdf_inv"; then
     say "$t: tacenta_kdf: no function found in $kdf_file; a crate the gate cannot read is a crate it is not checking" >&2
-    status=1
+    kdf_status=1; kdf_reason="the key derivation's inventory is not the reviewed one"
   elif [ "$divides" -ne 0 ]; then
     say "$t: tacenta_kdf: $divides hardware divide instruction(s):" >&2
     grep '^ITEM [^ ]* divide ' <<<"$kdf_inv" | sed 's/^/    /' >&2
-    status=1
+    kdf_status=1; kdf_reason="the key derivation's inventory is not the reviewed one"
   elif [ "$update_kdf" -eq 1 ]; then
     mkdir -p "$(dirname "$kdf_base")"
     printf '%s\n' "$kdf_inv" >"$kdf_base"
     printf '%s\n' "$have_rustc" >"$root/tooling/ct-baselines/rustc-version.txt"
+    kdf_checked="$kdf_checked $t"
     say "$t: tacenta_kdf: wrote $(grep -c '^ITEM' "$kdf_base") items to ${kdf_base#"$root"/}; read every changed item before committing"
   elif [ ! -f "$kdf_base" ]; then
     say "$t: tacenta_kdf: no reviewed baseline ${kdf_base#"$root"/}; read the inventory and write one with --update-kdf-baseline" >&2
-    status=1
+    kdf_status=1; kdf_reason="the key derivation's inventory is not the reviewed one"
   elif ! diff -u "$kdf_base" <(printf '%s\n' "$kdf_inv") >/dev/null; then
     say "$t: tacenta_kdf: the inventory differs from ${kdf_base#"$root"/}; every new or changed item must be read:" >&2
     diff -u "$kdf_base" <(printf '%s\n' "$kdf_inv") | sed -n '3,$p' | head -60 | sed 's/^/    /' >&2
-    status=1
+    kdf_status=1; kdf_reason="the key derivation's inventory is not the reviewed one"
   else
+    kdf_checked="$kdf_checked $t"
     say "$t: tacenta_kdf: inventory matches the reviewed baseline ($(grep -c '^ITEM' <<<"$kdf_inv") items in $(grep -c '^FUNC' <<<"$kdf_inv") functions, $(grep -c '^ITEM [^ ]* branch ' <<<"$kdf_inv") of them branches)"
   fi
   done
 
-  [ "$status" -eq 0 ] || fail "a constant-time function does not compile to straight-line code, or the key derivation's inventory is not the reviewed one"
-  say "every constant-time function compiles to straight-line code, and the key derivation matches its reviewed inventory, on: ${targets[*]}"
+  if [ "$ct_status" -ne 0 ] && [ "$kdf_status" -ne 0 ]; then
+    fail "a constant-time function does not compile to straight-line code, and $kdf_reason"
+  elif [ "$ct_status" -ne 0 ]; then
+    fail "a constant-time function does not compile to straight-line code"
+  elif [ "$kdf_status" -ne 0 ]; then
+    fail "$kdf_reason"
+  fi
+  say "every constant-time function compiles to straight-line code, on: ${targets[*]}"
+  if [ -n "$kdf_checked" ]; then
+    say "the key derivation matches its reviewed inventory under $kdf_tc, on:$kdf_checked"
+  else
+    say "the key derivation was not checked: ${kdf_skip:-no target of its toolchain was read}"
+  fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

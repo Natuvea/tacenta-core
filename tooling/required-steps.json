@@ -82,14 +82,11 @@
             },
             {
               "id": "rust_target",
-              "run": "rustup toolchain install nightly-2026-07-15 --profile minimal --target aarch64-unknown-linux-gnu"
+              "run": "rustup target add aarch64-unknown-linux-gnu\nrustup toolchain install \"$(cat ../tooling/ct-baselines/rust-toolchain.txt)\" --profile minimal --target aarch64-unknown-linux-gnu\n"
             },
             {
               "id": "rust_ct_asm",
-              "run": "bash ../tooling/check-constant-time-asm.sh",
-              "env": {
-                "RUSTUP_TOOLCHAIN": "nightly-2026-07-15"
-              }
+              "run": "bash ../tooling/check-constant-time-asm.sh"
             },
             {
               "uses": "./.github/actions/assurance-receipt",
