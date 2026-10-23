@@ -1650,7 +1650,7 @@ recorded decision or a target-closing slice:
   `extern`,
   `partial` or `unsafe` name, and no elaboration-time code outside the seven audit invocations, each exact and standing alone, with nothing in the invoking modules but imports, pins and the invocation, one per line, and none of the text found at review to redirect, wrap, forge or hide around them;
   a textual guard on instances and coercions, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin:
-  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of those listed for its file and namespace (fourteen today: eleven `instance` and three `deriving instance`,
+  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of those listed for its file and namespace (fifteen today: twelve `instance` and three `deriving instance`,
   each exactly once,
   so a copy elsewhere or a changed continuation line is refused,
   while lines may move),

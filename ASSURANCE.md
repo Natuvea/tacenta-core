@@ -46,7 +46,7 @@ instance arguments, coercion functions, implicit arguments, the binder types of
 `∃` and `fun`, universe levels or the types behind numerals and structure
 instances. `check-lean-constructs.sh`, a textual guard, now refuses in
 hand-written Lean an instance declaration that is not one of those it lists
-whole (fourteen today: eleven `instance` and three `deriving instance`),
+whole (fifteen today: twelve `instance` and three `deriving instance`),
 attribute lists naming `instance`, `default_instance` or `coe`, and the `coe`
 and `default_instance` tokens. A `deriving instance` needs no entry when each
 of its types is written as a name the file gives one of its own declarations,
