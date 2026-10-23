@@ -63,9 +63,10 @@ neither use (ADR-0002). The `F` prefix is what keeps the handshake's key
 derivation separate from signing (session-establishment.md, Notation).
 
 XEdDSA is implemented in `tacenta-core` over `curve25519-dalek` and
-`ed25519-dalek`, not taken from a vetted crate. That is the deliberate exception
-recorded in ADR-0002 and LIMITATIONS.md, "Trusted, not verified". Not assumed
-against ADV-03.
+`ed25519-dalek`, not taken from a vetted crate: the exception recorded in
+ADR-0002. Since the KDF change it is one of two, with the key derivation (ASM-05),
+accepted in ADR-0010; LIMITATIONS.md, "Trusted, not verified", lists both. Not
+assumed against ADV-03.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.
 - **Proofs:** none. The signature check is translated in the lifecycle leaf
@@ -98,9 +99,21 @@ against ADV-03.
 HMAC-SHA256 is a pseudorandom function, and HKDF-SHA256 is a dual pseudorandom
 function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
-adversary and against ADV-03. `hkdf` 0.12, `hmac` 0.12 and `sha2` 0.10
-(RustCrypto) compute RFC 2104 and RFC 5869. The translated leaf crates reach
-them through the `tacenta-kdf` crate.
+adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
+own SHA-256, HMAC and HKDF, copied here and pinned in `kdf/src/lib.rs` by commit
+and file digests: written by the maintainer with tool assistance in a separate,
+unpublished repository; the three Rust files were read in full by the
+maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
+reader independent of the maintainer has read the three files, and no human has
+read their proofs. In this repository they are under its own licence,
+Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
+RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
+vectors check against those RFCs and nothing proves to be them, on the
+agreement proofs below, and on the translation's fidelity (ASM-16). Their timing
+has been measured once: a dudect-style test of the HMAC, at one key and message
+length on one x86_64 CPU, detected no timing difference (ASM-08, ADR-0010). The
+HKDF, other lengths and other CPUs were not measured, and constant time is not
+proved.
 
 In particular:
 - **`KDF_CK`:** neither the next chain key nor the message key reveals the
@@ -134,10 +147,24 @@ In particular:
   REQ-CONF-04, REQ-CONF-05, REQ-CONF-06, REQ-CONF-07, REQ-FS-01, REQ-FS-05,
   REQ-FS-06, REQ-PCS-01, REQ-PCS-03.
 - **Proofs:**
-  - The refinements take agreement hypotheses saying the opaque operations
-    compute what the model's HMAC and HKDF compute: `HmacAgrees` and
+  - The refinements take agreement hypotheses saying the key derivation
+    computes what the model's HMAC and HKDF compute: `HmacAgrees` and
     `HkdfAgrees` (`Translation/T3.lean`), `SessionT3.HkdfAgrees`,
-    `SpqrHkdfAgrees`, `BraidHmacAgrees` and `BraidHkdfAgrees`.
+    `SpqrHkdfAgrees`, `BraidHmacAgrees`, `BraidHkdfAgrees` and
+    `TripleHkdfAgrees`, with their copies on the units. The T1 theorems and the
+    satisfiability witnesses take totality hypotheses about the same functions:
+    `HmacTotal` and `HkdfTotal` (`Translation/T1.lean`, `SessionT1.lean`),
+    `HmacSha256Total` and `HkdfSha256Total` (`BraidT1.lean`) and `LawHkdf`.
+    The theorems still take all of them. They are also proved of the translated code (HKDF for
+    outputs of at most 8160 bytes) in the six translations whose theorems take
+    them: the Session unit's (`UnitLifecycleKdf`); the classical ratchet's, the
+    PQXDH session's, the sparse ratchet's and the Braid's
+    (`KdfLeafAgreements`); and the three-leaf unit's
+    (`KdfTripleUnitAgreements`). The lifecycle and the Braid-and-erasure
+    translations include the code too, but no theorem takes a hypothesis about
+    it there; only their axiom audits import them. The proofs say the code
+    equals the model, not that the model is the RFCs or that it is a
+    pseudorandom function, which stays the assumption above.
   - The model's own HMAC and HKDF are anchored to RFC 4231 and RFC 5869 values
     (CLAIMS.md, "Evidence, not proof").
   - The symbolic theorems take one-wayness as ASM-10.
@@ -149,8 +176,10 @@ ADV-03. So AES-256-CBC is IND-CPA secure for a key that encrypts one plaintext
 under an IV the adversary cannot predict. HMAC-SHA256 with its full 32-byte tag
 is strongly unforgeable. Their encrypt-then-MAC composition (message-format.md,
 Authenticated encryption) is therefore confidential and integrity-protecting for
-a key used for one message. `aes` 0.8, `cbc` 0.1, `hmac` 0.12 and `sha2` 0.10
-compute FIPS 197, SP 800-38A and RFC 2104.
+a key used for one message. `aes` 0.8 and `cbc` 0.1 (RustCrypto) compute
+FIPS 197 and SP 800-38A. The tag is computed on encryption by `tacenta-kdf`'s
+HMAC-SHA256 (ASM-05) and checked on decryption by RustCrypto's `hmac` 0.12
+over `sha2` 0.10; that the two compute the same tag is tested, not proved.
 
 - **Relied on by:** REQ-AUTH-03, REQ-AUTH-06, REQ-AUTH-07, REQ-CONF-01,
   REQ-CONF-06.
@@ -185,8 +214,11 @@ has not seen. That is a refusal, not an acceptance.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-12, REQ-AUTH-16, REQ-CONF-06, and
   through ASM-04 and ASM-05 every requirement those support.
-- **Proofs:** none. The model computes SHA-256 only to serve as the vectors'
-  oracle, and `hash_length` says its output is thirty-two bytes.
+- **Proofs:** none of the properties above. The model's SHA-256 is the vectors'
+  oracle and, in the six translations whose theorems take the key derivation's
+  hypotheses (ASM-05), the definition the translated SHA-256 inside
+  `tacenta-kdf` is proved to compute (`KdfBridgeSha256`); for every other use it
+  is the oracle only. `hash_length` says its output is thirty-two bytes.
 
 ### ASM-08: constant-time execution
 
@@ -199,6 +231,15 @@ is assumed, not proven", states how far this is checked:
 - `mac_eq` and `calculate_key_pair` are held branch-free by
   `tooling/check-constant-time-asm.sh`, on the host and on x86_64 and aarch64
   Linux;
+- `tacenta-kdf`'s compiled code is held by the same script to a reviewed
+  inventory of its branches, indexed accesses and callees, read from one pinned
+  compiler and one codegen unit; CI compares the two Linux targets' inventories,
+  and the macOS one is compared only on a local run. That is a tripwire for a
+  changed shape. On one x86_64 Linux machine the inventory built natively under
+  the pinned compiler equals the baseline, the stable compiler there gives a
+  different one (so the pin matters), and a dudect-style test of the copied
+  HMAC detected no timing difference, with a control that detects a
+  few-instruction leak (ADR-0010): one measurement on one CPU, not a proof;
 - `tacenta-core`'s own composition is audited by reading to branch only on
   public data;
 - four rejection paths are measured by `tacenta-core/tests/timing.rs`.
@@ -217,6 +258,8 @@ partial"):
 - copies the language makes of `[u8; 32]` keys;
 - copies inside `libcrux-ml-kem`'s own types;
 - allocations a growing vector abandoned;
+- the key derivation's intermediates (`tacenta-kdf`'s key pads, chaining
+  values, pseudorandom key and output blocks);
 - persisted bytes (ASM-12).
 
 Recovery from storage media is outside this specification (EX-08).
@@ -432,11 +475,15 @@ depends on.
 
 The named hypotheses the T1 and T3 theorems take about operations the
 translation cannot see into hold of the real operations. They cover:
-- the key derivation's agreement with the model;
 - the `zeroize` wrapper's round trips;
 - `Vec::remove`, `retain` and `append`;
 - `Option`'s clone;
 - the KEM and erasure agreements.
+
+The key derivation's agreement with the model was among them until
+the KDF change (ADR-0010). The translation now sees into the key derivation, and the agreement
+is proved of the translated code (ASM-05), although the theorems still take it
+as a hypothesis, so it is no longer an assumption of this kind.
 
 Each is stated under the Rust operation's own precondition. Most are witnessed
 satisfiable (`Translation/Satisfiability.lean`,

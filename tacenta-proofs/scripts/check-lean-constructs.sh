@@ -349,6 +349,9 @@ INSTANCE_ALLOW = {
         ("Tacenta.ErasureWitness", "instance : Fintype Std.U8 := Fintype.ofEquiv (BitVec 8) ⟨fun b => ⟨b⟩, fun u => u.bv, fun _ => rfl, fun _ => rfl⟩"),
         ("Tacenta.ErasureWitness", "instance : Fintype Data32 := Fintype.ofEquiv _ data32Equiv.symm"),
         ("Tacenta.ErasureWitness", "noncomputable instance : Fintype F := Fintype.ofFinite F")],
+    # The copied HKDF model decides its domain predicate by the inequality it abbreviates; the instance is the
+    # source repository's own, kept so that the copied model stays as copied.
+    "tacenta-proofs/translation/Translation/KdfModelHkdf.lean": [("KdfStandardModel.Hkdf", "instance (L : Nat) : Decidable (expandInDomain L) := inferInstanceAs (Decidable (L ≤ 255 * HashLen))")],
     "tacenta-proofs/translation/Translation/ImportInv.lean": [("Tacenta.ImportInv", 'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} : DecidableEq (Array α N) := fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm')],
     "tacenta-proofs/translation/Translation/SessionUnitRatchetImportInv.lean": [
         ("Tacenta.SessionUnitRatchetImportInv", 'instance instDecidableEqArray {α : Type} [DecidableEq α] {N : Std.Usize} : DecidableEq (Array α N) := fun a b => decidable_of_iff (a.val = b.val) Subtype.ext_iff.symm')],

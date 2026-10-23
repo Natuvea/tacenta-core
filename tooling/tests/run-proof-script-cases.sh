@@ -105,6 +105,7 @@ py_controls=(
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py
+  check-kdf-realisation-negatives.py
   check-receive-preservation-negatives.py
   attest.py
 )
@@ -211,6 +212,7 @@ for called in \
   check-responder-second-send-negatives.py \
   check-send-preservation-negatives.py \
   check-initiator-second-send-negatives.py \
+  check-kdf-realisation-negatives.py \
   check-receive-preservation-negatives.py \
   check-discharge-native-decide-negatives.py \
   'lake build translation' \

@@ -12,9 +12,10 @@ then proves the four records from that base at the real constants.
 
 ## What is here
 
-* `Interp`: a structure with one field per interpreted axiom, at the exact type of the axiom,
+* `Interp`: a structure with one field per interpreted constant, at the exact type of the constant,
   the axiomatised types replaced by the earlier fields.  It has 49 fields: 6 types and 43
-  functions and constants.  `Interp.real` packs the real constants and elaborates only if every
+  functions and constants.  47 are axioms of the unit; two, the KDF wrappers, are translated
+  definitions since the KDF change (ADR-0010).  `Interp.real` packs the real constants and elaborates only if every
   field type is exact.
 * One `*Shape` per axiom-level predicate, over the whole interpretation, and a theorem `*_is`
   binding it, at `Interp.real`, to the predicate of the session proofs by `Iff.rfl`, except that
@@ -1510,7 +1511,9 @@ end Tacenta.UnitSatisfiabilityJoint
 The axiom bases of the results above, held by the build.  A list names the constants that occur
 in the statement of a result, not assumptions its proof makes.  The statements about
 `Interp.real` and the records (`all_shapes_are_predicates`, the `*_iff_parts` and `*_toParts_ofParts`
-results, `DecoderNewTotal_is`) mention the 49 interpreted real constants and the error type.  The
+results, `DecoderNewTotal_is`) mention the 49 interpreted real constants and the error type, and
+their lists name the 47 of those that are axioms (not the two KDF wrappers, translated definitions since
+the KDF change (ADR-0010)) and the error type.  The
 statements that are about the model (`model_*`, the `*_axiom_part_satisfiable` results, the `bad*`
 controls) list the three standard axioms and `rand_core_1.error.Error`, the opaque error type inside
 `RngCore`, which occurs in the type of `Interp`; `badDeref_refutes_array` also lists `Array::zeroize`
@@ -1520,8 +1523,6 @@ and the blanket `Zeroize`. -/
 info: 'Tacenta.UnitSatisfiabilityJoint.all_shapes_are_predicates' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
@@ -1614,8 +1615,6 @@ info: 'Tacenta.UnitSatisfiabilityJoint.model_StdLaws' depends on axioms: [propex
 info: 'Tacenta.UnitSatisfiabilityJoint.encrypt_iff_parts' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
@@ -1672,8 +1671,6 @@ info: 'Tacenta.UnitSatisfiabilityJoint.encrypt_iff_parts' depends on axioms: [pr
 info: 'Tacenta.UnitSatisfiabilityJoint.decrypt_iff_parts' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
@@ -1730,8 +1727,6 @@ info: 'Tacenta.UnitSatisfiabilityJoint.decrypt_iff_parts' depends on axioms: [pr
 info: 'Tacenta.UnitSatisfiabilityJoint.initiator_toParts_ofParts' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
@@ -1788,8 +1783,6 @@ info: 'Tacenta.UnitSatisfiabilityJoint.initiator_toParts_ofParts' depends on axi
 info: 'Tacenta.UnitSatisfiabilityJoint.responder_toParts_ofParts' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,
@@ -1882,8 +1875,6 @@ info: 'Tacenta.UnitSatisfiabilityJoint.responder_axiom_part_satisfiable' depends
 info: 'Tacenta.UnitSatisfiabilityJoint.DecoderNewTotal_is' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,

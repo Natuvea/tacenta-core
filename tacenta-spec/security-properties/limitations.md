@@ -128,10 +128,17 @@ a step. It does not check the session against a model scenario.
 
 ### LIM-06: primitives and boundary hypotheses
 
-X25519, XEdDSA, ML-KEM-1024, HMAC, HKDF, AES and the hashes are opaque in every
-proof (ASM-02 to ASM-07). The T1 and T3 theorems take boundary hypotheses about
-opaque operations (ASM-18). These are witnessed satisfiable, but not shown to
-hold of the real operations.
+X25519, XEdDSA, ML-KEM-1024, AES, the AEAD and the hashes are opaque in every
+proof (ASM-02 to ASM-07), with one exception: `tacenta-kdf`'s HMAC-SHA256 and
+HKDF-SHA256, and the SHA-256 beneath them, are translated, and their agreement
+with the model's HMAC and HKDF is proved of the translated code (HKDF for
+outputs of at most 8160 bytes) in the six translations whose theorems take
+hypotheses about them (ASM-05). That the model's are the RFCs', their timing and
+their erasure are not shown. The SHA-256, SHA-512 and HMAC called outside
+`tacenta-kdf` (the AEAD's tag check on decryption, the identity and group
+digests, XEdDSA's SHA-512) stay opaque. The T1 and T3 theorems
+take boundary hypotheses about opaque operations (ASM-18). These are witnessed
+satisfiable, but not shown to hold of the real operations.
 
 The KEM carries two further limits:
 - The model's `Kem.Correct` rounds ML-KEM's decapsulation-failure probability
@@ -236,10 +243,18 @@ without any build failing. See LIMITATIONS.md, "Secret deletion is partial".
 
 REQ-CONF-09 rests on ASM-08.
 - **Measured:** four rejection paths, nightly. The two nanosecond-scale
-  results recorded so far carry no provenance stamp.
-- **Checked by the assembly gate:** two hand-written functions, on three
-  targets.
-- **Not measured:** the primitives.
+  results recorded so far carry no provenance stamp. The copied HMAC, once,
+  on one x86_64 CPU, by a dudect-style test at one key and message length that
+  detected no timing difference; that run is not in this tree (ADR-0010).
+- **Checked by the assembly gate:** two hand-written functions held
+  straight-line, on three targets, and the key derivation's compiled code held
+  to a reviewed inventory of its branches, indexed accesses and callees, built
+  with one pinned nightly compiler (ASM-08). CI compares the two Linux
+  targets' inventories; the macOS one is compared only on a local run. On one
+  x86_64 Linux machine the inventory built natively under that compiler
+  equals the committed baseline, 122 items.
+- **Not measured:** the other primitives, the HKDF, other input lengths and
+  other CPUs.
 - **Not wired:** a formal secret-independence check.
 
 See LIMITATIONS.md, "Constant-time behaviour is assumed, not proven".

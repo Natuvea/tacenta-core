@@ -68,14 +68,1071 @@ axiom alloc.vec.Vec.pop
   {T : Type} (A : Type) :
   alloc.vec.Vec T → Result ((Option T) × (alloc.vec.Vec T))
 
+/-- [tacenta_kdf::hkdf::HASH_LEN]
+    Source: 'kdf/src/hkdf.rs', lines 16:0-16:21
+    Name pattern: [tacenta_kdf::hkdf::HASH_LEN] -/
+@[global_simps, irreducible, rust_const "tacenta_kdf::hkdf::HASH_LEN"]
+def tacenta_kdf.hkdf.HASH_LEN : Std.Usize := 32#usize
+
+/-- [tacenta_kdf::hkdf::MAX_OUTPUT_LEN]
+    Source: 'kdf/src/hkdf.rs', lines 19:0-19:31
+    Name pattern: [tacenta_kdf::hkdf::MAX_OUTPUT_LEN]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "tacenta_kdf::hkdf::MAX_OUTPUT_LEN"]
+def tacenta_kdf.hkdf.MAX_OUTPUT_LEN : Result Std.Usize :=
+  255#usize * tacenta_kdf.hkdf.HASH_LEN
+
+/-- [tacenta_kdf::sha256::Sha256]
+    Source: 'kdf/src/sha256.rs', lines 136:0-136:17
+    Name pattern: [tacenta_kdf::sha256::Sha256]
+    Visibility: public -/
+@[rust_type "tacenta_kdf::sha256::Sha256"]
+structure tacenta_kdf.sha256.Sha256 where
+  state : Array Std.U32 8#usize
+  buf : Array Std.U8 64#usize
+  buf_len : Std.Usize
+  total : Std.U64
+
+/-- [tacenta_kdf::sha256::small_sigma1]:
+    Source: 'kdf/src/sha256.rs', lines 61:0-61:30
+    Name pattern: [tacenta_kdf::sha256::small_sigma1] -/
+@[rust_fun "tacenta_kdf::sha256::small_sigma1"]
+def tacenta_kdf.sha256.small_sigma1 (x : Std.U32) : Result Std.U32 := do
+  let i ← lift (core.num.U32.rotate_right x 17#u32)
+  let i1 ← lift (core.num.U32.rotate_right x 19#u32)
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← x >>> 10#i32
+  ok (i2 ^^^ i3)
+
+/-- [tacenta_kdf::sha256::small_sigma0]:
+    Source: 'kdf/src/sha256.rs', lines 56:0-56:30
+    Name pattern: [tacenta_kdf::sha256::small_sigma0] -/
+@[rust_fun "tacenta_kdf::sha256::small_sigma0"]
+def tacenta_kdf.sha256.small_sigma0 (x : Std.U32) : Result Std.U32 := do
+  let i ← lift (core.num.U32.rotate_right x 7#u32)
+  let i1 ← lift (core.num.U32.rotate_right x 18#u32)
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← x >>> 3#i32
+  ok (i2 ^^^ i3)
+
+/-- [tacenta_kdf::sha256::schedule]: loop body 0:
+    Source: 'kdf/src/sha256.rs', lines 70:4-76:5
+    Name pattern: [tacenta_kdf::sha256::schedule] -/
+@[rust_loop_body, rust_fun "tacenta_kdf::sha256::schedule"]
+def tacenta_kdf.sha256.schedule_loop0.body
+  (block : Array Std.U8 64#usize) (w : Array Std.U32 64#usize) (t : Std.Usize)
+  :
+  Result (ControlFlow ((Array Std.U32 64#usize) × Std.Usize) ((Array Std.U32
+    64#usize) × Std.Usize))
+  := do
+  if t < 16#usize
+  then
+    let i ← 4#usize * t
+    let i1 ← Array.index_usize block i
+    let i2 ← lift (UScalar.cast .U32 i1)
+    let i3 ← i2 <<< 24#i32
+    let i4 ← i + 1#usize
+    let i5 ← Array.index_usize block i4
+    let i6 ← lift (UScalar.cast .U32 i5)
+    let i7 ← i6 <<< 16#i32
+    let i8 ← lift (i3 ||| i7)
+    let i9 ← i + 2#usize
+    let i10 ← Array.index_usize block i9
+    let i11 ← lift (UScalar.cast .U32 i10)
+    let i12 ← i11 <<< 8#i32
+    let i13 ← lift (i8 ||| i12)
+    let i14 ← i + 3#usize
+    let i15 ← Array.index_usize block i14
+    let i16 ← lift (UScalar.cast .U32 i15)
+    let i17 ← lift (i13 ||| i16)
+    let a ← Array.update w t i17
+    let t1 ← t + 1#usize
+    ok (cont (a, t1))
+  else ok (done (w, t))
+
+/-- [tacenta_kdf::sha256::schedule]: loop 0:
+    Source: 'kdf/src/sha256.rs', lines 70:4-76:5
+    Name pattern: [tacenta_kdf::sha256::schedule] -/
+@[rust_loop, rust_fun "tacenta_kdf::sha256::schedule"]
+def tacenta_kdf.sha256.schedule_loop0
+  (block : Array Std.U8 64#usize) (w : Array Std.U32 64#usize) (t : Std.Usize)
+  :
+  Result ((Array Std.U32 64#usize) × Std.Usize)
+  := do
+  loop
+    (fun (w1, t1) => tacenta_kdf.sha256.schedule_loop0.body block w1 t1)
+    (w, t)
+
+/-- [tacenta_kdf::sha256::schedule]: loop body 1:
+    Source: 'kdf/src/sha256.rs', lines 77:4-83:5
+    Name pattern: [tacenta_kdf::sha256::schedule] -/
+@[rust_loop_body, rust_fun "tacenta_kdf::sha256::schedule"]
+def tacenta_kdf.sha256.schedule_loop1.body
+  (w : Array Std.U32 64#usize) (t : Std.Usize) :
+  Result (ControlFlow ((Array Std.U32 64#usize) × Std.Usize) (Array Std.U32
+    64#usize))
+  := do
+  if t < 64#usize
+  then
+    let i ← t - 2#usize
+    let i1 ← Array.index_usize w i
+    let i2 ← tacenta_kdf.sha256.small_sigma1 i1
+    let i3 ← t - 7#usize
+    let i4 ← Array.index_usize w i3
+    let i5 ← lift (core.num.U32.wrapping_add i2 i4)
+    let i6 ← t - 15#usize
+    let i7 ← Array.index_usize w i6
+    let i8 ← tacenta_kdf.sha256.small_sigma0 i7
+    let i9 ← lift (core.num.U32.wrapping_add i5 i8)
+    let i10 ← t - 16#usize
+    let i11 ← Array.index_usize w i10
+    let i12 ← lift (core.num.U32.wrapping_add i9 i11)
+    let a ← Array.update w t i12
+    let t1 ← t + 1#usize
+    ok (cont (a, t1))
+  else ok (done w)
+
+/-- [tacenta_kdf::sha256::schedule]: loop 1:
+    Source: 'kdf/src/sha256.rs', lines 77:4-83:5
+    Name pattern: [tacenta_kdf::sha256::schedule] -/
+@[rust_loop, rust_fun "tacenta_kdf::sha256::schedule"]
+def tacenta_kdf.sha256.schedule_loop1
+  (w : Array Std.U32 64#usize) (t : Std.Usize) :
+  Result (Array Std.U32 64#usize)
+  := do
+  loop
+    (fun (w1, t1) => tacenta_kdf.sha256.schedule_loop1.body w1 t1)
+    (w, t)
+
+/-- [tacenta_kdf::sha256::schedule]:
+    Source: 'kdf/src/sha256.rs', lines 67:0-67:42
+    Name pattern: [tacenta_kdf::sha256::schedule] -/
+@[rust_fun "tacenta_kdf::sha256::schedule"]
+def tacenta_kdf.sha256.schedule
+  (block : Array Std.U8 64#usize) : Result (Array Std.U32 64#usize) := do
+  let w := Array.repeat 64#usize 0#u32
+  let (w1, t) ← tacenta_kdf.sha256.schedule_loop0 block w 0#usize
+  tacenta_kdf.sha256.schedule_loop1 w1 t
+
+/-- [tacenta_kdf::sha256::big_sigma1]:
+    Source: 'kdf/src/sha256.rs', lines 51:0-51:28
+    Name pattern: [tacenta_kdf::sha256::big_sigma1] -/
+@[rust_fun "tacenta_kdf::sha256::big_sigma1"]
+def tacenta_kdf.sha256.big_sigma1 (x : Std.U32) : Result Std.U32 := do
+  let i ← lift (core.num.U32.rotate_right x 6#u32)
+  let i1 ← lift (core.num.U32.rotate_right x 11#u32)
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← lift (core.num.U32.rotate_right x 25#u32)
+  ok (i2 ^^^ i3)
+
+/-- [tacenta_kdf::sha256::big_sigma0]:
+    Source: 'kdf/src/sha256.rs', lines 46:0-46:28
+    Name pattern: [tacenta_kdf::sha256::big_sigma0] -/
+@[rust_fun "tacenta_kdf::sha256::big_sigma0"]
+def tacenta_kdf.sha256.big_sigma0 (x : Std.U32) : Result Std.U32 := do
+  let i ← lift (core.num.U32.rotate_right x 2#u32)
+  let i1 ← lift (core.num.U32.rotate_right x 13#u32)
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← lift (core.num.U32.rotate_right x 22#u32)
+  ok (i2 ^^^ i3)
+
+/-- [tacenta_kdf::sha256::maj]:
+    Source: 'kdf/src/sha256.rs', lines 41:0-41:37
+    Name pattern: [tacenta_kdf::sha256::maj] -/
+@[rust_fun "tacenta_kdf::sha256::maj"]
+def tacenta_kdf.sha256.maj
+  (x : Std.U32) (y : Std.U32) (z : Std.U32) : Result Std.U32 := do
+  let i ← lift (x &&& y)
+  let i1 ← lift (x &&& z)
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← lift (y &&& z)
+  ok (i2 ^^^ i3)
+
+/-- [tacenta_kdf::sha256::ch]:
+    Source: 'kdf/src/sha256.rs', lines 36:0-36:36
+    Name pattern: [tacenta_kdf::sha256::ch] -/
+@[rust_fun "tacenta_kdf::sha256::ch"]
+def tacenta_kdf.sha256.ch
+  (x : Std.U32) (y : Std.U32) (z : Std.U32) : Result Std.U32 := do
+  let i ← lift (x &&& y)
+  let i1 ← lift (~~~ x)
+  let i2 ← lift (i1 &&& z)
+  ok (i ^^^ i2)
+
+/-- [tacenta_kdf::sha256::K]
+    Source: 'kdf/src/sha256.rs', lines 18:0-18:22
+    Name pattern: [tacenta_kdf::sha256::K]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "tacenta_kdf::sha256::K"]
+def tacenta_kdf.sha256.K : Array Std.U32 64#usize :=
+  Array.make 64#usize [
+    1116352408#u32, 1899447441#u32, 3049323471#u32, 3921009573#u32,
+    961987163#u32, 1508970993#u32, 2453635748#u32, 2870763221#u32,
+    3624381080#u32, 310598401#u32, 607225278#u32, 1426881987#u32,
+    1925078388#u32, 2162078206#u32, 2614888103#u32, 3248222580#u32,
+    3835390401#u32, 4022224774#u32, 264347078#u32, 604807628#u32,
+    770255983#u32, 1249150122#u32, 1555081692#u32, 1996064986#u32,
+    2554220882#u32, 2821834349#u32, 2952996808#u32, 3210313671#u32,
+    3336571891#u32, 3584528711#u32, 113926993#u32, 338241895#u32,
+    666307205#u32, 773529912#u32, 1294757372#u32, 1396182291#u32,
+    1695183700#u32, 1986661051#u32, 2177026350#u32, 2456956037#u32,
+    2730485921#u32, 2820302411#u32, 3259730800#u32, 3345764771#u32,
+    3516065817#u32, 3600352804#u32, 4094571909#u32, 275423344#u32,
+    430227734#u32, 506948616#u32, 659060556#u32, 883997877#u32, 958139571#u32,
+    1322822218#u32, 1537002063#u32, 1747873779#u32, 1955562222#u32,
+    2024104815#u32, 2227730452#u32, 2361852424#u32, 2428436474#u32,
+    2756734187#u32, 3204031479#u32, 3329325298#u32
+    ]
+
+/-- [tacenta_kdf::sha256::compress]: loop body 0:
+    Source: 'kdf/src/sha256.rs', lines 100:4-116:5
+    Name pattern: [tacenta_kdf::sha256::compress] -/
+@[rust_loop_body, rust_fun "tacenta_kdf::sha256::compress"]
+def tacenta_kdf.sha256.compress_loop.body
+  (w : Array Std.U32 64#usize) (a : Std.U32) (b : Std.U32) (c : Std.U32)
+  (d : Std.U32) (e : Std.U32) (f : Std.U32) (g : Std.U32) (hh : Std.U32)
+  (t : Std.Usize) :
+  Result (ControlFlow (Std.U32 × Std.U32 × Std.U32 × Std.U32 × Std.U32 ×
+    Std.U32 × Std.U32 × Std.U32 × Std.Usize) (Std.U32 × Std.U32 × Std.U32
+    × Std.U32 × Std.U32 × Std.U32 × Std.U32 × Std.U32))
+  := do
+  if t < 64#usize
+  then
+    let i ← tacenta_kdf.sha256.big_sigma1 e
+    let i1 ← lift (core.num.U32.wrapping_add hh i)
+    let i2 ← tacenta_kdf.sha256.ch e f g
+    let i3 ← lift (core.num.U32.wrapping_add i1 i2)
+    let i4 ← Array.index_usize tacenta_kdf.sha256.K t
+    let i5 ← lift (core.num.U32.wrapping_add i3 i4)
+    let i6 ← Array.index_usize w t
+    let t1 ← lift (core.num.U32.wrapping_add i5 i6)
+    let i7 ← tacenta_kdf.sha256.big_sigma0 a
+    let i8 ← tacenta_kdf.sha256.maj a b c
+    let t2 ← lift (core.num.U32.wrapping_add i7 i8)
+    let e1 ← lift (core.num.U32.wrapping_add d t1)
+    let a1 ← lift (core.num.U32.wrapping_add t1 t2)
+    let t3 ← t + 1#usize
+    ok (cont (a1, a, b, c, e1, e, f, g, t3))
+  else ok (done (a, b, c, d, e, f, g, hh))
+
+/-- [tacenta_kdf::sha256::compress]: loop 0:
+    Source: 'kdf/src/sha256.rs', lines 100:4-116:5
+    Name pattern: [tacenta_kdf::sha256::compress] -/
+@[rust_loop, rust_fun "tacenta_kdf::sha256::compress"]
+def tacenta_kdf.sha256.compress_loop
+  (w : Array Std.U32 64#usize) (a : Std.U32) (b : Std.U32) (c : Std.U32)
+  (d : Std.U32) (e : Std.U32) (f : Std.U32) (g : Std.U32) (hh : Std.U32)
+  (t : Std.Usize) :
+  Result (Std.U32 × Std.U32 × Std.U32 × Std.U32 × Std.U32 × Std.U32 ×
+    Std.U32 × Std.U32)
+  := do
+  loop
+    (fun (a1, b1, c1, d1, e1, f1, g1, hh1, t1) =>
+      tacenta_kdf.sha256.compress_loop.body w a1 b1 c1 d1 e1 f1 g1 hh1 t1)
+    (a, b, c, d, e, f, g, hh, t)
+
+/-- [tacenta_kdf::sha256::compress]:
+    Source: 'kdf/src/sha256.rs', lines 89:0-89:66
+    Name pattern: [tacenta_kdf::sha256::compress] -/
+@[rust_fun "tacenta_kdf::sha256::compress"]
+def tacenta_kdf.sha256.compress
+  (h : Array Std.U32 8#usize) (block : Array Std.U8 64#usize) :
+  Result (Array Std.U32 8#usize)
+  := do
+  let w ← tacenta_kdf.sha256.schedule block
+  let a ← Array.index_usize h 0#usize
+  let b ← Array.index_usize h 1#usize
+  let c ← Array.index_usize h 2#usize
+  let d ← Array.index_usize h 3#usize
+  let e ← Array.index_usize h 4#usize
+  let f ← Array.index_usize h 5#usize
+  let g ← Array.index_usize h 6#usize
+  let hh ← Array.index_usize h 7#usize
+  let (a1, b1, c1, d1, e1, f1, g1, hh1) ←
+    tacenta_kdf.sha256.compress_loop w a b c d e f g hh 0#usize
+  let i ← Array.index_usize h 0#usize
+  let i1 ← lift (core.num.U32.wrapping_add a1 i)
+  let i2 ← Array.index_usize h 1#usize
+  let i3 ← lift (core.num.U32.wrapping_add b1 i2)
+  let i4 ← Array.index_usize h 2#usize
+  let i5 ← lift (core.num.U32.wrapping_add c1 i4)
+  let i6 ← Array.index_usize h 3#usize
+  let i7 ← lift (core.num.U32.wrapping_add d1 i6)
+  let i8 ← Array.index_usize h 4#usize
+  let i9 ← lift (core.num.U32.wrapping_add e1 i8)
+  let i10 ← Array.index_usize h 5#usize
+  let i11 ← lift (core.num.U32.wrapping_add f1 i10)
+  let i12 ← Array.index_usize h 6#usize
+  let i13 ← lift (core.num.U32.wrapping_add g1 i12)
+  let i14 ← Array.index_usize h 7#usize
+  let i15 ← lift (core.num.U32.wrapping_add hh1 i14)
+  ok (Array.make 8#usize [ i1, i3, i5, i7, i9, i11, i13, i15 ])
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 0:
+    Source: 'kdf/src/sha256.rs', lines 179:12-182:13
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop0.body
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if n < 64#usize
+  then
+    let a ← Array.update buf n 0#u8
+    let n1 ← n + 1#usize
+    ok (cont (a, n1))
+  else ok (done buf)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 0:
+    Source: 'kdf/src/sha256.rs', lines 179:12-182:13
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop0
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (buf1, n1) => tacenta_kdf.sha256.Sha256.finalize_loop0.body buf1 n1)
+    (buf, n)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 1:
+    Source: 'kdf/src/sha256.rs', lines 186:8-189:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop1.body
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if n < 56#usize
+  then
+    let a ← Array.update buf n 0#u8
+    let n1 ← n + 1#usize
+    ok (cont (a, n1))
+  else ok (done buf)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 1:
+    Source: 'kdf/src/sha256.rs', lines 186:8-189:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop1
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (buf1, n1) => tacenta_kdf.sha256.Sha256.finalize_loop1.body buf1 n1)
+    (buf, n)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 2:
+    Source: 'kdf/src/sha256.rs', lines 191:8-194:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop2.body
+  (bit_len : Std.U64) (buf : Array Std.U8 64#usize) (j : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if j < 8#usize
+  then
+    let i ← 8#usize * j
+    let i1 ← 56#usize - i
+    let i2 ← bit_len >>> i1
+    let i3 ← 56#usize + j
+    let i4 ← lift (UScalar.cast .U8 i2)
+    let a ← Array.update buf i3 i4
+    let j1 ← j + 1#usize
+    ok (cont (a, j1))
+  else ok (done buf)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 2:
+    Source: 'kdf/src/sha256.rs', lines 191:8-194:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop2
+  (bit_len : Std.U64) (buf : Array Std.U8 64#usize) (j : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (buf1, j1) => tacenta_kdf.sha256.Sha256.finalize_loop2.body bit_len
+      buf1 j1)
+    (buf, j)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 3:
+    Source: 'kdf/src/sha256.rs', lines 198:8-204:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop3.body
+  (state : Array Std.U32 8#usize) (out : Array Std.U8 32#usize) (i : Std.Usize)
+  :
+  Result (ControlFlow ((Array Std.U8 32#usize) × Std.Usize) (Array Std.U8
+    32#usize))
+  := do
+  if i < 8#usize
+  then
+    let i1 ← Array.index_usize state i
+    let i2 ← i1 >>> 24#i32
+    let i3 ← 4#usize * i
+    let i4 ← lift (UScalar.cast .U8 i2)
+    let out1 ← Array.update out i3 i4
+    let i5 ← i1 >>> 16#i32
+    let i6 ← i3 + 1#usize
+    let i7 ← lift (UScalar.cast .U8 i5)
+    let out2 ← Array.update out1 i6 i7
+    let i8 ← i1 >>> 8#i32
+    let i9 ← i3 + 2#usize
+    let i10 ← lift (UScalar.cast .U8 i8)
+    let out3 ← Array.update out2 i9 i10
+    let i11 ← i3 + 3#usize
+    let i12 ← lift (UScalar.cast .U8 i1)
+    let a ← Array.update out3 i11 i12
+    let i13 ← i + 1#usize
+    ok (cont (a, i13))
+  else ok (done out)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 3:
+    Source: 'kdf/src/sha256.rs', lines 198:8-204:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop3
+  (state : Array Std.U32 8#usize) (out : Array Std.U8 32#usize) (i : Std.Usize)
+  :
+  Result (Array Std.U8 32#usize)
+  := do
+  loop
+    (fun (out1, i1) => tacenta_kdf.sha256.Sha256.finalize_loop3.body state out1
+      i1)
+    (out, i)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 4:
+    Source: 'kdf/src/sha256.rs', lines 186:8-189:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop4.body
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if n < 56#usize
+  then
+    let a ← Array.update buf n 0#u8
+    let n1 ← n + 1#usize
+    ok (cont (a, n1))
+  else ok (done buf)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 4:
+    Source: 'kdf/src/sha256.rs', lines 186:8-189:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop4
+  (buf : Array Std.U8 64#usize) (n : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (buf1, n1) => tacenta_kdf.sha256.Sha256.finalize_loop4.body buf1 n1)
+    (buf, n)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 5:
+    Source: 'kdf/src/sha256.rs', lines 191:8-194:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop5.body
+  (bit_len : Std.U64) (buf : Array Std.U8 64#usize) (j : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if j < 8#usize
+  then
+    let i ← 8#usize * j
+    let i1 ← 56#usize - i
+    let i2 ← bit_len >>> i1
+    let i3 ← 56#usize + j
+    let i4 ← lift (UScalar.cast .U8 i2)
+    let a ← Array.update buf i3 i4
+    let j1 ← j + 1#usize
+    ok (cont (a, j1))
+  else ok (done buf)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 5:
+    Source: 'kdf/src/sha256.rs', lines 191:8-194:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop5
+  (bit_len : Std.U64) (buf : Array Std.U8 64#usize) (j : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (buf1, j1) => tacenta_kdf.sha256.Sha256.finalize_loop5.body bit_len
+      buf1 j1)
+    (buf, j)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop body 6:
+    Source: 'kdf/src/sha256.rs', lines 198:8-204:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop6.body
+  (state : Array Std.U32 8#usize) (out : Array Std.U8 32#usize) (i : Std.Usize)
+  :
+  Result (ControlFlow ((Array Std.U8 32#usize) × Std.Usize) (Array Std.U8
+    32#usize))
+  := do
+  if i < 8#usize
+  then
+    let i1 ← Array.index_usize state i
+    let i2 ← i1 >>> 24#i32
+    let i3 ← 4#usize * i
+    let i4 ← lift (UScalar.cast .U8 i2)
+    let out1 ← Array.update out i3 i4
+    let i5 ← i1 >>> 16#i32
+    let i6 ← i3 + 1#usize
+    let i7 ← lift (UScalar.cast .U8 i5)
+    let out2 ← Array.update out1 i6 i7
+    let i8 ← i1 >>> 8#i32
+    let i9 ← i3 + 2#usize
+    let i10 ← lift (UScalar.cast .U8 i8)
+    let out3 ← Array.update out2 i9 i10
+    let i11 ← i3 + 3#usize
+    let i12 ← lift (UScalar.cast .U8 i1)
+    let a ← Array.update out3 i11 i12
+    let i13 ← i + 1#usize
+    ok (cont (a, i13))
+  else ok (done out)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]: loop 6:
+    Source: 'kdf/src/sha256.rs', lines 198:8-204:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize_loop6
+  (state : Array Std.U32 8#usize) (out : Array Std.U8 32#usize) (i : Std.Usize)
+  :
+  Result (Array Std.U8 32#usize)
+  := do
+  loop
+    (fun (out1, i1) => tacenta_kdf.sha256.Sha256.finalize_loop6.body state out1
+      i1)
+    (out, i)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]:
+    Source: 'kdf/src/sha256.rs', lines 171:4-171:38
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize]
+    Visibility: public -/
+@[rust_fun "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::finalize"]
+def tacenta_kdf.sha256.Sha256.finalize
+  (self : tacenta_kdf.sha256.Sha256) : Result (Array Std.U8 32#usize) := do
+  let bit_len ← lift (core.num.U64.wrapping_mul self.total 8#u64)
+  let (_, index_mut_back) ← Array.index_mut_usize self.buf self.buf_len
+  let n ← self.buf_len + 1#usize
+  if n > 56#usize
+  then
+    let a := index_mut_back 128#u8
+    let buf ← tacenta_kdf.sha256.Sha256.finalize_loop0 a n
+    let state ← tacenta_kdf.sha256.compress self.state buf
+    let buf1 ← tacenta_kdf.sha256.Sha256.finalize_loop1 buf 0#usize
+    let buf2 ← tacenta_kdf.sha256.Sha256.finalize_loop2 bit_len buf1 0#usize
+    let state1 ← tacenta_kdf.sha256.compress state buf2
+    let out := Array.repeat 32#usize 0#u8
+    tacenta_kdf.sha256.Sha256.finalize_loop3 state1 out 0#usize
+  else
+    let a := index_mut_back 128#u8
+    let buf ← tacenta_kdf.sha256.Sha256.finalize_loop4 a n
+    let buf1 ← tacenta_kdf.sha256.Sha256.finalize_loop5 bit_len buf 0#usize
+    let state ← tacenta_kdf.sha256.compress self.state buf1
+    let out := Array.repeat 32#usize 0#u8
+    tacenta_kdf.sha256.Sha256.finalize_loop6 state out 0#usize
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::absorb]:
+    Source: 'kdf/src/sha256.rs', lines 149:4-149:34
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::absorb] -/
+@[rust_fun "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::absorb"]
+def tacenta_kdf.sha256.Sha256.absorb
+  (self : tacenta_kdf.sha256.Sha256) (byte : Std.U8) :
+  Result tacenta_kdf.sha256.Sha256
+  := do
+  let (_, index_mut_back) ← Array.index_mut_usize self.buf self.buf_len
+  let i ← self.buf_len + 1#usize
+  let i1 ← lift (core.num.U64.wrapping_add self.total 1#u64)
+  if i = 64#usize
+  then
+    let a := index_mut_back byte
+    let a1 ← tacenta_kdf.sha256.compress self.state a
+    ok { state := a1, buf := a, buf_len := 0#usize, total := i1 }
+  else
+    let a := index_mut_back byte
+    ok { self with buf := a, buf_len := i, total := i1 }
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]: loop body 0:
+    Source: 'kdf/src/sha256.rs', lines 161:8-164:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update"]
+def tacenta_kdf.sha256.Sha256.update_loop.body
+  (data : Slice Std.U8) (self : tacenta_kdf.sha256.Sha256) (i : Std.Usize) :
+  Result (ControlFlow (tacenta_kdf.sha256.Sha256 × Std.Usize)
+    tacenta_kdf.sha256.Sha256)
+  := do
+  let i1 := Slice.len data
+  if i < i1
+  then
+    let i2 ← Slice.index_usize data i
+    let self1 ← tacenta_kdf.sha256.Sha256.absorb self i2
+    let i3 ← i + 1#usize
+    ok (cont (self1, i3))
+  else ok (done self)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]: loop 0:
+    Source: 'kdf/src/sha256.rs', lines 161:8-164:9
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update"]
+def tacenta_kdf.sha256.Sha256.update_loop
+  (self : tacenta_kdf.sha256.Sha256) (data : Slice Std.U8) (i : Std.Usize) :
+  Result tacenta_kdf.sha256.Sha256
+  := do
+  loop
+    (fun (self1, i1) => tacenta_kdf.sha256.Sha256.update_loop.body data self1
+      i1)
+    (self, i)
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]:
+    Source: 'kdf/src/sha256.rs', lines 159:4-159:41
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update]
+    Visibility: public -/
+@[reducible, rust_fun
+  "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::update"]
+def tacenta_kdf.sha256.Sha256.update
+  (self : tacenta_kdf.sha256.Sha256) (data : Slice Std.U8) :
+  Result tacenta_kdf.sha256.Sha256
+  := do
+  tacenta_kdf.sha256.Sha256.update_loop self data 0#usize
+
+/-- [tacenta_kdf::sha256::H0]
+    Source: 'kdf/src/sha256.rs', lines 31:0-31:22
+    Name pattern: [tacenta_kdf::sha256::H0]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "tacenta_kdf::sha256::H0"]
+def tacenta_kdf.sha256.H0 : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    1779033703#u32, 3144134277#u32, 1013904242#u32, 2773480762#u32,
+    1359893119#u32, 2600822924#u32, 528734635#u32, 1541459225#u32
+    ]
+
+/-- [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::new]:
+    Source: 'kdf/src/sha256.rs', lines 144:4-144:26
+    Name pattern: [tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::new]
+    Visibility: public -/
+@[rust_fun "tacenta_kdf::sha256::{tacenta_kdf::sha256::Sha256}::new"]
+def tacenta_kdf.sha256.Sha256.new : Result tacenta_kdf.sha256.Sha256 := do
+  let a := Array.repeat 64#usize 0#u8
+  ok
+    {
+      state := tacenta_kdf.sha256.H0,
+      buf := a,
+      buf_len := 0#usize,
+      total := 0#u64
+    }
+
+/-- [tacenta_kdf::hmac::HmacSha256]
+    Source: 'kdf/src/hmac.rs', lines 20:0-20:28
+    Name pattern: [tacenta_kdf::hmac::HmacSha256] -/
+@[rust_type "tacenta_kdf::hmac::HmacSha256"]
+structure tacenta_kdf.hmac.HmacSha256 where
+  inner : tacenta_kdf.sha256.Sha256
+  outer_block : Array Std.U8 64#usize
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::finalize]:
+    Source: 'kdf/src/hmac.rs', lines 63:4-63:45
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::finalize] -/
+@[rust_fun "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::finalize"]
+def tacenta_kdf.hmac.HmacSha256.finalize
+  (self : tacenta_kdf.hmac.HmacSha256) : Result (Array Std.U8 32#usize) := do
+  let inner_hash ← tacenta_kdf.sha256.Sha256.finalize self.inner
+  let outer ← tacenta_kdf.sha256.Sha256.new
+  let s ← lift (Array.to_slice self.outer_block)
+  let outer1 ← tacenta_kdf.sha256.Sha256.update outer s
+  let s1 ← lift (Array.to_slice inner_hash)
+  let outer2 ← tacenta_kdf.sha256.Sha256.update outer1 s1
+  tacenta_kdf.sha256.Sha256.finalize outer2
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::update]:
+    Source: 'kdf/src/hmac.rs', lines 58:4-58:48
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::update] -/
+@[rust_fun "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::update"]
+def tacenta_kdf.hmac.HmacSha256.update
+  (self : tacenta_kdf.hmac.HmacSha256) (data : Slice Std.U8) :
+  Result tacenta_kdf.hmac.HmacSha256
+  := do
+  let s ← tacenta_kdf.sha256.Sha256.update self.inner data
+  ok { self with inner := s }
+
+/-- [tacenta_kdf::sha256::sha256]:
+    Source: 'kdf/src/sha256.rs', lines 210:0-210:38
+    Name pattern: [tacenta_kdf::sha256::sha256]
+    Visibility: public -/
+@[rust_fun "tacenta_kdf::sha256::sha256"]
+def tacenta_kdf.sha256.sha256
+  (data : Slice Std.U8) : Result (Array Std.U8 32#usize) := do
+  let h ← tacenta_kdf.sha256.Sha256.new
+  let h1 ← tacenta_kdf.sha256.Sha256.update h data
+  tacenta_kdf.sha256.Sha256.finalize h1
+
+/-- [tacenta_kdf::hmac::BLOCK]
+    Source: 'kdf/src/hmac.rs', lines 15:0-15:18
+    Name pattern: [tacenta_kdf::hmac::BLOCK] -/
+@[global_simps, irreducible, rust_const "tacenta_kdf::hmac::BLOCK"]
+def tacenta_kdf.hmac.BLOCK : Std.Usize := 64#usize
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop body 0:
+    Source: 'kdf/src/hmac.rs', lines 33:12-36:13
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop0.body
+  (hashed : Array Std.U8 32#usize) (k0 : Array Std.U8 64#usize) (i : Std.Usize)
+  :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  if i < 32#usize
+  then
+    let i1 ← Array.index_usize hashed i
+    let a ← Array.update k0 i i1
+    let i2 ← i + 1#usize
+    ok (cont (a, i2))
+  else ok (done k0)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop 0:
+    Source: 'kdf/src/hmac.rs', lines 33:12-36:13
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop0
+  (k0 : Array Std.U8 64#usize) (hashed : Array Std.U8 32#usize) (i : Std.Usize)
+  :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (k01, i1) => tacenta_kdf.hmac.HmacSha256.new_loop0.body hashed k01 i1)
+    (k0, i)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop body 1:
+    Source: 'kdf/src/hmac.rs', lines 47:8-51:9
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop1.body
+  (k0 : Array Std.U8 64#usize) (inner_block : Array Std.U8 64#usize)
+  (outer_block : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × (Array Std.U8 64#usize) ×
+    Std.Usize) ((Array Std.U8 64#usize) × (Array Std.U8 64#usize)))
+  := do
+  if i < tacenta_kdf.hmac.BLOCK
+  then
+    let i1 ← Array.index_usize k0 i
+    let i2 ← lift (i1 ^^^ 54#u8)
+    let a ← Array.update inner_block i i2
+    let i3 ← lift (i1 ^^^ 92#u8)
+    let a1 ← Array.update outer_block i i3
+    let i4 ← i + 1#usize
+    ok (cont (a, a1, i4))
+  else ok (done (inner_block, outer_block))
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop 1:
+    Source: 'kdf/src/hmac.rs', lines 47:8-51:9
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop1
+  (k0 : Array Std.U8 64#usize) (inner_block : Array Std.U8 64#usize)
+  (outer_block : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result ((Array Std.U8 64#usize) × (Array Std.U8 64#usize))
+  := do
+  loop
+    (fun (inner_block1, outer_block1, i1) =>
+      tacenta_kdf.hmac.HmacSha256.new_loop1.body k0 inner_block1 outer_block1
+      i1)
+    (inner_block, outer_block, i)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop body 2:
+    Source: 'kdf/src/hmac.rs', lines 39:12-42:13
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop2.body
+  (key : Slice Std.U8) (k0 : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × Std.Usize) (Array Std.U8
+    64#usize))
+  := do
+  let i1 := Slice.len key
+  if i < i1
+  then
+    let i2 ← Slice.index_usize key i
+    let a ← Array.update k0 i i2
+    let i3 ← i + 1#usize
+    ok (cont (a, i3))
+  else ok (done k0)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop 2:
+    Source: 'kdf/src/hmac.rs', lines 39:12-42:13
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop2
+  (key : Slice Std.U8) (k0 : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result (Array Std.U8 64#usize)
+  := do
+  loop
+    (fun (k01, i1) => tacenta_kdf.hmac.HmacSha256.new_loop2.body key k01 i1)
+    (k0, i)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop body 3:
+    Source: 'kdf/src/hmac.rs', lines 47:8-51:9
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop_body, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop3.body
+  (k0 : Array Std.U8 64#usize) (inner_block : Array Std.U8 64#usize)
+  (outer_block : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result (ControlFlow ((Array Std.U8 64#usize) × (Array Std.U8 64#usize) ×
+    Std.Usize) ((Array Std.U8 64#usize) × (Array Std.U8 64#usize)))
+  := do
+  if i < tacenta_kdf.hmac.BLOCK
+  then
+    let i1 ← Array.index_usize k0 i
+    let i2 ← lift (i1 ^^^ 54#u8)
+    let a ← Array.update inner_block i i2
+    let i3 ← lift (i1 ^^^ 92#u8)
+    let a1 ← Array.update outer_block i i3
+    let i4 ← i + 1#usize
+    ok (cont (a, a1, i4))
+  else ok (done (inner_block, outer_block))
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]: loop 3:
+    Source: 'kdf/src/hmac.rs', lines 47:8-51:9
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_loop, rust_fun
+  "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new_loop3
+  (k0 : Array Std.U8 64#usize) (inner_block : Array Std.U8 64#usize)
+  (outer_block : Array Std.U8 64#usize) (i : Std.Usize) :
+  Result ((Array Std.U8 64#usize) × (Array Std.U8 64#usize))
+  := do
+  loop
+    (fun (inner_block1, outer_block1, i1) =>
+      tacenta_kdf.hmac.HmacSha256.new_loop3.body k0 inner_block1 outer_block1
+      i1)
+    (inner_block, outer_block, i)
+
+/-- [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new]:
+    Source: 'kdf/src/hmac.rs', lines 28:4-28:47
+    Name pattern: [tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new] -/
+@[rust_fun "tacenta_kdf::hmac::{tacenta_kdf::hmac::HmacSha256}::new"]
+def tacenta_kdf.hmac.HmacSha256.new
+  (key : Slice Std.U8) : Result tacenta_kdf.hmac.HmacSha256 := do
+  let k0 := Array.repeat 64#usize 0#u8
+  let i := Slice.len key
+  if i > tacenta_kdf.hmac.BLOCK
+  then
+    let hashed ← tacenta_kdf.sha256.sha256 key
+    let k01 ← tacenta_kdf.hmac.HmacSha256.new_loop0 k0 hashed 0#usize
+    let inner_block := Array.repeat 64#usize 0#u8
+    let outer_block := Array.repeat 64#usize 0#u8
+    let (inner_block1, outer_block1) ←
+      tacenta_kdf.hmac.HmacSha256.new_loop1 k01 inner_block outer_block 0#usize
+    let inner ← tacenta_kdf.sha256.Sha256.new
+    let s ← lift (Array.to_slice inner_block1)
+    let inner1 ← tacenta_kdf.sha256.Sha256.update inner s
+    ok { inner := inner1, outer_block := outer_block1 }
+  else
+    let k01 ← tacenta_kdf.hmac.HmacSha256.new_loop2 key k0 0#usize
+    let inner_block := Array.repeat 64#usize 0#u8
+    let outer_block := Array.repeat 64#usize 0#u8
+    let (inner_block1, outer_block1) ←
+      tacenta_kdf.hmac.HmacSha256.new_loop3 k01 inner_block outer_block 0#usize
+    let inner ← tacenta_kdf.sha256.Sha256.new
+    let s ← lift (Array.to_slice inner_block1)
+    let inner1 ← tacenta_kdf.sha256.Sha256.update inner s
+    ok { inner := inner1, outer_block := outer_block1 }
+
+/-- [tacenta_kdf::hkdf::extract]:
+    Source: 'kdf/src/hkdf.rs', lines 22:0-22:53
+    Name pattern: [tacenta_kdf::hkdf::extract] -/
+@[rust_fun "tacenta_kdf::hkdf::extract"]
+def tacenta_kdf.hkdf.extract
+  (salt : Slice Std.U8) (ikm : Slice Std.U8) :
+  Result (Array Std.U8 32#usize)
+  := do
+  let m ← tacenta_kdf.hmac.HmacSha256.new salt
+  let m1 ← tacenta_kdf.hmac.HmacSha256.update m ikm
+  tacenta_kdf.hmac.HmacSha256.finalize m1
+
+/-- [tacenta_kdf::hkdf::expand]: loop body 1:
+    Source: 'kdf/src/hkdf.rs', lines 43:8-47:9
+    Name pattern: [tacenta_kdf::hkdf::expand] -/
+@[rust_loop_body, rust_fun "tacenta_kdf::hkdf::expand"]
+def tacenta_kdf.hkdf.expand_loop0_loop0.body
+  (t : Array Std.U8 32#usize) (out : Slice Std.U8) (pos : Std.Usize)
+  (j : Std.Usize) :
+  Result (ControlFlow ((Slice Std.U8) × Std.Usize × Std.Usize) ((Slice
+    Std.U8) × Std.Usize))
+  := do
+  if j < tacenta_kdf.hkdf.HASH_LEN
+  then
+    let i := Slice.len out
+    if pos < i
+    then
+      let i1 ← Array.index_usize t j
+      let s ← Slice.update out pos i1
+      let pos1 ← pos + 1#usize
+      let j1 ← j + 1#usize
+      ok (cont (s, pos1, j1))
+    else ok (done (out, pos))
+  else ok (done (out, pos))
+
+/-- [tacenta_kdf::hkdf::expand]: loop 1:
+    Source: 'kdf/src/hkdf.rs', lines 43:8-47:9
+    Name pattern: [tacenta_kdf::hkdf::expand] -/
+@[rust_loop, rust_fun "tacenta_kdf::hkdf::expand"]
+def tacenta_kdf.hkdf.expand_loop0_loop0
+  (out : Slice Std.U8) (t : Array Std.U8 32#usize) (pos : Std.Usize)
+  (j : Std.Usize) :
+  Result ((Slice Std.U8) × Std.Usize)
+  := do
+  loop
+    (fun (out1, pos1, j1) => tacenta_kdf.hkdf.expand_loop0_loop0.body t out1
+      pos1 j1)
+    (out, pos, j)
+
+/-- [tacenta_kdf::hkdf::expand]: loop body 0:
+    Source: 'kdf/src/hkdf.rs', lines 34:4-51:5
+    Name pattern: [tacenta_kdf::hkdf::expand] -/
+@[rust_loop_body, rust_fun "tacenta_kdf::hkdf::expand"]
+def tacenta_kdf.hkdf.expand_loop0.body
+  (prk : Array Std.U8 32#usize) (info1 : Slice Std.U8) (out : Slice Std.U8)
+  (t : Array Std.U8 32#usize) (pos : Std.Usize) (i : Std.U8) :
+  Result (ControlFlow ((Slice Std.U8) × (Array Std.U8 32#usize) × Std.Usize
+    × Std.U8) (Slice Std.U8))
+  := do
+  let i1 := Slice.len out
+  if pos < i1
+  then
+    let s ← lift (Array.to_slice prk)
+    let m ← tacenta_kdf.hmac.HmacSha256.new s
+    let m1 ←
+      if i > 1#u8
+      then
+        do
+        let s1 ← lift (Array.to_slice t)
+        tacenta_kdf.hmac.HmacSha256.update m s1
+      else ok m
+    let m2 ← tacenta_kdf.hmac.HmacSha256.update m1 info1
+    let s1 ← lift (Array.to_slice (Array.make 1#usize [ i ]))
+    let m3 ← tacenta_kdf.hmac.HmacSha256.update m2 s1
+    let t1 ← tacenta_kdf.hmac.HmacSha256.finalize m3
+    let (out1, pos1) ← tacenta_kdf.hkdf.expand_loop0_loop0 out t1 pos 0#usize
+    let i2 := Slice.len out1
+    if pos1 < i2
+    then let i3 ← i + 1#u8
+         ok (cont (out1, t1, pos1, i3))
+    else ok (cont (out1, t1, pos1, i))
+  else ok (done out)
+
+/-- [tacenta_kdf::hkdf::expand]: loop 0:
+    Source: 'kdf/src/hkdf.rs', lines 34:4-51:5
+    Name pattern: [tacenta_kdf::hkdf::expand] -/
+@[rust_loop, rust_fun "tacenta_kdf::hkdf::expand"]
+def tacenta_kdf.hkdf.expand_loop0
+  (prk : Array Std.U8 32#usize) (info1 : Slice Std.U8) (out : Slice Std.U8)
+  (t : Array Std.U8 32#usize) (pos : Std.Usize) (i : Std.U8) :
+  Result (Slice Std.U8)
+  := do
+  loop
+    (fun (out1, t1, pos1, i1) => tacenta_kdf.hkdf.expand_loop0.body prk info1
+      out1 t1 pos1 i1)
+    (out, t, pos, i)
+
+/-- [tacenta_kdf::hkdf::expand]:
+    Source: 'kdf/src/hkdf.rs', lines 30:0-30:60
+    Name pattern: [tacenta_kdf::hkdf::expand] -/
+@[rust_fun "tacenta_kdf::hkdf::expand"]
+def tacenta_kdf.hkdf.expand
+  (prk : Array Std.U8 32#usize) (info1 : Slice Std.U8) (out : Slice Std.U8) :
+  Result (Slice Std.U8)
+  := do
+  let t := Array.repeat 32#usize 0#u8
+  tacenta_kdf.hkdf.expand_loop0 prk info1 out t 0#usize 1#u8
+
+/-- [tacenta_kdf::hkdf::hkdf_sha256_into]:
+    Source: 'kdf/src/hkdf.rs', lines 57:0-57:77
+    Name pattern: [tacenta_kdf::hkdf::hkdf_sha256_into]
+    Visibility: public -/
+@[rust_fun "tacenta_kdf::hkdf::hkdf_sha256_into"]
+def tacenta_kdf.hkdf.hkdf_sha256_into
+  (salt : Slice Std.U8) (ikm : Slice Std.U8) (info1 : Slice Std.U8)
+  (out : Slice Std.U8) :
+  Result (Slice Std.U8)
+  := do
+  let i := Slice.len out
+  let i1 ← tacenta_kdf.hkdf.MAX_OUTPUT_LEN
+  massert (i <= i1)
+  let prk ← tacenta_kdf.hkdf.extract salt ikm
+  tacenta_kdf.hkdf.expand prk info1 out
+
+/-- [tacenta_kdf::hkdf::hkdf_sha256]:
+    Source: 'kdf/src/hkdf.rs', lines 67:0-67:83
+    Name pattern: [tacenta_kdf::hkdf::hkdf_sha256]
+    Visibility: public -/
+@[rust_fun "tacenta_kdf::hkdf::hkdf_sha256"]
+def tacenta_kdf.hkdf.hkdf_sha256
+  (N : Std.Usize) (salt : Slice Std.U8) (ikm : Slice Std.U8)
+  (info1 : Slice Std.U8) :
+  Result (Array Std.U8 N)
+  := do
+  let out := Array.repeat N 0#u8
+  let (s, to_slice_mut_back) ← lift (Array.to_slice_mut out)
+  let s1 ← tacenta_kdf.hkdf.hkdf_sha256_into salt ikm info1 s
+  ok (to_slice_mut_back s1)
+
 /-- [tacenta_kdf::hkdf_sha256]:
-    Source: 'kdf/src/lib.rs', lines 27:0-27:83
+    Source: 'kdf/src/lib.rs', lines 105:0-105:83
     Name pattern: [tacenta_kdf::hkdf_sha256]
     Visibility: public -/
 @[rust_fun "tacenta_kdf::hkdf_sha256"]
-axiom tacenta_kdf.hkdf_sha256
-  (N : Std.Usize) :
-  Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
+def tacenta_kdf.hkdf_sha256
+  (N : Std.Usize) (salt : Slice Std.U8) (ikm : Slice Std.U8)
+  (info1 : Slice Std.U8) :
+  Result (Array Std.U8 N)
+  := do
+  tacenta_kdf.hkdf.hkdf_sha256 N salt ikm info1
 
 /-- Trait declaration: [zeroize::Zeroize]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.9.0/src/lib.rs', lines 245:0-245:17

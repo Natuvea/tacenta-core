@@ -49,19 +49,13 @@ and the Triple's combine label until those constants were proved by `simp`, `dec
 -/
 
 /--
-info: 'Tacenta.UnitT1.kdf_ck_no_panic' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256]
+info: 'Tacenta.UnitT1.kdf_ck_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitT1.kdf_ck_no_panic
 
 /--
-info: 'Tacenta.UnitT1.send_no_panic' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256]
+info: 'Tacenta.UnitT1.send_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitT1.send_no_panic
@@ -70,8 +64,6 @@ info: 'Tacenta.UnitT1.send_no_panic' depends on axioms: [propext,
 info: 'Tacenta.UnitT1.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -89,7 +81,6 @@ info: 'Tacenta.UnitT1.receive_no_panic' depends on axioms: [propext,
 info: 'Tacenta.UnitSpqrT1.send_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -109,7 +100,6 @@ info: 'Tacenta.UnitSpqrT1.send_no_panic' depends on axioms: [propext,
 info: 'Tacenta.UnitSpqrT1.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -136,8 +126,9 @@ that change is recorded rather than described.
 
 **Report it, because the trust base changes.**
 The standalone `Tacenta.TripleT1.State.receive_no_panic`, deleted after
-2a89a7f, depended on twelve axioms. The ported theorem below depends on
-seventeen axioms, and none is a compiler-trust axiom: the one closed numeric fact in the
+2a89a7f, depended on twelve axioms. The ported theorem below depended on
+seventeen axioms when it was ported, and depends on fifteen since the KDF change
+(ADR-0010) made the two KDF axioms translated definitions; none is a compiler-trust axiom: the one closed numeric fact in the
 sparse ratchet's own `receive_no_panic` proof (that `(1 : U64)` has value one) was settled
 by `native_decide` until 2026-09-30 and is now settled by `decide`, so the Lean
 compiler's evaluation is no longer trusted for it (`LIMITATIONS.md`, "The proofs
@@ -147,23 +138,25 @@ Both halves belong in the same sentence. The standalone theorem had fewer axioms
 because it *assumed* the sparse ratchet's receive is total instead of proving it.
 The ported one proves that part, and the boundary axioms that proving it needs
 are the extra. Which is the better trade is the reader's to judge; what is not
-open to judgement is that the axiom count went from twelve to seventeen.
+open to judgement is that the axiom count went from twelve to seventeen (fifteen since the KDF change).
 
-Six axioms go and eleven arrive. What goes is the bare operation axioms --
+Six axioms went and eleven arrived (since the KDF change, seven went and ten arrived: `hkdf_sha256`,
+there before, is a translated definition now, and `hmac_sha256` no longer arrives).
+What went is the bare operation axioms --
 `tacenta_ratchet.State`, `tacenta_ratchet.receive`, `tacenta_spqr.State`,
 `tacenta_spqr.State.receive` and the two states' clones, six constants standing
 for "this call returns, because we say so".
 
-All eleven that arrive are a substitution rather than an addition in kind: KDF,
+All eleven that arrived were a substitution rather than an addition in kind: KDF,
 `zeroize`, `Vec` and `Option` boundary axioms that other proofs in this tree
-already carry. They are `hmac_sha256` beside the `hkdf_sha256` that was already
-there; `zeroize.Zeroizing` with its constructor and its two projections;
+already carry. They were `hmac_sha256` beside the `hkdf_sha256` that was already
+there (both translated definitions since the KDF change); `zeroize.Zeroizing` with its constructor and its two projections;
 `Vec.capacity` and `Vec.pop`; `Option`'s `as_mut`; the `Zeroize` instances for
 `Pair` and `Vec`; and `Option`'s clone. `Array`'s `Zeroize` instance and the blanket one are on both
 sides and arrive nowhere.
 
 `send` is the quieter case: twelve axioms before (measured on 2026-09-10) and
-sixteen after, none of them compiler-trusted. Six go and ten arrive, the same
+sixteen after (fourteen since the KDF change), none of them compiler-trusted. Six went and ten arrived, the same
 substitution as for `receive` without `Zeroizing`'s mutable projection.
 -/
 
@@ -171,8 +164,6 @@ substitution as for `receive` without `Zeroizing`'s mutable projection.
 info: 'Tacenta.UnitTripleT1.State.send_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -192,8 +183,6 @@ info: 'Tacenta.UnitTripleT1.State.send_no_panic' depends on axioms: [propext,
 info: 'Tacenta.UnitTripleT1.State.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -259,10 +248,7 @@ changed. `send_refines` wraps onto several lines here where the leaf's fits on
 one, only because the longer names push it past the pretty-printer's width. -/
 
 /--
-info: 'Tacenta.UnitT3.send_refines' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256]
+info: 'Tacenta.UnitT3.send_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitT3.send_refines
@@ -271,8 +257,6 @@ info: 'Tacenta.UnitT3.send_refines' depends on axioms: [propext,
 info: 'Tacenta.UnitT3.receive_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -290,8 +274,6 @@ info: 'Tacenta.UnitT3.receive_refines' depends on axioms: [propext,
 info: 'Tacenta.UnitT3.receive_store_full_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -337,7 +319,6 @@ info: Tacenta.UnitT3.receive_store_full_refines : Tacenta.UnitT3.HmacAgrees →
 info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -359,7 +340,6 @@ compiler-trust axiom: the label and bound constants they rest on are kernel proo
 info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -379,7 +359,6 @@ info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
 info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -399,7 +378,6 @@ info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
 info: 'Tacenta.UnitSpqrT3.receive_store_full_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -472,8 +450,6 @@ constants of `UnitSpqrT3.lean`, on top of the Triple's combine label that
 info: 'Tacenta.UnitTripleT3.ratchet_agrees_for' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -492,7 +468,6 @@ info: 'Tacenta.UnitTripleT3.ratchet_agrees_for' depends on axioms: [propext,
 info: 'Tacenta.UnitTripleT3.spqr_agrees_for' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -512,8 +487,6 @@ info: 'Tacenta.UnitTripleT3.spqr_agrees_for' depends on axioms: [propext,
 info: 'Tacenta.UnitTripleT3.send_refines_discharged' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -534,8 +507,6 @@ info: 'Tacenta.UnitTripleT3.send_refines_discharged' depends on axioms: [propext
 info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
@@ -556,8 +527,6 @@ info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [prop
 info: 'Tacenta.UnitTripleT3.receive_store_full_refines_discharged' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
- tacenta_triple_unit.tacenta_kdf.hmac_sha256,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,

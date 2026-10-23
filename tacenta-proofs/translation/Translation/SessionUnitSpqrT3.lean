@@ -22,8 +22,9 @@ merely that it returns.
 
 Unlike the ML-KEM Braid, this crate carries no key-encapsulation boundary and no
 erasure-coding boundary: `Output` arrives as a value from whichever crate
-produced it, and this crate does nothing with it but fold it in. The opaque
-calls this file assumes anything *about the value of* are `hkdf_sha256` and
+produced it, and this crate does nothing with it but fold it in. The
+calls this file assumes anything *about the value of* are `hkdf_sha256` (opaque
+until the KDF change (ADR-0010), translated since) and
 the `zeroize` wrapper its expansion goes through, both inside the translated
 (non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so there is one KDF
 assumption below and one wrapper round trip per width rather than a family of
@@ -80,13 +81,14 @@ def sliceOf (s : Slice Std.U8) : List UInt8 := s.val.map u8
 
 `SpqrT1.lean` assumed `kdf_rk`/`kdf_ck` (the translated wrapping functions)
 cannot fail. Refinement needs more, and states it one level down, at the
-opaque primitive itself: that when `hkdf_sha256` returns, it returns what
+primitive itself (opaque until the KDF change (ADR-0010), translated since; `KdfLeafAgreements`,
+`KdfTripleUnitAgreements` and `UnitLifecycleKdf` prove this of the translated copies): that when `hkdf_sha256` returns, it returns what
 `Model.Kdf.hkdf` computes. Argument order follows the Rust and the model
 alike: salt, then the input keying material, then the info string --
 `kdf_init`/`kdf_rk`/`kdf_ck` all call `hkdf_sha256` this way, and
 `Model.SparseRatchet.kdfInit`/`kdfRk`/`kdfCk` all call `Model.Kdf.hkdf` the
 same way. The premise is RFC 5869's output bound of 8160 bytes, which the
-crate's own `expect` enforces, so the agreement is stated exactly where the
+crate's own `assert!` enforces, so the agreement is stated exactly where the
 real operation returns (`T1.HkdfTotal` says why); every call here asks for
 64 or 96 bytes. -/
 def SpqrHkdfAgrees : Prop :=
@@ -2424,8 +2426,8 @@ specific bound its call site needed.
 
 **Eight assumptions back this file, five of them new constants and three reused
 outright from `SpqrT1.lean` (`VecRetainTotal`, `ZeroizeTotal` and `OptionCloneTotal`; in this unit `SessionUnitSpqrT1.lean` states the first two at the instances the unit uses).** `SpqrHkdfAgrees` states agreement one level
-below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
-`hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
+below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the
+`hkdf_sha256` call itself (opaque until the KDF change (ADR-0010), a translated definition since), and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
 through on its way to being split -- subsumes both, so this file states the
 KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`

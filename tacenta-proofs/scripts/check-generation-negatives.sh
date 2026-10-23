@@ -269,5 +269,8 @@ port port-session-braid-refinement "bash $s/port-session-braid-refinement.sh" "$
 # Braid section for the ratchet half, before its closing `end Braid` for the Braid half.
 port port-session-ratchet-import "bash $s/port-session-ratchet-import-proof.sh" "$diff_msg" SessionUnitRatchetImportInv.lean ImportInv.lean '/-! # `tacenta-braid`' 'import Translation.T3'
 port port-session-braid-import "bash $s/port-session-braid-import-proof.sh" "$diff_msg" SessionUnitBraidImportInv.lean ImportInv.lean $'\nend Braid' 'open tacenta_braid'
+# The key derivation's proofs, ported from the Session unit's copies onto five translations: one copy and one
+# source stand for all of them, since every target is written by the same loop.
+port port-kdf "bash $s/port-kdf-proofs.sh" 'committed copy' KdfRatchetT3Kdf.lean KdfT3Kdf.lean '' 'tacenta_session_unit.tacenta_kdf'
 
-echo "generation negatives: $cases cases (three assemblers and eight port scripts: hand edit, stale source, moved rewrite target, extra and missing files) gave the expected result"
+echo "generation negatives: $cases cases (three assemblers and nine port scripts: hand edit, stale source, moved rewrite target, extra and missing files) gave the expected result"

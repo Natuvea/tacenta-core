@@ -113,7 +113,9 @@ kernel-checked over the unit's opaque constants (not kernel-only), it takes two 
 checked against the real functions) from which its proof derives the sparse ratchet's two
 agreements, the three fields of the contract record it takes that were stronger than
 the crate are now stated at the instances the unit passes (that the real `zeroize`
-functions return there is assumed; not checked against the real functions); the same
+functions return there is assumed; not checked against the real functions), and its record's two KDF
+agreements are theorems about the unit's translated KDF (`UnitLifecycleKdf`, which states the result without
+them; that tacenta-model's KDF is the RFCs' is checked by vectors, not proved); the same
 result is carried through the public `Session::decrypt` on frames that are not initial
 messages, under the same hypotheses and one premise on the input
 (`decrypt_refines_ratchet_frame`, also in forms that take `Session::invariant`

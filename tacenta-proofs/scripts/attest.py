@@ -23,8 +23,9 @@ the build breaks first and this never runs.
 `Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, the
 SHA-256 of the Rust verified zone it was generated from, and the SHA-256 of
 the workspace inputs that shape what Charon extracts from every zone (the
-workspace `Cargo.toml` and its profiles, `Cargo.lock`, `.cargo/`, and the
-`kdf` and `kem` crates whose signatures become the opaque externals), with
+workspace `Cargo.toml` and its profiles, `Cargo.lock`, `.cargo/`, the `kdf`
+crate, whose bodies are translated into every unit that calls them, and the `kem`
+crate, whose signatures become opaque externals), with
 the Aeneas pin. Three zones are assembled rather than written -- the Triple,
 Braid-and-erasure, and complete Session translation units -- and each record
 carries its provenance as well as its bytes: the assembly script and every
@@ -166,13 +167,16 @@ ASSEMBLED_ZONES = {
     },
 }
 
-# The crates the verified zones bottom out in but that are NOT translated:
-# every `HmacTotal`/`HkdfAgrees`/`Encapsulate2Total`-style hypothesis is a
-# statement about *these* bytes, so a proof that names them as its boundary is
-# a proof about a particular `kdf` and `kem`. Hashed so that the attestation
-# can tell a reader which boundary a refinement was proved against. Listed
-# apart from `VERIFIED_ZONES` because nothing in them is proved; they are what
-# the proofs assume.
+# The crates the verified zones bottom out in: every `Encapsulate2Total`-style
+# hypothesis is a statement about *these* bytes, so a proof that names them as
+# its boundary is a proof about a particular `boundary` and `kem`. Hashed so
+# that the attestation can tell a reader which boundary a refinement was proved
+# against. `boundary` and `kem` are NOT translated and nothing in them is
+# proved; they are what the proofs assume. `tacenta-core/kdf` is still listed
+# although, since the KDF change (ADR-0010), every translation that calls it translates its
+# bodies (`--include-kdf`) and its `HmacTotal`/`HkdfAgrees`-style hypotheses are
+# proved wherever a theorem takes them; moving it to `VERIFIED_ZONES` is a separate decision,
+# and until then it is hashed here as a trusted input like the other two.
 TRUSTED_PRIMITIVE_ZONES = [
     "tacenta-core/boundary",
     "tacenta-core/kdf",
@@ -189,9 +193,10 @@ LOCKFILES = [
 # Everything outside a verified zone that changes what Charon extracts from
 # it: the workspace manifest (its `[profile]` tables decide `overflow-checks`,
 # and so whether an addition panics or wraps in the code being translated),
-# the lockfile, any `.cargo/` configuration (rustflags, cfgs), and the two
-# trusted primitive crates, whose signatures are the opaque externals every
-# translation declares. Hashed together into one `workspace_sha256` that each
+# the lockfile, any `.cargo/` configuration (rustflags, cfgs), the `boundary`
+# and `kem` crates, whose signatures are opaque externals of the translations,
+# and the `kdf` crate, whose bodies `--include-kdf` translates into every unit
+# that calls them. Hashed together into one `workspace_sha256` that each
 # translation record carries, so a change to any of them makes every recorded
 # generation stale until the toolchain is run again.
 WORKSPACE_INPUTS = [
@@ -219,7 +224,7 @@ def compiler_axiom(name):
 
 
 # The third kind: opaque externals. The Aeneas translation declares every
-# operation it does not model (`tacenta_kdf.hmac_sha256`, `alloc.vec.Vec.remove`,
+# operation it does not model (`tacenta_kem.encapsulate1`, `alloc.vec.Vec.remove`,
 # `zeroize.Zeroizing.new`, ...) as an `axiom`, and a theorem about the
 # translated Rust inherits them. They are the trusted boundary CLAIMS.md
 # discloses, not compiler trust, and are classified apart from `native_decide`
@@ -409,8 +414,8 @@ def axiom_declarations(path):
     one entry per declaration and in source order.
 
     The qualified name is the name as written with the enclosing `namespace`
-    applied (an `axiom tacenta_kdf.hkdf_sha256` inside `namespace tacenta_braid`
-    is `tacenta_braid.tacenta_kdf.hkdf_sha256`, which is what the elaborated
+    applied (an `axiom tacenta_kem.CT1_LEN` inside `namespace tacenta_braid`
+    is `tacenta_braid.tacenta_kem.CT1_LEN`, which is what the elaborated
     environment calls it), or as written after `_root_.`. A `private` axiom is
     marked, so it cannot be mistaken for a public one of the same name. The
     type text is everything after the name up to the end of the declaration
@@ -1411,6 +1416,53 @@ REQUIRED_PINS = frozenset(
         "runRandomDraw_byte",
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
+    )]
+    # The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied bodies of tacenta-kdf, return and equal tacenta-model's: HmacAgrees and HkdfAgrees as theorems, the KDF propositions the lifecycle results take, and decrypt_ratchet's complete refinement without them (`UnitLifecycleKdf`).
+    + ["Tacenta.UnitLifecycleKdf." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "braidHmacAgrees",
+        "braidHkdfAgrees",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "sessionHkdfTotal",
+        "braidHkdfSha256Total",
+        "braidHmacSha256Total",
+        "hmacShape_real",
+        "hkdfShape_real",
+        "DecryptRatchetAgreements.of_kdf",
+        "decrypt_ratchet_refines_complete_of_kdf",
+        "toU8_u8",
+        "modelT3_hmac_eq_real",
+        "modelT3_hkdf_eq_real",
+        "toy_models_share_modelT3_kdf",
+    )]
+    # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).
+    + ["Tacenta.KdfLeafAgreements." + n for n in (
+        "ratchet_hmacAgrees",
+        "ratchet_hkdfAgrees",
+        "ratchet_hmacTotal",
+        "ratchet_hkdfTotal",
+        "session_hkdfAgrees",
+        "session_hkdfTotal",
+        "spqr_hkdfAgrees",
+        "spqr_lawHkdf",
+        "braid_hmacAgrees",
+        "braid_hkdfAgrees",
+        "braid_hmacTotal",
+        "braid_hkdfTotal",
+    )]
+    # The three-leaf unit's KDF hypotheses, proved of its translated KDF (`KdfTripleUnitAgreements`).
+    + ["Tacenta.KdfTripleUnitAgreements." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "lawHkdf",
     )]
     # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
     + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
@@ -3026,6 +3078,54 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
     )]
+    # The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied bodies of tacenta-kdf, return and equal tacenta-model's: HmacAgrees and HkdfAgrees as theorems, the KDF propositions the lifecycle results take, and decrypt_ratchet's complete refinement without them (`UnitLifecycleKdf`).
+    + ["Tacenta.UnitLifecycleKdf." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "braidHmacAgrees",
+        "braidHkdfAgrees",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "sessionHkdfTotal",
+        "braidHkdfSha256Total",
+        "braidHmacSha256Total",
+        "hmacShape_real",
+        "hkdfShape_real",
+        "DecryptRatchetAgreements.of_kdf",
+        "decrypt_ratchet_refines_complete_of_kdf",
+        "toU8_u8",
+        "modelT3_hmac_eq_real",
+        "modelT3_hkdf_eq_real",
+        "toy_models_share_modelT3_kdf",
+        "KdfFreeAgreements",
+    )]
+    # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).
+    + ["Tacenta.KdfLeafAgreements." + n for n in (
+        "ratchet_hmacAgrees",
+        "ratchet_hkdfAgrees",
+        "ratchet_hmacTotal",
+        "ratchet_hkdfTotal",
+        "session_hkdfAgrees",
+        "session_hkdfTotal",
+        "spqr_hkdfAgrees",
+        "spqr_lawHkdf",
+        "braid_hmacAgrees",
+        "braid_hkdfAgrees",
+        "braid_hmacTotal",
+        "braid_hkdfTotal",
+    )]
+    # The three-leaf unit's KDF hypotheses, proved of its translated KDF (`KdfTripleUnitAgreements`).
+    + ["Tacenta.KdfTripleUnitAgreements." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "lawHkdf",
+    )]
     # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
     + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
         "skip_noop",
@@ -4547,6 +4647,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "GenerateFillsOnce64Of", "GenerateFillsOnce64",
         "Random32Clause", "SigSignClause", "KemClauses",
         "encodedEphemeralAgreement",
+    )]
+    # The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied bodies of tacenta-kdf, return and equal tacenta-model's: HmacAgrees and HkdfAgrees as theorems, the KDF propositions the lifecycle results take, and decrypt_ratchet's complete refinement without them (`UnitLifecycleKdf`).
+    + ["Tacenta.UnitLifecycleKdf." + n for n in (
+        "KdfFreeAgreements",
     )]
     # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
     + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
@@ -6335,8 +6439,8 @@ def check_translation(current):
 
 # What `Model.AxiomAudit.run` prints for every axiom it finds in a generated
 # module, fully qualified: `audit-axiom: Translation.TacentaBraid
-# tacenta_braid.tacenta_kdf.hkdf_sha256`. The record holds the same thing (the
-# name as declared, `tacenta_kdf.hkdf_sha256`, with its `namespace` applied),
+# tacenta_braid.tacenta_kem.CT1_LEN`. The record holds the same thing (the
+# name as declared, `tacenta_kem.CT1_LEN`, with its `namespace` applied),
 # so the two are compared for equality, as multisets.
 # Not anchored at the line start: Lake prefixes the first line of a message
 # with `info: <file>:<line>:<col>: `, and the rest follow verbatim.

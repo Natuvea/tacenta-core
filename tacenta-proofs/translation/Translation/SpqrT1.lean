@@ -94,8 +94,8 @@ def ChainsZeroizeTotal : Prop :=
   ∀ (c : Chains), ∃ r, Chains.Insts.ZeroizeZeroize.zeroize c = ok r
 
 /-- The root-key derivation returns. A sixth, for the same reason as
-`KdfCkTotal`: translated, but bottoming out in this crate's opaque
-`hkdf_sha256`. -/
+`KdfCkTotal`: translated, bottoming out in this crate's copy of
+`hkdf_sha256` (opaque until the KDF change (ADR-0010), translated since). -/
 def KdfRkTotal : Prop :=
   ∀ (rk : Array U8 32#usize) (k : Array U8 32#usize),
     ∃ r, kdf_rk rk k = ok r
@@ -772,7 +772,6 @@ Aeneas becomes one assumption per translated crate that touches it. -/
 info: 'Tacenta.SpqrT1.send_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -792,7 +791,6 @@ info: 'Tacenta.SpqrT1.send_no_panic' depends on axioms: [propext,
 info: 'Tacenta.SpqrT1.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

@@ -82,7 +82,7 @@
             },
             {
               "id": "rust_target",
-              "run": "rustup target add aarch64-unknown-linux-gnu"
+              "run": "rustup target add aarch64-unknown-linux-gnu\nrustup toolchain install \"$(cat ../tooling/ct-baselines/rust-toolchain.txt)\" --profile minimal --target aarch64-unknown-linux-gnu\n"
             },
             {
               "id": "rust_ct_asm",
@@ -607,7 +607,7 @@
             },
             {
               "id": "checks_24",
-              "run": "bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check\nbash tacenta-proofs/scripts/port-session-braid-preserve.sh --check\n"
+              "run": "bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check\nbash tacenta-proofs/scripts/port-session-braid-preserve.sh --check\nbash tacenta-proofs/scripts/port-kdf-proofs.sh --check\n"
             },
             {
               "id": "checks_25",

@@ -36,7 +36,7 @@ constants from the ratchet's because each generated module declares its own, so
 they are stated again rather than shared. -/
 
 /-- The key derivation returns, for every output length within RFC 5869's
-bound of 8160 bytes -- the bound the crate's own `expect` enforces, so the
+bound of 8160 bytes -- the bound the crate's own `assert!` enforces, so the
 hypothesis is stated exactly where the real operation returns (`T1.HkdfTotal`
 says why); the one call here asks for 32 bytes. -/
 def HkdfTotal : Prop :=
@@ -373,8 +373,8 @@ theorem decode_ec_spec (bytes : Slice U8) :
 
 /-! ## The derivation
 
-`kdf_sk` prefixes the domain separator and hands the result to the opaque key
-derivation. Its precondition is the one real bound in this file: the keying
+`kdf_sk` prefixes the domain separator and hands the result to the key
+derivation (opaque until the KDF change (ADR-0010), translated since). Its precondition is the one real bound in this file: the keying
 material is a slice of arbitrary length, so the caller has to say it leaves room
 for thirty-two more bytes.
 
@@ -472,7 +472,6 @@ changed it has to say why. -/
 info: 'Tacenta.SessionUnitSessionT1.shared_secret_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
  tacenta_session_unit.zeroize.Zeroizing,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -499,8 +498,8 @@ rather than pushed onto the caller.
 
 What it rests on, all of it named:
 
-* `HkdfTotal`, the key derivation, opaque by the choice that keeps the
-  translation tractable. Same boundary as the ratchet's, and a separate constant
+* `HkdfTotal`, the key derivation, opaque until the KDF change (ADR-0010) by the choice that kept the
+  translation tractable, and a translated definition since. Same boundary as the ratchet's, and a separate constant
   because each generated module declares its own.
 * `ZeroizingModel`, the external `zeroize` crate. Stated as a model -- a contents
   function and the equations relating the three operations to it -- rather than

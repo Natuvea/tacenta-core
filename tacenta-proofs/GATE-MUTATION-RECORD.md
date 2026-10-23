@@ -639,3 +639,87 @@ own. Read on this date, no linked runner builds a module an edit changes: the li
 (`PN1`, `PN2`) are elaborated with `lake env lean`, which writes no build output, and the other linked edits are to
 shell scripts.
 
+## Addendum, 2026-10-22: the key derivation's inventory and its proof control
+
+`python3 tooling/mutate-gates.py --only CT17 CT18 CT19 CT20 CT21 CT22 CT23 CT24 CT25 NS-drop-kdf-realisation
+NS-swallow-kdf-realisation -v`, on an aarch64 Mac, against the commit that added them. Both baselines passed
+(`run-proof-script-cases.sh`, `run-check-constant-time-asm-cases.sh`), and each edit made its runner print the case
+or diagnostic named in its `expect`. Eleven edits: four seen as accepted, seven as another wrong verdict, none message
+only, none survived.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT17 | `tooling/check-constant-time-asm.sh` | the key derivation's aarch64 branches are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT18 | `tooling/check-constant-time-asm.sh` | the key derivation's x86 branches are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT19 | `tooling/check-constant-time-asm.sh` | a key-derivation branch is listed without the instruction before it | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT20 | `tooling/check-constant-time-asm.sh` | the key derivation's aarch64 register-indexed accesses are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT21 | `tooling/check-constant-time-asm.sh` | the key derivation's x86 register-indexed accesses are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT22 | `tooling/check-constant-time-asm.sh` | every x86 indirect transfer is read as a call to a named symbol | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT23 | `tooling/check-constant-time-asm.sh` | the key derivation's inventory is not compared with its reviewed baseline | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT24 | `tooling/check-constant-time-asm.sh` | a hardware divide in the key derivation is accepted when the baseline lists it | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT25 | `tooling/check-constant-time-asm.sh` | CI may rewrite the reviewed key-derivation baselines | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| NS-drop-kdf-realisation | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-kdf-realisation-negatives.py is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-kdf-realisation | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-kdf-realisation-negatives.py is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+
+Not mutated here: the missing-baseline and no-function refusals of the key-derivation part (removing either guard
+leaves the run refused by the baseline comparison, with another message), and the Lean controls of
+`check-kdf-realisation-negatives.py`, which that script runs itself.
+
+The port of the key derivation's proofs onto the other translations (`scripts/port-kdf-proofs.sh`) was added
+after that run and mutated on its own the same day (`--only GN-port-kdf-diff GN-port-kdf-count`), against the
+commit that added it; the baseline (`check-generation-negatives.sh`) passed and both edits were seen as accepted.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| GN-port-kdf-diff | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-kdf-count | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
+
+The reader was then widened (x86 index-only operands such as `K(,%rcx,4)`, aarch64 register post-index such as
+`[x9], x10`) and the key-derivation part pinned to the compiler its baselines were read from
+(`tooling/ct-baselines/rustc-version.txt`). `python3 tooling/mutate-gates.py --only CT20 CT21 CT22 CT23 CT24 CT25
+CT26 CT27 CT28 CT29`, on an aarch64 Mac, against ebdfffbe: the baseline passed, and ten edits gave four seen as accepted,
+five as another wrong verdict and one message only, listed equivalent; none survived. CT20 and CT21 now remove the
+widened regexes; their results are unchanged. The x86 cases were reordered so that CT21 and CT26 each fail at their
+own case rather than at the jump-table case, which also lists an indexed operand.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT26 | `tooling/check-constant-time-asm.sh` | an x86 index-only operand is not listed as indexed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT27 | `tooling/check-constant-time-asm.sh` | an aarch64 register post-index is not listed as indexed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT28 | `tooling/check-constant-time-asm.sh` | the key derivation's inventory is compared under another compiler than its baselines were read from | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT29 | `tooling/check-constant-time-asm.sh` | baselines that name no compiler are not refused as such | `run-check-constant-time-asm-cases.sh` | message only, listed equivalent |
+
+The key-derivation half was then pinned on its own (`cargo +<toolchain>` with the toolchain
+`tooling/ct-baselines/rust-toolchain.txt` names), the straight-line functions left on the running toolchain, and the
+reader taught aarch64 register offsets from `sp` and `bc.<cond>`. `python3 tooling/mutate-gates.py --only CT2 CT4 CT9
+CT13 CT17 CT19 CT20 CT21 CT22 CT23 CT24 CT25 CT26 CT27 CT28 CT29 CT30 CT31 CT32 CT33 CT34 CT35 CT36 CT37`, on an
+aarch64 Mac, against the commits that made those changes: the baseline passed; 24 edits, none survived. CT29 is now
+seen as accepted (a new case runs without the pinned toolchain, where removing the refusal lets the run skip the key
+derivation and pass), so it is no longer listed equivalent. CT9's anchor occurs twice in the script since the
+key-derivation half was added, and the edit now names that count; before, it could not be applied. The anchors of CT2,
+CT4, CT13, CT17, CT20, CT27 and CT28 followed the changed lines.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT29 | `tooling/check-constant-time-asm.sh` | baselines that name no compiler are not refused as such | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT30 | `tooling/check-constant-time-asm.sh` | an aarch64 register offset from the stack pointer is not listed as indexed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT31 | `tooling/check-constant-time-asm.sh` | the key derivation's aarch64 bc.cond branches are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT32 | `tooling/check-constant-time-asm.sh` | an aarch64 bc.cond branch in a straight-line function is not counted | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT33 | `tooling/check-constant-time-asm.sh` | the key derivation is built with the running toolchain, not the one its baselines were read from | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT34 | `tooling/check-constant-time-asm.sh` | the straight-line functions are built with the KDF's pinned toolchain, not the running one | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT35 | `tooling/check-constant-time-asm.sh` | in CI, a missing KDF toolchain skips the key derivation instead of failing | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT36 | `tooling/check-constant-time-asm.sh` | in CI, a Linux target the KDF's toolchain lacks is not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT37 | `tooling/check-constant-time-asm.sh` | baselines that name no toolchain are not refused | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+
+In CI the gate then required both Linux targets of the running toolchain (on the runner's x86_64 Linux host the
+host alone had satisfied the old "neither" rule), and CT9, which had removed both one-assembly-file guards at once,
+was split: CT9 now removes the straight-line half's guard and CT38 the key derivation's, each caught by a case
+aimed at one crate. `python3 tooling/mutate-gates.py --only CT1` to `CT38` (all 38), on an aarch64 Mac, against the
+commit that made those changes: the baseline passed; 38 edits, 14 seen as accepted, 24 as another wrong verdict,
+none message only, none survived.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT4 | `tooling/check-constant-time-asm.sh` | in CI, a missing Linux target of the running toolchain is skipped, not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT9 | `tooling/check-constant-time-asm.sh` | several assembly files for a straight-line crate are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT38 | `tooling/check-constant-time-asm.sh` | several assembly files for the key derivation are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |

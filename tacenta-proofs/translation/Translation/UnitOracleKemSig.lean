@@ -360,8 +360,6 @@ The axiom list and the statement of each result, held by the build. `attest.py` 
 info: 'Tacenta.UnitOracleKemSig.oracleOfGuarded_iff_shape' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
- tacenta_kdf.hmac_sha256,
  tacenta_kem.CT1_LEN,
  tacenta_kem.CT2_LEN,
  tacenta_kem.EK_VECTOR_LEN,

@@ -170,6 +170,30 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06, ASM-07, ASM-08,
+  ASM-09 and ASM-18,
+  `security-properties/limitations.md` LIM-06 and LIM-12 and the
+  implementation note of `protocol/message-format.md`: `tacenta-core`'s
+  HMAC-SHA256 and HKDF-SHA256
+  are now `tacenta-kdf`'s own code, no longer RustCrypto's: written by the
+  maintainer with tool assistance in a separate, unpublished repository; the
+  three Rust files were read in full by the maintainer on 2026-10-23, and before
+  that only by tool-assisted sessions; no reader independent of the maintainer
+  has read the three files, and no human has read their proofs. Copied here,
+  they are under this repository's licence, Apache-2.0. Eight translations include that code; the six whose theorems
+  take the KDF agreement hypotheses prove them of their translated code, and
+  ASM-18 no longer lists the KDF among its assumptions. ASM-07 says the model's
+  SHA-256 is what the translated SHA-256 is proved to compute there; ASM-08 lists
+  the key derivation's compiled-code inventory, a tripwire and not a timing
+  measurement, with what one x86_64 Linux machine showed; ASM-09 lists its
+  unwiped intermediates; LIM-12 lists that inventory and the one timing
+  measurement beside the two straight-line functions. The pages say so, and
+  that the model's are the RFCs', the pseudorandom-function property, constant
+  time and erasure are not proved; ASM-05 says the timing was measured once, on
+  one CPU. The AEAD's tag is computed on encryption by that
+  HMAC and checked on decryption by RustCrypto's, which agree by tests. No
+  protocol behaviour, byte or refusal changes.
+
 - `protocol/session-establishment.md`:
   - the initiator establishes only with an expectation, which replaces the
     named identity the page let her state;
@@ -830,6 +854,10 @@ is SemVer against the specified protocol (not the implementation).
 
 ### Decided
 - `decisions/ADR-0009-identity-verification.md` (accepted).
+- `decisions/ADR-0010-key-derivation-written-here.md` (accepted):
+  `tacenta-kdf`'s SHA-256, HMAC and HKDF are written here, a second exception
+  to the no-reimplementation rule after XEdDSA (ADR-0002), with the
+  alternatives rejected, the measured costs and the limits.
 
 ## [0.2.0] - 2026-09-11
 

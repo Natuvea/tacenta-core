@@ -88,8 +88,8 @@ the leaves' real preconditions, and there are three:
 
 Two more bundles bottom out in `tacenta_spqr.kdf_init`, which no leaf proof
 covers, so `KdfInitTotal` is declared here, in the same shape as
-`SessionUnitSpqrT1.KdfRkTotal`: a translated function bottoming out in the opaque
-`hkdf_sha256`, at 96 bytes. That trade is worth naming -- it replaces two
+`SessionUnitSpqrT1.KdfRkTotal`: a translated function bottoming out in
+`hkdf_sha256` (opaque until the KDF change (ADR-0010), translated since), at 96 bytes. That trade is worth naming -- it replaces two
 opaque-crate-boundary assumptions (`SpqrInitAliceTotal`, `SpqrInitBobTotal`
 as `TripleT1.lean` stated them) with one assumption of a kind other proofs in
 this tree already rely on. "Trusted KDF" undersells what it bundles: besides
@@ -593,16 +593,19 @@ crate boundary this file removes.
 
 **What the trust base became.** `TripleT1.lean`'s `State.receive_no_panic`
 depended on twelve axioms, measured on 2026-09-10 before its deletion. This
-file's depends on seventeen. None is a compiler-trust axiom: the one closed
+file's depended on seventeen when it was written, and on fifteen since the KDF
+change (ADR-0010) made the two KDF axioms translated definitions. None is a compiler-trust axiom: the one closed
 numeric fact in the sparse ratchet's own `receive_no_panic` proof that used to be settled by
 `native_decide` (that `(1 : U64)` has value one) is now settled by `decide`.
 Both halves of the change are worth stating plainly, and
 `Translation/UnitPins.lean` states them: the standalone theorem had fewer axioms
 because it *assumed* the sparse ratchet's receive is total rather than proving
 it; this one proves that part and inherits the boundary axioms proving it needs.
-Underneath, six axioms go and eleven arrive: the bare operation axioms
-(`tacenta_ratchet.receive`, `tacenta_spqr.State.receive`, the two states and
-their clones) are replaced by KDF, zeroize, `Vec` and `Option` boundary axioms already
-shared with other proofs in this tree. -/
+Underneath, six axioms went and eleven arrived (since the KDF change, seven went and
+ten arrived): the
+bare operation axioms (`tacenta_ratchet.receive`, `tacenta_spqr.State.receive`,
+the two states and their clones) were replaced by KDF, zeroize, `Vec` and
+`Option` boundary axioms already shared with other proofs in this tree, of which
+the two KDF ones are now translated definitions. -/
 
 end Tacenta.SessionUnitTripleT1

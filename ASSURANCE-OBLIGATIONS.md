@@ -840,15 +840,18 @@ recorded decision or a target-closing slice:
   **Protected property:**
   The two hand-written constant-time functions compile to straight-line code:
   no conditional branch beyond `mac_eq`'s public length compare, no callee off the name allow-list.
+  The key derivation (`tacenta-kdf`), built with the toolchain `tooling/ct-baselines/rust-toolchain.txt` names and checked against `rustc-version.txt`, compiles to its reviewed inventory of branches, register-indexed accesses and callees on each target read (`tooling/ct-baselines/tacenta_kdf-<target>.txt`):
+  a tripwire for a changed shape, not a constant-time proof.
 
   **Current negative-control evidence:**
   `tooling/tests/run-check-constant-time-asm-cases.sh`:
   3 controls, all on the callee allow-list.
 
   **Missing evidence:**
-  The branch counter on x86_64 and aarch64, indirect jumps and calls, the refusal of `subtle` and `conditional_` callees, the one allowed length compare, the rules `main` applies to what the reader found and the rule that CI fails with no Linux target (a stubbed toolchain) are held by 86 further cases (`CT1` to `CT16` re-run red):
+  The branch counter on x86_64 and aarch64, indirect jumps and calls, the refusal of `subtle` and `conditional_` callees, the one allowed length compare, the rules `main` applies to what the reader found and the rule that CI fails with no Linux target (a stubbed toolchain) are held by 120 further cases (`CT1` to `CT38` re-run red):
   every x86_64 conditional mnemonic, every aarch64 condition, the pair, unscaled, halfword and plain aarch64 loads,
   `lea` before the length compare and a listed `subtle::black_box`.
+  The same cases hold the key derivation's half: its inventory reader on both architectures, the comparison with the reviewed baselines, the toolchain and compiler pin, and the CI rules that refuse a baseline rewrite, a skipped half and a missing Linux target (`CT17` to `CT38` in `GATE-MUTATION-RECORD.md`).
 
 - **Gate/check:**
   `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py`,
@@ -864,7 +867,7 @@ recorded decision or a target-closing slice:
 
   **Current negative-control evidence:**
   `check-lifecycle-translation-coverage-negatives.sh` (one missing-root mutation),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (205 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,
@@ -934,7 +937,7 @@ recorded decision or a target-closing slice:
 
   **Current negative-control evidence:**
   `check-lifecycle-translation-coverage-negatives.sh` (one missing-root mutation),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (205 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,
@@ -1034,6 +1037,7 @@ recorded decision or a target-closing slice:
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
+  `check-kdf-realisation-negatives.py`,
   `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
@@ -1065,6 +1069,7 @@ recorded decision or a target-closing slice:
   placed unchanged);
   the Session unit's refinement constants, kernel proofs since 2026-10-21, keep deciding the bytes and bounds they state, the live pin of a constant refuses `native_decide` restored under it, and `export_message_fits` states exactly the type of the compiler-trust axiom `export` carries;
   the initiator's second `encrypt` at the session its receipt of the reply returns keeps the no-draw walk at `KeysSampled`, the second frame's chunk and key, the providers' no-draw premise and the model step it rests on, and its composing proof uses the receipt's session, the source it left and its relation;
+  the Session unit's translated HMAC and HKDF keep their agreement with tacenta-model's: HKDF's 8160-byte bound, the order of HMAC's key and message and of HKDF's salt and input keying material, and the direction of the output each stay refused when changed, and the corollary without the KDF fields keeps the complete refinement's other premises (`check-kdf-realisation-negatives.py`);
   `check-receive-preservation-negatives.py`: the in-order receive step keeps its decoder scope, the key-pair clone record, the budget it spends, its dependence on the relation after the call, the canonical-key law and the oracle's public-key clause, the public step keeps its scope and budget, and on the reply's run the budget and the fresh-key premise are the ones the proof composes;
   `check-initiator-second-message-negatives.py`:
   the initiator's second message keeps the budget after the send, the fresh-key premise and the second plaintext's bound it composes, and places the ceilings at the session the receipt returns, and its reach keeps the plaintext bound and the law that chooses the responder's source (the receipt's call and the relations after the send are conjuncts of called theorems, placed unchanged);
@@ -1109,7 +1114,7 @@ recorded decision or a target-closing slice:
   an empty record list and a record outside the first-party prefixes refused;
   the built executable over a compiled module with a planted taker,
   a forging initializer and a notation on its name reports the taker alone),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (205 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,
@@ -1160,6 +1165,10 @@ recorded decision or a target-closing slice:
   each refused),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
+  `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused, each at its named place: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise at their named declarations, and the record held by its `#print` pin;
+  each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
+  the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
   each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;
@@ -1647,7 +1656,7 @@ recorded decision or a target-closing slice:
   `extern`,
   `partial` or `unsafe` name, and no elaboration-time code outside the seven audit invocations, each exact and standing alone, with nothing in the invoking modules but imports, pins and the invocation, one per line, and none of the text found at review to redirect, wrap, forge or hide around them;
   a textual guard on instances and coercions, since Lean prints neither the instance behind a notation nor the function behind a coercion in a statement pin:
-  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of those listed for its file and namespace (fourteen today: eleven `instance` and three `deriving instance`,
+  an `instance` declaration whose whole text (to the next blank line or line at column 0) is not one of those listed for its file and namespace (fifteen today: twelve `instance` and three `deriving instance`,
   each exactly once,
   so a copy elsewhere or a changed continuation line is refused,
   while lines may move),
@@ -1708,7 +1717,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (118 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (120 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).

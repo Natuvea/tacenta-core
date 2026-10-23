@@ -44,12 +44,17 @@ each crate independently, so braid's opaque `tacenta_session_unit.tacenta_erasur
 erasure's own translated `Encoder` are unrelated Lean symbols with the same
 name; bridging them would be its own separate project, not a shortcut.
 
-Both are in the same trust category as `Tacenta.T3`'s `HmacAgrees`/
-`HkdfAgrees`: an accepted external-primitive boundary, not something this
-file tries to reprove. Braid gets its own KDF agreement assumptions below
-too, distinct from `Tacenta.T3`'s, per the counting trap `BraidT1.lean`
-already documents: Aeneas gives this crate its own copy of `hkdf_sha256`/
-`hmac_sha256`, and one proof does not discharge another crate's copy.
+Both are an accepted external-primitive boundary, not something this file
+tries to reprove, the category `Tacenta.T3`'s `HmacAgrees`/`HkdfAgrees` were
+in until the KDF change (ADR-0010). Braid takes its own KDF agreement
+hypotheses below too, distinct from `Tacenta.T3`'s, per the counting trap
+`BraidT1.lean` already documents: Aeneas gives this crate its own copy of
+`hkdf_sha256`/`hmac_sha256`, and a proof about one crate's copy does not
+discharge another's. Since the KDF change those copies are translated
+definitions, and the hypotheses are proved of them elsewhere: of the Braid
+translation's by `KdfLeafAgreements.braid_hmacAgrees`/`braid_hkdfAgrees`,
+and of the Session unit's by `UnitLifecycleKdf.braidHmacAgrees`/
+`braidHkdfAgrees`. This file still takes them as hypotheses.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -78,15 +83,16 @@ theorem u8_injective {x y : Std.U8} (h : u8 x = u8 y) : x = y := by
 /-! ## The KDF boundary: braid's own copy of `HmacAgrees`/`HkdfAgrees`
 
 Same shape as `Tacenta.T3`'s, but a separate declaration: Aeneas gives this
-crate its own `tacenta_session_unit.tacenta_kdf.hkdf_sha256`/`hmac_sha256` axioms (the counting
-trap `BraidT1.lean` already documents for their totality-only versions), so
+crate its own `tacenta_session_unit.tacenta_kdf.hkdf_sha256`/`hmac_sha256` (axioms until the KDF change,
+ADR-0010; translated definitions since), the counting
+trap `BraidT1.lean` already documents for their totality-only versions, so
 one proof of the ratchet's agreement does not discharge braid's. Argument
 order matches how `Auth.update`/`Auth.mac_hdr`/`Auth.mac_ct`/`kdf_ok` call
 them and how `Model.Kdf.hkdf salt ikm info len`/`Model.Kdf.hmac key data`
 are written, with no relabelling to match. `.total` derives `BraidT1.lean`'s
 existing totality constants back out, so that file needs no edits. The HKDF
 premise is RFC 5869's output bound of 8160 bytes, the bound the crate's own
-`expect` enforces, so the agreement is stated exactly where the real
+`assert!` enforces, so the agreement is stated exactly where the real
 operation returns (`T1.HkdfTotal` says why). -/
 
 def BraidHkdfAgrees : Prop :=
@@ -3168,7 +3174,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     exact hout
 
 -- The axiom audit for the two refinements, enforced rather than asserted: the
--- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM, KDF,
+-- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM,
 -- `zeroize`, and the library types and operations Aeneas does not model), and
 -- nothing else. No `native_decide` reaches either. A proof that starts
 -- trusting something new fails here.
@@ -3177,8 +3183,6 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
 info: 'Tacenta.SessionUnitBraidT3.Braid.send_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EncapsState,
@@ -3213,8 +3217,6 @@ info: 'Tacenta.SessionUnitBraidT3.Braid.send_refines' depends on axioms: [propex
 info: 'Tacenta.SessionUnitBraidT3.Braid.receive_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,

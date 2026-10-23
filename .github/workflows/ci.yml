@@ -123,10 +123,19 @@ jobs:
       # that was inlined away. `--emit=asm` needs no linker, so the target
       # needs only its `rust-std`. The script is under `tooling/` at the
       # repository root; this job's working directory is `tacenta-core`.
+      # The two straight-line functions are read with the job's stable, the
+      # compiler consumers build with. The key derivation's half compares an
+      # exact inventory with baselines read from one compiler, so the script
+      # builds that crate alone with the toolchain
+      # `tooling/ct-baselines/rust-toolchain.txt` names (a nightly pinned by
+      # date, whose `rustc -V` is `tooling/ct-baselines/rustc-version.txt`);
+      # this step installs it, with the aarch64 target, beside the stable one.
       - id: rust_target
-        run: rustup target add aarch64-unknown-linux-gnu
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          rustup toolchain install "$(cat ../tooling/ct-baselines/rust-toolchain.txt)" --profile minimal --target aarch64-unknown-linux-gnu
       - id: rust_ct_asm
-        name: The constant-time functions compile to straight-line code
+        name: The two constant-time functions compile to straight-line code, and the key derivation's compiled code matches its reviewed inventory
         run: bash ../tooling/check-constant-time-asm.sh
       - uses: ./.github/actions/assurance-receipt
         with:
@@ -627,6 +636,7 @@ jobs:
         run: |
           bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check
           bash tacenta-proofs/scripts/port-session-braid-preserve.sh --check
+          bash tacenta-proofs/scripts/port-kdf-proofs.sh --check
       - id: checks_25
         run: bash tooling/check-labels.sh
       - id: checks_26

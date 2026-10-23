@@ -167,7 +167,31 @@ flowchart TD
   axioms. Nothing links against a unit and none is published.
 - **Where trust sits.** The boundary crate and the Charon and Aeneas toolchain
   are trusted and not verified here. A proof reaches the boundary through
-  contracts that appear as hypotheses of the theorems that take them.
+  contracts that appear as hypotheses of the theorems that take them. The key
+  derivation crate is translated rather than opaque: its HMAC-SHA256 and
+  HKDF-SHA256 are code copied here, pinned in `tacenta-core/kdf/src/lib.rs` by
+  commit and file digests, and distributed under this repository's licence:
+  written by the maintainer with tool assistance in a separate, unpublished
+  repository; the three Rust files were read in full by the maintainer on
+  2026-10-23, and before that only by tool-assisted sessions; no reader
+  independent of the maintainer has read the three files, and no human has read
+  their proofs. Eight
+  translations include it, and the six whose theorems take hypotheses about it
+  prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),
+  the classical ratchet's, the PQXDH session's, the sparse ratchet's and the
+  Braid's (`KdfLeafAgreements`), and the three-leaf unit's
+  (`KdfTripleUnitAgreements`); the lifecycle and Braid-and-erasure translations
+  include it with no theorem about it. That the model is the RFCs', the code's
+  timing and its erasure are not proved. Its cost was measured on one x86_64
+  CPU with SHA extensions: there it is 5.1 to 18.5 times slower per call than
+  RustCrypto, and one 16-byte encrypt and decrypt round is 1.12 times slower.
+  Against RustCrypto's portable code, on the same machine, it is 1.37 to 2.16
+  times slower per call. RustCrypto's locked `sha2` runs that portable code on
+  aarch64 in this build, which does not enable its `asm` feature; that the
+  second figure therefore applies on aarch64 is an inference, not a
+  measurement (ADR-0010, Costs). Writing it here is a second exception to the
+  rule that primitives are not implemented in this repository, after XEdDSA,
+  accepted in ADR-0010.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.
 - **What holds the record in place.** `attest.py` compares the ledger with the
@@ -297,7 +321,8 @@ two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the re
 contract fields, its proof derives the sparse ratchet's two agreements about translated functions (`GAP-REGISTER.md`,
 row `SESSION-SPARSE-AGREEMENTS`); the three fields of the contract record it takes that were stronger than the crate
 are now stated at the instances the unit passes, and that the real `zeroize` functions return there is assumed; not
-checked against the real functions.
+checked against the real functions. Its record's two KDF agreements are theorems about the unit's translated KDF, and
+`UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf` states the result without them.
 The same result is carried through the public `Session::decrypt` on frames that are not initial messages
 (`decrypt_refines_ratchet_frame`, on the same axioms), under the same hypotheses and one premise on the input, also in a
 form that takes `Session::invariant` and the four counter ceilings; no theorem covers an initial message.
@@ -350,7 +375,8 @@ property-based decoder tests, and the KEM, Braid and lifecycle tests again on
 libcrux's portable ML-KEM backend) with a dependency advisory audit, a compile
 check on the minimum supported Rust version, a 32-bit compile check and one 32-bit test run, and the
 constant-time disassembly gate (the release assembly of the two hand-written
-constant-time functions, read for conditional branches); and the committed
+constant-time functions, read for conditional branches, and the key derivation's,
+compared with a reviewed inventory); and the committed
 Rust-to-Lean translation with its T1/T3 proofs, built, scanned for
 `sorry`, and checked for any theorem that takes one of the five evidence records
 of the lifecycle dispatch layer that are recorded as false or empty (this does not
@@ -395,13 +421,14 @@ gate: run `bash tooling/ci.sh` and read the hosted CI before a merge. `bash tool
 it would run, and `FAST_PRE_PUSH=1` makes the pre-push hook run it before each push (CONTRIBUTING.md).
 
 The two do not run exactly the same set, and the difference is stated
-rather than papered over. Five of those steps need tooling the workflow
+rather than papered over. Six of those steps need tooling the workflow
 installs and a developer's machine may not have; the workflow always runs
 them, and the script skips each one it cannot run and prints a line saying
 so: the advisory audit (`cargo-audit`), the MSRV check (a 1.87 toolchain),
 the 32-bit check (the armv7 target), the Linux halves of the constant-time
 disassembly gate (the x86_64 and aarch64 Linux targets; the host is always
-read), and the translation build (the translation's Mathlib cache, which is
+read), its key-derivation half (the pinned nightly toolchain
+`tooling/ct-baselines/rust-toolchain.txt` names), and the translation build (the translation's Mathlib cache, which is
 the heavy one). In the other direction
 the script runs two steps the workflow does not: the interoperability
 harness, which is not in this public tree and skips here, and the fuzz smoke
@@ -458,7 +485,8 @@ workflow runs.
 | `rustup toolchain install 1.87` | 1.87, the `rust-version` every crate names | the MSRV compile check; skipped locally when absent, failed in CI |
 | `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
 | `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
-| `rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu` | matching the toolchain | the constant-time disassembly gate (`tooling/check-constant-time-asm.sh`), which reads the release assembly of `mac_eq` and `calculate_key_pair`; the host is always read, a missing Linux target is skipped locally, and CI fails with neither present |
+| `rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu` | matching the toolchain | the constant-time disassembly gate (`tooling/check-constant-time-asm.sh`), which reads the release assembly of `mac_eq` and `calculate_key_pair`; the host is always read, a missing Linux target is skipped locally, and CI fails unless both are present |
+| `rustup toolchain install nightly-2026-07-15 --profile minimal` (and `--target` each Linux target to read) | the toolchain `tooling/ct-baselines/rust-toolchain.txt` names | the same gate's key-derivation half, which builds `tacenta-kdf` alone with that toolchain and compares its inventory with baselines read from it; skipped locally when absent, failed in CI |
 | Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, vector regeneration, and the differential harness the vector runner drives (`tacenta-model/Difftest.lean`) |
 | the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when the cache has not been fetched (the test is for a built `Mathlib.olean`, not the package directory) |
 | `python3` with PyYAML (`pip install pyyaml`) | 3.8 or later | the `tooling/` checks; PyYAML is for the workflow check, which skips locally without it and fails in CI |

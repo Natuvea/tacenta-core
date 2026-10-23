@@ -76,11 +76,13 @@ theorem mac_eq_no_panic (a b : Slice U8) : mac_eq a b ⦃ fun _ => True ⦄ := b
   · simp
   · step with mac_eq_loop_no_panic a b _ _ (by scalar_tac)
 
-/-! ## The opaque surface: erasure coding, the KEM, and two KDF calls
+/-! ## The boundary: erasure coding, the KEM, and two KDF calls
 
 `tacenta-braid` does not loop beyond `mac_eq`, but it calls out to two other
-verified-adjacent crates and a KDF crate, none of which Aeneas can see inside.
-Each opaque operation gets its own totality assumption below, per this
+verified-adjacent crates and a KDF crate. When this was written Aeneas could see
+inside none of them; since the KDF change (ADR-0010) the KDF's bodies are translated, and its two
+totality hypotheses below are about translated definitions (proved of the
+translated copies in `KdfLeafAgreements` and `UnitLifecycleKdf`). Each operation gets its own totality assumption below, per this
 project's established rule: one axiom per crate that touches it, not one per
 name, since Aeneas gives each crate its own copy even of an operation another
 crate also assumes. -/
@@ -224,9 +226,10 @@ def ValidateEkTotal : Prop :=
 
 /-- The two KDF calls, braid's own copies distinct from the sparse ratchet's
 `KdfCkTotal`/`KdfRkTotal` and the classical ratchet's, per the counting trap:
-each translated crate gets its own opaque `hkdf_sha256`, and one proof does
+each translated crate gets its own copy of `hkdf_sha256` (opaque until
+the KDF change (ADR-0010), translated since), and one proof does
 not discharge another crate's copy. The HKDF premise is RFC 5869's output
-bound of 8160 bytes, which the crate's own `expect` enforces, so the
+bound of 8160 bytes, which the crate's own `assert!` enforces, so the
 hypothesis is stated exactly where the real operation returns
 (`T1.HkdfTotal` says why); this crate asks for 32 or 64 bytes. -/
 def HkdfSha256Total : Prop :=
@@ -937,7 +940,7 @@ needed by anything proved here: no explicit `drop` call appears in
 `step_send`, `step_receive`, or anything they call. -/
 
 -- The axiom audit for the two entry points, enforced rather than asserted: the
--- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM, KDF,
+-- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM,
 -- `zeroize`, and the library types and operations Aeneas does not model), and
 -- nothing else. No `native_decide` reaches either. A proof that starts
 -- trusting something new fails here.
@@ -946,8 +949,6 @@ needed by anything proved here: no explicit `drop` call appears in
 info: 'Tacenta.SessionUnitBraidT1.Braid.send_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.EncapsState,
  tacenta_session_unit.tacenta_kem.IncrementalKeyPair,
  tacenta_session_unit.tacenta_kem.encapsulate1,
@@ -976,8 +977,6 @@ info: 'Tacenta.SessionUnitBraidT1.Braid.send_no_panic' depends on axioms: [prope
 info: 'Tacenta.SessionUnitBraidT1.Braid.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,

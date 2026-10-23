@@ -42,7 +42,7 @@ noncomputable section
 namespace Tacenta.UnitSatisfiabilityRatchet
 
 
-/-- The opaque HKDF returns on every triple of slices, for an output length within RFC 5869's
+/-- The HKDF (opaque until the KDF change (ADR-0010), a translated definition since) returns on every triple of slices, for an output length within RFC 5869's
 bound.  This is the field `HkdfTotal` of the records. -/
 def LawHkdf : Prop :=
   ∀ (N : Usize) (salt ikm info : Slice U8), N.val ≤ 8160 →
@@ -980,7 +980,6 @@ needed. -/
 info: 'Tacenta.UnitSatisfiabilityRatchet.kdfRkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -994,7 +993,6 @@ info: 'Tacenta.UnitSatisfiabilityRatchet.kdfRkTotal' depends on axioms: [propext
 info: 'Tacenta.UnitSatisfiabilityRatchet.kdfCkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1008,7 +1006,6 @@ info: 'Tacenta.UnitSatisfiabilityRatchet.kdfCkTotal' depends on axioms: [propext
 info: 'Tacenta.UnitSatisfiabilityRatchet.kdfInitTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1094,7 +1091,6 @@ info: 'Tacenta.UnitSatisfiabilityRatchet.vecRetainTotal' depends on axioms: [pro
 info: 'Tacenta.UnitSatisfiabilityRatchet.defined_fields_hold' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

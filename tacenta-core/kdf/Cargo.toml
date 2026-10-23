@@ -4,19 +4,26 @@ license = "Apache-2.0"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.87"
-description = "HKDF-SHA256 and HMAC-SHA256: the trusted key-derivation boundary, deliberately outside the verified zone."
+description = "HKDF-SHA256 and HMAC-SHA256 over a SHA-256, written in the subset the translation reads, so that the proofs can be about their bodies."
 publish = false
 
-# Its own crate so the translation treats it as opaque. These are trusted
-# primitives (LIMITATIONS.md), not code we verify, and translating them drags
-# RustCrypto's trait hierarchy (FixedOutputCore, typenum block sizes) into the
-# generated Lean, where it does not elaborate. Keeping it external means the
-# ratchet's calls become opaque declarations, which is what a trusted boundary
-# should look like in the proof.
+# Its own crate, as it always was, so every caller keeps the same three
+# functions. Until the bodies below were copied in, it wrapped RustCrypto's
+# `hkdf`, `hmac` and `sha2`, which the translation could not read (their
+# trait hierarchy and typenum block sizes do not elaborate), so the crate was
+# an opaque trusted boundary. The bodies are now the plain loops of
+# `src/sha256.rs`, `src/hmac.rs` and `src/hkdf.rs` (`src/lib.rs` says where
+# they come from), and `tacenta-proofs/scripts/run-aeneas.sh` gives Charon
+# `--include 'tacenta_kdf'` so that each translation that calls them carries
+# their bodies rather than two axioms. The library has no dependencies.
 [dependencies]
-hkdf = "0.12"
-hmac = "0.12"
-sha2 = "0.10"
 
+# Test-only: RFC vectors in hex, and the differential test in
+# `tests/differential.rs` against the RustCrypto versions this crate wrapped
+# before (the root crate still depends on them, so the lockfile already pins
+# these exact versions). None of them is compiled into the library.
 [dev-dependencies]
 hex = "0.4"
+hkdf = "=0.12.4"
+hmac = "=0.12.1"
+sha2 = "=0.10.9"

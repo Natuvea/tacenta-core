@@ -24,13 +24,14 @@ import Translation.SatisfiabilityBraidZeroize
 import Translation.SpqrFromBytesWitness
 import Translation.BraidFromBytesWitness
 import Translation.RatchetDecodedWitness
+import Translation.KdfLeafAgreements
 
 /-!
 The translation package's axiom audit, over everything the root `Translation`
 module imports plus the modules it cannot (`SpqrT3`, `BraidT3`,
 `PreconditionShapes`, `Satisfiability`, `ErasureWitness`, `KemWitness`, `SatisfiabilitySpqrLaws`,
 `SatisfiabilityRatchetLaws`, `SatisfiabilityBraidZeroize`, `SpqrFromBytesWitness`,
-`BraidFromBytesWitness`, `RatchetDecodedWitness`, which the `Translation.*` glob builds on their own). The three-leaf unit's proofs cannot be imported
+`BraidFromBytesWitness`, `RatchetDecodedWitness`, `KdfLeafAgreements`, which the `Translation.*` glob builds on their own). The three-leaf unit's proofs cannot be imported
 alongside these -- `TacentaTripleUnit` and `TacentaRatchet` both define
 `instDiscriminantRatchetErrorIsize`, the same limit `lakefile.toml` records --
 so they have their own audit in `Translation/AxiomAuditTripleUnit.lean`. The

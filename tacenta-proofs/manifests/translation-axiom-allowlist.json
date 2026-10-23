@@ -144,14 +144,6 @@
         "type": ": Std.Usize \u2192 Result Std.Usize"
       },
       {
-        "name": "tacenta_braid.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
-        "name": "tacenta_braid.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
-      },
-      {
         "name": "tacenta_braid.tacenta_kem.CT1_LEN",
         "type": ": Result Std.Usize"
       },
@@ -304,14 +296,6 @@
       {
         "name": "tacenta_braid_unit.rand_core_1.error.Error",
         "type": ": Type"
-      },
-      {
-        "name": "tacenta_braid_unit.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
-        "name": "tacenta_braid_unit.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
       },
       {
         "name": "tacenta_braid_unit.tacenta_kem.CT1_LEN",
@@ -686,10 +670,6 @@
         "type": ": tacenta_braid.Braid \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
       },
       {
-        "name": "tacenta_lifecycle.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
-      },
-      {
         "name": "tacenta_lifecycle.tacenta_ratchet.MAX_SKIPPED_STORE",
         "type": ": Result Std.Usize"
       },
@@ -905,14 +885,6 @@
         "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Option Z \u2192 Result (Option Z)"
       },
       {
-        "name": "tacenta_ratchet.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
-        "name": "tacenta_ratchet.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
-      },
-      {
         "name": "tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize",
         "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
       },
@@ -941,10 +913,6 @@
       {
         "name": "tacenta_session.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
         "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
-      },
-      {
-        "name": "tacenta_session.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
       },
       {
         "name": "tacenta_session.zeroize.Zeroize.Blanket.zeroize",
@@ -1213,14 +1181,6 @@
         "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Slice Std.U8 \u2192 Array Std.U8 64#usize \u2192 Result (core.result.Result Unit tacenta_boundary.xeddsa.VerifyError)"
       },
       {
-        "name": "tacenta_session_unit.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
-        "name": "tacenta_session_unit.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
-      },
-      {
         "name": "tacenta_session_unit.tacenta_kem.CT1_LEN",
         "type": ": Result Std.Usize"
       },
@@ -1363,10 +1323,6 @@
         "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
       },
       {
-        "name": "tacenta_spqr.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
         "name": "tacenta_spqr.zeroize.Zeroize.Blanket.zeroize",
         "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
       },
@@ -1427,14 +1383,6 @@
       {
         "name": "tacenta_triple_unit.core.option.Option.as_mut",
         "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
-      },
-      {
-        "name": "tacenta_triple_unit.tacenta_kdf.hkdf_sha256",
-        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
-      },
-      {
-        "name": "tacenta_triple_unit.tacenta_kdf.hmac_sha256",
-        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
       },
       {
         "name": "tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize",

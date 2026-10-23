@@ -138,6 +138,7 @@ py_stubs=(
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py
+  check-kdf-realisation-negatives.py
   attest.py
 )
 for s in "${py_stubs[@]}"; do

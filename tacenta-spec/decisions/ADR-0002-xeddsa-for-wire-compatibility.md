@@ -4,6 +4,12 @@
 
 Accepted. Supersedes ADR-0001.
 
+Note added 2026-10-22, updated 2026-10-23: ADR-0010 makes the key
+derivation's SHA-256, HMAC and HKDF a second exception to the
+no-reimplementation rule, so "the one candidate exception" below describes the
+rule as this record found it. Read ADR-0010 alongside this record; the decision
+below is unchanged.
+
 ## Context
 
 The X3DH and PQXDH specifications use a single X25519 identity key and sign

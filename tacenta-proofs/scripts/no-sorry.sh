@@ -534,6 +534,17 @@ phase_initiator_second_send() {
 python3 scripts/check-initiator-second-send-negatives.py || fail=1
 }
 
+# The Session unit's HMAC-SHA256 and HKDF-SHA256, now translated from the copied bodies of tacenta-kdf, return
+# and equal tacenta-model's: HmacAgrees and HkdfAgrees as theorems, the KDF propositions the lifecycle results
+# take, and decrypt_ratchet's complete refinement without them (`UnitLifecycleKdf.lean`). The control accepts
+# the two unmodified copies, then plants eight changes (HKDF's bound at 8161 bytes, HMAC's output reversed, the
+# model's salt and input keying material or HMAC's key and message exchanged, the Session leaf's totality at
+# 8161 bytes, a record field given another field's type, the corollary's trace premise emptied, and the record
+# given a field with its pins kept), each of which must be refused at its named declaration or pin.
+phase_kdf_realisation() {
+python3 scripts/check-kdf-realisation-negatives.py || fail=1
+}
+
 # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two
 # receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes, to statements and a definition (the decoder
 # scope, the clone record, the budget, the relation after the call, the canonical-key law and the public-key clause in
@@ -745,6 +756,7 @@ phases() {
   run_phase responder-second-send plain "responder-second-send proof-dependency control" phase_responder_second_send
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
+  run_phase kdf-realisation plain "kdf-realisation proof-dependency control" phase_kdf_realisation
   run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs

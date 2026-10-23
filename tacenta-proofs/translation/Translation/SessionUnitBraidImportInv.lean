@@ -197,8 +197,6 @@ info: 'Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_decoders_bou
 info: 'Tacenta.SessionUnitBraidImportInv.Braid.decoded_receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
- tacenta_session_unit.tacenta_kdf.hmac_sha256,
  tacenta_session_unit.tacenta_kem.CT1_LEN,
  tacenta_session_unit.tacenta_kem.CT2_LEN,
  tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN,

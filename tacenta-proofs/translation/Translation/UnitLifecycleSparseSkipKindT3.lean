@@ -151,7 +151,6 @@ info: 'Tacenta.UnitLifecycleSparseSkipKindT3.sparseReceiveRefusalOfReal_injectiv
 info: 'Tacenta.UnitLifecycleSparseSkipKindT3.skip_message_keys_refines_detailed' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_session_unit.tacenta_kdf.hkdf_sha256,
  tacenta_session_unit.zeroize.Zeroizing,
  tacenta_session_unit.zeroize.Zeroizing.new,
  tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize,

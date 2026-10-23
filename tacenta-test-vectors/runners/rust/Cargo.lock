@@ -952,11 +952,6 @@ version = "0.0.0"
 [[package]]
 name = "tacenta-kdf"
 version = "0.0.0"
-dependencies = [
- "hkdf",
- "hmac",
- "sha2",
-]
 
 [[package]]
 name = "tacenta-kem"

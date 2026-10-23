@@ -33,7 +33,7 @@ substitutions = [
     ("tacenta_braid.", "tacenta_session_unit.tacenta_braid.", 8),
     ("tacenta_erasure.", "tacenta_session_unit.tacenta_erasure.", 67),
     ("tacenta_kem.", "tacenta_session_unit.tacenta_kem.", 71),
-    ("tacenta_kdf.", "tacenta_session_unit.tacenta_kdf.", 7),
+    ("tacenta_kdf.", "tacenta_session_unit.tacenta_kdf.", 3),
     ("rand_core_1.", "tacenta_session_unit.rand_core_1.", 10),
     ("zeroize.", "tacenta_session_unit.zeroize.", 8),
     ("Array.Insts.", "tacenta_session_unit.Array.Insts.", 2),

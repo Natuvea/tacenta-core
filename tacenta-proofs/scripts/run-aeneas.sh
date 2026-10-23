@@ -94,21 +94,45 @@ mkdir -p "$out" "$staged"
 # Each verified zone is a leaf crate: the crate directory, the package name, and
 # the Lean module Aeneas writes for it. They are translated independently, so a
 # construct one of them cannot express never reaches the other.
+#
+# After the four names, two optional flags, in either order:
+# - `--start-from-pub` translates from the crate's public roots only (the
+#   lifecycle, below).
+# - `--include-kdf` gives Charon `--include 'tacenta_kdf' --include
+#   'tacenta_kdf::_'`, so that it extracts the bodies of `tacenta-kdf`, a
+#   dependency, instead of declaring `tacenta_kdf.hmac_sha256` and
+#   `tacenta_kdf.hkdf_sha256` as opaque axioms. Every translation whose crate
+#   calls the KDF takes it, so that no generated file keeps those two axioms;
+#   the bodies are `tacenta-core/kdf/src`, written in the subset Aeneas
+#   models. The other translations (erasure, protobuf, wire) do not depend on
+#   `tacenta-kdf`.
 translate() {
   leaf_dir="$1"
   package="$2"
   llbc="$3"
   module="$4"
-  roots="${5:-}"
+  shift 4
+  roots=""
+  include_kdf=""
+  for flag in "$@"; do
+    case "$flag" in
+      --start-from-pub) roots="--start-from-pub" ;;
+      --include-kdf) include_kdf=1 ;;
+      *) echo "run-aeneas: unknown translate flag $flag" >&2; exit 1 ;;
+    esac
+  done
 
   echo "run-aeneas: charon extracting $package (a verified zone) to LLBC"
   # The leaf crate is a workspace member, so charon runs there but writes the
   # LLBC to the workspace root.
-  if [ "$roots" = "--start-from-pub" ]; then
-    ( cd "$core/$leaf_dir" && "$tools/charon" cargo --preset=aeneas --start-from-pub -- --package "$package" )
-  else
-    ( cd "$core/$leaf_dir" && "$tools/charon" cargo --preset=aeneas -- --package "$package" )
+  set -- --preset=aeneas
+  if [ -n "$roots" ]; then
+    set -- "$@" --start-from-pub
   fi
+  if [ -n "$include_kdf" ]; then
+    set -- "$@" --include 'tacenta_kdf' --include 'tacenta_kdf::_'
+  fi
+  ( cd "$core/$leaf_dir" && "$tools/charon" cargo "$@" -- --package "$package" )
 
   echo "run-aeneas: aeneas translating $llbc to Lean"
   "$tools/aeneas" -backend lean -dest "$out" "$core/$llbc"
@@ -136,8 +160,8 @@ translate() {
   echo "run-aeneas: staged $staged/$module.lean"
 }
 
-translate ratchet tacenta-ratchet tacenta_ratchet.llbc TacentaRatchet
-translate session tacenta-session tacenta_session.llbc TacentaSession
+translate ratchet tacenta-ratchet tacenta_ratchet.llbc TacentaRatchet --include-kdf
+translate session tacenta-session tacenta_session.llbc TacentaSession --include-kdf
 translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
 # The bounded wire-format reader. The verified-core design's first branch puts
 # it inside the verified core so that refinement *can* begin at received bytes
@@ -159,8 +183,8 @@ translate wire tacenta-wire tacenta_wire.llbc TacentaWire
 
 # The post-quantum stack, on the shipping path since the triple-ratchet
 # integration.
-translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr
-translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
+translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr --include-kdf
+translate braid tacenta-braid tacenta_braid.llbc TacentaBraid --include-kdf
 
 # The shipping session orchestration leaf. Unlike the smaller verified zones,
 # translating every private and test-only item makes Charon's LLBC grow by
@@ -168,7 +192,7 @@ translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 # their complete call graph; check-lifecycle-translation-coverage.py compares
 # those roots with the Rust surface so an omitted or newly added operation
 # fails rather than silently escaping translation.
-translate lifecycle tacenta-lifecycle tacenta_lifecycle.llbc TacentaLifecycle --start-from-pub
+translate lifecycle tacenta-lifecycle tacenta_lifecycle.llbc TacentaLifecycle --start-from-pub --include-kdf
 python3 "$here/scripts/check-lifecycle-translation-coverage.py" \
   "$staged/TacentaLifecycle.lean"
 
@@ -202,7 +226,7 @@ python3 "$here/scripts/check-lifecycle-translation-coverage.py" \
 # crate namespace, so the unit and the leaves both declare them. It is imported
 # neither by the root module nor by `Translation/AxiomAudit.lean`;
 # `Translation/AxiomAuditTripleUnit.lean` walks it.
-translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTripleUnit
+translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTripleUnit --include-kdf
 
 # The Braid and its erasure codec, compiled as one crate by
 # `scripts/assemble-braid-unit.sh`: the Braid over the codec's bodies, where the
@@ -212,13 +236,13 @@ translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTriple
 # crate's own translation declares too; the KEM stays opaque. Like the
 # three-leaf unit it has an audit module of its own,
 # `Translation/AxiomAuditBraidUnit.lean`. Nothing is proved about it yet.
-translate braid-unit tacenta-braid-unit tacenta_braid_unit.llbc TacentaBraidUnit
+translate braid-unit tacenta-braid-unit tacenta_braid_unit.llbc TacentaBraidUnit --include-kdf
 
 # The shipping lifecycle plus all seven verified leaves in one generated
 # crate. Its assembly script checks the copied lifecycle sources byte for byte
 # and consumes the separately checked Triple and Braid copies. Like the smaller
 # units, this is proof input rather than a crate any product links.
-translate session-unit tacenta-session-unit tacenta_session_unit.llbc TacentaSessionUnit
+translate session-unit tacenta-session-unit tacenta_session_unit.llbc TacentaSessionUnit --include-kdf
 
 echo "run-aeneas: next, record what was just generated:"
 echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"

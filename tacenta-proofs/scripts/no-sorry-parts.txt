@@ -50,6 +50,7 @@ hosted decrypt:
   responder-receipt
   tampered-reply
   discharge-native-decide
+  kdf-realisation
   receive-preservation
   audit-negatives
 hosted responder:

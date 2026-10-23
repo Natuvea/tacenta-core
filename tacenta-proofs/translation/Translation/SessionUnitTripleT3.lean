@@ -139,7 +139,7 @@ and the model alike: salt, then the input keying material, then the info
 string -- `split_secret`/`combine` both call `hkdf_sha256` this way, and
 `Model.TripleRatchet.splitSecret`/`combine` both call `Model.Kdf.hkdf` the
 same way. The premise is the same bound, 8160 bytes, which the crate's own
-`expect` enforces (`T1.HkdfTotal` says why). -/
+`assert!` enforces (`T1.HkdfTotal` says why). -/
 def TripleHkdfAgrees : Prop :=
   ∀ N salt ikm info, N.val ≤ 8160 → ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r ∧
     keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val
