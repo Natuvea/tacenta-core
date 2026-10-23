@@ -194,6 +194,19 @@ is SemVer against the specified protocol (not the implementation).
   HMAC and checked on decryption by RustCrypto's, which agree by tests. No
   protocol behaviour, byte or refusal changes.
 
+- `protocol/sparse-pq-ratchet.md`, Receiving and The store also has a total
+  bound, and `security-properties/forward-secrecy.md`, REQ-FS-04: the page said
+  that no state the operations produce holds a key past its chain's counter, and
+  so that a skip's deletion removes nothing there, was read off the operations
+  and not proved; and that no theorem carried the store's total bound across
+  this ratchet's operations. Both are now proved of the model:
+  `Proofs.SparseReachableStore.reachable_keysBelowCounter` (no key at or past
+  its counter on any state a sequence of sends, receives and evictions reaches
+  from initialisation), `reachable_skipSurvivors_eq` (a skip deletes nothing
+  there) and `run_store_bounded` (the bound across any such sequence from a
+  state within it). Of this implementation's code they are tested, not proved,
+  and across a session's operations the bound is still tested rather than
+  proved. The rule and the behaviour are unchanged.
 - `protocol/session-establishment.md`:
   - the initiator establishes only with an expectation, which replaces the
     named identity the page let her state;

@@ -188,8 +188,8 @@ whether or not the epoch's receiving chain is absent, and a message numbered
 zero is refused as out of order only when no key is stored under it. A stored
 key is otherwise deleted only when its epoch is retired, when it is evicted to
 make room (below), or when a skip stores a key under the same epoch and number,
-which happens only in a state read from storage (read off the operations; The
-store also has a total bound).
+which happens only in a state read from storage (The store also has a total
+bound).
 
 Otherwise the receiving chain for the named epoch is stepped forward to one
 before the message's number, storing every key it passes, and then once more to
@@ -210,9 +210,13 @@ those `n` with `c < n` and `n <= upto`. A key stored for the epoch at `c`
 itself, or below it, is outside that range and is kept as it was. A skip stores
 numbers up to one below the message's number and the receive then moves the
 counter to the message's number, so no operation leaves a key stored at a number
-past its chain's counter. This is read off the operations; no theorem states it.
-It follows that this replaces a key only in a state read from storage, which the
-reader accepts (session-persistence.md, Semantic rules of the leaf formats).
+past its chain's counter. Of the model,
+`Proofs.SparseReachableStore.reachable_keysBelowCounter` proves more: every
+state a sequence of sends, receives and evictions reaches from initialisation
+holds no key at or past its chain's counter. Of this implementation's code it is
+tested, not proved. It follows that this replaces a key only in a state read
+from storage, which the reader accepts (session-persistence.md, Semantic rules
+of the leaf formats).
 Where it does, the replacing key is last in the order eviction takes keys in.
 
 A send or receive that is refused may already have folded the agreement's
@@ -257,8 +261,10 @@ chain, for the epoch refuses (`NoChain`, `ChainRetired`) before it gets that
 far.
 
 A state the operations produced holds no key at a number past its chain's
-counter (Receiving; read off the operations, not proved), so step 2 deletes
-nothing there and the number of keys step 3 counts is the length of the store.
+counter (Receiving), so step 2 deletes nothing there and the number of keys step
+3 counts is the length of the store. Of the model that is proved
+(`Proofs.SparseReachableStore.reachable_skipSurvivors_eq`); of this
+implementation's code it is tested.
 The count before the deletion and the count after it differ only for a state
 read from storage that holds a key in the range. There the check on the count
 after the deletion accepts a request that the same check on the count before it
@@ -286,9 +292,10 @@ model refuses returns the error naming the model's refusal, so a request past
 both bounds is refused as `TooManySkipped`, and an error the code returns is the
 model's refusal of that kind. The tests in
 `tacenta-core/tests/sparse_skip_order.rs` check the same order on the Rust
-source. No theorem carries the bound across this ratchet's sending, receiving
-or advancing, or across a sequence of them. Over a session, the bound is tested
-rather than proved.
+source. `Proofs.SparseReachableStore.run_store_bounded` carries the bound
+across any sequence of the model's sends, receives and evictions from a state
+within it; no theorem carries it across a session's operations, its eviction and
+retry included, where the bound is tested rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first
