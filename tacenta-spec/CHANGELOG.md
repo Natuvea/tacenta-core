@@ -170,7 +170,8 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
-- `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06 and ASM-18,
+- `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06, ASM-07, ASM-08,
+  ASM-09 and ASM-18,
   `security-properties/limitations.md` LIM-06 and the implementation note of
   `protocol/message-format.md`: `tacenta-core`'s HMAC-SHA256 and HKDF-SHA256
   are now `tacenta-kdf`'s own code, written by `tacenta-core`'s maintainer
@@ -178,7 +179,10 @@ is SemVer against the specified protocol (not the implementation).
   read so far only by tool-assisted sessions (no human has yet read the three
   Rust files or their proofs), and no longer RustCrypto's. Eight translations include that code; the six whose theorems
   take the KDF agreement hypotheses prove them of their translated code, and
-  ASM-18 no longer lists the KDF among its assumptions. The pages say so, and that
+  ASM-18 no longer lists the KDF among its assumptions. ASM-07 says the model's
+  SHA-256 is what the translated SHA-256 is proved to compute there; ASM-08 lists
+  the key derivation's compiled-code inventory, a tripwire and not a timing
+  measurement; ASM-09 lists its unwiped intermediates. The pages say so, and that
   the model's are the RFCs', the pseudorandom-function property, timing and
   erasure are not shown. The AEAD's tag is computed on encryption by that
   HMAC and checked on decryption by RustCrypto's, which agree by tests. No

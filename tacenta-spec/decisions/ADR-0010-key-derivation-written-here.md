@@ -14,15 +14,17 @@ does and why; it does not decide it.
   vetted, permissively licensed Rust crate provided it. That record describes
   its own decision and is not edited here.
 - **What the rule cost the key derivation.** `tacenta-kdf` wrapped RustCrypto's
-  `hmac`, `hkdf` and `sha2`. Translating those crates was tried under an
-  earlier Charon and Aeneas pin and failed: RustCrypto's trait hierarchy came
-  into the generated Lean, which ran to 57,272 lines that would not build
-  (`tacenta-proofs/upstream/README.md`), and that is why the KDF became its own
-  crate. It has not been re-tried at the current pin. So `hmac_sha256` and
-  `hkdf_sha256` were two opaque axioms in every translation, and the agreement
-  hypotheses the T1 and T3 theorems take about them
-  (`HmacAgrees`, `HkdfAgrees` and their siblings, ASM-05) could not be shown of
-  the code at all, only assumed.
+  `hmac`, `hkdf` and `sha2`. Translating those crates was tried with the Aeneas
+  release that is still pinned (`nightly-2026.07.22-b1214ca`, already the pin
+  of the public tree where that record first appears) and failed:
+  RustCrypto's trait hierarchy came into the generated Lean, which ran to
+  57,272 lines that would not build (`tacenta-proofs/upstream/README.md`), and
+  that is why the KDF became its own crate. So the eleven translations carried
+  13 opaque KDF axioms between them: `hmac_sha256` and `hkdf_sha256` in five,
+  one of the two in three, and none in the three whose crates do not call the
+  KDF. The agreement hypotheses the T1 and T3 theorems take about those
+  axioms (`HmacAgrees`, `HkdfAgrees` and their siblings, ASM-05) could not be
+  shown of the code at all, only assumed.
 - **What was available.** A SHA-256, an HMAC-SHA256 and an HKDF-SHA256 in the
   subset Aeneas translates, written by the maintainer with tool assistance in a
   separate, unpublished repository, with Lean proofs that the translated code
@@ -57,8 +59,8 @@ does and why; it does not decide it.
   there is nothing to depend on, and a dependency would add a supply-chain
   input for code no human has yet read. Publishing the source is still open
   (Consequences).
-- **Translate RustCrypto's crates.** Tried under an earlier pin and failed, for
-  the reason in Context; not re-tried at the current pin.
+- **Translate RustCrypto's crates.** Tried with the current pin and failed, for
+  the reason in Context.
 
 ## Consequences
 
@@ -66,8 +68,9 @@ does and why; it does not decide it.
   tacenta-model's HMAC and HKDF (HKDF for outputs of at most 8160 bytes); a
   differential test against the RustCrypto crates it replaced
   (`kdf/tests/differential.rs`); the RFC test vectors; and an exact inventory
-  of the compiled code's branches and indexed accesses, compared in CI
-  (`tooling/check-constant-time-asm.sh`). None of these is a human reading:
+  of the compiled code's branches and indexed accesses
+  (`tooling/check-constant-time-asm.sh`), for the two Linux targets in CI and
+  for macOS on a local run. None of these is a human reading:
   every review so far was by tool-assisted sessions.
 - **Limits.**
   - Provenance: the source repository is unpublished and carries no licence

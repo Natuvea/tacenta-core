@@ -64,7 +64,7 @@ derivation separate from signing (session-establishment.md, Notation).
 
 XEdDSA is implemented in `tacenta-core` over `curve25519-dalek` and
 `ed25519-dalek`, not taken from a vetted crate: the exception recorded in
-ADR-0002. Since 2026-10-22 it is one of two, with the key derivation (ASM-05),
+ADR-0002. Since the KDF change (ADR-0010) it is one of two, with the key derivation (ASM-05),
 proposed in ADR-0010; LIMITATIONS.md, "Trusted, not verified", lists both. Not
 assumed against ADV-03.
 
@@ -106,8 +106,9 @@ tool assistance in a separate, unpublished repository and copied here, pinned in
 tool-assisted sessions; no human has yet read the three Rust files or their
 proofs. Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
-vectors check against those RFCs and nothing proves to be them, and on the
-agreement proofs below. Their timing is not measured.
+vectors check against those RFCs and nothing proves to be them, on the
+agreement proofs below, and on the translation's fidelity (ASM-16). Their timing
+is not measured.
 
 In particular:
 - **`KDF_CK`:** neither the next chain key nor the message key reveals the
@@ -208,8 +209,11 @@ has not seen. That is a refusal, not an acceptance.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-12, REQ-AUTH-16, REQ-CONF-06, and
   through ASM-04 and ASM-05 every requirement those support.
-- **Proofs:** none. The model computes SHA-256 only to serve as the vectors'
-  oracle, and `hash_length` says its output is thirty-two bytes.
+- **Proofs:** none of the properties above. The model's SHA-256 is the vectors'
+  oracle and, in the six translations whose theorems take the key derivation's
+  hypotheses (ASM-05), the definition the translated SHA-256 inside
+  `tacenta-kdf` is proved to compute (`KdfBridgeSha256`); for every other use it
+  is the oracle only. `hash_length` says its output is thirty-two bytes.
 
 ### ASM-08: constant-time execution
 
@@ -222,6 +226,12 @@ is assumed, not proven", states how far this is checked:
 - `mac_eq` and `calculate_key_pair` are held branch-free by
   `tooling/check-constant-time-asm.sh`, on the host and on x86_64 and aarch64
   Linux;
+- `tacenta-kdf`'s compiled code is held by the same script to a reviewed
+  inventory of its branches, indexed accesses and callees, read from one pinned
+  compiler and one codegen unit; CI compares the two Linux targets' inventories,
+  and the macOS one is compared only on a local run. That is a tripwire for a
+  changed shape, not a measurement: the key derivation's timing is not measured
+  (ASM-05);
 - `tacenta-core`'s own composition is audited by reading to branch only on
   public data;
 - four rejection paths are measured by `tacenta-core/tests/timing.rs`.
@@ -240,6 +250,8 @@ partial"):
 - copies the language makes of `[u8; 32]` keys;
 - copies inside `libcrux-ml-kem`'s own types;
 - allocations a growing vector abandoned;
+- the key derivation's intermediates (`tacenta-kdf`'s key pads, chaining
+  values, pseudorandom key and output blocks);
 - persisted bytes (ASM-12).
 
 Recovery from storage media is outside this specification (EX-08).
@@ -461,7 +473,7 @@ translation cannot see into hold of the real operations. They cover:
 - the KEM and erasure agreements.
 
 The key derivation's agreement with the model was among them until
-2026-10-22. The translation now sees into the key derivation, and the agreement
+the KDF change (ADR-0010). The translation now sees into the key derivation, and the agreement
 is proved of the translated code (ASM-05), although the theorems still take it
 as a hypothesis, so it is no longer an assumption of this kind.
 
