@@ -209,14 +209,18 @@ derived after the skip and is not stored), the numbers it is about to store are
 those `n` with `c < n` and `n <= upto`. A key stored for the epoch at `c`
 itself, or below it, is outside that range and is kept as it was. A skip stores
 numbers up to one below the message's number and the receive then moves the
-counter to the message's number, so no operation leaves a key stored at a number
-past its chain's counter. Of the model,
-`Proofs.SparseReachableStore.reachable_keysBelowCounter` proves more: every
-state a sequence of sends, receives and evictions reaches from initialisation
-holds no key at or past its chain's counter. Of this implementation's code it is
-tested, not proved. It follows that this replaces a key only in a state read
-from storage, which the reader accepts (session-persistence.md, Semantic rules
-of the leaf formats).
+counter to the message's number, so no operation applied to a state the
+operations produced leaves a key stored at a number past its chain's counter. Of
+the model, `Proofs.SparseReachableStore.reachable_keysBelowCounter` proves this
+from initialisation: every state a sequence of sends, receives and evictions
+reaches holds no key at or past its chain's counter. One operation at a time, the
+model's theorems keep that only from a state that already holds no such key
+(`KeysBelowCounter`) and, for an operation that may open an epoch, no chain for
+an epoch past the current one (`ChainsNotAhead`); without the second, a receive
+that opens an epoch can leave a key past its counter. Of this implementation's
+code it is tested, not proved. It follows that this replaces a key only in a
+state read from storage, which the reader accepts (session-persistence.md,
+Semantic rules of the leaf formats).
 Where it does, the replacing key is last in the order eviction takes keys in.
 
 A send or receive that is refused may already have folded the agreement's
@@ -262,7 +266,8 @@ far.
 
 A state the operations produced holds no key at a number past its chain's
 counter (Receiving), so step 2 deletes nothing there and the number of keys step
-3 counts is the length of the store. Of the model that is proved
+3 counts is the length of the store. Of the model that is proved for every state
+a sequence of sends, receives and evictions reaches from initialisation
 (`Proofs.SparseReachableStore.reachable_skipSurvivors_eq`); of this
 implementation's code it is tested.
 The count before the deletion and the count after it differ only for a state

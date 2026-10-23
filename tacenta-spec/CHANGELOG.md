@@ -204,9 +204,18 @@ is SemVer against the specified protocol (not the implementation).
   its counter on any state a sequence of sends, receives and evictions reaches
   from initialisation), `reachable_skipSurvivors_eq` (a skip deletes nothing
   there) and `run_store_bounded` (the bound across any such sequence from a
-  state within it). Of this implementation's code they are tested, not proved,
-  and across a session's operations the bound is still tested rather than
-  proved. The rule and the behaviour are unchanged.
+  state within it). One operation at a time the first holds only from a state
+  with no key at or past its counter and no chain for an epoch past the current
+  one, and the page says so. Of this implementation's code they are tested, not
+  proved, and across a session's operations the bound is still tested rather
+  than proved. The rule and the behaviour are unchanged. This entry also takes
+  in an earlier one of this release: the page had said
+  `Proofs.SparseRatchetCorrectness` "proves the bound holds rather than
+  checking it at sample points", and the theorem it means,
+  `skipMessageKeys_store_bounded`, is one skip (a skip that succeeds leaves the
+  store no longer than the larger of its previous length and
+  `MAX_SKIPPED_STORE`); the page names that theorem and says what it proves
+  (register item J-14).
 - `protocol/session-establishment.md`:
   - the initiator establishes only with an expectation, which replaces the
     named identity the page let her state;
@@ -508,9 +517,10 @@ is SemVer against the specified protocol (not the implementation).
 - `protocol/sparse-pq-ratchet.md`, Receiving and The store also has a total
   bound. Relaxation: a stored sparse ratchet state that holds a key in the
   range a skip replaces is no longer refused for the total bound on the count
-  taken before the deletion. A state the operations produce holds no such key
-  (read off the operations; no theorem states it), so the two counts differ
-  only for a stored state that does. The total bound is checked against the
+  taken before the deletion. A state the operations produce from
+  initialisation holds no such key (proved of the model, tested of the code: the
+  first entry under Changed), so the two counts differ only for a stored state
+  that does. The total bound is checked against the
   store a skip would leave. A skip that steps a chain from `c` to `upto` is
   refused as `TooManySkipped` when `upto - c` passes `MAX_SKIP`. Otherwise it
   deletes the keys stored for its epoch under the numbers it is about to store
@@ -795,15 +805,6 @@ is SemVer against the specified protocol (not the implementation).
   the things it checks. `establish_initiator_for` takes no prekey store, so
   that assertion cannot fail. Both pages now say the stores are unchanged by
   construction.
-- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the page
-  said `Proofs.SparseRatchetCorrectness` "proves the bound holds rather than
-  checking it at sample points". The theorem it means,
-  `skipMessageKeys_store_bounded`, is one skip: a skip that succeeds leaves the
-  store no longer than the larger of its previous length and
-  `MAX_SKIPPED_STORE`. No theorem carries the bound across this ratchet's
-  sending, receiving or advancing, or across a sequence of them. The page now
-  names the theorem, says what it proves, and says that over a session the
-  bound is tested rather than proved (register item J-14).
 - `threat-model/assumptions.md`, ASM-17, `security-properties/limitations.md`,
   LIM-10, and `security-properties/confidentiality.md`, REQ-CONF-05: the three
   passages described the sparse ratchet's receive theorems and the Triple
