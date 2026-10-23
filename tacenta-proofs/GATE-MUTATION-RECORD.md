@@ -664,3 +664,12 @@ only, none survived.
 Not mutated here: the missing-baseline and no-function refusals of the key-derivation part (removing either guard
 leaves the run refused by the baseline comparison, with another message), and the Lean controls of
 `check-kdf-realisation-negatives.py`, which that script runs itself.
+
+The port of the key derivation's proofs onto the other translations (`scripts/port-kdf-proofs.sh`) was added
+after that run and mutated on its own the same day (`--only GN-port-kdf-diff GN-port-kdf-count`), against the
+commit that added it; the baseline (`check-generation-negatives.sh`) passed and both edits were seen as accepted.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| GN-port-kdf-diff | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh --check accepts a copy that differs | `check-generation-negatives.sh` | seen as accepted |
+| GN-port-kdf-count | `tacenta-proofs/scripts/port-kdf-proofs.sh` | port-kdf-proofs.sh does not check how often a rewrite target occurs | `check-generation-negatives.sh` | seen as accepted |
