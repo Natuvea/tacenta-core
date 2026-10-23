@@ -228,8 +228,10 @@ the bare second reply frame with no draw, writes only the Triple Ratchet, refine
 session that passes `Session::invariant` and meets the four ceilings.  No law is added; a reach exhibits such a run at
 the real constants under assumed laws.  The initiator's receipt of that frame and every later step are not covered.
 `UnitLifecycleInitiatorRepeatedReply.lean` delivers the responder's reply to the initiator's `Session::decrypt` a second
-time, at the session its first receipt returned, on the same run and under the per-run premise that the second source
-holds a draw: the inner receive refuses it as out of order (the reply's ratchet key is now the peer key held and its
+time, at the session its first receipt returned, on the same run, under the hypotheses of `initiator_receives_reply`
+(the receipt's laws, records and per-run premises, among them `hfreshB`, the responder's fresh ratchet key not being the
+peer key the initiator held) and one per-run premise more, that the second source holds a draw: the inner receive
+refuses it as out of order (the reply's ratchet key is now the peer key held and its
 number 0 is below the receive count 1), the session returned is the one given (which passes `Session::invariant` and
 meets the four ceilings), the source loses exactly one draw, and the step refines the model's.  No law is added beyond
 the receipt's; a delivery at a later session, of different bytes, or after a first receipt that refused is not shown.

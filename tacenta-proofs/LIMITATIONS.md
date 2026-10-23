@@ -3019,7 +3019,8 @@ a reviewed external assumption, and the premise stays a condition on the run for
 meets the law; that a frame an attacker can produce meets the premise; a frame whose header bytes were changed, a frame
 shorter than the header or of another type; the refusal when the reply's ratchet key is the peer key or the draw's agreement
 is refused; that the refusal's source equals the honest receipt's; a run in which the honest reply is received after a
-refused tampered frame; tamper refusal on any other route; redelivery of the honest reply. The statement pin of
+refused tampered frame; tamper refusal on any other route; redelivery of the honest reply, here (its delivery a second
+time after the first receipt is the paragraph on the reply delivered a second time). The statement pin of
 `initiator_refuses_tampered_reply` prints the whole statement, the law (its first hypothesis) included (the module sets
 the two `pp` options before its pins), which is still not the whole elaborated statement: what Lean's printing leaves out
 is held by the build and by reading only, as for every statement pin.
@@ -3233,7 +3234,9 @@ be `handshake nonContributoryAgreement` instead. The general step `reply_again_r
 print the whole statement, which is still not the whole elaborated statement, as for every statement pin. **Not shown:** a
 delivery of the reply again at any other point (after the initiator's second send, after the responder's second message, on
 a restored copy, or after a first receipt that refused, where `hfreshB` fails); a frame that differs from the reply in its
-bytes (a tampered reply at `s''`) and any other out-of-order delivery (a later message of the same chain arriving first,
+bytes on the run (a tampered reply at `s''`; the general step covers a frame that keeps the reply's header
+and changes its ciphertext, but no statement takes one on the run) and any other out-of-order delivery (a later message
+of the same chain arriving first,
 delay or loss, a receive that uses a stored skipped key); the arms an empty source or a refused agreement would give; that a
 refused call keeps `Session::invariant` in general (here the session returned is `s''` itself); every step that runs a KEM.
 

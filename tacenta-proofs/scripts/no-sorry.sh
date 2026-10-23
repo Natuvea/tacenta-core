@@ -330,7 +330,7 @@ python3 scripts/check-established-negatives.py || fail=1
 # (`UnitLifecycleInitiatorRepeatedReply.lean`): a copy with the refusal claimed to take no draw, to be
 # `NoReceivingChain` or to clear the pending initial message, the model's step claimed to keep the draw, the agreement
 # claimed failed, the source claimed a draw ahead of the oracle, the second draw claimed of the first receipt's
-# source, the model's step claimed at the first receipt's draw or on the plaintext, the relation claimed with the
+# source or claimed absent before the rest, the model's step claimed on the plaintext, the relation claimed with the
 # second draw as the ratchet key, the second delivery, the invariant or the first receipt claimed at another session
 # or source, the reach claimed from the first send's source or accepted, a leaf claimed otherwise (the receive's
 # refusal or key, the draw's agreement, the oracle kept, the byte trace's runs swapped), and a statement with a

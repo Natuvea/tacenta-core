@@ -1517,7 +1517,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement and a proof-breakage check there,
   not a proof that the changed statement is false:
-  ten labelled inside the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` and three projections of called theorems' conjuncts,
+  ten carrying the inside label in the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` and three projections of called theorems' conjuncts,
+  of the ten, by reading, seven composition steps and three that forward a called conclusion (refused at a called theorem placed by `exact` or at a refused term printed applied, which the label check reads as composition),
   the labels checked once at start-up against a syntactic form of the projection standard read off the module,
   and at run time only that each change is refused at its labelled place,
   each inside control also run with that proof replaced by `sorry` and required to be accepted there,
@@ -1525,12 +1526,13 @@ recorded decision or a target-closing slice:
   the refusal claimed to take no draw,
   to be `NoReceivingChain`
   or to clear the pending initial message,
-  the model's step claimed to keep the draw,
   the agreement claimed failed,
   the source claimed a draw ahead of the oracle,
   the second draw claimed of the first receipt's source,
-  the model's step claimed at the first receipt's draw or on the plaintext,
-  and the relation claimed with the second draw as the ratchet key;
+  and the second source claimed to hold no draw before the rest;
+  inside by the label check but forwarding by reading: the model's step claimed to keep the draw,
+  the model's step claimed on the plaintext,
+  and, borderline, the relation claimed with the second draw as the ratchet key;
   projections: the second delivery and the invariant claimed at the session before the first receipt and the first receipt claimed from the second source);
   two statement-shape checks on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
   five on the leaf lemmas (the model's receive claimed to refuse for no receiving chain or on the initiator's own sending key, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the byte trace claimed with its runs swapped),
@@ -2056,6 +2058,22 @@ accepted and the controls refused, by class) with `tacenta-proofs/scripts/negati
 refuse a run wrapped so that its refusals exit 0 and a baseline hidden behind a duplicated key; (2) a quiet-grep gate
 that reads the shell through a parser (for example `shfmt --tojson`) and so sees the real pipelines and command words
 instead of a tokenizer's reading of them.
+
+The lifecycle negatives scripts' projection check (`passed_through`, a helper shared character for character by every
+script that carries `check_labels`) is a tripwire for one shape: a refusal whose refused term is a bare hypothesis's name
+(the name, then `has type`) bound by destructuring a called theorem's conclusion and never rewritten. It does not see four
+other shapes of the same projection, and reads them as composition steps, so a control refused at a called conclusion
+placed unchanged can carry the inside label and the projection label is refused for it: the refused term printed applied
+(`h x`), a called theorem placed by `exact` (the refused term is the call), `have h : T := by exact` a called theorem,
+and a typed `have` whose type holds a record `:=` (the text after that `:=` is read as the callee). It cannot make a
+control vacuous (every refusal is still checked at its place against its message); it can inflate the inside count.
+Controls on main read this way: `success-claimed-to-keep-the-pending-initial-message` of
+`check-responder-reply-receipt-negatives.py` (a called theorem's conclusion placed unchanged) and, borderline,
+`second-call-claimed-to-return-the-store-before-the-commit` of `check-responder-establish-replay-negatives.py`; and three
+of the ten of `check-initiator-repeated-reply-negatives.py`, which its docstring and `tacenta-proofs/CLAIMS.md` name.
+Recorded as a decision, **not built**: (3) either extend the check to those shapes, with cases, and relabel what it then
+reads as projections, or retire the inside count as a claim and keep only the per-control attribution the `sorry` probe
+verifies.
 
 ## Next P1 slices
 

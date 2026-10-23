@@ -70,7 +70,8 @@ constants, under the laws of `first_send_receive_reachable`, assumed and modelle
 * That the refusal consumes nothing: it consumes one draw of the source (the inner receive's candidate key, drawn
   before the Triple's receive), as the model step does; only the session is left as it was.
 * A repeat at any later session: after the responder's reply, after the initiator's second message, or on a restored
-  copy of the session; a repeat of the reply at the initiator.
+  copy of the session; a repeat of the reply at the initiator (refused, right after a first receipt that succeeded, by
+  `initiator_repeated_reply_refused` in `UnitLifecycleInitiatorRepeatedReply`).
 * A repeat that differs in its bytes (a re-encoded ephemeral key, a changed KEM ciphertext or identifier, a tampered
   inner frame): the recognition passes on such a message by the model's rule, but the statement is about the same
   bytes.

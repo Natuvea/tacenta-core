@@ -6293,7 +6293,9 @@ refused (`hfreshB` and the contributory law are kept); that the source the refus
 leaves (both hold the rest of the draws after `dA`; equality of the source states is not shown); a run in which the tampered
 frame is refused and the honest reply then received (the refusal leaves the session as it was, but the receipt after it, from
 a source one draw further on, is not composed); tamper refusal on any other route (the responder's receipt of the first frame,
-a restored session, later messages); redelivery of the honest reply; that the real primitives meet the boundary records or
+a restored session, later messages); redelivery of the honest reply, here (its delivery a second time at the session
+the first receipt returns is refused by `initiator_repeated_reply_refused` in
+`UnitLifecycleInitiatorRepeatedReply`); that the real primitives meet the boundary records or
 the other laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`), or that ML-KEM decapsulation
 agrees on a run (`FirstKemAgrees`).
 
@@ -7189,8 +7191,10 @@ receipt, the same bytes delivered again to the responder's `Session::decrypt` ar
 session unchanged, at the cost of one draw, and the code's step refines the model's. **Not shown:** that the refusal
 consumes nothing (it consumes one draw of the source, as the model step does; only the session is left as it was); a
 repeat at any later session (after the responder's reply, after the initiator's second message, on a restored copy) or a
-repeat of the reply at the initiator; a repeat that differs in its bytes (a re-encoded ephemeral key, a changed KEM
-ciphertext or identifier, a tampered inner frame); a non-repeat initial message (`NotARepeatedInitial`) and the arms the two
+repeat of the reply at the initiator (refused, right after a first receipt that succeeded, by
+`initiator_repeated_reply_refused` in `UnitLifecycleInitiatorRepeatedReply`); a repeat that differs in its bytes (a
+re-encoded ephemeral key, a changed KEM ciphertext or identifier, a tampered inner frame); a non-repeat initial message
+(`NotARepeatedInitial`) and the arms the two
 agreements' refusal or an empty source would give (`handshake nonContributoryAgreement`, `ceiling`); that the agreement's
 receive of the duplicate chunk leaves the decoder as it was (its candidate is discarded with the refusal and the statement
 does not need it); the second delivery to `establish_responder` at the committed store (the next section); that the real
@@ -7404,60 +7408,70 @@ receipt left.
 
 **What this establishes, and what it does not.** On the run of the initiator's first send, the responder's receipt and
 its reply, the reply delivered a second time to the initiator's `Session::decrypt`, right after a first receipt that
-succeeded, is refused as out of order with the session unchanged, at the cost of one draw, and the code's step refines the
-model's; the session after the refusal passes `Session::invariant` and meets the four ceilings because it is `s''` itself.
-**Not shown:** that the refusal consumes nothing (it consumes one draw of the source, as the model's step does; only the
-session is left as it was); a delivery of the reply again at any other point (after the initiator's second send, after the
-responder's second message, on a restored copy of the session, or after a first receipt that refused, where `hfreshB` fails
-and the first receipt returns `s'`); a frame that differs from the reply in its bytes (a tampered reply at `s''`; the
-section on the tampered reply takes one at `s'` only) and any other out-of-order delivery (a message that arrives after a
-later one of the same chain, delayed or dropped delivery, a receive that uses a stored skipped key); the arms an empty
-source or a refused agreement would give (`ceiling`, `handshake nonContributoryAgreement`); the responder's second reply,
-the initiator's second send, the header's later chunks and every step that runs a KEM (here the agreement is at
-`KeysSampled`, the reply carries a message of type `none`, and the call clones the agreement, which the decrypt records
-cover through `KemCloneAgrees`; no fact relating the two parties' KEMs is used); that `Session::invariant` is kept by refused
-calls in general (here the session returned is `s''` itself); that `hfreshB` or the second draw holds of a run with an
-honest random source, or of a source with no state of its own, such as `OsRng`; that the real primitives meet the boundary
-records or the laws the run rests on; the one-time path in a run; the model's own `establishResponder` equality.
+succeeded, is refused as out of order with the session unchanged, at the cost of one draw, and the code's step refines
+the model's; the session after the refusal passes `Session::invariant` and meets the four ceilings because it is `s''`
+itself. **Not shown:** that the refusal consumes nothing (it consumes one draw of the source, as the model's step does;
+only the session is left as it was); a delivery of the reply again at any other point (after the initiator's second
+send, after the responder's second message, on a restored copy of the session, or after a first receipt that refused,
+where `hfreshB` fails and the first receipt returns `s'`); on the run, a frame that differs from the reply in its bytes
+(a tampered reply at `s''`; the section on the tampered reply takes one at `s'` only; the general step is about every
+frame with the reply's header on that key and any sealed bytes after it, so a frame that keeps the header and changes
+the ciphertext is refused as out of order at every session its hypotheses hold of, but the composed statement takes only
+the reply's own bytes, and a frame with changed header bytes is not covered) and any other out-of-order delivery (a
+message that arrives after a later one of the same chain, delayed or dropped delivery, a receive that uses a stored
+skipped key); the arms an empty source or a refused agreement would give (`ceiling`, `handshake
+nonContributoryAgreement`); the responder's second reply, the initiator's second send, the header's later chunks and
+every step that runs a KEM (here the agreement is at `KeysSampled`, the reply carries a message of type `none`, and the
+call clones the agreement, which the decrypt records cover through `KemCloneAgrees`; no fact relating the two parties'
+KEMs is used); that `Session::invariant` is kept by refused calls in general (here the session returned is `s''`
+itself); that `hfreshB` or the second draw holds of a run with an honest random source, or of a source with no state of
+its own, such as `OsRng`; that the real primitives meet the boundary records or the laws the run rests on; the one-time
+path in a run; the model's own `establishResponder` equality.
 
 **Compiler trust and pins.** `reply_again_refused_of_invariant`, `initiator_repeated_reply_refused` and
 `repeated_reply_refused_reachable` apply `decrypt_refines_ratchet_frame_of_counter_headroom` (the last two also
-`initiator_receives_reply_successor` and `initiator_receives_reply`, and the last `established_encrypt_outcomes`) and list
-the kernel's three axioms and opaque constants of the unit, and no compiler-trust axiom. Of the other 5 results, 4 rest on
-`propext`, `Classical.choice` and `Quot.sound` alone (`reply_again_receive_outOfOrder`, `reply_again_with_eviction`,
-`reply_again_model_refused`, `byteTrace_seed_two_extra`) and 1 on those three and opaque constants of the unit
-(`reply_key_agreement`). Each of the 8 results carries an axiom pin and a statement pin, and every statement pin prints
-the whole statement (the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its pins); as for every
-statement pin, a printed pin is not the whole elaborated statement, and that the pinned statement is the right one is
-decided by reading.
-`check-initiator-repeated-reply-negatives.py` plants twenty-one faults in a copy of the module, every one a change to a
-statement, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
-proof-breakage check at that place, not a proof that the changed statement is false). Thirteen are refused in the two
-composing proofs: ten labelled inside and three projections, under the same label standard as the sections above (held at
-start-up, the syntactic form read off the module, each inside control also run with its proof replaced by `sorry`; that
-probe verifies attribution only, and the standard itself is decided by reading). The ten inside: in
-`reply_again_refused_of_invariant`, the refusal claimed to take no draw, the code's refusal claimed to be
-`NoReceivingChain`, the session returned claimed to have its pending initial message cleared, the model's step claimed to
-keep the draw, the agreement claimed failed, and the source claimed a draw ahead of the oracle; in
-`initiator_repeated_reply_refused`, the second draw claimed of the source the first send left, the model's step claimed at
-an oracle whose first draw is the first receipt's and claimed on the reply's plaintext instead of its bytes, and the
-relation claimed with the second draw as the ratchet key. The three projections, all refused in
+`initiator_receives_reply_successor` and `initiator_receives_reply`, and the last `established_encrypt_outcomes`) and
+list the kernel's three axioms and opaque constants of the unit, and no compiler-trust axiom. Of the other 5 results, 4
+rest on `propext`, `Classical.choice` and `Quot.sound` alone (`reply_again_receive_outOfOrder`,
+`reply_again_with_eviction`, `reply_again_model_refused`, `byteTrace_seed_two_extra`) and 1 on those three and opaque
+constants of the unit (`reply_key_agreement`). Each of the 8 results carries an axiom pin and a statement pin, and every
+statement pin prints the whole statement (the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its
+pins); as for every statement pin, a printed pin is not the whole elaborated statement, and that the pinned statement is
+the right one is decided by reading. `check-initiator-repeated-reply-negatives.py` plants twenty-one faults in a copy of
+the module, every one a change to a statement, and requires Lean to refuse each at a named declaration or pin, against a
+message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
+Thirteen are refused in the two composing proofs: ten carry the inside label and three are projections, under the same
+label check as the sections above (held at start-up, the syntactic form read off the module, each inside control also
+run with its proof replaced by `sorry`; that probe verifies attribution only, and the standard itself is decided by
+reading). **By reading, seven of the ten are composition steps:** in `reply_again_refused_of_invariant`, the refusal
+claimed to take no draw, the code's refusal claimed to be `NoReceivingChain`, the session returned claimed to have its
+pending initial message cleared, the agreement claimed failed, and the source claimed a draw ahead of the oracle; in
+`initiator_repeated_reply_refused`, the second draw claimed of the source the first send left and the second source
+claimed to hold no draw before the rest (both where the headline builds the general step's oracle from that premise).
+**The other three forward a called conclusion** and carry the inside label only because the label check reads a
+projection off a bare hypothesis marker alone (the refused term a hypothesis's name, then `has type`), so a refused term
+printed applied or a called theorem placed by `exact` reads as a composition step and the projection label is refused
+for it: the model's step claimed to keep the draw (refused at the leaf `reply_again_model_refused`'s conclusion, placed
+by `exact`), the model's step claimed on the reply's plaintext instead of its bytes (refused at the general step's model
+conjunct, `hM viewA`), and, borderline, the relation claimed with the second draw as the ratchet key (the first
+receipt's relation, rewritten to the reply's key and back). The headline's identification of the session the two called
+theorems return (by `encrypt` and `decrypt` being functions) has no control. The three projections, all refused in
 `initiator_repeated_reply_refused`: the second delivery claimed at the session before the first receipt (where the call
 conjunct of `reply_again_refused_of_invariant` is placed unchanged), the invariant claimed at that session (where the
-invariant conjunct of `initiator_receives_reply_successor` is placed unchanged; that session passes the invariant too, so
-this shows only the forwarding) and the first receipt claimed from the second source (where the call conjunct of
-`initiator_receives_reply_successor` is placed unchanged); they show only that the headline forwards those conjuncts. Two
-are statement-shape checks on the reach, each projecting `initiator_repeated_reply_refused`: the reach's second delivery
-claimed from the source the first send left and claimed accepted (refused in `repeated_reply_refused_reachable`, and again
-with the headline's proof replaced by `sorry`). Five are on the leaf lemmas: the model's receive claimed to refuse
-`noReceivingChain` and claimed on a header carrying the initiator's own sending key (refused in
-`reply_again_receive_outOfOrder`), the draw's agreement claimed refused and the model's refusal claimed to keep the oracle
-(refused in `reply_again_model_refused`), and the byte trace claimed with its two runs swapped (refused in
-`byteTrace_seed_two_extra`). The last is `reply_again_receive_outOfOrder` with a bound variable renamed and the pins kept
-(refused at its statement pin). Several refusals are structural (a type mismatch at the named place), not an unprovable
-goal. None is a proof that another delivery is refused. An error that is not a refusal voids a run anywhere in the copy,
-compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere
-in the copy is logged.
+invariant conjunct of `initiator_receives_reply_successor` is placed unchanged; that session passes the invariant too,
+so this shows only the forwarding) and the first receipt claimed from the second source (where the call conjunct of
+`initiator_receives_reply_successor` is placed unchanged); they show only that the headline forwards those conjuncts.
+Two are statement-shape checks on the reach, each projecting `initiator_repeated_reply_refused`: the reach's second
+delivery claimed from the source the first send left and claimed accepted (refused in
+`repeated_reply_refused_reachable`, and again with the headline's proof replaced by `sorry`). Five are on the leaf
+lemmas: the model's receive claimed to refuse `noReceivingChain` and claimed on a header carrying the initiator's own
+sending key (refused in `reply_again_receive_outOfOrder`), the draw's agreement claimed refused and the model's refusal
+claimed to keep the oracle (refused in `reply_again_model_refused`), and the byte trace claimed with its two runs
+swapped (refused in `byteTrace_seed_two_extra`). The last is `reply_again_receive_outOfOrder` with a bound variable
+renamed and the pins kept (refused at its statement pin). Several refusals are structural (a type mismatch at the named
+place), not an unprovable goal. None is a proof that another delivery is refused. An error that is not a refusal voids a
+run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the
+named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

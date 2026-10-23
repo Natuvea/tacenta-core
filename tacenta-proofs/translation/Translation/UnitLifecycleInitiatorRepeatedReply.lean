@@ -81,10 +81,13 @@ bytes, of which the first send takes the seed, the first receipt the first run a
 * A delivery of the reply again at any other point: after the initiator's second send, after the responder's second
   message, on a restored copy of the session, or when the first receipt refused (the stale arm, where `hfreshB` fails
   and the first receipt returns `s'`): only the delivery right after a first receipt that succeeded is taken.
-* A frame that differs from the reply in its bytes (a tampered reply at `s''`; `UnitLifecycleTamperedReply` takes a
-  tampered reply at `s'` only), and any other out-of-order delivery: a message that arrives after a later one of the same
-  chain, delayed or dropped delivery, a receive that uses a stored skipped key.  Here the store is empty and the
-  refusal is the one for a key already used.
+* On the run, a frame that differs from the reply in its bytes (a tampered reply at `s''`; `UnitLifecycleTamperedReply`
+  takes a tampered reply at `s'` only).  The general step `reply_again_refused_of_invariant` is about every frame with
+  the reply's header on that key and any sealed bytes after it, so a frame that keeps the header and changes the
+  ciphertext is refused as out of order at every session its hypotheses hold of, but the composed statement takes only
+  the reply's own bytes, and a frame with changed header bytes is not covered. Any other out-of-order delivery: a
+  message that arrives after a later one of the same chain, delayed or dropped delivery, a receive that uses a stored
+  skipped key.  Here the store is empty and the refusal is the one for a key already used.
 * The arms an empty source or a refused agreement would give (`ceiling`, `handshake nonContributoryAgreement`): excluded
   by the draw premise and `DhAgreeContributory`.
 * The responder's second reply, the initiator's second send, the header's later chunks and every step that runs a KEM:

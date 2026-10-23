@@ -8,29 +8,38 @@ reply bytes, from a source whose trace holds a draw, returns `Triple(Classical(O
 source after exactly that draw, and that this refines the model's public `decrypt` step, which consumes the draw,
 refuses `triple (classical outOfOrder)` and leaves the model session as it was, at every codeword view.
 
-Ten controls are labelled inside the proofs that compose: the general step `reply_again_refused_of_invariant` (which
-composes the decrypt refinement at a session with the invariant, the ceilings and the relation, the model's step and the
-refusal frame) and the run's headline `initiator_repeated_reply_refused` (which composes the first receipt's
-preservation result, the first receipt itself, the model session the first send left and the general step on one run).
-Each is a change to a composing theorem's statement:
+Ten controls carry the inside label, refused in the proofs that compose: the general step
+`reply_again_refused_of_invariant` (which composes the decrypt refinement at a session with the invariant, the ceilings
+and the relation, the model's step and the refusal frame) and the run's headline `initiator_repeated_reply_refused`
+(which composes the first receipt's preservation result, the first receipt itself, the model session the first send
+left and the general step on one run).  Each is a change to a composing theorem's statement.  **By reading, seven of the
+ten are composition steps and three are not**:
 
-  * in `reply_again_refused_of_invariant`: the refusal claimed to take no draw (false: the candidate key is drawn
-    before the Triple's receive), refused where the model's draws are carried back; the code's refusal claimed to be
-    `NoReceivingChain`, refused where the code's result, rewritten from the model's through the refusal map, is
-    placed; the session returned claimed to have its pending initial message cleared (false of an arbitrary session: a
-    refusal writes nothing), refused at the same place; the model's step claimed to keep the draw, refused where the
-    model's step is placed; the agreement claimed failed, refused where the agreement's state is carried to the model's
-    session after the reply; the source claimed a draw ahead of the oracle, refused where the oracle's draws are read;
-  * in `initiator_repeated_reply_refused`: the second draw claimed of the source the first send left (refused where the
-    general step is applied), the model's step claimed at an oracle whose first draw is the first receipt's and claimed
-    on the reply's plaintext instead of its bytes (each refused where the model's step, rewritten to the reply's key, is
-    placed), and the relation claimed with the second draw as the ratchet key (refused where the first receipt's
-    relation, rewritten to the reply's key, is placed).
+  * composition steps, in `reply_again_refused_of_invariant`: the refusal claimed to take no draw (false: the candidate
+    key is drawn before the Triple's receive), refused where the model's draws, rewritten by the model's step, are
+    carried back; the code's refusal claimed to be `NoReceivingChain` and the session returned claimed to have its
+    pending initial message cleared (false of an arbitrary session: a refusal writes nothing), each refused where
+    `hcall`, bound from the decrypt refinement and rewritten (`rw [he] at hcall`, `rw [hs] at hcall`) to the refusal the
+    model's step fixes and the session the refusal frame fixes, is placed; the agreement claimed failed, refused where
+    the agreement's state is carried to the model's session after the reply; the source claimed a draw ahead of the
+    oracle, refused where the oracle's draws are read;
+  * composition steps, in `initiator_repeated_reply_refused`: the second draw claimed of the source the first send left,
+    and the second source claimed to hold no draw before the rest, each refused where the headline builds the general
+    step's oracle from the second source's premise and applies the general step;
+  * not composition steps, by reading: the model's step claimed to keep the draw (refused in
+    `reply_again_refused_of_invariant` at `exact reply_again_model_refused ...`, the leaf's conclusion placed unchanged
+    after a rewrite of the goal); the model's step claimed on the reply's plaintext instead of its bytes (refused in
+    `initiator_repeated_reply_refused` at `exact hM viewA`, the general step's model conjunct placed unchanged after a
+    rewrite of the goal); and, borderline, the relation claimed with the second draw as the ratchet key (refused at
+    `exact hsess`, the first receipt's relation rewritten to the reply's key and back).  They carry the inside label
+    only because the label check reads a projection off a bare hypothesis marker alone (the refused term a
+    hypothesis's name, then `has type`): a refused term printed applied (`hM viewA`) or a called theorem placed by
+    `exact` reads as a composition step, and the check refuses the projection label for them.  The shared helper is
+    not changed here; ASSURANCE-OBLIGATIONS.md records the limit.
 
-`refusal-claimed-for-no-receiving-chain` and `refusal-claimed-to-clear-the-pending-message` are refused where the proof
-places `hcall`, which it binds from the decrypt refinement's conclusion and then rewrites (`rw [he] at hcall`,
-`rw [hs] at hcall`) to the refusal the model's step fixes and to the session the refusal frame fixes, so the syntactic
-form reads them as composition steps.
+The headline's other composition, identifying the session the first receipt returns in the preservation result with
+the one in the receipt itself (by `encrypt` and `decrypt` being functions), has no control: no change to a statement
+reaches it.
 
 Three are projections, labelled neither inside nor statement-shape, all refused in `initiator_repeated_reply_refused`:
 the second delivery claimed at the session before the first receipt (where the call conjunct of
@@ -46,8 +55,8 @@ Each is refused in `repeated_reply_refused_reachable` because its statement no l
 script runs it again with the headline's proof replaced by `sorry` and requires the same refusal.
 
 Five are on the leaf lemmas: the model's receive claimed to refuse `noReceivingChain` and claimed on a header carrying
-the initiator's own sending key (refused in `reply_again_receive_outOfOrder`); the draw's agreement claimed refused (refused
-in `reply_again_model_refused`, whose step is then the handshake refusal); the model's refusal claimed to keep the
+the initiator's own sending key (refused in `reply_again_receive_outOfOrder`); the draw's agreement claimed refused
+(refused in `reply_again_model_refused`, whose step is then the handshake refusal); the model's refusal claimed to keep the
 oracle (refused in `reply_again_model_refused`: the draw is consumed); the byte trace claimed with its two runs swapped
 (refused in `byteTrace_seed_two_extra`).  One holds a statement: `reply_again_receive_outOfOrder` with a bound
 variable renamed and the module's pins kept (refused at that theorem's statement pin, `#check @`).
@@ -121,7 +130,6 @@ GEN_BRAID = ("    (hbraid : mA.braid = .keysSampled e auth dk ekVector enc)\n"
 GEN_TRACE = "    (rng : R) (htrace : trace rng = oracle.draws) (c : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)\n"
 HEAD_DRAW = ("    (hdrawA2 : trace rngA2 = dA2 :: restA2) :\n"
              "    ∃ (dSend x : Model.Lifecycle.Key) (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session)\n")
-HEAD_MODEL = "        Model.Lifecycle.decrypt viewA { oracle with draws := dA2 :: restA2 }\n"
 HEAD_MODEL_BYTES = "              (oracleB.dhPublic dB) (oracle.dhPublic dA) dA) (vecOf bytesR) =\n"
 HEAD_REL = ("          (oracleB.dhPublic dB) (oracle.dhPublic dA) dA) ∧\n"
             "      (∀ viewA : Model.Lifecycle.CodewordView,\n")
@@ -168,9 +176,9 @@ MUTANTS = [
     ('module', 'second-draw-claimed-of-the-first-receipt-source',
      [(HEAD_DRAW, HEAD_DRAW.replace("trace rngA2 = dA2", "trace rng' = dA2"))],
      r"hdrawA2\nhas type\n  trace rng' = dA2 :: restA2\nbut is expected to have type\n  trace rngA2 = oracleA2\.draws\nin the application\n  reply_again_refused_of_invariant", ['initiator_repeated_reply_refused']),
-    ('module', 'model-step-claimed-at-the-first-receipt-draw',
-     [(HEAD_MODEL, HEAD_MODEL.replace("draws := dA2 :: restA2", "draws := dA :: restA2"))],
-     r"hM viewA\nhas type\n  Model\.Lifecycle\.decrypt viewA oracleA2\n[\s\S]*?but is expected to have type\n  Model\.Lifecycle\.decrypt viewA\n      \{ draws := dA :: restA2,", ['initiator_repeated_reply_refused']),
+    ('module', 'second-source-claimed-to-hold-no-draw-first',
+     [(HEAD_DRAW, HEAD_DRAW.replace("trace rngA2 = dA2 :: restA2", "trace rngA2 = restA2"))],
+     r"hdrawA2\nhas type\n  trace rngA2 = restA2\nbut is expected to have type\n  trace rngA2 = oracleA2\.draws\nin the application\n  reply_again_refused_of_invariant", ['initiator_repeated_reply_refused']),
     ('module', 'model-step-claimed-on-the-plaintext',
      [(HEAD_MODEL_BYTES, HEAD_MODEL_BYTES.replace("(vecOf bytesR)", "(sliceOf ptR)"))],
      r"hM viewA\nhas type\n  Model\.Lifecycle\.decrypt viewA oracleA2\n[\s\S]*?\(sliceOf bytesR\.deref\) =\n[\s\S]*?but is expected to have type\n[\s\S]*?\(sliceOf ptR\) =", ['initiator_repeated_reply_refused']),
@@ -236,7 +244,7 @@ INSIDE = {
     'agreement-claimed-failed': 'reply_again_refused_of_invariant',
     'source-claimed-a-draw-ahead-of-the-oracle': 'reply_again_refused_of_invariant',
     'second-draw-claimed-of-the-first-receipt-source': 'initiator_repeated_reply_refused',
-    'model-step-claimed-at-the-first-receipt-draw': 'initiator_repeated_reply_refused',
+    'second-source-claimed-to-hold-no-draw-first': 'initiator_repeated_reply_refused',
     'model-step-claimed-on-the-plaintext': 'initiator_repeated_reply_refused',
     'relation-claimed-with-the-second-draw-as-ratchet-key': 'initiator_repeated_reply_refused',
 }
