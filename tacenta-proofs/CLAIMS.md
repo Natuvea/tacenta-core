@@ -7437,41 +7437,36 @@ rest on `propext`, `Classical.choice` and `Quot.sound` alone (`reply_again_recei
 constants of the unit (`reply_key_agreement`). Each of the 8 results carries an axiom pin and a statement pin, and every
 statement pin prints the whole statement (the module sets `pp.deepTerms true` and `pp.proofs.withType true` before its
 pins); as for every statement pin, a printed pin is not the whole elaborated statement, and that the pinned statement is
-the right one is decided by reading. `check-initiator-repeated-reply-negatives.py` plants twenty-one faults in a copy of
-the module, every one a change to a statement, and requires Lean to refuse each at a named declaration or pin, against a
-message naming the change (a proof-breakage check at that place, not a proof that the changed statement is false).
-Thirteen are refused in the two composing proofs: ten carry the inside label and three are projections, under the same
-label check as the sections above (held at start-up, the syntactic form read off the module, each inside control also
-run with its proof replaced by `sorry`; that probe verifies attribution only, and the standard itself is decided by
-reading). **By reading, seven of the ten are composition steps:** in `reply_again_refused_of_invariant`, the refusal
-claimed to take no draw, the code's refusal claimed to be `NoReceivingChain`, the session returned claimed to have its
-pending initial message cleared, the agreement claimed failed, and the source claimed a draw ahead of the oracle; in
-`initiator_repeated_reply_refused`, the second draw claimed of the source the first send left and the second source
-claimed to hold no draw before the rest (both where the headline builds the general step's oracle from that premise).
-**The other three forward a called conclusion** and carry the inside label only because the label check reads a
-projection off a bare hypothesis marker alone (the refused term a hypothesis's name, then `has type`), so a refused term
-printed applied or a called theorem placed by `exact` reads as a composition step and the projection label is refused
-for it: the model's step claimed to keep the draw (refused at the leaf `reply_again_model_refused`'s conclusion, placed
-by `exact`), the model's step claimed on the reply's plaintext instead of its bytes (refused at the general step's model
-conjunct, `hM viewA`), and, borderline, the relation claimed with the second draw as the ratchet key (the first
-receipt's relation, rewritten to the reply's key and back). The headline's identification of the session the two called
-theorems return (by `encrypt` and `decrypt` being functions) has no control. The three projections, all refused in
-`initiator_repeated_reply_refused`: the second delivery claimed at the session before the first receipt (where the call
-conjunct of `reply_again_refused_of_invariant` is placed unchanged), the invariant claimed at that session (where the
-invariant conjunct of `initiator_receives_reply_successor` is placed unchanged; that session passes the invariant too,
-so this shows only the forwarding) and the first receipt claimed from the second source (where the call conjunct of
-`initiator_receives_reply_successor` is placed unchanged); they show only that the headline forwards those conjuncts.
-Two are statement-shape checks on the reach, each projecting `initiator_repeated_reply_refused`: the reach's second
-delivery claimed from the source the first send left and claimed accepted (refused in
-`repeated_reply_refused_reachable`, and again with the headline's proof replaced by `sorry`). Five are on the leaf
-lemmas: the model's receive claimed to refuse `noReceivingChain` and claimed on a header carrying the initiator's own
-sending key (refused in `reply_again_receive_outOfOrder`), the draw's agreement claimed refused and the model's refusal
-claimed to keep the oracle (refused in `reply_again_model_refused`), and the byte trace claimed with its two runs
-swapped (refused in `byteTrace_seed_two_extra`). The last is `reply_again_receive_outOfOrder` with a bound variable
-renamed and the pins kept (refused at its statement pin). Several refusals are structural (a type mismatch at the named
-place), not an unprovable goal. None is a proof that another delivery is refused. An error that is not a refusal voids a
-run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the
-named refusal, and one elsewhere in the copy is logged.
+the right one is decided by reading. `check-initiator-repeated-reply-negatives.py` plants faults in a copy of the module,
+every one a change to a statement, and requires Lean to refuse each at a named declaration or pin, against a message
+naming the change (a proof-breakage check at that place, not a proof that the changed statement is false). What it
+establishes is that each control is refused at its named place, and that each control it runs against a composing
+proof is accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more). The script's
+labels (inside a composing proof, projection, statement-shape, leaf, pin) and the per-class counts in
+`negatives-control-counts.json` are its own labelling and are guidance, not a claim: the helper that tells inside from
+projection reads Lean's error text and can read some projections as composition steps (`ASSURANCE-OBLIGATIONS.md`
+records the decision, not built). Refused in the general step `reply_again_refused_of_invariant`: the refusal claimed to
+take no draw, the code's refusal claimed to be `NoReceivingChain`, the session returned claimed to have its pending
+initial message cleared, the agreement claimed failed, the source claimed a draw ahead of the oracle, and the model's
+step claimed to keep the draw (by reading this last one forwards the leaf `reply_again_model_refused`'s conclusion,
+placed by `exact`). Refused in the headline `initiator_repeated_reply_refused`: the second draw claimed of the source the
+first send left and the second source claimed to hold no draw before the rest (both where the headline builds the
+general step's oracle from that premise); the model's step claimed on the reply's plaintext instead of its bytes and,
+borderline, the relation claimed with the second draw as the ratchet key (by reading both forward a called conclusion:
+the general step's model conjunct, and the first receipt's relation rewritten to the reply's key and back); and, where
+the headline places a called theorem's conjunct unchanged, the second delivery claimed at the session before the first
+receipt, the invariant claimed at that session (which passes the invariant too, so this shows only the forwarding) and
+the first receipt claimed from the second source. The headline's identification of the session the two called theorems
+return (by `encrypt` and `decrypt` being functions) has no control. Refused in the reach
+`repeated_reply_refused_reachable`, and again with the headline's proof replaced by `sorry`: the reach's second delivery
+claimed from the source the first send left and claimed accepted. Refused in the leaf lemmas: the model's receive claimed
+to refuse `noReceivingChain` and claimed on a header carrying the initiator's own sending key
+(`reply_again_receive_outOfOrder`), the draw's agreement claimed refused and the model's refusal claimed to keep the
+oracle (`reply_again_model_refused`), and the byte trace claimed with its two runs swapped (`byteTrace_seed_two_extra`).
+Refused at a statement pin: `reply_again_receive_outOfOrder` with a bound variable renamed and the pins kept. Several
+refusals are structural (a type mismatch at the named place), not an unprovable goal. None is a proof that another
+delivery is refused. An error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a
+heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 

@@ -1513,28 +1513,25 @@ recorded decision or a target-closing slice:
   the zero-array step of `split_secret_refines`,
   unused by its proof,
   is removed),
-  `check-initiator-repeated-reply-negatives.py` (two unmodified copies accepted and twenty-one changes refused,
-  each at a named declaration or pin and against a message naming the change,
+  `check-initiator-repeated-reply-negatives.py` (two unmodified copies accepted and each change refused,
+  at a named declaration or pin and against a message naming the change,
   every one a change to a statement and a proof-breakage check there,
-  not a proof that the changed statement is false:
-  ten carrying the inside label in the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` and three projections of called theorems' conjuncts,
-  of the ten, by reading, seven composition steps and three that forward a called conclusion (refused at a called theorem placed by `exact` or at a refused term printed applied, which the label check reads as composition),
-  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
-  and at run time only that each change is refused at its labelled place,
-  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  not a proof that the changed statement is false;
+  each control the script runs against the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only;
+  the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
+  (refused in the general step:
   the refusal claimed to take no draw,
   to be `NoReceivingChain`
   or to clear the pending initial message,
   the agreement claimed failed,
   the source claimed a draw ahead of the oracle,
-  the second draw claimed of the first receipt's source,
-  and the second source claimed to hold no draw before the rest;
-  inside by the label check but forwarding by reading: the model's step claimed to keep the draw,
-  the model's step claimed on the plaintext,
-  and, borderline, the relation claimed with the second draw as the ratchet key;
-  projections: the second delivery and the invariant claimed at the session before the first receipt and the first receipt claimed from the second source);
-  two statement-shape checks on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
+  and the model's step claimed to keep the draw, which by reading forwards a called conclusion;
+  refused in the headline: the second draw claimed of the first receipt's source,
+  the second source claimed to hold no draw before the rest,
+  the model's step claimed on the plaintext and, borderline, the relation claimed with the second draw as the ratchet key, which by reading forward called conclusions,
+  and, where it places a called conclusion unchanged, the second delivery and the invariant claimed at the session before the first receipt and the first receipt claimed from the second source);
+  two on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
   five on the leaf lemmas (the model's receive claimed to refuse for no receiving chain or on the initiator's own sending key, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the byte trace claimed with its runs swapped),
   and the model receive's statement with a variable renamed and its pins kept;
   an error that is not a refusal voids a run, matched without regard to case;
@@ -2061,19 +2058,19 @@ instead of a tokenizer's reading of them.
 
 The lifecycle negatives scripts' projection check (`passed_through`, a helper shared character for character by every
 script that carries `check_labels`) is a tripwire for one shape: a refusal whose refused term is a bare hypothesis's name
-(the name, then `has type`) bound by destructuring a called theorem's conclusion and never rewritten. It does not see four
-other shapes of the same projection, and reads them as composition steps, so a control refused at a called conclusion
-placed unchanged can carry the inside label and the projection label is refused for it: the refused term printed applied
-(`h x`), a called theorem placed by `exact` (the refused term is the call), `have h : T := by exact` a called theorem,
-and a typed `have` whose type holds a record `:=` (the text after that `:=` is read as the callee). It cannot make a
-control vacuous (every refusal is still checked at its place against its message); it can inflate the inside count.
-Controls on main read this way: `success-claimed-to-keep-the-pending-initial-message` of
-`check-responder-reply-receipt-negatives.py` (a called theorem's conclusion placed unchanged) and, borderline,
-`second-call-claimed-to-return-the-store-before-the-commit` of `check-responder-establish-replay-negatives.py`; and three
-of the ten of `check-initiator-repeated-reply-negatives.py`, which its docstring and `tacenta-proofs/CLAIMS.md` name.
-Recorded as a decision, **not built**: (3) either extend the check to those shapes, with cases, and relabel what it then
-reads as projections, or retire the inside count as a claim and keep only the per-control attribution the `sorry` probe
-verifies.
+(the name, then `has type`) bound by destructuring a called theorem's conclusion and never rewritten. It reads Lean's
+error text, and reads four other shapes of the same projection as composition steps, so a control refused at a called
+conclusion placed unchanged can carry the inside label and the projection label is refused for it: the refused term
+printed applied (`h x`), a called theorem placed by `exact` (the refused term is the call), `have h : T := by exact` a
+called theorem, and a typed `have` whose type holds a record `:=` (the text after that `:=` is read as the callee). It
+cannot make a control vacuous (every refusal is still checked at its place against its message). So the inside,
+projection and other labels of these scripts, and the per-class counts in `negatives-control-counts.json`, are each
+script's own labelling and guidance, not a claim; what a run establishes is that each control is refused at its named
+place and that each control run against a composing proof is accepted there with that proof replaced by `sorry`.
+Controls on main read this way include `success-claimed-to-keep-the-pending-initial-message` of
+`check-responder-reply-receipt-negatives.py` and, borderline, `second-call-claimed-to-return-the-store-before-the-commit`
+of `check-responder-establish-replay-negatives.py`. Recorded as a decision, **not built**: (3) either extend the check
+to those shapes, with cases, or classify inside against projection with Lean itself rather than from its error text.
 
 ## Next P1 slices
 

@@ -8,58 +8,51 @@ reply bytes, from a source whose trace holds a draw, returns `Triple(Classical(O
 source after exactly that draw, and that this refines the model's public `decrypt` step, which consumes the draw,
 refuses `triple (classical outOfOrder)` and leaves the model session as it was, at every codeword view.
 
-Ten controls carry the inside label, refused in the proofs that compose: the general step
-`reply_again_refused_of_invariant` (which composes the decrypt refinement at a session with the invariant, the ceilings
-and the relation, the model's step and the refusal frame) and the run's headline `initiator_repeated_reply_refused`
-(which composes the first receipt's preservation result, the first receipt itself, the model session the first send
-left and the general step on one run).  Each is a change to a composing theorem's statement.  **By reading, seven of the
-ten are composition steps and three are not**:
+What a run establishes: each control is refused at its named place, and each control labelled inside a composing proof
+is accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more).  The labels below
+(inside, projection, statement-shape, leaf, pin) and this script's per-class counts in `negatives-control-counts.json`
+are the script's own labelling and are guidance, not a claim: the helper that tells inside from projection
+(`passed_through`) reads Lean's error text, sees a projection only when the refused term is a bare hypothesis's name,
+and reads a refused term printed applied or a called theorem placed by `exact` as a composition step
+(ASSURANCE-OBLIGATIONS.md records the decision, not built).  The composing proofs are the general step
+`reply_again_refused_of_invariant` (the decrypt refinement at a session with the invariant, the ceilings and the
+relation, the model's step and the refusal frame) and the headline `initiator_repeated_reply_refused` (the first
+receipt's preservation result, the first receipt itself, the model session the first send left and the general step on
+one run).  Every control is a change to a statement:
 
-  * composition steps, in `reply_again_refused_of_invariant`: the refusal claimed to take no draw (false: the candidate
-    key is drawn before the Triple's receive), refused where the model's draws, rewritten by the model's step, are
-    carried back; the code's refusal claimed to be `NoReceivingChain` and the session returned claimed to have its
-    pending initial message cleared (false of an arbitrary session: a refusal writes nothing), each refused where
-    `hcall`, bound from the decrypt refinement and rewritten (`rw [he] at hcall`, `rw [hs] at hcall`) to the refusal the
-    model's step fixes and the session the refusal frame fixes, is placed; the agreement claimed failed, refused where
-    the agreement's state is carried to the model's session after the reply; the source claimed a draw ahead of the
-    oracle, refused where the oracle's draws are read;
-  * composition steps, in `initiator_repeated_reply_refused`: the second draw claimed of the source the first send left,
-    and the second source claimed to hold no draw before the rest, each refused where the headline builds the general
-    step's oracle from the second source's premise and applies the general step;
-  * not composition steps, by reading: the model's step claimed to keep the draw (refused in
-    `reply_again_refused_of_invariant` at `exact reply_again_model_refused ...`, the leaf's conclusion placed unchanged
-    after a rewrite of the goal); the model's step claimed on the reply's plaintext instead of its bytes (refused in
-    `initiator_repeated_reply_refused` at `exact hM viewA`, the general step's model conjunct placed unchanged after a
-    rewrite of the goal); and, borderline, the relation claimed with the second draw as the ratchet key (refused at
-    `exact hsess`, the first receipt's relation rewritten to the reply's key and back).  They carry the inside label
-    only because the label check reads a projection off a bare hypothesis marker alone (the refused term a
-    hypothesis's name, then `has type`): a refused term printed applied (`hM viewA`) or a called theorem placed by
-    `exact` reads as a composition step, and the check refuses the projection label for them.  The shared helper is
-    not changed here; ASSURANCE-OBLIGATIONS.md records the limit.
+  * labelled inside `reply_again_refused_of_invariant`: the refusal claimed to take no draw (false: the candidate key
+    is drawn before the Triple's receive), refused where the model's draws, rewritten by the model's step, are carried
+    back; the code's refusal claimed to be `NoReceivingChain` and the session returned claimed to have its pending
+    initial message cleared (false of an arbitrary session: a refusal writes nothing), each refused where `hcall`,
+    bound from the decrypt refinement and rewritten (`rw [he] at hcall`, `rw [hs] at hcall`) to the refusal the model's
+    step fixes and the session the refusal frame fixes, is placed; the agreement claimed failed, refused where the
+    agreement's state is carried to the model's session after the reply; the source claimed a draw ahead of the oracle,
+    refused where the oracle's draws are read; and the model's step claimed to keep the draw, refused at
+    `exact reply_again_model_refused ...`, which by reading forwards the leaf's conclusion after a rewrite of the goal;
+  * labelled inside `initiator_repeated_reply_refused`: the second draw claimed of the source the first send left, and
+    the second source claimed to hold no draw before the rest, each refused where the headline builds the general
+    step's oracle from the second source's premise; the model's step claimed on the reply's plaintext instead of its
+    bytes, refused at `exact hM viewA`, which by reading forwards the general step's model conjunct; and, borderline,
+    the relation claimed with the second draw as the ratchet key, refused at `exact hsess`, the first receipt's relation
+    rewritten to the reply's key and back;
+  * labelled projections, refused in `initiator_repeated_reply_refused` where it places a called conclusion unchanged:
+    the second delivery claimed at the session before the first receipt (`reply_again_refused_of_invariant`'s call
+    conjunct), the invariant claimed at that session (`initiator_receives_reply_successor`'s invariant conjunct; that
+    session passes the invariant too, so this shows only the forwarding) and the first receipt claimed from the second
+    source (`initiator_receives_reply_successor`'s call conjunct); no emptied-proof run is made for them;
+  * statement-shape checks on the reach, each projecting `initiator_repeated_reply_refused`: the reach's second delivery
+    claimed from the source the first send left instead of the one the first receipt left, and claimed accepted; each is
+    refused in `repeated_reply_refused_reachable` and again with the headline's proof replaced by `sorry`;
+  * on the leaf lemmas: the model's receive claimed to refuse `noReceivingChain` and claimed on a header carrying the
+    initiator's own sending key (refused in `reply_again_receive_outOfOrder`); the draw's agreement claimed refused
+    (refused in `reply_again_model_refused`, whose step is then the handshake refusal); the model's refusal claimed to
+    keep the oracle (refused in `reply_again_model_refused`: the draw is consumed); the byte trace claimed with its two
+    runs swapped (refused in `byteTrace_seed_two_extra`);
+  * at a pin: `reply_again_receive_outOfOrder` with a bound variable renamed and the module's pins kept (refused at that
+    theorem's statement pin, `#check @`).
 
-The headline's other composition, identifying the session the first receipt returns in the preservation result with
-the one in the receipt itself (by `encrypt` and `decrypt` being functions), has no control: no change to a statement
-reaches it.
-
-Three are projections, labelled neither inside nor statement-shape, all refused in `initiator_repeated_reply_refused`:
-the second delivery claimed at the session before the first receipt (where the call conjunct of
-`reply_again_refused_of_invariant` is placed unchanged), the invariant claimed at that session (where the invariant
-conjunct of `initiator_receives_reply_successor` is placed unchanged; that session does pass the invariant, so this
-shows only that the headline forwards the conjunct) and the first receipt claimed from the second source (where the call
-conjunct of `initiator_receives_reply_successor` is placed unchanged).  They show that the headline forwards those
-conjuncts, not that it composes them, and no emptied-proof run is made for them.
-
-Two are statement-shape checks on the reach, each projecting `initiator_repeated_reply_refused`: the reach's second
-delivery claimed from the source the first send left instead of the one the first receipt left, and claimed accepted.
-Each is refused in `repeated_reply_refused_reachable` because its statement no longer matches the headline's, and the
-script runs it again with the headline's proof replaced by `sorry` and requires the same refusal.
-
-Five are on the leaf lemmas: the model's receive claimed to refuse `noReceivingChain` and claimed on a header carrying
-the initiator's own sending key (refused in `reply_again_receive_outOfOrder`); the draw's agreement claimed refused
-(refused in `reply_again_model_refused`, whose step is then the handshake refusal); the model's refusal claimed to keep the
-oracle (refused in `reply_again_model_refused`: the draw is consumed); the byte trace claimed with its two runs swapped
-(refused in `byteTrace_seed_two_extra`).  One holds a statement: `reply_again_receive_outOfOrder` with a bound
-variable renamed and the module's pins kept (refused at that theorem's statement pin, `#check @`).
+The headline's identification of the session the first receipt returns in the preservation result with the one in the
+receipt itself (by `encrypt` and `decrypt` being functions) has no control: no change to a statement reaches it.
 
 A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one
 change to a copy of the module and requires Lean to refuse it, at a named place, with an error that names what
