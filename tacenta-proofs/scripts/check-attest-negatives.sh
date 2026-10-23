@@ -1616,7 +1616,9 @@ for n in init_keysBelowCounter init_chainsNotAhead init_reachableStore \
          skipSurvivors_eq_of_keysAtMostCounter skipSurvivors_eq_of_keysBelowCounter apply_reachableStore \
          run_reachableStore run_store_bounded reachable_keysBelowCounter reachable_store_bounded \
          reachable_skipSurvivors_eq witness_reachable_holds_stored_keys witness_store_past_its_counter_fails \
-         skip_alone_leaves_a_key_at_the_counter chainsNotAhead_needed_for_advance; do
+         skip_alone_leaves_a_key_at_the_counter chainsNotAhead_needed_for_advance \
+         receive_breaks_without_chainsNotAhead receiveAdvance_reachableStore \
+         decoded_chainsNotAhead_store_bounded; do
   make_case
   python3 - "$work/tacenta-proofs/Proofs/SparseReachableStore.lean" "Proofs.SparseReachableStore.$n" <<'PY'
 import pathlib, re, sys

@@ -1063,6 +1063,9 @@ REQUIRED_PINS = frozenset(
         "witness_store_past_its_counter_fails",
         "skip_alone_leaves_a_key_at_the_counter",
         "chainsNotAhead_needed_for_advance",
+        "receive_breaks_without_chainsNotAhead",
+        "receiveAdvance_reachableStore",
+        "decoded_chainsNotAhead_store_bounded",
     )]
     # The headroom results: every axiom pin of the two UnitHeadroom modules.  They show the four headroom
     # records satisfiable, the exact numeric conditions they impose, what `Session::invariant` gives for
@@ -3386,6 +3389,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "witness_store_past_its_counter_fails",
         "skip_alone_leaves_a_key_at_the_counter",
         "chainsNotAhead_needed_for_advance",
+        "receive_breaks_without_chainsNotAhead",
+        "receiveAdvance_reachableStore",
+        "decoded_chainsNotAhead_store_bounded",
     )]
     # Package F: the statements of the retry-loop and decrypt_ratchet results, and the bodies of the
     # definitions they are written in (`#print`).

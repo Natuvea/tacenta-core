@@ -5,11 +5,16 @@ within the total bound (proof tier T2, about the model).
 
 `sparse-pq-ratchet.md`, Receiving, says that a skip stores numbers up to one
 below the message's number and the receive then moves the counter to the
-message's number, so no operation leaves a key stored past its chain's counter;
-and The store also has a total bound says that, on a state the operations
-produced, the deletion of a skip's step 2 removes nothing, so the count of its
-step 3 is the length of the store. This file proves both of
-`Model.SparseRatchet`:
+message's number, so no operation applied to a state the operations produced
+leaves a key stored past its chain's counter; and The store also has a total
+bound says that, on a state the operations produced, the deletion of a skip's
+step 2 removes nothing, so the count of its step 3 is the length of the store.
+This file proves both of `Model.SparseRatchet` for every state a list of sends,
+receives and evictions reaches from `init`. One operation at a time it proves
+them only under the invariant's two premises, `KeysBelowCounter` and, for an
+operation that may open an epoch, `ChainsNotAhead`; without the second a
+receive that opens an epoch can leave a key past its counter
+(`receive_breaks_without_chainsNotAhead`). In detail:
 
 * `KeysBelowCounter`: every stored key's epoch has a receiving chain and the
   key's number is below that chain's counter. `init` meets it; `send`,
@@ -17,7 +22,10 @@ step 3 is the length of the store. This file proves both of
   (`receiveAdvance`), `trySkipped`, `evictOldest` and `clearOldEpochs` keep it;
   the four that may open an epoch (`advance`, `receiveAdvance`, `send`,
   `receive`) need `ChainsNotAhead` too (no chain held for an epoch past the
-  current one), which `init` meets and `advance`, `send` and `receive` keep;
+  current one), which `init` meets and `advance`, `send` and `receive` keep,
+  and which every state the model's reader accepts meets, with the store bound
+  (`decoded_chainsNotAhead_store_bounded`: the reader refuses a chain for an
+  epoch past the current one);
 * a skip alone keeps only the non-strict form, `KeysAtMostCounter` (no key past
   its counter), since the last key it stores is at the new counter; from the
   strict form it leaves every key below its counter except that the skipped
@@ -31,19 +39,23 @@ step 3 is the length of the store. This file proves both of
   hold of every state reached from `init` (`run_reachableStore`,
   `reachable_keysBelowCounter`, `reachable_store_bounded`,
   `reachable_skipSurvivors_eq`), and the bound alone holds of every state
-  reached from any state within it (`run_store_bounded`).
+  reached from any state within it (`run_store_bounded`);
+* the state an optional advance leaves keeps all three
+  (`receiveAdvance_reachableStore`), which is the state a send or a receive
+  refused after folding the agreement's secret in can leave in the code.
 
 The one-step forms take the invariant (and, for the bound, a store already
 within it) as a hypothesis; the forms over a sequence from `init` take none. The
 witnesses show the statements
 have content: a reached state holding two stored keys
 (`witness_reachable_holds_stored_keys`, the trace of the vector
-`bob-stores-skipped-keys`); a state with a key past its counter, which fails
-the predicate and on which a skip deletes that key
-(`witness_store_past_its_counter_fails`); a skip that leaves a key at its
-counter (`skip_alone_leaves_a_key_at_the_counter`); and an advance that breaks
-the strict form from a state with a chain ahead of the current epoch
-(`chainsNotAhead_needed_for_advance`).
+`bob-stores-skipped-keys`); the start state of the vector
+`stored-key-past-its-counter`, which fails the predicate, whose deletion of
+step 2 removes its key, and on which a skip to 9 runs and leaves only the keys it
+derived (`witness_store_past_its_counter_fails`); a skip that leaves a key at its
+counter (`skip_alone_leaves_a_key_at_the_counter`); and an advance and a receive
+that break the invariant from a state with a chain ahead of the current epoch
+(`chainsNotAhead_needed_for_advance`, `receive_breaks_without_chainsNotAhead`).
 
 ## What it does not show
 
@@ -58,11 +70,14 @@ the strict form from a state with a chain ahead of the current epoch
   import, which no theorem here states;
 * that a caller keeps its own copy when an operation is refused: `run` models
   a refused operation as leaving the state it was given, which is what the page
-  asks of a caller and not something this file checks;
+  asks of a caller and not something this file checks; the state a refused send
+  or receive may leave after folding the agreement's secret in keeps the
+  invariant (`receiveAdvance_reachableStore`), but no `run` adopts it;
 * that the store is a map, that the stored keys are the right keys, or any
   property of a key's bytes.
 -/
 import Proofs.SparseReplacementBound
+import Model.PersistedState
 
 namespace Proofs.SparseReachableStore
 
@@ -836,30 +851,39 @@ theorem witness_reachable_holds_stored_keys (sk : Key) :
     findChains, setChains, skipSurvivors, skipMessageKeys.deriveInto, maxSkip,
     Model.State.maxSkip, maxSkippedStore, Model.State.maxSkippedStore, u64Max]
 
-/-- The predicate is not true of every state: a state holding a key past its
-chain's counter fails it, and on that state a skip deletes the key, so the
-corollary `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its
-premise. The state is `init`'s with one key stored for epoch 0 at number 1 while
-the receiving counter is 0, the shape of the vector `stored-key-past-its-counter`
-in `sparse-ratchet-state.json`, which the reader accepts. -/
+/-- The predicate is not true of every state. The start state of the vector
+`stored-key-past-its-counter` in `sparse-ratchet-state.json`, which the reader
+accepts (ADR-0007): Bob after receiving message 3 of epoch 0 first, with the
+store replaced by one key of epoch 0 at number 9 while the receiving counter is
+3. It fails both predicates; the deletion of step 2 for a skip from the counter
+to 9 removes that key (`skipSurvivors`), so the corollary
+`skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise; and
+the skip itself runs and leaves only the keys it derived, numbers 4 to 9. Stated
+for any shared secret and key. -/
 theorem witness_store_past_its_counter_fails (sk k : Key) :
-    let st : State := { init sk .b2a with skipped := [(0, 1, k)] }
-    ¬ KeysAtMostCounter st ∧ ¬ KeysBelowCounter st ∧
-      skipSurvivors st 0 0 1 = [] ∧ st.skipped ≠ [] := by
+    let st : State := { run (init sk .b2a) [.receive 0 none 3] with skipped := [(0, 9, k)] }
+    ¬ KeysAtMostCounter st ∧ ¬ KeysBelowCounter st ∧ skipSurvivors st 0 3 9 = [] ∧
+      st.skipped ≠ [] ∧
+      (skipMessageKeys st 0 9).map (fun st' => st'.skipped.map (fun x => (x.1, x.2.1))) =
+        some [(0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9)] := by
   intro st
-  have hfind : findChains st 0 =
-      some ⟨some ⟨(kdfInit sk).2.2, 0⟩, some ⟨(kdfInit sk).2.1, 0⟩⟩ := by
-    simp [st, findChains, init]
   have hnot : ¬ KeysAtMostCounter st := by
     intro h
-    obtain ⟨cs, ch, h1, h2, h3⟩ := h (0, 1, k) (by simp [st])
-    simp only at h1 h3
-    rw [hfind] at h1
-    cases h1
-    cases h2
-    simp at h3
-  refine ⟨hnot, fun h => hnot (keysAtMostCounter_of_keysBelowCounter h), ?_, by simp [st]⟩
-  simp [st, skipSurvivors]
+    obtain ⟨cs, ch, h1, h2, h3⟩ := h (0, 9, k) (by simp [st])
+    revert h1 h2 h3
+    simp [st, run, Op.apply, Model.SparseRatchet.receive, trySkipped, init, skipMessageKeys,
+      findChains, setChains, skipSurvivors, skipMessageKeys.deriveInto, maxSkip,
+      Model.State.maxSkip, maxSkippedStore, Model.State.maxSkippedStore, u64Max]
+    intro h1 h2
+    subst h1
+    simp at h2
+    subst h2
+    simp
+  refine ⟨hnot, fun h => hnot (keysAtMostCounter_of_keysBelowCounter h), ?_, by simp [st], ?_⟩
+  · simp [st, skipSurvivors]
+  · simp [st, run, Op.apply, Model.SparseRatchet.receive, trySkipped, init, skipMessageKeys,
+      findChains, setChains, skipSurvivors, skipMessageKeys.deriveInto, maxSkip,
+      Model.State.maxSkip, maxSkippedStore, Model.State.maxSkippedStore, u64Max]
 
 /-- A stored key whose epoch's receiving chain is at or below its number breaks
 the strict form. -/
@@ -919,7 +943,8 @@ theorem skip_alone_leaves_a_key_at_the_counter (sk : Key) :
 counter under a chain for an epoch past the current one meets `KeysBelowCounter`,
 and the advance onto that epoch opens fresh chains over it, at counter 0, so the
 key is then past its counter. No operation produces such a state
-(`run_reachableStore`); a decoded one is not covered here. -/
+(`run_reachableStore`), and the reader refuses one
+(`decoded_chainsNotAhead_store_bounded`). -/
 theorem chainsNotAhead_needed_for_advance (rk ck k key : Key) (dir : Direction) :
     let st : State :=
       { rk := rk, epoch := 0,
@@ -966,6 +991,99 @@ theorem chainsNotAhead_needed_for_advance (rk ck k key : Key) (dir : Direction) 
           rw [hf] at hch
           simp [hr] at hch
           exact not_keysBelowCounter_of_mem hx (by rw [hfx.1]; exact hf) hr (by omega)
+
+/-- `ChainsNotAhead` is needed for a public operation too: from the same state as
+`chainsNotAhead_needed_for_advance`, which meets `KeysBelowCounter`, a receive on
+epoch 0 that carries the next epoch's secret succeeds and leaves the key of epoch
+1 past the counter of the fresh chain the advance opened, so even
+`KeysAtMostCounter` fails after it. -/
+theorem receive_breaks_without_chainsNotAhead (rk ck k key : Key) (dir : Direction) :
+    let st : State :=
+      { rk := rk, epoch := 0,
+        chains := [(0, ⟨none, some ⟨ck, 0⟩⟩), (1, ⟨none, some ⟨ck, 5⟩⟩)],
+        skipped := [(1, 1, k)], direction := dir }
+    KeysBelowCounter st ∧ ¬ ChainsNotAhead st ∧
+      ∃ r, Model.SparseRatchet.receive st 0 (some ⟨1, key⟩) 1 = some r ∧
+        ¬ KeysAtMostCounter r.1 := by
+  intro st
+  refine ⟨(chainsNotAhead_needed_for_advance rk ck k key dir).1,
+    (chainsNotAhead_needed_for_advance rk ck k key dir).2.1, ?_⟩
+  have hcomp : (Model.SparseRatchet.receive st 0 (some ⟨1, key⟩) 1).map
+      (fun r => (r.1.skipped.map (fun x => (x.1, x.2.1)),
+        ((findChains r.1 1).bind (·.receive)).map (·.n))) = some ([(1, 1)], some 0) := by
+    simp [st, Model.SparseRatchet.receive, receiveAdvance, advance, clearOldEpochs, setChains,
+      findChains, trySkipped, skipMessageKeys, epochsKept, u64Max]
+  cases hs : Model.SparseRatchet.receive st 0 (some ⟨1, key⟩) 1 with
+  | none =>
+    rw [hs] at hcomp
+    simp at hcomp
+  | some r =>
+    rw [hs] at hcomp
+    simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hcomp
+    obtain ⟨hmap, hch⟩ := hcomp
+    have hmem : ((1 : Nat), (1 : Nat)) ∈ r.1.skipped.map (fun x => (x.1, x.2.1)) := by
+      rw [hmap]; simp
+    obtain ⟨x, hx, hfx⟩ := List.mem_map.mp hmem
+    simp only [Prod.mk.injEq] at hfx
+    refine ⟨r, rfl, ?_⟩
+    intro h
+    obtain ⟨cs', ch', h1', h2', h3'⟩ := h x hx
+    cases hf : findChains r.1 1 with
+    | none =>
+      rw [hf] at hch
+      simp at hch
+    | some cs =>
+      cases hr : cs.receive with
+      | none =>
+        rw [hf] at hch
+        simp [hr] at hch
+      | some ch =>
+        rw [hf] at hch
+        simp [hr] at hch
+        rw [hfx.1, hf] at h1'
+        cases h1'
+        rw [hr] at h2'
+        cases h2'
+        omega
+
+/-- The state an optional advance leaves keeps `ReachableStore`. In the code, a
+send or a receive refused after it folded the agreement's secret in may leave
+exactly that state (the skip returns the state it was given on refusal,
+`Tacenta.SpqrT3.skip_message_keys_refines`); `run` does not adopt it. -/
+theorem receiveAdvance_reachableStore {st st' : State} {out : Option Output}
+    (h : ReachableStore st) (hs : receiveAdvance st out = some st') : ReachableStore st' :=
+  ⟨(keysBelowCounter_iff _).2 (receiveAdvance_keysUpTo ((keysBelowCounter_iff _).1 h.1) h.2.1 hs).1,
+   receiveAdvance_chainsNotAhead h.2.1 hs, Nat.le_trans (receiveAdvance_store_le hs) h.2.2⟩
+
+/-- Every state the model's reader of the stored sparse ratchet state accepts
+meets `ChainsNotAhead` and holds at most `maxSkippedStore` keys: the reader's
+semantic rules refuse a chain for an epoch past the current one and a store
+over the bound (`Model.PersistedState.SparseState.invariant`). It need not meet
+`KeysBelowCounter` (`witness_store_past_its_counter_fails`). -/
+theorem decoded_chainsNotAhead_store_bounded {b : List UInt8} {st : State}
+    (h : Model.PersistedState.SparseState.ofBytes b = .ok st) :
+    ChainsNotAhead st ∧ st.skipped.length ≤ maxSkippedStore := by
+  have hinv : Model.PersistedState.SparseState.invariant st = true := by
+    cases b with
+    | nil => simp [Model.PersistedState.SparseState.ofBytes] at h
+    | cons v body =>
+      simp only [Model.PersistedState.SparseState.ofBytes] at h
+      split at h
+      · simp at h
+      · unfold Model.PersistedState.andThen at h
+        split at h
+        · simp only at h
+          split at h
+          · rename_i hc
+            injection h with h
+            subst h
+            simp only [Bool.and_eq_true] at hc
+            exact hc.2
+          · simp at h
+        · simp at h
+  simp only [Model.PersistedState.SparseState.invariant, Bool.and_eq_true, decide_eq_true_eq,
+    List.all_eq_true] at hinv
+  exact ⟨fun p hp => (hinv.1.1.1.1.2 p hp).1, hinv.1.1.1.1.1⟩
 
 end Proofs.SparseReachableStore
 
@@ -1290,11 +1408,18 @@ info: Proofs.SparseReachableStore.witness_reachable_holds_stored_keys (sk : Mode
 /--
 info: Proofs.SparseReachableStore.witness_store_past_its_counter_fails (sk k : Model.State.Key) :
   have st :=
-    have __src := Model.SparseRatchet.init sk Model.SparseRatchet.Direction.b2a;
-    { rk := __src.rk, epoch := __src.epoch, chains := __src.chains, skipped := [(0, 1, k)],
+    have __src :=
+      Proofs.SparseReachableStore.run (Model.SparseRatchet.init sk Model.SparseRatchet.Direction.b2a)
+        [Proofs.SparseReachableStore.Op.receive 0 none 3];
+    { rk := __src.rk, epoch := __src.epoch, chains := __src.chains, skipped := [(0, 9, k)],
       direction := __src.direction };
   ¬Proofs.SparseReachableStore.KeysAtMostCounter st ∧
-    ¬Proofs.SparseReachableStore.KeysBelowCounter st ∧ Model.SparseRatchet.skipSurvivors st 0 0 1 = [] ∧ st.skipped ≠ []
+    ¬Proofs.SparseReachableStore.KeysBelowCounter st ∧
+      Model.SparseRatchet.skipSurvivors st 0 3 9 = [] ∧
+        st.skipped ≠ [] ∧
+          Option.map (fun st' => List.map (fun x => (x.fst, x.snd.fst)) st'.skipped)
+              (Model.SparseRatchet.skipMessageKeys st 0 9) =
+            some [(0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9)]
 -/
 #guard_msgs in
 #check Proofs.SparseReachableStore.witness_store_past_its_counter_fails
@@ -1325,6 +1450,40 @@ info: Proofs.SparseReachableStore.chainsNotAhead_needed_for_advance (rk ck k key
 -/
 #guard_msgs in
 #check Proofs.SparseReachableStore.chainsNotAhead_needed_for_advance
+
+/--
+info: Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead (rk ck k key : Model.State.Key)
+  (dir : Model.SparseRatchet.Direction) :
+  have st :=
+    { rk := rk, epoch := 0,
+      chains :=
+        [(0, { send := none, receive := some { ck := ck, n := 0 } }),
+          (1, { send := none, receive := some { ck := ck, n := 5 } })],
+      skipped := [(1, 1, k)], direction := dir };
+  Proofs.SparseReachableStore.KeysBelowCounter st ∧
+    ¬Proofs.SparseReachableStore.ChainsNotAhead st ∧
+      ∃ r,
+        Model.SparseRatchet.receive st 0 (some { keyEpoch := 1, key := key }) 1 = some r ∧
+          ¬Proofs.SparseReachableStore.KeysAtMostCounter r.fst
+-/
+#guard_msgs in
+#check Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead
+
+/--
+info: Proofs.SparseReachableStore.receiveAdvance_reachableStore {st st' : Model.SparseRatchet.State}
+  {out : Option Model.SparseRatchet.Output} (h : Proofs.SparseReachableStore.ReachableStore st)
+  (hs : Model.SparseRatchet.receiveAdvance st out = some st') : Proofs.SparseReachableStore.ReachableStore st'
+-/
+#guard_msgs in
+#check Proofs.SparseReachableStore.receiveAdvance_reachableStore
+
+/--
+info: Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded {b : List UInt8} {st : Model.SparseRatchet.State}
+  (h : Model.PersistedState.SparseState.ofBytes b = Except.ok st) :
+  Proofs.SparseReachableStore.ChainsNotAhead st ∧ st.skipped.length ≤ Model.SparseRatchet.maxSkippedStore
+-/
+#guard_msgs in
+#check Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded
 
 /--
 info: 'Proofs.SparseReachableStore.init_keysBelowCounter' depends on axioms: [propext, Quot.sound]
@@ -1517,3 +1676,23 @@ info: 'Proofs.SparseReachableStore.chainsNotAhead_needed_for_advance' depends on
 -/
 #guard_msgs in
 #print axioms Proofs.SparseReachableStore.chainsNotAhead_needed_for_advance
+
+/--
+info: 'Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead
+
+/--
+info: 'Proofs.SparseReachableStore.receiveAdvance_reachableStore' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseReachableStore.receiveAdvance_reachableStore
+
+/--
+info: 'Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded

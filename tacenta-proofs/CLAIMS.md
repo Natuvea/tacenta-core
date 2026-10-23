@@ -910,11 +910,13 @@ session, not a hosted job and not independent (`REPRODUCING.md`, "Regenerating
 the translation on Linux x86_64, by hand"; `GAP-REGISTER.md`,
 `HL-R1-SPARSE-TRANSLATION`).
 
-That no operation leaves a stored key at or past its epoch's receiving counter,
-and so that the counts before and after the deletion agree on every state the
-operations produce, is proved of the model and not of the Rust (the next
-section). For the Rust it is tested only, and `State::invariant` does not check
-it: `no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40
+That every state the model's sends, receives and evictions reach from `init`
+holds no stored key at or past its epoch's receiving counter, and so that the
+counts before and after the deletion agree there, is proved of the model and not
+of the Rust (the next section). One operation at a time the model keeps it only
+from a state that meets `KeysBelowCounter` and, for an operation that may open
+an epoch, `ChainsNotAhead`. For the Rust it is tested only, and
+`State::invariant` does not check it: `no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40
 seeds of 300 randomised steps (sends, epoch openings, in-order and late
 receives, duplicates, arbitrary numbers, stale epochs and eviction) and asserts
 it after every step. That is a sample, not a proof.
@@ -923,17 +925,25 @@ it after every step. That is a sample, not a proof.
 
 Location: `Proofs/SparseReachableStore.lean`, about `Model.SparseRatchet`.
 
-`sparse-pq-ratchet.md`, Receiving, says that no operation leaves a key stored
-past its chain's counter, and The store also has a total bound says that, on a
-state the operations produced, a skip's deletion removes nothing. These theorems
-state both of the model. `KeysBelowCounter st` says that every stored key's
+`sparse-pq-ratchet.md`, Receiving, says that no operation applied to a state the
+operations produced leaves a key stored past its chain's counter, and The store
+also has a total bound says that, on a state the operations produced, a skip's
+deletion removes nothing. These theorems prove both of the model for every state
+a list of sends, receives and evictions reaches from `init`; one operation at a
+time they hold only under the invariant's premises below, and without
+`ChainsNotAhead` a receive that opens an epoch can leave a key past its counter
+(`receive_breaks_without_chainsNotAhead`). `KeysBelowCounter st` says that every stored key's
 epoch has a receiving chain and that the key's number is below that chain's
 counter; `KeysAtMostCounter st` allows the key at the counter itself.
 `ChainsNotAhead st` says that no chain is held for an epoch past the current
 one; it is part of the invariant because an advance opens fresh chains, at
 counter 0, for the next epoch, and a key stored under a chain held there would
-then be past its counter (`chainsNotAhead_needed_for_advance`).
-`ReachableStore st` is the three together: `KeysBelowCounter`,
+then be past its counter (`chainsNotAhead_needed_for_advance`). It is also a
+rule the stored state already has: the model's reader refuses a chain for an
+epoch past the current one (`Model.PersistedState.SparseState.invariant`), and so
+does `tacenta-spqr`'s `State::invariant`, which `State::from_bytes` requires (by
+reading the code), so every state the model's reader accepts meets it
+(`decoded_chainsNotAhead_store_bounded`). `ReachableStore st` is the three together: `KeysBelowCounter`,
 `ChainsNotAhead`, and a store of at most `maxSkippedStore` keys. `Op` is a
 send, a receive or an eviction of the oldest stored keys, the three operations
 the public interface offers on a state; `run st ops` applies a list of them in
@@ -999,13 +1009,15 @@ theorems about a sequence from `init` take none. Each definition is pinned with
   trace of the vector `bob-stores-skipped-keys`) holds keys 1 and 2 of epoch 0
   under a receiving counter of 3, so the results above are about a store that is
   not empty.
-- `Proofs.SparseReachableStore.witness_store_past_its_counter_fails`: `init`'s
-  state with one key stored for epoch 0 at number 1, under a receiving counter
-  of 0, fails both predicates, and a skip from the counter to 1 deletes that key.
-  So the predicates are not true of every state, and
-  `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise.
-  This is the shape of the vector `stored-key-past-its-counter`, which the reader
-  accepts (ADR-0007).
+- `Proofs.SparseReachableStore.witness_store_past_its_counter_fails`: the start
+  state of the vector `stored-key-past-its-counter`, which the reader accepts
+  (ADR-0007), for any shared secret and key: Bob after receiving message 3 of
+  epoch 0 first, with the store replaced by one key of epoch 0 at number 9 under
+  a receiving counter of 3. It fails both predicates; the deletion of step 2 for
+  a skip from the counter to 9 removes that key (`skipSurvivors st 0 3 9 = []`),
+  so `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise;
+  and `skipMessageKeys` to 9 succeeds there and leaves only the keys it derived,
+  numbers 4 to 9.
 - `Proofs.SparseReachableStore.skip_alone_leaves_a_key_at_the_counter`: from
   `init`, a skip to 2 succeeds and leaves a state that meets `KeysAtMostCounter`
   and not `KeysBelowCounter`.
@@ -1013,12 +1025,25 @@ theorems about a sequence from `init` take none. Each definition is pinned with
   a key below its counter under a chain for the epoch after the current one
   meets `KeysBelowCounter` and not `ChainsNotAhead`, and the advance onto that
   epoch succeeds and leaves a state that fails `KeysBelowCounter`.
+- `Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead`: from the
+  same state, a receive on epoch 0 that carries the next epoch's secret succeeds
+  and leaves a state that fails even `KeysAtMostCounter`, so a public operation
+  breaks the property one step at a time without `ChainsNotAhead`.
+- `Proofs.SparseReachableStore.receiveAdvance_reachableStore`: the state the
+  optional advance leaves keeps `ReachableStore`. In the code, a send or a receive
+  refused after it folded the agreement's secret in may leave that state (by
+  reading the code, with `Tacenta.SpqrT3.skip_message_keys_refines` for the
+  skip's refusal); `run` does not adopt it.
+- `Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded`: every state
+  `Model.PersistedState.SparseState.ofBytes` accepts meets `ChainsNotAhead` and
+  holds at most `maxSkippedStore` keys. It need not meet `KeysBelowCounter`
+  (the witness above).
 
-**Compiler trust and pins.** Each of the 30 results carries an axiom pin under
+**Compiler trust and pins.** Each of the 33 results carries an axiom pin under
 `#guard_msgs` in `Proofs/SparseReachableStore.lean`, and each is on `propext`,
 `Classical.choice` and `Quot.sound` or fewer; none lists a compiler-trust axiom,
-and none uses `native_decide`. `attest.py` requires all 30 axiom pins
-(`REQUIRED_PINS`) and the statement pins of the 30 results and the seven
+and none uses `native_decide`. `attest.py` requires all 33 axiom pins
+(`REQUIRED_PINS`) and the statement pins of the 33 results and the seven
 definitions (`REQUIRED_STATEMENT_PINS`, the definitions in their `#print` form),
 and `check-attest-negatives.sh` deletes each axiom pin in turn and expects the
 refusal.
@@ -1027,11 +1052,14 @@ refusal.
 tested for the same property (above), and no theorem composes these results with
 the refinement theorems; that a state read from storage has no key at or past
 its counter: the reader accepts one that has, and the results about the counter
-over a sequence start from `init`; the bound across the Session's operations, its eviction and retry,
-or its import; that a caller keeps its own copy when an operation is refused:
-`run` models a refused operation as leaving the state it was given, which is
-what the page asks of a caller; that the store is a map, that the stored keys
-are the right keys, or any property of a key's bytes.
+over a sequence start from `init`; the bound across the Session's operations,
+its eviction and retry, or its import; that a caller keeps its own copy when an
+operation is refused: `run` models a refused operation as leaving the state it
+was given, which is what the page asks of a caller and not something this file
+checks (the state a refused send or receive may leave after folding the
+agreement's secret in keeps the invariant, `receiveAdvance_reachableStore`, but
+no `run` adopts it); that the store is a map, that the stored keys are the right
+keys, or any property of a key's bytes.
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
