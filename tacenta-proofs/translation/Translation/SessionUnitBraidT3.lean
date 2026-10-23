@@ -44,12 +44,17 @@ each crate independently, so braid's opaque `tacenta_session_unit.tacenta_erasur
 erasure's own translated `Encoder` are unrelated Lean symbols with the same
 name; bridging them would be its own separate project, not a shortcut.
 
-Both are in the same trust category as `Tacenta.T3`'s `HmacAgrees`/
-`HkdfAgrees`: an accepted external-primitive boundary, not something this
-file tries to reprove. Braid gets its own KDF agreement assumptions below
-too, distinct from `Tacenta.T3`'s, per the counting trap `BraidT1.lean`
-already documents: Aeneas gives this crate its own copy of `hkdf_sha256`/
-`hmac_sha256`, and one proof does not discharge another crate's copy.
+Both are an accepted external-primitive boundary, not something this file
+tries to reprove, the category `Tacenta.T3`'s `HmacAgrees`/`HkdfAgrees` were
+in until the KDF change (ADR-0010). Braid takes its own KDF agreement
+hypotheses below too, distinct from `Tacenta.T3`'s, per the counting trap
+`BraidT1.lean` already documents: Aeneas gives this crate its own copy of
+`hkdf_sha256`/`hmac_sha256`, and a proof about one crate's copy does not
+discharge another's. Since the KDF change those copies are translated
+definitions, and the hypotheses are proved of them elsewhere: of the Braid
+translation's by `KdfLeafAgreements.braid_hmacAgrees`/`braid_hkdfAgrees`,
+and of the Session unit's by `UnitLifecycleKdf.braidHmacAgrees`/
+`braidHkdfAgrees`. This file still takes them as hypotheses.
 -/
 
 open Aeneas Aeneas.Std Result

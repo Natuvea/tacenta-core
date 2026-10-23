@@ -12,6 +12,11 @@
 # assembly was read, nothing ran on Linux hardware, and nothing here measures time. The
 # build has one codegen unit, which the shipped release build does not set.
 #
+# Added on 2026-10-23: on one x86_64 Linux machine the x86_64 inventory, built natively under
+# the same pinned toolchain, matched the committed baseline item for item (122 items), and a
+# dudect-style test of `hmac_sha256` ran there and detected no timing difference (ADR-0010).
+# Neither run is in this tree; the sentences above describe the reading of 2026-10-22.
+#
 # Who read it: a tool-assisted session, not a human reader. The
 # aarch64-apple-darwin assembly of `compress`, `hmac_sha256`, `HmacSha256::new`,
 # `Sha256::finalize`, `HmacSha256::finalize` and the HKDF was read branch by branch; the

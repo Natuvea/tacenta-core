@@ -11,8 +11,11 @@ KDF fields (`DecryptRatchetAgreements.of_kdf`) and states the complete refinemen
 
 - labelled inside a composing proof (`INSIDE`): HKDF's bound moved to 8161 bytes, refused in `hkdfAgrees`; HMAC's
   output read backwards, refused in `hmacAgrees`; the corollary's trace premise weakened to an empty trace,
-  refused in `decrypt_ratchet_refines_complete_of_kdf`, which passes it to the complete refinement.  3 controls
-  are labelled inside.  No control is a projection (`PROJECTION` is empty).
+  refused in `decrypt_ratchet_refines_complete_of_kdf`, which passes it unchanged as an argument to the complete
+  refinement: a premise mismatch at a forwarded argument, not a composition step.  It is labelled inside because
+  `passed_through` counts as a projection only a conjunct taken from a called theorem's conclusion, and the
+  sorry-probe checks where it is refused, nothing more.  3 controls are labelled inside, two of them refused at a
+  composition step.  No control is a projection (`PROJECTION` is empty).
 - on leaf declarations: the composing proof copied, word for word, under a changed statement beside the original
   (so that the theorems using the original are not disturbed): HKDF's salt and input keying material exchanged on
   the model's side, refused in `hkdfAgrees_salt_ikm_swapped`; HMAC's key and message exchanged, refused in
@@ -166,8 +169,8 @@ MUTANTS = [
      [('  kemClone : Tacenta.SessionUnitBraidT3.KemCloneAgrees\n',
        '  kemClone : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K\n')],
      r'type mismatch', ['DecryptRatchetAgreements.of_kdf']),
-    # The corollary's trace premise weakened to an empty trace: the complete refinement it composes asks for
-    # the oracle's draws.
+    # The corollary's trace premise weakened to an empty trace: the corollary passes it unchanged to the complete
+    # refinement, which asks for the oracle's draws, so the refusal is a premise mismatch at that argument.
     ('module', 'corollary-trace-emptied',
      [('    (htrace : trace rng = oracle.draws)\n', '    (htrace : trace rng = [])\n')],
      r'type mismatch', ['decrypt_ratchet_refines_complete_of_kdf']),

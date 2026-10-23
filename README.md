@@ -182,10 +182,16 @@ flowchart TD
   Braid's (`KdfLeafAgreements`), and the three-leaf unit's
   (`KdfTripleUnitAgreements`); the lifecycle and Braid-and-erasure translations
   include it with no theorem about it. That the model is the RFCs', the code's
-  timing and its erasure are not proved, and it is several times slower per call
-  than RustCrypto on CPUs with SHA extensions (ADR-0010, Costs). Writing it here
-  is a second exception to the rule that primitives are not implemented in this
-  repository, after XEdDSA, accepted in ADR-0010.
+  timing and its erasure are not proved. Its cost was measured on one x86_64
+  CPU with SHA extensions: there it is 5.1 to 18.5 times slower per call than
+  RustCrypto, and one 16-byte encrypt and decrypt round is 1.12 times slower.
+  Against RustCrypto's portable code, on the same machine, it is 1.37 to 2.16
+  times slower per call. RustCrypto's locked `sha2` runs that portable code on
+  aarch64 in this build, which does not enable its `asm` feature; that the
+  second figure therefore applies on aarch64 is an inference, not a
+  measurement (ADR-0010, Costs). Writing it here is a second exception to the
+  rule that primitives are not implemented in this repository, after XEdDSA,
+  accepted in ADR-0010.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.
 - **What holds the record in place.** `attest.py` compares the ledger with the

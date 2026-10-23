@@ -4536,7 +4536,7 @@ compiled Rust (Charon and Aeneas are trusted, as for every translated result); t
 
 **Review.** The code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. The source repository is not published, so a reader outside the project can check
 the copy only against the digests `lib.rs` records and through the proofs carried here; in this repository the copied
-files are under its own licence, Apache-2.0. Cost, measured on one x86_64 Linux machine with SHA extensions and on the source repository's machine: per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times (ADR-0010, Costs).
+files are under its own licence, Apache-2.0. Cost, measured on one x86_64 Linux machine with SHA extensions (ADR-0010, Costs): per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level, on that machine only, one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times. The source repository's own machine measured the per-call cost only.
 
 **Compiler trust and pins.** No result here lists a compiler-trust axiom. The pins of twelve list at most `propext`,
 `Classical.choice` and `Quot.sound` (`hmacAgrees`, `hkdfAgrees`, the four copies, the five totality results and
@@ -4553,10 +4553,14 @@ accepted there with the proof replaced by `sorry`; HKDF's salt and input keying 
 exchanged on the model's side, each in a copy of the composing proof beside the original (refused in that copy); the
 Session leaf's totality claimed at 8161 bytes (refused in `sessionHkdfTotal`, still refused with `hkdfAgrees`'s proof
 emptied); a field of `KdfFreeAgreements` given another field's type (refused in `DecryptRatchetAgreements.of_kdf`); the
-corollary's trace premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`, labelled inside
-that composing proof and accepted there with its proof replaced by `sorry`); and the record given an extra field with its
+corollary's trace premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`, where the
+weakened premise no longer fits the argument that theorem passes unchanged to `decrypt_ratchet_refines_complete`: a premise
+mismatch at a forwarded argument, not a composition step; it is labelled inside because the template counts as a projection
+only a conjunct taken from a called theorem's conclusion, and it is accepted there with its proof replaced by `sorry`, which
+checks where it is refused and nothing more); and the record given an extra field with its
 pins kept (refused at its `#print` pin). The script shares the other lifecycle negatives scripts' helpers and is counted
-in `negatives-control-counts.json` (3 inside, 1 statement-shape, 1 pin, 3 on leaf declarations, 2 baselines). The copied `Kdf*` proofs are not held by that
+in `negatives-control-counts.json` (3 inside, of which two are refused at a composition step and one at a forwarded
+premise, 1 statement-shape, 1 pin, 3 on leaf declarations, 2 baselines). The copied `Kdf*` proofs are not held by that
 script; a change to one round constant of the copied Rust, re-translated, was refused in `KdfT3Compress.wordsOf_K` when
 this was written (a one-off run, not a gate).
 

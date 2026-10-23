@@ -279,7 +279,7 @@ excludes it.
   RFC 4231's and RFC 5869's (vectors, not proof), the translation's fidelity, their timing (an inventory of the
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
-  The copied code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. Its cost, measured on one x86_64 Linux machine with SHA extensions and on the source repository's machine: per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times (ADR-0010, Costs). None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
+  The copied code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. Its cost, measured on one x86_64 Linux machine with SHA extensions (ADR-0010, Costs): per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level, on that machine only, one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times. The source repository's own machine measured the per-call cost only. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
   translation, and no theorem says how it computes its tag. On encryption that tag now comes from the copied
   HMAC, while decryption checks it with RustCrypto's `hmac` and `sha2` (`boundary/src/aead.rs`); that the two
   compute the same tag rests on tests (`kdf/tests/differential.rs` and the AEAD round-trip tests), not on
@@ -293,7 +293,7 @@ excludes it.
   not verified. Two primitives are implemented here rather than taken from a
   vetted crate: XEdDSA, over curve25519-dalek and ed25519-dalek, the exception
   recorded in ADR-0002, and since the KDF change the key derivation's SHA-256, HMAC
-  and HKDF above, the exception ADR-0010 records, accepted on 2026-10-23. The model computes SHA-256, HMAC, and HKDF itself as the vector
+  and HKDF above, the exception ADR-0010 records. The model computes SHA-256, HMAC, and HKDF itself as the vector
   oracle and, in the six translations whose theorems take the key derivation's
   hypotheses, as the definitions the copied code is proved to compute; that
   those definitions are the RFCs' rests on the vectors, which anchor them to RFC
@@ -558,7 +558,7 @@ from it. This holds here by delegation and discipline, not by proof.
   under the pinned nightly is byte-identical to the committed x86_64 baseline (122 items, read from cross-compiled
   assembly), and the shipped default codegen units gave the same; stable 1.99.1 there gives 127 items, the
   differences all in `Sha256::finalize` and `hkdf_sha256_into` and, by that session's reading, on lengths, counts
-  and positions only, which is why the gate pins the compiler. A dudect-style test of the copied `hmac_sha256`
+  and positions only, so the pin matters. A dudect-style test of the copied `hmac_sha256`
   (32-byte key, 64-byte message, 5.1 million measurements per class, one core, turbo off) detected no timing
   difference, while a control with a few extra instructions on a secret condition was detected. That is a tripwire
   and one measurement on one CPU, not a proof: no other CPU model, core type or frequency setting, no aarch64 Linux
@@ -2023,13 +2023,17 @@ there a precondition could not be transported at all.
 **And the composed `receive` takes on boundary axioms.**
 The standalone `Tacenta.TripleT1.State.receive_no_panic` depended on twelve
 axioms, none of them compiler-trusted, measured before its deletion. The ported
-theorem depends on seventeen, none of them compiler-trusted. The difference is not
+theorem depended on seventeen when it was ported and depends on fifteen since the
+KDF change (ADR-0010) made the KDF's two axioms translated definitions: the three
+standard axioms and twelve boundary axioms of `zeroize`, `Vec` and `Option`,
+none of them compiler-trusted and none of them the KDF's. The difference is not
 a weaker proof: the standalone theorem had fewer axioms because it *assumed* the
 sparse ratchet's receive is total rather than proving it. The ported one proves
-that part and inherits the boundary axioms proving it needs. The five extra axioms
-are a substitution rather than a new kind of trust -- the bare operation axioms
-are replaced by KDF, `zeroize`, `Vec` and `Option` boundary axioms already shared
-with every other proof in the tree. `Translation/UnitPins.lean`
+that part and inherits the boundary axioms proving it needs. The three extra axioms
+(five before the KDF change) are a substitution rather than a new kind of trust --
+the bare operation axioms are replaced by `zeroize`, `Vec` and `Option` boundary
+axioms already shared with every other proof in the tree (and, before the KDF
+change, by the KDF's `hmac_sha256` too). `Translation/UnitPins.lean`
 records the whole base and `CLAIMS.md` repeats it.
 
 **The refinement layer is on the unit too, with its trust base unchanged.**
