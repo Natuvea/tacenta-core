@@ -4444,7 +4444,7 @@ For a state that meets the Session unit's sparse decoder invariant, which `State
 `inv_gives_chain_room` and `inv_gives_skip_room` (`SessionUnitRatchetImportInv.lean`) give the two room premises.
 
 **Compiler trust and pins.** Neither result rests on a compiler-trust axiom. `sparseReceiveRefusalOfReal_injective`
-rests on `propext` alone; `skip_message_keys_refines_detailed` on the kernel's three axioms and twelve of the Session
+rests on `propext` alone; `skip_message_keys_refines_detailed` on the kernel's three axioms and eleven of the Session
 unit's opaque constants, the same list as `spqr_skip_refusal_refines`. Each of the two results carries an axiom pin and a
 statement pin, and the statement pin of `skip_message_keys_refines_detailed` prints the whole statement. The module
 defines nothing, so it has no `#print` pin; the definitions its statements use (`StateRefines`,
@@ -4554,8 +4554,10 @@ accepted there with the proof replaced by `sorry`; HKDF's salt and input keying 
 exchanged on the model's side, each in a copy of the composing proof beside the original (refused in that copy); the
 Session leaf's totality claimed at 8161 bytes (refused in `sessionHkdfTotal`, still refused with `hkdfAgrees`'s proof
 emptied); a field of `KdfFreeAgreements` given another field's type (refused in `DecryptRatchetAgreements.of_kdf`); the
-corollary's trace premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`); and the record
-given an extra field with its pins kept (refused at its `#print` pin). The copied `Kdf*` proofs are not held by that
+corollary's trace premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`, labelled inside
+that composing proof and accepted there with its proof replaced by `sorry`); and the record given an extra field with its
+pins kept (refused at its `#print` pin). The script shares the other lifecycle negatives scripts' helpers and is counted
+in `negatives-control-counts.json` (3 inside, 1 statement-shape, 1 pin, 3 on leaf declarations, 2 baselines). The copied `Kdf*` proofs are not held by that
 script; a change to one round constant of the copied Rust, re-translated, was refused in `KdfT3Compress.wordsOf_K` when
 this was written (a one-off run, not a gate).
 

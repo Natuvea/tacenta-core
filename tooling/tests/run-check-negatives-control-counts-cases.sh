@@ -40,6 +40,7 @@ named=(
   check-responder-reply-receipt-negatives.py
   check-send-preservation-negatives.py
   check-initiator-second-send-negatives.py
+  check-kdf-realisation-negatives.py
   check-receive-preservation-negatives.py
   check-initiator-second-message-negatives.py
   check-responder-second-receipt-negatives.py

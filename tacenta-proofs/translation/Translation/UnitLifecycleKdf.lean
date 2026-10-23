@@ -194,8 +194,8 @@ theorem decrypt_ratchet_refines_complete_of_kdf {R : Type}
     ∃ output,
       lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh oracle.braidKem output
-        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) :=
-  Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete rngCore cryptoRng trace
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  exact Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete rngCore cryptoRng trace
     dh view oracle oracleOf codec contracts (DecryptRatchetAgreements.of_kdf rest) real model message rng
     hrel headroom htrace run
 
@@ -675,6 +675,12 @@ info: 'Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf' depends on axioms:
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleKdf.toy_models_share_modelT3_kdf
+
+-- The statement pins below print each statement whole: with no cut at depth 50
+-- (`pp.deepTerms`) and each omitted proof with its proposition, `(⋯ : P)` (`pp.proofs.withType`). `attest.py`
+-- refuses a statement pin that prints a bare `⋯`, and every other `pp` option.
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
 
 /--
 info: Tacenta.UnitLifecycleKdf.hmacAgrees : Tacenta.SessionUnitT3.HmacAgrees
