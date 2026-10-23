@@ -1605,6 +1605,35 @@ PY
   expect_fail "required-pin-deleted-SparseReplacementBound-$n" "\`Proofs.SparseReplacementBound.$n\` is on REQUIRED_PINS and has no axiom pin" --check
 done
 
+# The sparse reachable store's pins (Proofs/SparseReachableStore.lean), each deleted in turn, in
+# their own block for the same reason.
+for n in init_keysBelowCounter init_chainsNotAhead init_reachableStore \
+         advance_keysBelowCounter advance_chainsNotAhead receiveAdvance_keysBelowCounter \
+         send_keysBelowCounter send_chainsNotAhead send_store_bounded \
+         trySkipped_keysBelowCounter skipMessageKeys_keysAtMostCounter skipMessageKeys_keysBelowCounter_off \
+         receive_keysBelowCounter receive_chainsNotAhead receive_store_bounded \
+         evictOldest_keysBelowCounter evictOldest_store_bounded clearOldEpochs_keysBelowCounter \
+         skipSurvivors_eq_of_keysAtMostCounter skipSurvivors_eq_of_keysBelowCounter apply_reachableStore \
+         run_reachableStore run_store_bounded reachable_keysBelowCounter reachable_store_bounded \
+         reachable_skipSurvivors_eq witness_reachable_holds_stored_keys witness_store_past_its_counter_fails \
+         skip_alone_leaves_a_key_at_the_counter chainsNotAhead_needed_for_advance; do
+  make_case
+  python3 - "$work/tacenta-proofs/Proofs/SparseReachableStore.lean" "Proofs.SparseReachableStore.$n" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+name = sys.argv[2]
+block = re.compile(
+    r"/--\s*info: '" + re.escape(name) + r"'.*?-/\s*\n#guard_msgs in\s*\n#print axioms\s+" + re.escape(name) + r"\n",
+    re.S,
+)
+new, n = block.subn("", text)
+assert n == 1, n
+path.write_text(new)
+PY
+  expect_fail "required-pin-deleted-SparseReachableStore-$n" "\`Proofs.SparseReachableStore.$n\` is on REQUIRED_PINS and has no axiom pin" --check
+done
+
 make_case
 python3 - "$work/$session_pins" <<'PY'
 import pathlib, re, sys

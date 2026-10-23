@@ -10,6 +10,7 @@ import Proofs.SparseRatchetCorrectness
 import Proofs.SparseReplacementBound
 import Proofs.StateInvariants
 import Proofs.TrustedBase
+import Proofs.SparseReachableStore
 
 /-!
 The proofs package's axiom audit: every `Proofs.*` module, and through them
