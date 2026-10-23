@@ -169,8 +169,9 @@ flowchart TD
   are trusted and not verified here. A proof reaches the boundary through
   contracts that appear as hypotheses of the theorems that take them. The key
   derivation crate is no longer such a boundary: its HMAC-SHA256 and HKDF-SHA256 are
-  code copied from an independent verified implementation, translated, and proved on
-  the Session unit to compute tacenta-model's (`UnitLifecycleKdf`); that the model is
+  code copied from an independent verified implementation, translated, and proved in
+  each translation that includes it to compute tacenta-model's (`UnitLifecycleKdf`,
+  `KdfLeafAgreements`, `KdfTripleUnitAgreements`); that the model is
   the RFCs', the code's timing and its erasure are not proved, and no independent
   human has read the copied code yet.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and

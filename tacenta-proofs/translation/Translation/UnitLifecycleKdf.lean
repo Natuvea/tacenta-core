@@ -55,8 +55,8 @@ its KDF fields. `decrypt_ratchet_refines_complete_of_kdf` is the complete refine
 * any cryptographic property of HMAC or HKDF (pseudorandomness, key separation);
 * constant time or erasure of the copied code's intermediates (the constant-time gate reads an inventory of its
   compiled branches, which is a review, not a proof, and nothing erases the intermediates);
-* the KDF in the other translations: their KDF hypotheses are about translated definitions now, and are still
-  hypotheses there;
+* the other translations' KDF hypotheses, which `KdfLeafAgreements` and `KdfTripleUnitAgreements` prove, not this
+  module;
 * the SHA-256 and HMAC calls outside `tacenta-kdf`: the AEAD's tag check on decryption and the identity and group
   digests still call RustCrypto;
 * that the translation is faithful to the compiled Rust (Charon and Aeneas are trusted, as for every translated result);

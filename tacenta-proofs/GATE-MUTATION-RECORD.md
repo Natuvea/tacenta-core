@@ -639,3 +639,28 @@ own. Read on this date, no linked runner builds a module an edit changes: the li
 (`PN1`, `PN2`) are elaborated with `lake env lean`, which writes no build output, and the other linked edits are to
 shell scripts.
 
+## Addendum, 2026-10-22: the key derivation's inventory and its proof control
+
+`python3 tooling/mutate-gates.py --only CT17 CT18 CT19 CT20 CT21 CT22 CT23 CT24 CT25 NS-drop-kdf-realisation
+NS-swallow-kdf-realisation -v`, on an aarch64 Mac, against the commit that added them. Both baselines passed
+(`run-proof-script-cases.sh`, `run-check-constant-time-asm-cases.sh`), and each edit made its runner print the case
+or diagnostic named in its `expect`. Eleven edits: four seen as accepted, seven as another wrong verdict, none message
+only, none survived.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| CT17 | `tooling/check-constant-time-asm.sh` | the key derivation's aarch64 branches are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT18 | `tooling/check-constant-time-asm.sh` | the key derivation's x86 branches are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT19 | `tooling/check-constant-time-asm.sh` | a key-derivation branch is listed without the instruction before it | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT20 | `tooling/check-constant-time-asm.sh` | the key derivation's aarch64 register-indexed accesses are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT21 | `tooling/check-constant-time-asm.sh` | the key derivation's x86 register-indexed accesses are not listed | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT22 | `tooling/check-constant-time-asm.sh` | every x86 indirect transfer is read as a call to a named symbol | `run-check-constant-time-asm-cases.sh` | seen as another wrong verdict |
+| CT23 | `tooling/check-constant-time-asm.sh` | the key derivation's inventory is not compared with its reviewed baseline | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT24 | `tooling/check-constant-time-asm.sh` | a hardware divide in the key derivation is accepted when the baseline lists it | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| CT25 | `tooling/check-constant-time-asm.sh` | CI may rewrite the reviewed key-derivation baselines | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+| NS-drop-kdf-realisation | `tacenta-proofs/scripts/no-sorry.sh` | the call of check-kdf-realisation-negatives.py is deleted | `run-proof-script-cases.sh` | seen as another wrong verdict |
+| NS-swallow-kdf-realisation | `tacenta-proofs/scripts/no-sorry.sh` | the failure of check-kdf-realisation-negatives.py is swallowed | `run-proof-script-cases.sh` | seen as accepted |
+
+Not mutated here: the missing-baseline and no-function refusals of the key-derivation part (removing either guard
+leaves the run refused by the baseline comparison, with another message), and the Lean controls of
+`check-kdf-realisation-negatives.py`, which that script runs itself.

@@ -1432,6 +1432,31 @@ REQUIRED_PINS = frozenset(
         "DecryptRatchetAgreements.of_kdf",
         "decrypt_ratchet_refines_complete_of_kdf",
     )]
+    # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).
+    + ["Tacenta.KdfLeafAgreements." + n for n in (
+        "ratchet_hmacAgrees",
+        "ratchet_hkdfAgrees",
+        "ratchet_hmacTotal",
+        "ratchet_hkdfTotal",
+        "session_hkdfAgrees",
+        "session_hkdfTotal",
+        "spqr_hkdfAgrees",
+        "spqr_lawHkdf",
+        "braid_hmacAgrees",
+        "braid_hkdfAgrees",
+        "braid_hmacTotal",
+        "braid_hkdfTotal",
+    )]
+    # The three-leaf unit's KDF hypotheses, proved of its translated KDF (`KdfTripleUnitAgreements`).
+    + ["Tacenta.KdfTripleUnitAgreements." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "lawHkdf",
+    )]
     # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
     + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
         "skip_noop",
@@ -3064,6 +3089,31 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DecryptRatchetAgreements.of_kdf",
         "decrypt_ratchet_refines_complete_of_kdf",
         "KdfFreeAgreements",
+    )]
+    # The leaf translations' KDF hypotheses, proved of their own translated KDF (`KdfLeafAgreements`).
+    + ["Tacenta.KdfLeafAgreements." + n for n in (
+        "ratchet_hmacAgrees",
+        "ratchet_hkdfAgrees",
+        "ratchet_hmacTotal",
+        "ratchet_hkdfTotal",
+        "session_hkdfAgrees",
+        "session_hkdfTotal",
+        "spqr_hkdfAgrees",
+        "spqr_lawHkdf",
+        "braid_hmacAgrees",
+        "braid_hkdfAgrees",
+        "braid_hmacTotal",
+        "braid_hkdfTotal",
+    )]
+    # The three-leaf unit's KDF hypotheses, proved of its translated KDF (`KdfTripleUnitAgreements`).
+    + ["Tacenta.KdfTripleUnitAgreements." + n for n in (
+        "hmacAgrees",
+        "hkdfAgrees",
+        "hmacTotal",
+        "hkdfTotal",
+        "spqrHkdfAgrees",
+        "tripleHkdfAgrees",
+        "lawHkdf",
     )]
     # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
     + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (

@@ -124,7 +124,8 @@ theorem is_canonical_x25519_spec (k : Array U8 32#usize) :
 /-- The key-derivation boundary: the HMAC returns a value on every input. When
 this was written the HMAC was an opaque wrapper over a vetted implementation, so
 the fact is stated here and used explicitly. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
-translated definition; `UnitLifecycleKdf` proves it of the Session unit's copy.) -/
+translated definition; `KdfLeafAgreements`, `KdfTripleUnitAgreements` and
+`UnitLifecycleKdf` prove it of each translation's copy.) -/
 def HmacTotal : Prop :=
   ∀ key data, ∃ r, tacenta_kdf.hmac_sha256 key data = ok r
 

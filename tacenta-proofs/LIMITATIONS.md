@@ -271,14 +271,15 @@ excludes it.
   `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 (and the AEAD's tag on encryption, which calls them) are a
   SHA-256, an HMAC and an HKDF copied from an independent verified implementation, translated, and proved of the
   Session unit's translation to compute tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf`
-  (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`). What stays trusted about them: that tacenta-model's KDF is
+  (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the leaf and three-leaf translations' copies by the same
+  proofs ported (`KdfLeafAgreements`, `KdfTripleUnitAgreements`). What stays trusted about them: that tacenta-model's KDF is
   RFC 4231's and RFC 5869's (vectors, not proof), the translation's fidelity, their timing (an inventory of the
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
   The copied code is about 1.5 to 2.1 times slower than RustCrypto on these three functions by its source's own
   measurement, not repeated here, and no independent human has read it or its proofs; every review so far was
-  by tool-assisted sessions. In the other translations the KDF's hypotheses are about translated definitions
-  now and are still hypotheses. The crate's top-level ML-KEM-1024 functions carry hax and F*
+  by tool-assisted sessions. The same KDF hypotheses of the leaf translations and the three-leaf unit are
+  proved of their own translations' copies too (`KdfLeafAgreements`, `KdfTripleUnitAgreements`). The crate's top-level ML-KEM-1024 functions carry hax and F*
   annotations by its own account, and this project has not checked which are
   discharged. The three top-level functions this project calls are marked
   `verification_status(panic_free)` in the pinned source, and the verification
@@ -948,7 +949,7 @@ take, not merely that they cannot fail. Unlike the ML-KEM Braid this crate
 has no KEM boundary and no erasure-coding boundary to assume agreement at;
 the only call this file assumes anything about the *value* of is
 `hkdf_sha256` (opaque until 2026-10-22, a translated definition since; `SpqrHkdfAgrees` is still the
-hypothesis here, and is proved only of the Session unit's copy). `Vec::pop`, `Vec::capacity`, `Zeroize` and `Option::clone` are opaque too, each its own
+hypothesis here, and `KdfLeafAgreements.spqr_hkdfAgrees` proves it of this translation's KDF). `Vec::pop`, `Vec::capacity`, `Zeroize` and `Option::clone` are opaque too, each its own
 assumption below, and the retain and removal scans are translated loops whose results the file assumes
 (`VecRetainAgrees` and `RemoveSkippedAtAgrees`, from the boundary stated below). `find_chains` is proved
 outright. `set_chains` and `clear_old_epochs` are `VecRetainAgrees` applied to its arguments, and
@@ -2467,6 +2468,15 @@ hold together is the next subsection.
 hypotheses of the Session lifecycle theorems. A theorem whose hypothesis nothing can
 satisfy is true and says nothing, and two of the four records contained such a
 field until it was restated (`GAP-REGISTER.md`, row `SESSION-CONTRACT-VACUITY`).
+
+**The two KDF fields of `Interp`.** Since 2026-10-22 the KDF's bodies are translated, so two of the 49 constants
+`Interp.real` interprets, `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256`, are definitions, not axioms. The
+substitution argument this section and the ones below rest on replaces axioms only, so it covers the other 47; for the
+two KDF fields what stands in its place is proof: the KDF laws the records take hold of the real definitions
+(`UnitLifecycleKdf`, and `hmacShape_real`, `hkdfShape_real` there). The toy interpretations still give the KDF fields
+toy functions; whether each joint model's laws still hold with the real KDF in place
+of its toy KDF is not checked. `check-session-satisfiability-negatives.sh` admits exactly these two definitions among
+the interpreted constants and refuses a third.
 
 **What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 of the opaque axioms of
 `TacentaSessionUnit.lean` (6 types, 4 constants, 39 functions; of the unit's other 39 axioms, 38 are reached
@@ -4056,7 +4066,7 @@ argument to sixteen closed cases, which the kernel evaluates.
     First, **what the proofs rest on.** Nothing about our own code is assumed.
     Four boundaries are, each a named hypothesis: `HmacTotal` and `HkdfTotal`
     for the key-derivation primitives, which were opaque by design until 2026-10-22 (translated
-    definitions since; the hypotheses stay, and are proved only of the Session unit's copy); `ZeroizingTotal`
+    definitions since; the hypotheses stay, and `KdfLeafAgreements` proves them of this translation's KDF); `ZeroizingTotal`
     for the external `zeroize` crate, whose wrapper and projection cannot fail;
     `DerivedKeysModel`, the same crate's wrapper around the vector of derived
     keys (CR-15), which has to be a transparent container rather than merely
@@ -4259,9 +4269,9 @@ argument to sixteen closed cases, which the kernel evaluates.
   codecs and the small accessors are translated and have no refinement
   theorem, as `CLAIMS.md`'s "translated is not proved" lists. It holds modulo
   agreement of the key-derivation primitives, the same boundary T1 rests on: in this
-  translation it is a hypothesis (about a translated definition since 2026-10-22), and the
-  model-generated byte vectors are what covers it; on the Session unit's copy it is proved
-  (`UnitLifecycleKdf`). It also excludes the cases
+  translation it is a hypothesis of these theorems (about a translated definition since
+  2026-10-22), which `KdfLeafAgreements` proves of this translation's KDF and `UnitLifecycleKdf` of the
+  Session unit's; that the model's KDF is the RFCs' is covered by vectors, not proof. It also excludes the cases
   where the Rust's `u32` counters and the model's `Nat` part company, which are
   real behaviours rather than gaps in the proof. The isolated-verified-zone
   translation it needs is in place, and it depends on the same Mathlib-backed

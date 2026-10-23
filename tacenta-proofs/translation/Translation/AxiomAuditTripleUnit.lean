@@ -6,6 +6,7 @@ import Translation.UnitSatisfiabilityTriple
 import Translation.NumericBoundaryTriple
 import Translation.NumericWitnessTriple
 import Translation.UnitSatisfiabilityTripleLaws
+import Translation.KdfTripleUnitAgreements
 
 /-!
 The three-leaf translation unit's half of the translation package's axiom

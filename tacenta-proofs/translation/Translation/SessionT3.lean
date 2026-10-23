@@ -78,7 +78,8 @@ Lean. -/
 
 /-- The key derivation agrees with the model's, at the length this
 derivation uses. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
-translated definition; `UnitLifecycleKdf` proves it of the Session unit's copy at every length up to 8160.) -/
+translated definition; `KdfLeafAgreements` proves it of this translation's copy, and `UnitLifecycleKdf` of the
+Session unit's at every length up to 8160.) -/
 def HkdfAgrees : Prop :=
   ∀ (salt ikm info : Slice Std.U8),
     tacenta_kdf.hkdf_sha256 32#usize salt ikm info ⦃ fun r =>

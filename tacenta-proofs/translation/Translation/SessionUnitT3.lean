@@ -206,7 +206,8 @@ own definitions, so there is no third description of the derivation to keep in
 step. -/
 
 /-- The HMAC returns, and returns the model's HMAC. (The KDF's bodies are translated since 2026-10-22, so this is a hypothesis about a
-translated definition; `UnitLifecycleKdf` proves it of the Session unit's copy.) Stated as one
+translated definition; `KdfLeafAgreements`, `KdfTripleUnitAgreements` and
+`UnitLifecycleKdf` prove it of each translation's copy.) Stated as one
 assumption rather than two because the real primitive does both, and because a
 separate totality assumption would then have to be kept in step with T1's. -/
 def HmacAgrees : Prop :=

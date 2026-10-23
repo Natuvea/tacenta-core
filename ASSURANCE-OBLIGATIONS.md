@@ -864,7 +864,7 @@ recorded decision or a target-closing slice:
 
   **Current negative-control evidence:**
   `check-lifecycle-translation-coverage-negatives.sh` (one missing-root mutation),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (204 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,
@@ -934,7 +934,7 @@ recorded decision or a target-closing slice:
 
   **Current negative-control evidence:**
   `check-lifecycle-translation-coverage-negatives.sh` (one missing-root mutation),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (204 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,
@@ -1111,7 +1111,7 @@ recorded decision or a target-closing slice:
   an empty record list and a record outside the first-party prefixes refused;
   the built executable over a compiled module with a planted taker,
   a forging initializer and a notation on its name reports the taker alone),
-  `check-session-satisfiability-negatives.sh` (203 cases,
+  `check-session-satisfiability-negatives.sh` (204 cases,
   18 of them acceptances;
   every Session witness removed in turn,
   the joint model,

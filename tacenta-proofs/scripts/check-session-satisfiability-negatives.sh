@@ -307,12 +307,27 @@ elab "#audit_interp_complete " real:ident " from " rs:ident* : command => do
   let (axs, _) := auditReach env us
   let reached := axs.toList.filter (· != errorAxiom)
   let missing := reached.filter fun a => !interpreted.contains a
-  let extra := interpreted.toList.filter fun a => !(axs.contains a)
+  -- Since the KDF's bodies are translated (`run-aeneas.sh`, `--include-kdf`), two of the constants
+  -- `Interp.real` interprets are definitions, not axioms: the two KDF wrappers. They are the only
+  -- definitions it may interpret; every other interpreted constant must be an axiom a record reaches.
+  let kdfDefs : List Name :=
+    [`tacenta_session_unit.tacenta_kdf.hmac_sha256, `tacenta_session_unit.tacenta_kdf.hkdf_sha256]
+  let isAxiom (c : Name) : Bool := match env.find? c with
+    | some (.axiomInfo _) => true
+    | _ => false
+  let interpretedDefs := interpreted.toList.filter fun c => !isAxiom c
+  let strayDefs := interpretedDefs.filter fun c => !kdfDefs.contains c
+  unless strayDefs.isEmpty do
+    throwError "definitions interpreted that are not the two KDF wrappers: {strayDefs}"
+  unless kdfDefs.all fun c => interpretedDefs.contains c do
+    throwError "the two KDF wrappers are not both interpreted definitions: {interpretedDefs}"
+  let interpretedAx := interpreted.toList.filter isAxiom
+  let extra := interpretedAx.filter fun a => !(axs.contains a)
   unless missing.isEmpty do
     throwError "axioms reached by the records but not interpreted: {missing}"
   unless extra.isEmpty do
     throwError "axioms interpreted but not reached by the records: {extra}"
-  logInfo m!"Interp.real interprets exactly the {interpreted.size} unit axioms reached by the records"
+  logInfo m!"Interp.real interprets exactly the {interpretedAx.length} unit axioms reached by the records, and the two KDF wrappers, which are translated definitions"
 
 #audit_interp_exact Tacenta.UnitSatisfiabilityJoint.Interp
 #audit_interp_complete Tacenta.UnitSatisfiabilityJoint.Interp.real from
@@ -511,7 +526,7 @@ for name, old, new, reason in [
 # -------------------------------------------------------------------- audit
 EXPECT = [
     "Interp: no uninterpreted unit axiom in any field type",
-    "Interp.real interprets exactly the 49 unit axioms reached by the records",
+    "Interp.real interprets exactly the 47 unit axioms reached by the records, and the two KDF wrappers, which are translated definitions",
 ]
 for s, n in [("BraidSendAxiom", 11), ("TripleSendAxiom", 5), ("EncryptAxiom", 5),
              ("BraidReceiveAxiom", 16), ("TripleReceiveAxiom", 7), ("DecryptAxiom", 7),
@@ -538,6 +553,21 @@ for old, new in [
 if t:
     refused("audit-an-interpreted-axiom-no-record-reaches", t + "\n" + audit,
             "axioms interpreted but not reached by the records")
+
+# 1b. a translated definition other than the two KDF wrappers interpreted by `Interp`
+t = joint
+for old, new in [
+    ("  divCeil : Usize → Usize → Result Usize\n",
+     "  divCeil : Usize → Usize → Result Usize\n  kdfInner : Slice U8 → Slice U8 → Result (Array U8 32#usize)\n"),
+    ("  divCeil := core.num.Usize.div_ceil\n",
+     "  divCeil := core.num.Usize.div_ceil\n  kdfInner := tacenta_kdf.hmac.hmac_sha256\n"),
+    ("  divCeil a b := divCeilImpl a b\n",
+     "  divCeil a b := divCeilImpl a b\n  kdfInner _ _ := ok (Array.repeat 32#usize 0#u8)\n"),
+]:
+    t = once(t, old, new, "extra interpreted definition") if t else None
+if t:
+    refused("audit-an-interpreted-definition-other-than-the-kdf", t + "\n" + audit,
+            "definitions interpreted that are not the two KDF wrappers")
 
 # 2. an axiom a record reaches that the interpretation leaves out (in the audit's start list)
 a = once(audit, "  Tacenta.SessionUnitT1.DerivedKeysModel\n#audit_axiom_part",

@@ -217,6 +217,7 @@ echo "== The Session unit's ratchet proofs are the deterministic second port =="
 bash tacenta-proofs/scripts/port-session-unit-proofs.sh --check
 echo "== The Session unit's PQXDH proof is the deterministic leaf port =="
 bash tacenta-proofs/scripts/port-session-pqxdh-proof.sh --check
+bash tacenta-proofs/scripts/port-kdf-proofs.sh --check
 echo "== The Session unit's erasure proof is the deterministic leaf port =="
 bash tacenta-proofs/scripts/port-session-erasure-proof.sh --check
 echo "== The Session unit's Braid proof is the deterministic aggregate port =="

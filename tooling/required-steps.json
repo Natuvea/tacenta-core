@@ -607,7 +607,7 @@
             },
             {
               "id": "checks_24",
-              "run": "bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check\nbash tacenta-proofs/scripts/port-session-braid-preserve.sh --check\n"
+              "run": "bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check\nbash tacenta-proofs/scripts/port-session-braid-preserve.sh --check\nbash tacenta-proofs/scripts/port-kdf-proofs.sh --check\n"
             },
             {
               "id": "checks_25",
