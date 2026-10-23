@@ -1136,7 +1136,7 @@ def tacenta_kdf.hmac.hmac_sha256
   tacenta_kdf.hmac.HmacSha256.finalize m1
 
 /-- [tacenta_kdf::hkdf_sha256]:
-    Source: 'kdf/src/lib.rs', lines 71:0-71:83
+    Source: 'kdf/src/lib.rs', lines 94:0-94:83
     Name pattern: [tacenta_kdf::hkdf_sha256]
     Visibility: public -/
 @[rust_fun "tacenta_kdf::hkdf_sha256"]
@@ -1148,7 +1148,7 @@ def tacenta_kdf.hkdf_sha256
   tacenta_kdf.hkdf.hkdf_sha256 N salt ikm info
 
 /-- [tacenta_kdf::hmac_sha256]:
-    Source: 'kdf/src/lib.rs', lines 76:0-76:55
+    Source: 'kdf/src/lib.rs', lines 99:0-99:55
     Name pattern: [tacenta_kdf::hmac_sha256]
     Visibility: public -/
 @[rust_fun "tacenta_kdf::hmac_sha256"]

@@ -4,7 +4,7 @@ license = "Apache-2.0"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.87"
-description = "HKDF-SHA256 and HMAC-SHA256 over a SHA-256, written in the subset the translation reads, so that the Session unit's proofs can be about their bodies."
+description = "HKDF-SHA256 and HMAC-SHA256 over a SHA-256, written in the subset the translation reads, so that the proofs can be about their bodies."
 publish = false
 
 # Its own crate, as it always was, so every caller keeps the same three

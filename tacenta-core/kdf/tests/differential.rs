@@ -111,7 +111,10 @@ fn hkdf_fixed_width_agrees() {
 
 /// One byte past RFC 5869's bound, both refuse, and this crate's panic carries
 /// the text the previous `expect` produced (its message, then the `Debug` form
-/// of RustCrypto's `InvalidLength`).
+/// of RustCrypto's `InvalidLength`). The payload's type is not the same: the
+/// previous `expect` panicked with a `String`, this crate's `assert!` with a
+/// literal message panics with a `&'static str`, and the test holds the new
+/// type so that a change of either is seen.
 #[test]
 fn hkdf_refuses_past_the_bound_with_the_same_message() {
     let mut theirs = vec![0u8; 8161];
@@ -125,11 +128,13 @@ fn hkdf_refuses_past_the_bound_with_the_same_message() {
         hkdf_sha256_into(b"s", b"k", b"i", &mut ours);
     });
     let payload = refused.expect_err("8161 bytes must be refused");
-    let message = payload
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| payload.downcast_ref::<&str>().copied())
-        .expect("a text panic");
+    assert!(
+        payload.downcast_ref::<String>().is_none(),
+        "the payload is a String, as the previous expect's was"
+    );
+    let message = *payload
+        .downcast_ref::<&'static str>()
+        .expect("the payload is the assert's &'static str");
     let expected = format!(
         "HKDF output length is within the 255 * HashLen bound: {:?}",
         hkdf::InvalidLength
