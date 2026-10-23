@@ -1991,8 +1991,9 @@ of a full run from its fixture's `no-sorry.sh` instead of a number written by ha
 the run calls has no stub; a phase dropped from both `no-sorry.sh` and the parts file is therefore no longer caught
 there, and is caught by `tooling/tests/run-proof-script-cases.sh`, whose honest run lists every stubbed script
 `no-sorry.sh` must call and requires the success line of the real `check-translation-coverage.sh`, the one phase
-script it does not stub), and the two pretty-printer options in the module, so that its pins print whole. The two
-lists it now edits are among the files `tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
+script it does not stub), and the two pretty-printer options in the module, so that its pins print whole. The
+lists it now edits, the names the count gate's case runner copies among them, are among the files
+`tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
 scaffold a module still merge through `tooling/regenerate-generated.sh`. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
 own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
 `cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,
