@@ -1162,7 +1162,10 @@ recorded decision or a target-closing slice:
   each refused),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
-  `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise, each at its named declaration, and the record held by its `#print` pin),
+  `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused, each at its named place: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise at their named declarations, and the record held by its `#print` pin;
+  each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
+  the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
   each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;

@@ -7,23 +7,30 @@ The module states tacenta-core's `HmacAgrees` and `HkdfAgrees` as theorems about
 KDF (`hmacAgrees`, `hkdfAgrees`, each composing the copied T3 specification with the model bridge), derives the
 other KDF propositions the unit's results take from them, builds `decrypt_ratchet`'s agreement record without its
 KDF fields (`DecryptRatchetAgreements.of_kdf`) and states the complete refinement that way
-(`decrypt_ratchet_refines_complete_of_kdf`).  This script plants 8 faults:
+(`decrypt_ratchet_refines_complete_of_kdf`).  This script plants 8 faults.  What a run establishes is that each
+control is refused at its named place, and that each control it labels inside a composing proof is also accepted there
+when that proof is replaced by `sorry` (attribution to that proof, nothing more); controls it labels projections are
+not probed.  The labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling and
+are guidance, not a claim: the helper that tells inside from projection reads Lean's error text and can read some
+projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  The controls, by where
+they are refused:
 
-- labelled inside a composing proof (`INSIDE`): HKDF's bound moved to 8161 bytes, refused in `hkdfAgrees`; HMAC's
-  output read backwards, refused in `hmacAgrees`; the corollary's trace premise weakened to an empty trace,
-  refused in `decrypt_ratchet_refines_complete_of_kdf`, which passes it unchanged as an argument to the complete
-  refinement: a premise mismatch at a forwarded argument, not a composition step.  It is labelled inside because
-  `passed_through` counts as a projection only a conjunct taken from a called theorem's conclusion, and the
-  sorry-probe checks where it is refused, nothing more.  3 controls are labelled inside, two of them refused at a
-  composition step.  No control is a projection (`PROJECTION` is empty).
+- labelled inside a composing proof (`INSIDE`): HKDF's bound moved to 8161 bytes, refused in `hkdfAgrees`, which
+  passes its bound premise unchanged as an argument to the copied T3 specification `KdfProof.hkdf_sha256_spec`;
+  HMAC's output read backwards, refused in `hmacAgrees` at its last rewrite; the corollary's trace premise weakened
+  to an empty trace, refused in `decrypt_ratchet_refines_complete_of_kdf`, which passes it unchanged as an argument
+  to the complete refinement.  By reading, only HMAC's reversed output is refused at a step of the composing proof;
+  the other two are premise mismatches at a forwarded argument (Lean reports an application type mismatch at that
+  argument), not composition steps.  They are labelled inside because `passed_through` counts as a projection only
+  a conjunct taken from a called theorem's conclusion, and the sorry-probe checks where a control is refused,
+  nothing more.  No control is labelled a projection (`PROJECTION` is empty).
 - on leaf declarations: the composing proof copied, word for word, under a changed statement beside the original
   (so that the theorems using the original are not disturbed): HKDF's salt and input keying material exchanged on
   the model's side, refused in `hkdfAgrees_salt_ikm_swapped`; HMAC's key and message exchanged, refused in
   `hmacAgrees_key_data_swapped`; and the record's `kemClone` field given another field's type, refused in
   `DecryptRatchetAgreements.of_kdf`.
 - statement-shape (`STATEMENT_SHAPE`): the Session leaf's HKDF totality claimed at 8161 bytes, refused in
-  `sessionHkdfTotal`, which projects `hkdfAgrees`, and still refused with `hkdfAgrees`'s proof emptied.  1
-  control is statement-shape.
+  `sessionHkdfTotal`, which projects `hkdfAgrees`, and still refused with `hkdfAgrees`'s proof emptied.
 - the definition held by its pin: the record given an extra field with the pins kept, refused at the `#print`
   pin of `KdfFreeAgreements`.
 
@@ -136,8 +143,9 @@ SL = 'Tacenta.SessionUnitT3.sliceOf'
 #  output must contain, where the refusal must be: declarations one of whose lines holds an error, or
 #  ('pin', name) for the `#guard_msgs` line of the `#print` pin of `name`)
 MUTANTS = [
-    # HKDF's bound moved past RFC 5869's 8160 bytes: the copied Rust panics at 8161, and the T3 specification
-    # it composes asks for the bound.
+    # HKDF's bound moved past RFC 5869's 8160 bytes: the copied Rust panics at 8161.  `hkdfAgrees` passes its bound
+    # premise unchanged to the T3 specification, which asks for 8160, so the refusal is a premise mismatch at that
+    # argument.
     ('module', 'hkdf-bound-8161',
      [(HKDF_HEAD, hkdf_stated(8161, f'{KEY} = Model.Kdf.hkdf ({SL} key) ({SL} salt) ({SL} info) N.val'))],
      r'type mismatch', ['hkdfAgrees']),

@@ -4547,20 +4547,25 @@ wrappers, and the error type inside `RngCore`), `toy_models_share_modelT3_kdf` 1
 of the 19 results carries an axiom pin and
 a statement pin, and the record `KdfFreeAgreements` a `#print` pin; `attest.py` requires them.
 `check-kdf-realisation-negatives.py` plants 8 faults in a copy of the module, each a change to a statement or a
-definition, and requires Lean to refuse each at a named declaration or pin: HKDF's bound moved to 8161 bytes (refused in
-`hkdfAgrees`) and HMAC's output read backwards (refused in `hmacAgrees`), both labelled inside those composing proofs and
-accepted there with the proof replaced by `sorry`; HKDF's salt and input keying material, and HMAC's key and message,
-exchanged on the model's side, each in a copy of the composing proof beside the original (refused in that copy); the
-Session leaf's totality claimed at 8161 bytes (refused in `sessionHkdfTotal`, still refused with `hkdfAgrees`'s proof
-emptied); a field of `KdfFreeAgreements` given another field's type (refused in `DecryptRatchetAgreements.of_kdf`); the
-corollary's trace premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`, where the
-weakened premise no longer fits the argument that theorem passes unchanged to `decrypt_ratchet_refines_complete`: a premise
-mismatch at a forwarded argument, not a composition step; it is labelled inside because the template counts as a projection
-only a conjunct taken from a called theorem's conclusion, and it is accepted there with its proof replaced by `sorry`, which
-checks where it is refused and nothing more); and the record given an extra field with its
-pins kept (refused at its `#print` pin). The script shares the other lifecycle negatives scripts' helpers and is counted
-in `negatives-control-counts.json` (3 inside, of which two are refused at a composition step and one at a forwarded
-premise, 1 statement-shape, 1 pin, 3 on leaf declarations, 2 baselines). The copied `Kdf*` proofs are not held by that
+definition, and requires Lean to refuse each at a named declaration or pin (a proof-breakage check at that place, not
+a proof that the changed statement is false). What it establishes is that each control is refused at its named place, and that each control it labels inside a composing proof is also accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more); controls it labels projections are not probed. The script's
+labels (inside a composing proof, projection, statement-shape, leaf, pin) and the per-class counts in
+`negatives-control-counts.json` are its own labelling and are guidance, not a claim: the helper that tells inside from
+projection reads Lean's error text and can read some projections as composition steps (`ASSURANCE-OBLIGATIONS.md`
+records the decision, not built). The controls: HKDF's bound moved to 8161 bytes (refused in `hkdfAgrees`, where the
+weakened premise no longer fits the argument that proof passes unchanged to the copied T3 specification
+`KdfProof.hkdf_sha256_spec`) and HMAC's output read backwards (refused in `hmacAgrees` at its last rewrite), both
+labelled inside those composing proofs; HKDF's salt and input keying material, and HMAC's key and message, exchanged on
+the model's side, each in a copy of the composing proof beside the original (refused in that copy); the Session leaf's
+totality claimed at 8161 bytes (refused in `sessionHkdfTotal`, still refused with `hkdfAgrees`'s proof emptied); a field
+of `KdfFreeAgreements` given another field's type (refused in `DecryptRatchetAgreements.of_kdf`); the corollary's trace
+premise weakened to an empty trace (refused in `decrypt_ratchet_refines_complete_of_kdf`, where the weakened premise no
+longer fits the argument that theorem passes unchanged to `decrypt_ratchet_refines_complete`), also labelled inside;
+and the record given an extra field with its pins kept (refused at its `#print` pin). By reading, only HMAC's reversed
+output is refused at a step of a composing proof: the bound and trace controls are premise mismatches at a forwarded
+argument, not composition steps, and are labelled inside because the template counts as a projection only a conjunct
+taken from a called theorem's conclusion. The script shares the other lifecycle negatives scripts' helpers and is
+counted in `negatives-control-counts.json`. The copied `Kdf*` proofs are not held by that
 script; a change to one round constant of the copied Rust, re-translated, was refused in `KdfT3Compress.wordsOf_K` when
 this was written (a one-off run, not a gate).
 
