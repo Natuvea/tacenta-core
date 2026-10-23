@@ -840,15 +840,18 @@ recorded decision or a target-closing slice:
   **Protected property:**
   The two hand-written constant-time functions compile to straight-line code:
   no conditional branch beyond `mac_eq`'s public length compare, no callee off the name allow-list.
+  The key derivation (`tacenta-kdf`), built with the toolchain `tooling/ct-baselines/rust-toolchain.txt` names and checked against `rustc-version.txt`, compiles to its reviewed inventory of branches, register-indexed accesses and callees on each target read (`tooling/ct-baselines/tacenta_kdf-<target>.txt`):
+  a tripwire for a changed shape, not a constant-time proof.
 
   **Current negative-control evidence:**
   `tooling/tests/run-check-constant-time-asm-cases.sh`:
   3 controls, all on the callee allow-list.
 
   **Missing evidence:**
-  The branch counter on x86_64 and aarch64, indirect jumps and calls, the refusal of `subtle` and `conditional_` callees, the one allowed length compare, the rules `main` applies to what the reader found and the rule that CI fails with no Linux target (a stubbed toolchain) are held by 86 further cases (`CT1` to `CT16` re-run red):
+  The branch counter on x86_64 and aarch64, indirect jumps and calls, the refusal of `subtle` and `conditional_` callees, the one allowed length compare, the rules `main` applies to what the reader found and the rule that CI fails with no Linux target (a stubbed toolchain) are held by 120 further cases (`CT1` to `CT38` re-run red):
   every x86_64 conditional mnemonic, every aarch64 condition, the pair, unscaled, halfword and plain aarch64 loads,
   `lea` before the length compare and a listed `subtle::black_box`.
+  The same cases hold the key derivation's half: its inventory reader on both architectures, the comparison with the reviewed baselines, the toolchain and compiler pin, and the CI rules that refuse a baseline rewrite, a skipped half and a missing Linux target (`CT17` to `CT38` in `GATE-MUTATION-RECORD.md`).
 
 - **Gate/check:**
   `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py`,

@@ -381,7 +381,7 @@ fi
 # `tacenta-kdf` alone with the toolchain `tooling/ct-baselines/rust-toolchain.txt`
 # names and compares its inventory with the reviewed baselines; without that
 # toolchain it is skipped here with a line saying so, and fails in CI.
-echo "== Rust: the constant-time functions compile to straight-line code =="
+echo "== Rust: the two constant-time functions compile to straight-line code, and the key derivation's compiled code matches its reviewed inventory =="
 bash tooling/check-constant-time-asm.sh
 
 # Known advisories against the dependency graph. Fails on a vulnerability;
