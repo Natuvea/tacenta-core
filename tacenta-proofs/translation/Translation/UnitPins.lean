@@ -140,7 +140,9 @@ The ported one proves that part, and the boundary axioms that proving it needs
 are the extra. Which is the better trade is the reader's to judge; what is not
 open to judgement is that the axiom count went from twelve to seventeen (fifteen since the KDF change).
 
-Six axioms went and eleven arrived (nine since the KDF change). What went is the bare operation axioms --
+Six axioms went and eleven arrived (since the KDF change, seven went and ten arrived: `hkdf_sha256`,
+there before, is a translated definition now, and `hmac_sha256` no longer arrives).
+What went is the bare operation axioms --
 `tacenta_ratchet.State`, `tacenta_ratchet.receive`, `tacenta_spqr.State`,
 `tacenta_spqr.State.receive` and the two states' clones, six constants standing
 for "this call returns, because we say so".

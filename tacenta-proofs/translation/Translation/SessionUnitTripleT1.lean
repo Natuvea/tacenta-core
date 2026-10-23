@@ -601,7 +601,8 @@ Both halves of the change are worth stating plainly, and
 `Translation/UnitPins.lean` states them: the standalone theorem had fewer axioms
 because it *assumed* the sparse ratchet's receive is total rather than proving
 it; this one proves that part and inherits the boundary axioms proving it needs.
-Underneath, six axioms went and eleven arrived (nine since the KDF change): the
+Underneath, six axioms went and eleven arrived (since the KDF change, seven went and
+ten arrived): the
 bare operation axioms (`tacenta_ratchet.receive`, `tacenta_spqr.State.receive`,
 the two states and their clones) were replaced by KDF, zeroize, `Vec` and
 `Option` boundary axioms already shared with other proofs in this tree, of which
