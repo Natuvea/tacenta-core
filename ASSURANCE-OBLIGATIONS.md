@@ -1009,6 +1009,7 @@ recorded decision or a target-closing slice:
   `check-refuted-records.sh`,
   `check-session-satisfiability-negatives.sh`,
   `check-initial-dispatch-negatives.py`,
+  `check-initiator-repeated-reply-negatives.py`,
   `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
   `check-repair-negatives.py`,
@@ -1078,6 +1079,15 @@ recorded decision or a target-closing slice:
   `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
   the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
   the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
+  `Session::decrypt` of the responder's reply delivered again,
+  at the initiator's session after its first receipt,
+  keeps the one draw,
+  the model's out-of-order refusal,
+  the refusal's kind and the session it returns,
+  the agreement's state and the oracle's draws,
+  and its composition keeps the second source,
+  the model step at the oracle holding the second draw on the reply's bytes,
+  and the relation's ratchet key;
   `check-responder-second-send-negatives.py`:
   the responder's `encrypt` at the session its receipt of the initiator's second message returned keeps the source the receipt left,
   the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send, the budget after it and the send-preservation step's ceilings,
@@ -1503,6 +1513,31 @@ recorded decision or a target-closing slice:
   the zero-array step of `split_secret_refines`,
   unused by its proof,
   is removed),
+  `check-initiator-repeated-reply-negatives.py` (two unmodified copies accepted and twenty-one changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement and a proof-breakage check there,
+  not a proof that the changed statement is false:
+  ten labelled inside the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` and three projections of called theorems' conjuncts,
+  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
+  and at run time only that each change is refused at its labelled place,
+  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  the refusal claimed to take no draw,
+  to be `NoReceivingChain`
+  or to clear the pending initial message,
+  the model's step claimed to keep the draw,
+  the agreement claimed failed,
+  the source claimed a draw ahead of the oracle,
+  the second draw claimed of the first receipt's source,
+  the model's step claimed at the first receipt's draw or on the plaintext,
+  and the relation claimed with the second draw as the ratchet key;
+  projections: the second delivery and the invariant claimed at the session before the first receipt and the first receipt claimed from the second source);
+  two statement-shape checks on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
+  five on the leaf lemmas (the model's receive claimed to refuse for no receiving chain or on the initiator's own sending key, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the byte trace claimed with its runs swapped),
+  and the model receive's statement with a variable renamed and its pins kept;
+  an error that is not a refusal voids a run, matched without regard to case;
+  a timeout never counts as the named refusal;
+  none shows that another delivery is refused),
   `check-initiator-second-message-negatives.py` (two unmodified copies accepted and eleven changes refused: seven inside the two composing proofs, three projections and one definition held by its pin),
   `check-tampered-reply-negatives.py` (two unmodified copies accepted and fifteen changes refused,
   each at a named declaration or pin and against a message naming the change,

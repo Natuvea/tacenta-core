@@ -31,6 +31,7 @@ import Translation.UnitLifecycleReceivePreserve
 import Translation.UnitLifecycleT3
 import Translation.UnitLifecycleTamperedReply
 import Translation.UnitLifecycleInitialDispatch
+import Translation.UnitLifecycleInitiatorRepeatedReply
 import Translation.UnitLifecycleInitiatorSecondMessage
 import Translation.DispatchEvidenceVacuity
 import Translation.SessionUnitBraidPreserveFacts
@@ -224,8 +225,14 @@ copy of the code: the leaf statement and the three-leaf unit's copy still pin th
 the initiator's second message, under the receipt's two per-run premises (the responder's draw, and the initiator's
 new key not its first) and a bound on the plaintext: its public `encrypt` at the session the receipt returns returns
 the bare second reply frame with no draw, writes only the Triple Ratchet, refines the model's step, and leaves a
-session that passes `Session::invariant` and meets the four ceilings.  No law is added; a reach exhibits such a run at the real constants under assumed laws.  The initiator's
-receipt of that frame and every later step are not covered.
+session that passes `Session::invariant` and meets the four ceilings.  No law is added; a reach exhibits such a run at
+the real constants under assumed laws.  The initiator's receipt of that frame and every later step are not covered.
+`UnitLifecycleInitiatorRepeatedReply.lean` delivers the responder's reply to the initiator's `Session::decrypt` a second
+time, at the session its first receipt returned, on the same run and under the per-run premise that the second source
+holds a draw: the inner receive refuses it as out of order (the reply's ratchet key is now the peer key held and its
+number 0 is below the receive count 1), the session returned is the one given (which passes `Session::invariant` and
+meets the four ceilings), the source loses exactly one draw, and the step refines the model's.  No law is added beyond
+the receipt's; a delivery at a later session, of different bytes, or after a first receipt that refused is not shown.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

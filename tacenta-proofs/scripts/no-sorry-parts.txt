@@ -59,6 +59,7 @@ hosted responder:
   responder-repeated-frame
 hosted reply:
   responder-successor
+  initiator-repeated-reply
   responder-reply
   responder-reply-receipt
   send-preservation

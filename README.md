@@ -285,7 +285,12 @@ first receipt returned recognises the repeat, refuses it as out of order, return
 refining the model's step; `establish_responder` at the store the first success committed refuses it as
 `ReplayedLastResort` with the store and the source unchanged, when the bundle names the store's last-resort KEM key and no
 one-time curve prekey (no new law, no compiler-trust axiom). The model's side of the second (no relation to the model's
-store exists), the one-time path, and a repeat at a later session or of other bytes are not shown.
+store exists), the one-time path, and a repeat at a later session or of other bytes are not shown. The responder's
+reply delivered to the initiator a second time, right after a first receipt that succeeded, is refused by the initiator's
+`decrypt` at the session that receipt returned: out of order, that session returned unchanged (so it still passes
+`Session::invariant` and meets the four ceilings), one draw taken, refining the model's step, under the receipt's
+hypotheses and a per-run premise that the second source holds a draw (no new law, no compiler-trust axiom). A delivery at
+a later point, after a first receipt that refused, or of other bytes is not shown.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three

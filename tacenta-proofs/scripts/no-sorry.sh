@@ -326,6 +326,20 @@ phase_established() {
 python3 scripts/check-established-negatives.py || fail=1
 }
 
+# `Session::decrypt` of the responder's reply delivered again, at the initiator's session after its first receipt
+# (`UnitLifecycleInitiatorRepeatedReply.lean`): a copy with the refusal claimed to take no draw, to be
+# `NoReceivingChain` or to clear the pending initial message, the model's step claimed to keep the draw, the agreement
+# claimed failed, the source claimed a draw ahead of the oracle, the second draw claimed of the first receipt's
+# source, the model's step claimed at the first receipt's draw or on the plaintext, the relation claimed with the
+# second draw as the ratchet key, the second delivery, the invariant or the first receipt claimed at another session
+# or source, the reach claimed from the first send's source or accepted, a leaf claimed otherwise (the receive's
+# refusal or key, the draw's agreement, the oracle kept, the byte trace's runs swapped), and a statement with a
+# variable renamed and its pins kept must each be refused at a named declaration or pin, with a message naming the
+# change, after the unmodified copies are accepted.
+phase_initiator_repeated_reply() {
+python3 scripts/check-initiator-repeated-reply-negatives.py || fail=1
+}
+
 # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings
 # at the session the receipt returns derived on that run and kept through the send
 # (`UnitLifecycleInitiatorSecondMessage.lean`): eleven changes to statements and one definition (the budget after
@@ -717,6 +731,7 @@ phases() {
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
+  run_phase initiator-repeated-reply plain "initiator-repeated-reply proof-dependency control" phase_initiator_repeated_reply
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt

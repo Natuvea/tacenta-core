@@ -3211,9 +3211,31 @@ call's success as a hypothesis. It is a statement about the translated code alon
 store and the model's exists in the tree, so that the model's `establishResponder` refuses the same delivery is not shown.
 Its statement pin prints the whole statement, with the same proviso. **Not shown:** a repeat at
 any later session (after the responder's reply, after the initiator's second message, on a restored copy) or of the reply
-at the initiator; a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
+at the initiator (the next paragraph takes the reply's, right after the first receipt); a repeat that differs in its bytes; the one-time path, whose second delivery the code refuses by reading
 because the commit removed the key; a second delivery after a refused first call or after another store change; that the
 replay record keeps the entry for the store's life.
+
+**The reply delivered a second time** (`Translation/UnitLifecycleInitiatorRepeatedReply.lean`). On the run of the
+initiator's first send, the responder's receipt and its reply, the reply's bytes delivered again to the initiator, at the
+session `s''` its first receipt of them returned, are refused with no durable effect on the session.
+`initiator_repeated_reply_refused`: the public `Session::decrypt` passes the bare frame to its inner receive, which
+refuses it as out of order (`Triple(Classical(OutOfOrder))`: the reply's ratchet key is now the peer key held, no stored
+key matches and message 0 is below the receive count 1), and it returns `s''` itself, refining the model's step; `s''`
+passes `Session::invariant` and meets the four ceilings (from `initiator_receives_reply_successor` on the same run), so the
+session after the refusal does too. It takes one draw from the source, the candidate key drawn before the Triple's receive,
+as the model's step does, so "no effect" holds of the session and not of the random source. It rests on the kernel and
+opaque constants and on the hypotheses of `initiator_receives_reply` (the receipt's laws `AeadRoundTrip`,
+`DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, and the other laws and records named there, ASSUMED, with the
+per-run premise `hfreshB`), with one per-run premise more, that the second source holds a draw; `DhAgreeContributory` also
+carries the agreements of `s''`'s ratchet key and of the second draw with the reply's key, without which the refusal would
+be `handshake nonContributoryAgreement` instead. The general step `reply_again_refused_of_invariant` takes the invariant,
+`CounterHeadroom` and the relation to `replyReceiptSession` as hypotheses; on the run they are derived. The statement pins
+print the whole statement, which is still not the whole elaborated statement, as for every statement pin. **Not shown:** a
+delivery of the reply again at any other point (after the initiator's second send, after the responder's second message, on
+a restored copy, or after a first receipt that refused, where `hfreshB` fails); a frame that differs from the reply in its
+bytes (a tampered reply at `s''`) and any other out-of-order delivery (a later message of the same chain arriving first,
+delay or loss, a receive that uses a stored skipped key); the arms an empty source or a refused agreement would give; that a
+refused call keeps `Session::invariant` in general (here the session returned is `s''` itself); every step that runs a KEM.
 
 **What is not shown.**
 

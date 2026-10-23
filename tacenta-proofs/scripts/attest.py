@@ -1758,6 +1758,17 @@ REQUIRED_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # the responder's reply delivered again to the initiator after its first receipt is refused as out of order with no durable effect (`UnitLifecycleInitiatorRepeatedReply`).
+    + ["Tacenta.UnitLifecycleInitiatorRepeatedReply." + n for n in (
+        "reply_again_receive_outOfOrder",
+        "reply_again_with_eviction",
+        "reply_again_model_refused",
+        "reply_key_agreement",
+        "reply_again_refused_of_invariant",
+        "initiator_repeated_reply_refused",
+        "byteTrace_seed_two_extra",
+        "repeated_reply_refused_reachable",
+    )]
     # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
     + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
         "initiator_sends_second_message",
@@ -3534,6 +3545,17 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "repeated_initial_agreement_true_iff",
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
+    )]
+    # the responder's reply delivered again to the initiator after its first receipt is refused as out of order with no durable effect (`UnitLifecycleInitiatorRepeatedReply`).
+    + ["Tacenta.UnitLifecycleInitiatorRepeatedReply." + n for n in (
+        "reply_again_receive_outOfOrder",
+        "reply_again_with_eviction",
+        "reply_again_model_refused",
+        "reply_key_agreement",
+        "reply_again_refused_of_invariant",
+        "initiator_repeated_reply_refused",
+        "byteTrace_seed_two_extra",
+        "repeated_reply_refused_reachable",
     )]
     # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
     + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
