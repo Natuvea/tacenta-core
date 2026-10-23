@@ -2,15 +2,15 @@
 #
 # Read on 2026-10-22 from the assembly `tooling/check-constant-time-asm.sh` builds:
 # `tacenta-kdf` in this workspace's release profile (`overflow-checks = true`), one codegen
-# unit, `--emit=asm`, rustc 1.99.0-nightly (da80ed070 2026-07-14). rustc 1.98.1 (stable)
-# gave an identical inventory for aarch64-apple-darwin; the two Linux inventories were
-# built only with the nightly (stable's Linux targets were not installed here), so whether
-# stable produces the same Linux inventories is not checked, and a CI run on another rustc
-# fails until its differences are read. The two Linux targets were cross-compiled on an
-# aarch64 Mac: the assembly was read, nothing ran on Linux hardware, and nothing here
-# measures time.
+# unit, `--emit=asm`, rustc 1.99.0-nightly (da80ed070 2026-07-14), the toolchain
+# `nightly-2026-07-15` that `rustc-version.txt` names and CI's `rust_ct_asm` step pins.
+# rustc 1.98.1 (stable) gave an identical inventory for aarch64-apple-darwin; no stable
+# inventory was produced for either Linux target (stable's Linux targets were not
+# installed here). The two Linux targets were cross-compiled on an aarch64 Mac: the
+# assembly was read, nothing ran on Linux hardware, and nothing here measures time. The
+# build has one codegen unit, which the shipped release build does not set.
 #
-# Who read it: a tool-assisted session, not an independent human reader. The
+# Who read it: a tool-assisted session, not a human reader. The
 # aarch64-apple-darwin assembly of `compress`, `hmac_sha256`, `HmacSha256::new`,
 # `Sha256::finalize`, `HmacSha256::finalize` and the HKDF was read branch by branch; the
 # two Linux inventories were read item by item against the same classes, with the x86_64

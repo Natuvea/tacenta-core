@@ -101,18 +101,22 @@
 # workspace's release profile adds an overflow check (a compare and a branch to
 # a panic) to every counter step. So the rule above, no conditional branch at
 # all, cannot hold, and the crate is held instead to an exact inventory read by
-# hand, the method of the independent verified implementation its bodies were
-# copied from. For each target it builds `tacenta-kdf` the same way (release,
-# `overflow-checks = true` from the workspace profile, one codegen unit,
-# `--emit=asm`) and lists, for every function in the crate's assembly:
+# hand, the method of the separate repository its bodies were copied from. For
+# each target it builds `tacenta-kdf` the same way (release, `overflow-checks =
+# true` from the workspace profile, `--emit=asm`, and `-C codegen-units=1`,
+# which the shipped release build does not set: the gate reads a one-unit build
+# so that each crate is one file, and the default build's code may differ) and
+# lists, for every function in the crate's assembly:
 #
 # - each conditional branch, with the instruction before it (so a compare of a
 #   secret cannot stand in for a public compare with the same branch);
 # - each indirect jump or call (a call through the x86_64 Linux GOT slot of a
 #   named symbol is read as a call to that symbol);
 # - each jump-table or lookup-table reference;
-# - each memory access whose address uses a second register (where a
-#   secret-indexed table lookup would show);
+# - each memory access whose address names an index register: on x86_64 a
+#   base-and-index or index-only operand (`(%rA,%rB)`, `K(,%rB,4)`), on aarch64
+#   a register offset (`[xA, xB]`) or a register post-index (`[xA], xB`). A
+#   table lookup indexed by a register shows here;
 # - each named callee, and each hardware divide.
 #
 # Local labels, crate hashes and symbol hashes are normalised; registers and
@@ -124,12 +128,24 @@
 # against the rule in `tooling/ct-baselines/kdf-review-notes.txt` (a branch or
 # index may depend on a length, a loop counter, a buffer fill count or a public
 # constant, never on a key, message or state byte); the reading was made by a
-# tool-assisted session, not by an independent human reader. A change to the
+# tool-assisted session, not by a human reader. A change to the
 # code or the compiler changes items: `--update-kdf-baseline` rewrites the
 # baselines of the targets this run checks, and refuses in CI, and every
 # changed item must be read before the result is committed.
 #
-# What it does not do for the KDF: read the callees' bodies (`memcpy`, `bzero`
+# The toolchain. The baselines were read from one compiler,
+# `tooling/ct-baselines/rustc-version.txt`; on any other `rustc -V` the KDF
+# half refuses rather than compare, since register allocation and loop shapes
+# move between compiler versions. CI pins that toolchain for this step (the
+# workflow's `rust_target` and `rust_ct_asm`). No inventory from a stable
+# toolchain was produced for the Linux targets.
+#
+# What it does not see, so it is a tripwire and not a proof: an address
+# computed into a register first (`add xD, xA, xB`, `leaq (%rA,%rB), %rD`) and
+# used later as a plain base (`[xD]`, `(%rD)`) or passed to a callee is listed
+# only when the `leaq` form itself names an index (x86_64), never on aarch64;
+# whether a listed index register holds a secret is the reading's question,
+# not the reader's. It does not read the callees' bodies (`memcpy`, `bzero`
 # and the panic functions, all of which take public lengths here), cover an
 # LTO build (the crate's functions would be inlined into their callers and
 # these per-function lists would not apply), or measure time. The Linux
@@ -283,13 +299,13 @@ kdf_inventory() {
           } else if (op !~ /^\.?L[A-Za-z]*[0-9]/) { o = op; sub(/@[A-Za-z]+$/, "", o); emit("call", norm(o)) }
         }
         if (mn ~ /^(div|idiv)/) emit("divide", ins)
-        if (line ~ /\(%[a-z0-9]+,%[a-z0-9]+/) emit("indexed", ins)
+        if (line ~ /\([^)]*,%[a-z0-9]+/) emit("indexed", ins)
       } else {
         if (mn ~ /^b\./ || mn ~ /^(cbz|cbnz|tbz|tbnz)$/) emit("branch", ins " | " prev)
         else if (mn ~ /^(br|blr)$/) emit("indirect", ins)
         else if (mn ~ /^(b|bl)$/ && $2 !~ /^\.?L[A-Za-z]*[0-9]/) emit("call", norm($2))
         if (mn ~ /^(udiv|sdiv)$/) emit("divide", ins)
-        if (line ~ /\[[xw][0-9]+, *[xw][0-9]+/) emit("indexed", ins)
+        if (line ~ /\[[xw][0-9]+, *[xw][0-9]+/ || line ~ /\[[xw][0-9]+\], *[xw][0-9]+/) emit("indexed", ins)
       }
       if (line ~ /(LJTI|switch\.table)/) emit("table", ins)
       prev = ins
@@ -386,8 +402,18 @@ main() {
     fi
   done
 
-  # The key derivation: the whole crate's inventory against its reviewed baseline.
-  local kdf_file kdf_base kdf_inv divides
+  # The key derivation: the whole crate's inventory against its reviewed baseline,
+  # read only with the compiler the baselines were read from.
+  local kdf_file kdf_base kdf_inv divides want_rustc have_rustc
+  want_rustc="$(cat "$root/tooling/ct-baselines/rustc-version.txt" 2>/dev/null || true)"
+  have_rustc="$(rustc -V)"
+  if [ -z "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
+    fail "tooling/ct-baselines/rustc-version.txt is missing or empty; the KDF baselines name no compiler"
+  elif [ "$have_rustc" != "$want_rustc" ] && [ "$update_kdf" -ne 1 ]; then
+    say "$t: tacenta_kdf: this is $have_rustc; the baselines were read from $want_rustc, so the inventory is not compared (pin the toolchain, or read the new inventory and rewrite the baselines and rustc-version.txt)" >&2
+    status=1
+    continue
+  fi
   cargo clean --release --target "$t" -p tacenta-kdf --quiet
   rm -f "target/$t/release/deps/tacenta_kdf"-*.s
   cargo rustc --release --locked -p tacenta-kdf --lib --target "$t" --quiet -- \
@@ -409,6 +435,7 @@ main() {
   elif [ "$update_kdf" -eq 1 ]; then
     mkdir -p "$(dirname "$kdf_base")"
     printf '%s\n' "$kdf_inv" >"$kdf_base"
+    printf '%s\n' "$have_rustc" >"$root/tooling/ct-baselines/rustc-version.txt"
     say "$t: tacenta_kdf: wrote $(grep -c '^ITEM' "$kdf_base") items to ${kdf_base#"$root"/}; read every changed item before committing"
   elif [ ! -f "$kdf_base" ]; then
     say "$t: tacenta_kdf: no reviewed baseline ${kdf_base#"$root"/}; read the inventory and write one with --update-kdf-baseline" >&2

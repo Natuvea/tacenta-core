@@ -123,11 +123,16 @@ jobs:
       # that was inlined away. `--emit=asm` needs no linker, so the target
       # needs only its `rust-std`. The script is under `tooling/` at the
       # repository root; this job's working directory is `tacenta-core`.
+      # The key derivation's half compares an exact inventory with baselines
+      # read from one compiler (`tooling/ct-baselines/rustc-version.txt`), so
+      # both steps use that toolchain, pinned by date, not the job's stable.
       - id: rust_target
-        run: rustup target add aarch64-unknown-linux-gnu
+        run: rustup toolchain install nightly-2026-07-15 --profile minimal --target aarch64-unknown-linux-gnu
       - id: rust_ct_asm
         name: The constant-time functions compile to straight-line code
         run: bash ../tooling/check-constant-time-asm.sh
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2026-07-15
       - uses: ./.github/actions/assurance-receipt
         with:
           id: rust

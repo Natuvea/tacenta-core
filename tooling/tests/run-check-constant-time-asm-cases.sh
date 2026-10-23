@@ -156,7 +156,11 @@ printf '  blr x8\n  bl _memcpy\n  ret\n' \
 printf '  cmpq $63, %%rdi\n  ja .LBB5_44\n  retq\n' \
   | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf branch ja L | cmpq $63, %rdi' 'kdf x86 branch listed with its compare'
 printf '  callq *memcpy@GOTPCREL(%%rip)\n  callq *%%rax\n  jmp *.LJTI0_0(,%%rax,8)\n  retq\n' \
-  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf call memcpy\nITEM fixture_kdf indexed jmp *L(,%rax,8)\nITEM fixture_kdf indirect callq *%rax\nITEM fixture_kdf indirect jmp *L(,%rax,8)\nITEM fixture_kdf table jmp *L(,%rax,8)' 'kdf x86 GOT call named, other indirect transfers and the table listed'
+printf '  movl K(,%%rcx,4), %%eax\n  retq\n' \
+  | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf indexed movl K(,%rcx,4), %eax' 'kdf x86 index-only operand listed'
+printf '  ldr w8, [x9], x10\n  ret\n' \
+  | inv_case aarch64 $'FUNC fixture_kdf\nITEM fixture_kdf indexed ldr w8, [x9], x10' 'kdf aarch64 register post-index listed'
 printf '  movzbl (%%r15,%%rbx), %%eax\n  divq %%rcx\n  retq\n' \
   | inv_case x86 $'FUNC fixture_kdf\nITEM fixture_kdf divide divq %rcx\nITEM fixture_kdf indexed movzbl (%r15,%rbx), %eax' 'kdf x86 indexed load and divide listed'
 
@@ -169,6 +173,7 @@ cp "$root/tooling/check-constant-time-asm.sh" "$sandbox/tooling/"
 cat >"$sandbox/bin/rustc" <<'STUB'
 #!/usr/bin/env bash
 [ "$1" = "-vV" ] && { echo "host: ${STUB_HOST:-x86_64-unknown-linux-gnu}"; exit 0; }
+[ "$1" = "-V" ] && { echo "${STUB_RUSTC:-rustc fixture 1.0}"; exit 0; }
 exit 1
 STUB
 cat >"$sandbox/bin/rustup" <<'STUB'
@@ -205,6 +210,7 @@ write_kdf_baselines() {
     case "$t" in x86_64-*) a=x86 ;; *) a=aarch64 ;; esac
     kdf_inventory "$fixtures/tacenta_kdf.s" "$a" | LC_ALL=C sort >"$sandbox/tooling/ct-baselines/tacenta_kdf-$t.txt"
   done
+  echo 'rustc fixture 1.0' >"$sandbox/tooling/ct-baselines/rustc-version.txt"
 }
 reset_fixtures() {
   braid_ok >"$fixtures/tacenta_braid.s"; boundary_ok >"$fixtures/tacenta_boundary.s"; kdf_ok >"$fixtures/tacenta_kdf.s"
@@ -263,6 +269,10 @@ main_case 'a hardware divide in the key derivation is a failure even in its base
 reset_fixtures
 printf 'some_data:\n  .quad 0\n' >"$fixtures/tacenta_kdf.s"
 main_case 'a key derivation with no function is a failure' 1 'tacenta_kdf: no function found' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+main_case 'another compiler than the baselines were read from is a failure' 1 'the baselines were read from rustc fixture 1.0' STUB_HOST=x86_64-unknown-linux-gnu 'STUB_RUSTC=rustc other 2.0'
+rm "$sandbox/tooling/ct-baselines/rustc-version.txt"
+main_case 'baselines that name no compiler are a failure' 1 'rustc-version.txt is missing or empty' STUB_HOST=x86_64-unknown-linux-gnu
 reset_fixtures
 main_case 'rewriting the baselines in CI is refused' 1 'is not run in CI' STUB_HOST=x86_64-unknown-linux-gnu GITHUB_ACTIONS=true STUB_INSTALLED=aarch64-unknown-linux-gnu --update-kdf-baseline
 
