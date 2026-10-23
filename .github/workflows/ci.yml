@@ -135,7 +135,7 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu
           rustup toolchain install "$(cat ../tooling/ct-baselines/rust-toolchain.txt)" --profile minimal --target aarch64-unknown-linux-gnu
       - id: rust_ct_asm
-        name: The constant-time functions compile to straight-line code
+        name: The two constant-time functions compile to straight-line code, and the key derivation's compiled code matches its reviewed inventory
         run: bash ../tooling/check-constant-time-asm.sh
       - uses: ./.github/actions/assurance-receipt
         with:
