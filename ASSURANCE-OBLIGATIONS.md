@@ -1161,8 +1161,8 @@ recorded decision or a target-closing slice:
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
-  each control the script runs against one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
@@ -1264,8 +1264,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against the composing proofs `establish_responder_again_refused` and `initiator_first_send_responder_replay_refused` also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside the composing proofs `establish_responder_again_refused` and `initiator_first_send_responder_replay_refused` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proofs:
   the second call claimed on the one-time path,
@@ -1328,23 +1328,23 @@ recorded decision or a target-closing slice:
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
   `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused, each at its named place;
-  each control the script runs against one of the five composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the five composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-responder-second-send-negatives.py` (two unmodified copies accepted and each change refused,
   at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false;
-  each control the script runs against the composing proofs `responder_sends_second_reply` and `first_send_second_reply_reachable` also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside the composing proofs `responder_sends_second_reply` and `first_send_second_reply_reachable` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below);
-  the two definitions held by their pins are also held without them, by the reach and by the model step),
+  the definitions held by their pins are also held without them, by the reach and by the model step),
   `check-responder-successor-negatives.py` (two unmodified copies accepted and seventeen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against a composing proof also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside a composing proof also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in `initiator_first_send_responder_successor_hypotheses`: the composed call taken on the plaintext;
   labelled projections:
@@ -1372,8 +1372,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against the composing proofs `responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside the composing proofs `responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proofs:
   the refusal claimed to take no draw,
@@ -1394,8 +1394,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proofs: the call claimed to return the source `establish_responder` left,
   the reply claimed wrapped as an initial message,
@@ -1424,8 +1424,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proofs:
   the reply's bytes claimed to carry the peer key,
@@ -1466,8 +1466,8 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proofs: the no-draw premise weakened,
   the key-pair clone record swapped for the erasure one,
@@ -1514,8 +1514,8 @@ recorded decision or a target-closing slice:
   at a named declaration or pin and against a message naming the change,
   every one a change to a statement and a proof-breakage check there,
   not a proof that the changed statement is false;
-  each control the script runs against the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside the composing proofs `reply_again_refused_of_invariant` and `initiator_repeated_reply_refused` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the general step:
   the refusal claimed to take no draw,
@@ -1528,15 +1528,15 @@ recorded decision or a target-closing slice:
   the second source claimed to hold no draw before the rest,
   the model's step claimed on the plaintext and, borderline, the relation claimed with the second draw as the ratchet key, which by reading forward called conclusions,
   and, where it places a called conclusion unchanged, the second delivery and the invariant claimed at the session before the first receipt and the first receipt claimed from the second source);
-  two on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
+  statement-shape checks on the reach (claimed from the first send's source and claimed accepted, still refused with the headline's proof emptied),
   on the leaf lemmas (the model's receive claimed to refuse for no receiving chain or on the initiator's own sending key, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the byte trace claimed with its runs swapped),
   and the model receive's statement with a variable renamed and its pins kept;
   an error that is not a refusal voids a run, matched without regard to case;
   a timeout never counts as the named refusal;
   none shows that another delivery is refused),
   `check-initiator-second-message-negatives.py` (two unmodified copies accepted and eleven changes refused, each at its named place;
-  each control the script runs against one of the two composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside one of the two composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-tampered-reply-negatives.py` (two unmodified copies accepted and fifteen changes refused,
   each at a named declaration or pin and against a message naming the change,
@@ -1547,14 +1547,14 @@ recorded decision or a target-closing slice:
   the refusal claimed to take no draw, the refusal claimed as the stale-key refusal),
   each also accepted there with that proof replaced by `sorry`, which verifies attribution only;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below);
-  on the leaf lemmas and two definitions held by their pins;
+  the others on the leaf lemmas or at definitions held by their pins;
   start-up self-tests on the guard's spellings, on a heartbeat timeout and on the labels),
   `check-initiator-second-send-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   not a proof that the changed statement is false:
-  each control the script runs against the composing proof `initiator_second_send_after_reply` also run with that proof replaced by `sorry` and required to be accepted there,
-  which verifies attribution only;
+  each control the script labels inside the composing proof `initiator_second_send_after_reply` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)
   (refused in the composing proof:
   the model's second step claimed to take a draw,
@@ -2065,7 +2065,7 @@ called theorem, and a typed `have` whose type holds a record `:=` (the text afte
 cannot make a control vacuous (every refusal is still checked at its place against its message). So the inside,
 projection and other labels of these scripts, and the per-class counts in `negatives-control-counts.json`, are each
 script's own labelling and guidance, not a claim; what a run establishes is that each control is refused at its named
-place and that each control run against a composing proof is accepted there with that proof replaced by `sorry`.
+place and that each control labelled inside a composing proof is accepted there with that proof replaced by `sorry` (controls labelled projections are not probed).
 Controls on main read this way include `success-claimed-to-keep-the-pending-initial-message` of
 `check-responder-reply-receipt-negatives.py` and, borderline, `second-call-claimed-to-return-the-store-before-the-commit`
 of `check-responder-establish-replay-negatives.py`. Recorded as a decision, **not built**: (3) either extend the check

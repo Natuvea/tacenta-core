@@ -18,11 +18,12 @@ unchanged), on a leaf lemma, or at a pin.  It holds the inside and projection la
 form of that standard read off the module (`passed_through`), requires every control refused in a composing theorem to
 carry one of them, and holds the labels consistent with each other and with where each control is refused (at run time
 it checks only that each change is refused at its labelled place).  What a run establishes is that each control is
-refused at its named place, and that each control it runs against a composing proof is accepted there when that proof is
-replaced by `sorry` (attribution to that proof, nothing more).  The labels and the per-class counts in
-`negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the helper that tells
-inside from projection reads Lean's error text and can read some projections as composition steps
-(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  The controls, by where they are refused:
+refused at its named place, and that each control it labels inside a composing proof is also accepted there when that
+proof is replaced by `sorry` (attribution to that proof, nothing more); controls it labels projections are not probed.
+The labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling and are guidance,
+not a claim: the helper that tells inside from projection reads Lean's error text and can read some projections as
+composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  The controls, by where they are
+refused:
 
   * in `responder_sends_second_reply`: the second reply's call claimed to return the source the reply left instead of
     the one the receipt left, and claimed at the session before the receipt (both refused where the call, its source

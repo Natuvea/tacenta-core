@@ -11,23 +11,24 @@ copy of the module and requires Lean to refuse it, at a named place, with an err
 The proofs that compose are the generic step `establish_responder_again_refused` (which composes the commit, the replay
 check and the prepare phase's steps carried to the committed store) and the run's headline
 `initiator_first_send_responder_replay_refused`.  What a run establishes is that each control is refused at its named
-place, and that each control it runs against a composing proof is accepted there when that proof is replaced by `sorry`
-(attribution to that proof, nothing more).  The labels and the per-class counts in `negatives-control-counts.json` are
-the script's own labelling and are guidance, not a claim: the helper that tells inside from projection reads Lean's
-error text and can read some projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not
-built).  Each is a change to a composing theorem's statement.  A control refused in a composing theorem is a projection
-when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition
-step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that standard read off
-the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called theorem's
-conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every control
-refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with that
-theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to that
-proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
-form is the right standard, and that the two theorems named in `COMPOSING` compose rather than project, is decided by
-reading.  The labels are also held consistent (an inside control must be labelled with the declaration it is refused in
-and with a composing theorem; no control carries two labels; every place a projection may be refused must be a composing
-theorem; a statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in
-`PROJECTED`), at start-up (at run time the script checks only that each change is refused at its labelled place):
+place, and that each control it labels inside a composing proof is also accepted there when that proof is replaced by
+`sorry` (attribution to that proof, nothing more); controls it labels projections are not probed.  The labels and the
+per-class counts in `negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the
+helper that tells inside from projection reads Lean's error text and can read some projections as composition steps
+(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Each control labelled inside is a change to a composing
+theorem's statement.  A control refused in a composing theorem is a projection when it is refused where that proof
+places a conjunct of a called theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The
+script holds each of the two labels to a syntactic form of that standard read off the module (`passed_through`: the
+refusal names a hypothesis the proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or
+substitutes, and places with a constructor), and requires every control refused in a composing theorem to carry one of
+them.  For each inside control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring
+Lean to accept the change there, so the refusal is attributable to that proof.  That probe verifies attribution only: it
+cannot tell a composing step from a projection.  That the syntactic form is the right standard, and that the two
+theorems named in `COMPOSING` compose rather than project, is decided by reading.  The labels are also held consistent
+(an inside control must be labelled with the declaration it is refused in and with a composing theorem; no control
+carries two labels; every place a projection may be refused must be a composing theorem; a statement-shape check may not
+be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at start-up (at run time the
+script checks only that each change is refused at its labelled place):
 
   * in `establish_responder_again_refused`: the second call claimed on the one-time path (`p.lastResort = false`,
     refused where the first call's KEM lookup is carried to the committed store); the commit claimed on the one-time
@@ -38,11 +39,10 @@ theorem; a statement-shape check may not be refused in a composing theorem, and 
   * in `initiator_first_send_responder_replay_refused`: the bundle claimed to name another KEM key and to name a
     one-time curve prekey (each refused where the run's identifiers are rewritten into the parts' path).
 
-One is a projection, labelled neither inside nor statement-shape: the replay record claimed to gain the bundle's
-one-time identifier instead of the KEM identifier, refused in `initiator_first_send_responder_replay_refused` where
-that theorem places the record conjunct of `commit_last_resort` unchanged (after the identifiers were rewritten into
-the commit it is applied to); it shows that the headline forwards it, not that it composes it, and no emptied-proof
-run is made for it.
+Labelled a projection, neither inside nor statement-shape: the replay record claimed to gain the bundle's one-time
+identifier instead of the KEM identifier, refused in `initiator_first_send_responder_replay_refused` where that theorem
+places the record conjunct of `commit_last_resort` unchanged (after the identifiers were rewritten into the commit it is
+applied to); it shows that the headline forwards it, not that it composes it, and no emptied-proof run is made for it.
 
 Labelled statement-shape, on the reach, each projecting `initiator_first_send_responder_replay_refused`: the reach's
 record claimed empty after the first call, and the reach's second call claimed to take a draw (the source returned

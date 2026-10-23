@@ -7,25 +7,26 @@ the initiator's first `encrypt` emitted and returns the session `sB'`, the respo
 Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one change to a copy of the
 module and requires Lean to refuse it, at a named place, with an error that names what the change removed.
 
-What a run establishes is that each control is refused at its named place, and that each control it runs against a
-composing proof is accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more).  The
-labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling and are guidance, not
-a claim: the helper that tells inside from projection reads Lean's error text and can read some projections as
-composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  A control refused in a composing
-theorem is a projection when it is refused where that proof places a conjunct of a called theorem's conclusion
-unchanged, and a composition step, labelled inside, otherwise.  The script holds each label to a syntactic form of that
-standard read off the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called
-theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every
-control refused in a composing theorem to carry the inside or the projection label; each control labelled inside is
-refused at a goal the proof closes, at an argument it passes, or at a hypothesis it has rewritten.  For each inside
-control it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change
-there, so the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing
-step from a projection (a corollary's statement-shape check passes it too).  That the syntactic form is the right
-standard, and that the three theorems named in `COMPOSING` compose rather than project, is decided by reading.  The
-labels are also held consistent (an inside control must be labelled with the declaration it is refused in and with a
-composing theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
-statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
-start-up (at run time the script checks only that each change is refused at its labelled place):
+What a run establishes is that each control is refused at its named place, and that each control it labels inside a
+composing proof is also accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing more);
+controls it labels projections are not probed.  The labels and the per-class counts in `negatives-control-counts.json`
+are the script's own labelling and are guidance, not a claim: the helper that tells inside from projection reads Lean's
+error text and can read some projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not
+built).  A control refused in a composing theorem is a projection when it is refused where that proof places a conjunct
+of a called theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each
+label to a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the
+proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
+constructor), and requires every control refused in a composing theorem to carry the inside or the projection label;
+each control labelled inside is refused at a goal the proof closes, at an argument it passes, or at a hypothesis it has
+rewritten.  For each inside control it also runs the changed copy with that theorem's proof replaced by `sorry`,
+requiring Lean to accept the change there, so the refusal is attributable to that proof.  That probe verifies
+attribution only: it cannot tell a composing step from a projection (a corollary's statement-shape check passes it too).
+That the syntactic form is the right standard, and that the three theorems named in `COMPOSING` compose rather than
+project, is decided by reading.  The labels are also held consistent (an inside control must be labelled with the
+declaration it is refused in and with a composing theorem; no control carries two labels; every place a projection may
+be refused must be a composing theorem; a statement-shape check may not be refused in a composing theorem, and the
+theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each change is refused
+at its labelled place):
 
   * in `initiator_first_send_responder_replies`: the call claimed to return the source `establish_responder` left
     (`rngB'`, the receipt's draw taken) instead of the source it was given (refused where the walk has fixed the
@@ -53,11 +54,11 @@ On the leaf lemmas:
   * the model step claimed without the premise that the model session has no pending initial message (refused in
     `reply_model_step`, which then cannot decide whether the frame is wrapped).
 
-One is a statement-shape check: the reach's call claimed to leave the byte-stream source `seed` (refused in
+Labelled statement-shape: the reach's call claimed to leave the byte-stream source `seed` (refused in
 `first_send_reply_reachable` because its statement no longer matches `initiator_first_send_responder_replies`; the
 script runs it again with that theorem's proof replaced by `sorry` and requires the same refusal, so it is refused
-whatever that proof does).  One holds a definition: the reply frame without the session's
-associated data, the module's pins kept (refused at the pin of `replyFrame`).
+whatever that proof does).  At a pin: the reply frame without the session's associated data, the module's pins kept
+(refused at the pin of `replyFrame`).
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
 a named place: it shows that the proof there depends on what the change removed (or, for the last, that the pin holds

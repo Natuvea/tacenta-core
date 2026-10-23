@@ -13,24 +13,24 @@ that names what the change removed.
 The proofs that compose are the frame-level theorem `responder_first_frame_repeat_refused` (which composes the first
 receipt's parts, success and session facts with the repeat recognition, the inner receive's refinement at `sB'` and the
 model's step) and the run's headline `initiator_first_send_responder_repeat_refused`.  What a run establishes is that
-each control is refused at its named place, and that each control it runs against a composing proof is accepted there
-when that proof is replaced by `sorry` (attribution to that proof, nothing more).  The labels and the per-class counts
-in `negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the helper that tells
-inside from projection reads Lean's error text and can read some projections as composition steps
-(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Each is a change to a composing theorem's statement.  A
-control refused in a composing theorem is a projection when it is refused where that proof places a conjunct of a called
-theorem's conclusion unchanged, and a composition step, labelled inside, otherwise.  The script holds each of the two
-labels to a syntactic form of that standard read off the module (`passed_through`: the refusal names a hypothesis the
-proof binds by destructuring a called theorem's conclusion, never rewrites, simplifies or substitutes, and places with a
-constructor), and requires every control refused in a composing theorem to carry one of them.  For each inside control
-it also runs the changed copy with that theorem's proof replaced by `sorry`, requiring Lean to accept the change there,
-so the refusal is attributable to that proof.  That probe verifies attribution only: it cannot tell a composing step
-from a projection.  That the syntactic form is the right standard, and that the two theorems named in `COMPOSING`
-compose rather than project, is decided by reading.  The labels are also held consistent (an inside control must be
-labelled with the declaration it is refused in and with a composing theorem; no control carries two labels; every place
-a projection may be refused must be a composing theorem; a statement-shape check may not be refused in a composing
-theorem, and the theorem it projects must be in `PROJECTED`), at start-up (at run time the script checks only that each
-change is refused at its labelled place):
+each control is refused at its named place, and that each control it labels inside a composing proof is also accepted
+there when that proof is replaced by `sorry` (attribution to that proof, nothing more); controls it labels projections
+are not probed.  The labels and the per-class counts in `negatives-control-counts.json` are the script's own labelling
+and are guidance, not a claim: the helper that tells inside from projection reads Lean's error text and can read some
+projections as composition steps (`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  Each control labelled
+inside is a change to a composing theorem's statement.  A control refused in a composing theorem is a projection when it
+is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a composition step,
+labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that standard read off the
+module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called theorem's conclusion,
+never rewrites, simplifies or substitutes, and places with a constructor), and requires every control refused in a
+composing theorem to carry one of them.  For each inside control it also runs the changed copy with that theorem's proof
+replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to that proof.  That
+probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic form is the
+right standard, and that the two theorems named in `COMPOSING` compose rather than project, is decided by reading.  The
+labels are also held consistent (an inside control must be labelled with the declaration it is refused in and with a
+composing theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
+statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
+start-up (at run time the script checks only that each change is refused at its labelled place):
 
   * in `responder_first_frame_repeat_refused`: the refusal claimed to take no draw (the source returned claimed to hold
     the draw still; false: the inner receive draws its candidate key before the Triple's receive), refused where the
