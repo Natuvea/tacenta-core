@@ -80,10 +80,14 @@ sh_controls=(
 py_controls=(
   check-lifecycle-translation-coverage.py
   check-initial-dispatch-negatives.py
+  check-initiator-second-message-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
+  check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
+  check-sparse-skip-kind-negatives.py
   check-sparse-store-full-negatives.py
+  check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
   check-restored-negatives.py
@@ -91,12 +95,15 @@ py_controls=(
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
+  check-responder-repeated-frame-negatives.py
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-second-receipt-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py
+  check-receive-preservation-negatives.py
   attest.py
 )
 for s in "${sh_controls[@]}"; do stub_sh "$s"; done
@@ -168,6 +175,7 @@ for called in \
   check-session-satisfiability-negatives.sh \
   check-port-negatives.sh \
   check-initial-dispatch-negatives.py \
+  check-initiator-second-message-negatives.py \
   'attest.py --compare-audit' \
   check-lean-constructs.sh \
   check-audit-reach.sh \
@@ -180,8 +188,11 @@ for called in \
   check-braid-agreement-negatives.sh \
   check-atomicity-negatives.py \
   check-repair-negatives.py \
+  check-responder-establish-replay-negatives.py \
   check-send-refusal-negatives.py \
+  check-sparse-skip-kind-negatives.py \
   check-sparse-store-full-negatives.py \
+  check-tampered-reply-negatives.py \
   check-decrypt-ratchet-negatives.py \
   check-established-negatives.py \
   check-restored-negatives.py \
@@ -189,11 +200,14 @@ for called in \
   check-responder-negatives.py \
   check-responder-frame-negatives.py \
   check-responder-receipt-negatives.py \
+  check-responder-repeated-frame-negatives.py \
   check-responder-successor-negatives.py \
   check-responder-reply-negatives.py \
   check-responder-reply-receipt-negatives.py \
+  check-responder-second-receipt-negatives.py \
   check-send-preservation-negatives.py \
   check-initiator-second-send-negatives.py \
+  check-receive-preservation-negatives.py \
   check-discharge-native-decide-negatives.py \
   'lake build translation' \
   'lake build tacenta-proofs' \

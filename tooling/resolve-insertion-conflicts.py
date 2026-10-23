@@ -31,14 +31,15 @@ takes a common last line such as a closing brace out of two different insertions
     tacenta-proofs/translation/Translation/AxiomAuditSessionUnit.lean, tacenta-proofs/scripts/no-sorry.sh,
     tacenta-proofs/scripts/no-sorry-parts.txt, tacenta-proofs/scripts/attest.py,
     tacenta-proofs/scripts/check-attest-negatives.sh, tooling/tests/run-proof-script-cases.sh,
-    tooling/tests/run-no-sorry-parts-cases.sh, tacenta-proofs/scripts/negatives-control-counts.json,
-    tooling/gate-inventory.json, tooling/gate-mutations.json, ASSURANCE-OBLIGATIONS.md
+    tooling/tests/run-no-sorry-parts-cases.sh, tooling/tests/run-check-negatives-control-counts-cases.sh,
+    tacenta-proofs/scripts/negatives-control-counts.json, tooling/gate-inventory.json, tooling/gate-mutations.json,
+    ASSURANCE-OBLIGATIONS.md
 
 `--check` resolves nothing and says what it would do. `--verify` merges nothing: it checks the tree as it is, which
 `tooling/regenerate-generated.sh` runs after its generators: the JSON files load, attest.py parses, the shell
 files pass `bash -n`, every part of `no-sorry-parts.txt` resolves against the phases `no-sorry.sh` lists, and no
 entry of the lists a new module adds to appears twice (an audit import or paragraph, a phase function, `run_phase`
-id or control call, a part's phase, a stubbed or called control, an inventory row or one of its controls, a mutation
+id or control call, a part's phase, a stubbed or called control, a script the count gate's cases name, an inventory row or one of its controls, a mutation
 id, a name of one of attest.py's four lists, a line of the attestation negatives' deletion lists, and in every field of
 every list item of the obligations file, an entry led by a backticked name). What it does not do: decide that two insertions belong together; the diff
 is still read.
@@ -61,6 +62,7 @@ FILES = [
     "tacenta-proofs/scripts/check-attest-negatives.sh",
     "tooling/tests/run-proof-script-cases.sh",
     "tooling/tests/run-no-sorry-parts-cases.sh",
+    "tooling/tests/run-check-negatives-control-counts-cases.sh",
     "tacenta-proofs/scripts/negatives-control-counts.json",
     "tooling/gate-inventory.json",
     "tooling/gate-mutations.json",
@@ -238,7 +240,8 @@ def verify(root):
         problems.append(f"tacenta-proofs/scripts/attest.py: does not parse: {error}")
         attest_tree = None
     for rel in ("tacenta-proofs/scripts/no-sorry.sh", "tacenta-proofs/scripts/check-attest-negatives.sh",
-                "tooling/tests/run-proof-script-cases.sh", "tooling/tests/run-no-sorry-parts-cases.sh"):
+                "tooling/tests/run-proof-script-cases.sh", "tooling/tests/run-no-sorry-parts-cases.sh",
+                "tooling/tests/run-check-negatives-control-counts-cases.sh"):
         r = subprocess.run(["bash", "-n", rel], cwd=root, capture_output=True, text=True)
         if r.returncode:
             problems.append(f"{rel}: bash -n: {r.stderr.strip()[:200]}")
@@ -285,6 +288,10 @@ def verify(root):
     stubs = re.search(r"^py_stubs=\(\n((?:  \S+\n)*)\)", text("tooling/tests/run-no-sorry-parts-cases.sh"), re.M)
     if stubs:
         dup("run-no-sorry-parts-cases.sh py_stubs", stubs.group(1).split())
+    named = re.search(r"^named=\(\n((?:  \S+\n)*)\)", text("tooling/tests/run-check-negatives-control-counts-cases.sh"),
+                      re.M)
+    if named:
+        dup("run-check-negatives-control-counts-cases.sh named", named.group(1).split())
     dup("negatives-control-counts.json scripts", re.findall(r'^    "(check-[a-z0-9-]+\.py)": ',
                                                           text("tacenta-proofs/scripts/negatives-control-counts.json"), re.M))
     cases = text("tooling/tests/run-proof-script-cases.sh")

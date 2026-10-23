@@ -30,6 +30,9 @@ no control planted it refuses to run), and makes every edit that does not depend
   scripts/negatives-control-counts.json       the script's entry: its number of controls in each class (none
                                               yet) and of baselines, which `check-negatives-control-counts.py`
                                               compares with the script; edit it with each control added
+  tooling/tests/run-check-negatives-control-counts-cases.sh
+                                              the script among the named scripts the count gate's cases copy,
+                                              a list that must equal the record's
   tooling/gate-inventory.json                 the script among the Lean build's controls, and its own row
   tooling/gate-mutations.json                 `NS-drop-<phase>` and `NS-swallow-<phase>`
   ASSURANCE-OBLIGATIONS.md                    the script in the lifecycle row of the gate evidence list
@@ -88,6 +91,7 @@ NEGATIVES_SH = "tacenta-proofs/scripts/check-attest-negatives.sh"
 COUNT = "tacenta-proofs/scripts/attest-negatives-case-count.txt"
 TEMPLATES = "tacenta-proofs/scripts/templates"
 PARTS_CASES = "tooling/tests/run-no-sorry-parts-cases.sh"
+COUNTS_CASES = "tooling/tests/run-check-negatives-control-counts-cases.sh"
 RECORD = "tacenta-proofs/scripts/negatives-control-counts.json"
 COUNTS_GATE = "tacenta-proofs/scripts/check-negatives-control-counts.py"
 
@@ -397,6 +401,18 @@ def edit_parts_cases(tree, a):
     tree.write(PARTS_CASES, "\n".join(lines))
 
 
+def edit_counts_cases(tree, a):
+    """The script among the scripts the count gate's case runner names (it refuses a list other than the record's)."""
+    lines = tree.read(COUNTS_CASES).split("\n")
+    start = one([k for k, l in enumerate(lines) if l == "named=("], f"{COUNTS_CASES}: the line `named=(`")
+    end = next((k for k in range(start, len(lines)) if lines[k] == ")"), None)
+    if end is None:
+        refuse(f"{COUNTS_CASES}: the named array does not end with a line `)`")
+    insert_word(lines, start + 1, end, r"  (check-[a-z0-9-]+-negatives\.py)", f"  {a.negatives}", None,
+                a.negatives, f"{COUNTS_CASES} named")
+    tree.write(COUNTS_CASES, "\n".join(lines))
+
+
 def edit_record(tree, a):
     """The script's entry in the record of control counts, with the counts of the script as it is now."""
     text = tree.read(RECORD)
@@ -538,6 +554,7 @@ def scaffold(tree, a):
     edit_parts(tree, a)
     edit_cases(tree, a)
     edit_parts_cases(tree, a)
+    edit_counts_cases(tree, a)
     edit_record(tree, a)
     edit_inventory(tree, a)
     edit_mutations(tree, a)

@@ -1009,10 +1009,14 @@ recorded decision or a target-closing slice:
   `check-refuted-records.sh`,
   `check-session-satisfiability-negatives.sh`,
   `check-initial-dispatch-negatives.py`,
+  `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
   `check-repair-negatives.py`,
+  `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
+  `check-sparse-skip-kind-negatives.py`,
   `check-sparse-store-full-negatives.py`,
+  `check-tampered-reply-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
   `check-established-negatives.py`,
   `check-restored-negatives.py`,
@@ -1020,12 +1024,15 @@ recorded decision or a target-closing slice:
   `check-responder-negatives.py`,
   `check-responder-frame-negatives.py`,
   `check-responder-receipt-negatives.py`,
+  `check-responder-repeated-frame-negatives.py`,
   `check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
+  `check-responder-second-receipt-negatives.py`,
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
+  `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
@@ -1056,6 +1063,20 @@ recorded decision or a target-closing slice:
   placed unchanged);
   the Session unit's refinement constants, kernel proofs since 2026-10-21, keep deciding the bytes and bounds they state, the live pin of a constant refuses `native_decide` restored under it, and `export_message_fits` states exactly the type of the compiler-trust axiom `export` carries;
   the initiator's second `encrypt` at the session its receipt of the reply returns keeps the no-draw walk at `KeysSampled`, the second frame's chunk and key, the providers' no-draw premise and the model step it rests on, and its composing proof uses the receipt's session, the source it left and its relation;
+  `check-receive-preservation-negatives.py`: the in-order receive step keeps its decoder scope, the key-pair clone record, the budget it spends, its dependence on the relation after the call, the canonical-key law and the oracle's public-key clause, the public step keeps its scope and budget, and on the reply's run the budget and the fresh-key premise are the ones the proof composes;
+  `check-initiator-second-message-negatives.py`:
+  the initiator's second message keeps the budget after the send, the fresh-key premise and the second plaintext's bound it composes, and places the ceilings at the session the receipt returns, and its reach keeps the plaintext bound and the law that chooses the responder's source (the receipt's call and the relations after the send are conjuncts of called theorems, placed unchanged);
+  `check-responder-second-receipt-negatives.py`:
+  the responder's receipt of the initiator's second message keeps the draw,
+  the plaintext,
+  the stale arm's refusal and the two-chunk decoder it composes,
+  its success headline keeps the fresh-key premise and the budget after the receipt,
+  and its run and reaches keep the responder's further bytes, the law that chooses the responder's and the initiator's further bytes and the stale run's key equation (the initiator's second send and its receipt of the reply are conjuncts of called theorems,
+  placed unchanged);
+  `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, keeps the last-resort path, the commit's single record entry, the fingerprint of the secret read back and the committed store it returns, and its composition keeps the bundle's last-resort key and absent one-time curve key;
+  `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
+  the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
+  the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1123,8 +1144,15 @@ recorded decision or a target-closing slice:
   each refused),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
+  `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused: 12 inside the four composing proofs, 2 projections, 7 on leaf lemmas, one statement-shape check and one definition held by its pin),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
+  `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
+  the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,
+  every refusal claimed `skippedStoreFull`,
+  a success claimed to keep the state,
+  each in the composing proof and accepted there with that proof emptied,
+  and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,
   each at a named declaration or pin:
@@ -1213,6 +1241,27 @@ recorded decision or a target-closing slice:
   four of them,
   the three structural-invariant edits and the `HEADER_LEN` bound,
   are proof-dependency controls that leave the statement unchanged),
+  `check-responder-establish-replay-negatives.py` (two unmodified copies accepted and twelve changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement and a proof-breakage check there,
+  not a proof that the changed statement is false:
+  six labelled inside the composing proofs `establish_responder_again_refused` and `initiator_first_send_responder_replay_refused` and one a projection of a called theorem's conjunct,
+  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
+  and at run time only that each change is refused at its labelled place,
+  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  the second call claimed on the one-time path,
+  the commit claimed on the one-time path,
+  the fingerprint claimed of the secret before it is read back,
+  the second call claimed to return the store before the commit,
+  and the bundle claimed to name another KEM key or a one-time curve key;
+  the projection: the record claimed to gain the one-time identifier);
+  two statement-shape checks on the reach (the record claimed empty after the first call and the second call claimed to take a draw, still refused with the headline's proof emptied),
+  two on the leaf lemmas (the replay check claimed without the entry and the commit claimed with a one-time curve key),
+  and the replay check's statement with a variable renamed and its pins kept;
+  an error that is not a refusal voids a run, matched without regard to case;
+  a timeout never counts as the named refusal;
+  none shows that the model refuses the same delivery),
   `check-responder-frame-negatives.py` (two unmodified copies accepted and twenty changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1260,6 +1309,7 @@ recorded decision or a target-closing slice:
   the other-key control sits on the model step the composition rests on,
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
+  `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused: eleven inside the five composing proofs, two projections, four on leaf lemmas and two definitions held by their pins),
   `check-responder-successor-negatives.py` (two unmodified copies accepted and seventeen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1292,6 +1342,29 @@ recorded decision or a target-closing slice:
   only the one inside the composing proof shows the composed proof uses what it names (the sent bytes),
   the two projections only that the composed conclusions place the called theorems' conjuncts unchanged and the three statement-shape checks only that the corollaries and the reach project its statement,
   and none shows that another session fails the invariant),
+  `check-responder-repeated-frame-negatives.py` (two unmodified copies accepted and seventeen changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement and a proof-breakage check there,
+  not a proof that the changed statement is false:
+  eight labelled inside the composing proofs `responder_first_frame_repeat_refused` and `initiator_first_send_responder_repeat_refused` and two projections of called theorems' conjuncts,
+  the labels checked once at start-up against a syntactic form of the projection standard read off the module,
+  and at run time only that each change is refused at its labelled place,
+  each inside control also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only (that the syntactic form is the right standard is by reading) (inside:
+  the refusal claimed to take no draw,
+  the model's step claimed to keep the draw,
+  the refusal claimed to be `NotARepeatedInitial`,
+  the second draw claimed of the first source in either composing proof,
+  the model's step claimed at the first receipt's oracle,
+  the first call claimed on the plaintext,
+  and the model session claimed at chunk index 1;
+  projections: the composed call claimed from the first source and the key generation claimed at swapped draws);
+  two statement-shape checks on the reach (claimed from the seed and claimed refused as not a repeat, still refused with the headline's proof emptied),
+  four on the leaf lemmas (the model's receive claimed to refuse for no receiving chain, the draw's agreement claimed refused, the model's refusal claimed to keep the oracle, and the ephemeral comparison claimed on the identity key),
+  and the model receive's statement with a variable renamed and its pins kept;
+  an error that is not a refusal voids a run, matched without regard to case;
+  a timeout never counts as the named refusal;
+  none shows that another delivery is refused),
   `check-responder-reply-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1416,6 +1489,17 @@ recorded decision or a target-closing slice:
   the zero-array step of `split_secret_refines`,
   unused by its proof,
   is removed),
+  `check-initiator-second-message-negatives.py` (two unmodified copies accepted and eleven changes refused: seven inside the two composing proofs, three projections and one definition held by its pin),
+  `check-tampered-reply-negatives.py` (two unmodified copies accepted and fifteen changes refused,
+  each at a named declaration or pin and against a message naming the change,
+  every one a change to a statement or a definition and a proof-breakage check there,
+  seven inside the composing proof `initiator_refuses_tampered_reply` (the frame's header claimed 101 bytes,
+  the reply's ciphertext claimed after 101 bytes, the premise claimed under the peer key's associated data,
+  the freshness premise claimed against the initiator's own key, the uniqueness law replaced by the round trip,
+  the refusal claimed to take no draw, the refusal claimed as the stale-key refusal),
+  each also accepted there with that proof replaced by `sorry`;
+  six on the leaf lemmas and two definitions held by their pins;
+  start-up self-tests on the guard's spellings, on a heartbeat timeout and on the labels),
   `check-initiator-second-send-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1447,13 +1531,17 @@ recorded decision or a target-closing slice:
   that the responder receives the frame,
   or that `encrypt` refuses elsewhere) and `check-port-negatives.sh` (ten broken anchors,
   as in the row above).
-  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in `check-responder-successor-negatives.py`,
+  The number of controls of each class (inside, projection, statement-shape, pin, leaf) and of baseline copies in each lifecycle negatives script that carries the shared `check_labels` (`check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
-  `check-send-preservation-negatives.py` and `check-initiator-second-send-negatives.py` is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`), which also holds the five copies of their shared helpers to one text, so a control deleted with its label is refused unless the record is edited in the same change;
+  `check-send-preservation-negatives.py`,
+  `check-initiator-second-send-negatives.py` and the scripts added after them,
+  all of which the record must list) is recorded in `tacenta-proofs/scripts/negatives-control-counts.json` and compared by `check-negatives-control-counts.py` (`checks_43`),
+  which also holds their copies of the shared helpers to one text,
+  so a control deleted with its label is refused unless the record is edited in the same change;
   their label check refuses a projection any place of whose refusal is not a composing theorem.
   `run-check-negatives-control-counts-cases.sh` holds both:
-  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each of the four scripts with a projection.
+  twelve planted record and script changes refused, the same deletion with the record edited accepted, and the projection-place fault refused in each script whose record counts a projection (the runner names the scripts it copies and refuses a list that differs from the record's).
   Each script's `main` calls the shared `check_complete`,
   which refuses a run that refused fewer controls than `MUTANTS` holds,
   accepted other baselines,
@@ -1464,7 +1552,7 @@ recorded decision or a target-closing slice:
   control and emptied-proof run,
   at least one accepting per baseline and one refusing per control and statement-shape check;
   the gate requires that call as a statement of `main`, no `return` or exit in `main`, the run ended by `sys.exit(main())`, each shared helper bound once at the top level (compared from its decorators; any other binding, `global`, import, parameter or use of `globals`, `setattr`, `exec` and the like refused), and any script that defines, imports or reads `check_labels` in the record.
-  Its cases add seven ways around the one-text check, three spellings of a sixth script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
+  Its cases add seven ways around the one-text check, three spellings of one more script, six `main` shapes that skip the completeness check, and the completeness check itself on whole and incomplete runs of each script.
   The gate holds the scaffold's negatives template (`tacenta-proofs/scripts/templates/lifecycle-negatives.py.in`) to the same shared text and reads its `main` by the same rules, without counting it;
   its cases refuse a template helper changed, a template `main` without the completeness call or the projection record, a template that rebinds a name through `globals()`, and the template missing (97 cases in all, the completeness check run on simulated results with no Lean).
   The gate also refuses a second binding of `main`,
@@ -1493,7 +1581,7 @@ recorded decision or a target-closing slice:
   reflection through names not listed (`operator.attrgetter`, `__getattribute__`, `__subclasses__`);
   another module the script imports;
   any other way of ending the run with status 0;
-  the same change to all five copies of a shared helper, which is one text;
+  the same change to every copy of a shared helper, which is one text;
   and a `main` that runs Lean the expected number of times on other files and reports refusals it did not see.
 
   **Missing evidence:**
@@ -1573,7 +1661,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (99 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (114 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).
@@ -1893,17 +1981,19 @@ system git configuration and no git identity, as the hosted runner has none, so 
 its own identity fails on a developer's machine too (one did, and failed only on the runner).
 
 On 2026-10-22 the scaffold was brought up to what a module it starts needs to pass the gates. Its negatives
-template carries the helpers of the five lifecycle negatives scripts character for character (the projection
+template carries the helpers of the lifecycle negatives scripts character for character (the projection
 standard and labels, the guard's self-test of each of its six error spellings, `RUNS` and `check_complete`), and
 `check-negatives-control-counts.py` (step `checks_43`) holds the template to them and reads its `main` by the same
 rules, without counting it. `scaffold` also writes the new script's entry in `negatives-control-counts.json` with
-the script's own counts, its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
+the script's own counts, its name among the scripts `run-check-negatives-control-counts-cases.sh` copies (a list that
+must equal the record's), its stub in `tooling/tests/run-no-sorry-parts-cases.sh` (which now reads the phase count
 of a full run from its fixture's `no-sorry.sh` instead of a number written by hand, and names the edit when a script
 the run calls has no stub; a phase dropped from both `no-sorry.sh` and the parts file is therefore no longer caught
 there, and is caught by `tooling/tests/run-proof-script-cases.sh`, whose honest run lists every stubbed script
 `no-sorry.sh` must call and requires the success line of the real `check-translation-coverage.sh`, the one phase
-script it does not stub), and the two pretty-printer options in the module, so that its pins print whole. The two
-lists it now edits are among the files `tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
+script it does not stub), and the two pretty-printer options in the module, so that its pins print whole. The
+lists it now edits, the names the count gate's case runner copies among them, are among the files
+`tooling/resolve-insertion-conflicts.py` resolves, so two branches that each
 scaffold a module still merge through `tooling/regenerate-generated.sh`. `tooling/mutate-gates.py` gives each worktree a Cargo target directory of its
 own: run with a `CARGO_TARGET_DIR` shared with a checkout, it had left the last edit's build there, and a later
 `cargo test` in the clean checkout ran the mutated library. The controls stub Lean as before; one generated script,

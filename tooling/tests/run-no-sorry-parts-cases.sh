@@ -112,20 +112,27 @@ done
 # here after the entry its name sorts after, and the check below names any script the run calls that has no stub.
 py_stubs=(
   check-lifecycle-translation-coverage.py
+  check-receive-preservation-negatives.py
   check-atomicity-negatives.py
   check-repair-negatives.py
+  check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
+  check-sparse-skip-kind-negatives.py
   check-sparse-store-full-negatives.py
+  check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
+  check-initiator-second-message-negatives.py
   check-restored-negatives.py
   check-encrypt-negatives.py
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
+  check-responder-repeated-frame-negatives.py
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-second-receipt-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
   check-initiator-second-send-negatives.py

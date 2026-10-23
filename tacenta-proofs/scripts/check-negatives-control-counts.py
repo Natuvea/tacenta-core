@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Hold the number of controls in the lifecycle negatives scripts to a record, and their shared helpers to one text.
 
-Five negatives scripts (`check-responder-successor-negatives.py`, `check-responder-reply-negatives.py`,
+The lifecycle negatives scripts (`check-responder-successor-negatives.py`, `check-responder-reply-negatives.py`,
 `check-responder-reply-receipt-negatives.py`, `check-send-preservation-negatives.py`,
-`check-initiator-second-send-negatives.py`) each plant changes in a copy of a module and require Lean to refuse
-every one at a named place.  At start-up each checks that its labels (`INSIDE`, `PROJECTION`, `STATEMENT_SHAPE`)
+`check-initiator-second-send-negatives.py` and the others the record lists) each plant changes in a copy of a module
+and require Lean to refuse every one at a named place.  At start-up each checks that its labels (`INSIDE`, `PROJECTION`, `STATEMENT_SHAPE`)
 name controls it has and agree with where those are refused; nothing there says how many controls it should have,
 so a control deleted together with its label (its `MUTANTS` entry and its `INSIDE` line) leaves a smaller script
 that starts and passes.  This gate compares, for each script, the number of its controls in each class with
@@ -13,7 +13,8 @@ that starts and passes.  This gate compares, for each script, the number of its 
   inside           controls labelled inside a composing proof (`INSIDE`)
   projection       controls labelled projections of a called theorem's conjunct (`PROJECTION`)
   statement_shape  statement-shape checks (`STATEMENT_SHAPE`)
-  pin              controls refused at a pin (`MUTANTS` entries whose place is `('pin', name)`)
+  pin              controls refused at a pin (`MUTANTS` entries whose place is `('pin', name)` or
+                   `('pin', name, 'check')`)
   leaf             every other control (refused in a leaf lemma)
   baselines        the unmodified copies the script requires Lean to accept first (the keys written in the `sources`
                    literal in `main`, as written: a key written twice counts twice here and once at run time)
@@ -21,7 +22,7 @@ that starts and passes.  This gate compares, for each script, the number of its 
 A count the script and the record disagree on is refused, naming the script and the class, so removing, adding or
 relabelling a control fails here unless the record is edited in the same change, where the diff of the record shows
 it.  The record must list exactly the negatives scripts of this directory that define the shared `check_labels`, so
-a sixth such script is not left out.
+a newly added such script is not left out.
 
 The scripts keep their own copies of the shared helpers (`check_labels`, `passed_through`, the guard, the refusal
 check, `check_complete` and the rest named in SHARED); this gate also requires each named helper to be bound exactly
@@ -71,7 +72,7 @@ ending the run with status 0 that none of the names above spells (an uncaught ex
 nonzero); a result written into `results` without its control having been checked; and Lean run on other files.
 A check that would see the first two, recorded as a decision and not built, is to compare each run's `result.json`
 (the accepted baselines and refused controls, by class) with `negatives-control-counts.json`.
-The same change made to all five copies of a shared helper is one text and passes, as does a `main` that runs Lean
+The same change made to every copy of a shared helper is one text and passes, as does a `main` that runs Lean
 the expected number of times on files other than the controls and reports refusals it did not see; a control that
 is a poor one, or a record whose counts are wrong but edited together with its script (only the diff shows it),
 passes too.  It reads the scripts by importing them, which runs their top-level definitions and nothing else

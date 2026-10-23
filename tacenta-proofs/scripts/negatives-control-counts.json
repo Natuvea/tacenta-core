@@ -1,10 +1,17 @@
 {
   "_note": "The number of controls in each class of each lifecycle negatives script, written by hand and compared with the scripts by check-negatives-control-counts.py. A control removed, added or relabelled changes a count here in the same change.",
   "scripts": {
+    "check-initiator-second-message-negatives.py": {"inside": 7, "projection": 3, "statement_shape": 0, "pin": 1, "leaf": 0, "baselines": 2},
     "check-initiator-second-send-negatives.py": {"inside": 6, "projection": 1, "statement_shape": 0, "pin": 1, "leaf": 8, "baselines": 2},
+    "check-receive-preservation-negatives.py": {"inside": 12, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 2},
+    "check-responder-establish-replay-negatives.py": {"inside": 6, "projection": 1, "statement_shape": 2, "pin": 1, "leaf": 2, "baselines": 2},
+    "check-responder-repeated-frame-negatives.py": {"inside": 8, "projection": 2, "statement_shape": 2, "pin": 1, "leaf": 4, "baselines": 2},
     "check-responder-reply-negatives.py": {"inside": 7, "projection": 0, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 2},
     "check-responder-reply-receipt-negatives.py": {"inside": 7, "projection": 4, "statement_shape": 1, "pin": 1, "leaf": 8, "baselines": 2},
+    "check-responder-second-receipt-negatives.py": {"inside": 11, "projection": 2, "statement_shape": 0, "pin": 2, "leaf": 4, "baselines": 2},
     "check-responder-successor-negatives.py": {"inside": 1, "projection": 2, "statement_shape": 3, "pin": 1, "leaf": 10, "baselines": 2},
-    "check-send-preservation-negatives.py": {"inside": 7, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 3}
+    "check-send-preservation-negatives.py": {"inside": 7, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 3},
+    "check-sparse-skip-kind-negatives.py": {"inside": 3, "projection": 0, "statement_shape": 0, "pin": 0, "leaf": 1, "baselines": 2},
+    "check-tampered-reply-negatives.py": {"inside": 7, "projection": 0, "statement_shape": 0, "pin": 2, "leaf": 6, "baselines": 2}
   }
 }

@@ -243,16 +243,45 @@ has four arms; the handshake and `Aead` arms, the latter the responder's own sea
 contributory and round-trip premises), under the receipt's laws with the two oracles' roles swapped and two decrypt boundary records at the initiator's source
 (no compiler-trust axiom): exactly one reply received by the initiator. At the session that receipt returns, the model's step for
 the initiator's next `encrypt` has one outcome (the bare second frame carrying the header's chunk at index 1, no draw), and
-if that session passes `Session::invariant` and meets the four counter ceilings, which is not shown, the public `encrypt`
+if that session passes `Session::invariant` and meets the four counter ceilings, which that result does not show (the receive step below shows it at that session), the public `encrypt`
 returns those bytes with no draw and refines the step, with no new law (no compiler-trust axiom): exactly one further send by the
-initiator, under that condition. That a tampered frame is refused is not shown, nor the responder's receipt of that send,
-nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
+initiator, under that condition. Under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to)
+and a per-run premise that the replaced bytes are no sealing under the reply's message keys and associated data, the
+initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
+one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom); neither
+the law nor the premise is shown of the real AEAD, a frame whose header bytes were changed is not covered, and tamper
+refusal on any other route (the first frame, the second message, a restored session) is not shown. The
+responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
 draw keeps `Session::invariant` and spends one unit of a counter budget whose zero is the four ceilings, given the relation
 after the call and one boundary record (kernel and opaque constants only); the relation after the call carries the Triple
 half and the budget and comes from the encrypt refinement. Its premises are exhibited together only at
 the state where the responder's reply is sent, on the same run, where it gives the invariant and the four ceilings at the
-session that reply leaves (no compiler-trust axiom); no run exhibits them at the other eight states. No `encrypt` whose agreement send draws, no refusal and no receive is
-covered by a preservation result.
+session that reply leaves (no compiler-trust axiom); no run exhibits them at the other eight states. A second general step
+states that a successful `decrypt_ratchet` or `decrypt` keeps `Session::invariant` and spends one unit of that budget on an
+in-order receive (no stored key used, no message skipped, no agreement output) whose agreement stays at `NoHeaderReceived`,
+holding at most one chunk before the call, or at `KeysSampled`, given the relation after the call, the model step, two
+boundary records and one law (kernel and opaque constants only); its premises are exhibited at the initiator's receipt of
+the reply, where it gives the invariant and the four ceilings at the session that receipt returns, and at the responder's
+receipt of the first frame (no compiler-trust axiom). The two are joined on the reply's run: under the receipt's
+hypotheses and a bound on the second plaintext, with no new law or per-run premise, the session the receipt returns passes
+`Session::invariant` and meets the four ceilings, the initiator's second `encrypt` there returns the bare second frame with
+no draw and refines the model's step with no condition, and the session it leaves passes `Session::invariant` and meets
+the ceilings (no compiler-trust axiom); a reach exhibits such a run at the real constants under the reply's reach laws,
+which are assumed. The responder's `decrypt` of that second message, at its session after the reply, takes two per-run
+premises beyond the second message's: the responder's source after its reply holds a draw (for both outcomes), and, for
+the success outcome only, the initiator's new ratchet key is not its first. Under the draw premise alone it either refuses
+`OutOfOrder` with the session unchanged, exactly when the initiator's new key is its first, or returns the initiator's
+plaintext; under both it returns the plaintext and leaves a session that passes `Session::invariant` and meets the four
+ceilings. It takes the one draw in either case (and, by reading the code, no KEM operation), adds no law and lists no compiler-trust axiom, and reaches at
+the real constants exhibit both outcomes under the same assumed laws. A second reply and every later step are not
+covered. No `encrypt`
+whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
+receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
+first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,
+refining the model's step; `establish_responder` at the store the first success committed refuses it as
+`ReplayedLastResort` with the store and the source unchanged, when the bundle names the store's last-resort KEM key and no
+one-time curve prekey (no new law, no compiler-trust axiom). The model's side of the second (no relation to the model's
+store exists), the one-time path, and a repeat at a later session or of other bytes are not shown.
 `decrypt_ratchet_refines_complete` is kernel-checked over the unit's opaque constants (its nine `native_decide` constants
 became kernel proofs on 2026-10-21; kernel-checked over opaque constants is not kernel-only); it takes
 two laws about `Vec::pop` and `Option::as_mut`, assumed and not proved of the real functions, from which, with three
@@ -439,7 +468,8 @@ options that make its statement pins print whole) and its negatives script from
 `tacenta-proofs/scripts/templates/` (the negatives template carries the helpers the other lifecycle negatives
 scripts share, and `check-negatives-control-counts.py` holds it to them) and makes every edit to the shared files
 that does not depend on theorem names (the audit import, the `no-sorry.sh` phase and its part, the proof-script
-cases, the parts runner's stub, the script's entry in `negatives-control-counts.json`, the gate
+cases, the parts runner's stub, the script's entry in `negatives-control-counts.json` and its name in the count
+gate's case runner, the gate
 inventory and mutations, the obligations list), and `pins`, once the proof is written, writes its pins section with
 `tacenta-proofs/scripts/genpins.py` and puts its names on the four lists of `attest.py` and in the attestation
 negatives, moving the pinned case count by the cases it adds. Each new entry goes after the entry its name sorts

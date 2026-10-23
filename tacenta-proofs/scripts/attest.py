@@ -1342,6 +1342,14 @@ REQUIRED_PINS = frozenset(
         "codewordViewSendOf_satisfiable",
         "scoped_chunk_fields_iff_consistent",
     )]
+    # establish_responder again on the initiator's first frame, at the store its first success committed (`UnitLifecycleResponderEstablishReplay`).
+    + ["Tacenta.UnitLifecycleResponderEstablishReplay." + n for n in (
+        "replay_refused_of_mem",
+        "commit_last_resort",
+        "establish_responder_again_refused",
+        "initiator_first_send_responder_replay_refused",
+        "first_send_replay_refused_reachable",
+    )]
     # The session contract integration (#203): the full-store failure correspondences and the retry
     # prerequisites it claims, one block per module.
     + ["Tacenta.UnitT3." + n for n in (
@@ -1357,6 +1365,25 @@ REQUIRED_PINS = frozenset(
         "concrete_receive_attempt_store_full_from_contracts",
         "concrete_receive_attempt_store_full_from_retry_bounds",
         "fullStoreOfReal_ne_of_generated_ne",
+    )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "aeadOpenSealUnique_is",
+        "notASealing_is",
+        "open_none_of_not_sealing",
+        "not_notASealing_of_seal",
+        "replyHeader_length",
+        "replyFrame_take",
+        "replyFrame_drop",
+        "tampered_reply_model_refusal",
+        "initiator_refuses_tampered_reply",
+        "openModel_ok",
+        "sealModel_val",
+        "modelReply_openSealUnique",
+        "modelReply_notASealing_nil",
+        "modelReply_sealing_excluded",
+        "lenient_roundTrip_not_unique",
+        "tamper_laws_model",
     )]
     # The screen of the hypotheses that integration adds (`UnitLifecycleIntegrationScreen.lean`).
     + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
@@ -1384,6 +1411,59 @@ REQUIRED_PINS = frozenset(
         "runRandomDraw_byte",
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
+    )]
+    # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
+    + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
+        "skip_noop",
+        "ratchet_receive_inOrder",
+        "spqr_receive_inOrder",
+        "classicalTail_ok",
+        "modelRatchetInv_tail",
+        "modelRatchetInv_receive_inOrder",
+        "ratchet_receive_frame",
+        "sparseTail_ok",
+        "modelSpqrInv_tail",
+        "modelTripleInv_receive_inOrder",
+        "keeps_output_none",
+        "keeps_epoch",
+        "decode_dh_canonical",
+        "classicalTail_err",
+        "sparseTail_err",
+        "receiveWithEviction_inOrder",
+        "decryptRatchet_inOrderStep",
+        "triple_receive_parts",
+        "modelCounterRoom_receive",
+        "step_frame",
+        "decrypt_inOrderStep",
+        "pow_and_pow_ne",
+        "two_chunk_loop",
+        "decoder_invariant_parts",
+        "add_chunk_one",
+        "decoder_invariant_le_two",
+        "decoder_step_keeps",
+        "braid_receive_keysSampled",
+        "braid_receive_keeps",
+        "structural_receive",
+        "mono_bind",
+        "mono_ite",
+        "strip_bind",
+        "strip_ite",
+        "structural_clear_pending",
+        "clause_a_of_structural",
+        "sameKind_of_refines",
+        "keyOf_dhs",
+        "code_dir_epoch",
+        "decrypt_ratchet_keeps_invariant_in_order",
+        "decrypt_ok_inner",
+        "decrypt_keeps_invariant_in_order",
+        "decrypt_keeps_invariant_model_step",
+        "firstReceipt_inOrderStep",
+        "replyReceipt_inOrderStep",
+        "modelCounterRoom_afterFirstSend",
+        "initiator_receives_reply_successor",
+        "counterRoom_responder_prepared",
+        "prepared_decoder_empty",
+        "responder_successor_via_preservation",
     )]
     # The clauses of `OracleOf` decided jointly, and the guarded KEM record
     # (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
@@ -1678,6 +1758,11 @@ REQUIRED_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "initiator_sends_second_message",
+        "first_send_second_message_reachable",
+    )]
     # The translated curve-key decoder on every input, and the model's `DecodeEC` (`SessionUnitDecodeEc`).
     + ["Tacenta.SessionUnitDecodeEc." + n for n in (
         "decodeEc_eq_some_iff",
@@ -1924,6 +2009,11 @@ REQUIRED_PINS = frozenset(
         "export_import_of_shape",
         "identity_ad_length_of",
         "export_message_fits",
+    )]
+    # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
+    + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
+        "sparseReceiveRefusalOfReal_injective",
+        "skip_message_keys_refines_detailed",
     )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).
@@ -2197,6 +2287,17 @@ REQUIRED_PINS = frozenset(
         "first_receipt_laws_model",
         "first_send_receive_reachable",
     )]
+    # Session::decrypt of the initiator's first frame again, at the responder's session after its first receipt (`UnitLifecycleResponderRepeatedFrame`).
+    + ["Tacenta.UnitLifecycleResponderRepeatedFrame." + n for n in (
+        "repeat_receive_outOfOrder",
+        "repeat_receive_with_eviction",
+        "repeat_frame_model_refused",
+        "key_agreement_ratchet",
+        "same_ephemeral_repeat",
+        "responder_first_frame_repeat_refused",
+        "initiator_first_send_responder_repeat_refused",
+        "first_send_repeat_refused_reachable",
+    )]
     # `Session::invariant` and the four counter ceilings at the session `establish_responder` returns on the
     # initiator's first frame: the receive's success walk, the header decoder after one chunk, the Triple and the
     # session after the first receive, the facts from the relation and the walk, the compositions and the reach
@@ -2283,6 +2384,28 @@ REQUIRED_PINS = frozenset(
         "reply_receipt_reach_run",
         "first_send_reply_receipt_reachable",
         "first_send_reply_stale_reachable",
+    )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "second_receive_key",
+        "second_receive_stale",
+        "secondFrame_messageType",
+        "secondFrame_decodeDetailed",
+        "second_receipt_model_outcomes",
+        "modelCounterRoom_replier",
+        "secondReceipt_inOrderStep",
+        "agreement_swap",
+        "second_codeword",
+        "established_responder_decoder_small",
+        "second_receipt_run_inputs",
+        "secondAd_length_le",
+        "responder_receives_second_message_two_outcomes",
+        "responder_receives_second_message",
+        "reach_establishment_secret",
+        "byteTrace_pair",
+        "second_receipt_reach_run",
+        "first_send_second_receipt_reachable",
+        "first_send_second_receipt_stale_reachable",
     )]
     # `Triple::invariant` read on the model through the Triple relation, both directions (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
@@ -2775,6 +2898,14 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "codewordViewSendOf_satisfiable",
         "scoped_chunk_fields_iff_consistent",
     )]
+    # establish_responder again on the initiator's first frame, at the store its first success committed (`UnitLifecycleResponderEstablishReplay`).
+    + ["Tacenta.UnitLifecycleResponderEstablishReplay." + n for n in (
+        "replay_refused_of_mem",
+        "commit_last_resort",
+        "establish_responder_again_refused",
+        "initiator_first_send_responder_replay_refused",
+        "first_send_replay_refused_reachable",
+    )]
     + ["Tacenta.UnitSatisfiabilityBraidAgreements." + n for n in (
         "braid_agreement_shapes_are_predicates",
         "braid_agreements_have_a_model",
@@ -2812,6 +2943,31 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "concrete_receive_attempt_store_full_from_retry_bounds",
         "fullStoreOfReal_ne_of_generated_ne",
     )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "aeadOpenSealUnique_is",
+        "notASealing_is",
+        "open_none_of_not_sealing",
+        "not_notASealing_of_seal",
+        "replyHeader_length",
+        "replyFrame_take",
+        "replyFrame_drop",
+        "tampered_reply_model_refusal",
+        "initiator_refuses_tampered_reply",
+        "openModel_ok",
+        "sealModel_val",
+        "modelReply_openSealUnique",
+        "modelReply_notASealing_nil",
+        "modelReply_sealing_excluded",
+        "lenient_roundTrip_not_unique",
+        "tamper_laws_model",
+        "AeadOpenSealUniqueShape",
+        "AeadOpenSealUnique",
+        "NotASealingShape",
+        "NotASealing",
+        "openLenient",
+        "Interp.modelLenient",
+    )]
     + ["Tacenta.UnitLifecycleIntegrationScreen." + n for n in (
         "GenerateFillsOnce64",
         "GenerateFillsOnce64Of",
@@ -2847,6 +3003,65 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "runRandomDraw_byte",
         "braid_send_keysUnsampled_byte_trace",
         "braidSendTraceCounted_with_sigSign_byte",
+    )]
+    # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
+    + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
+        "skip_noop",
+        "ratchet_receive_inOrder",
+        "spqr_receive_inOrder",
+        "classicalTail_ok",
+        "modelRatchetInv_tail",
+        "modelRatchetInv_receive_inOrder",
+        "ratchet_receive_frame",
+        "sparseTail_ok",
+        "modelSpqrInv_tail",
+        "modelTripleInv_receive_inOrder",
+        "keeps_output_none",
+        "keeps_epoch",
+        "decode_dh_canonical",
+        "classicalTail_err",
+        "sparseTail_err",
+        "receiveWithEviction_inOrder",
+        "decryptRatchet_inOrderStep",
+        "triple_receive_parts",
+        "modelCounterRoom_receive",
+        "step_frame",
+        "decrypt_inOrderStep",
+        "pow_and_pow_ne",
+        "two_chunk_loop",
+        "decoder_invariant_parts",
+        "add_chunk_one",
+        "decoder_invariant_le_two",
+        "decoder_step_keeps",
+        "braid_receive_keysSampled",
+        "braid_receive_keeps",
+        "structural_receive",
+        "mono_bind",
+        "mono_ite",
+        "strip_bind",
+        "strip_ite",
+        "structural_clear_pending",
+        "clause_a_of_structural",
+        "sameKind_of_refines",
+        "keyOf_dhs",
+        "code_dir_epoch",
+        "decrypt_ratchet_keeps_invariant_in_order",
+        "decrypt_ok_inner",
+        "decrypt_keeps_invariant_in_order",
+        "decrypt_keeps_invariant_model_step",
+        "firstReceipt_inOrderStep",
+        "replyReceipt_inOrderStep",
+        "modelCounterRoom_afterFirstSend",
+        "initiator_receives_reply_successor",
+        "counterRoom_responder_prepared",
+        "prepared_decoder_empty",
+        "responder_successor_via_preservation",
+        "InOrder",
+        "classicalTail",
+        "sparseTail",
+        "KeepsAgreementState",
+        "InOrderReceiveStep",
+        "SameAgreementKind",
     )]
     # The clauses of `OracleOf` decided jointly: the statement of each result and the body of each
     # new clause, law, record and model definition (`UnitOracleShape.lean` to `UnitOracleJoint.lean`).
@@ -3309,6 +3524,12 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "repeated_initial_agreement_false_iff",
         "encoded_comparison_does_not_refine",
     )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "initiator_sends_second_message",
+        "first_send_second_message_reachable",
+        "SecondMessageRun",
+    )]
     # The model's repeat comparison, whose body the refinement states (`UnitLifecycleInitialAgreementT3`).
     + ["Model.Lifecycle." + n for n in (
         "sameEphemeralAgreement",
@@ -3630,6 +3851,11 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "export_message_fits",
         "CodecShape",
         "sessionEnc",
+    )]
+    # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
+    + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
+        "sparseReceiveRefusalOfReal_injective",
+        "skip_message_keys_refines_detailed",
     )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).
@@ -3994,6 +4220,17 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "dhViewFirstReceipt",
         "kemViewFirstReceipt",
     )]
+    # Session::decrypt of the initiator's first frame again, at the responder's session after its first receipt (`UnitLifecycleResponderRepeatedFrame`).
+    + ["Tacenta.UnitLifecycleResponderRepeatedFrame." + n for n in (
+        "repeat_receive_outOfOrder",
+        "repeat_receive_with_eviction",
+        "repeat_frame_model_refused",
+        "key_agreement_ratchet",
+        "same_ephemeral_repeat",
+        "responder_first_frame_repeat_refused",
+        "initiator_first_send_responder_repeat_refused",
+        "first_send_repeat_refused_reachable",
+    )]
     # `Session::invariant` and the four ceilings at the responder's session after the first receipt
     # (`UnitLifecycleResponderSuccessor`).
     + ["Tacenta.UnitLifecycleResponderSuccessor." + n for n in (
@@ -4091,6 +4328,34 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
     )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "second_receive_key",
+        "second_receive_stale",
+        "secondFrame_messageType",
+        "secondFrame_decodeDetailed",
+        "second_receipt_model_outcomes",
+        "modelCounterRoom_replier",
+        "secondReceipt_inOrderStep",
+        "agreement_swap",
+        "second_codeword",
+        "established_responder_decoder_small",
+        "second_receipt_run_inputs",
+        "secondAd_length_le",
+        "responder_receives_second_message_two_outcomes",
+        "responder_receives_second_message",
+        "reach_establishment_secret",
+        "byteTrace_pair",
+        "second_receipt_reach_run",
+        "first_send_second_receipt_reachable",
+        "first_send_second_receipt_stale_reachable",
+        "responderAfterSecond",
+        "secondAd",
+        "replierSession",
+        "secondReceiptSession",
+        "SecondReceiptRun",
+        "SecondReceiptStaleRun",
+    )]
     # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (
         "keyOf_injective",
@@ -4178,6 +4443,15 @@ REQUIRED_PRINT_FORM = frozenset(
         "OracleOf", "BraidSendTraceAgreementCounted", "InitialRatchetTripleBranchContracts",
         "InitialRatchetAeadBranchContracts", "InitialRatchetBraidEvidenceContractsScoped", "verified",
     )]
+    # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced (`UnitLifecycleTamperedReply`).
+    + ["Tacenta.UnitLifecycleTamperedReply." + n for n in (
+        "AeadOpenSealUniqueShape",
+        "AeadOpenSealUnique",
+        "NotASealingShape",
+        "NotASealing",
+        "openLenient",
+        "Interp.modelLenient",
+    )]
     # The new clauses, laws, records and model of the joint `OracleOf` decision.
     + ["Tacenta.UnitOracleShape." + n for n in (
         "DhViewInjective",
@@ -4224,6 +4498,15 @@ REQUIRED_PRINT_FORM = frozenset(
         "GenerateFillsOnce64Of", "GenerateFillsOnce64",
         "Random32Clause", "SigSignClause", "KemClauses",
         "encodedEphemeralAgreement",
+    )]
+    # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two receipts on their runs (`UnitLifecycleReceivePreserve`).
+    + ["Tacenta.UnitLifecycleReceivePreserve." + n for n in (
+        "InOrder",
+        "classicalTail",
+        "sparseTail",
+        "KeepsAgreementState",
+        "InOrderReceiveStep",
+        "SameAgreementKind",
     )]
     + ["Tacenta.UnitLifecycleRetryLoopT3." + n for n in (
         "LoopRel",
@@ -4489,6 +4772,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "sentSession",
         "EstablishedEncryptSuccessorHypotheses",
     )]
+    # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
+    + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (
+        "SecondMessageRun",
+    )]
     + ["Tacenta.UnitLifecycleEstablishResponder." + n for n in (
         "z32",
         "fullSlice",
@@ -4586,6 +4873,15 @@ REQUIRED_PRINT_FORM = frozenset(
         "kemViewReply",
         "DhPublicNotConstantShape",
         "DhPublicNotConstant",
+    )]
+    # the responder's decrypt of the initiator's second message at its session after the reply (`UnitLifecycleResponderSecondReceipt`).
+    + ["Tacenta.UnitLifecycleResponderSecondReceipt." + n for n in (
+        "responderAfterSecond",
+        "secondAd",
+        "replierSession",
+        "secondReceiptSession",
+        "SecondReceiptRun",
+        "SecondReceiptStaleRun",
     )]
     # The five model and code predicates of the bridge (`UnitTripleInvModel`).
     + ["Tacenta.UnitTripleInvModel." + n for n in (

@@ -27,8 +27,11 @@ import Translation.UnitErasureRsStatements
 import Translation.UnitErasureRsGlue
 import Translation.UnitSatisfiabilityZeroizeScope
 import Translation.UnitLifecyclePublicT1
+import Translation.UnitLifecycleReceivePreserve
 import Translation.UnitLifecycleT3
+import Translation.UnitLifecycleTamperedReply
 import Translation.UnitLifecycleInitialDispatch
+import Translation.UnitLifecycleInitiatorSecondMessage
 import Translation.DispatchEvidenceVacuity
 import Translation.SessionUnitBraidPreserveFacts
 import Translation.UnitHeadroomSatisfiable
@@ -39,6 +42,7 @@ import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
 import Translation.UnitLifecycleRepair
+import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
 import Translation.UnitOracleShape
 import Translation.UnitOracleModel
@@ -65,14 +69,17 @@ import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
+import Translation.UnitLifecycleResponderRepeatedFrame
 import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
+import Translation.UnitLifecycleResponderSecondReceipt
 import Translation.UnitTripleInvModel
 import Translation.UnitLifecycleSendPreserve
 import Translation.UnitLifecycleInitiatorSecondSend
@@ -171,6 +178,46 @@ header's chunk at index 1, no draw), and if that session passes `Session::invari
 which is not shown, the call returns those bytes, leaves the source as given and relates to the model's step.  The
 encrypt route's providers come from the invariant and the ceilings, for every session whose agreement send reads no
 draw.  No law is added, and no run is exhibited at which the invariant and the ceilings hold there.
+`UnitLifecycleReceivePreserve.lean` states one receive step for every invariant session: a successful
+`decrypt_ratchet` or `decrypt` whose model step is an in-order receive (no stored key, no skip, no agreement
+output) leaving the agreement at `NoHeaderReceived` (at most one chunk held) or `KeysSampled` keeps
+`Session::invariant` and spends one unit of the counter budget, given the relation after the call, under
+`KemCloneAgrees`, the oracle's `dhPublic` clause, the view's codec and `DhPublicValid`; no law is added.  On the
+runs it gives the invariant and the four ceilings at the session the initiator's receipt of the reply returns,
+and re-derives them at the session the responder's receipt of the first frame returns.  A receive outside that
+scope and a refused call are not covered; the join with the initiator's second send is the next module's.
+`UnitLifecycleInitiatorSecondMessage.lean` joins the initiator's second `encrypt` with that receive step on one
+run: under the hypotheses of the receipt of the reply and a bound on the second plaintext, with no new law, the
+session the receipt returns passes `Session::invariant` and meets the four ceilings, the second `encrypt` there
+returns the bare second frame with no draw and refines the model's step, and the session it leaves passes the
+invariant and meets the ceilings; a reach exhibits such a run at the real constants under assumed laws.  The
+responder's receipt of that message is the next module's.
+`UnitLifecycleResponderSecondReceipt.lean` takes that second message to the responder on the same run: under the
+per-run premise that the responder's source after its reply holds a draw, its public `decrypt` at its session after
+the reply either refuses `OutOfOrder` with the session unchanged, exactly when the initiator's new ratchet key is its
+first, or returns the initiator's plaintext; under the second per-run premise that the new key is not the first, the
+session it leaves passes `Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
+constants under assumed laws.  A second reply and every later step are not covered.
+`UnitLifecycleResponderEstablishReplay.lean` delivers the initiator's first frame to `establish_responder` a second
+time, at the store the first success committed, on the same run: when the bundle names the store's last-resort KEM key
+and no one-time curve prekey, the commit appends one replay-record entry and nothing else, and the second call returns
+`ReplayedLastResort`, that store and the source as given.  No law is added; the model's side (a refinement of the
+model's `establishResponder`) and the one-time path are not shown.
+`UnitLifecycleResponderRepeatedFrame.lean` delivers the same frame to the responder's `Session::decrypt` at the session
+that first success returned, on the same run: the repeat is recognised and the inner receive refuses it as out of
+order, the session returned is the one given, the source loses exactly one draw, and the step refines the model's.  No
+law is added beyond the receipt's; a repeat at a later session or of different bytes is not shown.
+`UnitLifecycleTamperedReply.lean` takes, on the run of the reply's receipt, every frame that keeps the reply's
+102-byte header and carries bytes no call of the boundary's `encrypt` returns under the reply's message keys and
+associated data (a per-run premise): the initiator's `decrypt` at the same session from the same source refuses it with
+`Aead`, leaves the session as it was and takes one draw, under the assumed law `AeadOpenSealUnique` (an opened
+ciphertext is the sealing of what it opened to), which a toy model satisfies and the round trip does not imply.
+Neither the law nor the premise is shown of the real AEAD, and a frame with changed header bytes is not covered.
+`UnitLifecycleSparseSkipKindT3.lean` composes the Session unit's sparse skip refinement with the refusal theorem of
+`UnitLifecycleTripleRefusalT3.lean`: at related states the skip's success is the model's detailed success, and a
+refusal leaves the state as it was and returns the error that maps to the model's refusal, of the same kind (the
+mapping is injective).  It adds no law; `VecRetainAgrees` stays assumed.  It is about one skip on the Session unit's
+copy of the code: the leaf statement and the three-leaf unit's copy still pin the kind in one direction only.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

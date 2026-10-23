@@ -276,10 +276,19 @@ is no longer than the larger of its previous length and `MAX_SKIPPED_STORE`. The
 refusal is exactly the count after the deletion
 (`Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`), and
 `Tacenta.SpqrT3.skip_message_keys_refines` proves that the translated code
-refines that model and that a refused skip returns the state it was given; the
-which refusal it returns is not part of that statement. No theorem carries the bound
-across this ratchet's sending, receiving or advancing, or across a sequence of
-them. Over a session, the bound is tested rather than proved.
+refines that model and that a refused skip returns the state it was given.
+That statement fixes which refusal is returned in one direction only: a
+`SkippedStoreFull` result is the model's refusal for the store. For the copy of
+this code translated with the session lifecycle (`tacenta-core/session-unit`),
+`Tacenta.UnitLifecycleSparseSkipKindT3.skip_message_keys_refines_detailed`
+proves both directions, under the hypotheses that theorem states: a skip the
+model refuses returns the error naming the model's refusal, so a request past
+both bounds is refused as `TooManySkipped`, and an error the code returns is the
+model's refusal of that kind. The tests in
+`tacenta-core/tests/sparse_skip_order.rs` check the same order on the Rust
+source. No theorem carries the bound across this ratchet's sending, receiving
+or advancing, or across a sequence of them. Over a session, the bound is tested
+rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first

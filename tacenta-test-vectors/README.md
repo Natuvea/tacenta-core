@@ -378,11 +378,16 @@ Three things no vector here pins.
   `TooManySkipped` or `SkippedStoreFull`. No vector refuses a sparse skip for
   the per-chain bound or for the total bound, none pins which of the two is
   checked first, and none counts keys under another epoch against the total
-  bound. An implementation that never refuses, or that refuses one key late,
-  passes every vector here. The refusals, and that a refused skip leaves the
-  state it was run on unchanged, are pinned by `tacenta-spqr`'s tests and by a
-  one-step sequence in the differential harness, which checks the state the
-  refused receive was run on.
+  bound. An implementation that never refuses, refuses one key late, or
+  checks the two bounds in the other order passes every vector here. The
+  refusals, and that a refused skip leaves the state it was run on unchanged,
+  are pinned by `tacenta-spqr`'s tests, by a one-step sequence in the
+  differential harness, which checks the state the refused receive was run on,
+  and by `tacenta-core/tests/sparse_skip_order.rs`, which drives
+  `State::from_bytes` and `receive` and checks the refusal's kind on a request
+  past both bounds, keys under another epoch counted against the total bound,
+  and the bytes after each refusal. These test the Rust implementation only;
+  another implementation has no vector to run for them.
 
 ### The Triple Ratchet's state: `vectors/persistence/triple-ratchet-state.json`
 

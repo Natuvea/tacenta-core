@@ -655,8 +655,8 @@ jobs:
         run: bash tooling/tests/run-build-evidence-pack-cases.sh
       - id: checks_38
         run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
-      # The number of controls in each class of the five lifecycle negatives
-      # scripts against the record beside them, and their shared helpers held
+      # The number of controls in each class of every lifecycle negatives
+      # script against the record beside them, and their shared helpers held
       # to one text; then the gate's cases and the label check's planted
       # fault. Needs no toolchain.
       - id: checks_43

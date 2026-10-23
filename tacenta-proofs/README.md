@@ -64,15 +64,41 @@ analysis excluded by the contributory and round-trip premises), under the receip
 the two oracles' roles swapped and two decrypt boundary records at the initiator's source, with no compiler-trust axiom, and the
 initiator's next `encrypt` at the session that receipt returns, on the same run, whose model step has one outcome (the bare
 second frame carrying the header's chunk at index 1, no draw) and which, if that session passes `Session::invariant` and
-meets the four counter ceilings (not shown), returns those bytes with no draw and refines the step, with no new law or
-compiler-trust axiom; a tampered frame being refused, the responder's receipt of that send and later messages in either
-direction not covered; and a general step stating that a successful `encrypt`
+meets the four counter ceilings (not shown there; the receive step below shows it at that session, and the two are joined below), returns those bytes with no draw and refines the step, with no new law or
+compiler-trust axiom, and, under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to) and a
+per-run premise that the replaced bytes are no sealing under the reply's message keys, the initiator's `decrypt` at the
+session its first `encrypt` left, from the source that `encrypt` left, refusing with `Aead`, its session unchanged and one draw taken, every frame that keeps the
+reply's header and replaces its ciphertext, with no compiler-trust axiom (neither the law nor the premise shown of the real
+AEAD; a frame with changed header bytes not covered, and tamper refusal on any other route not shown); the responder's receipt of that send (taken below) and later messages in
+either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
 zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
 the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the
 responder's reply is sent, on that run, where it gives the invariant and the ceilings at the session the reply leaves,
-with no compiler-trust axiom; no `encrypt` whose agreement send draws, no refusal and no receive
-covered by a preservation result);
+with no compiler-trust axiom; and a second general step stating that a successful `decrypt_ratchet` or `decrypt` keeps
+`Session::invariant` and spends one unit of that budget on an in-order receive (no stored key used, no message skipped, no
+agreement output) whose agreement stays at `NoHeaderReceived`, holding at most one chunk before the call, or at
+`KeysSampled`, given the relation after the call, the model step, two boundary records and one law, its premises exhibited
+at the initiator's receipt of the reply, where it gives the invariant and the four ceilings at the session that receipt
+returns, and at the responder's receipt of the first frame, with no compiler-trust axiom; the two joined on the reply's
+run, under the receipt's hypotheses and a bound on the second plaintext, with no new law or per-run premise, so that the
+second `encrypt` at the session the receipt returns yields the bare second frame with no draw and refines the model's step
+with no condition, and the session it leaves passes `Session::invariant` and meets the four ceilings, with no
+compiler-trust axiom and a reach at the real constants under the reply's reach laws (assumed); the responder's `decrypt`
+of that second message at its session after the reply, under the per-run premise that the responder's source after its
+reply holds a draw, refusing `OutOfOrder` with the session unchanged exactly when the initiator's new ratchet key is its
+first and otherwise returning the initiator's plaintext, and, under the second per-run premise that the new key is not the
+first, returning the plaintext and keeping `Session::invariant` and the four ceilings, with the one draw taken in either
+case (and, by reading the code, no KEM operation), no new law and no compiler-trust
+axiom, both outcomes reached at the real constants under the same assumed laws; a second reply and later steps not
+covered; no `encrypt` whose agreement send
+draws, no refusal and no receive outside that scope covered by a preservation result; and the initiator's first frame
+delivered a second time on that run, refused by the
+responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw
+taken, refining the model's step) and by `establish_responder` at the store the first success committed
+(`ReplayedLastResort`, store and source unchanged, when the bundle names the store's last-resort KEM key and no one-time
+curve prekey), with no new law or compiler-trust axiom; the model's side of the latter, the one-time path and a repeat
+at a later session or of other bytes not covered);
 `decrypt_ratchet_refines_complete` is
 kernel-checked over the unit's opaque constants (not kernel-only), it takes two laws about `Vec::pop` and `Option::as_mut` (assumed; not
 checked against the real functions) from which its proof derives the sparse ratchet's two

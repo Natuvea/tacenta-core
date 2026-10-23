@@ -258,6 +258,18 @@ phase_repair() {
 python3 scripts/check-repair-negatives.py || fail=1
 }
 
+# `establish_responder` on the initiator's first frame delivered again, at the store its first success committed
+# (`UnitLifecycleResponderEstablishReplay.lean`): a copy with the second call or the commit claimed on the one-time
+# path, the fingerprint claimed of the secret before it is read back, the second call claimed to return the store
+# before the commit, the bundle claimed to name another KEM key or a one-time curve key, the record claimed to gain
+# the one-time identifier, the reach's record claimed empty or its second call claimed to draw, the replay check
+# claimed without the entry, the commit claimed with a one-time curve key, and a statement with a variable renamed
+# and its pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_responder_establish_replay() {
+python3 scripts/check-responder-establish-replay-negatives.py || fail=1
+}
+
 # The composed Triple send theorem must consume the leaf theorem's complete
 # classical refusal result, including the finite-width counter edge.  A
 # disposable mutation restores the old NoSendingChain-only contract and a
@@ -267,11 +279,29 @@ phase_send_refusal() {
 python3 scripts/check-send-refusal-negatives.py || fail=1
 }
 
+# The Session unit's sparse skip refines the model's detailed skip, refusal kind included
+# (`UnitLifecycleSparseSkipKindT3.lean`).  After the two unmodified copies are accepted, four changes must each be
+# refused at a named declaration with a message naming the change: the kind under a mapping that swaps
+# `TooManySkipped` and `SkippedStoreFull`, every refusal claimed `skippedStoreFull` and a success claimed to keep
+# the state (in the composing proof, each accepted there with that proof emptied), and the error mapping claimed
+# injective with `TooManySkipped` sent to `skippedStoreFull`.
+phase_sparse_skip_kind() {
+python3 scripts/check-sparse-skip-kind-negatives.py || fail=1
+}
+
 # The sparse skip's store-full conjunct is proved in one branch that reads the store a skip
 # leaves through `hC`: a copy naming another refusal, and a copy whose branch drops `hC`,
 # must each be refused at that branch.
 phase_sparse_store_full() {
 python3 scripts/check-sparse-store-full-negatives.py || fail=1
+}
+
+# Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced
+# (`UnitLifecycleTamperedReply.lean`): fifteen changes (seven inside the composing proof, six on leaf lemmas, two
+# definitions with their pins kept) must each be refused at a named declaration or pin, with a message naming the
+# change, after the unmodified copies are accepted.
+phase_tampered_reply() {
+python3 scripts/check-tampered-reply-negatives.py || fail=1
 }
 
 # The decrypt_ratchet refinement, its retry-loop induction, its refusal closure, its per-run bounds and the public decrypt on
@@ -294,6 +324,17 @@ python3 scripts/check-decrypt-ratchet-negatives.py || fail=1
 # the unmodified copies are accepted.
 phase_established() {
 python3 scripts/check-established-negatives.py || fail=1
+}
+
+# The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings
+# at the session the receipt returns derived on that run and kept through the send
+# (`UnitLifecycleInitiatorSecondMessage.lean`): eleven changes to statements and one definition (the budget after
+# the send, the fresh-key premise, the second plaintext's bound and the ceilings at the receipt's session in the
+# headline; the plaintext bound and the source-choosing law in the reach; three projections; the run's definition
+# at its pin), each of which must be refused at a named declaration or pin, with a message naming the change,
+# after the two unmodified copies are accepted.
+phase_initiator_second_message() {
+python3 scripts/check-initiator-second-message-negatives.py || fail=1
 }
 
 # What an accepted `Session::import` guarantees, the restored relation and the round trip of an established
@@ -347,6 +388,19 @@ python3 scripts/check-responder-frame-negatives.py || fail=1
 # unmodified copies are accepted.
 phase_responder_receipt() {
 python3 scripts/check-responder-receipt-negatives.py || fail=1
+}
+
+# `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first
+# receipt (`UnitLifecycleResponderRepeatedFrame.lean`): a copy with the refusal claimed to take no draw or to be
+# `NotARepeatedInitial`, the model's step claimed to keep the draw or taken at the first receipt's oracle, the second
+# draw claimed of the first source, the first call claimed on the plaintext, the model session claimed at chunk
+# index 1, the composed call claimed from the first source, the key generation claimed at swapped draws, the reach
+# claimed from the seed or refused as not a repeat, a leaf claimed otherwise (the receive's refusal, the draw's
+# agreement, the oracle kept, the ephemeral check on the identity key), and a statement with a variable renamed and its
+# pins kept must each be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_responder_repeated_frame() {
+python3 scripts/check-responder-repeated-frame-negatives.py || fail=1
 }
 
 # The Session unit's refinement constants, kernel proofs since 2026-10-21 (they were `native_decide`): a copy with a
@@ -403,6 +457,20 @@ phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
 }
 
+# The responder's decrypt of the initiator's second message at its session after the reply, with Session::invariant
+# and the four ceilings kept through the receive (`UnitLifecycleResponderSecondReceipt.lean`): nineteen changes to
+# statements and definitions (the draw, the plaintext, the stale arm's refusal and the decoder after the receipt in
+# the two-outcome theorem; the fresh-key premise and the budget after the receipt in the success headline; the
+# responder's further bytes and the source-choosing law in the run, the law in the reach and the stale run's key
+# equation in the stale reach; two projections; the model's
+# stale receive, the Triple after the receipt, the decoder at the responder's session and the in-order step's premise
+# in the leaf lemmas; the two runs' definitions at their pins), each of which must be refused at a named declaration
+# or pin, with a message naming the change, after the two unmodified copies are accepted; the eleven changes
+# labelled inside composing proofs must be accepted there with that proof emptied.
+phase_responder_second_receipt() {
+python3 scripts/check-responder-second-receipt-negatives.py || fail=1
+}
+
 # The bridge between `Triple::invariant` and the model (`UnitTripleInvModel.lean`) and send preservation at an
 # agreement state that takes no draw (`UnitLifecycleSendPreserve.lean`): a copy with the no-draw premise weakened, the
 # key-pair clone record swapped for the erasure one, the budget claimed unspent or the relation after the call claimed
@@ -437,6 +505,16 @@ python3 scripts/check-send-preservation-negatives.py || fail=1
 # must carry one of the two labels, checked at start-up against the module's text.
 phase_initiator_second_send() {
 python3 scripts/check-initiator-second-send-negatives.py || fail=1
+}
+
+# Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the
+# two receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes to statements and one definition
+# (the decoder scope, the clone record, the budget, the relation after the call, the canonical-key law and the
+# public-key clause in the general step; the budget and the fresh-key premise on the reply's run; the leaf
+# lemmas), each of which must be refused at a named declaration or pin, with a message naming the change, after
+# the two unmodified copies are accepted.
+phase_receive_preservation() {
+python3 scripts/check-receive-preservation-negatives.py || fail=1
 }
 
 # The generated files' axiom sets, as the environment has them. The axiom
@@ -617,21 +695,28 @@ phases() {
   run_phase initial-dispatch sliceable "initial dispatcher proof-dependency controls" phase_initial_dispatch units_initial_dispatch
   run_phase atomicity plain "lifecycle frame-proof controls" phase_atomicity
   run_phase repair plain "restated dispatch record controls" phase_repair
+  run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
+  run_phase sparse-skip-kind plain "sparse skip refusal-kind proof-dependency control" phase_sparse_skip_kind
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
+  run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
+  run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
+  run_phase responder-repeated-frame plain "responder-repeated-frame proof-dependency control" phase_responder_repeated_frame
   run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase responder-second-receipt plain "responder-second-receipt proof-dependency control" phase_responder_second_receipt
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
+  run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs
   run_phase build-model prelude "build and scan: model package" phase_build_model
