@@ -9,6 +9,7 @@
     "check-responder-reply-negatives.py": {"inside": 7, "projection": 0, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 2},
     "check-responder-reply-receipt-negatives.py": {"inside": 7, "projection": 4, "statement_shape": 1, "pin": 1, "leaf": 8, "baselines": 2},
     "check-responder-second-receipt-negatives.py": {"inside": 11, "projection": 2, "statement_shape": 0, "pin": 2, "leaf": 4, "baselines": 2},
+    "check-responder-second-send-negatives.py": {"inside": 10, "projection": 2, "statement_shape": 0, "pin": 2, "leaf": 5, "baselines": 2},
     "check-responder-successor-negatives.py": {"inside": 1, "projection": 2, "statement_shape": 3, "pin": 1, "leaf": 10, "baselines": 2},
     "check-send-preservation-negatives.py": {"inside": 7, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 3},
     "check-sparse-skip-kind-negatives.py": {"inside": 3, "projection": 0, "statement_shape": 0, "pin": 0, "leaf": 1, "baselines": 2},

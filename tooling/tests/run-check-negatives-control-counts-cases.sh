@@ -42,6 +42,7 @@ named=(
   check-receive-preservation-negatives.py
   check-initiator-second-message-negatives.py
   check-responder-second-receipt-negatives.py
+  check-responder-second-send-negatives.py
   check-responder-repeated-frame-negatives.py
   check-responder-establish-replay-negatives.py
   check-tampered-reply-negatives.py

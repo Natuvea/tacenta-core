@@ -1029,6 +1029,7 @@ recorded decision or a target-closing slice:
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
   `check-responder-second-receipt-negatives.py`,
+  `check-responder-second-send-negatives.py`,
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
@@ -1077,6 +1078,11 @@ recorded decision or a target-closing slice:
   `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
   the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
   the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
+  `check-responder-second-send-negatives.py`:
+  the responder's `encrypt` at the session its receipt of the initiator's second message returned keeps the source the receipt left,
+  the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send and the budget after it,
+  and its reach keeps the responder's further bytes, the law that chooses the initiator's further bytes and the plaintext bound (the receipt's plaintext and the run's call are conjuncts of called theorems,
+  placed unchanged);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1310,6 +1316,7 @@ recorded decision or a target-closing slice:
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
   `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused: eleven inside the five composing proofs, two projections, four on leaf lemmas and two definitions held by their pins),
+  `check-responder-second-send-negatives.py` (two unmodified copies accepted and nineteen changes refused: ten inside the two composing proofs, two projections, five on leaf lemmas and two definitions held by their pins),
   `check-responder-successor-negatives.py` (two unmodified copies accepted and seventeen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
@@ -1661,7 +1668,7 @@ recorded decision or a target-closing slice:
   each refused),
   `check-lean-constructs.sh` has 5 refusals and 2 acceptances inside `check-attest-negatives.sh` (run in CI as sixteen slices, `negatives_slice`, and combined by `negatives_combine`).
   `check-audit-reach.sh` now has `check-audit-reach-negatives.sh` (an orphan module in each source directory, a dropped import, a deleted audit module and five wrong audit calls; `AR-*` re-run red), and `check-translation-coverage.sh`, the log scan, the no-audit-lines guard, the kernel-replay verdict,
-  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (114 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
+  `verify.sh` and the call of every control script from `no-sorry.sh` are held by `tooling/tests/run-proof-script-cases.sh` (116 cases with a stubbed `lake`; `NS-*`, `VF-*`, `TC-*` re-run red).
   `check-pin-negatives.sh` shows Lean refusing a changed `#guard_msgs` pin.
   The first and the last run in CI through `no-sorry.sh`;
   the runners run in CI from `tooling/tests/run-gate-controls.sh` (`checks_41`).
