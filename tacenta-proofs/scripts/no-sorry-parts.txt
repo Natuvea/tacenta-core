@@ -12,8 +12,8 @@
 # estimated at about eleven to thirteen minutes hosted (an estimate, not a hosted measurement); the
 # `responder` part then took on `responder-second-receipt`, whose control alone took about 310 s locally under
 # `nice` (not a hosted measurement); the initial dispatcher's 50 controls took 3024 s there and are split eight
-# ways. The `braid` part later took on `responder-second-send`, whose control took about 85 s locally under `nice`
-# (not a hosted measurement).
+# ways. The `braid` part later took on `responder-second-send`, whose control took between about 85 s and 105 s in
+# local runs under `nice` (not a hosted measurement).
 hosted kernel:
   kernel-replay-translation
   initiator-second-message

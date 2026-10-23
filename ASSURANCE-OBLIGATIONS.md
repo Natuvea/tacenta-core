@@ -1080,8 +1080,8 @@ recorded decision or a target-closing slice:
   the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
   `check-responder-second-send-negatives.py`:
   the responder's `encrypt` at the session its receipt of the initiator's second message returned keeps the source the receipt left,
-  the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send and the budget after it,
-  and its reach keeps the responder's further bytes, the law that chooses the initiator's further bytes and the plaintext bound (the receipt's plaintext and the run's call are conjuncts of called theorems,
+  the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send, the budget after it and the send-preservation step's ceilings,
+  and its reach keeps the responder's further bytes, the law that chooses the initiator's further bytes and the plaintext bound (the receipt's plaintext, the invariant after the send and the run's call are conjuncts of called theorems,
   placed unchanged);
   the Session Braid port scripts refuse a source whose anchor moved.
 
@@ -1316,7 +1316,14 @@ recorded decision or a target-closing slice:
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
   `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused: eleven inside the five composing proofs, two projections, four on leaf lemmas and two definitions held by their pins),
-  `check-responder-second-send-negatives.py` (two unmodified copies accepted and nineteen changes refused: ten inside the two composing proofs, two projections, five on leaf lemmas and two definitions held by their pins),
+  `check-responder-second-send-negatives.py` (two unmodified copies accepted and each change refused,
+  at a named declaration or pin and against a message naming the change,
+  every one a change to a statement or a definition and a proof-breakage check there,
+  not a proof that the changed statement is false;
+  each control the script runs against the composing proofs `responder_sends_second_reply` and `first_send_second_reply_reachable` also run with that proof replaced by `sorry` and required to be accepted there,
+  which verifies attribution only;
+  the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below);
+  the two definitions held by their pins are also held without them, by the reach and by the model step),
   `check-responder-successor-negatives.py` (two unmodified copies accepted and seventeen changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,

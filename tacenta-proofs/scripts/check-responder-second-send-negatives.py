@@ -12,54 +12,53 @@ and the ceilings after the call, and the budget read off the model session after
 after the fact it rests on is removed would hold nothing, so this script makes one change to a copy of the module and
 requires Lean to refuse it, at a named place, with an error that names what the change removed.
 
-The two theorems named in `COMPOSING` compose (decided by reading).  A control refused in a composing theorem is a
-projection when it is refused where that proof places a conjunct of a called theorem's conclusion unchanged, and a
-composition step, labelled inside, otherwise.  The script holds each of the two labels to a syntactic form of that
-standard read off the module (`passed_through`: the refusal names a hypothesis the proof binds by destructuring a called
-theorem's conclusion, never rewrites, simplifies or substitutes, and places with a constructor), and requires every
-control refused in a composing theorem to carry one of them.  For each inside control it also runs the changed copy with
-that theorem's proof replaced by `sorry`, requiring Lean to accept the change there, so the refusal is attributable to
-that proof.  That probe verifies attribution only: it cannot tell a composing step from a projection.  That the syntactic
-form is the right standard, and that the two theorems compose rather than project, is decided by reading.  The labels
-are also held consistent (an inside control must be labelled with the declaration it is refused in and with a composing
-theorem; no control carries two labels; every place a projection may be refused must be a composing theorem; a
-statement-shape check may not be refused in a composing theorem, and the theorem it projects must be in `PROJECTED`), at
-start-up (at run time the script checks only that each change is refused at its labelled place).  10 controls are
-labelled inside:
+The script labels each control by where it is refused: inside a composing proof (the theorems named in `COMPOSING`,
+decided by reading), a projection (refused where a composing proof places a conjunct of a called theorem's conclusion
+unchanged), on a leaf lemma, or at a pin.  It holds the inside and projection labels, once at start-up, to a syntactic
+form of that standard read off the module (`passed_through`), requires every control refused in a composing theorem to
+carry one of them, and holds the labels consistent with each other and with where each control is refused (at run time
+it checks only that each change is refused at its labelled place).  What a run establishes is that each control is
+refused at its named place, and that each control it runs against a composing proof is accepted there when that proof is
+replaced by `sorry` (attribution to that proof, nothing more).  The labels and the per-class counts in
+`negatives-control-counts.json` are the script's own labelling and are guidance, not a claim: the helper that tells
+inside from projection reads Lean's error text and can read some projections as composition steps
+(`ASSURANCE-OBLIGATIONS.md` records the decision, not built).  The controls, by where they are refused:
 
   * in `responder_sends_second_reply`: the second reply's call claimed to return the source the reply left instead of
-    the one the receipt left (refused where the call, its source rewritten by the walk of the agreement's send, is
-    placed); the call claimed at the session before the receipt (refused at the same place); the session after the call
-    claimed equal to the one before, the Triple unwritten (refused where the walk's frame equation is placed); the frame
-    claimed to carry the initiator's new ratchet key instead of the responder's (refused where the model step's frame is
-    rewritten into the code's bytes); the frame claimed sealed on the sparse chain the responder receives on (refused at
-    the same place); the relation after the call claimed with the Triple the receipt left (refused where the relation,
-    rewritten through the model step's outcome, is placed); and the budget after the call claimed for every `j` with
-    `j + 2 < u32::MAX` (refused where the model session's budget is read off at `j`; false of the code by reading, the
-    clock at the session after the call being 2);
+    the one the receipt left, and claimed at the session before the receipt (both refused where the call, its source
+    rewritten by the walk of the agreement's send, is placed); the session after the call claimed equal to the one
+    before, the Triple unwritten (refused where the walk's frame equation is placed); the frame claimed to carry the
+    initiator's new ratchet key instead of the responder's, and claimed sealed on the sparse chain the responder
+    receives on (both refused where the model step's frame is rewritten into the code's bytes); the relation after the
+    call claimed with the Triple the receipt left (refused where the relation, rewritten through the model step's
+    outcome, is placed); the budget after the call claimed for every `j` with `j + 2 < u32::MAX` (refused where the
+    model session's budget is read off at `j`; false of the code by reading, the clock after the call being 2); the
+    ceilings after the call claimed as one unit of room (`CounterRoom sB4 1`, true by the budget conjunct; refused where
+    the send-preservation step's budget at `k = 0` is placed, so it shows that the ceilings conjunct is that step's
+    output); and `Session::invariant` claimed of the session before the call (true too; refused where the headline places
+    the send-preservation step's invariant conjunct unchanged, so it shows only that the invariant conjunct is that
+    step's, by forwarding); the initiator's receipt of the reply claimed to return the second plaintext (refused where
+    the headline places that conjunct of `responder_receives_second_message` unchanged);
   * in `first_send_second_reply_reachable`: the responder's 32 further bytes claimed to be 31 (refused where the
     responder's source is read as two draws), the law `DhPublicNotConstant` swapped for `DhAgreeSymmetric` (refused where
-    the initiator's further bytes are chosen by it, so that its new ratchet key is not its first), and the second reply's
-    plaintext bound claimed as `2^32` bytes (refused where the headline's plaintext bound is discharged from it).
-
-Two are projections, labelled neither inside nor statement-shape: the initiator's receipt of the reply claimed to return
-the second plaintext, refused in `responder_sends_second_reply` where it places the conjunct of
-`responder_receives_second_message` unchanged, and the run's definition, in the copy without pins, claimed with the
-second reply returning the source the reply left, refused in `first_send_second_reply_reachable` where it places the
-conjunct of `responder_sends_second_reply` unchanged.  They show that the composing theorems forward those conjuncts, not
-that they compose them, and no emptied-proof run is made for them.
-
-Five are on leaf lemmas: the responder's Triple after the second reply claimed with message number 0 (refused in
-`second_reply_send_key`), the model's step claimed to take a draw (refused in `second_reply_model_step`), the composite
-header claimed with agreement type `hdr` (refused in `second_reply_model_step`), the model budget after the second reply
-claimed for every `k` with `k + 2 < u32::MAX` (refused in `modelCounterRoom_secondReplier`), and the encrypt refinement
-claimed from the Triple's invariant alone instead of `Session::invariant` (refused in `responder_second_send_refines`).
-Two hold definitions: `SecondReplyRun` with `Session::invariant` after the second reply replaced by `True`, and
-`secondReplyFrame` with the encoded header dropped from its associated data, each with the module's pins kept (refused at
-that definition's pin).  0 controls are statement-shape checks.
+    the initiator's further bytes are chosen by it, so that its new ratchet key is not its first), the second reply's
+    plaintext bound claimed as `2^32` bytes (refused where the headline's plaintext bound is discharged from it), and the
+    run's definition, in the copy without pins, claimed with the second reply returning the source the reply left
+    (refused where the reach places that conjunct of `responder_sends_second_reply` unchanged);
+  * in the leaf lemmas: the responder's Triple after the second reply claimed with message number 0
+    (`second_reply_send_key`), the model's step claimed to take a draw and the composite header claimed with agreement
+    type `hdr` (`second_reply_model_step`), the model budget after the second reply claimed for every `k` with
+    `k + 2 < u32::MAX` (`modelCounterRoom_secondReplier`), and the encrypt refinement claimed from the Triple's invariant
+    alone instead of `Session::invariant` (`responder_second_send_refines`);
+  * at a pin, with the module's pins kept: `SecondReplyRun` with `Session::invariant` after the second reply replaced by
+    `True`, and `secondReplyFrame` with the encoded header dropped from its associated data.  Both definitions are also
+    held without the pins: the first change is refused in the reach (a structural refusal: the reach places the
+    invariant where `True` is expected), the second in `second_reply_model_step` (the model's `encrypt` binds the encoded
+    header into the associated data).  So these two controls show that the pins hold the definitions, not that the pins
+    are needed for it.  There is no statement-shape check.
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
-a named place: it shows that the proof there depends on what the change removed (or, for the last two, that the pin
+a named place: it shows that the proof there depends on what the change removed (or, for the pin controls, that the pin
 holds the definition), not that the changed statement is false.  None shows anything about the initiator's receipt of
 the second reply, a refused `encrypt`, a tampered frame or a later step.
 
@@ -109,6 +108,8 @@ FRAME = """      vecOf bytesR2 = secondReplyFrame oracleB (vecOf q.identityAd) (
 RELATION = "          triple := responderAfterSecondSend (arrayOf ec) (arrayOf q.sparseRoot) (arrayOf q.sparseSend)\n"
 
 BUDGET = "      (∀ j, j + 3 < Std.U32.max → CounterRoom sB4 j) := by\n"
+
+AFTER = "      lifecycle.Session.invariant sB4 = ok true ∧ CounterHeadroom sB4 ∧\n"
 
 RECEIPT_PT = "        ok (core.result.Result.Ok ptA, s'', rngA') ∧ ptA.val = ptR.val ∧\n"
 
@@ -173,6 +174,10 @@ MUTANTS = [
      [(BUDGET, BUDGET.replace("j + 3 <", "j + 2 <"))],
      r"hj\nhas type\n  j \+ 2 < U32\.max\nbut is expected to have type\n  j \+ 3 < U32\.max\nin the application\n  modelCounterRoom_secondReplier",
      [HEAD]),
+    ('module', 'ceilings-after-the-second-reply-claimed-with-a-unit-of-room',
+     [(AFTER, AFTER.replace("CounterHeadroom sB4 ∧", "Tacenta.UnitLifecycleSendPreserve.CounterRoom sB4 1 ∧"))],
+     r"\(UnitLifecycleSendPreserve\.counterRoom_zero sB4\)\.mp hroom4\nhas type\n  CounterHeadroom sB4\nbut is expected to have type\n  CounterRoom sB4 1\nin the application\n  And\.intro",
+     [HEAD]),
     ('module', 'reach-responder-extra-bytes-claimed-shorter',
      [(EXTRA, EXTRA.replace("extraB.length = 32", "extraB.length = 31"))],
      r"hextraB\nhas type\n  extraB\.length = 31\nbut is expected to have type\n  extraB\.length = 32\nin the application\n  byteTrace_pair seedB extraB hseedB hextraB",
@@ -194,6 +199,10 @@ MUTANTS = [
      [(RUN_CALL, RUN_CALL.replace("sB4, rngR2) ∧", "sB4, rngB') ∧"))],
      r"hcallR2\nhas type\n  lifecycle\.Session\.encrypt byteRng byteCrc sB''' ptR2 rngR2 = ok \(core\.result\.Result\.Ok bytesR2, sB4, rngR2\)\nbut is expected to have type\n  lifecycle\.Session\.encrypt byteRng byteCrc sB''' ptR2 rngR2 = ok \(core\.result\.Result\.Ok bytesR2, sB4, rngB'\)\nin the application\n  And\.intro hcallR2",
      [REACH]),
+    ('module', 'invariant-after-the-second-reply-claimed-of-the-session-before-it',
+     [(AFTER, AFTER.replace("invariant sB4 = ok true", "invariant sB''' = ok true"))],
+     r"hinv4\nhas type\n  sB4\.invariant = ok true\nbut is expected to have type\n  sB'''\.invariant = ok true\nin the application\n  And\.intro hinv4",
+     [HEAD]),
     # leaf lemmas
     ('module', 'model-triple-after-the-second-reply-claimed-with-message-number-zero',
      [(MODEL_TRIPLE, MODEL_TRIPLE.replace("ns := 1,", "ns := 0,"))],
@@ -243,6 +252,7 @@ INSIDE = {
     'second-reply-frame-claimed-on-the-receiving-sparse-chain': HEAD,
     'second-reply-relation-claimed-with-the-receipt-triple': HEAD,
     'budget-after-the-second-reply-claimed-beyond-the-clock': HEAD,
+    'ceilings-after-the-second-reply-claimed-with-a-unit-of-room': HEAD,
     'reach-responder-extra-bytes-claimed-shorter': REACH,
     'reach-fresh-key-law-swapped': REACH,
     'reach-second-reply-plaintext-bound-claimed-wider': REACH,
@@ -255,6 +265,7 @@ INSIDE = {
 PROJECTION = {
     'reply-receipt-claimed-to-return-the-second-plaintext': 'responder_receives_second_message',
     'run-claimed-with-the-second-reply-returning-the-source-the-reply-left': HEAD,
+    'invariant-after-the-second-reply-claimed-of-the-session-before-it': 'encrypt_keeps_invariant_no_draw',
 }
 
 # The theorems a statement-shape check may project: the composing theorems.

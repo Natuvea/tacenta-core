@@ -3168,8 +3168,8 @@ reply frame, takes no draw, writes only the Triple Ratchet and refines the model
 budget the receipt leaves) and meets the four ceilings. The encrypt route's providers come from the invariant and the
 ceilings at the receipt's session (`encryptProviders_of_invariant`). No new law and no new per-run
 premise; the records are the reply's at the responder's source (ASSUMED, as above), `KemCloneAgrees` from its
-`DecryptRatchetAgreements`. The agreement's send at `NoHeaderReceived` runs no KEM operation and no draw (the walk of the
-translated send names none), and no fact relating the two parties' Braid KEMs is used by this step; the Braid send record
+`DecryptRatchetAgreements`. The agreement's send at `NoHeaderReceived` takes no draw (`braid_send_noHeader`) and, by reading the
+walk of the translated send and the Rust, runs no KEM operation, and no fact relating the two parties' Braid KEMs is used by this step; the Braid send record
 still carries `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state (whether it could
 be dropped here is not checked). `first_send_second_reply_reachable` exhibits, at the real constants under the laws of
 `first_send_second_receipt_reachable` (all ASSUMED), a run at which every hypothesis holds; its conclusion is the

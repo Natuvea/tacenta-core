@@ -472,15 +472,16 @@ python3 scripts/check-responder-second-receipt-negatives.py || fail=1
 }
 
 # The responder's encrypt at the session its receipt of the initiator's second message returned
-# (`UnitLifecycleResponderSecondSend.lean`): a copy with one of nineteen changes to statements and definitions (the
-# second reply's call claimed to return the source the reply left or at the session before the receipt, the session
-# after it claimed unwritten, the frame claimed with the initiator's key or on the responder's receiving sparse chain,
-# the relation claimed with the receipt's Triple and the budget claimed beyond the clock, in the headline; the
-# responder's further bytes, the key-choosing law and the plaintext bound in the reach; two projections; the model's
-# Triple after the send, its step's draw and composite type, the model budget and the refinement's invariant premise in
-# the leaf lemmas; the run's and the frame's definitions at their pins), each of which must be refused at a named
-# declaration or pin, with a message naming the change, after the two unmodified copies are accepted; the ten changes
-# labelled inside composing proofs must be accepted there with that proof emptied.
+# (`UnitLifecycleResponderSecondSend.lean`): a copy with one change to a statement or a definition (the second
+# reply's call claimed to return the source the reply left or at the session before the receipt, the session after it
+# claimed unwritten, the frame claimed with the initiator's key or on the responder's receiving sparse chain, the
+# relation claimed with the receipt's Triple, the budget claimed beyond the clock, the ceilings claimed as a unit of room
+# and the invariant claimed of the session before, and the receipt's plaintext, in the headline; the responder's further
+# bytes, the key-choosing law, the plaintext bound and the run's call in the reach; the model's Triple after the send,
+# its step's draw and composite type, the model budget and the refinement's invariant premise in the leaf lemmas; the
+# run's and the frame's definitions at their pins), each of which must be refused at a named declaration or pin, with a
+# message naming the change, after the two unmodified copies are accepted; each change it runs against a composing proof
+# must be accepted there with that proof emptied.
 phase_responder_second_send() {
 python3 scripts/check-responder-second-send-negatives.py || fail=1
 }
