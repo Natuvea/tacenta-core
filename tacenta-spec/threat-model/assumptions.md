@@ -64,8 +64,8 @@ derivation separate from signing (session-establishment.md, Notation).
 
 XEdDSA is implemented in `tacenta-core` over `curve25519-dalek` and
 `ed25519-dalek`, not taken from a vetted crate: the exception recorded in
-ADR-0002. Since the KDF change (ADR-0010) it is one of two, with the key derivation (ASM-05),
-proposed in ADR-0010; LIMITATIONS.md, "Trusted, not verified", lists both. Not
+ADR-0002. Since the KDF change it is one of two, with the key derivation (ASM-05),
+accepted in ADR-0010; LIMITATIONS.md, "Trusted, not verified", lists both. Not
 assumed against ADV-03.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.
@@ -100,11 +100,13 @@ HMAC-SHA256 is a pseudorandom function, and HKDF-SHA256 is a dual pseudorandom
 function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
-own SHA-256, HMAC and HKDF: code written by `tacenta-core`'s maintainer with
-tool assistance in a separate, unpublished repository and copied here, pinned in
-`kdf/src/lib.rs` by commit and file digests. It has been read so far only by
-tool-assisted sessions; no human has yet read the three Rust files or their
-proofs. Eight translations include those bodies. That they compute
+own SHA-256, HMAC and HKDF, copied here and pinned in `kdf/src/lib.rs` by commit
+and file digests: written by `tacenta-core`'s maintainer with tool assistance in
+a separate, unpublished repository; the three Rust files were read in full by
+the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
+reader independent of the maintainer has read the three files, and no human has
+read their proofs. In this repository they are under its own licence,
+Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
 vectors check against those RFCs and nothing proves to be them, on the
 agreement proofs below, and on the translation's fidelity (ASM-16). Their timing
@@ -230,8 +232,11 @@ is assumed, not proven", states how far this is checked:
   inventory of its branches, indexed accesses and callees, read from one pinned
   compiler and one codegen unit; CI compares the two Linux targets' inventories,
   and the macOS one is compared only on a local run. That is a tripwire for a
-  changed shape, not a measurement: the key derivation's timing is not measured
-  (ASM-05);
+  changed shape. On one x86_64 Linux machine the inventory built natively under
+  the pinned compiler equals the baseline, the stable compiler there gives a
+  different one (which is why the compiler is pinned), and a dudect-style test of
+  the copied HMAC detected no timing difference, with a control that detects a
+  few-instruction leak (ADR-0010): one measurement on one CPU, not a proof;
 - `tacenta-core`'s own composition is audited by reading to branch only on
   public data;
 - four rejection paths are measured by `tacenta-core/tests/timing.rs`.
