@@ -212,8 +212,6 @@ info: Tacenta.UnitOracleDecrypt.decryptInterp_laws_iff : Tacenta.UnitSatisfiabil
 info: 'Tacenta.UnitOracleDecrypt.dhViewInjective_real_iff' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
- tacenta_kdf.hmac_sha256,
  tacenta_kem.CT1_LEN,
  tacenta_kem.CT2_LEN,
  tacenta_kem.EK_VECTOR_LEN,

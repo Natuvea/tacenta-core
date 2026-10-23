@@ -2186,7 +2186,7 @@ rests on beyond Lean's three standard axioms is an opaque external the
 translation declares: the key-derivation primitives, the `zeroize` wrapper,
 and `remove_skipped_at`. -/
 
-/-- info: 'Tacenta.T3.send_refines' depends on axioms: [propext, Classical.choice, Quot.sound, tacenta_kdf.hmac_sha256] -/
+/-- info: 'Tacenta.T3.send_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.T3.send_refines
 
@@ -2194,8 +2194,6 @@ and `remove_skipped_at`. -/
 info: 'Tacenta.T3.receive_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
- tacenta_kdf.hmac_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -2213,7 +2211,6 @@ info: 'Tacenta.T3.receive_refines' depends on axioms: [propext,
 info: 'Tacenta.T3.message_keys_refines' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

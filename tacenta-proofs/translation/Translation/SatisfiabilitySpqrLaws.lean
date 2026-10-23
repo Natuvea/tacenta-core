@@ -1278,7 +1278,6 @@ end
 info: 'Tacenta.SatisfiabilitySpqrLaws.kdfRkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1299,7 +1298,6 @@ info: Tacenta.SatisfiabilitySpqrLaws.kdfRkTotal (hH : Tacenta.SatisfiabilitySpqr
 info: 'Tacenta.SatisfiabilitySpqrLaws.kdfCkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1419,7 +1417,6 @@ info: Tacenta.SatisfiabilitySpqrLaws.vecRetainTotal (hCap : Tacenta.Satisfiabili
 info: 'Tacenta.SatisfiabilitySpqrLaws.defined_fields_hold' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1537,7 +1534,6 @@ info: Tacenta.SatisfiabilitySpqrLaws.vecRetainAgreesOfLaws (hCap : Tacenta.Satis
 info: 'Tacenta.SatisfiabilitySpqrLaws.vecRetainAgrees' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1614,7 +1610,7 @@ info: Tacenta.SatisfiabilitySpqrLaws.LawVecZeroize_is :
 #check Tacenta.SatisfiabilitySpqrLaws.LawVecZeroize_is
 
 /--
-info: 'Tacenta.SatisfiabilitySpqrLaws.LawHkdf_is' depends on axioms: [propext, tacenta_kdf.hkdf_sha256]
+info: 'Tacenta.SatisfiabilitySpqrLaws.LawHkdf_is' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.SatisfiabilitySpqrLaws.LawHkdf_is
@@ -1673,7 +1669,6 @@ info: Tacenta.SatisfiabilitySpqrLaws.laws_jointly_satisfiable :
 info: 'Tacenta.SatisfiabilitySpqrLaws.defined_hyps_from_axiom_hyps' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1793,7 +1788,6 @@ info: def Tacenta.SatisfiabilitySpqrLaws.PropagatesFailure : Prop :=
 info: 'Tacenta.SatisfiabilitySpqrLaws.laws_of_shape' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

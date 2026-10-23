@@ -972,11 +972,11 @@ never the counter's full range. `skip_gap_le` is that guard, stated once.
 -- three standard axioms and on the opaque key-derivation primitive, and on
 -- nothing else: no `sorry`, and no assumption about our own code. A later
 -- change that smuggled one in would fail this check.
-/-- info: 'Tacenta.T1.kdf_ck_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound, tacenta_kdf.hmac_sha256] -/
+/-- info: 'Tacenta.T1.kdf_ck_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.T1.kdf_ck_no_panic
 
-/-- info: 'Tacenta.T1.send_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound, tacenta_kdf.hmac_sha256] -/
+/-- info: 'Tacenta.T1.send_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.T1.send_no_panic
 
@@ -984,8 +984,6 @@ never the counter's full range. `skip_gap_le` is that guard, stated once.
 info: 'Tacenta.T1.receive_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
- tacenta_kdf.hmac_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

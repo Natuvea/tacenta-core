@@ -1361,7 +1361,6 @@ end
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.kdfRkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1382,7 +1381,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.kdfRkTotal (hH : Tacenta.UnitSatisfia
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.kdfCkTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1403,7 +1401,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.kdfCkTotal (hH : Tacenta.UnitSatisfia
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.kdfInitTotal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1542,7 +1539,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.vecRetainTotal (hCap : Tacenta.UnitSa
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.defined_fields_hold' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1665,7 +1661,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.vecRetainAgreesOfLaws (hCap : Tacenta
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.vecRetainAgrees' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1758,7 +1753,7 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.LawBlanketU32_is :
 #check Tacenta.UnitSatisfiabilityTripleLaws.LawBlanketU32_is
 
 /--
-info: 'Tacenta.UnitSatisfiabilityTripleLaws.LawHkdf_is' depends on axioms: [propext, tacenta_kdf.hkdf_sha256]
+info: 'Tacenta.UnitSatisfiabilityTripleLaws.LawHkdf_is' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSatisfiabilityTripleLaws.LawHkdf_is
@@ -1792,7 +1787,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.laws_jointly_satisfiable :
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.laws_of_shape' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
@@ -1822,7 +1816,6 @@ info: Tacenta.UnitSatisfiabilityTripleLaws.laws_of_shape
 info: 'Tacenta.UnitSatisfiabilityTripleLaws.defined_hyps_from_axiom_hyps' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,

@@ -572,8 +572,6 @@ end Tacenta.UnitSatisfiabilityBraidAgreements
 info: 'Tacenta.UnitSatisfiabilityBraidAgreements.braid_agreement_shapes_are_predicates' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
- tacenta_kdf.hmac_sha256,
  tacenta_kem.CT1_LEN,
  tacenta_kem.CT2_LEN,
  tacenta_kem.EK_VECTOR_LEN,

@@ -277,7 +277,6 @@ list holds the kernel's three axioms and the opaque externals only. -/
 info: 'Tacenta.SessionT3.shared_secret_refines_some' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  zeroize.Zeroize.Blanket.zeroize,

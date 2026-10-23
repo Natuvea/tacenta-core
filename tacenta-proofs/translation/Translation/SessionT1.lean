@@ -467,7 +467,6 @@ changed it has to say why. -/
 info: 'Tacenta.SessionT1.shared_secret_no_panic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- tacenta_kdf.hkdf_sha256,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  zeroize.Zeroize.Blanket.zeroize,

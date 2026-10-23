@@ -34,7 +34,7 @@ substitutions = [
     ("Tacenta.SessionT1", "Tacenta.SessionUnitSessionT1", 4),
     ("Tacenta.T1", "Tacenta.SessionUnitT1", 1),
     ("open tacenta_session", "open tacenta_session_unit.tacenta_session", 1),
-    ("tacenta_kdf.", "tacenta_session_unit.tacenta_kdf.", 3),
+    ("tacenta_kdf.", "tacenta_session_unit.tacenta_kdf.", 2),
     ("zeroize.", "tacenta_session_unit.zeroize.", 22),
     ("alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
      "tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize", 1),
