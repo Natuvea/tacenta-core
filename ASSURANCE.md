@@ -62,7 +62,7 @@ in a separate, unpublished repository; the three Rust files were read in full by
 that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has
 read their proofs), these parts were updated against the head of that change and nothing else was
 re-read: the pin and claim counts in practice 2, the trusted list in practice 3 and the claim count under "Not gates,
-but disclosed in the pack". They were recomputed on 2026-10-23, after the change was rebased onto main at `6286bd19`.
+but disclosed in the pack". They were recomputed on 2026-10-23, after the change was rebased onto main at `aee5a102`.
 The update was made by the author
 with tool assistance; no reader independent of the maintainer has read it.
 
