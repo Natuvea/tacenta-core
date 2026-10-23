@@ -530,7 +530,20 @@ this section says in one place what is not proved.
   lifecycle leaf's functions; none is about the wrapper. That those results apply to the session the wrapper returns rests on a
   reading of the wrapper (it draws nothing and changes nothing before the call,
   and passes the result on), checked by tests and not in Lean. That hop is
-  unverified. `tooling/check_authentication_boundary.py` now also scans
+  unverified.
+  No result in this file assumes the wrapper's checks: the results that start
+  from a session `establish_initiator_for` returned are stated for every bundle
+  and every expected key, and no hypothesis of theirs mentions records or an
+  expectation. So none of them states REQ-AUTH-02 at the code. That a session
+  the wrapper returns has a peer key the expectation accepted, and that a
+  refusal by the expectation draws nothing, are tested only
+  (`tacenta-core/tests/identity_expectation.rs`, `initiator-expectation.json`
+  and the fuzz target `identity_records`). That the leaf's own comparison of
+  the bundle's key with the expected one cannot refuse through the wrapper
+  rests on the derived equality of `PublicKeyBytes`, which the session unit
+  leaves opaque; it is tested (`the_leaf_pin_never_fires_through_the_expectation`),
+  not proved.
+  `tooling/check_authentication_boundary.py` now also scans
   `tacenta-core/src/sessions`, and registers the wrapper and
   `establish_responder_unattributed`; it reads signatures, not bodies. The
   responder adds no refusal: `establish_responder_unattributed` calls the leaf's
