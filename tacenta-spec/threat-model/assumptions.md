@@ -101,16 +101,19 @@ function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
 own SHA-256, HMAC and HKDF, copied here and pinned in `kdf/src/lib.rs` by commit
-and file digests: written by `tacenta-core`'s maintainer with tool assistance in
-a separate, unpublished repository; the three Rust files were read in full by
-the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
+and file digests: written by the maintainer with tool assistance in a separate,
+unpublished repository; the three Rust files were read in full by the
+maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
 reader independent of the maintainer has read the three files, and no human has
 read their proofs. In this repository they are under its own licence,
 Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
 vectors check against those RFCs and nothing proves to be them, on the
 agreement proofs below, and on the translation's fidelity (ASM-16). Their timing
-is not measured.
+has been measured once: a dudect-style test of the HMAC, at one key and message
+length on one x86_64 CPU, detected no timing difference (ASM-08, ADR-0010). The
+HKDF, other lengths and other CPUs were not measured, and constant time is not
+proved.
 
 In particular:
 - **`KDF_CK`:** neither the next chain key nor the message key reveals the
@@ -234,8 +237,8 @@ is assumed, not proven", states how far this is checked:
   and the macOS one is compared only on a local run. That is a tripwire for a
   changed shape. On one x86_64 Linux machine the inventory built natively under
   the pinned compiler equals the baseline, the stable compiler there gives a
-  different one (which is why the compiler is pinned), and a dudect-style test of
-  the copied HMAC detected no timing difference, with a control that detects a
+  different one (so the pin matters), and a dudect-style test of the copied
+  HMAC detected no timing difference, with a control that detects a
   few-instruction leak (ADR-0010): one measurement on one CPU, not a proof;
 - `tacenta-core`'s own composition is audited by reading to branch only on
   public data;

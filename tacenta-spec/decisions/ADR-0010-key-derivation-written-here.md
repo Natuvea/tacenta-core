@@ -2,9 +2,8 @@
 
 ## Status
 
-Accepted, 2026-10-23, by the maintainer on the rule-7 review (ADR-0008) of the
-change that lands it, after reading the three Rust files in full and the
-measured costs below.
+Accepted, on the owner's rule-7 review (ADR-0008) of the pull request that
+lands it.
 
 ## Context
 
@@ -65,9 +64,9 @@ measured costs below.
 
 ## Costs
 
-Measured on one x86_64 Linux machine with SHA extensions and on the source
-repository's machine; no other CPU model, and no aarch64 Linux or phone
-hardware, was measured.
+Measured on one x86_64 Linux machine with SHA extensions, and per call also on
+the source repository's machine; no other CPU model, and no aarch64 Linux or
+phone hardware, was measured.
 
 - **Per call.** On the x86_64 machine, RustCrypto picks the SHA extensions at
   run time, and the copied code is 5.1 to 18.5 times slower than the shipping
@@ -76,9 +75,19 @@ hardware, was measured.
   extensions it is 1.37 to 2.16 times slower, which matches the 1.5 to 2.1
   times the source repository measured on its own machine.
 - **Protocol level** (the repository's `tests/benchmarks.rs`, on the x86_64
-  machine): one 16-byte encrypt and decrypt round 1.12 times; `encrypt` alone
-  2.9 to 3.8 times (its tag is the copied HMAC); `decrypt` after 500 lost
-  messages 4.5 times; establishment and persistence unchanged.
+  machine only): one 16-byte encrypt and decrypt round 1.12 times; `encrypt`
+  alone 2.9 to 3.8 times (its tag is the copied HMAC); `decrypt` after 50 lost
+  messages 1.86 times and after 500 lost messages 4.5 times; a forged header
+  against a full store, work any sender can make a receiver do, 1.29 times;
+  establishment 1.02 times; persistence (`export`, `import`) 1.00 times.
+- **On aarch64, an inference and not a measurement.** The locked `sha2 0.10.9`
+  uses the aarch64 SHA-2 instructions only with its `asm` feature, which this
+  workspace does not enable, so on aarch64 the RustCrypto code the copy
+  replaced runs its portable SHA-256. There the comparison that applies is the
+  one against RustCrypto's portable code, 1.37 to 2.16 times per call as
+  measured on the x86_64 machine, not 5.1 to 18.5. No phone and no aarch64
+  Linux machine was measured, and the protocol-level figures come from the
+  x86_64 machine alone.
 
 ## Consequences
 
@@ -93,9 +102,9 @@ hardware, was measured.
   above, the inventory built natively under the pinned compiler is
   byte-identical to the committed baseline, while the stable compiler there
   gives a different one (its differences depend on lengths and counts, by a
-  tool-assisted reading), which is why the gate pins the compiler; a
-  dudect-style test of the copied HMAC detected no timing difference, with a
-  control that does detect a few-instruction leak; the workspace's tests pass
+  tool-assisted reading), so the pin matters; a dudect-style test of the
+  copied HMAC detected no timing difference, with a control that does detect
+  a few-instruction leak; the workspace's tests pass
   there, and the copied crate's unit tests pass under miri. That is a tripwire
   and one measurement on one CPU, not a proof of constant time.
 - **Limits.**

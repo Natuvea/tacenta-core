@@ -243,10 +243,18 @@ without any build failing. See LIMITATIONS.md, "Secret deletion is partial".
 
 REQ-CONF-09 rests on ASM-08.
 - **Measured:** four rejection paths, nightly. The two nanosecond-scale
-  results recorded so far carry no provenance stamp.
-- **Checked by the assembly gate:** two hand-written functions, on three
-  targets.
-- **Not measured:** the primitives.
+  results recorded so far carry no provenance stamp. The copied HMAC, once,
+  on one x86_64 CPU, by a dudect-style test at one key and message length that
+  detected no timing difference; that run is not in this tree (ADR-0010).
+- **Checked by the assembly gate:** two hand-written functions held
+  straight-line, on three targets, and the key derivation's compiled code held
+  to a reviewed inventory of its branches, indexed accesses and callees, built
+  with one pinned nightly compiler (ASM-08). CI compares the two Linux
+  targets' inventories; the macOS one is compared only on a local run. On one
+  x86_64 Linux machine the inventory built natively under that compiler
+  equals the committed baseline, 122 items.
+- **Not measured:** the other primitives, the HKDF, other input lengths and
+  other CPUs.
 - **Not wired:** a formal secret-independence check.
 
 See LIMITATIONS.md, "Constant-time behaviour is assumed, not proven".
