@@ -72,7 +72,7 @@ them and how `Model.Kdf.hkdf salt ikm info len`/`Model.Kdf.hmac key data`
 are written, with no relabelling to match. `.total` derives `BraidT1.lean`'s
 existing totality constants back out, so that file needs no edits. The HKDF
 premise is RFC 5869's output bound of 8160 bytes, the bound the crate's own
-`expect` enforces, so the agreement is stated exactly where the real
+`assert!` enforces, so the agreement is stated exactly where the real
 operation returns (`T1.HkdfTotal` says why). -/
 
 def BraidHkdfAgrees : Prop :=

@@ -265,14 +265,17 @@ excludes it.
   *meant*; the cache decides what is *loaded*. Building Mathlib from source
   removes this edge and costs hours, which is why it is a trust rather than a
   step.
-- The cryptographic primitives are trusted, except the key derivation of the Session unit. tacenta-core uses
+- The cryptographic primitives are trusted, except the key derivation. tacenta-core uses
   vetted crates for X25519, AES-256-CBC, Ed25519, the SHA-256 and HMAC that the root crate's identity and group
-  digests and the AEAD's tag check on decryption call, and ML-KEM-1024 from libcrux-ml-kem. Since 2026-10-22
+  digests and the AEAD's tag check on decryption call, the SHA-512 inside XEdDSA, and ML-KEM-1024 from
+  libcrux-ml-kem. Since 2026-10-22
   `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF copied from
   a separate, unpublished repository of this project's maintainer (pinned in `kdf/src/lib.rs` by commit and file digests), translated, and proved of the
   Session unit's translation to compute tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf`
-  (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the leaf and three-leaf translations' copies by the same
-  proofs ported (`KdfLeafAgreements`, `KdfTripleUnitAgreements`). What stays trusted about them: that tacenta-model's KDF is
+  (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the classical ratchet's, the PQXDH session's, the sparse
+  ratchet's, the Braid's and the three-leaf unit's copies by the same proofs ported (`KdfLeafAgreements`,
+  `KdfTripleUnitAgreements`). The lifecycle and Braid-and-erasure translations include the bodies too, with no
+  theorem about them. What stays trusted about them: that tacenta-model's KDF is
   RFC 4231's and RFC 5869's (vectors, not proof), the translation's fidelity, their timing (an inventory of the
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
@@ -289,9 +292,11 @@ excludes it.
   status file the crate's README cites is not in the published package. The
   incremental interface that `tacenta-kem` uses for the Braid
   carries no such annotations in the pinned version 0.0.10. Both are trusted,
-  not verified. XEdDSA is the one exception: it is implemented here over
-  curve25519-dalek and ed25519-dalek rather than taken from a vetted crate, the
-  deliberate exception recorded in ADR-0002. The model computes SHA-256, HMAC, and HKDF
+  not verified. Two primitives are implemented here rather than taken from a
+  vetted crate: XEdDSA, over curve25519-dalek and ed25519-dalek, the exception
+  recorded in ADR-0002, and since 2026-10-22 the key derivation's SHA-256, HMAC
+  and HKDF above, the exception ADR-0010 proposes and the owner has not yet
+  accepted. The model computes SHA-256, HMAC, and HKDF
   itself only to serve as the vector oracle, and those are anchored to RFC and
   NIST values.
 - Diffie-Hellman agreement and the AEAD are boundary primitives in the model: it
@@ -2488,8 +2493,10 @@ two KDF fields what stands in its place is proof: the KDF laws the records take 
 (`UnitLifecycleKdf.hmacShape_real`, `hkdfShape_real`). The toy interpretations give the KDF fields functions of their
 own, and how far those are the real ones is proved for one family and open for the other:
 - `Interp.modelT3`, and the seven interpretations of the lifecycle screens built on it (`modelShipped`,
-  `modelDecrypt`, `modelFirstReceipt`, `modelEncrypt`, `modelEstablished`, `modelFirstFrame`, `modelReply`), give
-  them the model's HMAC and HKDF, and those are the real definitions on every key and message (HMAC) and at every
+  `modelDecrypt`, `modelFirstReceipt`, `modelEncrypt`, `modelEstablished`, `modelFirstFrame`, `modelReply`), and
+  the four `InterpO` models built from four of those by replacing `xeddsaSign` (`InterpO.modelEncrypt`,
+  `modelFirstFrame`, `modelFirstReceipt`, `modelReply`; they keep the fields by construction, which no theorem
+  states), give them the model's HMAC and HKDF, and those are the real definitions on every key and message (HMAC) and at every
   output length up to 8160 bytes (HKDF): `UnitLifecycleKdf.modelT3_hmac_eq_real`, `modelT3_hkdf_eq_real` and
   `toy_models_share_modelT3_kdf`. Above 8160 bytes the real HKDF refuses and `modelT3`'s returns; whether any law of
   those models reads the HKDF past that bound is not checked.
@@ -2500,7 +2507,8 @@ own, and how far those are the real ones is proved for one family and open for t
   position for their translations: their KDF witnesses are void bridges now, the KDF hypotheses there are proved
   (`KdfLeafAgreements`, `KdfTripleUnitAgreements`), and whether their witnesses of other hypotheses still hold
   together with the real KDF is not checked.
- `check-session-satisfiability-negatives.sh` admits exactly these two definitions among
+
+`check-session-satisfiability-negatives.sh` admits exactly these two definitions among
 the interpreted constants and refuses a third.
 
 **What is shown.** `UnitSatisfiabilityJoint.lean` interprets 49 constants of

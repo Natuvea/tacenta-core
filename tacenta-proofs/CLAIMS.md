@@ -308,7 +308,7 @@ this section says in one place what is not proved.
   hypothesis about `Vec::remove` or `Vec::retain` remains. What the build checks about the removal and retain hypotheses is in the next
   paragraphs and in "Proved (hypotheses about translated functions in the leaf crates and the
   three-leaf unit, from named laws, and the decoder acceptance witnesses)". Every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
-  bound the crate's `expect` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
+  bound the crate's `assert!` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
   and the KEM's two randomness-drawing totals and clauses carry
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis
   that implies `False` in Lean turns every theorem taking it into a proof of
@@ -1308,7 +1308,7 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   not a failure. Pinned with the other two.
 - `receive_no_panic`: the translated Double Ratchet receive cannot panic,
   under `HmacTotal`, `HkdfTotal` (stated for every output length within RFC
-  5869's `N.val ≤ 8160`, which the crate's `expect` enforces; the two calls
+  5869's `N.val ≤ 8160`, which the crate's `assert!` enforces; the two calls
   ask for 64 and 80 bytes), `ZeroizingTotal`, `RemoveSkippedAtTotal` (stated for
   an in-range index, `i.val < v.val.length →`, where the removal helper's
   result is specified; each of the three scans discharges it from its own loop guard)
@@ -4510,7 +4510,9 @@ pinned one by one; the two results below compose them and are pinned.
   fields, the model's HMAC and HKDF as arrays, are the unit's real `tacenta_kdf.hmac_sha256` on every key and message
   and its real `tacenta_kdf.hkdf_sha256` at every output length of at most 8160 bytes; the seven interpretations of
   the lifecycle screens built on it (`modelShipped`, `modelDecrypt`, `modelFirstReceipt`, `modelEncrypt`,
-  `modelEstablished`, `modelFirstFrame`, `modelReply`) keep those two fields (by `rfl`); and a translated byte read as
+  `modelEstablished`, `modelFirstFrame`, `modelReply`) keep those two fields (by `rfl`; the four `InterpO` models
+  built from four of them by replacing `xeddsaSign`, `InterpO.modelEncrypt`, `modelFirstFrame`, `modelFirstReceipt`
+  and `modelReply`, keep them too, by construction and not by a stated theorem); and a translated byte read as
   a `UInt8` and written back is the same byte. What this does for the substitution argument, and what it leaves, is
   in `LIMITATIONS.md` ("The two KDF fields of `Interp`").
 
@@ -4564,7 +4566,8 @@ Location: `Translation/KdfLeafAgreements.lean`, `Translation/KdfTripleUnitAgreem
 `scripts/run-aeneas.sh` gives `--include-kdf` to every translation whose crate calls `tacenta-kdf`, so the
 classical ratchet's, the PQXDH session's, the sparse ratchet's, the Braid's and the three-leaf unit's
 `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256` are definitions too, each translation with its own
-copy. The KDF's T1 and T3 proofs are ported onto each of those five translations by
+copy. (The lifecycle and Braid-and-erasure translations include them as well; no theorem is about either
+translation, and only their axiom audits import them, so they get no copy of the proofs.) The KDF's T1 and T3 proofs are ported onto each of those five translations by
 `scripts/port-kdf-proofs.sh` (`Kdf<Translation>T1Sha` ... `Kdf<Translation>T3Kdf`), which rewrites the
 translated crate's namespace, the proofs' namespace and the imports of the Session unit's copies and
 nothing else (for the session and sparse leaves, whose translations declare no `hmac.hmac_sha256`, it

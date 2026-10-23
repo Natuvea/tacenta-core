@@ -92,7 +92,7 @@ alike: salt, then the input keying material, then the info string --
 `kdf_init`/`kdf_rk`/`kdf_ck` all call `hkdf_sha256` this way, and
 `Model.SparseRatchet.kdfInit`/`kdfRk`/`kdfCk` all call `Model.Kdf.hkdf` the
 same way. The premise is RFC 5869's output bound of 8160 bytes, which the
-crate's own `expect` enforces, so the agreement is stated exactly where the
+crate's own `assert!` enforces, so the agreement is stated exactly where the
 real operation returns (`T1.HkdfTotal` says why); every call here asks for
 64 or 96 bytes. -/
 def SpqrHkdfAgrees : Prop :=

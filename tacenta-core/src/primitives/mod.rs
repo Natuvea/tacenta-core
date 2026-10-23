@@ -1,10 +1,10 @@
 //! Cryptographic primitives.
 //!
-//! Thin wrappers over vetted, permissively licensed implementations (RustCrypto,
-//! dalek). These are the trusted boundary of the library: the protocol logic
-//! built on top of them is what tacenta specifies and verifies, while the
-//! primitives themselves are assumed correct and are named in the proofs'
-//! trusted computing base. Standard cryptography is not reimplemented here.
+//! Mostly thin wrappers over vetted, permissively licensed implementations
+//! (RustCrypto, dalek), assumed correct and named in the proofs' trusted
+//! computing base. Two are written in this workspace instead: XEdDSA
+//! (`tacenta-spec` ADR-0002) and the key derivation's SHA-256, HMAC and HKDF
+//! (`tacenta-kdf`, ADR-0010, proposed), whose agreement with the model is proved.
 
 pub mod aead {
     #[doc(inline)]

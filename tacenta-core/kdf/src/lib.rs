@@ -46,11 +46,11 @@
 //! panics with a `&'static str`, and the panic location moved
 //! (`tests/differential.rs` checks both the text and the new type).
 //!
-//! What that buys: the translations that call this crate include these
-//! bodies (`run-aeneas.sh`, `--include-kdf`), and `tacenta-proofs` proves of
-//! each that the translated `hmac_sha256` and `hkdf_sha256` return, and equal
-//! tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf` (HKDF for outputs of
-//! at most 8160 bytes). `tacenta-proofs/CLAIMS.md` names the theorems and
+//! What that buys: eight translations include these bodies (`run-aeneas.sh`,
+//! `--include-kdf`). For six (the Session unit, the classical, PQXDH, sparse
+//! and Braid leaves, the three-leaf unit) `tacenta-proofs` proves that the
+//! translated `hmac_sha256`/`hkdf_sha256` return and equal tacenta-model's (HKDF
+//! up to 8160 bytes); the other two have none. `CLAIMS.md` names the theorems and
 //! what they rest on; `LIMITATIONS.md` says what they do not establish (the
 //! model is checked against RFC 4231 and RFC 5869 by vectors, not proved to
 //! be them, and nothing here is a pseudorandom-function or side-channel

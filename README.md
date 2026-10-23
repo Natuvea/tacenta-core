@@ -170,11 +170,17 @@ flowchart TD
   contracts that appear as hypotheses of the theorems that take them. The key
   derivation crate is translated rather than opaque: its HMAC-SHA256 and
   HKDF-SHA256 are code copied from a separate, unpublished repository of this project's maintainer
-  (pinned in `tacenta-core/kdf/src/lib.rs` by commit and file digests), and each
-  translation that includes it proves that it computes tacenta-model's
-  (`UnitLifecycleKdf`, `KdfLeafAgreements`, `KdfTripleUnitAgreements`). That the
-  model is the RFCs', the code's timing and its erasure are not proved, and no
-  human has read the copied code yet.
+  (pinned in `tacenta-core/kdf/src/lib.rs` by commit and file digests). Eight
+  translations include it, and the six whose theorems take hypotheses about it
+  prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),
+  the classical ratchet's, the PQXDH session's, the sparse ratchet's and the
+  Braid's (`KdfLeafAgreements`), and the three-leaf unit's
+  (`KdfTripleUnitAgreements`); the lifecycle and Braid-and-erasure translations
+  include it with no theorem about it. That the model is the RFCs', the code's
+  timing and its erasure are not proved, and no human has read the copied code
+  yet. Writing it here is a second exception to the rule that primitives are not
+  implemented in this repository, after XEdDSA, proposed in ADR-0010 and not yet
+  accepted.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.
 - **What holds the record in place.** `attest.py` compares the ledger with the

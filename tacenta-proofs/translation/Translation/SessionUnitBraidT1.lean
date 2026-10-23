@@ -229,7 +229,7 @@ def ValidateEkTotal : Prop :=
 each translated crate gets its own copy of `hkdf_sha256` (opaque until
 2026-10-22, translated since), and one proof does
 not discharge another crate's copy. The HKDF premise is RFC 5869's output
-bound of 8160 bytes, which the crate's own `expect` enforces, so the
+bound of 8160 bytes, which the crate's own `assert!` enforces, so the
 hypothesis is stated exactly where the real operation returns
 (`T1.HkdfTotal` says why); this crate asks for 32 or 64 bytes. -/
 def HkdfSha256Total : Prop :=

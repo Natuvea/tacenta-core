@@ -1,8 +1,8 @@
 //! Authenticated encryption: AES-256-CBC with HMAC-SHA256, encrypt-then-MAC.
 //! This is the composition the Double Ratchet specification recommends for its
 //! ENCRYPT function; the key and IV derivation that feeds it is part of the
-//! ratchet slice, so this module takes explicit keys. Backed by RustCrypto's
-//! aes, cbc, and hmac.
+//! ratchet slice, so this module takes explicit keys. AES and CBC are RustCrypto's;
+//! the tag is `tacenta_kdf`'s HMAC on encryption and RustCrypto's on decryption.
 
 use aes::Aes256;
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit, block_padding::Pkcs7};

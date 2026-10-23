@@ -36,7 +36,7 @@ constants from the ratchet's because each generated module declares its own, so
 they are stated again rather than shared. -/
 
 /-- The key derivation returns, for every output length within RFC 5869's
-bound of 8160 bytes -- the bound the crate's own `expect` enforces, so the
+bound of 8160 bytes -- the bound the crate's own `assert!` enforces, so the
 hypothesis is stated exactly where the real operation returns (`T1.HkdfTotal`
 says why); the one call here asks for 32 bytes. -/
 def HkdfTotal : Prop :=

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Port the key derivation's T1 and T3 proofs onto every translation that includes its bodies.
+# Port the key derivation's T1 and T3 proofs onto every translation that includes its bodies and has claimed theorems.
 #
 #   bash tacenta-proofs/scripts/port-kdf-proofs.sh           write the copies
 #   bash tacenta-proofs/scripts/port-kdf-proofs.sh --check   regenerate into a temporary
