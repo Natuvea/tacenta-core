@@ -249,7 +249,8 @@ initiator, under that condition. Under one more assumed AEAD law (an opened ciph
 and a per-run premise that the replaced bytes are no sealing under the reply's message keys and associated data, the
 initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
 one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom); neither
-the law nor the premise is shown of the real AEAD, and a frame whose header bytes were changed is not covered. The
+the law nor the premise is shown of the real AEAD, a frame whose header bytes were changed is not covered, and tamper
+refusal on any other route (the first frame, the second message, a restored session) is not shown. The
 responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
 draw keeps `Session::invariant` and spends one unit of a counter budget whose zero is the four ceilings, given the relation
 after the call and one boundary record (kernel and opaque constants only); the relation after the call carries the Triple
@@ -274,8 +275,8 @@ plaintext; under both it returns the plaintext and leaves a session that passes 
 ceilings. It takes the one draw in either case (and, by reading the code, no KEM operation), adds no law and lists no compiler-trust axiom, and reaches at
 the real constants exhibit both outcomes under the same assumed laws. A second reply and every later step are not
 covered. No `encrypt`
-whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time is refused on that run
-in both places it can arrive, with no effect on the session or the store: the responder's `decrypt` at the session its
+whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
+receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
 first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,
 refining the model's step; `establish_responder` at the store the first success committed refuses it as
 `ReplayedLastResort` with the store and the source unchanged, when the bundle names the store's last-resort KEM key and no

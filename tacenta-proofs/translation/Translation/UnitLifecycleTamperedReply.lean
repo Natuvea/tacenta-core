@@ -47,8 +47,12 @@ honest receipt takes, and leaves the session as it was.  It rests on one new ass
   `decrypt` of a ciphertext `c` under keys, IV and associated data `ad` returns `Ok v`, then its `encrypt` of `v` under
   the same keys, IV and `ad` returns a ciphertext with the bytes of `c`.  A functional uniqueness law, not an
   unforgeability statement: it says what an opened ciphertext is, not who can compute one.  It is true of the shipping
-  AEAD by reading, and not proved.  `tacenta-core/boundary/src/aead.rs` seals with AES-256-CBC and PKCS#7 under the
-  given keys and IV, then appends the full 32-byte HMAC-SHA256 tag over `ad ‖ ct`; it opens by comparing that tag in
+  AEAD by reading below the top of the length range, and not proved.  At the top it is false: the open streams `ad` and
+  the ciphertext into the MAC, but the seal's `mac` first copies `ad ‖ ct` into a `Vec`, which panics on a capacity
+  overflow once their lengths sum past `isize::MAX` (about 2 GiB on a 32-bit target), so there the open can return
+  `Ok v` and the reseal of `v` does not return; `LIMITATIONS.md` records the same edge for `AeadSealBounded`.  The
+  run's associated data is a short header, and the law carries no length bound.  `tacenta-core/boundary/src/aead.rs`
+  seals with AES-256-CBC and PKCS#7 under the given keys and IV, then appends the full 32-byte HMAC-SHA256 tag over `ad ‖ ct`; it opens by comparing that tag in
   constant time and only then decrypting and removing the padding.  An opened `c` is therefore `ct ‖ tag` with the tag
   the HMAC of `ad ‖ ct`, and resealing what `ct` decrypts to gives `c` again when three facts hold, each read and none
   proved: the locked `cipher` 0.4.4 refuses a ciphertext that is empty or not whole blocks, the locked `block-padding`
@@ -85,9 +89,9 @@ real constants is exhibited.
 
 ## What it does not show
 
-* That the shipping AEAD meets `AeadOpenSealUnique`: it is assumed and true by reading, not proved; an independent
-  verified implementation's statements (a bad tag refused, and the round trip given AES inversion) are of another shape
-  and about another implementation.
+* That the shipping AEAD meets `AeadOpenSealUnique`: it is assumed, true by reading below the top of the length range
+  and false at it, not proved; an independent verified implementation's statements (a bad tag refused, and the round
+  trip given AES inversion) are of another shape and about another implementation.
 * That a frame an attacker can produce meets `NotASealing`: that is the unforgeability of HMAC-SHA256, not stated here.
 * A frame whose header bytes were changed (ratchet key, counters, epochs, agreement type or chunk), a frame shorter than
   the header, or a frame of another type: those reach other associated data, another Diffie-Hellman step or a decode

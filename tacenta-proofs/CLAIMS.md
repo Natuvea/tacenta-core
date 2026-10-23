@@ -185,7 +185,7 @@ this section says in one place what is not proved.
   `decrypt` of the initiator's second message ...)"). Exactly one reply received by the initiator, one further send by the
   initiator and its receipt by the responder on this route are covered; every later message in either direction is not.
   Under one more assumed law of the boundary AEAD, that an opened ciphertext is the sealing of what it opened to
-  (`AeadOpenSealUnique`, true by reading and not proved), and a per-run premise that the replaced bytes are no sealing under
+  (`AeadOpenSealUnique`, true by reading below the top of the length range, false at it, and not proved), and a per-run premise that the replaced bytes are no sealing under
   the reply's message keys and associated data (`NotASealing`; that an attacker cannot produce a sealing is the
   unforgeability of HMAC-SHA256, not stated), the initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses
   with `Aead`, leaves the session as it was and takes one draw for every frame that keeps the reply's 102-byte header and
@@ -6271,9 +6271,9 @@ a fact about the real `encrypt`'s outputs that no law here gives.
 reply, under `AeadOpenSealUnique` and the reply receipt's premises, the initiator's `decrypt` at `s'` from `rng'` accepts the
 reply and refuses with `Aead`, leaving the session as it was, every frame with the reply's header whose ciphertext is no
 sealing under the reply's message keys and associated data. **Not shown:** that the shipping AEAD meets `AeadOpenSealUnique`
-(it is assumed and true by reading, not proved; an independent verified implementation's statements, a bad tag refused and
-the round trip given AES inversion, are of another shape and about another implementation); that a frame an attacker can
-produce meets `NotASealing` (that is the unforgeability of HMAC-SHA256, not stated here); a frame whose header bytes were
+(it is assumed, true by reading below the top of the length range and false at it, not proved; an independent verified
+implementation's statements, a bad tag refused and the round trip given AES inversion, are of another shape and about
+another implementation); that a frame an attacker can produce meets `NotASealing` (that is the unforgeability of HMAC-SHA256, not stated here); a frame whose header bytes were
 changed (ratchet key, counters, epochs, agreement type or chunk), a frame shorter than the header, or a frame of another
 type (those reach other associated data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered
 frame's refusal when the reply's ratchet key is the peer key the initiator holds, or when the initiator's draw's agreement is
@@ -6878,11 +6878,12 @@ laws (assumed, not shown of the real primitives), a run at which every hypothesi
 holds and the responder's `decrypt` returns the second plaintext; `first_send_second_receipt_stale_reachable` exhibits
 one at which the stale arm of the two-outcome theorem is taken.
 
-**What this establishes, and what it does not.** On the run that ends in the initiator's second send, the responder's
-next `decrypt` of that frame either returns the initiator's second plaintext, refines the model's step and leaves a
-session that passes `Session::invariant` and meets the four ceilings, or, exactly when the initiator's new ratchet key
-is its first, refuses `OutOfOrder` with the session unchanged; the receive takes one draw (and, by reading the generated
-code, no KEM operation). **Not shown:** a second reply (the responder's next `encrypt` at `sB'''`) and its receipt, the
+**What this establishes, and what it does not.** On the run that ends in the initiator's second send, when the
+responder's source after its reply holds a draw, the responder's next `decrypt` of that frame either returns the
+initiator's second plaintext and refines the model's step, or, exactly when the initiator's new ratchet key is its
+first, refuses `OutOfOrder` with the session unchanged; when in addition the new key is not the first, the session it
+leaves passes `Session::invariant` and meets the four ceilings. The receive takes one draw (and, by reading the
+generated code, no KEM operation). **Not shown:** a second reply (the responder's next `encrypt` at `sB'''`) and its receipt, the
 header's third chunk, the responder's first sampling send and every later step, and the responder's check of the
 completed encapsulation key, the first step at which both parties' KEMs act on one key pair; that a tampered, foreign or
 replayed second frame is refused (no AEAD authenticity law is assumed, and the `Aead` arm is the open of the initiator's

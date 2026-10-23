@@ -192,11 +192,11 @@ session the receipt returns passes `Session::invariant` and meets the four ceili
 returns the bare second frame with no draw and refines the model's step, and the session it leaves passes the
 invariant and meets the ceilings; a reach exhibits such a run at the real constants under assumed laws.  The
 responder's receipt of that message is the next module's.
-`UnitLifecycleResponderSecondReceipt.lean` takes that second message to the responder on the same run: its public
-`decrypt` at its session after the reply either refuses `OutOfOrder` with the session unchanged, exactly when the
-initiator's new ratchet key is its first, or returns the initiator's plaintext; under the per-run premises that the
-new key is not the first and that the responder's source holds a draw, the session it leaves passes
-`Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
+`UnitLifecycleResponderSecondReceipt.lean` takes that second message to the responder on the same run: under the
+per-run premise that the responder's source after its reply holds a draw, its public `decrypt` at its session after
+the reply either refuses `OutOfOrder` with the session unchanged, exactly when the initiator's new ratchet key is its
+first, or returns the initiator's plaintext; under the second per-run premise that the new key is not the first, the
+session it leaves passes `Session::invariant` and meets the four ceilings.  No law is added; reaches exhibit both outcomes at the real
 constants under assumed laws.  A second reply and every later step are not covered.
 `UnitLifecycleResponderEstablishReplay.lean` delivers the initiator's first frame to `establish_responder` a second
 time, at the store the first success committed, on the same run: when the bundle names the store's last-resort KEM key
