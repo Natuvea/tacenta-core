@@ -3,11 +3,15 @@
 //!
 //! # Where the bodies come from
 //!
-//! The three modules below were written by the maintainer with tool assistance
-//! in a separate, unpublished repository, from FIPS 180-4, FIPS 198-1 and RFC
-//! 5869, in the subset Charon and Aeneas translate, and copied here. They have
-//! been read so far only by tool-assisted sessions; no human has yet read the
-//! three files or their proofs. A
+//! The three modules below were written from FIPS 180-4, FIPS 198-1 and RFC
+//! 5869, in the subset Charon and Aeneas translate, and copied here: written by
+//! the maintainer with tool assistance in a separate, unpublished repository;
+//! the three Rust files were read in full by the maintainer on 2026-10-23, and
+//! before that only by tool-assisted sessions; no reader independent of the
+//! maintainer has read the three files, and no human has read their proofs.
+//! In this repository they are distributed under its own licence, Apache-2.0
+//! (`LICENSE`, `NOTICE`: Copyright 2026 Natuvea Ltd); the source repository
+//! carries no licence statement. A
 //! reader outside the project cannot fetch that repository, so what pins the
 //! copy is its commit, `646fcdadb943`, and the SHA-256 digests of the three
 //! source files:
@@ -58,11 +62,15 @@
 //! be them, and nothing here is a pseudorandom-function or side-channel
 //! property).
 //!
-//! What it costs: these bodies are about 1.5 to 2.1 times slower than the
-//! RustCrypto crates they replace on SHA-256, HMAC and HKDF, a measurement
-//! made in the source repository and not repeated here. Intermediate values
-//! are not erased, as RustCrypto's were not either with the features this
-//! crate enabled.
+//! What it costs, measured on one x86_64 Linux machine with SHA extensions and
+//! on the source repository's machine (`tacenta-spec` ADR-0010, Costs): per
+//! call these bodies are 5.1 to 18.5 times slower than the shipping RustCrypto
+//! crates they replace, which use the SHA extensions there, and 1.37 to 2.16
+//! times slower than RustCrypto built without them; at protocol level one
+//! 16-byte encrypt and decrypt round is 1.12 times slower, encrypt alone 2.9 to
+//! 3.8 times and a decrypt after 500 lost messages 4.5 times. Intermediate
+//! values are not erased, as RustCrypto's were not either with the features
+//! this crate enabled.
 //!
 //! Not every SHA-2 or HMAC in the workspace moved: the AEAD's tag check on
 //! decryption (`boundary/src/aead.rs`), XEdDSA's SHA-512

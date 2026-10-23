@@ -2,9 +2,7 @@
 -- Translation/KdfT3Compress.lean. Do not edit: the script's `--check` mode
 -- regenerates this count-checked port and rejects drift.
 
-/- Copied from a separate, unpublished repository, written by the maintainer with tool assistance and
-read so far only by tool-assisted sessions (no human has yet read the three Rust files or their
-proofs), that holds a SHA-256, HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
+/- Copied from a separate, unpublished repository that holds a SHA-256, HMAC-SHA256 and HKDF-SHA256 with their proofs, the source of `tacenta-core/kdf/src` (pinned there by
 commit and file digests): its proofs file `T3Compress.lean`, at commit `646fcdadb943`. Elaborated
 here against the `TacentaSession` translation of those bodies. Changes from the source: the
 translated crate's namespace is `tacenta_session.tacenta_kdf`, that translation's
@@ -12,7 +10,10 @@ copy of `tacenta-kdf`; the source's other namespaces are renamed `KdfStandardMod
 `Tacenta.KdfProofSession` and `KdfBridge`; its imports name this package's `Kdf*` modules.
 Of the source's model only the SHA-256, HMAC and HKDF files were copied. "This repository" in the
 prose below means that implementation, and a path such as `scripts/...` or `std/...` names one of
-its files. -/
+its files.
+The code: written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust
+files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
+reader independent of the maintainer has read the three files, and no human has read their proofs. -/
 import Translation.KdfSessionT3Base
 
 /-!

@@ -286,8 +286,8 @@ this section says in one place what is not proved.
 - **The primitives are opaque, except the KDF.** X25519, ML-KEM, the AEAD, the SHA-256 and HMAC
   that the root crate and the AEAD's tag check on decryption call directly, and the SHA-512 inside XEdDSA, are assumed at the boundary,
   and no proof here says anything about them. Since the KDF change (ADR-0010) `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256
-  are bodies written by the maintainer with tool assistance in a separate, unpublished repository, read so far only by tool-assisted sessions (no human has yet read the three Rust files or their proofs), and copied here (pinned in `tacenta-core/kdf/src/lib.rs` by
-  commit and file digests) and translated into every unit that calls them. For the Session unit's translation, `UnitLifecycleKdf.hmacAgrees` and `UnitLifecycleKdf.hkdfAgrees`
+  are bodies copied here (pinned in `tacenta-core/kdf/src/lib.rs` by
+  commit and file digests; written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs) and translated into every unit that calls them. For the Session unit's translation, `UnitLifecycleKdf.hmacAgrees` and `UnitLifecycleKdf.hkdfAgrees`
   prove that they return and equal tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf` (HKDF for outputs of
   at most 8160 bytes), on the kernel's three axioms. The same proofs, ported onto the classical ratchet's, the session's,
   the sparse ratchet's, the Braid's and the three-leaf unit's translations, prove those translations' own KDF
@@ -4471,8 +4471,8 @@ case; a heartbeat or deterministic timeout never counts as the named refusal.
 
 Location: `Translation/UnitLifecycleKdf.lean`.
 
-Since the KDF change (ADR-0010) `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 written by the maintainer with
-tool assistance in a separate, unpublished repository and copied here (`tacenta-core/kdf/src/lib.rs` names the files, their digests and
+Since the KDF change (ADR-0010) `tacenta-kdf`'s bodies are a SHA-256, an HMAC-SHA256 and an HKDF-SHA256 copied here
+(`tacenta-core/kdf/src/lib.rs` names the files, their digests and
 the one changed line in two of them), and `scripts/run-aeneas.sh` translates them into every unit that calls them. In the Session unit
 `tacenta_kdf.hmac_sha256` and `tacenta_kdf.hkdf_sha256` are now definitions, one-line wrappers over the translated
 `hmac.hmac_sha256` and `hkdf.hkdf_sha256`, where they were two opaque axioms. The proofs that came with the copied code
@@ -4534,10 +4534,9 @@ decryption and the identity and group digests, which still call RustCrypto; that
 compiled Rust (Charon and Aeneas are trusted, as for every translated result); the other fields of
 `DecryptRatchetAgreements` and every other premise of the lifecycle results, which stay open.
 
-**Review.** The copied Rust and its proofs have been read so far only by tool-assisted sessions; no human has yet read
-the three Rust files or their proofs. The source repository is not published, so a reader outside the project can check the copy only
-against the digests `lib.rs` records and through the proofs carried here. The copied code is about 1.5 to 2.1 times
-slower than RustCrypto on SHA-256, HMAC and HKDF by a measurement made in the source repository, not repeated here.
+**Review.** The code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. The source repository is not published, so a reader outside the project can check
+the copy only against the digests `lib.rs` records and through the proofs carried here; in this repository the copied
+files are under its own licence, Apache-2.0. Cost, measured on one x86_64 Linux machine with SHA extensions and on the source repository's machine: per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times (ADR-0010, Costs).
 
 **Compiler trust and pins.** No result here lists a compiler-trust axiom. The pins of twelve list at most `propext`,
 `Classical.choice` and `Quot.sound` (`hmacAgrees`, `hkdfAgrees`, the four copies, the five totality results and

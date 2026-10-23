@@ -64,7 +64,7 @@ private-erasure-review = ["tacenta-spqr/private-erasure-review"]
 
 # Primitive implementations: vetted, permissively licensed crates, except two
 # written in this workspace: XEdDSA (tacenta-spec ADR-0002) and tacenta-kdf's
-# SHA-256, HMAC and HKDF (ADR-0010, proposed). See LIMITATIONS.md, "Trusted, not verified".
+# SHA-256, HMAC and HKDF (ADR-0010). See LIMITATIONS.md, "Trusted, not verified".
 [dependencies]
 tacenta-boundary = { path = "boundary" }
 tacenta-lifecycle = { path = "lifecycle" }

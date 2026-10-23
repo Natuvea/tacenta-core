@@ -169,20 +169,23 @@ flowchart TD
   are trusted and not verified here. A proof reaches the boundary through
   contracts that appear as hypotheses of the theorems that take them. The key
   derivation crate is translated rather than opaque: its HMAC-SHA256 and
-  HKDF-SHA256 are code written by the maintainer with tool assistance in a
-  separate, unpublished repository and copied here (pinned in
-  `tacenta-core/kdf/src/lib.rs` by commit and file digests). Eight
+  HKDF-SHA256 are code copied here, pinned in `tacenta-core/kdf/src/lib.rs` by
+  commit and file digests, and distributed under this repository's licence:
+  written by the maintainer with tool assistance in a separate, unpublished
+  repository; the three Rust files were read in full by the maintainer on
+  2026-10-23, and before that only by tool-assisted sessions; no reader
+  independent of the maintainer has read the three files, and no human has read
+  their proofs. Eight
   translations include it, and the six whose theorems take hypotheses about it
   prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),
   the classical ratchet's, the PQXDH session's, the sparse ratchet's and the
   Braid's (`KdfLeafAgreements`), and the three-leaf unit's
   (`KdfTripleUnitAgreements`); the lifecycle and Braid-and-erasure translations
   include it with no theorem about it. That the model is the RFCs', the code's
-  timing and its erasure are not proved, and the code has been read so far only
-  by tool-assisted sessions: no human has yet read the three Rust files or their
-  proofs. Writing it here is a second exception to the rule that primitives are not
-  implemented in this repository, after XEdDSA, proposed in ADR-0010 and not yet
-  accepted.
+  timing and its erasure are not proved, and it is several times slower per call
+  than RustCrypto on CPUs with SHA extensions (ADR-0010, Costs). Writing it here
+  is a second exception to the rule that primitives are not implemented in this
+  repository, after XEdDSA, accepted in ADR-0010.
   `tacenta-proofs/LIMITATIONS.md` lists what a reader must still trust, and
   `tacenta-proofs/CLAIMS.md` lists every claimed theorem with its hypotheses.
 - **What holds the record in place.** `attest.py` compares the ledger with the

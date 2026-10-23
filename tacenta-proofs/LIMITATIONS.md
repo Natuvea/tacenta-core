@@ -269,9 +269,8 @@ excludes it.
   vetted crates for X25519, AES-256-CBC, Ed25519, the SHA-256 and HMAC that the root crate's identity and group
   digests and the AEAD's tag check on decryption call, the SHA-512 inside XEdDSA, and ML-KEM-1024 from
   libcrux-ml-kem. Since the KDF change (ADR-0010)
-  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF written by the maintainer
-  with tool assistance in a separate, unpublished repository and copied here (pinned in `kdf/src/lib.rs` by commit
-  and file digests), translated, and proved of the
+  `tacenta-kdf`'s HMAC-SHA256 and HKDF-SHA256 are a SHA-256, an HMAC and an HKDF copied here (pinned in
+  `kdf/src/lib.rs` by commit and file digests, and under this repository's licence, Apache-2.0), translated, and proved of the
   Session unit's translation to compute tacenta-model's `Model.Kdf.hmac` and `Model.Kdf.hkdf`
   (`UnitLifecycleKdf.hmacAgrees`, `hkdfAgrees`), and of the classical ratchet's, the PQXDH session's, the sparse
   ratchet's, the Braid's and the three-leaf unit's copies by the same proofs ported (`KdfLeafAgreements`,
@@ -280,9 +279,7 @@ excludes it.
   RFC 4231's and RFC 5869's (vectors, not proof), the translation's fidelity, their timing (an inventory of the
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
-  The copied code is about 1.5 to 2.1 times slower than RustCrypto on these three functions by its source's own
-  measurement, not repeated here, and it has been read so far only by tool-assisted sessions: no human has yet read
-  the three Rust files or their proofs. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
+  The copied code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. Its cost, measured on one x86_64 Linux machine with SHA extensions and on the source repository's machine: per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times (ADR-0010, Costs). None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
   translation, and no theorem says how it computes its tag. On encryption that tag now comes from the copied
   HMAC, while decryption checks it with RustCrypto's `hmac` and `sha2` (`boundary/src/aead.rs`); that the two
   compute the same tag rests on tests (`kdf/tests/differential.rs` and the AEAD round-trip tests), not on
@@ -295,9 +292,8 @@ excludes it.
   carries no such annotations in the pinned version 0.0.10. Both are trusted,
   not verified. Two primitives are implemented here rather than taken from a
   vetted crate: XEdDSA, over curve25519-dalek and ed25519-dalek, the exception
-  recorded in ADR-0002, and since the KDF change (ADR-0010) the key derivation's SHA-256, HMAC
-  and HKDF above, the exception ADR-0010 proposes and the owner has not yet
-  accepted. The model computes SHA-256, HMAC, and HKDF itself as the vector
+  recorded in ADR-0002, and since the KDF change the key derivation's SHA-256, HMAC
+  and HKDF above, the exception ADR-0010 records, accepted on 2026-10-23. The model computes SHA-256, HMAC, and HKDF itself as the vector
   oracle and, in the six translations whose theorems take the key derivation's
   hypotheses, as the definitions the copied code is proved to compute; that
   those definitions are the RFCs' rests on the vectors, which anchor them to RFC
@@ -478,8 +474,9 @@ way that is unsound.
 
 **Clean across `tacenta-protobuf`, `tacenta-kdf`, `tacenta-ratchet`,
 `tacenta-session`, and `tacenta-triple`** (`tooling/miri.sh`), with no undefined
-behaviour reported. For `tacenta-kdf` that run was of its RustCrypto wrapper: miri
-has not been re-run on the copied SHA-256, HMAC and HKDF (ADR-0010). The first three run in seconds; `tacenta-triple`'s
+behaviour reported. For `tacenta-kdf` that run was of its RustCrypto wrapper; on the copied SHA-256, HMAC and
+HKDF (ADR-0010) the crate's two unit tests pass under miri on one x86_64 Linux machine (2026-10-23), and the
+workspace's 571 tests, clippy and fmt pass there. The first three run in seconds; `tacenta-triple`'s
 conversation tests take minutes under the interpreter, so the script is meant to run
 nightly rather than on every push. No workflow in this repository runs it, and the
 date and commit of the last clean run are not recorded.
@@ -536,8 +533,8 @@ from it. This holds here by delegation and discipline, not by proof.
   These properties are inherited from the crates, and assumed rather than
   re-established here.
 - **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
-  the KDF change (ADR-0010) `tacenta-kdf` is a SHA-256, an HMAC and an HKDF written by the maintainer with tool assistance in a
-  separate, unpublished repository, read so far only by tool-assisted sessions, and copied here,
+  the KDF change (ADR-0010) `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied here (see the trust bullet above for
+  who wrote and who has read it),
   whose comments say every branch and every index is on a length or a loop counter. They are loops, and this
   workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
   rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`
@@ -556,10 +553,17 @@ from it. This holds here by delegation and discipline, not by proof.
   `RUSTC_WRAPPER` or `build.rustc` override would bypass it and leave the exact comparison as the only check.
   Where the toolchain is not installed, a local run skips the KDF half with a line saying so; CI's `rust_target`
   step installs it and the run fails without it. The two straight-line functions below are read with the running
-  toolchain, in CI the job's stable. Stable 1.98.1 gave the same inventory on the Mac; no inventory from a stable
-  toolchain was produced for either Linux target. The reader is a tripwire, not a proof: an address computed into a
-  register before it is used is not listed. Nothing has run on Linux hardware for this, nothing measures the KDF's timing, and
-  an LTO build, which would inline these functions into their callers, is not covered.
+  toolchain, in CI the job's stable. Stable 1.98.1 gave the same inventory on the Mac. On one x86_64 Linux machine
+  (an Intel CPU with SHA extensions, measured on 2026-10-23 by a tool-assisted session), the inventory built natively
+  under the pinned nightly is byte-identical to the committed x86_64 baseline (122 items, read from cross-compiled
+  assembly), and the shipped default codegen units gave the same; stable 1.99.1 there gives 127 items, the
+  differences all in `Sha256::finalize` and `hkdf_sha256_into` and, by that session's reading, on lengths, counts
+  and positions only, which is why the gate pins the compiler. A dudect-style test of the copied `hmac_sha256`
+  (32-byte key, 64-byte message, 5.1 million measurements per class, one core, turbo off) detected no timing
+  difference, while a control with a few extra instructions on a secret condition was detected. That is a tripwire
+  and one measurement on one CPU, not a proof: no other CPU model, core type or frequency setting, no aarch64 Linux
+  hardware and no phone was measured. The reader does not list an address computed into a register before it is
+  used, and an LTO build, which would inline these functions into their callers, is not covered.
 - **The Braid's MAC comparison is a hand-written loop.** `mac_eq` in
   `tacenta-braid` ORs the XOR of every byte pair and tests the accumulator
   once at the end -- the textbook shape -- but nothing in the language stops

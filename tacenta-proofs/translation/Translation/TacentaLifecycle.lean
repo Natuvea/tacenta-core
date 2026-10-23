@@ -1685,7 +1685,7 @@ def tacenta_kdf.hmac.hmac_sha256
   tacenta_kdf.hmac.HmacSha256.finalize m1
 
 /-- [tacenta_kdf::hmac_sha256]:
-    Source: 'kdf/src/lib.rs', lines 102:0-102:55
+    Source: 'kdf/src/lib.rs', lines 110:0-110:55
     Name pattern: [tacenta_kdf::hmac_sha256]
     Visibility: public -/
 @[rust_fun "tacenta_kdf::hmac_sha256"]
