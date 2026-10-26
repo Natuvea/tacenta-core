@@ -180,7 +180,7 @@ epochs):
       and `Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`.
   - T2, CLAIMS.md, "Proved (tier T2, in the model: no stored key at or past
     its counter, and the total bound, on every state the sparse ratchet's
-    operations reach)": the sparse bound survives any finite sequence of the
+    operations reach from initialisation)": the sparse bound survives any finite sequence of the
     model's sends, receives and evictions from a state within it:
     `Proofs.SparseReachableStore.run_store_bounded`.
 - **Does not cover:**

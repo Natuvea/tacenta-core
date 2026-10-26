@@ -2860,7 +2860,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach)",
+          "section": "Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach from initialisation)",
           "references": [
             "Proofs.SparseReachableStore.run_store_bounded"
           ]

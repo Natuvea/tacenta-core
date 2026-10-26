@@ -205,8 +205,8 @@ is SemVer against the specified protocol (not the implementation).
   from initialisation), `reachable_skipSurvivors_eq` (a skip deletes nothing
   there) and `run_store_bounded` (the bound across any such sequence from a
   state within it). One operation at a time the first holds only from a state
-  with no key at or past its counter and no chain for an epoch past the current
-  one, and the page says so. Of this implementation's code they are tested, not
+  with no key at or past its counter and, for an operation that may open an
+  epoch, no chain for an epoch past the current one, and the page says so. Of this implementation's code they are tested, not
   proved, and across a session's operations the bound is still tested rather
   than proved. The rule and the behaviour are unchanged. This entry also takes
   in an earlier one of this release: the page had said
@@ -519,7 +519,7 @@ is SemVer against the specified protocol (not the implementation).
   range a skip replaces is no longer refused for the total bound on the count
   taken before the deletion. A state the operations produce from
   initialisation holds no such key (proved of the model, tested of the code: the
-  first entry under Changed), so the two counts differ only for a stored state
+  entry on `Proofs.SparseReachableStore` under Changed), so the two counts differ only for a stored state
   that does. The total bound is checked against the
   store a skip would leave. A skip that steps a chain from `c` to `upto` is
   refused as `TooManySkipped` when `upto - c` passes `MAX_SKIP`. Otherwise it

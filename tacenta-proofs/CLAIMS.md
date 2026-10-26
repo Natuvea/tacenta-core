@@ -752,7 +752,7 @@ definitions; no theorem relates `keyAt` to `receive`.
   ratchet's `send`, `receive` or `advance`, or over a sequence of operations;
   `Proofs.SparseReachableStore` does, in the model (the section "Proved (tier
   T2, in the model: no stored key at or past its counter, and the total bound,
-  on every state the sparse ratchet's operations reach)").
+  on every state the sparse ratchet's operations reach from initialisation)").
 - `Proofs.SparseRatchetCorrectness.clearOldEpochs_store_le`: retiring old
   epochs never lengthens the store.
 - `Proofs.SparseRatchetCorrectness.trySkipped_store_lt`: taking a stored key
@@ -921,7 +921,7 @@ seeds of 300 randomised steps (sends, epoch openings, in-order and late
 receives, duplicates, arbitrary numbers, stale epochs and eviction) and asserts
 it after every step. That is a sample, not a proof.
 
-## Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach)
+## Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach from initialisation)
 
 Location: `Proofs/SparseReachableStore.lean`, about `Model.SparseRatchet`.
 
