@@ -274,7 +274,7 @@ over the associated data and the ciphertext) and a per-run premise that the repl
 MAC key and associated data, the
 initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
 one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom; conditional,
-like every encrypt result, on the seal's totality contract, which is false at the top of the length range); neither
+like every encrypt result, on the seal's totality contract, which is false at the top of the length range, and on the open's totality contract at the tampered ciphertext's length, which is false from about 2^61 bytes on a 64-bit target built with overflow checks); neither
 the law nor the premise is shown of the real AEAD, a frame whose header bytes were changed is not covered, and tamper
 refusal on any other route (the first frame, the second message, a restored session) is not shown. The
 responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
