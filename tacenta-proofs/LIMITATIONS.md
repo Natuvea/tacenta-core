@@ -2209,6 +2209,88 @@ and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
 
+### What closing `E2E-01` requires, by name
+
+`GAP-REGISTER.md` row `E2E-01` closes only when every contract, law and record field that the lifecycle's final theorems
+take is a theorem of the translated code or of a primitive realised against the shipping code. The only exceptions are
+the per-run premises inherent to a run, listed last, which stay stated premises of those theorems. An item that no
+proof can discharge keeps the row Open, and no recorded decision counts. The names below were taken, as of 2026-10-26,
+from a text scan of the hypotheses in the statements of `Translation/UnitLifecycle*.lean` and of the fields of the
+records those hypotheses name. The scan is a reading, not an elaborated enumeration, and it is not claimed complete. A
+name it missed, or one added later, counts the same. Some are already theorems, for example the session unit's
+`HmacAgrees` and `HkdfAgrees` from the key derivation's translated code; those count as met.
+
+- **The T1 contract records.**
+  - `EncryptContracts`: `AeadSealBounded`, `MessageKeyMaterialRoundTrip`, `DhCodecTotal`, and the fields of
+    `BraidSendContracts` and `TripleSendContracts`.
+  - `DecryptRatchetContracts`: `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal`, `Random32Total`,
+    `MessageKeyMaterialRoundTrip`, and the fields of `BraidReceiveContracts` and `TripleReceiveContracts`.
+  - `EstablishInitiatorContracts`: `DhCodecTotal`, `DhIdentityTotal`, `DhAgreeTotal`, `KemEncapsulateTotal`,
+    `XeddsaVerifyTotal`, `RngTotal`, `Random32Total`, the session unit's `HkdfTotal` and `ZeroizingModel`,
+    `ZeroizingTotal`, `KdfInitTotal`, `ZeroizeTotal`, `HkdfSha256Total`, `ZeroizingArrayRoundTrip` and
+    `RangeFullIndexTotal`.
+  - `EstablishResponderContracts`: `DecryptRatchetContracts`, `DhIdentityTotal`, `KemDecapsulateTotal`, the session
+    unit's `HkdfTotal` and `ZeroizingModel`, `KdfInitTotal`, `VecPopTotal` and `DivCeilValue`.
+  - The nested records' fields:
+    - the Braid's `RngTotal`, `KeyPairGenerateTotal`, `KeyPairHeaderTotal`, `KeyPairEkVectorTotal`,
+      `KeyPairDecapsulateTotal`, `Encapsulate1Total`, `Encapsulate2Total` and `ValidateEkTotal`;
+    - `EncoderNewTotal`, `EncoderNextChunkTotal`, `DecoderNewTotal`, `DecoderAddChunkTotal` and `DecoderMessageTotal`;
+    - `Ct1LenTotal`, `Ct2LenTotal`, `HeaderLenTotal` and `EkVectorLenTotal`;
+    - the four clone totals and `OptionCloneTotal`;
+    - `HmacSha256Total` and `HkdfSha256Total`;
+    - `ZeroizingArrayRoundTrip`, `ArrayZeroizeTotal` and `RangeFullIndexTotal`;
+    - the Triple's `HmacTotal`, `HkdfTotal`, `ZeroizingTotal`, `ZeroizeTotal`, `VecRetainTotal`, `KdfRkTotal`,
+      `KdfCkTotal`, both `RemoveSkippedAtTotal` and `VecAppendTotal`.
+- **The oracle records and the laws they are built from.**
+  - `OracleOf`, with its clauses `dhPublic`, `dhAgree`, `identityValid`, `aeadSeal`, `aeadOpen`, `kemInvalidKey`,
+    `kemEncapsulateError`, `kemDecapsulate`, `sigVerify`, `sigSign` and `random32`.
+  - `DecryptOracleOf`, with `dhPublic`, `dhAgree`, `aeadOpen` and `random32`.
+  - `DhCodecOf` and `CodewordViewSendOf`.
+  - The law bundles `DecryptJointLaws`, `DecryptWrapperLaws`, `WrapperKemLaws` and `EncryptExtraLaws`, with
+    `SignFillsOnce64`, `GenerateFillsOnce64`, `KemShape`, `DhViewInjective` and `KemViewInjective`.
+- **The agreement and refinement records.**
+  - `DecryptRatchetAgreements`: `HmacAgrees`, `HkdfAgrees`, the `zeroize` round trips at 32, 64, 80 and 96 bytes and
+    the sparse 64, `LawPop`, `LawAsMut`, `KemAgreesFor`, `ErasureAgrees`, `KemLenAgrees`, `ValidateEkAgrees` and
+    `KemCloneAgrees`.
+  - `BraidSendRefinementContracts` (with `ErasureCloneAgrees`), `TripleSendRefinementContracts` (with
+    `VecRetainAgrees` and `RemoveSkippedAtAgrees`), `SpqrHkdfAgrees`, `BraidHkdfAgrees` and `BraidHmacAgrees`.
+  - The instance arguments `DerivedKeysModel` and `ZeroizingModel`.
+  - The instance arguments that supply a relation: `StateRefines`, `ResultRefines`, `OutcomeRefines`, `EncoderOf` and
+    `OptionOutputRefines`. Whether each is a parameter of the statement or an assumption about the code is not
+    checked here. For this row, each must be instantiated by a definition in the tree or discharged.
+- **The laws the route theorems take.**
+  - About X25519: `DhPublicValid`, `DhPublicBytesRoundTrip`, `DhPrivateBytesRoundTrip`, `DhAgreeSymmetric`,
+    `DhAgreeContributory` and `DhPublicNotConstant`.
+  - About ML-KEM: `KemCiphertextLenOf`, `KemCiphertextLenBound`, `KemCiphertextLenTotal`, `KeyGenSizesOf`,
+    `KeyGenSeededFor`, `FreshKeyPairRefines` and `LawGenerateSucceeds`.
+  - About the AEAD: `AeadRoundTrip` and `AeadOpenChecksTag`. These and the AEAD totality contracts must first be
+    restated with length premises derived from accepted inputs or enforced by the public implementation
+    (`AEAD-LENGTH-CONTRACTS`).
+  - About XEdDSA: `XeddsaSignTotal`.
+  - About standard-library and wrapper operations: `OptionEqU64Shape`, `ZeroizingVecRoundTrip`, `OptionBranchSome`
+    and `VecAsSlice`.
+- **Premises on the store and the session state.** They count as met only when derived:
+  - `PrekeyIdsDistinct`, from `PrekeyStore::invariant`;
+  - the headroom and counter records (`EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`,
+    `EstablishResponderHeadroom`, `ReceiveHeadroom`, `CounterHeadroom`, `CounterRoom`), from `Session::invariant`,
+    which the final theorems may take, and from the inputs the public operation accepts;
+  - the dispatch layer's evidence records (`BraidReceiveEvidence`, `SessionDecryptEvidence`, the `InitialRatchet*`
+    and `InitialAgreementRatchet*` evidence and route records, `EncryptRouteEvidence`, `EncryptTripleRouteEvidence`,
+    `EncryptEndToEndEvidence`, `BraidSendTraceAgreement` and `BraidSendTraceAgreementCounted`), from the code
+    (`DISPATCH-EVIDENCE-VACUITY`).
+- **Per-run premises inherent to a run.** These stay stated premises of the final theorems and must be listed there,
+  not hidden:
+  - that the random source's trace is its oracle's and holds the draws the step takes (a source with no state of its
+    own, such as `OsRng`, is outside such statements);
+  - that a peer's new ratchet key is not its first, where a theorem distinguishes the two outcomes;
+  - `FirstKemAgrees`, since ML-KEM decapsulation of an honest ciphertext can fail;
+  - `NotTagged`, the premise about an attacker's bytes;
+  - the honest-chunk premises of a run (`HonestChunk`, `ConsistentChunkRun`).
+
+The trusted base outside the theorems' hypotheses is not part of this criterion: the translation's faithfulness and the
+toolchain (ASM-16 in `tacenta-spec/threat-model/assumptions.md`, and "Trusted, not verified" and "The proofs are trusted by
+evaluation, not only by the kernel" above).
+
 ### Identity records, and the initiator's public entry, are outside the translated zone
 
 `tacenta-core/src/sessions/identity.rs` holds the identity pair digest, the
@@ -2372,7 +2454,7 @@ that signatures are sound, that agreement outputs match, or that an accepted
 result has the right bytes. Those value-level agreements belong to the later
 refinement relation and its oracle; the totality layer alone cannot establish
 them. Two of them, `AeadSealBounded` and `AeadOpenTotal`, are not only assumed: by reading they are false of the shipping
-AEAD at long lengths, so the theorems that take them are conditional on a proposition that does not hold and, as stated,
+AEAD at long lengths (the open only in a 64-bit build with overflow checks, so a result that takes only the open is affected only there), so the theorems that take them are conditional on a proposition that does not hold and, as stated,
 say nothing about the shipping code at any length ("The clauses of `OracleOf`", the totality row).
 
 **A KEM totality contract was false of the shipped code, and is now kept by it rather
@@ -2810,7 +2892,7 @@ state, key generation refusing or the initial message wrapping the first ratchet
 session at a `KeysSampled` agreement (not by definition: its encoder half is derived from the code's send under `ErasureAgrees`, its key-pair half is the content of `KeyGenSeededFor`), and the session passes
 `Session::invariant` (`established_encrypt_successor_admissible`). The boundary records stay the caller's: the Braid and
 Triple send records, `AeadSealBounded`, `DhCodecTotal`, `DerivedKeysModel`, `OracleOf`, `DhCodecOf`, `CodewordViewSendOf`
-and three `zeroize` round trips, as for the conditional route (of these, `AeadSealBounded` and `OracleOf`'s AEAD clauses are not merely the caller's: as stated they are false of the shipping AEAD at long lengths, so the result is conditional on a false proposition; the totality row below); and the KEM agreements of the successor's invariant,
+and three `zeroize` round trips, as for the conditional route (of these, `AeadSealBounded` and `OracleOf`'s AEAD clauses are not merely the caller's: as stated they are, by reading, false of the shipping AEAD at long lengths, so the result is conditional on a false proposition; the totality row below); and the KEM agreements of the successor's invariant,
 `KemLenAgrees` and `ValidateEkAgrees`, which the `decrypt` refinement takes as well, with `DivCeilValue`. Two laws are new,
 ASSUMED:
 
@@ -3453,7 +3535,7 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 
 | Law | Statement | Status |
 |---|---|---|
-| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input the Lean statement quantifies over. As Lean propositions all seven are false of the real functions at lengths above `isize::MAX`, which the Lean slice type admits up to `Usize.max` and no Rust slice has, and under memory exhaustion (by reading). They are meant, and read here, over the inputs a Rust program can supply (at most `isize::MAX` bytes) with memory not counted; under that reading the five fields other than the AEAD's hold by reading, and the two AEAD fields do not. The convention matters only for the AEAD: on a 64-bit target its edges below need slices of 2 to 4 EiB, more than any real 64-bit address space supplies (general knowledge, not measured), so no real 64-bit call reaches them and there the defect is formal, a proposition the theorems assume that is false, not a fault a program can trigger; on a 32-bit target the seal's edge is a size a real program can reach in principle. `aead::encrypt` panics on a `Vec` capacity overflow once its padded ciphertext (`16 * (n / 16 + 1)` bytes for an `n`-byte plaintext) exceeds half of `isize::MAX`, because appending the 32-byte tag asks the standard library's `Vec` growth for twice the buffer's capacity: from a plaintext of `2^30 - 16` bytes on a 32-bit target, a length a real slice can have (by reading, an estimate: the panic is reached only where about 3 GiB of allocations, three regions of about 1 GiB each, fit; otherwise an allocation failure aborts first), and `2^62 - 16` on 64-bit. The growth rule was read in the standard library source of the nightly-2026-06-01 toolchain, and a stand-in allocator emulating the same calls behaved so on 64-bit under that toolchain and under stable 1.98.1; those runs were made outside the tree and cannot be reproduced from it, no test in the tree holds the edge, and the 32-bit figure is the same arithmetic, not run. `Vec`'s growth strategy is an implementation detail that the standard library does not document as a guarantee, and CI builds with an unpinned stable toolchain, so the edge is stated for the versions read, not by contract. The seal also panics where the associated data plus the padded ciphertext exceed `isize::MAX`. `aead::decrypt` panics, by reading of `sha2` 0.10.9, once the associated data plus the ciphertext before its tag reach `2^61 - 64` bytes on a 64-bit target built with overflow checks (with the 64-byte inner-pad block the hashed input reaches `2^61` bytes, whose bit length overflows a `u64`); no 32-bit input reaches that, and with overflow checks off the bit length wraps and the open returns. Because both AEAD fields are false as propositions over the lengths their statements quantify over, and fail even under the reading above (the open only in a build with overflow checks), a theorem that takes either of them, directly or through `EncryptContracts`, `DecryptRatchetContracts` (and so `EstablishResponderContracts`), `OracleOf` or `DecryptOracleOf`, is conditional on a proposition about the real functions that does not hold; as stated, it says nothing about the shipping code at any length, not only at the lengths where the AEAD fails. That includes the lifecycle T1 theorems for `encrypt`, `decrypt` and `establish_responder` and every result that takes `OracleOf` or `DecryptOracleOf`. Restating the two with length premises (for the seal, `|ad| + 2 * |plaintext| + 64 <= isize::MAX`; for the open, `sha2`'s bit-length bound) and deriving those premises from the lengths each call passes, where they follow, is planned and not done; the theorems as stated will be kept beside the restated ones. Today `Session::encrypt` refuses no plaintext by size and `Session::decrypt` no frame, so without a code change a bound on the plaintext, and on a 64-bit target a bound on a frame the theorem does not build, would remain a premise on the caller's input; such a bare premise does not meet `E2E-01`'s acceptance (`AEAD-LENGTH-CONTRACTS`). On 2026-10-26 the owner decided that the public implementation is to enforce size bounds (a plaintext of at most 1,048,575 bytes, a ratchet frame of at most 1,048,710 bytes and an initial frame of at most 1,050,362 bytes), from which the premises could be derived; that change has not landed, and until it does a restatement would leave a bound on the caller's input that the code does not check. The AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
+| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input the Lean statement quantifies over. As Lean propositions all seven are false of the real functions at lengths above `isize::MAX`, which the Lean slice type admits up to `Usize.max` and no Rust slice has, and under memory exhaustion (by reading). They are meant, and read here, over the inputs a Rust program can supply (at most `isize::MAX` bytes) with memory not counted; under that reading the two AEAD fields do not hold (below). Of the other five, none is known to fail there, and none is shown to hold: `DhCodecTotal`, `DhAgreeTotal` and `DhIdentityTotal` take fixed-size keys, so no length edge applies to them (by a reading of `tacenta-core/boundary/src/dh.rs`; x25519-dalek's internals were not read for this); `XeddsaVerifyTotal` streams the message through SHA-512, whose length counter is a `u128` (by a tool-assisted reading made for the maintainer, not checked further); and `KemDecapsulateTotal` at a key pair a program can restore is not checked, since `KeyPair::from_bytes` leaves the 1,536 bytes of `dk_PKE` unchecked (`tacenta-core/boundary/src/kem.rs`, the doc comment of `from_bytes`) and no reading of libcrux's `decapsulate` over out-of-range secret coefficients is recorded (the Braid's analogous case is not checked either, "The Session unit's primitive contracts are totality assumptions"). The convention matters most for the AEAD: on a 64-bit target its edges below need slices of 2 to 4 EiB, more than any real 64-bit address space supplies (general knowledge, not measured), so no real 64-bit call reaches them and there the defect is formal, a proposition the theorems assume that is false, not a fault a program can trigger; on a 32-bit target the seal's edge is a size a real program can reach in principle. `aead::encrypt` panics on a `Vec` capacity overflow once its padded ciphertext (`16 * (n / 16 + 1)` bytes for an `n`-byte plaintext) exceeds half of `isize::MAX`, because appending the 32-byte tag asks the standard library's `Vec` growth for twice the buffer's capacity: from a plaintext of `2^30 - 16` bytes on a 32-bit target, a length a real slice can have (by reading, an estimate: the panic is reached only where about 3 GiB of allocations, three regions of about 1 GiB each, fit; otherwise an allocation failure aborts first), and `2^62 - 16` on 64-bit. The growth rule was read in the standard library source of the nightly-2026-06-01 toolchain, and a stand-in allocator emulating the same calls behaved so on 64-bit under that toolchain and under stable 1.98.1; those runs were made outside the tree and cannot be reproduced from it, no test in the tree holds the edge, and the 32-bit figure is the same arithmetic, not run. `Vec`'s growth strategy is an implementation detail that the standard library does not document as a guarantee, and CI builds with an unpinned stable toolchain, so the edge is stated for the versions read, not by contract. The seal also panics where the associated data plus the padded ciphertext exceed `isize::MAX`. `aead::decrypt` panics, by reading of `sha2` 0.10.9, once the associated data plus the ciphertext before its tag reach `2^61 - 64` bytes on a 64-bit target built with overflow checks (with the 64-byte inner-pad block the hashed input reaches `2^61` bytes, whose bit length overflows a `u64`); no 32-bit input reaches that, and with overflow checks off the bit length wraps and the open returns. Because both AEAD fields are false as propositions over the lengths their statements quantify over, and fail even under the reading above (the open only in a build with overflow checks), a theorem that takes either of them, directly or through `EncryptContracts`, `DecryptRatchetContracts` (and so `EstablishResponderContracts`), `OracleOf` or `DecryptOracleOf`, is conditional on a proposition about the real functions that does not hold; as stated, it says nothing about the shipping code at any length, not only at the lengths where the AEAD fails. That includes the lifecycle T1 theorems for `encrypt`, `decrypt` and `establish_responder` and every result that takes `OracleOf` or `DecryptOracleOf`. Restating the two with length premises (for the seal, `|ad| + 2 * |plaintext| + 64 <= isize::MAX`; for the open, `sha2`'s bit-length bound) and deriving those premises from the lengths each call passes, where they follow, is planned and not done; the theorems as stated will be kept beside the restated ones. Today `Session::encrypt` refuses no plaintext by size and `Session::decrypt` no frame, so without a code change a bound on the plaintext, and on a 64-bit target a bound on a frame the theorem does not build, would remain a premise on the caller's input; such a bare premise does not meet `E2E-01`'s acceptance (`AEAD-LENGTH-CONTRACTS`). The maintainer has decided (2026-10-26) that the public implementation is to enforce size bounds (a plaintext of at most 1,048,575 bytes, a ratchet frame of at most 1,048,710 bytes and an initial frame of at most 1,050,362 bytes), from which the premises could be derived; those bounds are in neither the specification nor the code yet, the change has not landed, and until it does a restatement would leave a bound on the caller's input that the code does not check. The AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
 | `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the failure edges the totality row records. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target; its `i686` step runs `decrypt_premises` alone), so that it does not depend on the width of `usize` is by reading only |
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
@@ -3517,7 +3599,7 @@ the code's answer on arguments with those bytes. So `OracleOf` asks of the code 
 result depends only on the bytes of its arguments, and that it reads the random source in the stated order. It ties the
 dispatch theorems to the code's own primitives and to no specification of X25519, the AEAD, ML-KEM or XEdDSA. The oracle
 `oracleOf_of_laws` supplies is defined from the real primitives, so the record carries no content beyond the laws above.
-Whatever a dispatch theorem proves with it is a statement about the model run with those primitives' own answers. Its AEAD clauses, though, ask the seal and the open to return on every input, which the shipping AEAD does not do at long lengths (the totality row above), so a theorem that takes `OracleOf` is conditional on a false proposition and, as stated, says nothing about the shipping code at any length.
+Whatever a dispatch theorem proves with it is a statement about the model run with those primitives' own answers. Its AEAD clauses, though, ask the seal and the open to return on every input, which, by reading, the shipping AEAD does not do at long lengths (the totality row above), so a theorem that takes `OracleOf` is conditional on a false proposition and, as stated, says nothing about the shipping code at any length.
 
 **What is not covered.**
 
