@@ -860,8 +860,7 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
-  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved.
@@ -920,7 +919,8 @@ recorded decision or a target-closing slice:
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise) and `check-port-negatives.sh` (ten broken anchors: seven refused naming a unit edit and three, for the preservation port, refused for a substitution count, for the pin-section marker and for a declaration after the pins).
 
   **Missing evidence:**
-  None identified beyond the number of mutations each holds.
+  None identified beyond the number of mutations each holds;
+  the coverage gate reads no Rust source but `lifecycle.rs`, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it.
 
 - **Gate/check:**
   `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py`,
@@ -930,8 +930,7 @@ recorded decision or a target-closing slice:
   `check-braid-agreement-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
-  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved;
@@ -1007,7 +1006,8 @@ recorded decision or a target-closing slice:
   a refusal by a resource limit counts as a failure of the gate).
 
   **Missing evidence:**
-  None identified beyond the number of mutations each holds.
+  None identified beyond the number of mutations each holds;
+  the coverage gate reads no Rust source but `lifecycle.rs`, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it.
 
 - **Gate/check:**
   `tacenta-proofs/scripts/check-lifecycle-translation-coverage.py`,
@@ -1044,8 +1044,7 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The 30 public operations the coverage gate reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) are generated;
-  the gate reads no other function and no other file, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the frame proofs of the four lifecycle bodies keep refusing a write on a refusal path;
@@ -1645,6 +1644,7 @@ recorded decision or a target-closing slice:
 
   **Missing evidence:**
   None identified beyond the number of mutations each holds;
+  the coverage gate reads no Rust source but `lifecycle.rs`, so the public entries in `tacenta-core/src/sessions` (`establish_initiator`, `establish_responder_unattributed`), which are not translated, are outside it;
   for the refuted records, a theorem added to the gate's recorded block is caught by review of the diff, not by a gate, and a restatement of the `def` record's body is not a mention.
 
 - **Gate/check:**

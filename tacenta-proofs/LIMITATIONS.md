@@ -2283,17 +2283,23 @@ island or unit, is about any function in it.
   passed on inside `InitiatorError::Establish`). Tests check it
   (`with_no_records_first_contact_is_the_leafs_establishment` compares draws and
   exported bytes with the leaf's own establishment, and
-  `the_leaf_pin_never_fires_through_the_expectation`); no proof does.
-  The theorems take no hypothesis about records or an expectation, so nothing
-  is assumed of the wrapper; what is missing is a theorem about it. The test
+  `the_leaf_pin_never_fires_through_the_expectation`); no proof about the crate does.
+  The theorems take no hypothesis about identity records (ADR-0009) or an
+  `Expectation`, so nothing is assumed of the wrapper; what is missing is a
+  theorem about it. The model proves the counterparts about the model's step
+  (`Model.InitiatorExpectation.refusal_keeps_oracle`, `success_is_leaf`,
+  `leaf_never_unexpected`), and nothing relates them to the crate. The test
   that compares the wrapper's result with the leaf's runs under *first
-  contact* with no records; under *known*, or with records, the session the
+  contact* with no identity records, against the leaf's trusting
+  `establish_initiator`, which passes the bundle's own key to
+  `establish_initiator_for`; under *known*, or with records, the session the
   wrapper returns is not compared with the leaf's. The gate that compares the
   lifecycle's public surface with the translation
-  (`check-lifecycle-translation-coverage.py`) reads only
-  `tacenta-core/lifecycle/src/lifecycle.rs`, so it lists neither the wrapper
-  nor `establish_responder_unattributed`, and a public entry added in
-  `tacenta-core/src/sessions` does not turn it red.
+  (`check-lifecycle-translation-coverage.py`) reads two files: the Rust source
+  `tacenta-core/lifecycle/src/lifecycle.rs` and the generated
+  `TacentaLifecycle.lean` it is given. It reads no other Rust source, so it lists
+  neither the wrapper nor `establish_responder_unattributed`, and a public entry
+  added in `tacenta-core/src/sessions` does not turn it red.
   `tooling/check_authentication_boundary.py` finds such an entry by name when
   the name holds one of its verbs (`establish` among them) and requires it
   registered, but it reads signatures, not bodies, and checks nothing about

@@ -530,19 +530,31 @@ this section says in one place what is not proved.
   lifecycle leaf's functions; none is about the wrapper. That those results apply to the session the wrapper returns rests on a
   reading of the wrapper (it draws nothing and changes nothing before the call,
   and passes the result on), checked by tests and not in Lean. That hop is
-  unverified.
+  unverified. The one test that compares the wrapper's result with the leaf's
+  runs only under *first contact* with no identity records, and calls the
+  leaf's trusting `establish_initiator`, which passes the bundle's own key to
+  `establish_initiator_for`; that they agree is one more reading.
   No result in this file assumes the wrapper's checks: the results that start
   from a session `establish_initiator_for` returned are stated for every bundle
-  and every expected key, and no hypothesis of theirs mentions records or an
-  expectation. So none of them states REQ-AUTH-02 at the code. That a session
-  the wrapper returns has a peer key the expectation accepted, and that a
-  refusal by the expectation draws nothing, are tested only
-  (`tacenta-core/tests/identity_expectation.rs`, `initiator-expectation.json`
-  and the fuzz target `identity_records`). That the leaf's own comparison of
+  and every expected key, and no hypothesis of theirs mentions identity records
+  (ADR-0009) or an `Expectation`; the reach witnesses fix the expected key to
+  the bundle's own. So none of them states REQ-AUTH-02 at the code. About the
+  crate, that a session the wrapper returns has a peer key the expectation
+  accepted, and that a refusal by the wrapper's expectation check draws
+  nothing, are tested only (`tacenta-core/tests/identity_expectation.rs`,
+  `initiator-expectation.json`, and the fuzz target `identity_records`, which
+  the hosted workflow does not run and `tooling/ci.sh` runs only with
+  `cargo-fuzz` and a nightly toolchain). That the leaf's own comparison of
   the bundle's key with the expected one cannot refuse through the wrapper
   rests on the derived equality of `PublicKeyBytes`, which the session unit
-  leaves opaque; it is tested (`the_leaf_pin_never_fires_through_the_expectation`),
-  not proved.
+  leaves opaque; about the crate it is tested
+  (`the_leaf_pin_never_fires_through_the_expectation`), not proved. The model
+  proves the counterparts about the model's step, not about the Rust:
+  `Model.InitiatorExpectation.refusal_keeps_oracle` (a refusal by the
+  expectation leaves the oracle as it was), `success_is_leaf` (past the
+  expectation the step is the lifecycle model's `establishInitiator` at the
+  bundle's own key) and `leaf_never_unexpected` (that step's own comparison
+  never refuses at the bundle's own key). Nothing relates them to the crate.
   `tooling/check_authentication_boundary.py` now also scans
   `tacenta-core/src/sessions`, and registers the wrapper and
   `establish_responder_unattributed`; it reads signatures, not bodies. The
