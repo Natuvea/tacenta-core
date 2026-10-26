@@ -252,7 +252,7 @@ call reaches its inner receive with the initiator's shared secret; that is under
 about the run that ML-KEM decapsulation returns the initiator's secret, a named hypothesis that the store's identifiers are
 distinct, and the laws above. Past those refusals the call returns exactly one of two named refusals (a non-contributory
 agreement of the responder's fresh key, or the AEAD refusing to open the initiator's seal; store as given, one draw) or
-what that open returns; under two more assumed boundary laws (the AEAD opens what it sealed; an agreement with a key
+what that open returns; under two more assumed boundary laws (the AEAD opens what it sealed, which by reading is false of the shipping AEAD on a 64-bit target for associated data of 2^61 bytes, so as stated the results that take it say nothing about the shipping code built that way; an agreement with a key
 `public_key` returned is not refused), the model KEM's size law, a store bound and per-run premises on the responder's
 source, it succeeds with the plaintext the initiator encrypted, one draw and the committed store, its session related to
 the model's step at a view that attributes the received chunk to the initiator's header source; with no compiler-trust
@@ -274,7 +274,7 @@ over the associated data and the ciphertext) and a per-run premise that the repl
 MAC key and associated data, the
 initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
 one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom; conditional,
-like every encrypt result, on the seal's totality contract, which is false of the shipping seal from a plaintext of about 1 GiB on a 32-bit target, and on the oracle record's open clause, which asks the open to return on every input and is used at the tampered ciphertext's length; open totality is false from about 2^61 bytes on a 64-bit target built with overflow checks; both are stated for every length, so as stated the result says nothing about the shipping code at any length); neither
+like every result that takes the encrypt contract records or the oracle record, on the seal's totality contract, which is false of the shipping seal from a plaintext of about 1 GiB on a 32-bit target, and on the oracle record's open clause, which asks the open to return on every input and is used at the tampered ciphertext's length; open totality is false from about 2^61 bytes on a 64-bit target built with overflow checks; both are stated for every length, so as stated the result says nothing about the shipping code at any length); neither
 the law nor the premise is shown of the real AEAD, a frame whose header bytes were changed is not covered, and tamper
 refusal on any other route (the first frame, the second message, a restored session) is not shown. The
 responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
