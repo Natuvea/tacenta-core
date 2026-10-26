@@ -297,7 +297,7 @@ python3 scripts/check-sparse-store-full-negatives.py || fail=1
 }
 
 # Under an assumed AEAD law, the initiator's decrypt refuses a reply frame whose ciphertext was replaced
-# (`UnitLifecycleTamperedReply.lean`): fifteen changes (in the composing proof, on leaf lemmas, and definitions with
+# (`UnitLifecycleTamperedReply.lean`): twenty changes (in the composing proof, on leaf lemmas, and definitions with
 # their pins kept) must each be refused at a named declaration or pin, with a message naming the change, after the
 # unmodified copies are accepted.
 phase_tampered_reply() {

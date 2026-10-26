@@ -65,10 +65,12 @@ the two oracles' roles swapped and two decrypt boundary records at the initiator
 initiator's next `encrypt` at the session that receipt returns, on the same run, whose model step has one outcome (the bare
 second frame carrying the header's chunk at index 1, no draw) and which, if that session passes `Session::invariant` and
 meets the four counter ceilings (not shown there; the receive step below shows it at that session, and the two are joined below), returns those bytes with no draw and refines the step, with no new law or
-compiler-trust axiom, and, under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to) and a
-per-run premise that the replaced bytes are no sealing under the reply's message keys, the initiator's `decrypt` at the
+compiler-trust axiom, and, under one more assumed AEAD law (the open accepts only bytes that carry the HMAC-SHA256 tag over
+the associated data and the ciphertext) and a per-run premise that the replaced bytes carry no such tag under the reply's MAC
+key and associated data, the initiator's `decrypt` at the
 session its first `encrypt` left, from the source that `encrypt` left, refusing with `Aead`, its session unchanged and one draw taken, every frame that keeps the
-reply's header and replaces its ciphertext, with no compiler-trust axiom (neither the law nor the premise shown of the real
+reply's header and replaces its ciphertext, with no compiler-trust axiom (conditional, like every encrypt result, on the
+seal's totality contract, which is false at the top of the length range, and on the oracle record's open clause, which asks the open to return on every input and is used at the tampered ciphertext's length; open totality is false from about 2^61 bytes on a 64-bit target built with overflow checks; neither the law nor the premise shown of the real
 AEAD; a frame with changed header bytes not covered, and tamper refusal on any other route not shown); the responder's receipt of that send (taken below) and later messages in
 either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose

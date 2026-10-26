@@ -3,13 +3,14 @@
 
 `Translation/UnitLifecycleTamperedReply.lean` shows that, on the run in which the initiator's public `Session::decrypt`
 at the session `s'` its first `encrypt` left accepts the responder's reply `bytesR`, the same call, from the same
-source, refuses with `Aead` every frame that keeps the reply's first 102 bytes and carries bytes that no call of the
-boundary's `encrypt` returns under the reply's message keys and associated data (the per-run premise `NotASealing`),
-leaves the session as it was and takes exactly one draw; under the assumed law `AeadOpenSealUnique` (an opened
-ciphertext is the sealing of what it opened to), which the module also shows holds in a toy model and is not implied
-by the round trip.  A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script
-makes one change to a copy of the module and requires Lean to refuse it, at a named place, with an error that names
-what the change removed.
+source, refuses with `Aead` every frame that keeps the reply's first 102 bytes and carries bytes that carry no
+HMAC-SHA256 tag under the reply's MAC key and associated data (the per-run premise `NotTagged`), leaves the session as
+it was and takes exactly one draw; under the assumed law `AeadOpenChecksTag` (the open accepts only bytes that carry
+the tag), which the module also shows holds in a toy model that binds the key and the associated data, is not implied
+by the round trip, and survives a seal that fails at the top of the length range where the earlier law
+`AeadOpenSealUnique` does not.  A proof that Lean accepts after the fact it rests on is removed would hold nothing, so
+this script makes one change to a copy of the module and requires Lean to refuse it, at a named place, with an error
+that names what the change removed.
 
 The proof that composes the run is `initiator_refuses_tampered_reply`.  What a run establishes is that each control is
 refused at its named place, and that each control it labels inside a composing proof is also accepted there when that
@@ -34,40 +35,51 @@ at its labelled place):
   * inside: the tampered frame claimed to keep only the reply's first 101 bytes (refused where the frame layout lemma
     is rewritten into the frame premise, which then does not match the reply's 102-byte header);
   * inside: the reply's own ciphertext claimed to start after 101 bytes (refused where the layout lemma for the bytes
-    after the header is rewritten into the conjunct that the reply's ciphertext is a sealing);
+    after the header is rewritten into the conjunct that the reply's ciphertext is not `NotTagged`);
   * inside: the frame's premise claimed under the associated data of the peer key the initiator holds instead of the
     reply's ratchet key (refused where the premise is given to the open's bridge at the run's associated data);
   * inside: the freshness premise claimed against the initiator's own ratchet key instead of the peer key (refused
     where it is given to `initiator_receives_reply`);
-  * inside: the uniqueness law replaced by the round trip `AeadRoundTrip` (refused where the law is given to the open's
-    bridge);
+  * inside: the tag law replaced by the round trip `AeadRoundTrip` (refused where the law is first given, to the
+    bridge that shows the reply's own ciphertext carries its tag);
   * inside: the refused call claimed to take no draw (refused where the draw conjunct of the decrypt refinement,
     rewritten by the model's refusal, is placed);
   * inside: the refusal claimed to be the stale-key refusal `Triple(Classical(NoReceivingChain))` instead of `Aead`
-    (refused where the call, rewritten by the error the model's refusal fixes and by the refusal frame, is placed).
+    (refused where the call, rewritten by the error the model's refusal fixes and by the refusal frame, is placed);
+  * inside: the frame's premise claimed under the encryption key instead of the MAC key (refused where the premise is
+    given to the open's bridge, whose law speaks of the MAC key the open checks).
 
 On the leaf lemmas:
 
-  * the law weakened to equal ciphertext lengths (refused in `open_none_of_not_sealing`, which then cannot read the
-    tampered bytes back as a sealing);
+  * the tag law claimed without the associated data (refused in `open_none_of_not_tagged`, which then cannot read the
+    law at the run's associated data);
+  * the round trip dropped from the bridge for the seal, its binder made `True` (refused in `not_notTagged_of_seal`,
+    where the round trip opens the sealed ciphertext);
+  * the length argument claimed up to 32 bytes (refused in `notTagged_of_short`, at the arithmetic: a 32-byte string
+    can equal a 32-byte tag);
+  * the toy open made to skip the tag (refused in `modelTagged_checksTag`);
+  * the contrast's seal made total, its failure branch removed (refused in `taggedTop_checksTag_not_openSealUnique`,
+    where the reseal of the witness must fail: with a seal that never fails, the tagged open meets the earlier law,
+    `modelTagged_openSealUnique`, so the contrast rests on the failing seal);
+  * the lenient open made to check a tag (refused in `taggedLenient_roundTrip_not_checksTag`, whose two accepted
+    32-byte strings it then refuses);
   * the model's refusal claimed to leave the oracle's draws untouched (refused in `tampered_reply_model_refusal`);
   * the model's refusal claimed when the reply's ratchet key is the peer key (refused there, where the fresh-key
     receive is used);
-  * the reply's header claimed to be 103 bytes (refused in `replyFrame_take`);
-  * the toy's seal of the empty plaintext claimed to be no sealing (refused in `modelReply_notASealing_nil`);
-  * the lenient open made to check the leading byte as the toy does (refused in `lenient_roundTrip_not_unique`, whose
-    counterexample it then refuses to open).
+  * the reply's header claimed to be 103 bytes (refused in `replyFrame_take`).
 
-The pin controls hold definitions with the module's pins kept: the per-run premise reversed (a sealing claimed instead
-of excluded; refused at the pin of `NotASealingShape`) and the law weakened to equal lengths (refused at the pin of
-`AeadOpenSealUniqueShape`).  No statement-shape check: the module has no reach.
+The pin controls hold definitions with the module's pins kept: the tag equation reversed (refused at the pin of
+`TagMatches`; a change to it moves the law and the premise together, so the headline cannot catch it, and the leaf
+lemmas and the pin do), the law claimed
+without the associated data (refused at the pin of `AeadOpenChecksTagShape`) and the premise made `True` (refused at
+the pin of `NotTagged`).  No statement-shape check: the module has no reach.
 
 Every change is to a statement or a definition; none replaces a proof step.  Each refusal is a proof-breakage check at
-a named place: it shows that the proof there depends on what the change removed (or, for the last two, that the pin
-holds the definition), not that the changed statement is false.
+a named place: it shows that the proof there depends on what the change removed (or, for the last three, that the
+pin holds the definition), not that the changed statement is false.
 
 The changes are checked on a copy without the module's pins, so that the refusal comes from a proof and not from a
-pin, except the two kept with their pins.  The unmodified copies must be accepted first.  A compiler that does not
+pin, except the three kept with their pins.  The unmodified copies must be accepted first.  A compiler that does not
 start, a syntax error, an unrelated failure and a refusal elsewhere than the named place never count: the named
 refusal must be an error at the named place that matches the expected message.  An error whose first line names a
 kind of failure that is not a refusal (an unresolved name, a syntax error) voids the run anywhere in the copy,
@@ -99,15 +111,35 @@ FRAME = "        sliceOf frame = (vecOf bytesR).take 102 ++ cT →\n"
 
 HONEST = "        (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) ((vecOf bytesR).drop 102) ∧\n"
 
-NOT_SEALED = "          (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) cT →\n"
+NOT_TAGGED = "          (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) cT →\n"
+
+NOT_TAGGED_KEY = ("            (arrayOf q.sparseReceive)) .tacenta).2.1\n"
+                  "          (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) cT →\n")
 
 FRESH = "    (hfreshB : oracleB.dhPublic dB ≠ arrayOf q.peerRatchetBytes) :\n"
 
-LAW = "    (hu : AeadOpenSealUnique) (rc : rand_core_1.RngCore R)"
+LAW = "    (hu : AeadOpenChecksTag) (rc : rand_core_1.RngCore R)"
 
 REFUSED = "            ok (core.result.Result.Err lifecycle.Error.Aead, s', rngT) ∧ trace rngT = restA := by\n"
 
-LAW_BODY = "    ∃ ct, I.aeadEncrypt k1 k2 iv (alloc.vec.Vec.deref v) ad = ok ct ∧ ct.val = c.val\n"
+LAW_BODY = ("    I.aeadDecrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →\n"
+            "    TagMatches (arrayOf k2) (sliceOf ad) (sliceOf c)\n")
+
+TAG_BODY = "  c.drop (c.length - 32) = Model.Kdf.hmac k2 (ad ++ c.take (c.length - 32))\n"
+
+NOT_TAGGED_BODY = "def NotTagged (k2 ad c : Model.Lifecycle.Bytes) : Prop := ¬ TagMatches k2 ad c\n"
+
+SEAL_ROUND_TRIP = "theorem not_notTagged_of_seal (hu : AeadOpenChecksTag) (haead : AeadRoundTrip) {R : Type}\n"
+
+SHORT = "theorem notTagged_of_short (k2 ad c : Model.Lifecycle.Bytes) (h : c.length < 32) : NotTagged k2 ad c := by\n"
+
+TOY_CHECK = ("  if (sliceOf c).drop ((sliceOf c).length - 32) =\n"
+             "      Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ (sliceOf c).take ((sliceOf c).length - 32)) then\n")
+
+TOP = ("      if p.val.length + ad.val.length + 32 ≤ Usize.max / 2 then ok (sealTagged k2 p ad) else fail .panic }"
+       "\n")
+
+LENIENT = "  if 32 ≤ c.val.length then .Ok ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩\n"
 
 MODEL_OUT = "      { session := mA, result := .error .aead, oracle := { oracleA with draws := rest } } := by\n"
 
@@ -115,12 +147,6 @@ MODEL_PEER = "    (hcand : oracleA.dhAgree c newPub = some x) (hpeer : newPub �
 
 TAKE = ("    (replyFrame oracle ad newPub mk pt).take 102 = Model.CompositeHeader.encode (replyComposite newPub) "
         ":= by\n")
-
-NIL = "    NotASealingShape Interp.modelReply k1 k2 iv ad [] := by\n"
-
-LENIENT = "  if c.val = [] then .Err () else .Ok ⟨c.val.tail, by have := c.property; simp; omega⟩\n"
-
-NOT_SEALED_BODY = "    I.aeadEncrypt K1 K2 IV pt A = ok ct → vecOf ct ≠ c\n"
 
 # (copy, name, [(old text, new text), ...] each occurring exactly once, a regular expression the refused
 #  output must contain, where the refusal must be: declarations one of whose lines holds an error, or
@@ -135,21 +161,21 @@ MUTANTS = [
     ('module', 'honest-ciphertext-claimed-after-101-bytes',
      [(HONEST, HONEST.replace("drop 102", "drop 101"))],
      r"Tactic `rewrite` failed: Did not find an occurrence of the pattern\n  List\.drop 102 \(replyFrame [\s\S]*?"
-     r"in the target expression\n  ¬NotASealing[\s\S]*?\(List\.drop 101", ['initiator_refuses_tampered_reply']),
-    ('module', 'no-sealing-claimed-under-the-peer-key-associated-data',
-     [(NOT_SEALED, NOT_SEALED.replace("(oracleB.dhPublic dB)) cT", "(arrayOf q.peerRatchetBytes)) cT"))],
-     r"Application type mismatch: The argument\n  hns\nhas type\n  NotASealing[\s\S]*?"
-     r"\(replyAd \(vecOf q\.identityAd\) \(arrayOf q\.peerRatchetBytes\)\) cT\nbut is expected to have type",
-     ['initiator_refuses_tampered_reply']),
+     r"in the target expression\n  ¬NotTagged[\s\S]*?\(List\.drop 101", ['initiator_refuses_tampered_reply']),
+    ('module', 'no-tag-claimed-under-the-peer-key-associated-data',
+     [(NOT_TAGGED, NOT_TAGGED.replace("(oracleB.dhPublic dB)) cT", "(arrayOf q.peerRatchetBytes)) cT"))],
+     r"Application type mismatch: The argument\n  hns\nhas type\n  NotTagged[\s\S]*?"
+     r"\(replyAd \(vecOf q\.identityAd\) \(arrayOf q\.peerRatchetBytes\)\) cT\nbut is expected to have type[\s\S]*?"
+     r"in the application\n  open_none_of_not_tagged hu", ['initiator_refuses_tampered_reply']),
     ('module', 'freshness-claimed-against-the-initiator-own-key',
      [(FRESH, FRESH.replace("q.peerRatchetBytes", "q.ratchetBytes"))],
      r"The argument\n  hfreshB\nhas type\n  oracleB\.dhPublic dB ≠ arrayOf q\.ratchetBytes\nbut is expected to have "
      r"type\n  oracleB\.dhPublic dB ≠ arrayOf q\.peerRatchetBytes\nin the application\n  initiator_receives_reply ",
      ['initiator_refuses_tampered_reply']),
-    ('module', 'uniqueness-law-replaced-by-the-round-trip',
-     [(LAW, LAW.replace("AeadOpenSealUnique", "AeadRoundTrip"))],
-     r"The argument\n  hu\nhas type\n  AeadRoundTrip\nbut is expected to have type\n  AeadOpenSealUnique\nin the "
-     r"application\n  @open_none_of_not_sealing hu", ['initiator_refuses_tampered_reply']),
+    ('module', 'tag-law-replaced-by-the-round-trip',
+     [(LAW, LAW.replace("AeadOpenChecksTag", "AeadRoundTrip"))],
+     r"The argument\n  hu\nhas type\n  AeadRoundTrip\nbut is expected to have type\n  AeadOpenChecksTag\nin the "
+     r"application\n  not_notTagged_of_seal hu", ['initiator_refuses_tampered_reply']),
     ('module', 'tampered-refusal-claimed-to-take-no-draw',
      [(REFUSED, REFUSED.replace("trace rngT = restA", "trace rngT = dA :: restA"))],
      r"hdrT\nhas type\n[\s\S]*?\{ draws := restA, [\s\S]*?\.oracle\.draws\nbut is expected to have type\n  "
@@ -162,11 +188,40 @@ MUTANTS = [
      r"hcallT\nhas type\n  lifecycle\.Session\.decrypt rc crc s' frame rng' = ok \(core\.result\.Result\.Err "
      r"lifecycle\.Error\.Aead, s', rngT\)\nbut is expected to have type[\s\S]*?NoReceivingChain",
      ['initiator_refuses_tampered_reply']),
+    ('module', 'no-tag-claimed-under-the-encryption-key',
+     [(NOT_TAGGED_KEY, NOT_TAGGED_KEY.replace(".tacenta).2.1\n", ".tacenta).1\n"))],
+     r"Application type mismatch: The argument\n  hns\nhas type\n  NotTagged\n    \(Model\.State\.messageKeys"
+     r"[\s\S]*?Model\.State\.LabelSet\.tacenta\)\.1\n    \(replyAd [\s\S]*?\) cT\nbut is expected to have type\n  "
+     r"NotTagged\n    \(Model\.State\.messageKeys[\s\S]*?Model\.State\.LabelSet\.tacenta\)\.2\.1\n[\s\S]*?"
+     r"in the application\n  open_none_of_not_tagged hu", ['initiator_refuses_tampered_reply']),
     # leaf lemmas
-    ('module', 'uniqueness-law-weakened-to-equal-lengths',
-     [(LAW_BODY, LAW_BODY.replace("ct.val = c.val", "ct.val.length = c.val.length"))],
-     r"Type mismatch\n  hC\nhas type\n  sliceOf C = c\nbut is expected to have type\n  "
-     r"List\.map SessionUnitBraidT3\.u8 ↑ct = c", ['open_none_of_not_sealing']),
+    ('module', 'tag-law-claimed-without-the-associated-data',
+     [(LAW_BODY, LAW_BODY.replace("(arrayOf k2) (sliceOf ad) (sliceOf c)", "(arrayOf k2) [] (sliceOf c)"))],
+     r"Tactic `rewrite` failed: Did not find an occurrence of the pattern\n  sliceOf A\nin the target expression\n  "
+     r"TagMatches \(arrayOf K2\) \[\] c", ['open_none_of_not_tagged']),
+    ('module', 'seal-tag-claimed-without-the-round-trip',
+     [(SEAL_ROUND_TRIP, SEAL_ROUND_TRIP.replace("(haead : AeadRoundTrip)", "(haead : True)"))],
+     r"Function expected at\n  haead\nbut this term has type\n  True", ['not_notTagged_of_seal']),
+    ('module', 'short-ciphertext-claimed-up-to-32-bytes',
+     [(SHORT, SHORT.replace("c.length < 32", "c.length < 33"))],
+     r"omega could not prove the goal:\nNo usable constraints found", ['notTagged_of_short']),
+    ('module', 'toy-open-made-to-skip-the-tag',
+     [(TOY_CHECK, "  if 32 ≤ c.val.length then\n")],
+     r"Type mismatch\n  ht\nhas type\n  32 ≤ \(↑c\)\.length\nbut is expected to have type\n  "
+     r"List\.drop \(List\.length \(sliceOf c\) - 32\) \(sliceOf c\) =\n    Model\.Kdf\.hmac \(arrayOf k2\) ",
+     ['modelTagged_checksTag']),
+    ('module', 'top-seal-made-total',
+     [(TOP, "      ok (sealTagged k2 p ad) }\n")],
+     r"Type mismatch\n  if_neg hbig\nhas type\n  \(if [\s\S]*? ≤ Usize\.max / 2 then[\s\S]*?"
+     r"but is expected to have type\n  Interp\.modelTaggedTop\.aeadEncrypt k k iv",
+     ['taggedTop_checksTag_not_openSealUnique']),
+    ('module', 'lenient-open-made-to-check-the-tag',
+     [(LENIENT, LENIENT.replace("if 32 ≤ c.val.length then",
+                                "if (sliceOf c).drop ((sliceOf c).length - 32) = Model.Kdf.hmac "
+                                "(List.replicate 32 0) ((sliceOf c).take ((sliceOf c).length - 32)) then"))],
+     r"unsolved goals\nhu : AeadOpenChecksTagShape Interp\.modelTaggedLenient\n[\s\S]*?"
+     r"c : Slice U8 := ⟨List\.replicate 32 b, ⋯⟩\n⊢ List\.drop[\s\S]*?=\n    Model\.Kdf\.hmac \[0, 0, ",
+     ['taggedLenient_roundTrip_not_checksTag']),
     ('module', 'model-refusal-claimed-to-keep-the-draw',
      [(MODEL_OUT, MODEL_OUT.replace("oracle := { oracleA with draws := rest } }", "oracle := oracleA }"))],
      r"error: unsolved goals[\s\S]*?\{ draws := rest, braidKem := oracleA\.braidKem[\s\S]*?=\n    "
@@ -180,23 +235,19 @@ MUTANTS = [
      [(TAKE, TAKE.replace("take 102", "take 103"))],
      r"Did not find an occurrence of the pattern\n  102\nin the target expression\n  List\.take 103",
      ['replyFrame_take']),
-    ('module', 'toy-seal-of-empty-claimed-no-sealing',
-     [(NIL, NIL.replace("ad [] := by", "ad [0] := by"))],
-     r"error: unsolved goals\ncase isTrue[\s\S]*?⊢ SessionUnitBraidT3\.u8 0#u8 = 0 → ¬↑pt = \[\]",
-     ['modelReply_notASealing_nil']),
-    ('module', 'lenient-open-made-to-check-the-leading-byte',
-     [(LENIENT, LENIENT.replace("if c.val = [] then", "if c.val.head? ≠ some 0#u8 then"))],
-     r"Tactic `rfl` failed: The left-hand side\n  ok \(if \(↑c\)\.head\? ≠ some 0#u8 then",
-     ['lenient_roundTrip_not_unique']),
     # the definitions, with the pins kept
-    ('pinned', 'no-sealing-premise-reversed-pinned',
-     [(NOT_SEALED_BODY, NOT_SEALED_BODY.replace("vecOf ct ≠ c", "vecOf ct = c"))],
+    ('pinned', 'tag-equation-reversed-pinned',
+     [(TAG_BODY, TAG_BODY.replace(") = Model.Kdf.hmac", ") ≠ Model.Kdf.hmac"))],
      r'Docstring on `#guard_msgs` does not match generated message',
-     ('pin', 'Tacenta.UnitLifecycleTamperedReply.NotASealingShape')),
-    ('pinned', 'uniqueness-law-weakened-pinned',
-     [(LAW_BODY, LAW_BODY.replace("ct.val = c.val", "ct.val.length = c.val.length"))],
+     ('pin', 'Tacenta.UnitLifecycleTamperedReply.TagMatches')),
+    ('pinned', 'tag-law-without-the-associated-data-pinned',
+     [(LAW_BODY, LAW_BODY.replace("(arrayOf k2) (sliceOf ad) (sliceOf c)", "(arrayOf k2) [] (sliceOf c)"))],
      r'Docstring on `#guard_msgs` does not match generated message',
-     ('pin', 'Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape')),
+     ('pin', 'Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape')),
+    ('pinned', 'no-tag-premise-made-true-pinned',
+     [(NOT_TAGGED_BODY, NOT_TAGGED_BODY.replace("Prop := ¬ TagMatches k2 ad c", "Prop := True"))],
+     r'Docstring on `#guard_msgs` does not match generated message',
+     ('pin', 'Tacenta.UnitLifecycleTamperedReply.NotTagged')),
 ]
 
 COMPOSING = {
@@ -209,11 +260,12 @@ COMPOSING = {
 INSIDE = {
     'tampered-frame-claimed-with-a-101-byte-header': 'initiator_refuses_tampered_reply',
     'honest-ciphertext-claimed-after-101-bytes': 'initiator_refuses_tampered_reply',
-    'no-sealing-claimed-under-the-peer-key-associated-data': 'initiator_refuses_tampered_reply',
+    'no-tag-claimed-under-the-peer-key-associated-data': 'initiator_refuses_tampered_reply',
     'freshness-claimed-against-the-initiator-own-key': 'initiator_refuses_tampered_reply',
-    'uniqueness-law-replaced-by-the-round-trip': 'initiator_refuses_tampered_reply',
+    'tag-law-replaced-by-the-round-trip': 'initiator_refuses_tampered_reply',
     'tampered-refusal-claimed-to-take-no-draw': 'initiator_refuses_tampered_reply',
     'tampered-refusal-claimed-as-the-stale-key-refusal': 'initiator_refuses_tampered_reply',
+    'no-tag-claimed-under-the-encryption-key': 'initiator_refuses_tampered_reply',
 }
 
 # The controls refused in a composing proof where it places a conjunct of a called theorem's conclusion unchanged,

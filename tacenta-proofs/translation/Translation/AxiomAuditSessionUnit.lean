@@ -218,11 +218,14 @@ that first success returned, on the same run: the repeat is recognised and the i
 order, the session returned is the one given, the source loses exactly one draw, and the step refines the model's.  No
 law is added beyond the receipt's; a repeat at a later session or of different bytes is not shown.
 `UnitLifecycleTamperedReply.lean` takes, on the run of the reply's receipt, every frame that keeps the reply's
-102-byte header and carries bytes no call of the boundary's `encrypt` returns under the reply's message keys and
-associated data (a per-run premise): the initiator's `decrypt` at the same session from the same source refuses it with
-`Aead`, leaves the session as it was and takes one draw, under the assumed law `AeadOpenSealUnique` (an opened
-ciphertext is the sealing of what it opened to), which a toy model satisfies and the round trip does not imply.
-Neither the law nor the premise is shown of the real AEAD, and a frame with changed header bytes is not covered.
+102-byte header and carries bytes that carry no HMAC-SHA256 tag under the reply's MAC key and associated data (a
+per-run premise): the initiator's `decrypt` at the same session from the same source refuses it with `Aead`, leaves the
+session as it was and takes one draw, under the assumed law `AeadOpenChecksTag` (the open accepts only bytes that carry
+the tag), which a toy model satisfies and the round trip does not imply, and conditional, like every encrypt result, on
+`AeadSealBounded`, which is false at the top of the length range, and on the decrypt oracle record's open clause
+`AeadOpenTotal` at the tampered ciphertext's length, false from about `2^61` bytes on a 64-bit target built with
+overflow checks.  Neither the law nor the premise is shown of the
+real AEAD, and a frame with changed header bytes is not covered.
 `UnitLifecycleSparseSkipKindT3.lean` composes the Session unit's sparse skip refinement with the refusal theorem of
 `UnitLifecycleTripleRefusalT3.lean`: at related states the skip's success is the model's detailed success, and a
 refusal leaves the state as it was and returns the error that maps to the model's refusal, of the same kind (the
