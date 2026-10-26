@@ -7,15 +7,19 @@ import Translation.UnitLifecycleResponderReplyReceipt
 it and the responder's reply, the initiator's public `Session::decrypt` at the session `s'` its first `encrypt` left,
 from the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`.  This module takes, on the same run,
 every frame that keeps the reply's header (its first 102 bytes) and carries in place of the reply's ciphertext bytes
-`cT` that no call of the boundary's `encrypt` returns under the reply's message keys and associated data, and shows
-that the same `decrypt`, at the same `s'` from the same `rng'`, refuses it with `Aead`, takes exactly the one draw the
-honest receipt takes, and leaves the session as it was.  It rests on one new assumed law about the boundary AEAD,
-`AeadOpenSealUnique`, and one new per-run premise about the frame, `NotASealing`.
+`cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and shows that the same `decrypt`, at
+the same `s'` from the same `rng'`, refuses it with `Aead`, takes exactly the one draw the honest receipt takes, and
+leaves the session as it was.  It rests on one new assumed law about the boundary AEAD, `AeadOpenChecksTag`, and one
+new per-run premise about the frame, `NotTagged`.  Like every encrypt result here, it is conditional on the seal's
+totality contracts (`AeadSealBounded` and the seal clause of `OracleOf`), which have no length premise and are false of
+the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row).
 
 ## How
 
-* `open_none_of_not_sealing` (bridge): under `AeadOpenSealUnique` and the decrypt oracle record's open clause, the
-  oracle's open of bytes that are no sealing under the keys and associated data is `none`.
+* `open_none_of_not_tagged` (bridge): under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the
+  oracle's open of bytes that carry no tag under the MAC key and associated data is `none`.
+* `not_notTagged_of_seal` (bridge): under `AeadOpenChecksTag`, `AeadRoundTrip` and the oracle record's seal clause,
+  the oracle's seal of a plaintext that leaves room for the seal carries its tag.
 * `tampered_reply_model_refusal` (model only): the model's public `decrypt` of the reply's header followed by any
   ciphertext, at the sender after its first message with the agreement at `keysSampled`, takes the same steps as for the
   reply (dispatch, decode, the agreement's receive, the first agreement, the draw, the draw's agreement, one
@@ -29,70 +33,73 @@ honest receipt takes, and leaves the session as it was.  It rests on one new ass
 
 ## The statements
 
-* `initiator_refuses_tampered_reply`: under the hypotheses of `initiator_receives_reply` and `AeadOpenSealUnique`, the
+* `initiator_refuses_tampered_reply`: under the hypotheses of `initiator_receives_reply` and `AeadOpenChecksTag`, the
   responder's `encrypt` returns `bytesR` and the initiator's `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok` of
   the responder's plaintext, taking exactly the draw `dA`; the reply's own ciphertext (the bytes after its first 102)
-  is a sealing, so `NotASealing` excludes it; and for every slice `frame` whose bytes are the first 102 bytes of
-  `bytesR` followed by bytes `cT` with `NotASealing` under the reply's message keys and associated data, the same call
-  on `frame` returns `Err(Aead)` with the session `s'` unchanged and a source after exactly the draw `dA`.
-* `tamper_laws_model`, `modelReply_openSealUnique`, `modelReply_notASealing_nil`, `modelReply_sealing_excluded`: the
-  law and the round trip hold in the reply's joint model, the empty ciphertext is no sealing there, and the toy's seal of
-  the empty plaintext is excluded by the premise.
-* `lenient_roundTrip_not_unique`: an interpretation whose open skips the toy's check of its leading byte meets
-  `AeadRoundTripShape` and fails `AeadOpenSealUniqueShape`: the new law is not implied by the round trip.
+  carries its tag, so `NotTagged` excludes it; and for every slice `frame` whose bytes are the first 102 bytes of
+  `bytesR` followed by bytes `cT` with `NotTagged` under the reply's MAC key and associated data, the same call on
+  `frame` returns `Err(Aead)` with the session `s'` unchanged and a source after exactly the draw `dA`.
+* `notTagged_of_short`, `tagMatches_append`: every ciphertext of fewer than 32 bytes meets the premise, under every key
+  and associated data, at the real constants included; no body followed by its tag does.
+* `tagged_reply_laws_model`, `tamper_laws_model`: every law of the reply's receipt, the round trip and the new law hold
+  in one interpretation, `Interp.modelTagged`, whose toy AEAD binds the MAC key and the associated data, and the empty
+  ciphertext meets the premise there.
+* `taggedLenient_roundTrip_not_checksTag`: an interpretation whose open skips the tag check meets `AeadRoundTripShape`
+  and fails `AeadOpenChecksTagShape`: the new law is not implied by the round trip.
+* `taggedTop_checksTag_not_openSealUnique`: with a seal that fails once plaintext, associated data and tag pass
+  `Usize.max / 2` (`isize::MAX` at both widths), the toy meets the new law and refutes the earlier one,
+  `AeadOpenSealUniqueShape`, which is kept only for this contrast.
 
 ## The laws and premises
 
-* `AeadOpenSealUnique` (new, **assumed**): `AeadOpenSealUniqueShape` at the real constants.  If the boundary's
-  `decrypt` of a ciphertext `c` under keys, IV and associated data `ad` returns `Ok v`, then its `encrypt` of `v` under
-  the same keys, IV and `ad` returns a ciphertext with the bytes of `c`.  A functional uniqueness law, not an
-  unforgeability statement: it says what an opened ciphertext is, not who can compute one.  It is true of the shipping
-  AEAD by reading below the top of the length range, and not proved.  At the top it is false: the open streams `ad` and
-  the ciphertext into the MAC, but the seal's `mac` first copies `ad ‖ ct` into a `Vec`, which panics on a capacity
-  overflow once their lengths sum past `isize::MAX` (about 2 GiB on a 32-bit target), so there the open can return
-  `Ok v` and the reseal of `v` does not return; `LIMITATIONS.md` records the same edge for `AeadSealBounded`.  The
-  run's associated data is a short header, and the law carries no length bound.  `tacenta-core/boundary/src/aead.rs`
-  seals with AES-256-CBC and PKCS#7 under the given keys and IV, then appends the full 32-byte HMAC-SHA256 tag over `ad ‖ ct`; it opens by comparing that tag in
-  constant time and only then decrypting and removing the padding.  An opened `c` is therefore `ct ‖ tag` with the tag
-  the HMAC of `ad ‖ ct`, and resealing what `ct` decrypts to gives `c` again when three facts hold, each read and none
-  proved: the locked `cipher` 0.4.4 refuses a ciphertext that is empty or not whole blocks, the locked `block-padding`
-  0.3.3 removes PKCS#7 padding strictly (every padding byte checked), and AES-256 encryption inverts its decryption
-  on a block.  The seal's tag (`tacenta_kdf::hmac_sha256`) and the open's check (RustCrypto `Mac`) are both
-  HMAC-SHA256 over the locked `hmac` 0.12.1.  The law would be false of a truncated tag comparison, a lenient padding
-  check, a decrypt that ignored trailing bytes or a random IV.  The model: `Interp.modelReply`, whose toy AEAD seals by
-  putting a zero byte in front and opens exactly the strings that begin with one.
-* `NotASealing` (new, **per-run premise**): no call of the real `encrypt` under the reply's message keys and
-  associated data returns the bytes `cT`.  It is a condition on the frame, not a law.  That an attacker who does not
-  hold the message key cannot produce a sealing is the unforgeability of HMAC-SHA256, which no theorem here states and
-  none can prove of the real function; this premise is where that assumption sits.  In the model, the empty
-  ciphertext meets it.  Together the law and the premise say no more than that the boundary's `decrypt` refuses those
-  bytes under those keys and that associated data; what the theorem adds is the session around that call: that the
-  call reaches the boundary's open with exactly the reply's message keys and associated data, and that the refusal is
-  `Aead`, leaves the session as it was and takes one draw.
-* The other premises are those of `initiator_receives_reply`, unchanged, `hfreshB` included.
+* `AeadOpenChecksTag` (new, **assumed**): `AeadOpenChecksTagShape` at the real constants.  If the boundary's `decrypt`
+  of `c` under keys, IV and associated data `ad` returns a plaintext, then the last 32 bytes of `c` are `Model.Kdf.hmac`
+  of the MAC key over `ad` followed by the bytes before them (`TagMatches`).  It says what an accepted ciphertext
+  carries, not who can compute one, and mentions no seal and no length.  It is true of the shipping open by reading of
+  `tacenta-core/boundary/src/aead.rs`, and not proved: the open refuses fewer than 32 bytes, compares the full 32-byte
+  tag with RustCrypto `Mac::verify_slice` before it decrypts, and `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104
+  HMAC-SHA256, which `Model.Kdf.hmac` defines (checked against RFC 4231 examples by `native_decide` in `tacenta-model`,
+  not in any proof's base).  It would be false of a truncated or short-circuit comparison, of a tag over other bytes
+  than `ad` and the ciphertext, or of an open that accepted on any other condition.  It is the AEAD half of
+  REQ-AUTH-06.  The model: `Interp.modelTagged`, whose toy seal appends the model's HMAC tag and whose open checks it.
+* `NotTagged` (new, **per-run premise**): the replaced bytes `cT` do not carry that tag under the reply's MAC key and
+  associated data.  It is a condition on bytes, the same at every interpretation, not a law.  That an attacker who does
+  not hold the message key cannot produce bytes that carry it is the unforgeability of HMAC-SHA256, which no theorem
+  here states; this premise is where that assumption sits.  Together the law and the premise say no more than that the
+  boundary's `decrypt` refuses those bytes under that key and that associated data; what the theorem adds is the
+  session around that call: that the call reaches the boundary's open with exactly the reply's message keys and
+  associated data, and that the refusal is `Aead`, leaves the session as it was and takes one draw.
+* The other premises are those of `initiator_receives_reply`, unchanged, `hfreshB` and `AeadSealBounded` included.
+* The earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself), is no longer assumed: it was false of
+  the shipping functions at the top of the length range and under memory exhaustion, because the seal copies
+  `ad ‖ ct` into one allocation and the open does not.
 
 ## Trust
 
 `initiator_refuses_tampered_reply` rests on the kernel and opaque constants of the unit (pins below), as
-`initiator_receives_reply` does; it lists no compiler-trust axiom.
+`initiator_receives_reply` does; it lists no compiler-trust axiom.  `TagMatches` is irreducible, so that Lean compares
+two mentions of it by their arguments and never evaluates the HMAC to tell them apart.
 
 ## Non-vacuity
 
-`tamper_laws_model` puts the round trip, the new law and the per-run premise in `Interp.modelReply`, the interpretation
-at which `reply_receipt_laws_model` puts every other law the reply's receipt takes.  The toy AEAD ignores keys, IV and
-associated data, so a frame sealed under another key is a sealing there: the toy shows the law and the premise are
-satisfiable together, not that any AEAD authenticates.  `lenient_roundTrip_not_unique` shows the law excludes an
-interpretation the round trip admits.  On the run, the reply's own ciphertext fails the premise (a conjunct of the
-headline), so the refusal and the honest receipt cannot both apply to one frame.  The run's other premises are reached
-at the real constants under the laws by `first_send_reply_receipt_reachable`; no frame meeting `NotASealing` at the
-real constants is exhibited.
+`tagged_reply_laws_model` and `tamper_laws_model` put every law the theorem takes in `Interp.modelTagged`, which is
+`Interp.modelReply` with a toy AEAD that binds the key and the associated data.  It encrypts nothing, so it shows the
+laws are satisfiable together, not that any AEAD is confidential.  The premise is met at every interpretation, the real
+constants included, by every ciphertext shorter than 32 bytes (`notTagged_of_short`), so the headline applies at the
+real constants to the reply's header followed by up to 31 arbitrary bytes.  The premise excludes every body followed by
+its tag (`tagMatches_append`) and the reply's own ciphertext (a conjunct of the headline), so the refusal and the honest
+receipt cannot both apply to one frame.  The run's other premises are reached at the real constants under the laws by
+`first_send_reply_receipt_reachable`.
 
 ## What it does not show
 
-* That the shipping AEAD meets `AeadOpenSealUnique`: it is assumed, true by reading below the top of the length range
-  and false at it, not proved; an independent verified implementation's statements (a bad tag refused, and the round
-  trip given AES inversion) are of another shape and about another implementation.
-* That a frame an attacker can produce meets `NotASealing`: that is the unforgeability of HMAC-SHA256, not stated here.
+* That the shipping AEAD meets `AeadOpenChecksTag`: it is assumed, by reading, not proved; an independent verified
+  implementation proves the same shape, a bad tag refused, of its own code and not of the shipping one.
+* That a frame an attacker can produce meets `NotTagged`: that is the unforgeability of HMAC-SHA256, not stated.
+* A frame whose tag verifies but whose padding is refused: refused by the shipping open, by reading, but outside the
+  premise.
+* That the responder's `encrypt` returns `bytesR` for reply plaintexts near `isize::MAX`, which the shipping seal does
+  not: `AeadSealBounded` is assumed for every length; see `LIMITATIONS.md`, the totality row.
 * A frame whose header bytes were changed (ratchet key, counters, epochs, agreement type or chunk), a frame shorter than
   the header, or a frame of another type: those reach other associated data, another Diffie-Hellman step or a decode
   refusal, and are not covered.
@@ -124,57 +131,83 @@ open Tacenta.UnitLifecycleResponderReplyReceipt (replyAd reply_receive_key)
 
 /-! ## The law and the per-run premise -/
 
-/-- The boundary AEAD opens only what it seals, over an interpretation `I`: if opening the ciphertext `c` with keys,
+/-- The bytes `c` carry the full HMAC-SHA256 tag under `k2` over `ad` and the bytes before the tag: the last 32
+bytes of `c` are `Model.Kdf.hmac k2 (ad ++ the rest)`.  When `c` is shorter than 32 bytes, `c.length - 32` is zero,
+the "last 32 bytes" are all of `c`, and no 32-byte tag equals them.  Irreducible, so that Lean compares two
+mentions by their arguments and never evaluates the HMAC to tell them apart; the proofs unfold it by name. -/
+@[irreducible] def TagMatches (k2 ad c : Model.Lifecycle.Bytes) : Prop :=
+  c.drop (c.length - 32) = Model.Kdf.hmac k2 (ad ++ c.take (c.length - 32))
+
+/-- The boundary AEAD's open checks the full tag, over an interpretation `I`: if opening `c` under keys, IV and
+associated data `ad` returns a plaintext, then `c` carries the HMAC-SHA256 tag under the MAC key `k2` over `ad` and
+the bytes before the tag.  It says what an accepted ciphertext carries, not who can compute one. -/
+def AeadOpenChecksTagShape (I : Interp) : Prop :=
+  ∀ (k1 k2 : Array U8 32#usize) (iv : Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
+    I.aeadDecrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
+    TagMatches (arrayOf k2) (sliceOf ad) (sliceOf c)
+
+/-- **Assumed law**: `AeadOpenChecksTagShape` at the real constants. -/
+def AeadOpenChecksTag : Prop := AeadOpenChecksTagShape Interp.real
+
+/-- At the real constants, `AeadOpenChecksTag` is the statement about the real `decrypt`. -/
+theorem aeadOpenChecksTag_is : AeadOpenChecksTag ↔
+    ∀ (k1 k2 : Array U8 32#usize) (iv : Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
+      tacenta_boundary.aead.decrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
+      TagMatches (arrayOf k2) (sliceOf ad) (sliceOf c) :=
+  Iff.rfl
+
+/-- **Per-run premise**: the bytes `c` carry no valid tag under `k2` over `ad`.  A condition on bytes, the same at
+every interpretation. -/
+def NotTagged (k2 ad c : Model.Lifecycle.Bytes) : Prop := ¬ TagMatches k2 ad c
+
+/-- **Bytes shorter than a tag carry none**: the premise holds of every ciphertext of fewer than 32 bytes, under
+every key and associated data, at every interpretation (the real constants included, since the premise names
+none). -/
+theorem notTagged_of_short (k2 ad c : Model.Lifecycle.Bytes) (h : c.length < 32) : NotTagged k2 ad c := by
+  intro ht
+  unfold TagMatches at ht
+  have h1 := congrArg List.length ht
+  rw [Model.Kdf.hmac_length] at h1
+  simp only [List.length_drop] at h1
+  simp [Model.Kdf.hashLen] at h1
+  omega
+
+/-- **Bytes made of a body and the tag of it carry that tag**: the premise excludes every byte string that is a body
+followed by `Model.Kdf.hmac k2 (ad ++ body)`. -/
+theorem tagMatches_append (k2 ad body : Model.Lifecycle.Bytes) :
+    TagMatches k2 ad (body ++ Model.Kdf.hmac k2 (ad ++ body)) := by
+  unfold TagMatches
+  have hl : (body ++ Model.Kdf.hmac k2 (ad ++ body)).length - 32 = body.length := by
+    simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]
+  rw [hl, List.drop_left, List.take_left]
+
+/-- The earlier law, an opened ciphertext reseals to itself, over an interpretation `I`: if opening `c` with keys,
 IV and associated data `ad` returns `v`, then sealing `v` with the same keys, IV and associated data returns a
-ciphertext with the bytes of `c`.  A functional uniqueness law: it says nothing about who can compute a sealing. -/
+ciphertext with the bytes of `c`.  Not assumed by any theorem: false of the shipping functions at the top of the
+length range; `taggedTop_checksTag_not_openSealUnique` shows a seal that fails there refutes it while the tag law
+holds. -/
 def AeadOpenSealUniqueShape (I : Interp) : Prop :=
   ∀ (k1 k2 : Array U8 32#usize) (iv : Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
     I.aeadDecrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
     ∃ ct, I.aeadEncrypt k1 k2 iv (alloc.vec.Vec.deref v) ad = ok ct ∧ ct.val = c.val
-
-/-- **Assumed law**: `AeadOpenSealUniqueShape` at the real constants. -/
-def AeadOpenSealUnique : Prop := AeadOpenSealUniqueShape Interp.real
-
-/-- At the real constants, `AeadOpenSealUnique` is the statement about the real functions. -/
-theorem aeadOpenSealUnique_is : AeadOpenSealUnique ↔
-    ∀ (k1 k2 : Array U8 32#usize) (iv : Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
-      tacenta_boundary.aead.decrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
-      ∃ ct, tacenta_boundary.aead.encrypt k1 k2 iv (alloc.vec.Vec.deref v) ad = ok ct ∧ ct.val = c.val :=
-  Iff.rfl
-
-/-- No plaintext seals to the bytes `c`, over an interpretation `I`: no call of the boundary's `encrypt` whose keys,
-IV and associated data have the bytes `k1`, `k2`, `iv` and `ad` returns a ciphertext with the bytes `c`. -/
-def NotASealingShape (I : Interp) (k1 k2 iv ad c : Model.Lifecycle.Bytes) : Prop :=
-  ∀ (K1 K2 : Array U8 32#usize) (IV : Array U8 16#usize) (pt A : Slice U8) (ct : alloc.vec.Vec U8),
-    arrayOf K1 = k1 → arrayOf K2 = k2 → arrayOf IV = iv → sliceOf A = ad →
-    I.aeadEncrypt K1 K2 IV pt A = ok ct → vecOf ct ≠ c
-
-/-- **Per-run premise**: `NotASealingShape` at the real constants. -/
-def NotASealing (k1 k2 iv ad c : Model.Lifecycle.Bytes) : Prop := NotASealingShape Interp.real k1 k2 iv ad c
-
-/-- At the real constants, `NotASealing` is the statement about the real `encrypt`. -/
-theorem notASealing_is (k1 k2 iv ad c : Model.Lifecycle.Bytes) : NotASealing k1 k2 iv ad c ↔
-    ∀ (K1 K2 : Array U8 32#usize) (IV : Array U8 16#usize) (pt A : Slice U8) (ct : alloc.vec.Vec U8),
-      arrayOf K1 = k1 → arrayOf K2 = k2 → arrayOf IV = iv → sliceOf A = ad →
-      tacenta_boundary.aead.encrypt K1 K2 IV pt A = ok ct → vecOf ct ≠ c :=
-  Iff.rfl
 
 /-! ## The open, through the oracle record -/
 
 section Bridges
 
 open Tacenta.UnitLifecycleDecryptRatchetT3 (DecryptOracleOf)
+open Tacenta.UnitLifecycleResponderFirstReceipt (AeadRoundTrip)
 
-/-- **An oracle open of bytes that are no sealing is refused**: under `AeadOpenSealUnique` and the decrypt oracle
-record's open clause, for keys of 32, 32 and 16 bytes and a ciphertext and associated data that fit a slice, if no
-call of the real `encrypt` under those keys and associated data returns the ciphertext's bytes, then the oracle's
-open of them returns `none`. -/
-theorem open_none_of_not_sealing (hu : AeadOpenSealUnique) {R : Type} {rc : rand_core_1.RngCore R}
+/-- **An oracle open of bytes that carry no tag is refused**: under `AeadOpenChecksTag` and the decrypt oracle
+record's open clause, for keys of 32, 32 and 16 bytes and a ciphertext and associated data that fit a slice, if the
+ciphertext's bytes carry no HMAC-SHA256 tag under the MAC key over the associated data (`NotTagged`), then the
+oracle's open of them returns `none`. -/
+theorem open_none_of_not_tagged (hu : AeadOpenChecksTag) {R : Type} {rc : rand_core_1.RngCore R}
     {crc : rand_core_1.CryptoRng R} {dh : DhView} {trace : R → List Model.Lifecycle.Key}
     {oracle : Model.Lifecycle.Oracle} (oracleOf : DecryptOracleOf rc crc dh trace oracle)
     (k1 k2 iv : Model.Lifecycle.Bytes) (hk1 : k1.length = 32) (hk2 : k2.length = 32) (hiv : iv.length = 16)
     (c ad : Model.Lifecycle.Bytes) (hc : c.length ≤ Usize.max) (had : ad.length ≤ Usize.max)
-    (hns : NotASealing k1 k2 iv ad c) :
+    (hnt : NotTagged k2 ad c) :
     oracle.aeadOpen k1 k2 iv c ad = none := by
   let K1 : Array U8 32#usize := arrayOfBytes k1 hk1
   let K2 : Array U8 32#usize := arrayOfBytes k2 hk2
@@ -189,21 +222,24 @@ theorem open_none_of_not_sealing (hu : AeadOpenSealUnique) {R : Type} {rc : rand
   cases res with
   | Err e => rfl
   | Ok v =>
-    obtain ⟨ct, hct, hval⟩ := hu K1 K2 IV C A v hres
-    exact absurd (by simp only [vecOf, hval]; exact hC) (hns K1 K2 IV (alloc.vec.Vec.deref v) A ct
-      (arrayOf_arrayOfBytes (n := 32#usize) k1 hk1) (arrayOf_arrayOfBytes (n := 32#usize) k2 hk2) (arrayOf_arrayOfBytes (n := 16#usize) iv hiv) hA hct)
+    have ht := hu K1 K2 IV C A v hres
+    rw [hC, hA, show arrayOf K2 = k2 from arrayOf_arrayOfBytes (n := 32#usize) k2 hk2] at ht
+    exact absurd ht hnt
 
 open Tacenta.UnitLifecycleT3 (OracleOf) in
-/-- **A seal is a sealing**: for keys of 32, 32 and 16 bytes, a plaintext slice and associated data that fit a slice,
-the oracle's seal is the bytes of a call of the real `encrypt` under those keys and associated data, so it is not
-`NotASealing`.  Under the oracle record's seal clause alone. -/
-theorem not_notASealing_of_seal {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+/-- **A seal carries its tag**: under `AeadOpenChecksTag`, `AeadRoundTrip` and the oracle record's seal clause, for
+keys of 32, 32 and 16 bytes, a plaintext slice of at most `Usize.max - 48` bytes and associated data that fit a
+slice, the oracle's seal is not `NotTagged` under the MAC key and the associated data: the real `encrypt` returns it,
+the real `decrypt` opens it (the round trip), and the law then gives its tag. -/
+theorem not_notTagged_of_seal (hu : AeadOpenChecksTag) (haead : AeadRoundTrip) {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {dh : DhView} {kem : KemView} {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle}
     (oracleOf : OracleOf rc crc dh kem trace oracle)
     (k1 k2 iv : Model.Lifecycle.Bytes) (hk1 : k1.length = 32) (hk2 : k2.length = 32) (hiv : iv.length = 16)
-    (pt : Slice U8) (ad : Model.Lifecycle.Bytes) (had : ad.length ≤ Usize.max) :
-    ¬ NotASealing k1 k2 iv ad (oracle.aeadSeal k1 k2 iv (sliceOf pt) ad) := by
-  intro hns
+    (pt : Slice U8) (hpt : pt.val.length + 48 ≤ Usize.max) (ad : Model.Lifecycle.Bytes)
+    (had : ad.length ≤ Usize.max) :
+    ¬ NotTagged k2 ad (oracle.aeadSeal k1 k2 iv (sliceOf pt) ad) := by
+  intro hnt
   let K1 : Array U8 32#usize := arrayOfBytes k1 hk1
   let K2 : Array U8 32#usize := arrayOfBytes k2 hk2
   let IV : Array U8 16#usize := arrayOfBytes iv hiv
@@ -211,8 +247,12 @@ theorem not_notASealing_of_seal {R : Type} {rc : rand_core_1.RngCore R} {crc : r
   have hA : sliceOf A = ad := Tacenta.UnitSatisfiabilityBraidStates.sliceOf_sliceOfBytes ad had
   obtain ⟨ct, hct, hvec⟩ := oracleOf.aeadSeal K1 K2 IV pt A
   simp only [K1, K2, IV, arrayOf_arrayOfBytes, hA] at hvec
-  exact hns K1 K2 IV pt A ct (arrayOf_arrayOfBytes (n := 32#usize) k1 hk1) (arrayOf_arrayOfBytes (n := 32#usize) k2 hk2)
-    (arrayOf_arrayOfBytes (n := 16#usize) iv hiv) hA hct hvec
+  obtain ⟨v, hv, -⟩ := haead K1 K2 IV pt A ct hpt hct
+  have ht := hu K1 K2 IV (alloc.vec.Vec.deref ct) A v hv
+  rw [hA, show arrayOf K2 = k2 from arrayOf_arrayOfBytes (n := 32#usize) k2 hk2] at ht
+  apply hnt
+  rw [← hvec]
+  exact ht
 
 end Bridges
 
@@ -330,17 +370,18 @@ open Tacenta.UnitLifecycleResponderReplyReceipt (fresh_public_of_draw initiator_
   initiator_candidate_agreement first_send_model_session replyAd_length_le initiator_receives_reply)
 
 /-- **The initiator's `decrypt` refuses a tampered reply, on the run of its first send.**  Under the hypotheses of
-`initiator_receives_reply` (`hfreshB` included) and the assumed law `AeadOpenSealUnique`: the responder's `encrypt` at
-`sB'` returns `bytesR`, the reply frame under the key the initiator's receiving chain derives, and the initiator's
-public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with `ptA` the bytes of `ptR`, taking exactly the draw
-`dA`; the reply's own ciphertext, the bytes of `bytesR` after its first 102, is a sealing under the reply's message
-keys and associated data, so `NotASealing` excludes it; and for every slice `frame` whose bytes are the first 102 bytes
-of `bytesR` (the reply's header) followed by bytes `cT` that are `NotASealing` under those keys and associated data
-(the per-run premise), the same call on `frame` at `s'` from `rng'` returns `Err(Aead)`, returns the session `s'` as
-it was, and leaves a source holding exactly the draws after `dA`.  A frame whose header bytes differ is not covered.
-No compiler-trust axiom (the pin). -/
+`initiator_receives_reply` (`hfreshB` and `AeadSealBounded` included) and the assumed law `AeadOpenChecksTag`: the
+responder's `encrypt` at `sB'` returns `bytesR`, the reply frame under the key the initiator's receiving chain derives,
+and the initiator's public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with `ptA` the bytes of `ptR`,
+taking exactly the draw `dA`; the reply's own ciphertext, the bytes of `bytesR` after its first 102, carries its tag
+under the reply's MAC key and associated data, so `NotTagged` excludes it; and for every slice `frame` whose bytes are
+the first 102 bytes of `bytesR` (the reply's header) followed by bytes `cT` that are `NotTagged` under that MAC key and
+that associated data (the per-run premise), the same call on `frame` at `s'` from `rng'` returns `Err(Aead)`, returns
+the session `s'` as it was, and leaves a source holding exactly the draws after `dA`.  A frame whose header bytes
+differ is not covered.  Conditional, like every encrypt result, on `AeadSealBounded`, which has no length premise and
+is false of the shipping seal at the top of the length range.  No compiler-trust axiom (the pin). -/
 theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
-    (hu : AeadOpenSealUnique) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (hu : AeadOpenChecksTag) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
     (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (braid : BraidSendRefinementContracts rc oracle.braidKem)
@@ -400,23 +441,15 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
         (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2 (arrayOf q.sparseReceive)) (sliceOf ptR) ∧
       lifecycle.Session.decrypt rc crc s' (alloc.vec.Vec.deref bytesR) rng' =
         ok (core.result.Result.Ok ptA, s'', rngA') ∧ ptA.val = ptR.val ∧ trace rngA' = restA ∧
-      ¬ NotASealing
-        (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-          (arrayOf q.sparseReceive)) .tacenta).1
+      ¬ NotTagged
         (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
           (arrayOf q.sparseReceive)) .tacenta).2.1
-        (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-          (arrayOf q.sparseReceive)) .tacenta).2.2
         (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) ((vecOf bytesR).drop 102) ∧
       ∀ (frame : Slice Std.U8) (cT : Model.Lifecycle.Bytes),
         sliceOf frame = (vecOf bytesR).take 102 ++ cT →
-        NotASealing
-          (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-            (arrayOf q.sparseReceive)) .tacenta).1
+        NotTagged
           (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
             (arrayOf q.sparseReceive)) .tacenta).2.1
-          (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
-            (arrayOf q.sparseReceive)) .tacenta).2.2
           (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) cT →
         ∃ rngT : R,
           lifecycle.Session.decrypt rc crc s' frame rng' =
@@ -472,10 +505,10 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
     simp [Model.State.messageKeys, Model.Kdf.hkdf_length]
   have had := replyAd_length_le dhCodec q.toInitiatorOutputParts _ hlen
   refine ⟨dSend, bytesR, sB'', ptA, s'', rngA', hagreeB, hcallR, hbytesR, hcallA, hpt, hdr, ?_, ?_⟩
-  -- the honest ciphertext is a sealing
+  -- the honest ciphertext carries its tag
   · rw [hbytesR, replyFrame_drop _ _ _ _ _ hlen]
-    exact not_notASealing_of_seal oracleOfB _ _ _ hk1 hk2 hiv ptR _ had
-  -- a frame with the reply's header and a ciphertext that is no sealing
+    exact not_notTagged_of_seal hu haead oracleOfB _ _ _ hk1 hk2 hiv ptR (by omega) _ had
+  -- a frame with the reply's header and a ciphertext that carries no tag
   intro frame cT hframeT hns
   rw [hbytesR, replyFrame_take _ _ _ _ _ hlen] at hframeT
   have hmsg : sliceOf frame = Model.CompositeHeader.encodeMessage (replyComposite (oracleB.dhPublic dB)) cT :=
@@ -485,7 +518,7 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
     rw [hmsg] at h1
     simp only [Model.CompositeHeader.encodeMessage, List.length_append] at h1
     omega
-  have hopen := open_none_of_not_sealing hu oracleOfA _ _ _ hk1 hk2 hiv cT _ hcT had hns
+  have hopen := open_none_of_not_tagged hu oracleOfA _ _ _ hk1 hk2 hiv cT _ hcT had hns
   -- the decrypt refinement at the session the first send left, on the tampered frame
   let mA := (Model.Lifecycle.encrypt view oracle (establishedModelOf dh q.session) (sliceOf plaintext)).session
   have hadA : mA.identityAd = vecOf q.identityAd := by simp only [mA, hmA]; rfl
@@ -531,144 +564,436 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
 
 end Comp
 
-/-! ## The law in a model, and an AEAD that meets the round trip but not the law -/
+
+/-! ## The law in a model that binds the key and the associated data, and the contrasts -/
 
 section JointModel
 
-open Tacenta.UnitOracleModel (sealModel openModel)
-open Tacenta.UnitLifecycleResponderReplyReceipt (Interp.modelReply)
+open Tacenta.UnitSatisfiabilityJoint (Interp Interp.real)
+open Tacenta.UnitLifecycleIntegrationScreen (byteRng byteCrc byteTrace)
+open Tacenta.UnitLifecycleResponderFirstFrame (DhAgreeSymmetricShape FirstFrameSuccessShape PoolEntry
+  basePoint_ne_zero)
+open Tacenta.UnitLifecycleResponderFirstReceipt (DhAgreeContributoryShape)
+open Tacenta.UnitLifecycleEstablishedEncrypt (toyKemR zeroSeed oneSeed EncryptExtraLawsShape
+  established_encrypt_laws_model encapResult encapFill)
+open Tacenta.UnitLifecycleDecryptRatchetScreen (DhViewShape)
+open Tacenta.UnitOracleShape (InterpO DhViewOf KemViewOf)
+open Tacenta.UnitSatisfiabilityBraidAgreements (toU8 u8_toU8)
+open Tacenta.UnitLifecycleResponderReplyReceipt (Interp.modelReply replyPub replyPub_canonical replyPub_zeros
+  DhPublicNotConstantShape modelReply_dhCodec modelReply_dhAgree modelReply_symmetric modelReply_contributory
+  modelReply_notConstant)
 
-/-- The toy open accepts a ciphertext only when its first byte is zero, and returns the rest. -/
-theorem openModel_ok (c : Slice U8) (v : alloc.vec.Vec U8) (h : openModel c = .Ok v) :
-    c.val = 0#u8 :: v.val := by
-  unfold openModel at h
-  split at h
-  · rename_i x rest hc
-    split at h
-    · rename_i hx
-      cases h
-      subst hx
-      exact hc
-    · cases h
-  · cases h
+/-- The toy tag of a body under a MAC key and associated data: the model's HMAC of the key over the associated data
+followed by the body, as bytes of the translation. -/
+def toyTag (k2 : Array U8 32#usize) (ad : Slice U8) (body : List U8) : List U8 :=
+  (Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ body.map Tacenta.SessionUnitBraidT3.u8)).map toU8
 
-/-- The toy seal puts a zero byte in front of a plaintext that leaves room for it. -/
-theorem sealModel_val (p : Slice U8) (h : p.val.length + 1 ≤ Usize.max) :
-    (sealModel p).val = 0#u8 :: p.val := by
-  unfold sealModel
-  rw [dif_pos h]
+/-- The toy tag is 32 bytes. -/
+theorem toyTag_length (k2 : Array U8 32#usize) (ad : Slice U8) (body : List U8) :
+    (toyTag k2 ad body).length = 32 := by
+  simp [toyTag, Model.Kdf.hmac_length, Model.Kdf.hashLen]
 
-/-- **`AeadOpenSealUniqueShape` holds in the reply's joint model** (`Interp.modelReply`, whose AEAD is the toy of
-`UnitOracleModel`: seal puts a zero byte in front, open accepts exactly a leading zero byte and returns the rest):
-what the toy opens is the toy's seal of what it opened to.  The toy ignores keys, IV and associated data. -/
-theorem modelReply_openSealUnique : AeadOpenSealUniqueShape Interp.modelReply := by
+/-- The toy tag's bytes are the model's HMAC. -/
+theorem toyTag_bytes (k2 : Array U8 32#usize) (ad : Slice U8) (body : List U8) :
+    (toyTag k2 ad body).map Tacenta.SessionUnitBraidT3.u8 =
+      Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ body.map Tacenta.SessionUnitBraidT3.u8) := by
+  simp [toyTag, List.map_map, Function.comp_def, u8_toU8]
+
+/-- The toy tagged seal: the plaintext followed by its toy tag, when that fits a slice; the plaintext itself
+otherwise (a totality fallback the round trip's length premise excludes).  It encrypts nothing. -/
+def sealTagged (k2 : Array U8 32#usize) (p ad : Slice U8) : alloc.vec.Vec U8 :=
+  if h : p.val.length + 32 ≤ Usize.max then
+    ⟨p.val ++ toyTag k2 ad p.val, by simp [toyTag_length]; omega⟩
+  else ⟨p.val, p.property⟩
+
+/-- The toy tagged open: it accepts exactly the bytes that carry the tag under the MAC key and the associated data
+(the equation of `TagMatches`, written out so that it is decided by the equality of byte lists, with no instance of
+its own), and returns the bytes before the tag. -/
+def openTagged (k2 : Array U8 32#usize) (c ad : Slice U8) :
+    core.result.Result (alloc.vec.Vec U8) Unit :=
+  if (sliceOf c).drop ((sliceOf c).length - 32) =
+      Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ (sliceOf c).take ((sliceOf c).length - 32)) then
+    .Ok ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩
+  else .Err ()
+
+/-- `Interp.modelReply` with the toy tagged AEAD: the seal appends the model's HMAC under the MAC key over the
+associated data and the plaintext, and the open checks it.  Unlike `Interp.modelReply`'s, this AEAD binds the MAC
+key and the associated data.  Every other field is `Interp.modelReply`'s.  A toy: it encrypts nothing. -/
+noncomputable def Interp.modelTagged : Interp :=
+  { Interp.modelReply with
+    aeadEncrypt := fun _ k2 _ p ad => ok (sealTagged k2 p ad)
+    aeadDecrypt := fun _ k2 _ c ad => ok (openTagged k2 c ad) }
+
+/-- **`AeadOpenChecksTagShape` holds in the tagged model**: its open accepts only bytes that carry the tag. -/
+theorem modelTagged_checksTag : AeadOpenChecksTagShape Interp.modelTagged := by
   intro k1 k2 iv c ad v h
-  have h' : openModel c = .Ok v := by
-    have h0 : ok (openModel c) = ok (core.result.Result.Ok v) := h
+  have h' : openTagged k2 c ad = .Ok v := by
+    have h0 : ok (openTagged k2 c ad) = ok (core.result.Result.Ok v) := h
     injection h0
-  have hc := openModel_ok c v h'
-  have hlen : (alloc.vec.Vec.deref v).val.length + 1 ≤ Usize.max := by
-    have := c.property
-    rw [hc] at this
-    simp at this
-    show v.val.length + 1 ≤ Usize.max
-    omega
-  refine ⟨sealModel (alloc.vec.Vec.deref v), rfl, ?_⟩
-  rw [sealModel_val _ hlen, hc]
-  rfl
+  unfold openTagged at h'
+  split at h'
+  · rename_i ht
+    have ht' : TagMatches (arrayOf k2) (sliceOf ad) (sliceOf c) := by unfold TagMatches; exact ht
+    exact ht'
+  · cases h'
 
-/-- **The empty ciphertext is no sealing in the reply's joint model**, under every key, IV and associated data: the
-toy's seal is never empty.  So the per-run premise `NotASealingShape` holds there. -/
-theorem modelReply_notASealing_nil (k1 k2 iv ad : Model.Lifecycle.Bytes) :
-    NotASealingShape Interp.modelReply k1 k2 iv ad [] := by
-  intro K1 K2 IV pt A ct _ _ _ _ hct
-  have hct' : ok (sealModel pt) = ok ct := hct
+/-- The toy tagged seal of a plaintext that leaves room for the tag is the plaintext followed by its toy tag. -/
+theorem sealTagged_val (k2 : Array U8 32#usize) (p ad : Slice U8) (h : p.val.length + 32 ≤ Usize.max) :
+    (sealTagged k2 p ad).val = p.val ++ toyTag k2 ad p.val := by
+  unfold sealTagged; rw [dif_pos h]
+
+/-- **The round trip holds in the tagged model**: the open of a seal returns the plaintext. -/
+theorem modelTagged_roundTrip : AeadRoundTripShape Interp.modelTagged := by
+  intro k1 k2 iv pt ad ct hpt hct
+  have hct' : ok (sealTagged k2 pt ad) = ok ct := hct
   injection hct' with hct''
   subst hct''
-  unfold sealModel
+  have hval := sealTagged_val k2 pt ad (by omega)
+  have hs : sliceOf (alloc.vec.Vec.deref (sealTagged k2 pt ad)) =
+      sliceOf pt ++ Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ sliceOf pt) := by
+    show (sealTagged k2 pt ad).val.map _ = _
+    rw [hval, List.map_append, toyTag_bytes]; rfl
+  have htag : TagMatches (arrayOf k2) (sliceOf ad) (sliceOf (alloc.vec.Vec.deref (sealTagged k2 pt ad))) := by
+    unfold TagMatches
+    rw [hs]
+    have hl : (sliceOf pt ++ Model.Kdf.hmac (arrayOf k2) (sliceOf ad ++ sliceOf pt)).length - 32 =
+        (sliceOf pt).length := by
+      simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]
+    rw [hl, List.drop_left, List.take_left]
+  refine ⟨⟨(alloc.vec.Vec.deref (sealTagged k2 pt ad)).val.take
+      ((alloc.vec.Vec.deref (sealTagged k2 pt ad)).val.length - 32), ?_⟩, ?_, ?_⟩
+  · have := (alloc.vec.Vec.deref (sealTagged k2 pt ad)).property; simp; omega
+  · show ok (openTagged k2 (alloc.vec.Vec.deref (sealTagged k2 pt ad)) ad) = _
+    unfold openTagged
+    rw [if_pos (by unfold TagMatches at htag; exact htag)]
+  · have hd : (alloc.vec.Vec.deref (sealTagged k2 pt ad)).val = (sealTagged k2 pt ad).val := rfl
+    show List.take _ (alloc.vec.Vec.deref (sealTagged k2 pt ad)).val = pt.val
+    rw [hd, hval]
+    simp [toyTag_length]
+
+/-- **The seal bound holds in the tagged model**: its seal returns, at most 48 bytes longer than the plaintext. -/
+theorem modelTagged_sealBounded :
+    Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape Interp.modelTagged := by
+  intro ek mk iv p ad
+  refine ⟨sealTagged mk p ad, rfl, ?_⟩
+  unfold sealTagged
   split
-  · simp [vecOf]
-  · rename_i hlong
-    intro hnil
-    have : pt.val = [] := by simpa [vecOf] using hnil
-    rw [this] at hlong
-    have h1 : 1 ≤ Usize.max := by scalar_tac
-    simp at hlong
-    omega
+  · simp [toyTag_length]
+  · simp
 
-/-- **The toy's sealing of the empty plaintext is a sealing**: for keys of 32, 32 and 16 bytes and associated data
-that fits a slice, the one-byte ciphertext `[0]` is the toy's seal of the empty plaintext, so `NotASealingShape`
-fails there.  The premise excludes the ciphertexts the model seals. -/
-theorem modelReply_sealing_excluded (k1 k2 iv ad : Model.Lifecycle.Bytes) (hk1 : k1.length = 32)
-    (hk2 : k2.length = 32) (hiv : iv.length = 16) (had : ad.length ≤ Usize.max) :
-    ¬ NotASealingShape Interp.modelReply k1 k2 iv ad [0] := by
-  intro hns
-  let A := Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes ad had
-  have hA : sliceOf A = ad := Tacenta.UnitSatisfiabilityBraidStates.sliceOf_sliceOfBytes ad had
-  refine hns (arrayOfBytes k1 hk1) (arrayOfBytes k2 hk2) (arrayOfBytes iv hiv) (Slice.new U8) A
-    (sealModel (Slice.new U8)) (arrayOf_arrayOfBytes (n := 32#usize) k1 hk1)
-    (arrayOf_arrayOfBytes (n := 32#usize) k2 hk2) (arrayOf_arrayOfBytes (n := 16#usize) iv hiv) hA rfl ?_
-  rw [vecOf, sealModel_val _ (by show ([] : List U8).length + 1 ≤ Usize.max; simp; scalar_tac)]
-  rfl
+/-- **Open totality holds in the tagged model**: its open returns. -/
+theorem modelTagged_open : Tacenta.UnitSatisfiabilityJoint.AeadOpenShape Interp.modelTagged :=
+  fun _ _ _ _ _ => ⟨_, rfl⟩
 
-/-- A lenient toy open: it accepts every ciphertext that is not empty, whatever its first byte, and returns the
-rest.  The toy's check of its leading byte stands in for a tag check; this open skips it. -/
-def openLenient (c : Slice U8) : core.result.Result (alloc.vec.Vec U8) tacenta_boundary.aead.DecryptError :=
-  if c.val = [] then .Err () else .Ok ⟨c.val.tail, by have := c.property; simp; omega⟩
+/-- The tagged interpretation with its signing function. -/
+noncomputable def InterpO.modelTagged : InterpO :=
+  { Interp.modelTagged with xeddsaSign := Tacenta.UnitOracleModel.signModelO }
 
-/-- `Interp.modelReply` with the lenient open. -/
-noncomputable def Interp.modelLenient : Interp :=
-  { Interp.modelReply with aeadDecrypt := fun _ _ _ c _ => ok (openLenient c) }
+/-- The view of the tagged interpretation: both key types are their bytes. -/
+def viewTagged : DhViewShape Interp.modelTagged := ⟨arrayOf, arrayOf⟩
+/-- The DH view of the tagged interpretation with its signing function. -/
+def dhViewTagged : DhViewOf InterpO.modelTagged.toInterp := ⟨viewTagged.privateKey, viewTagged.publicKey⟩
+/-- The KEM view of the tagged interpretation with its signing function. -/
+def kemViewTagged : KemViewOf InterpO.modelTagged.toInterp := ⟨fun _ => []⟩
 
-/-- **`AeadOpenSealUniqueShape` is not implied by the round trip**: the lenient interpretation opens what it seals
-(`AeadRoundTripShape` holds) and opens the one-byte ciphertext `[1]`, which it never seals, so the law fails there.
-The law excludes an AEAD that opens more than it seals; the round trip does not. -/
-theorem lenient_roundTrip_not_unique :
-    AeadRoundTripShape Interp.modelLenient ∧ ¬ AeadOpenSealUniqueShape Interp.modelLenient := by
+open Tacenta.UnitSatisfiabilityJoint (InitiatorAxiom ResponderAxiom) in
+open Tacenta.UnitLifecycleSessionCodec (ZeroizingVecRoundTripShape DhPrivateBytesRoundTripShape
+  DhPublicBytesRoundTripShape OptionBranchSomeShape VecAsSliceShape optionBranchImpl vecAsSliceImpl) in
+open Tacenta.UnitLifecycleRestoredSession (KemCiphertextLenBoundShape) in
+open Tacenta.UnitLifecycleEstablishInitiatorShape (InitiatorSuccessShape DhPublicValidShape
+  KemCiphertextLenLawShape) in
+/-- **Every law `reply_receipt_laws_model` puts in `Interp.modelReply` holds again in `Interp.modelTagged`**: the
+same conjuncts, in the same order, at the interpretation whose toy AEAD appends and checks the model's HMAC tag.  In
+the substitution sense of `UnitSatisfiabilityRecords`; not a statement that the real primitives meet them. -/
+theorem tagged_reply_laws_model :
+    Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape Interp.modelTagged viewTagged toyKemR
+        @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+      Nonempty (InitiatorAxiom Interp.modelTagged byteRng) ∧
+      InitiatorSuccessShape Interp.modelTagged byteRng byteCrc ∧
+      DhPublicValidShape Interp.modelTagged ∧
+      KemCiphertextLenLawShape (ok 0#usize) Interp.modelTagged ∧
+      EncryptExtraLawsShape InterpO.modelTagged dhViewTagged kemViewTagged toyKemR (ok 0#usize) ∧
+      (ZeroizingVecRoundTripShape Interp.modelTagged ∧
+        DhPrivateBytesRoundTripShape Interp.modelTagged ∧
+        DhPublicBytesRoundTripShape Interp.modelTagged ∧ OptionBranchSomeShape @optionBranchImpl ∧
+        VecAsSliceShape @vecAsSliceImpl ∧ KemCiphertextLenBoundShape (ok 0#usize)) ∧
+      Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf toyKemR ∧
+      toyKemR.keyGen (Model.Lifecycle.braidRandomness
+          (zeroSeed.map Tacenta.SessionUnitBraidT3.u8)) = none ∧
+      toyKemR.keyGen (Model.Lifecycle.braidRandomness
+          (oneSeed.map Tacenta.SessionUnitBraidT3.u8)) ≠ none ∧
+      Nonempty (ResponderAxiom Interp.modelTagged byteRng) ∧
+      Tacenta.UnitLifecycleEstablishResponder.ResponderSuccessShape Interp.modelTagged ∧
+      Tacenta.UnitLifecycleEstablishResponder.ZeroKeyShape Interp.modelTagged ∧
+      DhAgreeSymmetricShape Interp.modelTagged ∧
+      FirstFrameSuccessShape Interp.modelTagged (fun _ => ok (alloc.vec.Vec.new U8))
+        (fun _ v => ok (decide (v.val = []))) ∧
+      AeadRoundTripShape Interp.modelTagged ∧ DhAgreeContributoryShape Interp.modelTagged ∧
+      DhPublicNotConstantShape Interp.modelTagged := by
+  obtain ⟨M, ⟨A⟩, -, -, C, X, ⟨r1, r2, r3, r4, r5, r6⟩, ks, s0, s1⟩ := established_encrypt_laws_model
+  obtain ⟨-, ⟨RA⟩, -, -, -⟩ := Tacenta.UnitLifecycleEstablishResponder.responder_route_laws_model
+  have hcodec := modelReply_dhCodec
+  have hagree := modelReply_dhAgree
+  have hb := basePoint_ne_zero
+  refine ⟨?_, ⟨?_⟩, ?_, ?_, ?_, ?_, ⟨?_, ?_, ?_, r4, r5, r6⟩, ks, s0, s1, ⟨?_⟩, ?_, ?_,
+    modelReply_symmetric, ?_, modelTagged_roundTrip, modelReply_contributory, modelReply_notConstant⟩
+  · exact
+      { dhCodec := hcodec
+        dhAgree := hagree
+        aeadOpen := modelTagged_open
+        viewInjective := M.viewInjective
+        codec := by have h := M.codec; cases h; constructor <;> assumption
+        braid := by have h := M.braid; cases h; constructor <;> assumption
+        triple := by have h := M.triple; cases h; constructor <;> assumption
+        messageKeyMaterial := M.messageKeyMaterial
+        laws := by have h := M.laws; cases h; constructor <;> assumption
+        truncatePrefix := M.truncatePrefix
+        derivedKeys := by
+          obtain ⟨h⟩ := M.derivedKeys; cases h; exact ⟨by constructor <;> assumption⟩
+        agreements := by have h := M.agreements; cases h; constructor <;> assumption
+        roundTrips := by have h := M.roundTrips; cases h; constructor <;> assumption
+        validKey := ⟨Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32,
+          Tacenta.UnitLifecycleEstablishResponder.basePoint, Tacenta.UnitLifecycleEstablishResponder.basePoint,
+          congrArg ok replyPub_zeros, rfl,
+          Tacenta.UnitLifecycleEstablishResponder.basePoint_canonical, rfl⟩
+        optionEq := M.optionEq }
+  · exact
+      { dhCodec := hcodec
+        dhIdentity := A.dhIdentity
+        dhAgree := hagree
+        kemEncapsulate := A.kemEncapsulate
+        xeddsaVerify := A.xeddsaVerify
+        rngTotal := A.rngTotal
+        random32 := A.random32
+        sessionHkdf := A.sessionHkdf
+        sessionZeroizing := by have h := A.sessionZeroizing; cases h; constructor <;> assumption
+        tripleZeroizing := A.tripleZeroizing
+        spqrZeroize := A.spqrZeroize
+        braidHkdf := A.braidHkdf
+        zeroizingArray := A.zeroizingArray
+        rangeFullIndex := A.rangeFullIndex }
+  · refine ⟨⟨Tacenta.UnitLifecycleEstablishedDecrypt.oneKey, Tacenta.UnitLifecycleEstablishedDecrypt.oneKey,
+      rfl, Tacenta.UnitLifecycleEstablishedDecrypt.oneKey_canonical, rfl, ?_,
+      fun _ => ⟨Array.repeat 64#usize 0#u8, rfl⟩, fun k => ⟨Tacenta.UnitLifecycleEstablishResponder.basePoint, ?_⟩⟩,
+      ⟨alloc.vec.Vec.new U8, by simp; scalar_tac, fun rng => ?_⟩⟩
+    · show ok (decide (Tacenta.UnitLifecycleEstablishedDecrypt.oneKey.val =
+        Tacenta.UnitLifecycleEstablishedDecrypt.oneKey.val)) = ok true
+      simp
+    · show ok (if Tacenta.UnitLifecycleEstablishedDecrypt.oneKey.val =
+          Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val then none
+        else some Tacenta.UnitLifecycleEstablishResponder.basePoint) =
+        ok (some Tacenta.UnitLifecycleEstablishResponder.basePoint)
+      simp [Tacenta.UnitLifecycleEstablishedDecrypt.oneKey_ne_zero]
+    · show ∃ ct ss rng', encapFill byteRng byteCrc _ rng = ok (core.result.Result.Ok (ct, ss), rng')
+      simp only [encapFill, if_true]
+      exact ⟨_, _, _, rfl⟩
+  · intro k pkb h
+    have hp : pkb = replyPub k := by
+      simpa [Interp.modelTagged, Interp.modelReply] using h.symm
+    subst hp
+    exact ⟨replyPub k, rfl, replyPub_canonical k, rfl⟩
+  · exact C
+  · exact
+      { oracle :=
+          { dhCodec := hcodec
+            dhAgree := hagree
+            dhIdentity := X.oracle.dhIdentity
+            aeadSeal := modelTagged_sealBounded
+            aeadOpen := modelTagged_open
+            kemDecapsulate := X.oracle.kemDecapsulate
+            xeddsaVerify := X.oracle.xeddsaVerify
+            signLaw := X.oracle.signLaw
+            kemLaw := X.oracle.kemLaw
+            dhView := X.oracle.dhView
+            kemView := X.oracle.kemView }
+        encrypt :=
+          { braid := by have h := X.encrypt.braid; cases h; constructor <;> assumption
+            triple := by have h := X.encrypt.triple; cases h; constructor <;> assumption
+            aeadSeal := modelTagged_sealBounded
+            messageKeyMaterial := X.encrypt.messageKeyMaterial
+            dhCodec := hcodec }
+        keyGen := X.keyGen
+        zeroizingKeys := X.zeroizingKeys
+        ciphertextBound := X.ciphertextBound }
+  · exact r1
+  · exact r2
+  · exact r3
+  · exact
+      { decrypt := ⟨hcodec, hagree, modelTagged_open, RA.decrypt.random32,
+          by have h := RA.decrypt.braid; cases h; constructor <;> assumption,
+          by have h := RA.decrypt.triple; cases h; constructor <;> assumption,
+          RA.decrypt.messageKeyMaterial⟩
+        dhIdentity := RA.dhIdentity
+        kemDecapsulate := RA.kemDecapsulate
+        sessionHkdf := RA.sessionHkdf
+        sessionZeroizing := by have h := RA.sessionZeroizing; cases h; constructor <;> assumption
+        vecPop := RA.vecPop
+        divCeilValue := RA.divCeilValue }
+  · refine ⟨⟨Tacenta.UnitLifecycleEstablishResponder.basePoint, rfl, rfl, rfl,
+      fun k => ⟨Tacenta.UnitLifecycleEstablishResponder.basePoint, ?_⟩⟩,
+      ⟨(), alloc.vec.Vec.new U8, Tacenta.UnitSatisfiabilityBraidStates.zeros32, by simp, rfl⟩,
+      ⟨alloc.vec.Vec.new _⟩⟩
+    show ok (if Tacenta.UnitLifecycleEstablishResponder.basePoint.val =
+        Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val then none
+      else some Tacenta.UnitLifecycleEstablishResponder.basePoint) =
+      ok (some Tacenta.UnitLifecycleEstablishResponder.basePoint)
+    simp [hb]
+  · refine ⟨Tacenta.UnitSatisfiabilityBraidStates.zeros32, rfl, fun k => ?_⟩
+    show (ok (if Tacenta.UnitSatisfiabilityBraidStates.zeros32.val =
+        Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val then none
+      else some Tacenta.UnitLifecycleEstablishResponder.basePoint)) = ok none
+    simp [Tacenta.UnitSatisfiabilityBraidStates.zeros32, Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32]
+  · refine ⟨⟨Tacenta.UnitSatisfiabilityBraidStates.zeros32, Tacenta.UnitSatisfiabilityBraidStates.zeros32,
+      Tacenta.UnitLifecycleEstablishResponder.basePoint, Tacenta.UnitLifecycleEstablishResponder.basePoint,
+      rfl, ?_, rfl, Tacenta.UnitLifecycleEstablishResponder.basePoint_canonical, rfl, ?_,
+      fun _ => ⟨Array.repeat 64#usize 0#u8, rfl⟩, fun k => ⟨Tacenta.UnitLifecycleEstablishResponder.basePoint, ?_⟩⟩,
+      ⟨(), alloc.vec.Vec.new U8, List.replicate 32 0#u8, alloc.vec.Vec.new U8,
+        Tacenta.UnitSatisfiabilityBraidStates.zeros32, [], rfl, by simp; scalar_tac, ?_, ?_⟩,
+      ⟨alloc.vec.Vec.new PoolEntry, rfl⟩, fun _ _ => rfl⟩
+    · exact congrArg ok replyPub_zeros
+    · show ok (decide (Tacenta.UnitLifecycleEstablishResponder.basePoint.val =
+        Tacenta.UnitLifecycleEstablishResponder.basePoint.val)) = ok true
+      simp
+    · show ok (if Tacenta.UnitLifecycleEstablishResponder.basePoint.val =
+          Tacenta.UnitLifecycleDecryptRatchetScreen.zeros32.val then none
+        else some Tacenta.UnitLifecycleEstablishResponder.basePoint) =
+        ok (some Tacenta.UnitLifecycleEstablishResponder.basePoint)
+      simp [hb]
+    · show encapFill byteRng byteCrc _ (List.replicate 32 0#u8) = _
+      simp [encapFill, encapResult, byteRng, Tacenta.UnitLifecycleIntegrationScreen.zeros32,
+        Tacenta.UnitLifecycleIntegrationScreen.zeroSlice]
+      decide
+    · rfl
+
+/-- A lenient toy open: it accepts every ciphertext of at least 32 bytes, whatever its last 32, and returns the
+bytes before them.  It skips the tag check. -/
+def openTaggedLenient (c : Slice U8) : core.result.Result (alloc.vec.Vec U8) Unit :=
+  if 32 ≤ c.val.length then .Ok ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩
+  else .Err ()
+
+/-- `Interp.modelTagged` with the lenient open. -/
+noncomputable def Interp.modelTaggedLenient : Interp :=
+  { Interp.modelTagged with aeadDecrypt := fun _ _ _ c _ => ok (openTaggedLenient c) }
+
+/-- **`AeadOpenChecksTagShape` is not implied by the round trip**: the lenient interpretation opens what it seals
+(`AeadRoundTripShape` holds) and opens two different 32-byte strings under one key and the empty associated data,
+which cannot both be the one tag there, so the law fails. -/
+theorem taggedLenient_roundTrip_not_checksTag :
+    AeadRoundTripShape Interp.modelTaggedLenient ∧ ¬ AeadOpenChecksTagShape Interp.modelTaggedLenient := by
   refine ⟨?_, ?_⟩
   · intro k1 k2 iv pt ad ct hpt hct
-    have hct' : ok (sealModel pt) = ok ct := hct
+    have hct' : ok (sealTagged k2 pt ad) = ok ct := hct
     injection hct' with hct''
     subst hct''
-    have hval := sealModel_val pt (by omega)
-    refine ⟨⟨pt.val, pt.property⟩, ?_, rfl⟩
-    show ok (openLenient (alloc.vec.Vec.deref (sealModel pt))) = _
-    unfold openLenient
-    have hd : (alloc.vec.Vec.deref (sealModel pt)).val = 0#u8 :: pt.val := hval
-    rw [if_neg (by rw [hd]; simp)]
-    congr 2
-    apply Subtype.ext
-    show (alloc.vec.Vec.deref (sealModel pt)).val.tail = pt.val
-    rw [hd]
-    rfl
+    have hval := sealTagged_val k2 pt ad (by omega)
+    have hd : (alloc.vec.Vec.deref (sealTagged k2 pt ad)).val = pt.val ++ toyTag k2 ad pt.val := hval
+    refine ⟨⟨(alloc.vec.Vec.deref (sealTagged k2 pt ad)).val.take
+        ((alloc.vec.Vec.deref (sealTagged k2 pt ad)).val.length - 32), ?_⟩, ?_, ?_⟩
+    · have := (alloc.vec.Vec.deref (sealTagged k2 pt ad)).property; simp; omega
+    · show ok (openTaggedLenient (alloc.vec.Vec.deref (sealTagged k2 pt ad))) = _
+      unfold openTaggedLenient
+      rw [if_pos (by rw [hd]; simp [toyTag_length])]
+    · show List.take _ (alloc.vec.Vec.deref (sealTagged k2 pt ad)).val = pt.val
+      rw [hd]; simp [toyTag_length]
   · intro hu
-    let c : Slice U8 := ⟨[1#u8], by simp; scalar_tac⟩
-    have hopen : Interp.modelLenient.aeadDecrypt (Array.repeat 32#usize 0#u8) (Array.repeat 32#usize 0#u8)
-        (Array.repeat 16#usize 0#u8) c (Slice.new U8) =
-        ok (core.result.Result.Ok ⟨[], by simp⟩) := by
-      show ok (openLenient c) = _
-      unfold openLenient
-      rfl
-    obtain ⟨ct, hct, hval⟩ := hu _ _ _ c (Slice.new U8) _ hopen
-    have hct' : ok (sealModel (alloc.vec.Vec.deref ⟨[], by simp⟩)) = ok ct := hct
-    injection hct' with hct''
-    subst hct''
-    rw [sealModel_val _ (by show ([] : List U8).length + 1 ≤ Usize.max; simp; scalar_tac)] at hval
-    simp [c] at hval
+    -- two different 32-byte strings both open; the law would make each the one model tag of the empty input
+    let k : Array U8 32#usize := Array.repeat 32#usize 0#u8
+    let iv : Array U8 16#usize := Array.repeat 16#usize 0#u8
+    have hmax : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+    have key : ∀ b : U8, Model.Kdf.hmac (arrayOf k) [] =
+        (List.replicate 32 b).map Tacenta.SessionUnitBraidT3.u8 := by
+      intro b
+      let c : Slice U8 := ⟨List.replicate 32 b, by simp; omega⟩
+      have hopen : Interp.modelTaggedLenient.aeadDecrypt k k iv c (Slice.new U8) =
+          ok (core.result.Result.Ok ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩) := by
+        show ok (openTaggedLenient c) = _
+        unfold openTaggedLenient
+        rw [if_pos (by simp [c])]
+      have ht := hu k k iv c (Slice.new U8) _ hopen
+      unfold TagMatches at ht
+      have hc : (sliceOf c).length = 32 := by simp [sliceOf, c]
+      rw [hc] at ht
+      simp only [Nat.sub_self, List.drop_zero, List.take_zero, List.append_nil] at ht
+      have hA : sliceOf (Slice.new U8) = [] := rfl
+      rw [hA] at ht
+      exact ht.symm
+    have h := (key 0#u8).symm.trans (key 1#u8)
+    have h0 := congrArg List.head? h
+    simp at h0
+    revert h0
+    decide
 
-/-- **The tamper laws hold together in the reply's joint model**: `AeadRoundTripShape` and `AeadOpenSealUniqueShape` hold
-at `Interp.modelReply`, the interpretation at which `reply_receipt_laws_model` puts every other law the reply's receipt
-takes, and the per-run premise `NotASealingShape` holds there of the empty ciphertext under every key, IV and associated
-data.  In the substitution sense of `UnitSatisfiabilityRecords`; not a statement that the real AEAD meets them. -/
+/-- `Interp.modelTagged` with a seal that fails once the plaintext, the associated data and the tag pass half the
+`usize` range (`Usize.max / 2`, which is `isize::MAX` at both widths), as the shipping seal's copy of
+`ad ‖ ct` into one allocation does.  The open is `Interp.modelTagged`'s. -/
+noncomputable def Interp.modelTaggedTop : Interp :=
+  { Interp.modelTagged with
+    aeadEncrypt := fun _ k2 _ p ad =>
+      if p.val.length + ad.val.length + 32 ≤ Usize.max / 2 then ok (sealTagged k2 p ad) else fail .panic }
+
+/-- **The tag law survives a seal that fails at the top of the length range, and the earlier law does not**: with
+`Interp.modelTaggedTop`'s seal, `AeadOpenChecksTagShape` holds and `AeadOpenSealUniqueShape` fails, at both widths.
+The witness is a body of `Usize.max / 2 - 31` zero bytes followed by its toy tag, under the empty associated data:
+the open accepts it, and the reseal of the body fails. -/
+theorem taggedTop_checksTag_not_openSealUnique :
+    AeadOpenChecksTagShape Interp.modelTaggedTop ∧ ¬ AeadOpenSealUniqueShape Interp.modelTaggedTop := by
+  refine ⟨modelTagged_checksTag, ?_⟩
+  intro hu
+  let k : Array U8 32#usize := Array.repeat 32#usize 0#u8
+  let iv : Array U8 16#usize := Array.repeat 16#usize 0#u8
+  let n := Usize.max / 2 - 31
+  let body : List U8 := List.replicate n 0#u8
+  have hmax : 2 ^ 32 - 1 ≤ Usize.max := by scalar_tac
+  have hn : n + 32 ≤ Usize.max := by simp only [n]; omega
+  let c : Slice U8 := ⟨body ++ toyTag k (Slice.new U8) body, by simp [body, toyTag_length]; omega⟩
+  have hsc : sliceOf c = sliceOf ⟨body, by simp [body]; omega⟩ ++
+      Model.Kdf.hmac (arrayOf k) (sliceOf (Slice.new U8) ++ body.map Tacenta.SessionUnitBraidT3.u8) := by
+    show (body ++ toyTag k (Slice.new U8) body).map _ = _
+    rw [List.map_append, toyTag_bytes]; rfl
+  have htag : TagMatches (arrayOf k) (sliceOf (Slice.new U8)) (sliceOf c) := by
+    unfold TagMatches
+    rw [hsc]
+    have hl : (sliceOf (⟨body, by simp [body]; omega⟩ : Slice U8) ++ Model.Kdf.hmac (arrayOf k)
+        (sliceOf (Slice.new U8) ++ body.map Tacenta.SessionUnitBraidT3.u8)).length - 32 =
+        (sliceOf (⟨body, by simp [body]; omega⟩ : Slice U8)).length := by
+      simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]
+    rw [hl, List.drop_left, List.take_left]
+    rfl
+  have hopen : Interp.modelTaggedTop.aeadDecrypt k k iv c (Slice.new U8) =
+      ok (core.result.Result.Ok ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩) := by
+    show ok (openTagged k c (Slice.new U8)) = _
+    unfold openTagged
+    rw [if_pos (by unfold TagMatches at htag; exact htag)]
+  obtain ⟨ct, hct, -⟩ := hu k k iv c (Slice.new U8) _ hopen
+  have hlenv : (c.val.take (c.val.length - 32)).length = n := by
+    simp [c, body, toyTag_length]
+  have hbig : ¬ ((c.val.take (c.val.length - 32)).length + (Slice.new U8).val.length + 32 ≤ Usize.max / 2) := by
+    rw [hlenv]; simp only [n, Slice.new]; simp; omega
+  have : Interp.modelTaggedTop.aeadEncrypt k k iv
+      (alloc.vec.Vec.deref ⟨c.val.take (c.val.length - 32), by have := c.property; simp; omega⟩) (Slice.new U8) =
+      fail .panic := by
+    exact if_neg hbig
+  rw [this] at hct
+  cases hct
+
+/-- **The tamper laws hold together in the tagged model**: `AeadRoundTripShape` and `AeadOpenChecksTagShape` hold at
+`Interp.modelTagged`, the interpretation at which `tagged_reply_laws_model` puts every other law the reply's receipt
+takes, and the per-run premise `NotTagged` holds of the empty ciphertext under every key and associated data.  In the
+substitution sense of `UnitSatisfiabilityRecords`; not a statement that the real AEAD meets them. -/
 theorem tamper_laws_model :
-    AeadRoundTripShape Interp.modelReply ∧ AeadOpenSealUniqueShape Interp.modelReply ∧
-      ∀ k1 k2 iv ad : Model.Lifecycle.Bytes, NotASealingShape Interp.modelReply k1 k2 iv ad [] :=
-  ⟨Tacenta.UnitLifecycleResponderFirstReceipt.modelFirstReceipt_aeadRoundTrip, modelReply_openSealUnique,
-    modelReply_notASealing_nil⟩
+    AeadRoundTripShape Interp.modelTagged ∧ AeadOpenChecksTagShape Interp.modelTagged ∧
+      ∀ k2 ad : Model.Lifecycle.Bytes, NotTagged k2 ad [] :=
+  ⟨modelTagged_roundTrip, modelTagged_checksTag, fun k2 ad => notTagged_of_short k2 ad [] (by simp)⟩
 
 end JointModel
 
 end Tacenta.UnitLifecycleTamperedReply
+
+-- The pins `genpins.py` writes after this line print each statement whole: with no cut at depth 50
+-- (`pp.deepTerms`) and each omitted proof with its proposition, `(⋯ : P)` (`pp.proofs.withType`). `attest.py`
+-- refuses a statement pin that prints a bare `⋯`, and every other `pp` option.
+set_option pp.deepTerms true
+set_option pp.proofs.withType true
 
 /-! ## Pins
 
@@ -677,7 +1002,7 @@ build.  `attest.py` requires every one of them (`REQUIRED_PINS`, `REQUIRED_STATE
 `REQUIRED_PRINT_FORM`). -/
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.aeadOpenSealUnique_is' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.aeadOpenChecksTag_is' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_kem.CT1_LEN,
@@ -730,10 +1055,22 @@ info: 'Tacenta.UnitLifecycleTamperedReply.aeadOpenSealUnique_is' depends on axio
  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.aeadOpenSealUnique_is
+#print axioms Tacenta.UnitLifecycleTamperedReply.aeadOpenChecksTag_is
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.notASealing_is' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.notTagged_of_short' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.notTagged_of_short
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.tagMatches_append' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.tagMatches_append
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.open_none_of_not_tagged' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_kem.CT1_LEN,
@@ -786,66 +1123,10 @@ info: 'Tacenta.UnitLifecycleTamperedReply.notASealing_is' depends on axioms: [pr
  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.notASealing_is
+#print axioms Tacenta.UnitLifecycleTamperedReply.open_none_of_not_tagged
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.open_none_of_not_sealing' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- tacenta_kem.CT1_LEN,
- tacenta_kem.CT2_LEN,
- tacenta_kem.EK_VECTOR_LEN,
- tacenta_kem.EncapsState,
- tacenta_kem.HEADER_LEN,
- tacenta_kem.IncrementalKeyPair,
- tacenta_kem.encapsulate1,
- tacenta_kem.encapsulate2,
- tacenta_kem.validate_ek,
- zeroize.Zeroizing,
- rand_core_1.error.Error,
- tacenta_boundary.aead.decrypt,
- tacenta_boundary.aead.encrypt,
- tacenta_boundary.dh.PrivateKey,
- tacenta_boundary.dh.PublicKeyBytes,
- tacenta_boundary.dh.is_prime_order_public,
- tacenta_boundary.kem.KeyPair,
- tacenta_boundary.kem.decapsulate,
- tacenta_boundary.kem.encapsulate,
- tacenta_boundary.xeddsa.verify,
- tacenta_kem.IncrementalKeyPair.decapsulate,
- tacenta_kem.IncrementalKeyPair.ek_vector,
- tacenta_kem.IncrementalKeyPair.generate,
- tacenta_kem.IncrementalKeyPair.header,
- zeroize.Zeroizing.new,
- Array.Insts.ZeroizeZeroize.zeroize,
- Pair.Insts.ZeroizeZeroize.zeroize,
- TupleABC.Insts.ZeroizeZeroize.zeroize,
- alloc.vec.Vec.capacity,
- alloc.vec.Vec.pop,
- alloc.vec.Vec.truncate,
- core.num.Usize.div_ceil,
- core.option.Option.as_mut,
- tacenta_boundary.dh.PrivateKey.agree,
- tacenta_boundary.dh.PrivateKey.from_bytes,
- tacenta_boundary.dh.PrivateKey.public_key,
- tacenta_boundary.dh.PrivateKey.to_bytes,
- tacenta_boundary.dh.PublicKeyBytes.as_bytes,
- tacenta_boundary.dh.PublicKeyBytes.from_bytes,
- zeroize.Zeroize.Blanket.zeroize,
- tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
- tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
- zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
- alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- core.option.Option.Insts.CoreCloneClone.clone,
- tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
- core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
--/
-#guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.open_none_of_not_sealing
-
-/--
-info: 'Tacenta.UnitLifecycleTamperedReply.not_notASealing_of_seal' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.not_notTagged_of_seal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  tacenta_kem.CT1_LEN,
@@ -899,7 +1180,7 @@ info: 'Tacenta.UnitLifecycleTamperedReply.not_notASealing_of_seal' depends on ax
  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.not_notASealing_of_seal
+#print axioms Tacenta.UnitLifecycleTamperedReply.not_notTagged_of_seal
 
 /--
 info: 'Tacenta.UnitLifecycleTamperedReply.replyHeader_length' depends on axioms: [propext]
@@ -994,52 +1275,89 @@ info: 'Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply' depe
 #print axioms Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.openModel_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Tacenta.UnitLifecycleTamperedReply.toyTag_length' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.openModel_ok
+#print axioms Tacenta.UnitLifecycleTamperedReply.toyTag_length
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.sealModel_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: 'Tacenta.UnitLifecycleTamperedReply.toyTag_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.sealModel_val
+#print axioms Tacenta.UnitLifecycleTamperedReply.toyTag_bytes
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.modelReply_openSealUnique' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_checksTag' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.modelReply_openSealUnique
+#print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_checksTag
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.modelReply_notASealing_nil' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.sealTagged_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.sealTagged_val
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_roundTrip' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.modelReply_notASealing_nil
+#print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_roundTrip
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.modelReply_sealing_excluded' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_sealBounded' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.modelReply_sealing_excluded
+#print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_sealBounded
 
 /--
-info: 'Tacenta.UnitLifecycleTamperedReply.lenient_roundTrip_not_unique' depends on axioms: [propext,
+info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_open' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  rand_core_1.error.Error]
 -/
 #guard_msgs in
-#print axioms Tacenta.UnitLifecycleTamperedReply.lenient_roundTrip_not_unique
+#print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_open
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ zeroize.Zeroize.Blanket.zeroize,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.taggedLenient_roundTrip_not_checksTag' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.taggedLenient_roundTrip_not_checksTag
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.taggedTop_checksTag_not_openSealUnique' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.taggedTop_checksTag_not_openSealUnique
 
 /--
 info: 'Tacenta.UnitLifecycleTamperedReply.tamper_laws_model' depends on axioms: [propext,
@@ -1050,33 +1368,32 @@ info: 'Tacenta.UnitLifecycleTamperedReply.tamper_laws_model' depends on axioms: 
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleTamperedReply.tamper_laws_model
 
-set_option pp.deepTerms true
-set_option pp.proofs.withType true
-
 /--
-info: Tacenta.UnitLifecycleTamperedReply.aeadOpenSealUnique_is : Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUnique ↔
+info: Tacenta.UnitLifecycleTamperedReply.aeadOpenChecksTag_is : Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag ↔
   ∀ (k1 k2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
     tacenta_boundary.aead.decrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
-      ∃ ct, tacenta_boundary.aead.encrypt k1 k2 iv v.deref ad = ok ct ∧ ↑ct = ↑c
+      Tacenta.UnitLifecycleTamperedReply.TagMatches (Tacenta.UnitLifecycleT3.arrayOf k2)
+        (Tacenta.UnitLifecycleT3.sliceOf ad) (Tacenta.UnitLifecycleT3.sliceOf c)
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.aeadOpenSealUnique_is
+#check @Tacenta.UnitLifecycleTamperedReply.aeadOpenChecksTag_is
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.notASealing_is : ∀ (k1 k2 iv ad c : Model.Lifecycle.Bytes),
-  Tacenta.UnitLifecycleTamperedReply.NotASealing k1 k2 iv ad c ↔
-    ∀ (K1 K2 : Std.Array U8 32#usize) (IV : Std.Array U8 16#usize) (pt A : Slice U8) (ct : alloc.vec.Vec U8),
-      Tacenta.UnitLifecycleT3.arrayOf K1 = k1 →
-        Tacenta.UnitLifecycleT3.arrayOf K2 = k2 →
-          Tacenta.UnitLifecycleT3.arrayOf IV = iv →
-            Tacenta.UnitLifecycleT3.sliceOf A = ad →
-              tacenta_boundary.aead.encrypt K1 K2 IV pt A = ok ct → Tacenta.UnitLifecycleT3.vecOf ct ≠ c
+info: Tacenta.UnitLifecycleTamperedReply.notTagged_of_short : ∀ (k2 ad c : Model.Lifecycle.Bytes),
+  List.length c < 32 → Tacenta.UnitLifecycleTamperedReply.NotTagged k2 ad c
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.notASealing_is
+#check @Tacenta.UnitLifecycleTamperedReply.notTagged_of_short
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.open_none_of_not_sealing : Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUnique →
+info: Tacenta.UnitLifecycleTamperedReply.tagMatches_append : ∀ (k2 ad body : Model.Lifecycle.Bytes),
+  Tacenta.UnitLifecycleTamperedReply.TagMatches k2 ad (body ++ Model.Kdf.hmac k2 (ad ++ body))
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.tagMatches_append
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.open_none_of_not_tagged : Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag →
   ∀ {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R} {dh : Tacenta.UnitLifecycleT3.DhView}
     {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle},
     Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rc crc dh trace oracle →
@@ -1087,27 +1404,30 @@ info: Tacenta.UnitLifecycleTamperedReply.open_none_of_not_sealing : Tacenta.Unit
               ∀ (c ad : Model.Lifecycle.Bytes),
                 List.length c ≤ Usize.max →
                   List.length ad ≤ Usize.max →
-                    Tacenta.UnitLifecycleTamperedReply.NotASealing k1 k2 iv ad c → oracle.aeadOpen k1 k2 iv c ad = none
+                    Tacenta.UnitLifecycleTamperedReply.NotTagged k2 ad c → oracle.aeadOpen k1 k2 iv c ad = none
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.open_none_of_not_sealing
+#check @Tacenta.UnitLifecycleTamperedReply.open_none_of_not_tagged
 
 /--
-info: @Tacenta.UnitLifecycleTamperedReply.not_notASealing_of_seal : ∀ {R : Type} {rc : rand_core_1.RngCore R}
-  {crc : rand_core_1.CryptoRng R} {dh : Tacenta.UnitLifecycleT3.DhView} {kem : Tacenta.UnitLifecycleT3.KemView}
-  {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle},
-  Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
-    ∀ (k1 k2 iv : Model.Lifecycle.Bytes),
-      List.length k1 = 32 →
-        List.length k2 = 32 →
-          List.length iv = 16 →
-            ∀ (pt : Slice U8) (ad : Model.Lifecycle.Bytes),
-              List.length ad ≤ Usize.max →
-                ¬Tacenta.UnitLifecycleTamperedReply.NotASealing k1 k2 iv ad
-                    (oracle.aeadSeal k1 k2 iv (Tacenta.UnitLifecycleT3.sliceOf pt) ad)
+info: Tacenta.UnitLifecycleTamperedReply.not_notTagged_of_seal : Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag →
+  Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+    ∀ {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R} {dh : Tacenta.UnitLifecycleT3.DhView}
+      {kem : Tacenta.UnitLifecycleT3.KemView} {trace : R → List Model.Lifecycle.Key} {oracle : Model.Lifecycle.Oracle},
+      Tacenta.UnitLifecycleT3.OracleOf rc crc dh kem trace oracle →
+        ∀ (k1 k2 iv : Model.Lifecycle.Bytes),
+          List.length k1 = 32 →
+            List.length k2 = 32 →
+              List.length iv = 16 →
+                ∀ (pt : Slice U8),
+                  (↑pt).length + 48 ≤ Usize.max →
+                    ∀ (ad : Model.Lifecycle.Bytes),
+                      List.length ad ≤ Usize.max →
+                        ¬Tacenta.UnitLifecycleTamperedReply.NotTagged k2 ad
+                            (oracle.aeadSeal k1 k2 iv (Tacenta.UnitLifecycleT3.sliceOf pt) ad)
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.not_notASealing_of_seal
+#check @Tacenta.UnitLifecycleTamperedReply.not_notTagged_of_seal
 
 /--
 info: Tacenta.UnitLifecycleTamperedReply.replyHeader_length : ∀ (newPub : Model.State.Key),
@@ -1187,7 +1507,7 @@ info: Tacenta.UnitLifecycleTamperedReply.tampered_reply_model_refusal : ∀ (vie
 /--
 info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀ [Tacenta.SessionUnitT1.DerivedKeysModel]
   {R E F : Type},
-  Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUnique →
+  Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag →
     ∀ (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (trace : R → List Model.Lifecycle.Key)
       (dh : Tacenta.UnitLifecycleT3.DhView) (kem : Tacenta.UnitLifecycleT3.KemView)
       (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle),
@@ -1375,17 +1695,7 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
                                                                                                                                   trace
                                                                                                                                         rngA' =
                                                                                                                                       restA ∧
-                                                                                                                                    ¬Tacenta.UnitLifecycleTamperedReply.NotASealing
-                                                                                                                                          (Model.State.messageKeys
-                                                                                                                                              (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                (Model.State.kdfRk
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.rootKey)
-                                                                                                                                                    dSend
-                                                                                                                                                    Model.State.LabelSet.tacenta).2
-                                                                                                                                                (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                  q.sparseReceive))
-                                                                                                                                              Model.State.LabelSet.tacenta).1
+                                                                                                                                    ¬Tacenta.UnitLifecycleTamperedReply.NotTagged
                                                                                                                                           (Model.State.messageKeys
                                                                                                                                                 (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
                                                                                                                                                   (Model.State.kdfRk
@@ -1396,16 +1706,6 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
                                                                                                                                                   (Tacenta.UnitLifecycleT3.arrayOf
                                                                                                                                                     q.sparseReceive))
                                                                                                                                                 Model.State.LabelSet.tacenta).2.1
-                                                                                                                                          (Model.State.messageKeys
-                                                                                                                                                (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                  (Model.State.kdfRk
-                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                        q.rootKey)
-                                                                                                                                                      dSend
-                                                                                                                                                      Model.State.LabelSet.tacenta).2
-                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                    q.sparseReceive))
-                                                                                                                                                Model.State.LabelSet.tacenta).2.2
                                                                                                                                           (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
                                                                                                                                             (Tacenta.UnitLifecycleT3.vecOf
                                                                                                                                               q.identityAd)
@@ -1428,17 +1728,7 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
                                                                                                                                                 (Tacenta.UnitLifecycleT3.vecOf
                                                                                                                                                   bytesR) ++
                                                                                                                                               cT →
-                                                                                                                                          Tacenta.UnitLifecycleTamperedReply.NotASealing
-                                                                                                                                              (Model.State.messageKeys
-                                                                                                                                                  (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                    (Model.State.kdfRk
-                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                          q.rootKey)
-                                                                                                                                                        dSend
-                                                                                                                                                        Model.State.LabelSet.tacenta).2
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseReceive))
-                                                                                                                                                  Model.State.LabelSet.tacenta).1
+                                                                                                                                          Tacenta.UnitLifecycleTamperedReply.NotTagged
                                                                                                                                               (Model.State.messageKeys
                                                                                                                                                     (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
                                                                                                                                                       (Model.State.kdfRk
@@ -1449,16 +1739,6 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
                                                                                                                                                       (Tacenta.UnitLifecycleT3.arrayOf
                                                                                                                                                         q.sparseReceive))
                                                                                                                                                     Model.State.LabelSet.tacenta).2.1
-                                                                                                                                              (Model.State.messageKeys
-                                                                                                                                                    (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                      (Model.State.kdfRk
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.rootKey)
-                                                                                                                                                          dSend
-                                                                                                                                                          Model.State.LabelSet.tacenta).2
-                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                        q.sparseReceive))
-                                                                                                                                                    Model.State.LabelSet.tacenta).2.2
                                                                                                                                               (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
                                                                                                                                                 (Tacenta.UnitLifecycleT3.vecOf
                                                                                                                                                   q.identityAd)
@@ -1486,65 +1766,177 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
 #check @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.openModel_ok : ∀ (c : Slice U8) (v : alloc.vec.Vec U8),
-  Tacenta.UnitOracleModel.openModel c = core.result.Result.Ok v → ↑c = 0#u8 :: ↑v
+info: Tacenta.UnitLifecycleTamperedReply.toyTag_length : ∀ (k2 : Std.Array U8 32#usize) (ad : Slice U8) (body : List U8),
+  (Tacenta.UnitLifecycleTamperedReply.toyTag k2 ad body).length = 32
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.openModel_ok
+#check @Tacenta.UnitLifecycleTamperedReply.toyTag_length
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.sealModel_val : ∀ (p : Slice U8),
-  (↑p).length + 1 ≤ Usize.max → ↑(Tacenta.UnitOracleModel.sealModel p) = 0#u8 :: ↑p
+info: Tacenta.UnitLifecycleTamperedReply.toyTag_bytes : ∀ (k2 : Std.Array U8 32#usize) (ad : Slice U8) (body : List U8),
+  List.map Tacenta.SessionUnitBraidT3.u8 (Tacenta.UnitLifecycleTamperedReply.toyTag k2 ad body) =
+    Model.Kdf.hmac (Tacenta.UnitLifecycleT3.arrayOf k2)
+      (Tacenta.UnitLifecycleT3.sliceOf ad ++ List.map Tacenta.SessionUnitBraidT3.u8 body)
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.sealModel_val
+#check @Tacenta.UnitLifecycleTamperedReply.toyTag_bytes
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.modelReply_openSealUnique : Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape
-  Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply
+info: Tacenta.UnitLifecycleTamperedReply.modelTagged_checksTag : Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.modelReply_openSealUnique
+#check @Tacenta.UnitLifecycleTamperedReply.modelTagged_checksTag
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.modelReply_notASealing_nil : ∀ (k1 k2 iv ad : Model.Lifecycle.Bytes),
-  Tacenta.UnitLifecycleTamperedReply.NotASealingShape Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply k1 k2
-    iv ad []
+info: Tacenta.UnitLifecycleTamperedReply.sealTagged_val : ∀ (k2 : Std.Array U8 32#usize) (p ad : Slice U8),
+  (↑p).length + 32 ≤ Usize.max →
+    ↑(Tacenta.UnitLifecycleTamperedReply.sealTagged k2 p ad) = ↑p ++ Tacenta.UnitLifecycleTamperedReply.toyTag k2 ad ↑p
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.modelReply_notASealing_nil
+#check @Tacenta.UnitLifecycleTamperedReply.sealTagged_val
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.modelReply_sealing_excluded : ∀ (k1 k2 iv ad : Model.Lifecycle.Bytes),
-  List.length k1 = 32 →
-    List.length k2 = 32 →
-      List.length iv = 16 →
-        List.length ad ≤ Usize.max →
-          ¬Tacenta.UnitLifecycleTamperedReply.NotASealingShape
-              Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply k1 k2 iv ad [0]
+info: Tacenta.UnitLifecycleTamperedReply.modelTagged_roundTrip : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.modelReply_sealing_excluded
+#check @Tacenta.UnitLifecycleTamperedReply.modelTagged_roundTrip
 
 /--
-info: Tacenta.UnitLifecycleTamperedReply.lenient_roundTrip_not_unique : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
-    Tacenta.UnitLifecycleTamperedReply.Interp.modelLenient ∧
-  ¬Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape Tacenta.UnitLifecycleTamperedReply.Interp.modelLenient
+info: Tacenta.UnitLifecycleTamperedReply.modelTagged_sealBounded : Tacenta.UnitSatisfiabilityJoint.AeadSealBoundedShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
 -/
 #guard_msgs in
-#check @Tacenta.UnitLifecycleTamperedReply.lenient_roundTrip_not_unique
+#check @Tacenta.UnitLifecycleTamperedReply.modelTagged_sealBounded
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.modelTagged_open : Tacenta.UnitSatisfiabilityJoint.AeadOpenShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.modelTagged_open
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape
+    Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged Tacenta.UnitLifecycleTamperedReply.viewTagged
+    Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR @Tacenta.UnitHeadroomInvariant.optionEqImpl ∧
+  Nonempty
+      (Tacenta.UnitSatisfiabilityJoint.InitiatorAxiom Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+        Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+    Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorSuccessShape
+        Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged Tacenta.UnitLifecycleIntegrationScreen.byteRng
+        Tacenta.UnitLifecycleIntegrationScreen.byteCrc ∧
+      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValidShape
+          Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+        Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenLawShape (ok 0#usize)
+            Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+          Tacenta.UnitLifecycleEstablishedEncrypt.EncryptExtraLawsShape
+              Tacenta.UnitLifecycleTamperedReply.InterpO.modelTagged Tacenta.UnitLifecycleTamperedReply.dhViewTagged
+              Tacenta.UnitLifecycleTamperedReply.kemViewTagged Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR
+              (ok 0#usize) ∧
+            (Tacenta.UnitLifecycleSessionCodec.ZeroizingVecRoundTripShape
+                  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                Tacenta.UnitLifecycleSessionCodec.DhPrivateBytesRoundTripShape
+                    Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                  Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTripShape
+                      Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                    Tacenta.UnitLifecycleSessionCodec.OptionBranchSomeShape
+                        @Tacenta.UnitLifecycleSessionCodec.optionBranchImpl ∧
+                      Tacenta.UnitLifecycleSessionCodec.VecAsSliceShape
+                          @Tacenta.UnitLifecycleSessionCodec.vecAsSliceImpl ∧
+                        Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBoundShape (ok 0#usize)) ∧
+              Tacenta.UnitLifecycleEstablishedEncrypt.KeyGenSizesOf Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR ∧
+                Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                      (Model.Lifecycle.braidRandomness
+                        (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.zeroSeed)) =
+                    none ∧
+                  Tacenta.UnitLifecycleEstablishedEncrypt.toyKemR.keyGen
+                        (Model.Lifecycle.braidRandomness
+                          (List.map Tacenta.SessionUnitBraidT3.u8 Tacenta.UnitLifecycleEstablishedEncrypt.oneSeed)) ≠
+                      none ∧
+                    Nonempty
+                        (Tacenta.UnitSatisfiabilityJoint.ResponderAxiom
+                          Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+                          Tacenta.UnitLifecycleIntegrationScreen.byteRng) ∧
+                      Tacenta.UnitLifecycleEstablishResponder.ResponderSuccessShape
+                          Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                        Tacenta.UnitLifecycleEstablishResponder.ZeroKeyShape
+                            Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetricShape
+                              Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                            (Tacenta.UnitLifecycleResponderFirstFrame.FirstFrameSuccessShape
+                                Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+                                (fun x => ok (alloc.vec.Vec.new U8)) fun {T} x v => ok (decide (↑v = []))) ∧
+                              Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+                                  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                                Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributoryShape
+                                    Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+                                  Tacenta.UnitLifecycleResponderReplyReceipt.DhPublicNotConstantShape
+                                    Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.taggedLenient_roundTrip_not_checksTag : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
+    Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedLenient ∧
+  ¬Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape
+      Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedLenient
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.taggedLenient_roundTrip_not_checksTag
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.taggedTop_checksTag_not_openSealUnique : Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape
+    Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedTop ∧
+  ¬Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedTop
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.taggedTop_checksTag_not_openSealUnique
 
 /--
 info: Tacenta.UnitLifecycleTamperedReply.tamper_laws_model : Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTripShape
-    Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply ∧
-  Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape
-      Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply ∧
-    ∀ (k1 k2 iv ad : Model.Lifecycle.Bytes),
-      Tacenta.UnitLifecycleTamperedReply.NotASealingShape Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply
-        k1 k2 iv ad []
+    Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+  Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged ∧
+    ∀ (k2 ad : Model.Lifecycle.Bytes), Tacenta.UnitLifecycleTamperedReply.NotTagged k2 ad []
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleTamperedReply.tamper_laws_model
+
+/--
+info: @[irreducible] def Tacenta.UnitLifecycleTamperedReply.TagMatches : Model.Lifecycle.Bytes →
+  Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Prop :=
+fun k2 ad c => List.drop (List.length c - 32) c = Model.Kdf.hmac k2 (ad ++ List.take (List.length c - 32) c)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.TagMatches
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
+fun I =>
+  ∀ (k1 k2 : Std.Array U8 32#usize) (iv : Std.Array U8 16#usize) (c ad : Slice U8) (v : alloc.vec.Vec U8),
+    I.aeadDecrypt k1 k2 iv c ad = ok (core.result.Result.Ok v) →
+      Tacenta.UnitLifecycleTamperedReply.TagMatches (Tacenta.UnitLifecycleT3.arrayOf k2)
+        (Tacenta.UnitLifecycleT3.sliceOf ad) (Tacenta.UnitLifecycleT3.sliceOf c)
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag : Prop :=
+Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTagShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.AeadOpenChecksTag
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.NotTagged : Model.Lifecycle.Bytes →
+  Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Prop :=
+fun k2 ad c => ¬Tacenta.UnitLifecycleTamperedReply.TagMatches k2 ad c
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.NotTagged
 
 /--
 info: def Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape : Tacenta.UnitSatisfiabilityJoint.Interp → Prop :=
@@ -1557,54 +1949,51 @@ fun I =>
 #print Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape
 
 /--
-info: def Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUnique : Prop :=
-Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape Tacenta.UnitSatisfiabilityJoint.Interp.real
+info: def Tacenta.UnitLifecycleTamperedReply.toyTag : Std.Array U8 32#usize → Slice U8 → List U8 → List U8 :=
+fun k2 ad body =>
+  List.map Tacenta.UnitSatisfiabilityBraidAgreements.toU8
+    (Model.Kdf.hmac (Tacenta.UnitLifecycleT3.arrayOf k2)
+      (Tacenta.UnitLifecycleT3.sliceOf ad ++ List.map Tacenta.SessionUnitBraidT3.u8 body))
 -/
 #guard_msgs in
-#print Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUnique
+#print Tacenta.UnitLifecycleTamperedReply.toyTag
 
 /--
-info: def Tacenta.UnitLifecycleTamperedReply.NotASealingShape : Tacenta.UnitSatisfiabilityJoint.Interp →
-  Model.Lifecycle.Bytes →
-    Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Prop :=
-fun I k1 k2 iv ad c =>
-  ∀ (K1 K2 : Std.Array U8 32#usize) (IV : Std.Array U8 16#usize) (pt A : Slice U8) (ct : alloc.vec.Vec U8),
-    Tacenta.UnitLifecycleT3.arrayOf K1 = k1 →
-      Tacenta.UnitLifecycleT3.arrayOf K2 = k2 →
-        Tacenta.UnitLifecycleT3.arrayOf IV = iv →
-          Tacenta.UnitLifecycleT3.sliceOf A = ad →
-            I.aeadEncrypt K1 K2 IV pt A = ok ct → Tacenta.UnitLifecycleT3.vecOf ct ≠ c
+info: def Tacenta.UnitLifecycleTamperedReply.sealTagged : Std.Array U8 32#usize → Slice U8 → Slice U8 → alloc.vec.Vec U8 :=
+fun k2 p ad =>
+  if h : (↑p).length + 32 ≤ Usize.max then
+    ⟨↑p ++ Tacenta.UnitLifecycleTamperedReply.toyTag k2 ad ↑p,
+      (⋯ : (↑p ++ Tacenta.UnitLifecycleTamperedReply.toyTag k2 ad ↑p).length ≤ Usize.max)⟩
+  else ⟨↑p, (⋯ : (↑p).length ≤ Usize.max)⟩
 -/
 #guard_msgs in
-#print Tacenta.UnitLifecycleTamperedReply.NotASealingShape
+#print Tacenta.UnitLifecycleTamperedReply.sealTagged
 
 /--
-info: def Tacenta.UnitLifecycleTamperedReply.NotASealing : Model.Lifecycle.Bytes →
-  Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Model.Lifecycle.Bytes → Prop :=
-fun k1 k2 iv ad c =>
-  Tacenta.UnitLifecycleTamperedReply.NotASealingShape Tacenta.UnitSatisfiabilityJoint.Interp.real k1 k2 iv ad c
+info: def Tacenta.UnitLifecycleTamperedReply.openTagged : Std.Array U8 32#usize →
+  Slice U8 → Slice U8 → core.result.Result (alloc.vec.Vec U8) Unit :=
+fun k2 c ad =>
+  if
+      List.drop (List.length (Tacenta.UnitLifecycleT3.sliceOf c) - 32) (Tacenta.UnitLifecycleT3.sliceOf c) =
+        Model.Kdf.hmac (Tacenta.UnitLifecycleT3.arrayOf k2)
+          (Tacenta.UnitLifecycleT3.sliceOf ad ++
+            List.take (List.length (Tacenta.UnitLifecycleT3.sliceOf c) - 32) (Tacenta.UnitLifecycleT3.sliceOf c)) then
+    core.result.Result.Ok ⟨List.take ((↑c).length - 32) ↑c, (⋯ : (List.take ((↑c).length - 32) ↑c).length ≤ Usize.max)⟩
+  else core.result.Result.Err ()
 -/
 #guard_msgs in
-#print Tacenta.UnitLifecycleTamperedReply.NotASealing
+#print Tacenta.UnitLifecycleTamperedReply.openTagged
 
 /--
-info: def Tacenta.UnitLifecycleTamperedReply.openLenient : Slice U8 →
-  core.result.Result (alloc.vec.Vec U8) tacenta_boundary.aead.DecryptError :=
-fun c =>
-  if ↑c = [] then core.result.Result.Err () else core.result.Result.Ok ⟨(↑c).tail, (⋯ : (↑c).tail.length ≤ Usize.max)⟩
--/
-#guard_msgs in
-#print Tacenta.UnitLifecycleTamperedReply.openLenient
-
-/--
-info: def Tacenta.UnitLifecycleTamperedReply.Interp.modelLenient : Tacenta.UnitSatisfiabilityJoint.Interp :=
+info: def Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged : Tacenta.UnitSatisfiabilityJoint.Interp :=
 have __src := Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply;
 { PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
   IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
   dhPrivFromBytes := __src.dhPrivFromBytes, dhPrivPublicKey := __src.dhPrivPublicKey, dhPrivAgree := __src.dhPrivAgree,
   dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
-  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic, aeadEncrypt := __src.aeadEncrypt,
-  aeadDecrypt := fun x x_1 x_2 c x_3 => ok (Tacenta.UnitLifecycleTamperedReply.openLenient c),
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic,
+  aeadEncrypt := fun x k2 x_1 p ad => ok (Tacenta.UnitLifecycleTamperedReply.sealTagged k2 p ad),
+  aeadDecrypt := fun x k2 x_1 c ad => ok (Tacenta.UnitLifecycleTamperedReply.openTagged k2 c ad),
   kemEncapsulate := @Tacenta.UnitSatisfiabilityJoint.Interp.kemEncapsulate __src,
   kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
   hmacSha256 := __src.hmacSha256, HEADER_LEN := __src.HEADER_LEN, EK_VECTOR_LEN := __src.EK_VECTOR_LEN,
@@ -1628,4 +2017,117 @@ have __src := Tacenta.UnitLifecycleResponderReplyReceipt.Interp.modelReply;
   rangeFullIndex := @Tacenta.UnitSatisfiabilityJoint.Interp.rangeFullIndex __src, divCeil := __src.divCeil }
 -/
 #guard_msgs in
-#print Tacenta.UnitLifecycleTamperedReply.Interp.modelLenient
+#print Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.InterpO.modelTagged : Tacenta.UnitOracleShape.InterpO :=
+have __src := Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged;
+{ toInterp := __src, xeddsaSign := fun {R} => Tacenta.UnitOracleModel.signModelO }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.InterpO.modelTagged
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.viewTagged : Tacenta.UnitLifecycleDecryptRatchetScreen.DhViewShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged :=
+{ privateKey := Tacenta.UnitLifecycleT3.arrayOf, publicKey := Tacenta.UnitLifecycleT3.arrayOf }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.viewTagged
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.dhViewTagged : Tacenta.UnitOracleShape.DhViewOf
+  Tacenta.UnitLifecycleTamperedReply.InterpO.modelTagged.toInterp :=
+{ privateKey := Tacenta.UnitLifecycleTamperedReply.viewTagged.privateKey,
+  publicKey := Tacenta.UnitLifecycleTamperedReply.viewTagged.publicKey }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.dhViewTagged
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.kemViewTagged : Tacenta.UnitOracleShape.KemViewOf
+  Tacenta.UnitLifecycleTamperedReply.InterpO.modelTagged.toInterp :=
+{ keyPair := fun x => [] }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.kemViewTagged
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.openTaggedLenient : Slice U8 → core.result.Result (alloc.vec.Vec U8) Unit :=
+fun c =>
+  if 32 ≤ (↑c).length then
+    core.result.Result.Ok ⟨List.take ((↑c).length - 32) ↑c, (⋯ : (List.take ((↑c).length - 32) ↑c).length ≤ Usize.max)⟩
+  else core.result.Result.Err ()
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.openTaggedLenient
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedLenient : Tacenta.UnitSatisfiabilityJoint.Interp :=
+have __src := Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged;
+{ PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
+  IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
+  dhPrivFromBytes := __src.dhPrivFromBytes, dhPrivPublicKey := __src.dhPrivPublicKey, dhPrivAgree := __src.dhPrivAgree,
+  dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic, aeadEncrypt := __src.aeadEncrypt,
+  aeadDecrypt := fun x x_1 x_2 c x_3 => ok (Tacenta.UnitLifecycleTamperedReply.openTaggedLenient c),
+  kemEncapsulate := @Tacenta.UnitSatisfiabilityJoint.Interp.kemEncapsulate __src,
+  kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
+  hmacSha256 := __src.hmacSha256, HEADER_LEN := __src.HEADER_LEN, EK_VECTOR_LEN := __src.EK_VECTOR_LEN,
+  CT1_LEN := __src.CT1_LEN, CT2_LEN := __src.CT2_LEN, ikpClone := __src.ikpClone,
+  ikpGenerate := @Tacenta.UnitSatisfiabilityJoint.Interp.ikpGenerate __src, ikpHeader := __src.ikpHeader,
+  ikpEkVector := __src.ikpEkVector, ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
+  encapsulate1 := @Tacenta.UnitSatisfiabilityJoint.Interp.encapsulate1 __src, encapsulate2 := __src.encapsulate2,
+  validateEk := __src.validateEk, blanketZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.blanketZeroize __src,
+  arrayZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.arrayZeroize __src,
+  tupleZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.tupleZeroize __src,
+  pairZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.pairZeroize __src,
+  vecZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.vecZeroize __src,
+  zNew := @Tacenta.UnitSatisfiabilityJoint.Interp.zNew __src,
+  zDeref := @Tacenta.UnitSatisfiabilityJoint.Interp.zDeref __src,
+  zDerefMut := @Tacenta.UnitSatisfiabilityJoint.Interp.zDerefMut __src,
+  vecPop := @Tacenta.UnitSatisfiabilityJoint.Interp.vecPop __src,
+  vecCapacity := @Tacenta.UnitSatisfiabilityJoint.Interp.vecCapacity __src,
+  vecTruncate := @Tacenta.UnitSatisfiabilityJoint.Interp.vecTruncate __src,
+  optionClone := @Tacenta.UnitSatisfiabilityJoint.Interp.optionClone __src,
+  optionAsMut := @Tacenta.UnitSatisfiabilityJoint.Interp.optionAsMut __src,
+  rangeFullIndex := @Tacenta.UnitSatisfiabilityJoint.Interp.rangeFullIndex __src, divCeil := __src.divCeil }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedLenient
+
+/--
+info: def Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedTop : Tacenta.UnitSatisfiabilityJoint.Interp :=
+have __src := Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged;
+{ PrivateKey := __src.PrivateKey, PublicKeyBytes := __src.PublicKeyBytes, KemKeyPair := __src.KemKeyPair,
+  IncrementalKeyPair := __src.IncrementalKeyPair, EncapsState := __src.EncapsState, Zeroizing := __src.Zeroizing,
+  dhPrivFromBytes := __src.dhPrivFromBytes, dhPrivPublicKey := __src.dhPrivPublicKey, dhPrivAgree := __src.dhPrivAgree,
+  dhPrivToBytes := __src.dhPrivToBytes, dhPubFromBytes := __src.dhPubFromBytes, dhPubAsBytes := __src.dhPubAsBytes,
+  dhPubEq := __src.dhPubEq, dhIsPrimeOrderPublic := __src.dhIsPrimeOrderPublic,
+  aeadEncrypt := fun x k2 x_1 p ad =>
+    if (↑p).length + (↑ad).length + 32 ≤ Usize.max / 2 then ok (Tacenta.UnitLifecycleTamperedReply.sealTagged k2 p ad)
+    else fail Error.panic,
+  aeadDecrypt := __src.aeadDecrypt, kemEncapsulate := @Tacenta.UnitSatisfiabilityJoint.Interp.kemEncapsulate __src,
+  kemDecapsulate := __src.kemDecapsulate, xeddsaVerify := __src.xeddsaVerify, hkdfSha256 := __src.hkdfSha256,
+  hmacSha256 := __src.hmacSha256, HEADER_LEN := __src.HEADER_LEN, EK_VECTOR_LEN := __src.EK_VECTOR_LEN,
+  CT1_LEN := __src.CT1_LEN, CT2_LEN := __src.CT2_LEN, ikpClone := __src.ikpClone,
+  ikpGenerate := @Tacenta.UnitSatisfiabilityJoint.Interp.ikpGenerate __src, ikpHeader := __src.ikpHeader,
+  ikpEkVector := __src.ikpEkVector, ikpDecapsulate := __src.ikpDecapsulate, esClone := __src.esClone,
+  encapsulate1 := @Tacenta.UnitSatisfiabilityJoint.Interp.encapsulate1 __src, encapsulate2 := __src.encapsulate2,
+  validateEk := __src.validateEk, blanketZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.blanketZeroize __src,
+  arrayZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.arrayZeroize __src,
+  tupleZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.tupleZeroize __src,
+  pairZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.pairZeroize __src,
+  vecZeroize := @Tacenta.UnitSatisfiabilityJoint.Interp.vecZeroize __src,
+  zNew := @Tacenta.UnitSatisfiabilityJoint.Interp.zNew __src,
+  zDeref := @Tacenta.UnitSatisfiabilityJoint.Interp.zDeref __src,
+  zDerefMut := @Tacenta.UnitSatisfiabilityJoint.Interp.zDerefMut __src,
+  vecPop := @Tacenta.UnitSatisfiabilityJoint.Interp.vecPop __src,
+  vecCapacity := @Tacenta.UnitSatisfiabilityJoint.Interp.vecCapacity __src,
+  vecTruncate := @Tacenta.UnitSatisfiabilityJoint.Interp.vecTruncate __src,
+  optionClone := @Tacenta.UnitSatisfiabilityJoint.Interp.optionClone __src,
+  optionAsMut := @Tacenta.UnitSatisfiabilityJoint.Interp.optionAsMut __src,
+  rangeFullIndex := @Tacenta.UnitSatisfiabilityJoint.Interp.rangeFullIndex __src, divCeil := __src.divCeil }
+-/
+#guard_msgs in
+#print Tacenta.UnitLifecycleTamperedReply.Interp.modelTaggedTop
