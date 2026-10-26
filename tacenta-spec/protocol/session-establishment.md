@@ -274,9 +274,19 @@ The ML-KEM Braid's authenticator is also initialised from `SK` (mlkem-braid.md),
 but it keys no encryption. `CT` is public, and Alice keeps it: the
 session sends the initial message's fields again with every message until one
 from Bob decrypts, and only then drops them (session-persistence.md,
-`pending_initial`).
+`pending_initial`). Each of those sends, the first included, is held to the
+sender's rule (message-format.md, Message size): a plaintext longer than
+`MAX_PLAINTEXT_LEN` is refused before anything is drawn, and the pending
+material stays as it was.
 
 ## Receiving the initial message
+
+Before he reads anything from the message, Bob applies the size rule
+(message-format.md, Message size). A message it refuses is refused as too
+long, a decode failure, ahead of every check below: the prekey store is
+unchanged, no key is looked up, nothing is decapsulated and no random value is
+drawn. The rule bounds the whole message and, through the message's own
+`kem_ciphertext_len`, the ratchet message inside it.
 
 Bob reads `IKA` and `EKA`, uses the identifiers to load the matching private
 keys, recovers `SS = PQKEM-DEC(PQPKB, CT)`, repeats the same DH and KDF
@@ -304,7 +314,11 @@ entry or store field changes during establishment.
 
 An initial message can also arrive on a session that already exists, since
 Alice repeats it until Bob answers. It does not establish again. It must first
-decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
+pass the size rule (message-format.md, Message size), which the session
+applies before anything else, the refusal of a failed agreement included, and
+which bounds the ratchet message inside it through its own
+`kem_ciphertext_len`, although the session never reads `kem_ciphertext`. It
+must then decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
 as a decode failure (message-format.md, Initial message). The session then
 accepts it only if it is a responder's session and both of these hold:
 
@@ -354,7 +368,7 @@ message's plaintext once, as the unaltered repeat would, and changes nothing
 else.
 
 **A refused initial message changes nothing.** Neither refusal, the decode
-failure or `NotARepeatedInitial`, changes the session. The session does not
+failure (the size rule's included) or `NotARepeatedInitial`, changes the session. The session does not
 establish a new session from the message, and does not replace itself with
 one. What happens next is the recipient's decision, not the session's:
 

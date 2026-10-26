@@ -91,6 +91,13 @@ leaves one half moved without the other:
 In both, the session adopts the agreement's next state at the same moment, and
 on a receive the ratchet private key a Diffie-Hellman step generated.
 
+Before any of this, the session applies the message size rules
+(message-format.md, Message size). A send of a plaintext longer than
+`MAX_PLAINTEXT_LEN` is refused as plaintext too long, and a receive of a frame
+the size rule refuses is refused as too long, a decode failure. Each is the
+operation's first check, before the agreement runs and before the refusal of a
+failed agreement; neither changes the session or draws a random value.
+
 The session runs the agreement first, because its epoch and output are inputs
 to the Triple Ratchet operation. On a send it then runs the Triple Ratchet on a
 copy and adopts the agreement and Triple Ratchet next states together only if

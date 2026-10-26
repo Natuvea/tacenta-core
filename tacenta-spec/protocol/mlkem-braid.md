@@ -576,7 +576,8 @@ the Braid in `Failed`. The send or receive that moves the Braid into `Failed`
 yields no key either and reports epoch 0, the report being read off the state
 it lands in. `Session` puts nothing from a failed Braid on the
 wire: it refuses `encrypt` and `decrypt` with `AgreementFailed` once the Braid
-has failed, and when a send is what fails, it keeps the failed state and
+has failed (a plaintext or frame too long for message-format.md, Message size,
+is refused as too long first), and when a send is what fails, it keeps the failed state and
 refuses that send too. A receive's move to `Failed`, like any other
 transition, is adopted only once the message carrying it has authenticated.
 That message is accepted and its plaintext returned; the refusals begin with

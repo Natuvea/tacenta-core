@@ -53,7 +53,13 @@ implementation.
     of a known contact whose record is empty (`MalformedRecord`), which
     reports the caller's own record, never a peer's bytes
     (session-establishment.md, Records, expectations and attribution);
-  - an agreement that has failed (mlkem-braid.md).
+  - an agreement that has failed (mlkem-braid.md);
+  - a plaintext longer than `MAX_PLAINTEXT_LEN` (`PlaintextTooLong`), which the
+    session refused to encrypt and which the caller must shorten or carry
+    some other way (message-format.md, Message size).
+- **A frame the size rule refuses is a decode failure** (message-format.md,
+  Message size). A receiver reports it as a decode failure, and may say that
+  it was too long; a peer learns no more than from any decode failure.
 
 ## What is left to an implementation
 
@@ -64,6 +70,15 @@ implementation.
 - **The order of checks.** When an input fails more than one check, which
   refusal is reported, unless a page fixes an order because the order is
   observable in a way that matters. Some pages fix one; among them:
+  - message-format.md, Message size, fixes the size checks first. A send
+    checks the plaintext's length before every other check, the refusal of
+    a failed agreement included. A receive, on a session or in responder
+    establishment, applies the size rule before every other check: before
+    the frame is decoded or copied, before `NotARepeatedInitial`, the
+    refusal of a failed agreement, any prekey lookup, decapsulation,
+    agreement or random draw. The order is observable: an input that is
+    too long and also malformed, or too long for a session whose agreement
+    has failed, is refused as too long, and no random value is drawn.
   - session-establishment.md fixes the initiator's, and says why. She
     refuses a malformed expectation before any check of Sending the initial
     message. She checks the bundle's identity key against her expectation

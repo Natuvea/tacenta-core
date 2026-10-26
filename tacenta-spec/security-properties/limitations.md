@@ -288,7 +288,9 @@ REQ-AUTH-02 remains tested only. Vectors cover it; no proof does.
 T1 and T3 are functional. No proof constrains running time, memory, or work
 per byte of input. Denial of service is covered only by fuzzing and
 measurement. See LIMITATIONS.md, "What a green proof does not say about cost",
-and exclusions.md, EX-03.
+and exclusions.md, EX-03. The message size bound (message-format.md, Message
+size) limits the input one encrypt or decrypt call works on; the memory and
+time that costs are not proved.
 
 ## What the requirements give
 
