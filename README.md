@@ -269,10 +269,12 @@ contributory and round-trip premises), under the receipt's laws with the two ora
 the initiator's next `encrypt` has one outcome (the bare second frame carrying the header's chunk at index 1, no draw), and
 if that session passes `Session::invariant` and meets the four counter ceilings, which that result does not show (the receive step below shows it at that session), the public `encrypt`
 returns those bytes with no draw and refines the step, with no new law (no compiler-trust axiom): exactly one further send by the
-initiator, under that condition. Under one more assumed AEAD law (an opened ciphertext is the sealing of what it opened to)
-and a per-run premise that the replaced bytes are no sealing under the reply's message keys and associated data, the
+initiator, under that condition. Under one more assumed AEAD law (the open accepts only bytes that carry the HMAC-SHA256 tag
+over the associated data and the ciphertext) and a per-run premise that the replaced bytes carry no such tag under the reply's
+MAC key and associated data, the
 initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left, refuses with `Aead`, leaves the session as it was and takes
-one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom); neither
+one draw for every frame that keeps the reply's 102-byte header and replaces its ciphertext (no compiler-trust axiom; conditional,
+like every encrypt result, on the seal's totality contract, which is false at the top of the length range); neither
 the law nor the premise is shown of the real AEAD, a frame whose header bytes were changed is not covered, and tamper
 refusal on any other route (the first frame, the second message, a restored session) is not shown. The
 responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no

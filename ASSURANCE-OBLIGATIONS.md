@@ -1084,7 +1084,18 @@ recorded decision or a target-closing slice:
   placed unchanged);
   `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, keeps the last-resort path, the commit's single record entry, the fingerprint of the secret read back and the committed store it returns, and its composition keeps the bundle's last-resort key and absent one-time curve key;
   `Session::decrypt` of the initiator's first frame delivered again, at the responder's session after its first receipt, keeps the one draw, the model's out-of-order refusal, the second source and the oracle that holds its draw, and its composition keeps the second source, the sent bytes and the header source's chunk;
-  the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout, the premise's associated data, the freshness premise, the uniqueness law, the draw and the `Aead` refusal it rests on, the law and the premise are held by their pins, and the toy and lenient models keep separating the law from the round trip;
+  the initiator's refusal of a reply frame whose ciphertext was replaced keeps the frame layout,
+  the premise's associated data and MAC key,
+  the freshness premise,
+  the tag law,
+  the draw and the `Aead` refusal it rests on,
+  the tag law's coverage of the associated data,
+  the round trip the honest conjunct needs,
+  the length argument,
+  the toy's tag check and the seal's failure region that the contrast with the earlier law needs,
+  the tag equation,
+  the law and the premise are held by their pins,
+  and the lenient model keeps separating the law from the round trip;
   the Session unit's sparse skip, related to the model's detailed skip, keeps the refusal's kind from `spqr_skip_refusal_refines` (a mapping that swaps `TooManySkipped` and `SkippedStoreFull`, and every refusal claimed store-full, are refused in the composing proof), the success conjunct of the leaf refinement, and an injective error mapping;
   `Session::decrypt` of the responder's reply delivered again,
   at the initiator's session after its first receipt,
@@ -1549,13 +1560,14 @@ recorded decision or a target-closing slice:
   each control the script labels inside one of the two composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
-  `check-tampered-reply-negatives.py` (two unmodified copies accepted and fifteen changes refused,
+  `check-tampered-reply-negatives.py` (two unmodified copies accepted and twenty changes refused,
   each at a named declaration or pin and against a message naming the change,
   every one a change to a statement or a definition and a proof-breakage check there,
   refused in the composing proof `initiator_refuses_tampered_reply` (the frame's header claimed 101 bytes,
   the reply's ciphertext claimed after 101 bytes, the premise claimed under the peer key's associated data,
-  the freshness premise claimed against the initiator's own key, the uniqueness law replaced by the round trip,
-  the refusal claimed to take no draw, the refusal claimed as the stale-key refusal),
+  the freshness premise claimed against the initiator's own key, the tag law replaced by the round trip,
+  the refusal claimed to take no draw, the refusal claimed as the stale-key refusal,
+  the premise claimed under the encryption key instead of the MAC key),
   each also accepted there with that proof replaced by `sorry`, which verifies attribution only;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below);
   the others on the leaf lemmas or at definitions held by their pins;
