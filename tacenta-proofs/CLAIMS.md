@@ -996,14 +996,20 @@ theorems about a sequence from `init` take none. Each definition is pinned with
 - `Proofs.SparseReachableStore.run_store_bounded`: any list of operations from a
   state whose store is within the bound, whatever else holds of it, leaves a
   store within the bound. A state read from storage is such a start only if its
-  store is within the bound; that the reader refuses a longer one is the vector
-  `store-over-its-bound`, not a theorem here.
+  store is within the bound; the model's reader refuses a longer one
+  (`decoded_chainsNotAhead_store_bounded`), and the vector `store-over-its-bound`
+  pins the refusal.
 - `Proofs.SparseReachableStore.reachable_keysBelowCounter`,
   `Proofs.SparseReachableStore.reachable_store_bounded`,
   `Proofs.SparseReachableStore.reachable_skipSurvivors_eq`: every state a list of
   operations reaches from `init`, for any shared secret and direction, holds no
   stored key at or past its counter, holds at most `maxSkippedStore` keys, and
-  loses no key to a skip's deletion.
+  loses no key to a skip's deletion. The skip inside a receive that opens an
+  epoch acts on the state the optional advance leaves, which is not itself such
+  a reached state; that the deletion removes nothing there too follows by
+  composing `receiveAdvance_reachableStore` (with `run_reachableStore` and
+  `init_reachableStore`) and `skipSurvivors_eq_of_keysBelowCounter`. No single
+  named theorem states that form.
 - `Proofs.SparseReachableStore.witness_reachable_holds_stored_keys`: for any
   shared secret, Bob's state after receiving message 3 of epoch 0 first (the
   trace of the vector `bob-stores-skipped-keys`) holds keys 1 and 2 of epoch 0
@@ -1016,8 +1022,8 @@ theorems about a sequence from `init` take none. Each definition is pinned with
   a receiving counter of 3. It fails both predicates; the deletion of step 2 for
   a skip from the counter to 9 removes that key (`skipSurvivors st 0 3 9 = []`),
   so `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise;
-  and `skipMessageKeys` to 9 succeeds there and leaves only the keys it derived,
-  numbers 4 to 9.
+  and `skipMessageKeys` to 9 succeeds there and leaves six keys, numbers 4 to
+  9.
 - `Proofs.SparseReachableStore.skip_alone_leaves_a_key_at_the_counter`: from
   `init`, a skip to 2 succeeds and leaves a state that meets `KeysAtMostCounter`
   and not `KeysBelowCounter`.

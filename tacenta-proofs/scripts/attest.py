@@ -1030,8 +1030,9 @@ REQUIRED_PINS = frozenset(
         "witness_refused_one_key_further",
     )]
     # The sparse ratchet's reachable store (Proofs/SparseReachableStore.lean): no stored key at or
-    # past its chain's counter and the store within the total bound, kept by every operation and over
-    # any sequence from `init`, the skip that deletes nothing there, and the witnesses.
+    # past its chain's counter and the store within the total bound, kept, with `ChainsNotAhead`, by each
+    # public operation and over any sequence from `init`, the skip that deletes nothing there, and the
+    # witnesses.
     + ["Proofs.SparseReachableStore." + n for n in (
         "init_keysBelowCounter",
         "init_chainsNotAhead",

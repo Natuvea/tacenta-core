@@ -51,8 +51,8 @@ have content: a reached state holding two stored keys
 (`witness_reachable_holds_stored_keys`, the trace of the vector
 `bob-stores-skipped-keys`); the start state of the vector
 `stored-key-past-its-counter`, which fails the predicate, whose deletion of
-step 2 removes its key, and on which a skip to 9 runs and leaves only the keys it
-derived (`witness_store_past_its_counter_fails`); a skip that leaves a key at its
+step 2 removes its key, and on which a skip to 9 runs and leaves six keys,
+numbers 4 to 9 (`witness_store_past_its_counter_fails`); a skip that leaves a key at its
 counter (`skip_alone_leaves_a_key_at_the_counter`); and an advance and a receive
 that break the invariant from a state with a chain ahead of the current epoch
 (`chainsNotAhead_needed_for_advance`, `receive_breaks_without_chainsNotAhead`).
@@ -858,7 +858,7 @@ store replaced by one key of epoch 0 at number 9 while the receiving counter is
 3. It fails both predicates; the deletion of step 2 for a skip from the counter
 to 9 removes that key (`skipSurvivors`), so the corollary
 `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise; and
-the skip itself runs and leaves only the keys it derived, numbers 4 to 9. Stated
+the skip itself runs and leaves six keys, numbers 4 to 9. Stated
 for any shared secret and key. -/
 theorem witness_store_past_its_counter_fails (sk k : Key) :
     let st : State := { run (init sk .b2a) [.receive 0 none 3] with skipped := [(0, 9, k)] }
