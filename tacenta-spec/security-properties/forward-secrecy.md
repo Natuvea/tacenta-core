@@ -145,8 +145,9 @@ epochs):
   second bullet of the statement, that each store holds at most
   `MAX_SKIPPED_STORE` keys, is proved for single operations, and for the
   classical store over finite sequences of the five transitions
-  `Proofs.MemorySafety.Step` names. No theorem carries it across
-  `Model.Ratchet.receive` or across the sparse ratchet's operations, so for a
+  `Proofs.MemorySafety.Step` names, and for the sparse store over finite
+  sequences of the model's sends, receives and evictions. No theorem carries it
+  across `Model.Ratchet.receive` or across a session's operations, so for a
   whole session the bound is tested only. The other three bullets are proved.
   - The skip bounds: `skipMessageKeys_growth` and
     `skipMessageKeys_store_bounded` (T2, CLAIMS.md, "Proved (tier T2,
@@ -177,13 +178,18 @@ epochs):
       survive the deletion plus the keys to store pass that bound:
       `Proofs.SparseReplacementBound.skipMessageKeys_leaves_survivors_then_batch`
       and `Proofs.SparseReplacementBound.skipMessageKeys_refused_iff`.
+  - T2, CLAIMS.md, "Proved (tier T2, in the model: no stored key at or past
+    its counter, and the total bound, on every state the sparse ratchet's
+    operations reach from initialisation)": the sparse bound survives any finite sequence of the
+    model's sends, receives and evictions from a state within it:
+    `Proofs.SparseReachableStore.run_store_bounded`.
 - **Does not cover:**
   - The bound across `Model.Ratchet.receive`. A receive is not a
     `Proofs.MemorySafety.Step`, and no theorem says the state it returns is
     `Reachable` from the state it was given.
-  - The bound across the sparse ratchet's `send`, `receive` or `advance`, or
-    across any sequence of them. Each of its store theorems is about one
-    operation.
+  - The sparse bound across a session's operations, its eviction and retry
+    included. `Proofs.SparseReachableStore.run_store_bounded` is about the
+    ratchet's model alone, and says nothing of the code.
   - A stored key taken before it is used, expired or evicted. That exposure is
     the price of out-of-order delivery.
   - The count's last step. `age_store_refines` needs a step of room, and once

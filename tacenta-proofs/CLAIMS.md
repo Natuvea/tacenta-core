@@ -749,7 +749,10 @@ definitions; no theorem relates `keyAt` to `receive`.
   succeeds leaves the store holding at most the larger of its previous size
   and `maxSkippedStore`, with no premise on the store it started from. This is
   one skip. None of these theorems carries the bound across the sparse
-  ratchet's `send`, `receive` or `advance`, or over a sequence of operations.
+  ratchet's `send`, `receive` or `advance`, or over a sequence of operations;
+  `Proofs.SparseReachableStore` does, in the model (the section "Proved (tier
+  T2, in the model: no stored key at or past its counter, and the total bound,
+  on every state the sparse ratchet's operations reach from initialisation)").
 - `Proofs.SparseRatchetCorrectness.clearOldEpochs_store_le`: retiring old
   epochs never lengthens the store.
 - `Proofs.SparseRatchetCorrectness.trySkipped_store_lt`: taking a stored key
@@ -907,14 +910,162 @@ session, not a hosted job and not independent (`REPRODUCING.md`, "Regenerating
 the translation on Linux x86_64, by hand"; `GAP-REGISTER.md`,
 `HL-R1-SPARSE-TRANSLATION`).
 
-Not proved, and not checked by `State::invariant`: that no operation leaves a
-stored key at or past its epoch's receiving counter, and so that the counts
-before and after the deletion agree on every state the operations produce. It is
-read off the operations.
-`no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40 seeds of
-300 randomised steps (sends, epoch openings, in-order and late receives,
-duplicates, arbitrary numbers, stale epochs and eviction) and asserts it after
-every step. That is a sample, not a proof.
+That every state the model's sends, receives and evictions reach from `init`
+holds no stored key at or past its epoch's receiving counter, and so that the
+counts before and after the deletion agree there, is proved of the model and not
+of the Rust (the next section). One operation at a time the model keeps it only
+from a state that meets `KeysBelowCounter` and, for an operation that may open
+an epoch, `ChainsNotAhead`. For the Rust it is tested only, and
+`State::invariant` does not check it: `no_operation_leaves_a_stored_key_at_or_past_its_chain_counter` runs 40
+seeds of 300 randomised steps (sends, epoch openings, in-order and late
+receives, duplicates, arbitrary numbers, stale epochs and eviction) and asserts
+it after every step. That is a sample, not a proof.
+
+## Proved (tier T2, in the model: no stored key at or past its counter, and the total bound, on every state the sparse ratchet's operations reach from initialisation)
+
+Location: `Proofs/SparseReachableStore.lean`, about `Model.SparseRatchet`.
+
+`sparse-pq-ratchet.md`, Receiving, says that no operation applied to a state the
+operations produced leaves a key stored past its chain's counter, and The store
+also has a total bound says that, on a state the operations produced, a skip's
+deletion removes nothing. These theorems prove both of the model for every state
+a list of sends, receives and evictions reaches from `init`; one operation at a
+time they hold only under the invariant's premises below, and without
+`ChainsNotAhead` a receive that opens an epoch can leave a key past its counter
+(`receive_breaks_without_chainsNotAhead`). `KeysBelowCounter st` says that every stored key's
+epoch has a receiving chain and that the key's number is below that chain's
+counter; `KeysAtMostCounter st` allows the key at the counter itself.
+`ChainsNotAhead st` says that no chain is held for an epoch past the current
+one; it is part of the invariant because an advance opens fresh chains, at
+counter 0, for the next epoch, and a key stored under a chain held there would
+then be past its counter (`chainsNotAhead_needed_for_advance`). It is also a
+rule the stored state already has: the model's reader refuses a chain for an
+epoch past the current one (`Model.PersistedState.SparseState.invariant`), and so
+does `tacenta-spqr`'s `State::invariant`, which `State::from_bytes` requires (by
+reading the code), so every state the model's reader accepts meets it
+(`decoded_chainsNotAhead_store_bounded`). `ReachableStore st` is the three together: `KeysBelowCounter`,
+`ChainsNotAhead`, and a store of at most `maxSkippedStore` keys. `Op` is a
+send, a receive or an eviction of the oldest stored keys, the three operations
+the public interface offers on a state; `run st ops` applies a list of them in
+order, a refused send or receive leaving the state it was given. The one-step
+theorems take the invariant (and `ChainsNotAhead` where the operation may open
+an epoch, or a store already within the bound for the bound) as hypotheses; the
+theorems about a sequence from `init` take none. Each definition is pinned with
+`#print` in the same file.
+
+- `Proofs.SparseReachableStore.init_keysBelowCounter`,
+  `Proofs.SparseReachableStore.init_chainsNotAhead`,
+  `Proofs.SparseReachableStore.init_reachableStore`: `init` stores nothing and
+  holds one chain, for epoch 0.
+- `Proofs.SparseReachableStore.advance_keysBelowCounter`,
+  `Proofs.SparseReachableStore.advance_chainsNotAhead`,
+  `Proofs.SparseReachableStore.receiveAdvance_keysBelowCounter`: an advance that
+  succeeds, and the optional advance that opens a send or a receive, keep
+  `KeysBelowCounter` given `ChainsNotAhead`, and the advance keeps
+  `ChainsNotAhead`.
+- `Proofs.SparseReachableStore.send_keysBelowCounter`,
+  `Proofs.SparseReachableStore.send_chainsNotAhead`,
+  `Proofs.SparseReachableStore.send_store_bounded`: a send that succeeds keeps
+  the two predicates (the first given the second) and a store within the bound.
+- `Proofs.SparseReachableStore.trySkipped_keysBelowCounter`,
+  `Proofs.SparseReachableStore.evictOldest_keysBelowCounter`,
+  `Proofs.SparseReachableStore.clearOldEpochs_keysBelowCounter`,
+  `Proofs.SparseReachableStore.evictOldest_store_bounded`: taking a stored key,
+  evicting and retiring old epochs keep `KeysBelowCounter`, and eviction keeps a
+  store within the bound.
+- `Proofs.SparseReachableStore.skipMessageKeys_keysAtMostCounter`: a skip that
+  succeeds keeps `KeysAtMostCounter`. A skip on its own does not keep the strict
+  form, since the last key it stores is at the new counter
+  (`skip_alone_leaves_a_key_at_the_counter`, below).
+- `Proofs.SparseReachableStore.skipMessageKeys_keysBelowCounter_off`: from a
+  state meeting `KeysBelowCounter`, a skip on epoch `e` that succeeds leaves
+  every key below its counter except that a key of `e` may be at it.
+- `Proofs.SparseReachableStore.receive_keysBelowCounter`,
+  `Proofs.SparseReachableStore.receive_chainsNotAhead`,
+  `Proofs.SparseReachableStore.receive_store_bounded`: a receive that succeeds
+  keeps the two predicates (the first given the second), its last step moving
+  the counter past the keys its skip stored, and a store within the bound.
+- `Proofs.SparseReachableStore.skipSurvivors_eq_of_keysAtMostCounter`,
+  `Proofs.SparseReachableStore.skipSurvivors_eq_of_keysBelowCounter`: on a state
+  with no key past its counter, the keys a skip from an epoch's receiving counter
+  keeps are the whole store, whatever its `upto`: the deletion removes nothing,
+  and the count the total bound checks is the store's length.
+- `Proofs.SparseReachableStore.apply_reachableStore`,
+  `Proofs.SparseReachableStore.run_reachableStore`: one operation, taken or
+  refused, and so any list of them, keeps `ReachableStore`.
+- `Proofs.SparseReachableStore.run_store_bounded`: any list of operations from a
+  state whose store is within the bound, whatever else holds of it, leaves a
+  store within the bound. A state read from storage is such a start only if its
+  store is within the bound; the model's reader refuses a longer one
+  (`decoded_chainsNotAhead_store_bounded`), and the vector `store-over-its-bound`
+  pins the refusal.
+- `Proofs.SparseReachableStore.reachable_keysBelowCounter`,
+  `Proofs.SparseReachableStore.reachable_store_bounded`,
+  `Proofs.SparseReachableStore.reachable_skipSurvivors_eq`: every state a list of
+  operations reaches from `init`, for any shared secret and direction, holds no
+  stored key at or past its counter, holds at most `maxSkippedStore` keys, and
+  loses no key to a skip's deletion. The skip inside a receive that opens an
+  epoch acts on the state the optional advance leaves, which is not itself such
+  a reached state; that the deletion removes nothing there too follows by
+  composing `receiveAdvance_reachableStore` (with `run_reachableStore` and
+  `init_reachableStore`) and `skipSurvivors_eq_of_keysBelowCounter`. No single
+  named theorem states that form.
+- `Proofs.SparseReachableStore.witness_reachable_holds_stored_keys`: for any
+  shared secret, Bob's state after receiving message 3 of epoch 0 first (the
+  trace of the vector `bob-stores-skipped-keys`) holds keys 1 and 2 of epoch 0
+  under a receiving counter of 3, so the results above are about a store that is
+  not empty.
+- `Proofs.SparseReachableStore.witness_store_past_its_counter_fails`: the start
+  state of the vector `stored-key-past-its-counter`, which the reader accepts
+  (ADR-0007), for any shared secret and key: Bob after receiving message 3 of
+  epoch 0 first, with the store replaced by one key of epoch 0 at number 9 under
+  a receiving counter of 3. It fails both predicates; the deletion of step 2 for
+  a skip from the counter to 9 removes that key (`skipSurvivors st 0 3 9 = []`),
+  so `skipSurvivors_eq_of_keysAtMostCounter` does not hold without its premise;
+  and `skipMessageKeys` to 9 succeeds there and leaves six keys, numbers 4 to
+  9.
+- `Proofs.SparseReachableStore.skip_alone_leaves_a_key_at_the_counter`: from
+  `init`, a skip to 2 succeeds and leaves a state that meets `KeysAtMostCounter`
+  and not `KeysBelowCounter`.
+- `Proofs.SparseReachableStore.chainsNotAhead_needed_for_advance`: a state with
+  a key below its counter under a chain for the epoch after the current one
+  meets `KeysBelowCounter` and not `ChainsNotAhead`, and the advance onto that
+  epoch succeeds and leaves a state that fails `KeysBelowCounter`.
+- `Proofs.SparseReachableStore.receive_breaks_without_chainsNotAhead`: from the
+  same state, a receive on epoch 0 that carries the next epoch's secret succeeds
+  and leaves a state that fails even `KeysAtMostCounter`, so a public operation
+  breaks the property one step at a time without `ChainsNotAhead`.
+- `Proofs.SparseReachableStore.receiveAdvance_reachableStore`: the state the
+  optional advance leaves keeps `ReachableStore`. In the code, a send or a receive
+  refused after it folded the agreement's secret in may leave that state (by
+  reading the code, with `Tacenta.SpqrT3.skip_message_keys_refines` for the
+  skip's refusal); `run` does not adopt it.
+- `Proofs.SparseReachableStore.decoded_chainsNotAhead_store_bounded`: every state
+  `Model.PersistedState.SparseState.ofBytes` accepts meets `ChainsNotAhead` and
+  holds at most `maxSkippedStore` keys. It need not meet `KeysBelowCounter`
+  (the witness above).
+
+**Compiler trust and pins.** Each of the 33 results carries an axiom pin under
+`#guard_msgs` in `Proofs/SparseReachableStore.lean`, and each is on `propext`,
+`Classical.choice` and `Quot.sound` or fewer; none lists a compiler-trust axiom,
+and none uses `native_decide`. `attest.py` requires all 33 axiom pins
+(`REQUIRED_PINS`) and the statement pins of the 33 results and the seven
+definitions (`REQUIRED_STATEMENT_PINS`, the definitions in their `#print` form),
+and `check-attest-negatives.sh` deletes each axiom pin in turn and expects the
+refusal.
+
+**Not shown here.** Anything about the Rust: `tacenta-spqr`'s operations are
+tested for the same property (above), and no theorem composes these results with
+the refinement theorems; that a state read from storage has no key at or past
+its counter: the reader accepts one that has, and the results about the counter
+over a sequence start from `init`; the bound across the Session's operations,
+its eviction and retry, or its import; that a caller keeps its own copy when an
+operation is refused: `run` models a refused operation as leaving the state it
+was given, which is what the page asks of a caller and not something this file
+checks (the state a refused send or receive may leave after folding the
+agreement's secret in keeps the invariant, `receiveAdvance_reachableStore`, but
+no `run` adopts it); that the store is a map, that the stored keys are the right
+keys, or any property of a key's bytes.
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
