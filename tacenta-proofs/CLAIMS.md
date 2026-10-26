@@ -198,7 +198,7 @@ this section says in one place what is not proved.
   refuses with `Aead`, leaves the session as it was and takes one draw. This holds for every frame that keeps the
   reply's 102-byte header and replaces its ciphertext, with no compiler-trust axiom, and conditional, like every
   encrypt result here, on the seal's totality contract `AeadSealBounded`, which is false at the top of the length
-  range, and on the decrypt oracle record's open clause (`AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
+  range, and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
   `decrypt` refuses a reply whose ciphertext was replaced ...)").
   The reply delivered to the initiator a second time, at the session its first receipt of the reply returned (right after a
   receipt that succeeded), under the receipt's hypotheses and a per-run premise that the second source holds a draw, is
@@ -6577,7 +6577,7 @@ the same run, every frame that keeps the reply's first 102 bytes (its header) an
 bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and show that the same call, at the
 same `s'` from the same `rng'`, refuses it. Like every encrypt result here, the result is conditional on the seal's totality
 contracts (`AeadSealBounded` and the seal clause of the oracle record `OracleOf`), which have no length premise and are false
-of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the decrypt oracle record's open clause (`AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
+of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
 
 **How, and its scope.** The bridge `open_none_of_not_tagged` turns the new law into a fact about the oracle the decrypt
 refinement reads: under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the oracle's open of bytes that
@@ -6600,7 +6600,7 @@ of `tacenta-core/boundary/src/aead.rs`, and is not proved:
 
 - the open refuses fewer than 32 bytes;
 - it compares the full 32-byte tag with RustCrypto `Mac::verify_slice` before it decrypts;
-- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
+- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the ciphertext) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
   examples by `native_decide` in `tacenta-model`, not in any proof's base).
 
 It would be false of a truncated or short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of
@@ -6615,7 +6615,7 @@ Together, the law and the premise say no more than that the boundary's `decrypt`
 associated data. What the theorem adds is the session around that call on the run: the call reaches the boundary's open
 with exactly the reply's message keys and associated data (dispatch, decode, the agreement's receive, the Diffie-Hellman
 step, the key derivations), and the refusal is `Aead`, leaves the session as it was and takes one draw. The other premises
-are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the decrypt oracle record (whose open clause is `AeadOpenTotal`, used here at the tampered ciphertext's length) included.
+are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the oracle record `OracleOf` (whose open clause asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`, used here at the tampered ciphertext's length) included.
 
 It replaces an earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself). That law was false of the
 shipping functions at the top of the length range and under memory exhaustion, because the seal copies `ad ‖ ct` into one
@@ -6678,7 +6678,7 @@ only `2 ^ 32 - 1 ≤ Usize.max`, so they hold at both widths. The run's other
 premises are reached at the real constants under the laws by `first_send_reply_receipt_reachable`.
 
 **What this establishes, and what it does not.** On the run of the initiator's first send, the responder's receipt and its
-reply, under `AeadOpenChecksTag` and the reply receipt's premises, and conditional on the seal's totality contracts and on the open clause `AeadOpenTotal` at the tampered ciphertext's length, the
+reply, under `AeadOpenChecksTag` and the reply receipt's premises, and conditional on the seal's totality contracts and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`) at the tampered ciphertext's length, the
 initiator's `decrypt` at `s'` from `rng'` accepts the reply and refuses with `Aead`, leaving the session as it was, every
 frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under the reply's MAC key and associated data.
 **Not shown:** that the shipping AEAD meets `AeadOpenChecksTag` (assumed, by reading, not proved; an independent verified

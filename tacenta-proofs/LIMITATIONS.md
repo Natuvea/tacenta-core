@@ -3107,7 +3107,7 @@ ciphertext, and shows that the initiator's `decrypt` at the session its first `e
 (`initiator_refuses_tampered_reply`, resting on the kernel and opaque constants, no compiler-trust axiom). It needs one new
 assumed law and one new premise about the run, on top of the reply receipt's premises (`hfreshB` included), and, like every
 encrypt result, it is conditional on the seal's totality contract `AeadSealBounded`, which is false at the top of the
-length range (the totality row below), and on the decrypt oracle record's open clause `AeadOpenTotal`, which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (the same row):
+length range (the totality row below), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (the same row):
 
 | Statement | Kind | Says | Used for | Model, and when it would be false |
 |---|---|---|---|---|
@@ -3125,7 +3125,7 @@ The workspace builds with overflow checks on (`[profile.release]` in `tacenta-co
 `subtle`), and `sha2` 0.10.9 computes the message's bit length as `8 * (bytes hashed)` in a `u64`, so from about `2^61`
 bytes of associated data and ciphertext (64-bit only) the open's SHA-256 length arithmetic would panic (by reading of
 `sha2`'s source, not tested). There the open does not return, and the law holds, but `AeadOpenTotal` does not; the
-totality row below records that edge, and the tampered-reply refusal takes `AeadOpenTotal` at the tampered ciphertext's length, so it is conditional on it there. That falsity depends on the build profile, since an application that depends on `tacenta-core` builds it with its own: with overflow checks off, `sha2` wraps the bit length and the open returns. The law does not depend on the profile: `Model.Sha256.pad` takes `UInt64.ofNat len * 8`, which wraps exactly as `sha2` does, so past `2^61` bytes, where FIPS 180-4 no longer defines SHA-256, the open either panics or computes `Model.Kdf.hmac` (by reading).
+totality row below records that edge, and the tampered-reply refusal takes the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`) at the tampered ciphertext's length, so it is conditional on it there. That falsity depends on the build profile, since an application that depends on `tacenta-core` builds it with its own: with overflow checks off, `sha2` wraps the bit length and the open returns. The law does not depend on the profile: `Model.Sha256.pad` takes `UInt64.ofNat len * 8`, which wraps exactly as `sha2` does, so past `2^61` bytes, where FIPS 180-4 no longer defines SHA-256, the open either panics or computes `Model.Kdf.hmac` (by reading).
 
 A realisation would need the shipping open translated, with its tag computed by a translated HMAC. An independent
 verified implementation of the same construction proves this shape of its own `decrypt` (a bad tag refused, for
