@@ -197,8 +197,7 @@ this section says in one place what is not proved.
   stated), the initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left,
   refuses with `Aead`, leaves the session as it was and takes one draw. This holds for every frame that keeps the
   reply's 102-byte header and replaces its ciphertext, with no compiler-trust axiom, and conditional, like every
-  encrypt result here, on the seal's totality contract `AeadSealBounded`, which is false at the top of the length
-  range, and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
+  encrypt result here, on the seal's totality contract `AeadSealBounded`, which is stated for every length and false of the shipping seal by reading, from a plaintext of `2^30 - 16` bytes on a 32-bit target and `2^62 - 16` on 64-bit (`LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. Both contracts are stated for every length and are false of the shipping AEAD by reading, so, as stated, this result says nothing about the shipping code at any length (the totality row). A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
   `decrypt` refuses a reply whose ciphertext was replaced ...)").
   The reply delivered to the initiator a second time, at the session its first receipt of the reply returned (right after a
   receipt that succeeded), under the receipt's hypotheses and a per-run premise that the second source holds a draw, is
@@ -540,7 +539,9 @@ this section says in one place what is not proved.
   No result in this file assumes the wrapper's checks: the results that start
   from a session `establish_initiator_for` returned are stated for every bundle
   and every expected key, and no hypothesis of theirs mentions identity records
-  (ADR-0009) or an `Expectation`; the reach witnesses fix the expected key to
+  (ADR-0009) or an `Expectation`; the reach witnesses, and the existence
+  theorems `establish_initiator_for_succeeds`, `established_initiator_inhabited`
+  and `restored_established_inhabited`, fix the expected key to
   the bundle's own. So none of them states REQ-AUTH-02 at the code. About the
   crate, that a session the wrapper returns has a peer key the expectation
   accepted, and that a refusal by the wrapper's expectation check draws
@@ -6577,7 +6578,7 @@ the same run, every frame that keeps the reply's first 102 bytes (its header) an
 bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and show that the same call, at the
 same `s'` from the same `rng'`, refuses it. Like every encrypt result here, the result is conditional on the seal's totality
 contracts (`AeadSealBounded` and the seal clause of the oracle record `OracleOf`), which have no length premise and are false
-of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
+of the shipping seal by reading, from a plaintext of `2^30 - 16` bytes on a 32-bit target and `2^62 - 16` on 64-bit (`LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. Because these contracts are stated for every length and are false of the shipping AEAD by reading, the result, as stated, says nothing about the shipping code at any length (the same row).
 
 **How, and its scope.** The bridge `open_none_of_not_tagged` turns the new law into a fact about the oracle the decrypt
 refinement reads: under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the oracle's open of bytes that
@@ -6600,7 +6601,7 @@ of `tacenta-core/boundary/src/aead.rs`, and is not proved:
 
 - the open refuses fewer than 32 bytes;
 - it compares the full 32-byte tag with RustCrypto `Mac::verify_slice` before it decrypts;
-- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the ciphertext) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
+- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the bytes of `c` before the tag) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
   examples by `native_decide` in `tacenta-model`, not in any proof's base).
 
 It would be false of a truncated or short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of
@@ -6685,8 +6686,8 @@ frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under 
 implementation proves the same shape, a bad tag refused, of its own code and not of the shipping one); that a frame an
 attacker can produce meets `NotTagged` (the unforgeability of HMAC-SHA256, not stated); a frame whose tag verifies but whose
 padding is refused (refused by the shipping open, by reading, but outside the premise); that the responder's `encrypt`
-returns `bytesR` for reply plaintexts near `isize::MAX`, which the shipping seal does not (`AeadSealBounded` is assumed for
-every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks, where the shipping open panics (`AeadOpenTotal` is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
+returns `bytesR` for reply plaintexts from about half of `isize::MAX`, which the shipping seal does not (`AeadSealBounded` is assumed for
+every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks, where the shipping open panics (the open clause of `OracleOf`, which implies `AeadOpenTotal`, is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
 epochs, agreement type or chunk), a frame shorter than the header, or a frame of another type (those reach other associated
 data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered frame's refusal when the reply's
 ratchet key is the peer key the initiator holds, or when the initiator's draw's agreement is refused (`hfreshB` and the
