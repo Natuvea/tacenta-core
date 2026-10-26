@@ -275,6 +275,11 @@ fn a_plaintext_one_over_is_refused_before_any_draw_on_a_pending_session() {
 
 /// Before the session is pending at all, the first `encrypt` is what produces the initial message: refused
 /// with the same kind, and the session still produces a first message afterwards.
+///
+/// This is also the test that sees a sender's check moved after `braid.send`: the Braid draws on a send only
+/// in its first states (two values at `KeysUnsampled`, the state of a fresh initiator, one at
+/// `HeaderReceived`), so on the established and pending sessions of the other tests a late check would still
+/// read nothing.
 #[test]
 fn the_first_initial_message_is_held_to_the_sender_rule() {
     let mut r = Counting::new(5);
