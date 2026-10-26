@@ -58,9 +58,9 @@ On the leaf lemmas:
   * the length argument claimed up to 32 bytes (refused in `notTagged_of_short`, at the arithmetic: a 32-byte string
     can equal a 32-byte tag);
   * the toy open made to skip the tag (refused in `modelTagged_checksTag`);
-  * the contrast's seal made to fail only past the whole `usize` range instead of past `Usize.max / 2` (refused in
-    `taggedTop_checksTag_not_openSealUnique`, where the reseal of the witness must fail: without a region where the
-    seal fails at a length the open accepts, the earlier law cannot be refuted);
+  * the contrast's seal made total, its failure branch removed (refused in `taggedTop_checksTag_not_openSealUnique`,
+    where the reseal of the witness must fail: with a seal that never fails, the tagged open meets the earlier law,
+    `modelTagged_openSealUnique`, so the contrast rests on the failing seal);
   * the lenient open made to check a tag (refused in `taggedLenient_roundTrip_not_checksTag`, whose two accepted
     32-byte strings it then refuses);
   * the model's refusal claimed to leave the oracle's draws untouched (refused in `tampered_reply_model_refusal`);
@@ -69,7 +69,8 @@ On the leaf lemmas:
   * the reply's header claimed to be 103 bytes (refused in `replyFrame_take`).
 
 The pin controls hold definitions with the module's pins kept: the tag equation reversed (refused at the pin of
-`TagMatches`; a change to it moves the law and the premise together, so only the pin can catch it), the law claimed
+`TagMatches`; a change to it moves the law and the premise together, so the headline cannot catch it, and the leaf
+lemmas and the pin do), the law claimed
 without the associated data (refused at the pin of `AeadOpenChecksTagShape`) and the premise made `True` (refused at
 the pin of `NotTagged`).  No statement-shape check: the module has no reach.
 
@@ -209,8 +210,8 @@ MUTANTS = [
      r"Type mismatch\n  ht\nhas type\n  32 ≤ \(↑c\)\.length\nbut is expected to have type\n  "
      r"List\.drop \(List\.length \(sliceOf c\) - 32\) \(sliceOf c\) =\n    Model\.Kdf\.hmac \(arrayOf k2\) ",
      ['modelTagged_checksTag']),
-    ('module', 'top-seal-threshold-raised-to-the-whole-range',
-     [(TOP, TOP.replace("≤ Usize.max / 2 then", "≤ Usize.max then"))],
+    ('module', 'top-seal-made-total',
+     [(TOP, "      ok (sealTagged k2 p ad) }\n")],
      r"Type mismatch\n  if_neg hbig\nhas type\n  \(if [\s\S]*? ≤ Usize\.max / 2 then[\s\S]*?"
      r"but is expected to have type\n  Interp\.modelTaggedTop\.aeadEncrypt k k iv",
      ['taggedTop_checksTag_not_openSealUnique']),

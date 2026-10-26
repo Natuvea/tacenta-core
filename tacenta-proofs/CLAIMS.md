@@ -193,12 +193,12 @@ this section says in one place what is not proved.
   Under one more assumed law of the boundary AEAD, that its open returns a plaintext only for bytes whose last 32 are
   the HMAC-SHA256 tag under the MAC key over the associated data and the bytes before them (`AeadOpenChecksTag`, true
   of the shipping open by reading, not proved), and a per-run premise that the replaced bytes carry no such tag
-  (`NotTagged`; that an attacker without the message key cannot produce one is the unforgeability of HMAC-SHA256, not
+  (`NotTagged`; that an attacker without the message key cannot produce one, except with negligible probability, is the unforgeability of HMAC-SHA256, not
   stated), the initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left,
   refuses with `Aead`, leaves the session as it was and takes one draw. This holds for every frame that keeps the
   reply's 102-byte header and replaces its ciphertext, with no compiler-trust axiom, and conditional, like every
   encrypt result here, on the seal's totality contract `AeadSealBounded`, which is false at the top of the length
-  range. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
+  range, and on the decrypt oracle record's open clause (`AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
   `decrypt` refuses a reply whose ciphertext was replaced ...)").
   The reply delivered to the initiator a second time, at the session its first receipt of the reply returned (right after a
   receipt that succeeded), under the receipt's hypotheses and a per-run premise that the second source holds a draw, is
@@ -6577,7 +6577,7 @@ the same run, every frame that keeps the reply's first 102 bytes (its header) an
 bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and show that the same call, at the
 same `s'` from the same `rng'`, refuses it. Like every encrypt result here, the result is conditional on the seal's totality
 contracts (`AeadSealBounded` and the seal clause of the oracle record `OracleOf`), which have no length premise and are false
-of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row).
+of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the decrypt oracle record's open clause (`AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
 
 **How, and its scope.** The bridge `open_none_of_not_tagged` turns the new law into a fact about the oracle the decrypt
 refinement reads: under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the oracle's open of bytes that
@@ -6600,7 +6600,7 @@ of `tacenta-core/boundary/src/aead.rs`, and is not proved:
 
 - the open refuses fewer than 32 bytes;
 - it compares the full 32-byte tag with RustCrypto `Mac::verify_slice` before it decrypts;
-- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines (checked against RFC 4231
+- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
   examples by `native_decide` in `tacenta-model`, not in any proof's base).
 
 It would be false of a truncated or short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of
@@ -6608,14 +6608,14 @@ an open that accepted on any other condition. It is the AEAD half of REQ-AUTH-06
 
 One premise is new and is about the run, `NotTagged`: the replaced bytes `cT` do not carry that tag under the reply's MAC
 key and associated data. It is a condition on bytes, the same at every interpretation, not a law. That an attacker who does
-not hold the message key cannot produce bytes that carry it is the unforgeability of HMAC-SHA256, which no theorem here
+not hold the message key cannot produce, except with negligible probability, bytes that carry it is the unforgeability of HMAC-SHA256, which no theorem here
 states; this premise is where that assumption sits, and the refusal is scoped to frames that meet it.
 
 Together, the law and the premise say no more than that the boundary's `decrypt` refuses those bytes under that key and that
 associated data. What the theorem adds is the session around that call on the run: the call reaches the boundary's open
 with exactly the reply's message keys and associated data (dispatch, decode, the agreement's receive, the Diffie-Hellman
 step, the key derivations), and the refusal is `Aead`, leaves the session as it was and takes one draw. The other premises
-are those of `initiator_receives_reply`, unchanged, `hfreshB` and `AeadSealBounded` included.
+are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the decrypt oracle record (whose open clause is `AeadOpenTotal`, used here at the tampered ciphertext's length) included.
 
 It replaces an earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself). That law was false of the
 shipping functions at the top of the length range and under memory exhaustion, because the seal copies `ad ‖ ct` into one
@@ -6655,6 +6655,7 @@ allocation and the open does not. `AeadOpenSealUniqueShape` is kept only to stat
 - `taggedLenient_roundTrip_not_checksTag`: an open that skips the tag check meets the round trip and fails the law.
 - `taggedTop_checksTag_not_openSealUnique`: with a seal that fails once plaintext, associated data and tag pass half the
   `usize` range, the toy meets the law and refutes `AeadOpenSealUniqueShape`.
+- `modelTagged_openSealUnique`: with its seal, which never fails, `Interp.modelTagged` meets `AeadOpenSealUniqueShape`; so the contrast above refutes the earlier law through its failing seal alone.
 - `tamper_laws_model`: the round trip and the law at `Interp.modelTagged`, and `NotTagged` of the empty ciphertext under every
   key and associated data.
 
@@ -6671,13 +6672,13 @@ tag (`tagMatches_append`), and the reply's own ciphertext (a conjunct of the hea
 
 `taggedLenient_roundTrip_not_checksTag` shows the law is not implied by the round trip.
 `taggedTop_checksTag_not_openSealUnique` shows it survives a seal that fails at the top of the length range, as the shipping
-one does, where the earlier law does not; the toy models the capacity edge only, and the law depends on neither that edge nor
+one does (the toy's threshold only approximates the shipping edge), where the earlier law does not, and `modelTagged_openSealUnique` shows the failing seal is what refutes it; the toy models the capacity edge only, and the law depends on neither that edge nor
 memory. None of these toy results assumes a width: each is stated for the symbolic `Usize.max`, and the two contrasts use
 only `2 ^ 32 - 1 ≤ Usize.max`, so they hold at both widths. The run's other
 premises are reached at the real constants under the laws by `first_send_reply_receipt_reachable`.
 
 **What this establishes, and what it does not.** On the run of the initiator's first send, the responder's receipt and its
-reply, under `AeadOpenChecksTag` and the reply receipt's premises, and conditional on the seal's totality contracts, the
+reply, under `AeadOpenChecksTag` and the reply receipt's premises, and conditional on the seal's totality contracts and on the open clause `AeadOpenTotal` at the tampered ciphertext's length, the
 initiator's `decrypt` at `s'` from `rng'` accepts the reply and refuses with `Aead`, leaving the session as it was, every
 frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under the reply's MAC key and associated data.
 **Not shown:** that the shipping AEAD meets `AeadOpenChecksTag` (assumed, by reading, not proved; an independent verified
@@ -6685,7 +6686,7 @@ implementation proves the same shape, a bad tag refused, of its own code and not
 attacker can produce meets `NotTagged` (the unforgeability of HMAC-SHA256, not stated); a frame whose tag verifies but whose
 padding is refused (refused by the shipping open, by reading, but outside the premise); that the responder's `encrypt`
 returns `bytesR` for reply plaintexts near `isize::MAX`, which the shipping seal does not (`AeadSealBounded` is assumed for
-every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
+every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks, where the shipping open panics (`AeadOpenTotal` is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
 epochs, agreement type or chunk), a frame shorter than the header, or a frame of another type (those reach other associated
 data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered frame's refusal when the reply's
 ratchet key is the peer key the initiator holds, or when the initiator's draw's agreement is refused (`hfreshB` and the
@@ -6701,10 +6702,10 @@ primitives meet the boundary records or the other laws (`AeadRoundTrip`, `DhAgre
 **Compiler trust and pins.** `initiator_refuses_tampered_reply` applies `initiator_receives_reply`,
 `initiator_first_send_responder_replies`, `established_encrypt_successor_hypotheses` and
 `decrypt_refines_ratchet_frame_of_counter_headroom` and lists the kernel's three axioms and opaque constants of the unit, and
-no compiler-trust axiom. Of the other 20 results, 9 rest on `propext`, `Classical.choice` and `Quot.sound` alone or on a
+no compiler-trust axiom. Of the other 21 results, 9 rest on `propext`, `Classical.choice` and `Quot.sound` alone or on a
 subset of them (`replyHeader_length` on one of the three; `notTagged_of_short`, `replyFrame_take` and `replyFrame_drop` on
 two; `tagMatches_append`, `tampered_reply_model_refusal`, `toyTag_length`, `toyTag_bytes` and `sealTagged_val` on all three)
-and 11 on those and opaque constants of the unit. Each of the 21 results carries an axiom pin and a statement pin, and each
+and 12 on those and opaque constants of the unit. Each of the 22 results carries an axiom pin and a statement pin, and each
 of the 16 definitions (`TagMatches`, `AeadOpenChecksTagShape`, `AeadOpenChecksTag`, `NotTagged`, `AeadOpenSealUniqueShape`,
 `toyTag`, `sealTagged`, `openTagged`, `Interp.modelTagged`, `InterpO.modelTagged`, `viewTagged`, `dhViewTagged`,
 `kemViewTagged`, `openTaggedLenient`, `Interp.modelTaggedLenient`, `Interp.modelTaggedTop`) a `#print` pin. `TagMatches` is
@@ -6734,13 +6735,13 @@ the encryption key instead of the MAC key (refused where the premise is given to
 leaf lemmas (nine): the tag law claimed without the associated data (refused in `open_none_of_not_tagged`), the round trip
 dropped from `not_notTagged_of_seal` (its binder made `True`; refused there, where it opens the sealed ciphertext), the
 length argument claimed up to 32 bytes (refused in `notTagged_of_short`, at the arithmetic), the toy open made to skip the
-tag (refused in `modelTagged_checksTag`), the contrast's seal made to fail only past the whole `usize` range instead of past
-`Usize.max / 2` (refused in `taggedTop_checksTag_not_openSealUnique`, where the reseal of the witness must fail: without a
-region where the seal fails at a length the open accepts, the earlier law cannot be refuted), the lenient open made to check
+tag (refused in `modelTagged_checksTag`), the contrast's seal made total, its failure branch removed
+(refused in `taggedTop_checksTag_not_openSealUnique`, where the reseal of the witness must fail: with a seal that never
+fails the tagged open meets the earlier law, `modelTagged_openSealUnique`), the lenient open made to check
 a tag (refused in `taggedLenient_roundTrip_not_checksTag`), the model's refusal claimed to leave the oracle's draws
 untouched and claimed on the peer key (both refused in `tampered_reply_model_refusal`), and the reply's header claimed to be
 103 bytes (refused in `replyFrame_take`). Refused at a pin, with the pins kept (three): the tag equation reversed (refused at
-the pin of `TagMatches`; a change to it moves the law and the premise together, so only the pin catches it), the law claimed
+the pin of `TagMatches`; a change to it moves the law and the premise together, so the headline cannot catch it, and the leaf lemmas and the pin do), the law claimed
 without the associated data (refused at the pin of `AeadOpenChecksTagShape`) and the premise made `True` (refused at the pin
 of `NotTagged`). None is a proof that `decrypt` refuses any frame outside the statement. An error that is not a refusal
 voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the

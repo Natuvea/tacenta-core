@@ -3107,12 +3107,12 @@ ciphertext, and shows that the initiator's `decrypt` at the session its first `e
 (`initiator_refuses_tampered_reply`, resting on the kernel and opaque constants, no compiler-trust axiom). It needs one new
 assumed law and one new premise about the run, on top of the reply receipt's premises (`hfreshB` included), and, like every
 encrypt result, it is conditional on the seal's totality contract `AeadSealBounded`, which is false at the top of the
-length range (the totality row below):
+length range (the totality row below), and on the decrypt oracle record's open clause `AeadOpenTotal`, which the refusal uses at the tampered ciphertext's length and which is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (the same row):
 
 | Statement | Kind | Says | Used for | Model, and when it would be false |
 |---|---|---|---|---|
 | `AeadOpenChecksTag` | law, ASSUMED (`AeadOpenChecksTagShape` at the real constants) | if `aead::decrypt` of `c` under keys, IV and associated data `ad` returns `Ok`, the last 32 bytes of `c` are `Model.Kdf.hmac` under the MAC key over `ad` and the bytes before them | the oracle's open of bytes that carry no such tag is refused (`open_none_of_not_tagged`), so the model's step refuses `aead`; with `AeadRoundTrip`, the reply's own ciphertext carries it (`not_notTagged_of_seal`) | `Interp.modelTagged`, whose toy seal appends the model's HMAC tag and whose open checks it (`tamper_laws_model`); not implied by `AeadRoundTrip` (`taggedLenient_roundTrip_not_checksTag`); false of a truncated or short-circuit comparison, a tag over other bytes or an open that accepts on another condition; it names no seal and no length, and survives a seal that fails at the top of the length range (`taggedTop_checksTag_not_openSealUnique`) |
-| `NotTagged` | premise about the run, crypto-bearing | the frame's replaced bytes do not carry that tag under the reply's MAC key and associated data | the tampered frame's open is refused | a condition on bytes, the same at every interpretation; met by every ciphertext shorter than 32 bytes, at the real constants included (`notTagged_of_short`); false of every body followed by its tag (`tagMatches_append`) and of the reply's own ciphertext (a conjunct of the headline); that an attacker without the message key cannot produce bytes that carry the tag is the unforgeability of HMAC-SHA256, which no theorem states and none can prove of the real function; width-free |
+| `NotTagged` | premise about the run, crypto-bearing | the frame's replaced bytes do not carry that tag under the reply's MAC key and associated data | the tampered frame's open is refused | a condition on bytes, the same at every interpretation; met by every ciphertext shorter than 32 bytes, at the real constants included (`notTagged_of_short`); false of every body followed by its tag (`tagMatches_append`) and of the reply's own ciphertext (a conjunct of the headline); that an attacker without the message key cannot produce, except with negligible probability, bytes that carry the tag is the unforgeability of HMAC-SHA256, which no theorem states and none can prove of the real function; width-free |
 
 **The law is not realised against the shipping AEAD.** By reading, `tacenta-core/boundary/src/aead.rs` refuses an
 input shorter than 32 bytes, streams the associated data and then the ciphertext into RustCrypto `Hmac<Sha256>`
@@ -3125,7 +3125,7 @@ The workspace builds with overflow checks on (`[profile.release]` in `tacenta-co
 `subtle`), and `sha2` 0.10.9 computes the message's bit length as `8 * (bytes hashed)` in a `u64`, so from about `2^61`
 bytes of associated data and ciphertext (64-bit only) the open's SHA-256 length arithmetic would panic (by reading of
 `sha2`'s source, not tested). There the open does not return, and the law holds, but `AeadOpenTotal` does not; the
-totality row below records that edge.
+totality row below records that edge, and the tampered-reply refusal takes `AeadOpenTotal` at the tampered ciphertext's length, so it is conditional on it there. That falsity depends on the build profile, since an application that depends on `tacenta-core` builds it with its own: with overflow checks off, `sha2` wraps the bit length and the open returns. The law does not depend on the profile: `Model.Sha256.pad` takes `UInt64.ofNat len * 8`, which wraps exactly as `sha2` does, so past `2^61` bytes, where FIPS 180-4 no longer defines SHA-256, the open either panics or computes `Model.Kdf.hmac` (by reading).
 
 A realisation would need the shipping open translated, with its tag computed by a translated HMAC. An independent
 verified implementation of the same construction proves this shape of its own `decrypt` (a bad tag refused, for
@@ -3137,7 +3137,7 @@ therefore stays a reviewed external assumption, and the premise stays a conditio
 
 **Not shown:** that the shipping AEAD meets the law; that a frame an attacker can produce meets the premise; a frame
 whose tag verifies but whose padding is refused; `AeadSealBounded` at the reply's plaintext near `isize::MAX` (the
-totality row); a frame whose header bytes were changed, a frame
+totality row); `AeadOpenTotal` at a tampered ciphertext from about `2^61` bytes on 64-bit with overflow checks (the totality row); a frame whose header bytes were changed, a frame
 shorter than the header or of another type; the refusal when the reply's ratchet key is the peer key or the draw's agreement
 is refused; that the refusal's source equals the honest receipt's; a run in which the honest reply is received after a
 refused tampered frame; tamper refusal on any other route; redelivery of the honest reply, here (its delivery a second

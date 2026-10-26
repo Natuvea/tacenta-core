@@ -3,16 +3,18 @@ import Translation.UnitLifecycleResponderReplyReceipt
 /-!
 # The initiator refuses a tampered reply: `Session::decrypt` of the reply with its ciphertext replaced
 
-`UnitLifecycleResponderReplyReceipt` shows that, on the run of the initiator's first send, the responder's receipt of
-it and the responder's reply, the initiator's public `Session::decrypt` at the session `s'` its first `encrypt` left,
-from the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`.  This module takes, on the same run,
-every frame that keeps the reply's header (its first 102 bytes) and carries in place of the reply's ciphertext bytes
-`cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and shows that the same `decrypt`, at
-the same `s'` from the same `rng'`, refuses it with `Aead`, takes exactly the one draw the honest receipt takes, and
-leaves the session as it was.  It rests on one new assumed law about the boundary AEAD, `AeadOpenChecksTag`, and one
-new per-run premise about the frame, `NotTagged`.  Like every encrypt result here, it is conditional on the seal's
-totality contracts (`AeadSealBounded` and the seal clause of `OracleOf`), which have no length premise and are false of
-the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row).
+`UnitLifecycleResponderReplyReceipt` shows that, on the run of the initiator's first send, the responder's receipt of it
+and the responder's reply, the initiator's public `Session::decrypt` at the session `s'` its first `encrypt` left, from
+the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`.  This module takes, on the same run, every
+frame that keeps the reply's header (its first 102 bytes) and carries in place of the reply's ciphertext bytes `cT` that
+carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and shows that the same `decrypt`, at the same
+`s'` from the same `rng'`, refuses it with `Aead`, takes exactly the one draw the honest receipt takes, and leaves the
+session as it was.  It rests on one new assumed law about the boundary AEAD, `AeadOpenChecksTag`, and one new per-run
+premise about the frame, `NotTagged`.  Like every encrypt result here, it is conditional on the seal's totality
+contracts (`AeadSealBounded` and the seal clause of `OracleOf`), which have no length premise and are false of the
+shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the decrypt oracle record's
+open clause (`AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length and which is false, by
+reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
 
 ## How
 
@@ -58,18 +60,22 @@ the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality
   carries, not who can compute one, and mentions no seal and no length.  It is true of the shipping open by reading of
   `tacenta-core/boundary/src/aead.rs`, and not proved: the open refuses fewer than 32 bytes, compares the full 32-byte
   tag with RustCrypto `Mac::verify_slice` before it decrypts, and `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104
-  HMAC-SHA256, which `Model.Kdf.hmac` defines (checked against RFC 4231 examples by `native_decide` in `tacenta-model`,
-  not in any proof's base).  It would be false of a truncated or short-circuit comparison, of a tag over other bytes
-  than `ad` and the ciphertext, or of an open that accepted on any other condition.  It is the AEAD half of
-  REQ-AUTH-06.  The model: `Interp.modelTagged`, whose toy seal appends the model's HMAC tag and whose open checks it.
+  HMAC-SHA256 (below `2^61` bytes, where FIPS 180-4 defines SHA-256; past it the open panics under overflow checks or
+  wraps the bit length exactly as `Model.Sha256.pad` does), which `Model.Kdf.hmac` defines (checked against RFC 4231
+  examples by `native_decide` in `tacenta-model`, not in any proof's base).  It would be false of a truncated or
+  short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of an open that accepted on any
+  other condition.  It is the AEAD half of REQ-AUTH-06.  The model: `Interp.modelTagged`, whose toy seal appends the
+  model's HMAC tag and whose open checks it.
 * `NotTagged` (new, **per-run premise**): the replaced bytes `cT` do not carry that tag under the reply's MAC key and
   associated data.  It is a condition on bytes, the same at every interpretation, not a law.  That an attacker who does
-  not hold the message key cannot produce bytes that carry it is the unforgeability of HMAC-SHA256, which no theorem
-  here states; this premise is where that assumption sits.  Together the law and the premise say no more than that the
-  boundary's `decrypt` refuses those bytes under that key and that associated data; what the theorem adds is the
-  session around that call: that the call reaches the boundary's open with exactly the reply's message keys and
-  associated data, and that the refusal is `Aead`, leaves the session as it was and takes one draw.
-* The other premises are those of `initiator_receives_reply`, unchanged, `hfreshB` and `AeadSealBounded` included.
+  not hold the message key cannot produce, except with negligible probability, bytes that carry it is the unforgeability
+  of HMAC-SHA256, which no theorem here states; this premise is where that assumption sits.  Together the law and the
+  premise say no more than that the boundary's `decrypt` refuses those bytes under that key and that associated data;
+  what the theorem adds is the session around that call: that the call reaches the boundary's open with exactly the
+  reply's message keys and associated data, and that the refusal is `Aead`, leaves the session as it was and takes one
+  draw.
+* The other premises are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the decrypt
+  oracle record (whose open clause is `AeadOpenTotal`) included.
 * The earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself), is no longer assumed: it was false of
   the shipping functions at the top of the length range and under memory exhaustion, because the seal copies
   `ad ‖ ct` into one allocation and the open does not.
@@ -100,6 +106,9 @@ receipt cannot both apply to one frame.  The run's other premises are reached at
   premise.
 * That the responder's `encrypt` returns `bytesR` for reply plaintexts near `isize::MAX`, which the shipping seal does
   not: `AeadSealBounded` is assumed for every length; see `LIMITATIONS.md`, the totality row.
+* That the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and
+  ciphertext on a 64-bit target built with overflow checks, where the shipping open panics: `AeadOpenTotal` is assumed
+  for every length; see `LIMITATIONS.md`, the totality row.
 * A frame whose header bytes were changed (ratchet key, counters, epochs, agreement type or chunk), a frame shorter than
   the header, or a frame of another type: those reach other associated data, another Diffie-Hellman step or a decode
   refusal, and are not covered.
@@ -370,16 +379,18 @@ open Tacenta.UnitLifecycleResponderReplyReceipt (fresh_public_of_draw initiator_
   initiator_candidate_agreement first_send_model_session replyAd_length_le initiator_receives_reply)
 
 /-- **The initiator's `decrypt` refuses a tampered reply, on the run of its first send.**  Under the hypotheses of
-`initiator_receives_reply` (`hfreshB` and `AeadSealBounded` included) and the assumed law `AeadOpenChecksTag`: the
-responder's `encrypt` at `sB'` returns `bytesR`, the reply frame under the key the initiator's receiving chain derives,
-and the initiator's public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with `ptA` the bytes of `ptR`,
-taking exactly the draw `dA`; the reply's own ciphertext, the bytes of `bytesR` after its first 102, carries its tag
-under the reply's MAC key and associated data, so `NotTagged` excludes it; and for every slice `frame` whose bytes are
-the first 102 bytes of `bytesR` (the reply's header) followed by bytes `cT` that are `NotTagged` under that MAC key and
-that associated data (the per-run premise), the same call on `frame` at `s'` from `rng'` returns `Err(Aead)`, returns
-the session `s'` as it was, and leaves a source holding exactly the draws after `dA`.  A frame whose header bytes
-differ is not covered.  Conditional, like every encrypt result, on `AeadSealBounded`, which has no length premise and
-is false of the shipping seal at the top of the length range.  No compiler-trust axiom (the pin). -/
+`initiator_receives_reply` (`hfreshB`, `AeadSealBounded` and the decrypt oracle record included) and the assumed law
+`AeadOpenChecksTag`: the responder's `encrypt` at `sB'` returns `bytesR`, the reply frame under the key the initiator's
+receiving chain derives, and the initiator's public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with
+`ptA` the bytes of `ptR`, taking exactly the draw `dA`; the reply's own ciphertext, the bytes of `bytesR` after its
+first 102, carries its tag under the reply's MAC key and associated data, so `NotTagged` excludes it; and for every
+slice `frame` whose bytes are the first 102 bytes of `bytesR` (the reply's header) followed by bytes `cT` that are
+`NotTagged` under that MAC key and that associated data (the per-run premise), the same call on `frame` at `s'` from
+`rng'` returns `Err(Aead)`, returns the session `s'` as it was, and leaves a source holding exactly the draws after
+`dA`.  A frame whose header bytes differ is not covered.  Conditional, like every encrypt result, on `AeadSealBounded`,
+which has no length premise and is false of the shipping seal at the top of the length range, and on the decrypt oracle
+record's open clause (`AeadOpenTotal`), used at the tampered ciphertext's length, which is false, by reading, from about
+`2^61` bytes on a 64-bit target built with overflow checks.  No compiler-trust axiom (the pin). -/
 theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (hu : AeadOpenChecksTag) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -685,6 +696,34 @@ theorem modelTagged_sealBounded :
 theorem modelTagged_open : Tacenta.UnitSatisfiabilityJoint.AeadOpenShape Interp.modelTagged :=
   fun _ _ _ _ _ => ⟨_, rfl⟩
 
+/-- **With a seal that never fails, the tagged model meets the earlier law**: an accepted ciphertext is a body followed
+by its tag, at least 32 bytes long, and the toy seal of that body under the same key and associated data gives back the
+same bytes.  So `taggedTop_checksTag_not_openSealUnique` refutes the earlier law only through its failing seal. -/
+theorem modelTagged_openSealUnique : AeadOpenSealUniqueShape Interp.modelTagged := by
+  intro k1 k2 iv c ad v h
+  have h' : openTagged k2 c ad = .Ok v := by
+    have h0 : ok (openTagged k2 c ad) = ok (core.result.Result.Ok v) := h
+    injection h0
+  unfold openTagged at h'
+  split at h'
+  · rename_i ht
+    cases h'
+    have htm : TagMatches (arrayOf k2) (sliceOf ad) (sliceOf c) := by unfold TagMatches; exact ht
+    have hlen : 32 ≤ c.val.length := by
+      by_contra hlt
+      exact notTagged_of_short _ _ _ (by simp [sliceOf]; omega) htm
+    refine ⟨sealTagged k2 (alloc.vec.Vec.deref ⟨c.val.take (c.val.length - 32),
+      by have := c.property; simp; omega⟩) ad, rfl, ?_⟩
+    rw [sealTagged_val _ _ _ (by have := c.property; show (c.val.take _).length + 32 ≤ _; simp; omega)]
+    have htag : toyTag k2 ad (c.val.take (c.val.length - 32)) = c.val.drop (c.val.length - 32) := by
+      apply List.map_injective_iff.mpr (fun _ _ hxy => Tacenta.SessionUnitBraidT3.u8_injective hxy)
+      rw [toyTag_bytes]
+      simp only [sliceOf, List.length_map, ← List.map_drop, ← List.map_take] at ht
+      exact ht.symm
+    show c.val.take (c.val.length - 32) ++ toyTag k2 ad (c.val.take (c.val.length - 32)) = c.val
+    rw [htag, List.take_append_drop]
+  · cases h'
+
 /-- The tagged interpretation with its signing function. -/
 noncomputable def InterpO.modelTagged : InterpO :=
   { Interp.modelTagged with xeddsaSign := Tacenta.UnitOracleModel.signModelO }
@@ -924,8 +963,9 @@ theorem taggedLenient_roundTrip_not_checksTag :
     decide
 
 /-- `Interp.modelTagged` with a seal that fails once the plaintext, the associated data and the tag pass half the
-`usize` range (`Usize.max / 2`, which is `isize::MAX` at both widths), as the shipping seal's copy of
-`ad ‖ ct` into one allocation does.  The open is `Interp.modelTagged`'s. -/
+`usize` range (`Usize.max / 2`, which is `isize::MAX` at both widths), approximately as the shipping seal's copy of
+`ad ‖ ct` into one allocation does (its edge is the padded ciphertext and the associated data past `isize::MAX`).  The
+open is `Interp.modelTagged`'s. -/
 noncomputable def Interp.modelTaggedTop : Interp :=
   { Interp.modelTagged with
     aeadEncrypt := fun _ k2 _ p ad =>
@@ -934,7 +974,8 @@ noncomputable def Interp.modelTaggedTop : Interp :=
 /-- **The tag law survives a seal that fails at the top of the length range, and the earlier law does not**: with
 `Interp.modelTaggedTop`'s seal, `AeadOpenChecksTagShape` holds and `AeadOpenSealUniqueShape` fails, at both widths.
 The witness is a body of `Usize.max / 2 - 31` zero bytes followed by its toy tag, under the empty associated data:
-the open accepts it, and the reseal of the body fails. -/
+the open accepts it, and the reseal of the body fails.  The failing seal is what refutes the earlier law: with a seal
+that never fails, the same open meets it (`modelTagged_openSealUnique`). -/
 theorem taggedTop_checksTag_not_openSealUnique :
     AeadOpenChecksTagShape Interp.modelTaggedTop ∧ ¬ AeadOpenSealUniqueShape Interp.modelTaggedTop := by
   refine ⟨modelTagged_checksTag, ?_⟩
@@ -1327,6 +1368,15 @@ info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_open' depends on axioms: [
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_open
+
+/--
+info: 'Tacenta.UnitLifecycleTamperedReply.modelTagged_openSealUnique' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ rand_core_1.error.Error]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleTamperedReply.modelTagged_openSealUnique
 
 /--
 info: 'Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model' depends on axioms: [propext,
@@ -1816,6 +1866,13 @@ info: Tacenta.UnitLifecycleTamperedReply.modelTagged_open : Tacenta.UnitSatisfia
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleTamperedReply.modelTagged_open
+
+/--
+info: Tacenta.UnitLifecycleTamperedReply.modelTagged_openSealUnique : Tacenta.UnitLifecycleTamperedReply.AeadOpenSealUniqueShape
+  Tacenta.UnitLifecycleTamperedReply.Interp.modelTagged
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleTamperedReply.modelTagged_openSealUnique
 
 /--
 info: Tacenta.UnitLifecycleTamperedReply.tagged_reply_laws_model : Tacenta.UnitLifecycleDecryptScreen.DecryptJointLawsShape

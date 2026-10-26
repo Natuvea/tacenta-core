@@ -70,7 +70,7 @@ the associated data and the ciphertext) and a per-run premise that the replaced 
 key and associated data, the initiator's `decrypt` at the
 session its first `encrypt` left, from the source that `encrypt` left, refusing with `Aead`, its session unchanged and one draw taken, every frame that keeps the
 reply's header and replaces its ciphertext, with no compiler-trust axiom (conditional, like every encrypt result, on the
-seal's totality contract, which is false at the top of the length range; neither the law nor the premise shown of the real
+seal's totality contract, which is false at the top of the length range, and on the open's totality contract at the tampered ciphertext's length, which is false from about 2^61 bytes on a 64-bit target built with overflow checks; neither the law nor the premise shown of the real
 AEAD; a frame with changed header bytes not covered, and tamper refusal on any other route not shown); the responder's receipt of that send (taken below) and later messages in
 either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
