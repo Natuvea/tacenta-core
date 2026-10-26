@@ -868,6 +868,110 @@ def answerFile (algorithm source : String) (vectors : List String) : String :=
   String.intercalate ",\n" vectors ++
   "\n  ]\n}"
 
+/-! ### The size rule (`Model.Lifecycle.frameTooLong`)
+
+A frame near the bounds is a megabyte, so a vector does not hold it. Its
+inputs are the frame's `length`, four bytes big-endian, and its `prefix`; the
+frame is the prefix followed by zero bytes up to the length
+(tacenta-test-vectors/README.md, Vector layouts). -/
+
+/-- An initial frame's first 72 bytes: version, type, `identity` and
+    `ephemeral` each `curve` followed by 32 zero bytes, and
+    `kem_ciphertext_len`. -/
+def sizeInitialPrefix (curve : UInt8) (kemLen : Nat) : List UInt8 :=
+  [Model.Messages.version, Model.Messages.typeInitial]
+    ++ (curve :: List.replicate 32 0) ++ (curve :: List.replicate 32 0) ++ beN 4 kemLen
+
+/-- A frame-size vector, written only when the model's size rule refuses the
+    frame exactly when `refuse` says it does. A refused frame is invalid with
+    the refusal `decode-failure`; an admitted one names, in `fields`, the
+    length of the ratchet message the rule located, and leaves it out when the
+    rule located none. -/
+@[never_extract]
+def frameSizeVector (id comment : String) (pre : List UInt8) (length : Nat)
+    (refuse : Bool) : Except String String :=
+  let frame := pre ++ List.replicate (length - pre.length) 0
+  let ins := jsonObject [("length", toHex (beN 4 length)), ("prefix", toHex pre)]
+  if frame.length != length then
+    .error ("genvectors: frame-size vector " ++ id ++ " has a prefix longer than its length")
+  else
+    match Model.Lifecycle.frameTooLong frame, refuse with
+    | true, true =>
+        .ok (vectorHead id comment ++ "\"result\": \"invalid\", \"inputs\": " ++ ins ++
+          ", \"refusal\": \"decode-failure\" }")
+    | false, false =>
+        let fs := match Model.Lifecycle.ratchetSpan frame with
+          | some n => [("ratchet_message_length", toHex (beN 4 n))]
+          | none => []
+        .ok (vectorHead id comment ++ "\"inputs\": " ++ ins ++ ", \"fields\": " ++
+          jsonObject fs ++ " }")
+    | _, _ => .error ("genvectors: the model's size rule does not give " ++ id ++
+        " the result the vector records")
+
+@[never_extract]
+def frameSizeFile (_ : Unit) : Except String String := do
+  let fr := Model.Lifecycle.maxRatchetFrameLen
+  let fi := Model.Lifecycle.maxInitialFrameLen
+  let ratchet := [Model.Messages.version, Model.Messages.typeRatchet]
+  let vectors ← [
+    frameSizeVector "ratchet-at-the-bound"
+      "a ratchet frame of exactly MAX_RATCHET_FRAME_LEN bytes: admitted; the decoders read it next"
+      ratchet fr false,
+    frameSizeVector "ratchet-one-over"
+      "a ratchet frame one byte over MAX_RATCHET_FRAME_LEN: refused by rule 3"
+      ratchet (fr + 1) true,
+    frameSizeVector "ratchet-over-the-outer-bound"
+      "a ratchet frame one byte over MAX_INITIAL_FRAME_LEN: refused by rule 1"
+      ratchet (fi + 1) true,
+    frameSizeVector "unrecognised-type-at-the-bound"
+      "type byte 0x03 (a bundle's), MAX_RATCHET_FRAME_LEN bytes: not an initial frame, admitted; the decoder refuses it next"
+      [Model.Messages.version, 0x03] fr false,
+    frameSizeVector "unrecognised-type-one-over"
+      "type byte 0x03, one byte over MAX_RATCHET_FRAME_LEN: not an initial frame, refused by rule 3 although malformed"
+      [Model.Messages.version, 0x03] (fr + 1) true,
+    frameSizeVector "unrecognised-version-one-over"
+      "version 0x00 with the initial type byte, one byte over MAX_RATCHET_FRAME_LEN: not an initial frame, refused by rule 3 although malformed"
+      [0x00, Model.Messages.typeInitial] (fr + 1) true,
+    frameSizeVector "empty-frame"
+      "an empty frame: admitted, a ratchet message of length zero; the decoder refuses it next"
+      [] 0 false,
+    frameSizeVector "initial-at-the-bound"
+      "an initial frame with a 1,568-byte kem_ciphertext and MAX_INITIAL_FRAME_LEN bytes: admitted, its ratchet message MAX_RATCHET_FRAME_LEN"
+      (sizeInitialPrefix 0x05 1568) fi false,
+    frameSizeVector "initial-one-over"
+      "the same, one byte longer: refused by rule 1"
+      (sizeInitialPrefix 0x05 1568) (fi + 1) true,
+    frameSizeVector "initial-empty-kem-ciphertext-nested-at-the-bound"
+      "an initial frame with kem_ciphertext_len 0 whose ratchet message is exactly MAX_RATCHET_FRAME_LEN: admitted"
+      (sizeInitialPrefix 0x05 0) (fr + 84) false,
+    frameSizeVector "initial-empty-kem-ciphertext-nested-one-over"
+      "the same with a ratchet message one byte longer, the whole frame well within MAX_INITIAL_FRAME_LEN: refused by rule 2"
+      (sizeInitialPrefix 0x05 0) (fr + 85) true,
+    frameSizeVector "initial-empty-kem-ciphertext-at-the-outer-bound"
+      "kem_ciphertext_len 0 and exactly MAX_INITIAL_FRAME_LEN bytes, so a ratchet message of 1,050,278: refused by rule 2"
+      (sizeInitialPrefix 0x05 0) fi true,
+    frameSizeVector "initial-kem-one-short-nested-one-over"
+      "kem_ciphertext_len 1,567 and MAX_INITIAL_FRAME_LEN bytes, so a ratchet message one byte over MAX_RATCHET_FRAME_LEN: refused by rule 2"
+      (sizeInitialPrefix 0x05 1567) fi true,
+    frameSizeVector "initial-kem-length-fills-the-frame"
+      "kem_ciphertext_len 1,916 in a 2,000-byte frame: the ratchet message is empty, admitted"
+      (sizeInitialPrefix 0x05 1916) 2000 false,
+    frameSizeVector "initial-kem-length-runs-past-the-end"
+      "kem_ciphertext_len 0xffffffff in a frame of MAX_INITIAL_FRAME_LEN bytes: no ratchet message located, admitted; the decoder refuses it next"
+      (sizeInitialPrefix 0x05 0xffffffff) fi false,
+    frameSizeVector "initial-kem-length-runs-past-the-end-one-over"
+      "the same, one byte longer: refused by rule 1 although malformed"
+      (sizeInitialPrefix 0x05 0xffffffff) (fi + 1) true,
+    frameSizeVector "initial-too-short-for-its-kem-length"
+      "an initial frame of 71 bytes, too short to hold kem_ciphertext_len: no ratchet message located, admitted; the decoder refuses it next"
+      (sizeInitialPrefix 0x05 0).dropLast.dropLast.dropLast.dropLast 71 false,
+    frameSizeVector "initial-malformed-curve-byte-nested-one-over"
+      "identity and ephemeral without their curve byte, kem_ciphertext_len 0, a ratchet message one byte over MAX_RATCHET_FRAME_LEN: refused by rule 2, ahead of the decoder"
+      (sizeInitialPrefix 0x00 0) (fr + 85) true].mapM id
+  pure (answerFile "frame-size"
+    "generated by tacenta-model Vectors.lean (lake exe genvectors frame-size), from Model.Lifecycle.frameTooLong and Model.Lifecycle.ratchetSpan at the protocol constants (message-format.md, Message size); each frame is its prefix followed by zero bytes up to its length, and the generator writes no vector whose result the model does not give"
+    vectors)
+
 /-- `n` bytes running through the byte values with a stride, so that no two
     chunks of a value are alike. -/
 def ramp (n stride start : Nat) : List UInt8 :=
@@ -3625,6 +3729,8 @@ def main (args : List String) : IO Unit :=
     Vectors.printOrFail (Vectors.bundleDecodeFile ())
   else if args.contains "initial-decode" then
     Vectors.printOrFail (Vectors.initialDecodeFile ())
+  else if args.contains "frame-size" then
+    Vectors.printOrFail (Vectors.frameSizeFile ())
   else if args.contains "erasure-encode" then
     IO.println (Vectors.erasureEncodeFile ())
   else if args.contains "erasure-decode" then

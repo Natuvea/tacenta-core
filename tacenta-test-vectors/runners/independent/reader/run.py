@@ -34,6 +34,30 @@ EXPECTED_SKIPS = {
     # inside decodes. Not checked: decapsulation, SK, the replay identity, the
     # AEAD and the plaintext.
     "identity/initial-message-admission.json :: honest-initial-message",
+    # Not yet taught. `serialization/frame-size.json` (message-format.md,
+    # Message size) arrived with the size rule; its length-and-prefix layout
+    # (tacenta-test-vectors/README.md, Vector layouts) is for the next
+    # clean-room pass to implement from the page alone. Listed here by the
+    # change that added the file, not by a reader author: the reader's code
+    # is untouched.
+    "serialization/frame-size.json :: empty-frame",
+    "serialization/frame-size.json :: initial-at-the-bound",
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-at-the-outer-bound",
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-at-the-bound",
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-one-over",
+    "serialization/frame-size.json :: initial-kem-length-fills-the-frame",
+    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end",
+    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end-one-over",
+    "serialization/frame-size.json :: initial-kem-one-short-nested-one-over",
+    "serialization/frame-size.json :: initial-malformed-curve-byte-nested-one-over",
+    "serialization/frame-size.json :: initial-one-over",
+    "serialization/frame-size.json :: initial-too-short-for-its-kem-length",
+    "serialization/frame-size.json :: ratchet-at-the-bound",
+    "serialization/frame-size.json :: ratchet-one-over",
+    "serialization/frame-size.json :: ratchet-over-the-outer-bound",
+    "serialization/frame-size.json :: unrecognised-type-at-the-bound",
+    "serialization/frame-size.json :: unrecognised-type-one-over",
+    "serialization/frame-size.json :: unrecognised-version-one-over",
 }
 
 _OBSERVED_SKIPS = set()

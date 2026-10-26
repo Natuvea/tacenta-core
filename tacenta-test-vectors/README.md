@@ -32,8 +32,12 @@ Two kinds live here:
     and Triple Ratchet derivations, and the erasure code above the field
     (`erasure-encode.json`, `erasure-decode.json`, from `Model.Erasure`),
     checked by `runners/rust/tests/post_quantum.rs`.
-  - `vectors/serialization/`: message and initial-message encodings, checked
-    by `runners/rust/tests/serialization.rs`.
+  - `vectors/serialization/`: message and initial-message encodings, and the
+    size rule's table (`frame-size.json`, generated from
+    `Model.Lifecycle.frameTooLong` at the protocol constants; message-format.md,
+    Message size), checked by `runners/rust/tests/serialization.rs`, which
+    hands each frame-size vector to `Session::decrypt` and
+    `establish_responder`. Layout: Vector layouts, below.
   - `vectors/protobuf/`: the bounded protobuf profile's two readers, accepted
     regions with the `fields` they decode to and refused regions, checked by
     `runners/rust/tests/protobuf.rs`.
@@ -216,6 +220,44 @@ expected bytes were produced by the project runner, so this is a byte-level
 regression and composition check rather than an external oracle. What the
 specification-only, project-controlled reader derives from the same inputs, and what it takes from the
 vector as a boundary, is listed in its README.
+
+### The size rule: `vectors/serialization/frame-size.json`
+
+The page is message-format.md, Message size. A frame near the bounds is a
+megabyte, about two megabytes of hex, so a vector describes it rather than
+holding it. **The vector pins the rule at the boundary, not the bytes of a
+message**: the frames are mostly zeros and none of them authenticates.
+
+- **`length`** is the frame's length, four bytes big-endian.
+- **`prefix`** is the frame's first bytes. The frame is `prefix` followed by
+  zero bytes up to `length`. The prefix of an initial frame is its first 72
+  bytes: version, type, `identity` and `ephemeral` (each a curve byte, `05`,
+  or `00` where the vector says the wrapper is malformed, followed by 32 zero
+  bytes), and `kem_ciphertext_len`. One vector's prefix is shorter than 72
+  bytes on purpose, to give an initial frame too short to hold that field.
+- **A valid vector** is a frame the size rule admits. Its `fields` hold
+  `ratchet_message_length`, four bytes big-endian: the length of the ratchet
+  message the rule located, the whole frame for a frame that is not an initial
+  frame, and `length - 84 - kem_ciphertext_len` for an initial frame. The field
+  is left out when the rule located no ratchet message (an initial frame too
+  short to hold `kem_ciphertext_len`, or whose `kem_ciphertext_len` runs past
+  its end). An admitted frame goes on to the decoders, which refuse every
+  admitted frame in this file for other reasons; the vector says nothing about
+  that later refusal.
+- **An invalid vector** is a frame the size rule refuses. It carries
+  `refusal: decode-failure`: the rule's refusal is a decode failure. A runner
+  checks that every operation that receives a frame refuses it as too long
+  before anything else, and with no effect: the Rust runner gives it to
+  `Session::decrypt` on a responder session and to `establish_responder` on a
+  prekey store, and requires `Decode(DecodeError::TooLong)` from both, the
+  stored session and store unchanged, and no call to the random source.
+- **What no vector here pins:** acceptance of a real message at exactly
+  `MAX_PLAINTEXT_LEN`, and the sender's rule. A plaintext of that length is a
+  megabyte and a real frame carries a tag the model cannot compute, so both
+  are tested in `tacenta-core/tests/message_size.rs` instead, at the real
+  constants: the frame of exactly `MAX_RATCHET_FRAME_LEN` and
+  `MAX_INITIAL_FRAME_LEN` bytes, its decryption, and the refusal of one byte
+  more. The independent reader has not been taught this file.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 

@@ -70,9 +70,12 @@ theorem failed_step_stays_failed_alice (view : CodewordView) (state : State)
   | send sender id plaintext =>
       cases sender with
       | alice =>
-          have hs := Properties.Lifecycle.agreement_failed_encrypt_sticky view
+          have hs := Properties.Lifecycle.agreement_failed_encrypt_keeps_session view
             state.aliceOracle state.alice plaintext hFailed
-          simp [step, hs, hFailed]
+          cases hr : encrypt view state.aliceOracle state.alice plaintext with
+          | mk next result oracle =>
+              have hn : next = state.alice := by simpa [hr] using hs
+              cases result <;> simp [step, hr, hn, hFailed]
       | bob =>
           cases hs : encrypt view state.bobOracle state.bob plaintext with
           | mk next result oracle =>
@@ -123,9 +126,12 @@ theorem failed_step_stays_failed_bob (view : CodewordView) (state : State)
           | mk next result oracle =>
               cases result <;> simpa [step, hs] using hFailed
       | bob =>
-          have hs := Properties.Lifecycle.agreement_failed_encrypt_sticky view
+          have hs := Properties.Lifecycle.agreement_failed_encrypt_keeps_session view
             state.bobOracle state.bob plaintext hFailed
-          simp [step, hs, hFailed]
+          cases hr : encrypt view state.bobOracle state.bob plaintext with
+          | mk next result oracle =>
+              have hn : next = state.bob := by simpa [hr] using hs
+              cases result <;> simp [step, hr, hn, hFailed]
   | receive receiver id =>
       cases receiver with
       | alice =>
