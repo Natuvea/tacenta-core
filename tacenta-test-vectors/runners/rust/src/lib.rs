@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use tacenta_core::ratchet;
 
+mod frame_size;
 mod identity_records;
 mod session_e2e;
 
@@ -381,6 +382,9 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
                 serialization::encode_bundle(&b)
             })
         }
+        // The size rule, on the two operations that receive a frame
+        // (message-format.md, Message size).
+        "frame-size" => frame_size::check(v),
         "initial-message-decode" => {
             use tacenta_core::serialization;
             let encoding = input(v, "encoding")?;

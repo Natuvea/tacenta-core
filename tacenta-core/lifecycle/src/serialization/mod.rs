@@ -56,6 +56,171 @@ pub fn message_type(bytes: &[u8]) -> Option<MessageType> {
     }
 }
 
+/// `MAX_PLAINTEXT_LEN` (message-format.md, Message size; CONSTANTS.md,
+/// Bounds): the longest plaintext a session encrypts, 2^20 - 1 bytes. One
+/// protocol constant, the same on every platform; not negotiated and not
+/// configurable. `Session::encrypt` refuses a longer plaintext as
+/// `Error::PlaintextTooLong` before anything else.
+pub const MAX_PLAINTEXT_LEN: usize = 1_048_575;
+
+/// `MAX_RATCHET_FRAME_LEN`: the longest ratchet message a receiver accepts,
+/// standalone or inside an initial message. Derived, not chosen:
+/// `150 + 16 * (MAX_PLAINTEXT_LEN / 16)`, the 102-byte composite header, the
+/// padded AES-CBC ciphertext and the 32-byte tag.
+pub const MAX_RATCHET_FRAME_LEN: usize = 1_048_710;
+
+/// `MAX_INITIAL_FRAME_LEN`: the longest frame any receiving operation accepts.
+/// Derived: `MAX_RATCHET_FRAME_LEN` plus the 1,652-byte initial wrapper.
+pub const MAX_INITIAL_FRAME_LEN: usize = 1_050_362;
+
+/// The initial wrapper with ML-KEM-1024's 1,568-byte ciphertext:
+/// `2 + 33 + 33 + 4 + 1,568 + 4 + 4 + 4`.
+const INITIAL_WRAPPER_LEN: usize = 1_652;
+
+/// Where an initial frame's `kem_ciphertext_len` starts: the version and type
+/// bytes and the two 33-byte `EncodeEC` keys.
+const INITIAL_KEM_LEN_AT: usize = 68;
+
+/// Where it ends. An initial frame shorter than this does not hold it.
+const INITIAL_KEM_LEN_END: usize = 72;
+
+/// Every byte of the initial wrapper except `kem_ciphertext`: version, type,
+/// both keys, `kem_ciphertext_len` and the three identifiers. The ratchet
+/// message starts this many bytes plus `kem_ciphertext_len` into the frame.
+const INITIAL_FIXED_LEN: usize = 84;
+
+// The literals above are what the translation reads; these tie them to the
+// expressions they stand for, so a wrong literal fails the build.
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const MAX_RATCHET_FRAME_LEN_IS_DERIVED: () =
+    assert!(MAX_RATCHET_FRAME_LEN == 150 + 16 * (MAX_PLAINTEXT_LEN / 16));
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const MAX_INITIAL_FRAME_LEN_IS_DERIVED: () =
+    assert!(MAX_INITIAL_FRAME_LEN == MAX_RATCHET_FRAME_LEN + INITIAL_WRAPPER_LEN);
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const INITIAL_WRAPPER_LEN_IS_ITS_FIELDS: () =
+    assert!(INITIAL_WRAPPER_LEN == 2 + 33 + 33 + 4 + 1568 + 4 + 4 + 4);
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const INITIAL_FIXED_LEN_IS_ITS_FIELDS: () = assert!(
+    INITIAL_FIXED_LEN == INITIAL_WRAPPER_LEN - 1568
+        && INITIAL_KEM_LEN_END == INITIAL_KEM_LEN_AT + 4
+);
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const MAX_PLAINTEXT_LEN_FIXES_THE_RECEIVED_MAXIMUM: () =
+    assert!(MAX_PLAINTEXT_LEN % 16 == 15 && MAX_PLAINTEXT_LEN == (1 << 20) - 1);
+
+/// The length of the ratchet message inside an initial frame of `frame_len`
+/// bytes whose `kem_ciphertext_len` is `kem_len`, or `None` when that field
+/// runs past the end of the frame (the initial-message decoder refuses such a
+/// frame, so no ratchet message is ever taken from it).
+///
+/// **Checked arithmetic is the point**, as in the wire crate's `span_end`: on a
+/// 32-bit target `84 + kem_len` can exceed `usize::MAX`, and a sum that does
+/// not fit is treated as running past the end, never wrapped.
+// A `match` rather than `checked_add(..).filter(..)`: the translation does not
+// model closures.
+#[allow(clippy::manual_filter)]
+pub fn nested_ratchet_len(frame_len: usize, kem_len: u32) -> Option<usize> {
+    match INITIAL_FIXED_LEN.checked_add(kem_len as usize) {
+        Some(start) => {
+            if start <= frame_len {
+                Some(frame_len - start)
+            } else {
+                None
+            }
+        }
+        None => None,
+    }
+}
+
+/// The length of the ratchet message a received frame carries, from the values
+/// the size rule reads: the frame's length, whether it is an initial frame,
+/// and, for an initial frame that holds it, its `kem_ciphertext_len`. Every
+/// frame that is not an initial frame is its own ratchet message. `None` for
+/// an initial frame whose ratchet message cannot be located.
+pub fn ratchet_span_of(frame_len: usize, initial: bool, kem_len: Option<u32>) -> Option<usize> {
+    if initial {
+        match kem_len {
+            Some(k) => nested_ratchet_len(frame_len, k),
+            None => None,
+        }
+    } else {
+        Some(frame_len)
+    }
+}
+
+/// The size rule on the values it reads (message-format.md, Message size):
+/// refused when the frame is longer than `MAX_INITIAL_FRAME_LEN` (rule 1), or
+/// when the ratchet message it carries is longer than `MAX_RATCHET_FRAME_LEN`
+/// (rules 2 and 3). A frame whose ratchet message cannot be located is refused
+/// only by rule 1, and goes on to the decoder otherwise.
+pub fn frame_too_long(frame_len: usize, initial: bool, kem_len: Option<u32>) -> bool {
+    if frame_len > MAX_INITIAL_FRAME_LEN {
+        return true;
+    }
+    match ratchet_span_of(frame_len, initial, kem_len) {
+        Some(span) => span > MAX_RATCHET_FRAME_LEN,
+        None => false,
+    }
+}
+
+/// An initial frame's `kem_ciphertext_len`, read from bytes 68 to 71, if the
+/// frame holds them. Reads four bytes and allocates nothing.
+fn initial_kem_len(bytes: &[u8]) -> Option<u32> {
+    if bytes.len() < INITIAL_KEM_LEN_END {
+        return None;
+    }
+    // Bytes `INITIAL_KEM_LEN_AT` to `INITIAL_KEM_LEN_END - 1`, written as
+    // literals so the translation sees no index arithmetic.
+    Some(u32::from_be_bytes([
+        bytes[68], bytes[69], bytes[70], bytes[71],
+    ]))
+}
+
+/// The length of the ratchet message a received frame carries, read from its
+/// framing alone: the whole frame unless it is an initial frame, and for an
+/// initial frame the span its own `kem_ciphertext_len` locates, whatever value
+/// that declares. Reads at most six bytes and allocates nothing.
+pub fn ratchet_span(bytes: &[u8]) -> Option<usize> {
+    match message_type(bytes) {
+        Some(MessageType::Initial) => ratchet_span_of(bytes.len(), true, initial_kem_len(bytes)),
+        _ => ratchet_span_of(bytes.len(), false, None),
+    }
+}
+
+/// The size rule, applied to a received frame before anything else reads it
+/// (message-format.md, Message size). `Err(DecodeError::TooLong)` when it
+/// refuses. It reads the frame's length, its first two bytes and, for an
+/// initial frame, the four bytes of `kem_ciphertext_len`; it copies and
+/// allocates nothing, so it can run before every copy, decode, cryptographic
+/// operation and random draw.
+pub fn check_frame_size(bytes: &[u8]) -> Result<(), DecodeError> {
+    let refused = match message_type(bytes) {
+        Some(MessageType::Initial) => frame_too_long(bytes.len(), true, initial_kem_len(bytes)),
+        _ => frame_too_long(bytes.len(), false, None),
+    };
+    if refused {
+        Err(DecodeError::TooLong)
+    } else {
+        Ok(())
+    }
+}
+
 /// Serialize a header: the ratchet public key, then the previous chain length
 /// and the message number, each four bytes big-endian.
 pub fn encode_header(header: &Header) -> Vec<u8> {
