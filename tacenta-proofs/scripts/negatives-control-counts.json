@@ -14,7 +14,7 @@
     "check-responder-second-send-negatives.py": {"inside": 11, "projection": 3, "statement_shape": 0, "pin": 2, "leaf": 5, "baselines": 2},
     "check-responder-successor-negatives.py": {"inside": 1, "projection": 2, "statement_shape": 3, "pin": 1, "leaf": 10, "baselines": 2},
     "check-send-preservation-negatives.py": {"inside": 7, "projection": 2, "statement_shape": 1, "pin": 1, "leaf": 7, "baselines": 3},
-    "check-size-rule-negatives.py": {"inside": 0, "projection": 0, "statement_shape": 0, "pin": 0, "leaf": 13, "baselines": 2},
+    "check-size-rule-negatives.py": {"inside": 1, "projection": 0, "statement_shape": 0, "pin": 0, "leaf": 13, "baselines": 2},
     "check-sparse-skip-kind-negatives.py": {"inside": 3, "projection": 0, "statement_shape": 0, "pin": 0, "leaf": 1, "baselines": 2},
     "check-tampered-reply-negatives.py": {"inside": 8, "projection": 0, "statement_shape": 0, "pin": 3, "leaf": 9, "baselines": 2}
   }

@@ -263,7 +263,7 @@ theorem initiator_sends_second_message [Tacenta.SessionUnitT1.DerivedKeysModel] 
             ⟨headerSource oracle.braidKem (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector, 2⟩ } ∧
       lifecycle.Session.invariant s''' = ok true ∧ CounterHeadroom s''' ∧
       (∀ j, j + 3 < Std.U32.max → CounterRoom s''' j) := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the second send on the run of the reply's receipt, its code-level part under the invariant and the ceilings

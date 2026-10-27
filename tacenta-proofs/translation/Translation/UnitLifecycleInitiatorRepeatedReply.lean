@@ -455,7 +455,7 @@ theorem initiator_repeated_reply_refused [Tacenta.SessionUnitT1.DerivedKeysModel
         ok (core.result.Result.Err (lifecycle.Error.Triple (tacenta_triple.TripleError.Classical
           tacenta_ratchet.RatchetError.OutOfOrder)), s'', rngA3) ∧
       trace rngA3 = restA2 := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the first receipt keeps the invariant and the ceilings (receive preservation, on the same run)

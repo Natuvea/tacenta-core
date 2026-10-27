@@ -15,10 +15,13 @@ the nested bound holds on both receiving entries (`decrypt_nested_too_long_refus
 assumed open-length law (`ratchet_ok_plaintext_le_max`, `decrypt_ok_plaintext_le_max`,
 `establish_responder_ok_plaintext_le_max`).
 
-0 controls are labelled inside a composing proof, none is labelled a projection and 0 are statement-shape checks: the
-module's results are each proved directly or by one application, so every control is refused at the result whose
-statement it changes (leaf controls), and none is a definition held by its pin (the module has no definitions). The
-thirteen controls: each bound one off (the outer bound in `check_frame_size_refuses_iff`, the ratchet bound in
+1 control is labelled inside a composing proof, none is labelled a projection and 0 are statement-shape checks. The
+one composing theorem is `establish_responder_ok_plaintext_le_max`, which composes the nested limit of
+`decoded_initial_limit` with `ratchet_ok_plaintext_le_max`; its inside control claims the inner receive's bound one
+under that limit, which `ratchet_ok_plaintext_le_max` still proves and the composition can no longer feed (with the
+composing proof emptied, Lean accepts the change). The other results are each proved directly or by one application,
+so every other control is refused at the result whose statement it changes (leaf controls), and none is a definition
+held by its pin (the module has no definitions). The thirteen leaf controls: each bound one off (the outer bound in `check_frame_size_refuses_iff`, the ratchet bound in
 `non_initial_limit`, the nested bound in `nested_too_long_refused`, the sender's bound in `encrypt_size_refusal`); the
 nested check dropped (`decoded_initial_limit` claimed with the outer bound alone) and the span read as the whole frame
 (`decoded_span`); the refusals' effects changed (the session's pending initial message cleared by the decrypt refusal,
@@ -147,15 +150,25 @@ MUTANTS = [
      [('    (hopen : Model.Lifecycle.AeadOpenLength oracle) :\n    plaintext.val.length ≤ Model.Lifecycle.maxPlaintextLen := by\n  have hres := hstep.result\n  rw [hok] at hres\n  cases hm : (Model.Lifecycle.decryptRatchet view',
        '    (hopen : True) :\n    plaintext.val.length ≤ Model.Lifecycle.maxPlaintextLen := by\n  have hres := hstep.result\n  rw [hok] at hres\n  cases hm : (Model.Lifecycle.decryptRatchet view')],
      r'hopen\nhas type\n  True\nbut is expected to have type\n  Model\.Lifecycle\.AeadOpenLength oracle', ['ratchet_ok_plaintext_le_max']),
+    # The responder's maximum composed from the nested limit: the inner bound claimed one under that limit.
+    ('module', 'inner-bound-one-under-the-limit',
+     [('    (hmessage : message.val.length ≤ Model.Lifecycle.maxRatchetFrameLen)\n',
+       '    (hmessage : message.val.length ≤ Model.Lifecycle.maxRatchetFrameLen - 1)\n')],
+     r'hlim\n has type\n  \(↑p\.decoded\.message\)\.length ≤ Model\.Lifecycle\.maxRatchetFrameLen\nbut is expected to have type\n  \(↑p\.decoded\.message\)\.length ≤ Model\.Lifecycle\.maxRatchetFrameLen - 1',
+     ['establish_responder_ok_plaintext_le_max']),
 ]
 
 # The theorems that compose the run (decided by reading).
-COMPOSING = set()
+COMPOSING = {
+    'establish_responder_ok_plaintext_le_max',
+}
 
 # The controls labelled inside a composing proof, with the declaration each is refused in.  For each, the script
 # also runs the changed copy with that theorem's proof replaced by `sorry` and requires Lean to accept the change
 # there: the refusal is attributable to that proof.
-INSIDE = {}
+INSIDE = {
+    'inner-bound-one-under-the-limit': 'establish_responder_ok_plaintext_le_max',
+}
 
 # The controls refused in a composing proof where it places a conjunct of a called theorem's conclusion unchanged,
 # with that called theorem: projections, labelled neither inside nor statement-shape and not probed.  Every other

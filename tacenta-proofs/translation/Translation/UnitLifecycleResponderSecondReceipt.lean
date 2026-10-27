@@ -781,10 +781,10 @@ theorem responder_receives_second_message_two_outcomes [Tacenta.SessionUnitT1.De
                   ⟨headerSource oracle.braidKem (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector, 1⟩))
               (arrayOf ec) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive)
               (arrayOf q.dhOut) dSend (oracle.dhPublic dA) x z (oracleB.dhPublic dB2) dB2))) := by
-  have hlenS : (Tacenta.UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenS : (UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitS
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the initiator's second message, on the run
@@ -1096,10 +1096,10 @@ theorem responder_receives_second_message [Tacenta.SessionUnitT1.DerivedKeysMode
           (arrayOf q.dhOut) dSend (oracle.dhPublic dA) x z (oracleB.dhPublic dB2) dB2) ∧
       lifecycle.Session.invariant sB''' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB''' ∧
       (∀ j, j + 3 < Std.U32.max → Tacenta.UnitLifecycleSendPreserve.CounterRoom sB''' j) := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
-  have hlenS : (Tacenta.UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenS : (UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitS
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   obtain ⟨p, ec, dSend, x, dk, ekSeed, ekVector, bytesR, sB'', ptA, s'', rngA', bytes2, s''', res, sB''', rngR2,

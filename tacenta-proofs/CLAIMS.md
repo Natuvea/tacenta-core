@@ -8370,8 +8370,8 @@ Diffie-Hellman laws the success results rest on, which stay assumed.
 compiler-trust axiom. Of the other 19 results, 5 rest on `propext`, `Classical.choice` and `Quot.sound` alone and 14 on those
 and opaque constants of the unit. Each of the 20 results carries an axiom pin and a statement pin. As for every statement
 pin, a printed pin is not the whole elaborated statement, and that the pinned statement is the right one is decided by
-reading. `check-size-rule-negatives.py` plants thirteen faults in a copy of the module, every one a change to a statement,
-and requires Lean to refuse each at the result whose statement it changes, against a message naming the change (a
+reading. `check-size-rule-negatives.py` plants fourteen faults in a copy of the module, every one a change to a statement,
+and requires Lean to refuse each at the result named for it, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false): each of the four bounds one off (the
 outer bound in `check_frame_size_refuses_iff`, the ratchet bound in `non_initial_limit`, the nested bound in
 `nested_too_long_refused`, the sender's bound in `encrypt_size_refusal`); the nested check dropped (`decoded_initial_limit`
@@ -8380,8 +8380,10 @@ claimed with the outer bound alone) and the span read as the whole frame (`decod
 last-resort record, `encrypt_size_refusal_refines` claimed to take a draw from the model's oracle, refused where it places
 the result of `UnitLifecycleT3`); the order swapped (`encrypt_on_failed_agreement`, `decrypt_initial_decode_refusal_order`);
 and the received maximum claimed one byte lower (`decrypt_ok_plaintext_le_max`) and without the open-length law
-(`ratchet_ok_plaintext_le_max`). None is labelled inside a composing proof, a projection or a statement-shape check: each
-result is proved directly or by one application. These are controls on the proofs; the checks in the Rust are held by the
+(`ratchet_ok_plaintext_le_max`); those thirteen are refused at the result whose statement they change. The fourteenth
+claims the inner receive's bound one under the nested limit, which `ratchet_ok_plaintext_le_max` still proves, and is
+refused inside `establish_responder_ok_plaintext_le_max`, which composes that limit with it (accepted there with that
+proof emptied). None is labelled a projection or a statement-shape check. These are controls on the proofs; the checks in the Rust are held by the
 sixteen `MS-*` mutations of `tooling/gate-mutations.json` (each check removed, each bound one off, the nested check skipped or
 reading the wrong bytes, a check moved after the terminal check, the draw, the copy or the decode), each caught by a named
 test, which `mutate-gates.py --only MS-...` runs locally. An error that is not a refusal voids a run anywhere in

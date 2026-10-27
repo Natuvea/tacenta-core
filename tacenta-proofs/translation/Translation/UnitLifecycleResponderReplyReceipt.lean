@@ -639,7 +639,7 @@ theorem initiator_receives_reply_outcomes [Tacenta.SessionUnitT1.DerivedKeysMode
               (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session
               (arrayOf q.rootKey) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive) dSend x
               (oracleB.dhPublic dB) (oracle.dhPublic dA) dA))) := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the responder's reply, on the run

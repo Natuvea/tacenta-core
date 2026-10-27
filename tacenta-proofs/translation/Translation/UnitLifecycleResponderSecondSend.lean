@@ -449,10 +449,10 @@ theorem responder_sends_second_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R
             (arrayOf q.sparseReceive) (arrayOf q.dhOut) dSend (oracle.dhPublic dA) x z (oracleB.dhPublic dB2) } ∧
       lifecycle.Session.invariant sB4 = ok true ∧ CounterHeadroom sB4 ∧
       (∀ j, j + 3 < Std.U32.max → CounterRoom sB4 j) := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
-  have hlenS : (Tacenta.UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenS : (UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitS
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the responder's receipt of the second message, on the run

@@ -469,7 +469,7 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
         ∃ rngT : R,
           lifecycle.Session.decrypt rc crc s' frame rng' =
             ok (core.result.Result.Err lifecycle.Error.Aead, s', rngT) ∧ trace rngT = restA := by
-  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
     rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
     simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the honest reply, accepted
