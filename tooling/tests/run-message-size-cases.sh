@@ -46,6 +46,8 @@ expected_tests() {
         the_value_functions_agree_with_the_reference_at_every_edge \
         the_kem_length_addition_does_not_wrap_at_the_top_of_usize \
         the_three_rules_at_their_edges \
+        the_nested_check_does_not_assume_the_kem_length \
+        the_size_rule_leaves_kem_length_acceptance_unchanged \
         nested_len_matches_the_reference \
         too_long_matches_the_reference \
         too_long_matches_the_reference_near_the_bounds \

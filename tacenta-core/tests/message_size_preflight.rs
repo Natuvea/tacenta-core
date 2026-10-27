@@ -13,8 +13,8 @@
 
 use proptest::prelude::*;
 use tacenta_core::serialization::{
-    DecodeError, MAX_INITIAL_FRAME_LEN, MAX_RATCHET_FRAME_LEN, check_frame_size, frame_too_long,
-    nested_ratchet_len, ratchet_span, ratchet_span_of,
+    DecodeError, MAX_INITIAL_FRAME_LEN, MAX_RATCHET_FRAME_LEN, check_frame_size, decode_initial,
+    frame_too_long, nested_ratchet_len, ratchet_span, ratchet_span_of,
 };
 
 /// The reference: `84 + k <= len` and `len - 84 - k`, in a width that cannot overflow.
@@ -166,6 +166,131 @@ fn the_three_rules_at_their_edges() {
     // Rule 3.
     assert!(!frame_too_long(MAX_RATCHET_FRAME_LEN, false, None));
     assert!(frame_too_long(MAX_RATCHET_FRAME_LEN + 1, false, None));
+}
+
+/// Declared KEM-ciphertext lengths other than ML-KEM-1024's 1,568, and that one for comparison. The nested
+/// check locates the ratchet message through whatever the frame declares (message-format.md, Message size,
+/// rule 2), so none of these may be treated as 1,568.
+const DECLARED_KEM_LENGTHS: [u32; 7] = [0, 1, 1567, 1568, 1569, 70_000, u32::MAX];
+
+/// The rule computed as a target with a 32-bit `usize` computes it: lengths are `u32`, and an `84 + k` that
+/// `u32` cannot hold is taken as running past the end, so it locates nothing.
+fn reference_32(len: u32, k: u32) -> bool {
+    if u64::from(len) > MAX_INITIAL_FRAME_LEN as u64 {
+        return true;
+    }
+    match 84u32.checked_add(k) {
+        Some(start) if start <= len => u64::from(len - start) > MAX_RATCHET_FRAME_LEN as u64,
+        _ => false,
+    }
+}
+
+/// An initial frame of `len` bytes whose `kem_ciphertext_len` declares `k`: version, type, two well-formed
+/// zero keys, the field, then zeros. Allocated, so `check_frame_size` and the decoder read real bytes.
+fn initial_frame(len: usize, k: u32) -> Vec<u8> {
+    let mut frame = vec![0u8; len];
+    frame[0] = 0x01;
+    frame[1] = 0x02;
+    frame[2] = 0x05;
+    frame[35] = 0x05;
+    frame[68..72].copy_from_slice(&k.to_be_bytes());
+    frame
+}
+
+/// The nested check does not assume a KEM length: for each declared length, the length-only call (made at
+/// lengths a 32-bit target can hold, against that target's arithmetic) and the byte check agree with the rule,
+/// and the bound that applies is the one the declared length gives. Acceptance of these lengths by the
+/// initial-message decoder is unchanged here; whether a length other than 1,568 should be refused is a
+/// separate decision, which the page leaves open.
+#[test]
+fn the_nested_check_does_not_assume_the_kem_length() {
+    for &k in &DECLARED_KEM_LENGTHS {
+        // The length at which the located ratchet message reaches MAX_RATCHET_FRAME_LEN, where it exists.
+        let nested_edge = 84u64 + u64::from(k) + MAX_RATCHET_FRAME_LEN as u64;
+        let mut lengths: Vec<u64> = vec![
+            0,
+            71,
+            72,
+            83 + u64::from(k),
+            84 + u64::from(k),
+            85 + u64::from(k),
+            MAX_RATCHET_FRAME_LEN as u64,
+            MAX_INITIAL_FRAME_LEN as u64 - 1,
+            MAX_INITIAL_FRAME_LEN as u64,
+            MAX_INITIAL_FRAME_LEN as u64 + 1,
+            nested_edge - 1,
+            nested_edge,
+            nested_edge + 1,
+            u64::from(u32::MAX),
+        ];
+        lengths.retain(|&l| l <= u64::from(u32::MAX));
+        for &len in &lengths {
+            let len32 = len as u32;
+            assert_eq!(
+                frame_too_long(len32 as usize, true, Some(k)),
+                reference_32(len32, k),
+                "k {k}, len {len}: the length-only call differs from 32-bit arithmetic"
+            );
+        }
+
+        // The bound that binds: the nested one while 84 + k + MAX_RATCHET_FRAME_LEN fits within
+        // MAX_INITIAL_FRAME_LEN, the outer one otherwise. Real frames at each edge.
+        if nested_edge <= MAX_INITIAL_FRAME_LEN as u64 {
+            let edge = nested_edge as usize;
+            assert_eq!(check_frame_size(&initial_frame(edge, k)), Ok(()), "k {k}");
+            assert_eq!(
+                ratchet_span(&initial_frame(edge, k)),
+                Some(MAX_RATCHET_FRAME_LEN),
+                "k {k}"
+            );
+            assert_eq!(
+                check_frame_size(&initial_frame(edge + 1, k)),
+                Err(DecodeError::TooLong),
+                "k {k}: one byte more inside is refused by the nested rule"
+            );
+        } else {
+            let at = initial_frame(MAX_INITIAL_FRAME_LEN, k);
+            assert_eq!(check_frame_size(&at), Ok(()), "k {k}");
+            let span = (MAX_INITIAL_FRAME_LEN as u64).checked_sub(84 + u64::from(k));
+            assert_eq!(
+                ratchet_span(&at).map(|s| s as u64),
+                span,
+                "k {k}: the span is what the declared length locates, or none"
+            );
+            assert_eq!(
+                check_frame_size(&initial_frame(MAX_INITIAL_FRAME_LEN + 1, k)),
+                Err(DecodeError::TooLong),
+                "k {k}: one byte over the outer bound"
+            );
+        }
+    }
+    // For the honest length the two rules meet at MAX_INITIAL_FRAME_LEN.
+    assert_eq!(
+        84 + 1568 + MAX_RATCHET_FRAME_LEN,
+        MAX_INITIAL_FRAME_LEN,
+        "the honest wrapper"
+    );
+}
+
+/// What the decoder accepts is not changed by the size rule: an initial frame declaring any of these
+/// lengths, with room for its fields, decodes with a `kem_ciphertext` of that length, and one whose length
+/// runs past the end is refused as before. Pinned so that a change to KEM-length acceptance is a visible,
+/// separate decision rather than a side effect of the size rule.
+#[test]
+fn the_size_rule_leaves_kem_length_acceptance_unchanged() {
+    for &k in &[0u32, 1, 1567, 1568, 1569, 70_000] {
+        let frame = initial_frame(84 + k as usize + 10, k);
+        assert_eq!(check_frame_size(&frame), Ok(()), "k {k}");
+        let decoded = decode_initial(&frame).expect("a declared KEM length with room decodes");
+        assert_eq!(decoded.kem_ciphertext.len(), k as usize, "k {k}");
+        assert_eq!(decoded.message.len(), 10, "k {k}");
+    }
+    let overrun = initial_frame(2000, u32::MAX);
+    assert_eq!(check_frame_size(&overrun), Ok(()));
+    assert_eq!(
+        decode_initial(&overrun).err(),
+        Some(DecodeError::LengthOverrun)
+    );
 }
 
 proptest! {
