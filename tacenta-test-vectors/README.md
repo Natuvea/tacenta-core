@@ -235,22 +235,46 @@ message**: the frames are mostly zeros and none of them authenticates.
   or `00` where the vector says the wrapper is malformed, followed by 32 zero
   bytes), and `kem_ciphertext_len`. One vector's prefix is shorter than 72
   bytes on purpose, to give an initial frame too short to hold that field.
+  The four `initial-unknown-prekeys-*` vectors carry the whole wrapper in
+  their prefix: after `kem_ciphertext_len`, that many zero bytes of
+  `kem_ciphertext` and the three identifiers, each `deadbeef`.
 - **A valid vector** is a frame the size rule admits. Its `fields` hold
   `ratchet_message_length`, four bytes big-endian: the length of the ratchet
   message the rule located, the whole frame for a frame that is not an initial
   frame, and `length - 84 - kem_ciphertext_len` for an initial frame. The field
   is left out when the rule located no ratchet message (an initial frame too
   short to hold `kem_ciphertext_len`, or whose `kem_ciphertext_len` runs past
-  its end). An admitted frame goes on to the decoders, which refuse every
-  admitted frame in this file for other reasons; the vector says nothing about
-  that later refusal.
+  its end). They also hold `decodes`, `01` or `00`: whether the decoder a
+  session's decrypt hands the frame to next accepts it, the initial-message
+  decoder for an initial frame and the ratchet-message decoder for every other
+  frame. Every admitted frame in this file is then refused for the reason it
+  had without the rule (message-format.md, Message size, Precedence), and the
+  refusal changes nothing. The Rust runner checks, on a live responder
+  session: with `decodes` `00`, the decoder's own refusal; with `01`, an
+  initial frame refused as `NotARepeatedInitial` (it is not that session's
+  repeat), and a ratchet frame refused for something other than a decode
+  failure. On `establish_responder`: the initial-message decoder's own refusal
+  for every frame it refuses (each frame that is not an initial frame among
+  them), and for an initial frame that decodes, `UnknownPrekeyId` at the
+  signed-prekey lookup, since the runner's store holds no prekey these frames
+  name (`0` or `deadbeef`). The session and the store are unchanged, and no
+  operation refuses the frame as too long. The siblings named `*-at-the-bound`
+  beside each `*-one-over` vector are the same inputs one byte within the
+  bound.
 - **An invalid vector** is a frame the size rule refuses. It carries
   `refusal: decode-failure`: the rule's refusal is a decode failure. A runner
   checks that every operation that receives a frame refuses it as too long
-  before anything else, and with no effect: the Rust runner gives it to
-  `Session::decrypt` on a responder session and to `establish_responder` on a
-  prekey store, and requires `Decode(DecodeError::TooLong)` from both, the
-  stored session and store unchanged, and no call to the random source.
+  before anything else, and with no effect, whatever else is wrong with the
+  frame (an unknown version byte, a wrong or unknown type byte, a malformed
+  wrapper, identifiers no store holds) and whatever state the receiver is in:
+  the session, the prekey store with its one-time prekeys and replay record,
+  and the random source are untouched. The Rust runner gives each frame to
+  `Session::decrypt` on a live responder session and on a responder session
+  whose agreement has failed, and to `establish_responder` on a prekey store,
+  and requires `Decode(DecodeError::TooLong)` from all three, the stored
+  sessions and store unchanged, and no call to the random source. The layout
+  names no session state, so the terminal session is the runner's fixture,
+  not part of the vector.
 - **What no vector here pins:** acceptance of a real message at exactly
   `MAX_PLAINTEXT_LEN`, and the sender's rule. A plaintext of that length is a
   megabyte and a real frame carries a tag the model cannot compute, so both

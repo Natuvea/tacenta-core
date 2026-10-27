@@ -26,22 +26,23 @@ fn serialization_vectors_pass() {
             .unwrap_or_else(|e| panic!("{}: {e}", file.algorithm));
         if file.algorithm == "frame-size" {
             // The size rule's file: its admitted and refused frames at both
-            // bounds, and the nested case (tacenta-test-vectors/README.md).
+            // bounds, the nested case, and the precedence cases with their
+            // siblings one byte within the bounds (tacenta-test-vectors/README.md).
             let refused = file
                 .vectors
                 .iter()
                 .filter(|v| v.result == "invalid")
                 .count();
             assert!(
-                refused >= 9 && checked - refused >= 7,
-                "frame-size: {refused} refused and {} admitted vectors, expected at least 9 and 7",
+                refused >= 14 && checked - refused >= 13,
+                "frame-size: {refused} refused and {} admitted vectors, expected at least 14 and 13",
                 checked - refused
             );
         }
         total += checked;
     }
     assert!(
-        total >= 24,
+        total >= 33,
         "checked {total} serialization vectors, expected all three files"
     );
     eprintln!(

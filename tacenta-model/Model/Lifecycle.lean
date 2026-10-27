@@ -713,6 +713,50 @@ theorem frameTooLong_of_nested (frame : Bytes) (k : Nat)
     frameTooLong frame = true := by
   simp [frameTooLong, ratchetSpan, hi, hk, hfit, hlong]
 
+/-- Rule 3 refuses, whatever the first two bytes are (message-format.md,
+    Message size, Precedence): a frame that is not an initial frame, an
+    unknown version byte or a type byte other than the initial message's
+    included, is too long once it is longer than `maxRatchetFrameLen`. -/
+theorem frameTooLong_of_not_initial (frame : Bytes)
+    (hi : messageType frame ≠ some .initial)
+    (hlong : maxRatchetFrameLen < frame.length) : frameTooLong frame = true := by
+  have hs : ratchetSpan frame = some frame.length := by
+    cases ht : messageType frame with
+    | none => simp [ratchetSpan, ht]
+    | some kind =>
+        cases kind with
+        | ratchet => simp [ratchetSpan, ht]
+        | initial => exact (hi ht).elim
+  simp [frameTooLong, hs, hlong]
+
+/-- An unknown version byte makes a frame not an initial frame. -/
+theorem messageType_ne_initial_of_version (v t : UInt8) (rest : Bytes)
+    (hv : v ≠ Model.Messages.version) : messageType (v :: t :: rest) ≠ some .initial := by
+  simp [messageType, hv]
+
+/-- A type byte other than the initial message's makes a frame not an initial
+    frame, whatever the version byte. -/
+theorem messageType_ne_initial_of_type (v t : UInt8) (rest : Bytes)
+    (ht : t ≠ Model.Messages.typeInitial) : messageType (v :: t :: rest) ≠ some .initial := by
+  simp only [messageType]
+  by_cases hv : v = Model.Messages.version <;>
+    by_cases hr : t = Model.Messages.typeRatchet <;> simp [hv, hr, ht]
+
+/-- An unknown version byte does not escape the size rule: such a frame
+    longer than `maxRatchetFrameLen` is too long. -/
+theorem frameTooLong_of_unknown_version (v t : UInt8) (rest : Bytes)
+    (hv : v ≠ Model.Messages.version)
+    (hlong : maxRatchetFrameLen < (v :: t :: rest).length) :
+    frameTooLong (v :: t :: rest) = true :=
+  frameTooLong_of_not_initial _ (messageType_ne_initial_of_version v t rest hv) hlong
+
+/-- Nor does a wrong or unknown type byte. -/
+theorem frameTooLong_of_non_initial_type (v t : UInt8) (rest : Bytes)
+    (ht : t ≠ Model.Messages.typeInitial)
+    (hlong : maxRatchetFrameLen < (v :: t :: rest).length) :
+    frameTooLong (v :: t :: rest) = true :=
+  frameTooLong_of_not_initial _ (messageType_ne_initial_of_type v t rest ht) hlong
+
 /-! ## Composite-header adapters
 
 The session owns the correspondence between the wire header, the Triple
@@ -2328,6 +2372,64 @@ theorem establishResponder_frame_too_long (view : CodewordView) (oracle : Oracle
     establishResponder view oracle identity store message =
       { store, result := .error (.decode .tooLong), oracle } := by
   simp [establishResponder, prepareResponder, hs]
+
+/-! ### Precedence (message-format.md, Message size, Precedence)
+
+The two theorems above hold whatever else the frame and the receiver are. The
+ones below name the cases the page lists: a frame that is not an initial frame
+(an unknown version byte, an unknown type byte, the ratchet message's type at
+establishment) is too long above `maxRatchetFrameLen` on both operations; and
+below the bounds the rule is transparent, so the refusals the decoders and the
+prekey lookup gave are the ones given. Each refusal returns the session, or
+the store, and the oracle unchanged, so no random value is drawn. -/
+
+/-- A frame that is not an initial frame and is longer than
+    `maxRatchetFrameLen`, on any session (one whose agreement has failed
+    included): refused as too long, the session and the oracle unchanged. -/
+theorem decrypt_not_initial_too_long (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (hi : messageType message ≠ some .initial)
+    (hlong : maxRatchetFrameLen < message.length) :
+    decrypt view oracle session message =
+      { session, result := .error (.decode .tooLong), oracle } :=
+  decrypt_frame_too_long view oracle session message
+    (frameTooLong_of_not_initial message hi hlong)
+
+/-- The same on responder establishment: the store and the oracle unchanged. -/
+theorem establishResponder_not_initial_too_long (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (hi : messageType message ≠ some .initial)
+    (hlong : maxRatchetFrameLen < message.length) :
+    establishResponder view oracle identity store message =
+      { store, result := .error (.decode .tooLong), oracle } :=
+  establishResponder_frame_too_long view oracle identity store message
+    (frameTooLong_of_not_initial message hi hlong)
+
+/-- Within the bounds, a frame the initial-message decoder refuses meets that
+    refusal on establishment, as it did without the rule. -/
+theorem prepareResponder_admitted_decode_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (message : Bytes) (reason : DecodeRefusal)
+    (hs : frameTooLong message = false)
+    (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
+    prepareResponder oracle identity store message = .error (.decode reason) := by
+  simp [prepareResponder, hs, hd]
+
+/-- Within the bounds, an initial frame that decodes and names a signed prekey
+    the store does not hold meets the lookup's refusal, as it did without the
+    rule. Above them (`establishResponder_frame_too_long`) the same frame is
+    refused as too long before the lookup. -/
+theorem prepareResponder_admitted_unknown_signed_prekey (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes) (initial : Initial)
+    (hs : frameTooLong message = false)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hk : responderSignedPrekeySecret store initial.signedPrekeyId.toNat = none) :
+    prepareResponder oracle identity store message = .error .unknownPrekeyId := by
+  simp [prepareResponder, hs, hd, hk]
+
+/-! ### Precedence on the send (message-format.md, Message size, the sender's rule)
+
+`encrypt_plaintext_too_long` holds for every session, a terminal one included;
+`encrypt_plaintextTooLong_iff` says the size refusal is given exactly for the
+plaintexts over the maximum. -/
 
 /-- **The AEAD's successful-open length property, upper half** (message-format.md,
     Message size, where it is stated as a property the bound relies on): an

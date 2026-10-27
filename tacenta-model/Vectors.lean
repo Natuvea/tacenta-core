@@ -882,11 +882,27 @@ def sizeInitialPrefix (curve : UInt8) (kemLen : Nat) : List UInt8 :=
   [Model.Messages.version, Model.Messages.typeInitial]
     ++ (curve :: List.replicate 32 0) ++ (curve :: List.replicate 32 0) ++ beN 4 kemLen
 
+/-- The same first 72 bytes followed by the rest of the wrapper: a
+    `kem_ciphertext` of `kemLen` zero bytes and the three identifiers, each
+    `id`. `0xdeadbeef` names no prekey of any store a runner builds. -/
+def sizeInitialWrapper (kemLen id : Nat) : List UInt8 :=
+  sizeInitialPrefix 0x05 kemLen ++ List.replicate kemLen 0 ++ beN 4 id ++ beN 4 id ++ beN 4 id
+
+/-- Whether the decoder a session's decrypt hands the frame to, once the size
+    rule admits it, accepts it: the initial-message decoder for an initial
+    frame, the ratchet-message decoder for every other frame. -/
+def frameDecodes (frame : List UInt8) : Bool :=
+  match Model.Lifecycle.messageType frame with
+  | some .initial => (Model.Messages.decodeInitial frame).isSome
+  | _ => (Model.CompositeHeader.decode frame).isSome
+
 /-- A frame-size vector, written only when the model's size rule refuses the
     frame exactly when `refuse` says it does. A refused frame is invalid with
     the refusal `decode-failure`; an admitted one names, in `fields`, the
-    length of the ratchet message the rule located, and leaves it out when the
-    rule located none. -/
+    length of the ratchet message the rule located (left out when the rule
+    located none), and `decodes`, `01` or `00`: whether the decoder the frame
+    goes to next accepts it (`frameDecodes`), so that a frame within the
+    bounds is seen to meet the refusal it met without the rule. -/
 @[never_extract]
 def frameSizeVector (id comment : String) (pre : List UInt8) (length : Nat)
     (refuse : Bool) : Except String String :=
@@ -900,9 +916,10 @@ def frameSizeVector (id comment : String) (pre : List UInt8) (length : Nat)
         .ok (vectorHead id comment ++ "\"result\": \"invalid\", \"inputs\": " ++ ins ++
           ", \"refusal\": \"decode-failure\" }")
     | false, false =>
-        let fs := match Model.Lifecycle.ratchetSpan frame with
+        let span := match Model.Lifecycle.ratchetSpan frame with
           | some n => [("ratchet_message_length", toHex (beN 4 n))]
           | none => []
+        let fs := span ++ [("decodes", if frameDecodes frame then "01" else "00")]
         .ok (vectorHead id comment ++ "\"inputs\": " ++ ins ++ ", \"fields\": " ++
           jsonObject fs ++ " }")
     | _, _ => .error ("genvectors: the model's size rule does not give " ++ id ++
@@ -967,9 +984,36 @@ def frameSizeFile (_ : Unit) : Except String String := do
       (sizeInitialPrefix 0x05 0).dropLast.dropLast.dropLast.dropLast 71 false,
     frameSizeVector "initial-malformed-curve-byte-nested-one-over"
       "identity and ephemeral without their curve byte, kem_ciphertext_len 0, a ratchet message one byte over MAX_RATCHET_FRAME_LEN: refused by rule 2, ahead of the decoder"
-      (sizeInitialPrefix 0x00 0) (fr + 85) true].mapM id
+      (sizeInitialPrefix 0x00 0) (fr + 85) true,
+    frameSizeVector "initial-malformed-curve-byte-nested-at-the-bound"
+      "the same with a ratchet message of exactly MAX_RATCHET_FRAME_LEN: admitted; the decoder refuses it next, as it did without the rule"
+      (sizeInitialPrefix 0x00 0) (fr + 84) false,
+    frameSizeVector "unknown-version-ratchet-type-one-over"
+      "version 0x02, unknown, with the ratchet type byte, one byte over MAX_RATCHET_FRAME_LEN: not an initial frame, refused by rule 3 although malformed"
+      [0x02, Model.Messages.typeRatchet] (fr + 1) true,
+    frameSizeVector "unknown-version-ratchet-type-at-the-bound"
+      "the same at MAX_RATCHET_FRAME_LEN: admitted; the decoder refuses its version next, as it did without the rule"
+      [0x02, Model.Messages.typeRatchet] fr false,
+    frameSizeVector "unrecognised-version-at-the-bound"
+      "version 0x00 with the initial type byte at MAX_RATCHET_FRAME_LEN: not an initial frame, admitted; the decoder refuses its version next, as it did without the rule"
+      [0x00, Model.Messages.typeInitial] fr false,
+    frameSizeVector "unrecognised-version-over-the-outer-bound"
+      "version 0x00 with the initial type byte, one byte over MAX_INITIAL_FRAME_LEN: refused by rule 1 (and rule 3) although malformed"
+      [0x00, Model.Messages.typeInitial] (fi + 1) true,
+    frameSizeVector "initial-unknown-prekeys-at-the-bound"
+      "a well-formed initial frame with a 1,568-byte kem_ciphertext whose three identifiers are 0xdeadbeef, at MAX_INITIAL_FRAME_LEN: admitted, and it decodes; establishment refuses it next at the signed-prekey lookup, and a session as not its repeat, as without the rule"
+      (sizeInitialWrapper 1568 0xdeadbeef) fi false,
+    frameSizeVector "initial-unknown-prekeys-one-over"
+      "the same, one byte longer: refused by rule 1, before any identifier is looked up"
+      (sizeInitialWrapper 1568 0xdeadbeef) (fi + 1) true,
+    frameSizeVector "initial-unknown-prekeys-nested-at-the-bound"
+      "a well-formed initial frame with an empty kem_ciphertext, identifiers 0xdeadbeef, and a ratchet message of exactly MAX_RATCHET_FRAME_LEN: admitted, and it decodes; refused next as the previous one is"
+      (sizeInitialWrapper 0 0xdeadbeef) (fr + 84) false,
+    frameSizeVector "initial-unknown-prekeys-nested-one-over"
+      "the same with a ratchet message one byte longer: refused by rule 2, before any identifier is looked up"
+      (sizeInitialWrapper 0 0xdeadbeef) (fr + 85) true].mapM id
   pure (answerFile "frame-size"
-    "generated by tacenta-model Vectors.lean (lake exe genvectors frame-size), from Model.Lifecycle.frameTooLong and Model.Lifecycle.ratchetSpan at the protocol constants (message-format.md, Message size); each frame is its prefix followed by zero bytes up to its length, and the generator writes no vector whose result the model does not give"
+    "generated by tacenta-model Vectors.lean (lake exe genvectors frame-size), from Model.Lifecycle.frameTooLong and Model.Lifecycle.ratchetSpan at the protocol constants (message-format.md, Message size), and, for an admitted frame's decodes, Model.Messages.decodeInitial or Model.CompositeHeader.decode; each frame is its prefix followed by zero bytes up to its length, and the generator writes no vector whose result the model does not give"
     vectors)
 
 /-- `n` bytes running through the byte values with a stride, so that no two

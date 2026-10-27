@@ -3,19 +3,30 @@
 //!
 //! A vector gives a frame's `length`, four bytes big-endian, and its `prefix`; the frame is the prefix
 //! followed by zero bytes up to the length (tacenta-test-vectors/README.md, Vector layouts). The runner builds
-//! it and hands it to `Session::decrypt`, on a responder session, and to `establish_responder`, on a prekey
-//! store, both rebuilt from the same stored bytes for every vector.
+//! it and hands it to `Session::decrypt` on two sessions, a live responder session and one whose agreement has
+//! failed, and to `establish_responder` on a prekey store, all rebuilt from the same stored bytes for every
+//! vector.
 //!
-//! * An invalid vector is refused by both as `Decode(DecodeError::TooLong)`, with the session's and the
-//!   store's stored bytes unchanged and the random source not read; `check_frame_size` refuses it too.
-//! * A valid vector is admitted by `check_frame_size`, and neither operation refuses it as too long (each
-//!   refuses it later, for other reasons, since the frames are mostly zeros). `ratchet_span` gives the length
-//!   the vector names in `fields`, and gives none when the vector leaves the field out.
+//! * An invalid vector is refused by all three as `Decode(DecodeError::TooLong)`, with the sessions' and the
+//!   store's stored bytes unchanged and the random source not read; `check_frame_size` refuses it too. That
+//!   is the page's precedence (Message size, Precedence): an unknown version or type byte, a malformed or
+//!   unknown-prekey wrapper, and a terminal session do not change the refusal.
+//! * A valid vector is admitted by `check_frame_size`, and no operation refuses it as too long; each refuses
+//!   it later, for the reason it had without the rule, and changes nothing. `ratchet_span` gives the length the
+//!   vector names in `fields`, and gives none when the vector leaves the field out. `decodes` says whether the
+//!   decoder the session hands the frame to accepts it: when it does not, the live session and the store refuse
+//!   with that decoder's own error; when it does, the live session refuses an initial frame as not its repeat,
+//!   and the store refuses it at the signed-prekey lookup (the store holds no prekey these frames name, 0 or
+//!   0xdeadbeef). A frame that is not an initial frame always meets the initial-message decoder's refusal on
+//!   establishment.
 
 use std::sync::OnceLock;
 
 use rand_core::{CryptoRng, RngCore};
-use tacenta_core::serialization::{DecodeError, check_frame_size, ratchet_span};
+use tacenta_core::serialization::{
+    DecodeError, MessageType, check_frame_size, decode_initial, decode_message, message_type,
+    ratchet_span,
+};
 use tacenta_core::sessions::{
     Expectation, Identity, LifecycleError, PrekeyStore, Session, establish_initiator,
     establish_responder,
@@ -75,9 +86,11 @@ struct Fixture {
     identity: [u8; 32],
     store: Vec<u8>,
     session: Vec<u8>,
+    terminal: Vec<u8>,
 }
 
-/// A responder session established from a real initial message, and the store it left.
+/// A responder session established from a real initial message, the store it left, and a second responder
+/// session whose agreement has failed.
 fn fixture() -> &'static Fixture {
     static FIXTURE: OnceLock<Fixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
@@ -94,15 +107,67 @@ fn fixture() -> &'static Fixture {
             .expect("fixture: first message");
         let (session, _) = establish_responder(&bob, &mut store, &first, &mut r)
             .expect("fixture: establish the responder");
+        let terminal = terminal_session(&mut r);
         Fixture {
             identity: *bob.export(),
             store: store.to_bytes().to_vec(),
             session: session.export().to_vec(),
+            terminal,
         }
     })
 }
 
+/// A responder session whose agreement has failed, made as `tacenta-core/tests/full_session.rs` makes one:
+/// one bit of its stored Braid MAC key flipped, then messages delivered until the header completes.
+fn terminal_session(r: &mut Stream) -> Vec<u8> {
+    let alice = Identity::generate(r);
+    let bob = Identity::generate(r);
+    let mut store = bob.create_prekeys(2, r);
+    let bundle = store.publish();
+    let mut pending = establish_initiator(&alice, &bundle, &Expectation::first_contact(&[]), r)
+        .expect("terminal fixture: establish the initiator");
+    let first = pending
+        .encrypt(b"terminal", r)
+        .expect("terminal fixture: first message");
+    let (session, _) = establish_responder(&bob, &mut store, &first, r)
+        .expect("terminal fixture: establish the responder");
+    let mut saved = session.export().to_vec();
+    let triple_len = u32::from_be_bytes(saved[1..5].try_into().expect("four bytes")) as usize;
+    let braid = 1 + 4 + triple_len + 4;
+    saved[braid + 2 + 8 + 32] ^= 0x01;
+    let mut session = Session::import(&saved).expect("terminal fixture: import");
+    let mut i = 0u8;
+    while !session.agreement_failed() {
+        let m = pending.encrypt(&[i], r).expect("terminal fixture: send");
+        session
+            .decrypt(&m, r)
+            .expect("terminal fixture: accepted until the refusals begin");
+        i += 1;
+        assert!(i < 8, "terminal fixture: the agreement did not fail");
+    }
+    session.export().to_vec()
+}
+
 const TOO_LONG: LifecycleError = LifecycleError::Decode(DecodeError::TooLong);
+
+/// What one receiving operation did with a frame: its result, how many calls it made to the random source,
+/// and whether the stored bytes it worked on are unchanged.
+struct Outcome<T> {
+    result: Result<T, LifecycleError>,
+    calls: usize,
+    unchanged: bool,
+}
+
+fn decrypt_on(stored: &[u8], frame: &[u8], seed: u64) -> Result<Outcome<Vec<u8>>, String> {
+    let mut session = Session::import(stored).map_err(|e| format!("fixture session: {e:?}"))?;
+    let mut rng = Stream::new(seed);
+    let result = session.decrypt(frame, &mut rng);
+    Ok(Outcome {
+        result,
+        calls: rng.calls,
+        unchanged: session.export().as_slice() == stored,
+    })
+}
 
 pub(crate) fn check(v: &Vector) -> Result<(), String> {
     let length = be32(&input(v, "length")?)? as usize;
@@ -114,32 +179,87 @@ pub(crate) fn check(v: &Vector) -> Result<(), String> {
     frame[..prefix.len()].copy_from_slice(&prefix);
 
     let fx = fixture();
-    let mut session =
-        Session::import(&fx.session).map_err(|e| format!("fixture session: {e:?}"))?;
+    let live = decrypt_on(&fx.session, &frame, 1)?;
+    let terminal = decrypt_on(&fx.terminal, &frame, 3)?;
     let mut store =
         PrekeyStore::from_bytes(&fx.store).map_err(|e| format!("fixture store: {e:?}"))?;
     let identity = Identity::from_secret(fx.identity);
-
-    let mut rng = Stream::new(1);
-    let decrypted = session.decrypt(&frame, &mut rng);
-    let decrypt_calls = rng.calls;
-    let session_unchanged = session.export().as_slice() == fx.session.as_slice();
     let mut rng = Stream::new(2);
-    let established = establish_responder(&identity, &mut store, &frame, &mut rng).err();
-    let establish_calls = rng.calls;
-    let store_unchanged = store.to_bytes().as_slice() == fx.store.as_slice();
+    let established = Outcome {
+        result: establish_responder(&identity, &mut store, &frame, &mut rng).map(|_| ()),
+        calls: rng.calls,
+        unchanged: store.to_bytes().as_slice() == fx.store.as_slice(),
+    };
 
     if expects_success(v)? {
         if check_frame_size(&frame).is_err() {
             return Err("check_frame_size refuses a frame the vector admits".to_string());
         }
+        let initial = message_type(&frame) == Some(MessageType::Initial);
+        let initial_decode = decode_initial(&frame).err();
+        let decoder_error = if initial {
+            initial_decode
+        } else {
+            decode_message(&frame).err()
+        };
         let span = ratchet_span(&frame).map(|n| (n as u32).to_be_bytes().to_vec());
-        fields_eq(v, &[("ratchet_message_length", span)])?;
-        if decrypted.as_ref().err() == Some(&TOO_LONG) {
-            return Err("Session::decrypt refused an admitted frame as too long".to_string());
+        let decodes = vec![u8::from(decoder_error.is_none())];
+        fields_eq(
+            v,
+            &[("ratchet_message_length", span), ("decodes", Some(decodes))],
+        )?;
+        for (name, outcome) in [
+            ("the live session", &live),
+            ("the terminal session", &terminal),
+        ] {
+            match &outcome.result {
+                Ok(_) => return Err(format!("{name} accepted a frame of zeros")),
+                Err(e) if *e == TOO_LONG => {
+                    return Err(format!("{name} refused an admitted frame as too long"));
+                }
+                Err(_) => {}
+            }
+            if !outcome.unchanged {
+                return Err(format!("{name}'s refusal changed it"));
+            }
         }
-        if established == Some(TOO_LONG) {
-            return Err("establish_responder refused an admitted frame as too long".to_string());
+        // The refusal each frame had without the rule.
+        let live_error = live.result.as_ref().err();
+        match (&decoder_error, initial) {
+            (Some(e), _) => {
+                if live_error != Some(&LifecycleError::Decode(*e)) {
+                    return Err(format!(
+                        "the live session gave {live_error:?}, not its decoder's Decode({e:?})"
+                    ));
+                }
+            }
+            (None, true) => {
+                if live_error != Some(&LifecycleError::NotARepeatedInitial) {
+                    return Err(format!(
+                        "the live session gave {live_error:?} for another handshake's initial frame"
+                    ));
+                }
+            }
+            (None, false) => {
+                if matches!(live_error, Some(LifecycleError::Decode(_))) {
+                    return Err(format!(
+                        "the live session gave {live_error:?} for a frame that decodes"
+                    ));
+                }
+            }
+        }
+        let want = match &initial_decode {
+            Some(e) => LifecycleError::Decode(*e),
+            None => LifecycleError::UnknownPrekeyId,
+        };
+        if established.result.as_ref().err() != Some(&want) {
+            return Err(format!(
+                "establish_responder gave {:?}, not {want:?}",
+                established.result.err()
+            ));
+        }
+        if !established.unchanged {
+            return Err("establish_responder's refusal changed the store".to_string());
         }
         Ok(())
     } else {
@@ -154,26 +274,37 @@ pub(crate) fn check(v: &Vector) -> Result<(), String> {
         if check_frame_size(&frame) != Err(DecodeError::TooLong) {
             return Err("check_frame_size admits a frame the vector refuses".to_string());
         }
-        match decrypted {
-            Err(e) if e == TOO_LONG => {}
-            other => {
+        for (name, result, calls, unchanged) in [
+            (
+                "Session::decrypt on the live session",
+                live.result.as_ref().err(),
+                live.calls,
+                live.unchanged,
+            ),
+            (
+                "Session::decrypt on the terminal session",
+                terminal.result.as_ref().err(),
+                terminal.calls,
+                terminal.unchanged,
+            ),
+            (
+                "establish_responder",
+                established.result.as_ref().err(),
+                established.calls,
+                established.unchanged,
+            ),
+        ] {
+            if result != Some(&TOO_LONG) {
+                return Err(format!("{name} gave {result:?}, not Decode(TooLong)"));
+            }
+            if calls != 0 {
                 return Err(format!(
-                    "Session::decrypt gave {other:?}, not Decode(TooLong)"
+                    "{name}: a size refusal read the random source ({calls} calls)"
                 ));
             }
-        }
-        if established != Some(TOO_LONG) {
-            return Err(format!(
-                "establish_responder gave {established:?}, not Decode(TooLong)"
-            ));
-        }
-        if decrypt_calls != 0 || establish_calls != 0 {
-            return Err(format!(
-                "a size refusal read the random source ({decrypt_calls} and {establish_calls} calls)"
-            ));
-        }
-        if !session_unchanged || !store_unchanged {
-            return Err("a size refusal changed the session or the store".to_string());
+            if !unchanged {
+                return Err(format!("{name}: a size refusal changed what it stored"));
+            }
         }
         Ok(())
     }
