@@ -2211,19 +2211,19 @@ tested and translated, not proved end to end.
 
 ### What closing `E2E-01` requires, by name
 
-`GAP-REGISTER.md` row `E2E-01` states three rules; this section only classifies names by them. (R1) Run facts, values
+`GAP-REGISTER.md` row `E2E-01` states three rules; this section only classifies names by them. (rule 1) Run facts, values
 supplied from outside the code under proof (the random source's draws, and an adversary's or an honest peer's inputs),
-may stay in a final theorem, stated there and listed in `CLAIMS.md`. (R2) Scope premises, which restrict the inputs or
+may stay in a final theorem, stated there and listed in `CLAIMS.md`. (rule 2) Scope premises, which restrict the inputs or
 results a theorem covers (an earlier call's result, size bounds), may stay only if a theorem that itself satisfies the
-rules covers the complement and states the outcome and effects there. (R3) Everything else must be a theorem: every
+rules covers the complement and states the outcome and effects there. (rule 3) Everything else must be a theorem: every
 general statement about what the code or a primitive does, including one restated over the model or the oracle, and the
 session and store invariants unless derived. A premise stated over the model or the oracle that is about a value the
-outside supplies is still R1. For this row, the items of `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`,
+outside supplies is still rule 1. For this row, the items of `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`,
 (2), (3) and (6) of the first included, are met only through these rules. The names below come from a text scan, at
 commit 34970e3a, of the hypotheses in the statements of `Translation/UnitLifecycle*.lean` and of the fields of the
 records they name; the scan is a reading, not an elaborated enumeration, and it is not claimed complete. A name it
 missed, or one added later, is governed by the rules, not by this list. The groups of contracts, laws and records
-that follow are R3. Some are already theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the
+that follow are rule 3. Some are already theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the
 key derivation's translated code; those count as met.
 
 - **The T1 contract records.**
@@ -2278,7 +2278,7 @@ key derivation's translated code; those count as met.
   - About XEdDSA: `XeddsaSignTotal`.
   - About standard-library and wrapper operations: `OptionEqU64Shape`, `ZeroizingVecRoundTrip`, `OptionBranchSome`,
     `VecAsSlice` and `RetryBatchAgrees`.
-- **Session and store state (R3 unless derived).** A final theorem may not take these, or `Session::invariant` and
+- **Session and store state (rule 3 unless derived).** A final theorem may not take these, or `Session::invariant` and
   `PrekeyStore::invariant`, as underived premises.
   - The store premises `PrekeyIdsDistinct`, `OneTimeMatches` and `ReplayFingerprintSafe`.
   - The headroom and counter records `EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`,
@@ -2289,7 +2289,7 @@ key derivation's translated code; those count as met.
   - Hypotheses of the refinement relations at the input state (`SessionRefines`, `StateRefines`, bound as `hrel` and
     others).
   - `InitiatorSecretParts`, which `establish_initiator_for_secret` already gives with no hypothesis.
-- **Laws and evidence that must come from the code (R3).**
+- **Laws and evidence that must come from the code (rule 3).**
   - The dispatch layer's evidence records (`BraidReceiveEvidence`, `SessionDecryptEvidence`, the `InitialRatchet*` and
     `InitialAgreementRatchet*` evidence and route records, `EncryptRouteEvidence`, `EncryptTripleRouteEvidence`,
     `EncryptEndToEndEvidence`, `BraidSendTraceAgreement` and `BraidSendTraceAgreementCounted`; `DISPATCH-EVIDENCE-VACUITY`).
@@ -2297,7 +2297,7 @@ key derivation's translated code; those count as met.
     quantified over `Braid.send` (`public_encrypt_braid_failure_no_draw_of_contracts`), and the `hdraw` of
     `public_encrypt_braid_failure_draw_of_contracts` and `encrypt_braid_failure_of_draw_send`.
   - `FreshKeyPairRefines` (bound as `hfresh`) and `KemDrawsSucceed` (some `hdraw`).
-- **Scope premises (R2).** Each needs a theorem for the complement that satisfies the rules and states the outcome and
+- **Scope premises (rule 2).** Each needs a theorem for the complement that satisfies the rules and states the outcome and
   effects there.
   - That an earlier call returned a given result: `h : establish_initiator_for ... = ok (Ok s, ...)`, `hcall`
     (`Session::encrypt`), `hcallB` (`establish_responder`), `hpublish` (`PrekeyStore::publish`) and `hidentity`
@@ -2312,14 +2312,14 @@ key derivation's translated code; those count as met.
   - `RestoredScope`, `CodecShape`, `SendsWithoutDraw`, `SameAgreementKind`, `KeepsAgreementState`, `InOrder` and
     `InOrderReceiveStep`, and the case splits `braidSendNeedsDraw ... = false` or `= true` (bound as `hnoDraw`,
     `hneedsDraw` and some `hdraw`), whose two cases cover each other.
-- **Run facts (R1): examples, not a closed list.** Binder names are local to each theorem and can be renamed, so the
+- **Run facts (rule 1): examples, not a closed list.** Binder names are local to each theorem and can be renamed, so the
   names below are examples only and confer nothing.
   - The random source's draws: before a call (`htrace`, `htraceB`, `htraceHead`, `hdraws`, `hdrawB`, `hdrawB2`,
     `hdrawA2`, the pre-call `hdraw`, the `hhead` of the form `∃ draw rest, trace rng = draw :: rest`, the `hdr` in
     `tampered_reply_model_refusal`, `h` in `byte_random32`, and the `draw` fields of `DecryptRatchetRunInputs` and
     `DecryptRatchetRun`), and the trace a call returned (`hdrawA`, and the six `htraceNext` of the form
     `trace rngNext = ...` that are not quantified over `Braid.send`). `hmodelDraw` and `hrandomDraw` state draws
-    through the model and are R1 for the same reason. A source with no state of its own, such as `OsRng`, cannot supply
+    through the model and are rule 1 for the same reason. A source with no state of its own, such as `OsRng`, cannot supply
     them, so a closure covers such a source only through the translation's faithfulness (ASM-16).
   - A peer's inputs and their freshness: `hfreshA`, `hfreshB`; `NotTagged`, about an adversary's bytes; and the
     premises that a frame is the honest peer's (`hpend`, `hmsg`, `hsrc`, `hsend`).
@@ -2327,7 +2327,7 @@ key derivation's translated code; those count as met.
     length fact instead), `hcw : CodewordOf src c`, and the `chunk` and `honest` fields of `DecryptRatchetRunInputs`
     and `DecryptRatchetRun`. `CodewordOf` is defined through the shipping `Encoder`, but here it specifies what the
     honest peer supplies, a codeword of one source that fits the decoder; it is not a claim about the code under proof,
-    so these are R1. On a spliced or adversarial chunk the model and the code diverge ("Receiving refines only on an
+    so these are rule 1. On a spliced or adversarial chunk the model and the code diverge ("Receiving refines only on an
     unspliced stream", above), so any closure covers only honest chunks until that divergence is resolved.
 
 The classification of the route theorems' binders by these rules, from a text scan at commit 34970e3a (the theorems
@@ -2338,40 +2338,40 @@ read: `responder_first_frame_admissible`, `first_send_responder_prepares`, `resp
 
 | Hypothesis (binder or type) | Rule |
 |---|---|
-| `OracleOf`, `DecryptOracleOf` | R3 |
-| the contract records (`contracts`, `braid`, `triple`) | R3 |
-| `DecryptRatchetAgreements` | R3 |
-| `DhCodecOf`, `CodewordViewSendOf` | R3 |
-| the zeroize round trips (`hz80`, `hz32`, `hzKeys`) | R3 |
-| `KeyGenSeededFor`, `KeyGenSizesOf` | R3 |
-| `KemCiphertextLenOf`, `KemCiphertextLenBound` | R3 |
-| the X25519 laws (`hpub`, `hsym`, `hcon`, `DhPublicBytesRoundTrip`) | R3 |
-| `AeadRoundTrip`, `AeadOpenChecksTag` | R3 |
-| `OptionEqU64Shape` | R3 |
-| `FirstKemAgrees` (`hkem`) | R2 |
-| `PrekeyIdsDistinct` | R3 unless derived |
-| `EstablishResponderHeadroom` (`hhead`) | R3 unless derived |
-| `SessionRefines` (`hrel`) | R3 unless derived |
-| `DecryptRatchetHeadroom` | R3 unless derived |
-| `htrace` | R1 |
-| `htraceB`, `hdrawB`, `hdraws` | R1 |
-| `hdrawB2`, `hdrawA2` | R1 |
-| `hdrawA` | R1 (the trace a call returned) |
-| `hmodelDraw` | R1 |
-| `hrandomDraw` | R1 |
-| `hfreshA`, `hfreshB` | R1 |
-| `NotTagged` (`hnt`) | R1 |
-| `IncomingChunkRefines`, the `chunk` field, `ConsistentChunkRun` | R1 |
-| `HonestChunk` | R1 |
-| `hcw : CodewordOf src c` | R1 |
-| `h : establish_initiator_for ... = ok (Ok s, ...)` | R2 |
-| `hcall : Session.encrypt ... = ok (Ok bytes, ...)` | R2 |
-| `hcallB : establish_responder ... = ok (Ok ...)` | R2 |
-| `hpublish : PrekeyStore.publish storeB = ok bundle` | R2 |
-| `hidentity : Identity.public ourB = ok ...` | R2 |
-| `hroom`, `hroomR`, `hroomS`, `hroomR2` | R2 |
-| `hframe` | R2 |
-| `hpend`, `hmsg`, `hsrc`, `hsend` | R1 |
+| `OracleOf`, `DecryptOracleOf` | rule 3 |
+| the contract records (`contracts`, `braid`, `triple`) | rule 3 |
+| `DecryptRatchetAgreements` | rule 3 |
+| `DhCodecOf`, `CodewordViewSendOf` | rule 3 |
+| the zeroize round trips (`hz80`, `hz32`, `hzKeys`) | rule 3 |
+| `KeyGenSeededFor`, `KeyGenSizesOf` | rule 3 |
+| `KemCiphertextLenOf`, `KemCiphertextLenBound` | rule 3 |
+| the X25519 laws (`hpub`, `hsym`, `hcon`, `DhPublicBytesRoundTrip`) | rule 3 |
+| `AeadRoundTrip`, `AeadOpenChecksTag` | rule 3 |
+| `OptionEqU64Shape` | rule 3 |
+| `FirstKemAgrees` (`hkem`) | rule 2 |
+| `PrekeyIdsDistinct` | rule 3 unless derived |
+| `EstablishResponderHeadroom` (`hhead`) | rule 3 unless derived |
+| `SessionRefines` (`hrel`) | rule 3 unless derived |
+| `DecryptRatchetHeadroom` | rule 3 unless derived |
+| `htrace` | rule 1 |
+| `htraceB`, `hdrawB`, `hdraws` | rule 1 |
+| `hdrawB2`, `hdrawA2` | rule 1 |
+| `hdrawA` | rule 1 (the trace a call returned) |
+| `hmodelDraw` | rule 1 |
+| `hrandomDraw` | rule 1 |
+| `hfreshA`, `hfreshB` | rule 1 |
+| `NotTagged` (`hnt`) | rule 1 |
+| `IncomingChunkRefines`, the `chunk` field, `ConsistentChunkRun` | rule 1 |
+| `HonestChunk` | rule 1 |
+| `hcw : CodewordOf src c` | rule 1 |
+| `h : establish_initiator_for ... = ok (Ok s, ...)` | rule 2 |
+| `hcall : Session.encrypt ... = ok (Ok bytes, ...)` | rule 2 |
+| `hcallB : establish_responder ... = ok (Ok ...)` | rule 2 |
+| `hpublish : PrekeyStore.publish storeB = ok bundle` | rule 2 |
+| `hidentity : Identity.public ourB = ok ...` | rule 2 |
+| `hroom`, `hroomR`, `hroomS`, `hroomR2` | rule 2 |
+| `hframe` | rule 2 |
+| `hpend`, `hmsg`, `hsrc`, `hsend` | rule 1 |
 | `hq : s = q.session` | definitional, none |
 
 The trusted base outside the theorems' hypotheses is not part of this criterion: the translation's faithfulness and the
