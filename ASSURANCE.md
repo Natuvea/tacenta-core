@@ -78,9 +78,10 @@ fails, by reading and not run, from a plaintext of `2^30 - 16` bytes on a 32-bit
 totality contracts are stated for every length, the results that take them say nothing about the shipping code at any
 length as stated. After a tool-assisted read for the maintainer, the same note was added to the row's T1 column and
 level text, the clause was narrowed to the results that take those contracts or the round-trip law, and the gate 2
-sentence no longer ties E2E-01 to the site's wording. After a second such read, the row says where the 64-bit falsity
-is formal (sizes no real address space supplies; the open only with overflow checks) and where, on 32 bits, it is
-reachable in principle. No level or tick changed. The corrections were made by the author
+sentence no longer ties E2E-01 to the site's wording. After a second such read, the 64-bit qualifiers were added
+elsewhere in the row; after a third, the row was given where the 64-bit falsity is formal (sizes no real address space
+supplies; the open only with overflow checks) and where, on 32 bits, it is reachable in principle. No level or tick
+changed. The corrections were made by the author
 with tool assistance; no reader independent of the maintainer has read them.
 
 Parts of this project are written and reviewed with tool assistance. The
