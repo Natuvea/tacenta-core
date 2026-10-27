@@ -77,8 +77,13 @@ implementation.
     the frame is decoded or copied, before `NotARepeatedInitial`, the
     refusal of a failed agreement, any prekey lookup, decapsulation,
     agreement or random draw. The order is observable: an input that is
-    too long and also malformed, or too long for a session whose agreement
-    has failed, is refused as too long, and no random value is drawn.
+    too long is refused as too long, with no random value drawn and the
+    session, the prekey store and its replay record unchanged, even when
+    it also has an unknown version byte or a wrong or unknown type byte,
+    is otherwise malformed, names prekeys the store does not hold, is not
+    the session's repeat, or arrives at a session whose agreement has
+    failed (message-format.md, Message size, Precedence). The same input
+    within the bounds keeps the refusal it had without the rule.
   - session-establishment.md fixes the initiator's, and says why. She
     refuses a malformed expectation before any check of Sending the initial
     message. She checks the bundle's identity key against her expectation

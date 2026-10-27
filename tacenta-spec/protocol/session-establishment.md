@@ -283,10 +283,14 @@ material stays as it was.
 
 Before he reads anything from the message, Bob applies the size rule
 (message-format.md, Message size). A message it refuses is refused as too
-long, a decode failure, ahead of every check below: the prekey store is
-unchanged, no key is looked up, nothing is decapsulated and no random value is
-drawn. The rule bounds the whole message and, through the message's own
-`kem_ciphertext_len`, the ratchet message inside it.
+long, a decode failure, ahead of every check below, even when the message
+also has an unknown version or type byte, is otherwise malformed, or names
+prekeys his store does not hold: the prekey store is unchanged, its one-time
+prekeys and last-resort replay record included, no key is looked up, nothing
+is decapsulated and no random value is drawn. The rule bounds the whole
+message and, through the message's own `kem_ciphertext_len`, the ratchet
+message inside it. A message the rule admits meets the checks below as it
+would without the rule.
 
 Bob reads `IKA` and `EKA`, uses the identifiers to load the matching private
 keys, recovers `SS = PQKEM-DEC(PQPKB, CT)`, repeats the same DH and KDF

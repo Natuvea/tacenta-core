@@ -380,13 +380,34 @@ The rule reads only `L`, the first two bytes and, for an initial frame, bytes
 decoded, before the initial-message decoder and the repeat check
 (`NotARepeatedInitial`), before the refusal of a session whose agreement has
 failed, before any prekey is looked up, any ciphertext decapsulated, any
-agreement computed and any random value drawn. So a frame that is too long and
-also malformed, or that arrives at a session whose agreement has failed, is
-refused as too long.
+agreement computed and any random value drawn.
+
+**Precedence.** So a frame the rule refuses is refused as too long whatever
+else is wrong with it, and whatever state the receiver is in. In particular:
+
+- an unknown version byte, or a type byte other than the initial message's
+  (an unknown one, or the ratchet message's, which responder establishment
+  refuses as the wrong type): such a frame is not an initial frame, so it is
+  refused as too long when `L` exceeds `MAX_RATCHET_FRAME_LEN` (rule 3), and
+  in any case when it exceeds `MAX_INITIAL_FRAME_LEN` (rule 1);
+- an initial frame that is otherwise malformed (a key without its curve byte
+  or not canonical, a `kem_ciphertext_len` that runs past the end) or that
+  names prekeys the store does not hold, or is not a repeat of the session's
+  own initial message: refused as too long under rule 1 or rule 2, before it
+  is decoded and before any identifier is looked up;
+- a session whose agreement has failed, or any other session that would
+  refuse the frame for its own reasons: refused as too long first.
+
+The same frames one byte within the bounds are not refused by this rule, and
+each is then refused, or accepted, exactly as it would be without it: an
+unknown version or a wrong type byte as a decode failure, an identifier the
+store does not hold by the lookup that does not find it, and an initial frame
+that is not the session's repeat as `NotARepeatedInitial`.
 
 The refusal is a decode failure (Rejection), and reveals no more to a peer than
-any other. It changes nothing: the session is exactly as it was, its pending
-initial material included; on establishment the prekey store is exactly as it
+any other. It changes nothing, whichever of the cases above applies: the
+session is exactly as it was, its pending initial material and a failed
+agreement's state included; on establishment the prekey store is exactly as it
 was, its one-time prekeys and its last-resort replay record included; no random
 value is drawn; nothing durable is written.
 

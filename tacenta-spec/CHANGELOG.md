@@ -209,10 +209,14 @@ is SemVer against the specified protocol (not the implementation).
     established session never reads. `kem_ciphertext_len` acceptance itself
     is unchanged.
   - Order and effects: each size check is its operation's first, so an input
-    that is too long and also malformed, or too long for a session whose
-    agreement has failed, is refused as too long. Every size refusal leaves
-    the session, the prekey store and its replay record unchanged, draws no
-    random value and writes nothing durable.
+    that is too long is refused as too long even when its version byte is
+    unknown, its type byte is wrong or unknown, it is otherwise malformed,
+    it names prekeys the store does not hold, it is not the session's
+    repeat, or the session's agreement has failed (message-format.md,
+    Message size, Precedence). Every size refusal leaves the session, the
+    prekey store and its replay record unchanged, draws no random value and
+    writes nothing durable. The same inputs within the bounds keep the
+    refusals they had.
   - The received plaintext is at most `MAX_PLAINTEXT_LEN` exactly. The page
     states, as a property the bound relies on, that a ciphertext of `C` bytes
     that authenticates opens to between `C − 16` and `C − 1` bytes; no check
