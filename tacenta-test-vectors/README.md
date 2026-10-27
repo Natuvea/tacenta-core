@@ -281,7 +281,10 @@ message**: the frames are mostly zeros and none of them authenticates.
   are tested in `tacenta-core/tests/message_size.rs` instead, at the real
   constants: the frame of exactly `MAX_RATCHET_FRAME_LEN` and
   `MAX_INITIAL_FRAME_LEN` bytes, its decryption, and the refusal of one byte
-  more. The independent reader has not been taught this file.
+  more. The independent reader has not been taught this file: its vectors
+  are on the reader's skip allowlist as pending a specification-only reader
+  pass (`GAP-REGISTER.md`, `SIZE-BOUND-READER`), the run names them among its
+  skips, and they are not independently covered.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 

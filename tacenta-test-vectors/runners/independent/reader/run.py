@@ -34,40 +34,57 @@ EXPECTED_SKIPS = {
     # inside decodes. Not checked: decapsulation, SK, the replay identity, the
     # AEAD and the plaintext.
     "identity/initial-message-admission.json :: honest-initial-message",
-    # Not yet taught. `serialization/frame-size.json` (message-format.md,
-    # Message size) arrived with the size rule; its length-and-prefix layout
-    # (tacenta-test-vectors/README.md, Vector layouts) is for the next
-    # clean-room pass to implement from the page alone. Listed here by the
-    # change that added the file, not by a reader author: the reader's code
-    # is untouched.
-    "serialization/frame-size.json :: empty-frame",
-    "serialization/frame-size.json :: initial-at-the-bound",
-    "serialization/frame-size.json :: initial-empty-kem-ciphertext-at-the-outer-bound",
-    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-at-the-bound",
-    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-one-over",
-    "serialization/frame-size.json :: initial-kem-length-fills-the-frame",
-    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end",
-    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end-one-over",
-    "serialization/frame-size.json :: initial-kem-one-short-nested-one-over",
-    "serialization/frame-size.json :: initial-malformed-curve-byte-nested-at-the-bound",
-    "serialization/frame-size.json :: initial-malformed-curve-byte-nested-one-over",
-    "serialization/frame-size.json :: initial-one-over",
-    "serialization/frame-size.json :: initial-too-short-for-its-kem-length",
-    "serialization/frame-size.json :: initial-unknown-prekeys-at-the-bound",
-    "serialization/frame-size.json :: initial-unknown-prekeys-nested-at-the-bound",
-    "serialization/frame-size.json :: initial-unknown-prekeys-nested-one-over",
-    "serialization/frame-size.json :: initial-unknown-prekeys-one-over",
-    "serialization/frame-size.json :: ratchet-at-the-bound",
-    "serialization/frame-size.json :: ratchet-one-over",
-    "serialization/frame-size.json :: ratchet-over-the-outer-bound",
-    "serialization/frame-size.json :: unknown-version-ratchet-type-at-the-bound",
-    "serialization/frame-size.json :: unknown-version-ratchet-type-one-over",
-    "serialization/frame-size.json :: unrecognised-type-at-the-bound",
-    "serialization/frame-size.json :: unrecognised-type-one-over",
-    "serialization/frame-size.json :: unrecognised-version-at-the-bound",
-    "serialization/frame-size.json :: unrecognised-version-one-over",
-    "serialization/frame-size.json :: unrecognised-version-over-the-outer-bound",
+    # The size rule's vectors, below (PENDING_READER_PASS).
 }
+
+# A temporary disposition, reviewed with the change that adds it; not a reader
+# pass. The size rule's file `serialization/frame-size.json` (message-format.md,
+# Message size) arrived after pass 14 and this reader has not been taught its
+# length-and-prefix layout (tacenta-test-vectors/README.md, Vector layouts).
+# These labels, this reason and the lines of `main` and
+# `documented_tally_problems` that print and count them were added by the
+# maintainer account with tool assistance, with the implementation and the
+# model in view: maintenance (README.md, Provenance), not a change by any
+# author of this reader, whose handlers are untouched. Each skip prints the
+# reason below, and the run prints how many of its skips these are. A reader
+# green on this list has not checked the size rule: a specification-only reader
+# pass must read the file before these vectors count as independently covered,
+# and that pass, not an edit here, removes them.
+PENDING_READER_PASS_REASON = (
+    "size-bound vectors: not yet covered by the independent reader; "
+    "a specification-only reader pass must precede counting these as "
+    "independently covered"
+)
+PENDING_READER_PASS = {
+    "serialization/frame-size.json :: empty-frame": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-at-the-outer-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-empty-kem-ciphertext-nested-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-kem-length-fills-the-frame": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-kem-length-runs-past-the-end-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-kem-one-short-nested-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-malformed-curve-byte-nested-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-malformed-curve-byte-nested-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-too-short-for-its-kem-length": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-unknown-prekeys-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-unknown-prekeys-nested-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-unknown-prekeys-nested-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: initial-unknown-prekeys-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: ratchet-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: ratchet-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: ratchet-over-the-outer-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unknown-version-ratchet-type-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unknown-version-ratchet-type-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unrecognised-type-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unrecognised-type-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unrecognised-version-at-the-bound": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unrecognised-version-one-over": PENDING_READER_PASS_REASON,
+    "serialization/frame-size.json :: unrecognised-version-over-the-outer-bound": PENDING_READER_PASS_REASON,
+}
+EXPECTED_SKIPS |= set(PENDING_READER_PASS)
 
 _OBSERVED_SKIPS = set()
 
@@ -1685,7 +1702,10 @@ def run_vectors(totals):
         for v in cases:
             label = f"{rel} :: {v['id']}"
             if handler is None:
-                print(f"SKIP  {label}: algorithm {doc.get('algorithm')!r} not implemented")
+                if label in PENDING_READER_PASS:
+                    print(f"SKIP  {label}: {PENDING_READER_PASS[label]}")
+                else:
+                    print(f"SKIP  {label}: algorithm {doc.get('algorithm')!r} not implemented")
                 _OBSERVED_SKIPS.add(label)
                 counts["SKIP"] += 1
                 continue
@@ -1746,13 +1766,17 @@ def run_negative(totals):
                 counts["PASS"] += 1
 
 
-def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total, skipped=0):
+def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total, skipped=0,
+                              pending=0):
     """The tally this run prints, as the README and GAPS-11.md say it. A count
     copied into prose goes stale on the next vector, so the run checks it: each
     sentence below must appear exactly as written. `vectors`, `derived` and
     `total` count passes; `skipped` counts the skips the allowlist accepts, each
-    a vector check that is neither passed nor failed. `None` for a document that
-    is not there (a clean-room directory has no GAPS-11.md)."""
+    a vector check that is neither passed nor failed; `pending` counts those of
+    them awaiting a specification-only reader pass (PENDING_READER_PASS), which
+    both documents must name so that no tally reads as covering them. `None`
+    for a document that is not there (a clean-room directory has no
+    GAPS-11.md)."""
     problems = []
     flat = lambda text: None if text is None else " ".join(text.split())  # noqa: E731
     readme, gaps = flat(readme), flat(gaps)
@@ -1771,6 +1795,12 @@ def documented_tally_problems(readme, gaps, files, modules, vectors, derived, to
                 f"in {files} vector files) and {derived} derived cases"):
             if sentence not in gaps:
                 problems.append("GAPS-11.md does not say: " + sentence)
+    if pending:
+        sentence = (f"{pending} of the {skipped} skips are vectors not yet covered by the "
+                    "independent reader")
+        for name, text in (("reader/README.md", readme), ("GAPS-11.md", gaps)):
+            if text is not None and sentence not in text:
+                problems.append(name + " does not say: " + sentence)
     return problems
 
 
@@ -1800,6 +1830,9 @@ def main():
     for label, c in (("vectors subtotal", sub["vectors"]), ("derived cases subtotal", sub["negative"])):
         print(f"{label:58} {c['PASS']:5} {c['FAIL']:5} {c['SKIP']:5}")
     print(f"{'TOTAL':58} {grand['PASS']:5} {grand['FAIL']:5} {grand['SKIP']:5}")
+    pending = len(_OBSERVED_SKIPS & set(PENDING_READER_PASS))
+    if pending:
+        print(f"SKIP  {pending} of the {grand['SKIP']} skips: {PENDING_READER_PASS_REASON}")
     unexpected, missing = validate_skip_allowlist(_OBSERVED_SKIPS)
     if unexpected:
         print("FAIL  reader skip allowlist: unexpected skip(s): " + ", ".join(unexpected))
@@ -1813,7 +1846,7 @@ def main():
             _read(os.path.join(HERE, "README.md")),
             _read(os.path.join(HERE, "..", "GAPS-11.md")),
             files, modules, sub["vectors"]["PASS"], sub["negative"]["PASS"], grand["PASS"],
-            skipped=grand["SKIP"])
+            skipped=grand["SKIP"], pending=pending)
         for problem in stale:
             print("FAIL  documented tally: " + problem)
     return 1 if grand["FAIL"] or unexpected or missing or stale else 0

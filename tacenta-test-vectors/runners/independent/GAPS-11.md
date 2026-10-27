@@ -121,7 +121,7 @@ files and the pass-12 derived cases merged, and the identity work of passes 13 a
 (lines that name a vector, in 51 vector files) and 282 derived cases
 (the `negative ::` lines). The total is the sum of the two; the run prints all
 three numbers. The session-e2e vectors are executed by their handler and are not
-in the skip set; one skip is an identity-key admission vector, and twenty-seven are the size rule's `serialization/frame-size.json`, added after pass 14 and not yet taught; each is on the allowlist with its reason. The five identity-record files are read since pass 14 (`GAPS-14.md`). The skip allowlist controls and the sweep also pass.
+in the skip set; one skip is an identity-key admission vector, and twenty-seven are the size rule's `serialization/frame-size.json`, added after pass 14 and not yet taught; each is on the allowlist with its reason. 27 of the 28 skips are vectors not yet covered by the independent reader, and none of them is counted in the passes above; a specification-only reader pass must read them before they count as independently covered (`reader/README.md`, Provenance). The five identity-record files are read since pass 14 (`GAPS-14.md`). The skip allowlist controls and the sweep also pass.
 
 This record supersedes the tally in `GAPS-10.md` while leaving that historical
 pass unchanged.
