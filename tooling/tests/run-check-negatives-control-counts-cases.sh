@@ -39,6 +39,7 @@ named=(
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
   check-send-preservation-negatives.py
+  check-size-rule-negatives.py
   check-initiator-second-send-negatives.py
   check-kdf-realisation-negatives.py
   check-receive-preservation-negatives.py

@@ -2118,6 +2118,29 @@ REQUIRED_PINS = frozenset(
         "identity_ad_length_of",
         "export_message_fits",
     )]
+    # The message size bound at the three public entries: the rule at the bytes, the refusals' exact effects and precedence, the nested bound, and the received maximum under an assumed open-length law (`UnitLifecycleSizeRule`).
+    + ["Tacenta.UnitLifecycleSizeRule." + n for n in (
+        "check_frame_size_refuses_iff",
+        "non_initial_limit",
+        "decoded_span",
+        "decoded_initial_limit",
+        "nested_too_long_refused",
+        "encrypt_size_refusal",
+        "decrypt_size_refusal",
+        "establish_responder_size_refusal",
+        "encrypt_size_refusal_refines",
+        "decrypt_size_refusal_refines",
+        "encrypt_on_failed_agreement",
+        "decrypt_initial_decode_refusal_order",
+        "decrypt_not_a_repeat_order",
+        "establish_responder_decode_refusal_order",
+        "establish_responder_prekey_lookup_order",
+        "decrypt_nested_too_long_refused",
+        "establish_responder_nested_too_long_refused",
+        "ratchet_ok_plaintext_le_max",
+        "decrypt_ok_plaintext_le_max",
+        "establish_responder_ok_plaintext_le_max",
+    )]
     # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
     + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
         "sparseReceiveRefusalOfReal_injective",
@@ -4089,6 +4112,29 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "export_message_fits",
         "CodecShape",
         "sessionEnc",
+    )]
+    # The message size bound at the three public entries: the rule at the bytes, the refusals' exact effects and precedence, the nested bound, and the received maximum under an assumed open-length law (`UnitLifecycleSizeRule`).
+    + ["Tacenta.UnitLifecycleSizeRule." + n for n in (
+        "check_frame_size_refuses_iff",
+        "non_initial_limit",
+        "decoded_span",
+        "decoded_initial_limit",
+        "nested_too_long_refused",
+        "encrypt_size_refusal",
+        "decrypt_size_refusal",
+        "establish_responder_size_refusal",
+        "encrypt_size_refusal_refines",
+        "decrypt_size_refusal_refines",
+        "encrypt_on_failed_agreement",
+        "decrypt_initial_decode_refusal_order",
+        "decrypt_not_a_repeat_order",
+        "establish_responder_decode_refusal_order",
+        "establish_responder_prekey_lookup_order",
+        "decrypt_nested_too_long_refused",
+        "establish_responder_nested_too_long_refused",
+        "ratchet_ok_plaintext_le_max",
+        "decrypt_ok_plaintext_le_max",
+        "establish_responder_ok_plaintext_le_max",
     )]
     # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
     + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (

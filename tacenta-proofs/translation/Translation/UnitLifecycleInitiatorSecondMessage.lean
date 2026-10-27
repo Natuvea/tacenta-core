@@ -93,8 +93,10 @@ assumed at the real constants, not shown of them.
   further send by the initiator, not a second exchange.
 * That the budget is exact at `s'''`: room for every `j` with `j + 3 < u32::MAX` is what the composition derives (the
   preservation step charges a unit for the send although the clock does not move); more room is not claimed.
-* A refusal `encrypt` can reach: none occurs at this state; the refusals reachable elsewhere in a session (the terminal
-  guard, `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
+* A refusal `encrypt` can reach: none occurs at this state for a plaintext within `MAX_PLAINTEXT_LEN`, which the
+  theorems take, and the size refusal above `MAX_PLAINTEXT_LEN` holds on every session
+  (`UnitLifecycleSizeRule.encrypt_size_refusal`); the refusals reachable elsewhere in a session (the terminal guard,
+  `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
 * That the code's key pair after the call equals the one before: the send clones it and the relation holds through
   `KemCloneAgrees`; code-level equality is not checked.
 * The reply's bytes as `replyFrame` and the frame equation of `s''` against `s'`: conjuncts of `initiator_receives_reply`

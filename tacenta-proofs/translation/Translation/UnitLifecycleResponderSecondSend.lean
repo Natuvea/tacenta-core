@@ -104,10 +104,11 @@ the stale arm of the receipt leaves `sB''` unchanged and is not followed here.
 * The initiator's `decrypt` of the second reply at its session after its second send, and every later step: the
   header's third chunk, the responder's first sampling send, and the responder's check of the completed encapsulation
   key, the first step at which both parties' KEMs act on one key pair.
-* A refusal `encrypt` can reach: at this state none occurs (the terminal guard is false, the agreement's send at
-  `NoHeaderReceived` does not refuse, the model's Triple send succeeds from message number 0 on the chain the receipt
-  derived, the composite header is defined); the refusals reachable elsewhere in a session (the terminal guard,
-  `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
+* A refusal `encrypt` can reach: the size refusal above `MAX_PLAINTEXT_LEN` holds on every session
+  (`UnitLifecycleSizeRule.encrypt_size_refusal`); below it, at this state none occurs (the terminal guard is false,
+  the agreement's send at `NoHeaderReceived` does not refuse, the model's Triple send succeeds from message number 0
+  on the chain the receipt derived, the composite header is defined); the refusals reachable elsewhere in a session
+  (the terminal guard, `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
 * That a tampered, foreign or replayed frame is refused by either party on this route, or delivery out of order, a
   skipped or stored key, or the decoder holding more than one chunk before a receive.
 * That the budget is exact at `sB4`: room for every `j` with `j + 3 < u32::MAX` is what the model session after the

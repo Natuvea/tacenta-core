@@ -1032,6 +1032,7 @@ recorded decision or a target-closing slice:
   `check-repair-negatives.py`,
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
+  `check-size-rule-negatives.py`,
   `check-sparse-skip-kind-negatives.py`,
   `check-sparse-store-full-negatives.py`,
   `check-tampered-reply-negatives.py`,
@@ -1123,6 +1124,10 @@ recorded decision or a target-closing slice:
   the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send, the budget after it and the send-preservation step's ceilings,
   and its reach keeps the responder's further bytes, the law that chooses the initiator's further bytes and the plaintext bound (the receipt's plaintext, the invariant after the send and the run's call are conjuncts of called theorems,
   placed unchanged);
+  `check-size-rule-negatives.py` keeps the size rule's bounds exact (each of the four one off), the nested check
+  (dropped, and the span read as the whole frame), the size refusals' effects (a session write, a store write, a draw
+  from the model's oracle), the refusal order (two swaps) and the received maximum (one byte lower, and the open-length
+  law dropped);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1200,6 +1205,13 @@ recorded decision or a target-closing slice:
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
+  `check-size-rule-negatives.py` (two unmodified copies accepted and 13 changes refused, each a change to a statement
+  refused at that result: the outer, ratchet, nested and sender's bounds each one off, the nested check dropped from
+  `decoded_initial_limit`, the span read as the whole frame in `decoded_span`, the decrypt refusal claimed to clear the
+  pending initial message, the responder refusal claimed to empty the last-resort record, the sender's refusal claimed
+  to take a draw from the model's oracle, the order swapped in `encrypt_on_failed_agreement` and
+  `decrypt_initial_decode_refusal_order`, and the received maximum claimed one byte lower and without the open-length
+  law),
   `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
   the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,
   every refusal claimed `skippedStoreFull`,

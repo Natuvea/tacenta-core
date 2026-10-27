@@ -87,10 +87,11 @@ run's encrypt records, since the two parties share the oracle and the byte-strea
 * The initiator's receipt of the reply (its `decrypt` at the session after its first send): not shown here;
   `UnitLifecycleResponderReplyReceipt` takes it, on the same run, under a per-run premise that the fresh ratchet key is
   not the peer key the initiator holds.
-* A refusal `encrypt` can reach: at this state none occurs (the terminal guard is false, the agreement's send cannot
-  fail at `NoHeaderReceived`, the Triple's send succeeds from counters 0 with a sending chain, the composite header is
-  defined); the refusals reachable elsewhere in a session (the terminal guard, `ChainExhausted`, `NoSendingChain`)
-  are not covered.
+* A refusal `encrypt` can reach: the size refusal above `MAX_PLAINTEXT_LEN` holds on every session
+  (`UnitLifecycleSizeRule.encrypt_size_refusal`); below it, at this state none occurs (the terminal guard is false,
+  the agreement's send cannot fail at `NoHeaderReceived`, the Triple's send succeeds from counters 0 with a sending
+  chain, the composite header is defined); the refusals reachable elsewhere in a session (the terminal guard,
+  `ChainExhausted`, `NoSendingChain`) are not covered.
 * A second reply, the header's later chunks, the responder's first sampling send, a restored copy of `sB'`.
   `Session::invariant` and the ceilings at `sB''` are derived on this run in `UnitLifecycleSendPreserve`, and a second
   message from the initiator is taken, under a condition on the session the receipt of the reply returns, in

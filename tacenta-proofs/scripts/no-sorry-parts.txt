@@ -42,6 +42,7 @@ hosted braid:
   repair
   responder-second-send
   send-refusal
+  size-rule
   sparse-skip-kind
   sparse-store-full
   established

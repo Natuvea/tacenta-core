@@ -121,7 +121,14 @@ them; that tacenta-model's KDF is the RFCs' is checked by vectors, not proved); 
 result is carried through the public `Session::decrypt` on frames that are not initial
 messages, under the same hypotheses and one premise on the input
 (`decrypt_refines_ratchet_frame`, also in forms that take `Session::invariant`
-and the counter ceilings), and no theorem covers an initial message, so nothing
+and the counter ceilings), and no refinement covers an initial message other than its size
+refusal; the message size bound is enforced first at the three public entries, and
+`UnitLifecycleSizeRule` proves the size rule, the refusals with their effects (none, and no
+draw), their order before the other refusals and the bound on an initial frame's ratchet
+message with no law about an opaque operation, and that a receive returns at most
+`MAX_PLAINTEXT_LEN` bytes under one assumed law about the AEAD's open (`CLAIMS.md`,
+`LIMITATIONS.md`); the AEAD's totality contracts are not restated for the lengths the
+bound allows, so the results that take them stay conditional on them. So nothing
 here proves `Session::encrypt` or `Session::decrypt` end to end. The results above about
 `establish_initiator_for` are about the leaf function: the initiator is now established
 through `tacenta_core::sessions::establish_initiator`, a wrapper in

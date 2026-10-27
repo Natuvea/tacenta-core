@@ -2945,8 +2945,10 @@ buffer must be `key_pair_len()` bytes and the function errs otherwise, the seria
 (`src/ind_cca/incremental/types.rs:377-383`), and the wrapper always passes a buffer of exactly `inc::key_pair_len()` bytes.
 So under `KeyGenSeededFor` a `K` faithful to the shipping wrapper never refuses at the drawn value, the premise of
 `established_encrypt_refusal_reachable` cannot hold at such a `K`, and the refusal effects proved here belong to a path that
-is dead in the shipping code. The refusals `encrypt` can reach later in a session (the terminal guard at a `Failed`
-agreement, the Triple's `NoSendingChain` and `ChainExhausted`) are shown not to occur at this state and are not covered. The
+is dead in the shipping code. The size refusal of a plaintext longer than `MAX_PLAINTEXT_LEN`, which these results exclude
+by hypothesis, is covered on every session by `UnitLifecycleSizeRule.encrypt_size_refusal`. The refusals `encrypt` can
+reach later in a session (the terminal guard at a `Failed` agreement, the Triple's `NoSendingChain` and `ChainExhausted`)
+are shown not to occur at this state and are not covered. The
 model is a toy and shows nothing of the real primitives.
 
 What these results do not cover: the responder's receipt of the frame (`establish_responder`'s inner receive is related to the model at
@@ -3110,7 +3112,9 @@ agreement's send at this state reads neither randomness nor the KEM; whether it 
 headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the responder's Braid send records); each ties
 its KEM to the same translated code, so the premises carry an indirect, weak relation between the two KEMs. The
 source state is free, with no draw premise, and the plaintext bound `102 + (ptR.length + 48) ≤ Usize.max` holds of every plaintext of at most `2^32 - 151`
-bytes on a 32-bit target. No refusal is possible at this state: the terminal guard is false, the agreement's send at
+bytes on a 32-bit target; since the message size bound the headline also takes the reply plaintext at most
+`MAX_PLAINTEXT_LEN` bytes (`hlenR`), a hypothesis of the size bound only. Within it no refusal is possible at this state
+(above it the size refusal holds, `UnitLifecycleSizeRule.encrypt_size_refusal`): the terminal guard is false, the agreement's send at
 `NoHeaderReceived` does not refuse, and the model's Triple send from the receipt's Triple succeeds (counters 0, a sending
 chain), so the statement has one outcome and not a refused arm; the refusals `encrypt` can reach elsewhere in a session (the
 terminal guard, the Triple's `ChainExhausted` and `NoSendingChain`) are not covered. **Not shown:** the initiator's receipt of
@@ -3163,7 +3167,9 @@ primitives: its agreement ignores the private key, so symmetry and contributorin
 value is the same constant; it cannot tell which key sealed the reply, and that a non-degenerate symmetric agreement is
 consistent with the other laws rests on reading X25519. It was needed because in `InterpO.modelFirstReceipt` every public key is the base point, so the responder's fresh
 key always equals its signed prekey's and the initiator's receipt of the reply could only refuse. None of the new premises
-mentions a platform width; the reply's plaintext bound is the reply paragraph's, and the reaches' plaintexts (every reply
+mentions a platform width; the reply's plaintext bounds are the reply paragraph's, except that the receipt takes the reply
+plaintext at most `MAX_RATCHET_FRAME_LEN - 150` bytes (`hfitR`, so that the reply frame passes the size rule; "The
+message size bound", below), and the reaches' plaintexts (every reply
 plaintext of at most 4096 bytes; the initiator's first plaintext is empty) meet every bound at both widths. **Not shown:** that a tampered or foreign reply frame is refused (no AEAD authenticity law is assumed; a frame with the reply's header and a ciphertext that carries no tag is refused under an assumed law in the tampered-reply paragraph below); a second
 message in either direction (a second reply, the header's third chunk, the responder's first sampling send; the
 initiator's next send is the next paragraph, under a condition, and its step uses no fact relating the two parties'
@@ -3190,8 +3196,9 @@ whole elaborated statement: Lean's printing leaves out, among other things, inst
 definition the statement names changed under the same name, a new instance in scope or a function given the `coe`
 attribute can change what it means without changing the pin; `check-lean-constructs.sh`, a textual guard on the source, refuses in hand-written Lean an `instance` declaration whose whole text is not one of those it lists for that file and namespace (fifteen today: twelve `instance` and three `deriving instance` declarations), any attribute list naming `instance`, `default_instance` or `coe`, and the `coe` and `default_instance` tokens anywhere in code. A `deriving instance` needs no entry when each of its types is written as a name the file gives one of its own declarations; the names are compared as written, with no namespace resolution, so a type of another file written by a short name that the file also declares is accepted. It does not read a `deriving` clause of a `structure`, `inductive` or `def`, a class whose parent is a notation class, or a scoped instance of a dependency that an `open` brings into scope. That the pinned statement is the right one
 is decided by reading. **No new law and no new per-run premise**: beyond
-the receipt's hypotheses the headline takes only a bound on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
-which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and it reuses the initiator's encrypt records
+the receipt's hypotheses the headline takes only bounds on the second plaintext, `102 + (ptS.length + 48) ≤ Usize.max`,
+which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and, since the message size bound, at
+most `MAX_PLAINTEXT_LEN` bytes (`hlenS`), and it reuses the initiator's encrypt records
 at the source the receipt left. At `KeysSampled` the translated `Braid::send` clones the state, advances the encoder and
 returns the source as given (`braid_send_keysSampled`, hypothesis-free), so the step takes no draw and runs no
 encapsulation, decapsulation or key generation, and no fact relating the two parties' KEMs is used for this step (the
@@ -3348,7 +3355,8 @@ statement: what Lean's printing leaves out is held by the build and by reading o
 composition derives, not the exact room: the preservation step charges a unit for the send although the clock does not
 move. **Not shown:** the responder's receipt of the second message (shown, on the same run, in the next paragraph), a
 second reply and its receipt, the header's third chunk, the responder's first sampling send and every later step, so no second exchange; a refusal `encrypt` can reach
-(none at this state; those reachable elsewhere are not covered); code-level equality of the key pair before and after the
+(none at this state within the plaintext bound, above which the size refusal holds; those reachable elsewhere are not
+covered); code-level equality of the key pair before and after the
 call; the reply's bytes as `replyFrame` and the frame equation of the receipt's session against the session before it (not
 carried); a restored copy of either session; the one-time path in a run; that the related model sessions hold only bytes
 the parties received; that `hfreshB` holds under an honest random source; that the real primitives meet the records or the
@@ -3412,7 +3420,8 @@ and its invariant and ceilings are consumed by a later proof; its other conjunct
 the send does not advance the clock, which is 2 there; more room is not claimed. **Not shown:** the initiator's `decrypt`
 of the second reply and every later step, among them the header's third chunk, the responder's first sampling send and
 the responder's check of the completed encapsulation key, the first step at which both parties' KEMs act on one key pair;
-a refusal `encrypt` can reach (none at this state; those reachable elsewhere are not covered); a tampered, foreign or
+a refusal `encrypt` can reach (none at this state within the plaintext bound, above which the size refusal holds; those
+reachable elsewhere are not covered); a tampered, foreign or
 replayed frame's refusal on this route; delivery out of order, a stored or skipped key, or more than one chunk held before
 a receive; a restored copy of either session; the one-time path in a run; that the related model sessions hold only
 bytes the parties received; that the per-run premises hold under honest random sources; that the real primitives meet
@@ -4138,6 +4147,57 @@ branch. `repeated_initial_agreement_true_iff` and `repeated_initial_agreement_fa
 but no theorem uses them in place of the premises, and `InitialDispatchBranchEvidence` still splits the route on byte
 equality of the two ephemerals rather than on this verdict. Whether a state with an established ephemeral meets the other hypotheses of the
 dispatch theorems is not checked here.
+
+### The message size bound: what the refusals show, what the received maximum assumes, and what stays open
+
+`Translation/UnitLifecycleSizeRule.lean` (`CLAIMS.md`, the message size bound section) shows the size rule of
+`message-format.md` (Message size) in the translated `check_frame_size`, the three size refusals of the public entries
+(`Session::encrypt`, `Session::decrypt`, `establish_responder`) with their exact effects (none on the session, the prekey
+store or its record of last-resort messages, and no draw) and their order before the terminal, decode, not-a-repeat and
+prekey-lookup refusals, and the nested bound on the ratchet message an initial frame carries, for every declared
+`kem_ciphertext_len`. Those results take no law about any opaque operation.
+
+**Assumed: the open-length law.** The received maximum (`ratchet_ok_plaintext_le_max`, `decrypt_ok_plaintext_le_max`,
+`establish_responder_ok_plaintext_le_max`) takes `Model.Lifecycle.AeadOpenLength`, a named assumption about the AEAD:
+an input the oracle's open accepts opens to at most `input.length - 33` bytes, that is at most `C - 1` bytes for a
+ciphertext of `C` bytes. The page states both halves (`C - 16` to `C - 1`); the Lean law states the upper half only,
+because the maximum needs no more, and nothing here states or uses the lower half. The law is not proved of the shipping
+AEAD, and it is not discharged by the tests: the round trips at the maximum lengths in `tacenta-core/tests/message_size.rs`
+and the PKCS#7 padding read from `aead::decrypt` are tested and read evidence that the shipping open behaves so, not a
+proof. A result that takes the law says so in `CLAIMS.md`.
+
+**The AEAD contracts are not restated here.** With the bound enforced first at each public entry, the lengths at which
+those entries call the AEAD are bounded (a plaintext of at most `MAX_PLAINTEXT_LEN` bytes to seal; an input within a frame
+the size rule admits to open), so the seal and open totality premises could be derived for the call lengths the entries
+reach rather than assumed at every length. That restatement has not been made. `AeadSealBounded`, `AeadOpenTotal` and the
+open clause of `OracleOf` are still asked at every length, including the lengths at the top of the range where the totality
+row of "The clauses of `OracleOf`" records them false of the real functions by reading, and every result that takes them
+stays conditional on them, as before this bound.
+
+**Narrower than the shipping bound, in the delivery routes.** A run that delivers a reply takes the reply plaintext at most
+`MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560), fifteen lengths short of `MAX_PLAINTEXT_LEN`, because `AeadSealBounded`
+bounds the sealed output by the plaintext plus 48 bytes and not by its exact padded length; the shipping code admits those
+fifteen lengths (the tests above send the maximum). A run that delivers the first message of an establishment takes the size
+rule on that message as a hypothesis, because the translation sees the ML-KEM ciphertext's length only through
+`KemCiphertextLenBound` (at most 65,536 bytes) and not as the 1,568 bytes ML-KEM-1024 produces. Both are hypotheses of the
+size bound only; the refusals for their complement are the size refusals above.
+
+**Where the route results above gained a hypothesis.** The run paragraphs earlier in this file that say a headline adds no
+law or per-run premise are unchanged in that respect: each hypothesis the bound added bounds a plaintext's length or states
+that a frame passes the size rule, and nothing else. The reply's routes take `hfitR` (the receipt of the reply, the
+initiator's second send and its joining, the repeated and the tampered reply, the responder's receipt of the second
+message and its second reply) or `hlenR` (the reply itself and the send preservation at `NoHeaderReceived`); the
+initiator's second send takes `hlenS`, the responder's receipt of it `hfitS`, the responder's second reply `hlenR2`; the
+first-message routes take the size rule on the first frame (`hsize`, or the `hSize` field of the responder's prepared
+parts). `CLAIMS.md` lists each changed statement, and every one of these is met by the reaches' plaintexts at the real
+constants.
+
+**What the bound does not cover.** Memory and time per call, allocation failure and abort (the bound limits what a frame can
+ask the receiver to allocate; it does not make an allocation succeed), and the build profile (overflow checks, panic
+strategy); callers that reach the AEAD, the decoders or the ratchet without going through the three public entries, which
+the bound does not constrain; and the AEAD, KEM and Diffie-Hellman laws the success results rest on, which stay assumed.
+That a message `encrypt` returns passes the size rule is shown only under `AeadSealBounded` and, for a first message,
+`KemCiphertextLenBound`, with the narrower lengths above.
 
 ## The erasure coding's field is proved
 

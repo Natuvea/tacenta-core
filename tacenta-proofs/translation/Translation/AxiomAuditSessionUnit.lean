@@ -71,6 +71,7 @@ import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleSizeRule
 import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
@@ -245,6 +246,15 @@ refuses it as out of order (the reply's ratchet key is now the peer key held and
 number 0 is below the receive count 1), the session returned is the one given (which passes `Session::invariant` and
 meets the four ceilings), the source loses exactly one draw, and the step refines the model's.  No law is added beyond
 the receipt's; a delivery at a later session, of different bytes, or after a first receipt that refused is not shown.
+`UnitLifecycleSizeRule.lean`: the message size bound at the three public entries. The translated
+`check_frame_size` refuses exactly where the model's size rule does, the nested bound included, for every
+`kem_ciphertext_len`; the early refusals of `Session::encrypt`, `Session::decrypt` and `establish_responder`
+return the session or the prekey store and the random source unchanged, refine the model's, and come before the
+terminal, decode, not-a-repeat and prekey-lookup refusals. No law for those. The received plaintext is at most
+`MAX_PLAINTEXT_LEN` under one assumed law, `Model.Lifecycle.AeadOpenLength`, not shown of the shipping AEAD.
+Not shown: that every message `encrypt` returns passes the size rule (only under `AeadSealBounded`, for
+plaintexts up to 150 bytes, or 65,770 for a first message, below `MAX_RATCHET_FRAME_LEN`), memory and time per
+call, allocation failure, and callers that bypass the three entries.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

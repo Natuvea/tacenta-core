@@ -279,6 +279,16 @@ phase_send_refusal() {
 python3 scripts/check-send-refusal-negatives.py || fail=1
 }
 
+# The message size bound at the three public entries: the rule at the bytes, the refusals' exact effects and
+# precedence, the nested bound, and the received maximum under an assumed open-length law
+# (`UnitLifecycleSizeRule.lean`). After the two unmodified copies are accepted, thirteen changes must each be
+# refused at the result whose statement they change, with a message naming the change: each of the four bounds
+# one off, the nested check dropped, the span read as the whole frame, three refusals' effects changed, the
+# refusal order swapped twice, and the received maximum claimed one byte lower and without the open-length law.
+phase_size_rule() {
+python3 scripts/check-size-rule-negatives.py || fail=1
+}
+
 # The Session unit's sparse skip refines the model's detailed skip, refusal kind included
 # (`UnitLifecycleSparseSkipKindT3.lean`).  After the two unmodified copies are accepted, four changes must each be
 # refused at a named declaration with a message naming the change: the kind under a mapping that swaps
@@ -735,6 +745,7 @@ phases() {
   run_phase repair plain "restated dispatch record controls" phase_repair
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
+  run_phase size-rule plain "size rule proof-dependency control" phase_size_rule
   run_phase sparse-skip-kind plain "sparse skip refusal-kind proof-dependency control" phase_sparse_skip_kind
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply

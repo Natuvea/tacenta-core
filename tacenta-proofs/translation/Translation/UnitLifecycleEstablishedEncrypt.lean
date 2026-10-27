@@ -107,9 +107,10 @@ of the real primitives.
 * That the real primitives meet the boundary records, `OracleOf`'s laws, `KeyGenSeededFor` or the KEM
   agreements.  `KeyGenSizesOf` holds at the KEM model read off the wrapper under the wrapper laws
   (`keyGenSizes_wrapperKem`).
-* A refusal the shipping `encrypt` can reach: at this state the only refusal is key generation refusing,
-  which the shipping wrapper does not do, by reading; the terminal guard and the Triple refusals, reachable
-  later in a session, do not occur here and are not covered.
+* A refusal the shipping `encrypt` can reach: at this state, for a plaintext within `MAX_PLAINTEXT_LEN` (which the
+  theorems take), the only refusal is key generation refusing, which the shipping wrapper does not do, by reading; the
+  size refusal above `MAX_PLAINTEXT_LEN` holds on every session (`UnitLifecycleSizeRule.encrypt_size_refusal`); the
+  terminal guard and the Triple refusals, reachable later in a session, do not occur here and are not covered.
 * A restored copy of the session after the send (its agreement holds a key pair: outside `RestoredScope`).
 * A random source with no state of its own, such as `OsRng`.
 -/

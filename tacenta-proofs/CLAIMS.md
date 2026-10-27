@@ -105,7 +105,8 @@ this section says in one place what is not proved.
   step, the two outcomes are named with their effects (key generation refusing, with the agreement failed and nothing else
   changed, or the initial message wrapping the first ratchet frame, with the pending initial message kept), each consuming
   two draws; the refusal is reachable only at a model KEM whose key generation refuses, and the shipping wrapper's does not
-  refuse, by reading, so no refusal the shipping `encrypt` can reach is covered; and after a success the session passes `Session::invariant`, meets the
+  refuse, by reading, so of the refusals the shipping `encrypt` can reach only the size refusal of a plaintext longer than
+  `MAX_PLAINTEXT_LEN` is covered (by the size-rule section; this result takes the plaintext within it); and after a success the session passes `Session::invariant`, meets the
   four ceilings and relates to the model's next session, under six more assumptions, one of them a new size law about the
   model KEM; both premise lists hold together in one interpretation, a toy model, with the decrypt, establishment and
   restored-session laws ("Proved (tier T3, session lifecycle: the public `encrypt` at every successful
@@ -4102,9 +4103,13 @@ What these do not say.
 - They hold of the Session unit's copy of the lifecycle, which is assembled from the shipping leaf by `#[path]` and a
   count-checked copy, and of its Charon and Aeneas translation, which `LIMITATIONS.md` lists as trusted.
 - They do not show that a refusal is reached, and none shows that a success is. The terminal refusals are shown for every
-  session whose agreement reports failed: `encrypt_refuses_failed_agreement`, `decrypt_ratchet_refuses_failed_agreement` and
+  session whose agreement reports failed: `encrypt_refuses_failed_agreement` (for a plaintext of at most `MAX_PLAINTEXT_LEN`
+  bytes; a longer one is refused first as `PlaintextTooLong`), `decrypt_ratchet_refuses_failed_agreement` and
   `decrypt_empty_message_refuses_failed_agreement` (`decrypt` on an empty message goes to `decrypt_ratchet`), and
-  `braid_failed_of_failed_state` shows that `Braid::failed` reports true of the closed value `State::Failed`. These are stated
+  `braid_failed_of_failed_state` shows that `Braid::failed` reports true of the closed value `State::Failed`. The size
+  refusals are shown likewise for every input past the bound, with the session or store and the random source as given
+  (`encrypt_refuses_long_plaintext`, `decrypt_refuses_long_frame`, `establish_responder_refuses_long_frame`, lemmas of the
+  message size bound section). These are stated
   of every such session and do not exhibit one: `lifecycle.Session` has fields of the opaque key types, no inhabitant of which is
   derivable in Lean, so that a session value exists is not shown. No premise of the two `_ok_writes` theorems is shown to
   hold of any run. The premise of the `establish_responder` theorem holds of a message shorter than two bytes at every
@@ -5040,8 +5045,9 @@ frame the message carries; on success it commits the prekey store. These results
 identity, prekey store, initial message and source of randomness, with no concrete input chosen, and derive the three
 premises the `decrypt_ratchet` refinement takes about a session (`Session::invariant`, `CounterHeadroom`, `SessionRefines`)
 for the session it builds, from that construction and not as assumptions. The parts of that session,
-`ResponderPreparedParts`, are read off the generated function with the facts the code checked or computed on the way; the
-model session is `responderModelOf dh p`, read off the parts through the DH view, with the Braid as the model's initial
+`ResponderPreparedParts`, are read off the generated function with the facts the code checked or computed on the way (the
+first, the size rule's admission of the message, is the field `hSize`); the model session is `responderModelOf dh p`, read
+off the parts through the DH view, with the Braid as the model's initial
 responder state `Model.Braid.initBob` of the secret `Braid::responder` was given. It is not shown to be the session
 `Model.Lifecycle.prepareResponder` builds, and the T3 refinement of the responder's establishment is not here.
 
@@ -5365,7 +5371,7 @@ snapshots taken mid-conversation are out of scope.
   `DecryptOfInvariantHypotheses` holds at `s` and `restoredModelOf dh s` (the invariant from acceptance, the relation and
   `HonestChunk` from the scope), and the public `Session::decrypt` at `s` on that frame refines `Model.Lifecycle.decrypt` at
   `restoredModelOf dh s`, refusals included (through `decrypt_ratchet_refines_of_invariant` and
-  `decrypt_ratchet_message_refines`).
+  `decrypt_ratchet_message_refines` for a frame the size rule admits, and the size refusal's refinement for one it refuses).
 - `export_import_established`: for every success output `s` of `establish_initiator_for`, `export s` returns, and `import`
   of the exported bytes accepts and returns `s` itself, every field equal; under nine assumed laws, the six below and the
   establishment's `KemCiphertextLenOf`, `DhPublicValid` and `OptionEqU64Shape`. No field differs: the ratchet private key and the three public keys
@@ -5516,14 +5522,18 @@ every source state `rng` whose trace starts with two draws `d1`, `d2`. The model
 (previous sections) and the model step `Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)`.
 The composition goes through the dispatch layer's encrypt route (`public_session_encrypt_of_send_contracts`, every outcome
 of the public call), whose state premises are derived here: the relation (by definition at the `KeysUnsampled` agreement),
-the headroom record, both Triple condition records and the counted draw record. **Two outcomes**, each with its effects:
-key generation refuses, and the call returns `AgreementFailed` with the session unchanged except that its agreement is
+the headroom record, both Triple condition records and the counted draw record. For a plaintext of at most
+`MAX_PLAINTEXT_LEN` bytes, **two outcomes**, each with its effects: key generation refuses, and the call returns
+`AgreementFailed` with the session unchanged except that its agreement is
 `Failed`; or key generation answers, and the call returns the model's initial message wrapping the first ratchet frame, with
 only the Triple Ratchet and the agreement changed (so the pending initial message is kept). Both leave the source holding the
-trace less its first two entries. The refusal arm is reachable only for a model KEM whose key generation refuses: the
+trace less its first two entries. A longer plaintext is refused first, as `PlaintextTooLong` with the session and the source
+unchanged (`UnitLifecycleSizeRule.encrypt_size_refusal`). The refusal arm is reachable only for a model KEM whose key
+generation refuses: the
 shipping wrapper's key generation does not refuse, by reading (`LIMITATIONS.md`, the paragraph on the first `encrypt`), so at
-the shipping KEM it is a covered arm, not a reachable refusal, and the refusals `encrypt` can reach later in a session (the
-terminal guard, the Triple's) are not covered. At the `KeysSampled` agreement a successful send leaves, the relation to the
+the shipping KEM it is a covered arm, not a reachable refusal; the size refusal of a plaintext longer than
+`MAX_PLAINTEXT_LEN`, which these results exclude by hypothesis, is covered by the size-rule section; and the refusals
+`encrypt` can reach later in a session (the terminal guard, the Triple's) are not covered. At the `KeysSampled` agreement a successful send leaves, the relation to the
 model's next session is not definitional: its encoder half (provenance and simulation) is derived from the code's send under
 `ErasureAgrees`, and its key-pair half (decapsulation, vector and header agreement) is the content of the assumed
 `KeyGenSeededFor`, carried through.
@@ -5534,7 +5544,8 @@ model's next session is not definitional: its encoder half (provenance and simul
   the class `DerivedKeysModel`), the oracle record `OracleOf`, `DhCodecOf`, `CodewordViewSendOf`, three `zeroize` round trips
   (80-byte arrays, 32-byte arrays, the message-key triple), the law `KeyGenSeededFor` (below), `KemCiphertextLenOf`,
   `KemCiphertextLenBound`, the trace equation and the two draws, all the caller's and assumed.
-- `established_encrypt_outcomes`: under the same hypotheses, the call returns, the source it leaves holds the trace less
+- `established_encrypt_outcomes`: under the same hypotheses and a plaintext of at most `MAX_PLAINTEXT_LEN` bytes (`hlen`),
+  the call returns, the source it leaves holds the trace less
   `d1`, `d2`, and either the model's key generation refuses at `braidRandomness (d1 ++ d2)` and the call returns
   `AgreementFailed` with `{ s with braid := ⟨Failed⟩ }`, or it answers `(dk, ekSeed, ekVector)` and the call returns bytes
   equal to `initialWire` of the model session's pending initial fields and `firstFrame` (the composite header with the
@@ -5544,8 +5555,9 @@ model's next session is not definitional: its encoder half (provenance and simul
   `dk`, `ekVector` and the header encoder after one chunk). The terminal guard and every Triple refusal are neither
   disjunct: under these hypotheses they do not occur at this state.
 - `established_encrypt_model_cases`, `established_triple_send_ok`: the model's step at the model session of the parts, when
-  the oracle holds two draws, computed: the two arms above on the model side, and the model Triple's first send succeeding
-  with header numbers `(n 0, pn 0, epoch 0, pqN 1)`; no hypothesis.
+  the oracle holds two draws and the plaintext is at most `maxPlaintextLen` bytes (`hlen`), computed: the two arms above on
+  the model side, and the model Triple's first send succeeding with header numbers `(n 0, pn 0, epoch 0, pqN 1)`; no other
+  hypothesis.
 - `established_encrypt_successor_counterHeadroom`, `established_encrypt_successor_refines`: after a success, the four counter
   ceilings hold, and the session is related to the model step's session, whose agreement is `keysSampled 1`, with the source
   holding the model step's draws; under the hypotheses of `established_initiator_encrypt_refines`.
@@ -5640,8 +5652,11 @@ results supply their session-side premises, not the calls); a relation for a cop
 `import` (its agreement holds a key pair, outside `RestoredScope`); that `establishedModelOf dh s` is the model's own
 establishment output; that the real primitives meet the boundary records, `OracleOf`'s laws, `KeyGenSeededFor` or the KEM
 agreements (`KeyGenSizesOf` holds at the wrapper's KEM model under the wrapper laws, above); any refusal the shipping
-`encrypt` can reach (the one refusal at this state is dead in the shipping code by reading, and the terminal guard and the
-Triple's refusals, reachable later, do not occur here); a random source with no state of its own, such as `OsRng`. As for the previous sections, no gate reads these hypotheses: `check-hypothesis-witnesses.sh` routes a
+`encrypt` can reach (the agreement refusal at this state is dead in the shipping code by reading, and the terminal guard and
+the Triple's refusals, reachable later, do not occur here), other than the size refusal of a plaintext longer than
+`MAX_PLAINTEXT_LEN`, which `established_encrypt_outcomes` excludes by hypothesis and the size-rule section covers; a random
+source with no state of its own, such as `OsRng`. As for the previous sections, no gate reads these hypotheses:
+`check-hypothesis-witnesses.sh` routes a
 section whose heading names a session lifecycle out.
 
 **Compiler trust and pins.** Until 2026-10-21 `public_session_encrypt_of_send_contracts` listed the nine `native_decide`
@@ -5702,8 +5717,9 @@ secret, the encapsulated secret or the ratchet agreement.
 every responder identity whose public key is the store's identity key, every prekey store whose `publish` returned the
 bundle, whose identifiers are distinct and none `ABSENT_ID` (`PrekeyIdsDistinct`), and at which the store's KEM key pair under
 the named identifier decapsulates the initiator's ciphertext to the initiator's encapsulated secret (`FirstKemAgrees`), and
-every source of randomness, `establish_responder` on the initiator's initial message (`responder_first_frame_prepares`)
-either
+every source of randomness, `establish_responder` on the initiator's initial message (`responder_first_frame_prepares`), when
+that message passes the size rule (`hsize`; one the rule refuses is `Decode(TooLong)` with the store and the source as given,
+`UnitLifecycleSizeRule.establish_responder_size_refusal`), either
 
 | Outcome | When | Result | Prekey store after | Random source after |
 | --- | --- | --- | --- | --- |
@@ -5712,7 +5728,7 @@ either
 
 No other refusal of the prepare phase occurs at this input: the disjunction has no arm for `Decode`, `UnknownPrekeyId`,
 `BadEncoding`, `Handshake(InvalidIdentityKey)`, `Handshake(NonContributoryAgreement)` or `Kem` (`Kem` is excluded by the premise
-`FirstKemAgrees`, not shown impossible), and where parts exist the call
+`FirstKemAgrees` and `Decode(TooLong)` by the premise `hsize`, neither shown impossible), and where parts exist the call
 is exactly the inner receive followed by the commit (the generic route's `establish_responder_at_parts`); the inner receive's
 own refusals are not excluded. The responder's shared secret is
 the initiator's because the responder's four agreements are the initiator's with the arguments swapped
@@ -5721,8 +5737,9 @@ responder's side because they passed on the initiator's; no contributory law is 
 inner receive with, `Session::invariant`, the four ceilings and the relation to `responderModelOf dh p` hold
 (`responder_first_frame_admissible`, from the generic responder route). Composed with the first send
 (`first_send_responder_prepares`): the bytes a successful first `encrypt` returns are the initial message wrapping the first
-ratchet frame for some message key and chunk, and `establish_responder` on them is as above, with that first ratchet frame as
-the parts' frame.
+ratchet frame for some message key and chunk, and, when they pass the size rule (`hsize`, a hypothesis),
+`establish_responder`
+on them is as above, with that first ratchet frame as the parts' frame.
 
 **The law and the premises.** `DhAgreeSymmetric` (new, assumed; `LIMITATIONS.md`): for private keys `a`, `b` with public keys
 `pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` states the real decapsulation's result for this run's ciphertext; it is
@@ -5732,15 +5749,17 @@ that the invariant gives it is not checked (the loop reads the pools through `In
 leaves opaque and no law describes). Reused: `DhPublicValid`, `DhPublicBytesRoundTrip` (the restore branch's law),
 `KemCiphertextLenOf` and `KemCiphertextLenBound`, `DhCodecOf dh`, the contracts of `establish_responder_no_panic`, and for the
 second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed statement adds the hypotheses of
-`established_encrypt_outcomes`.
+`established_encrypt_outcomes` (the plaintext bound derived from the successful call) and takes `hsize` on the bytes it
+returned.
 
 - `responder_first_frame_prepares`: the two outcomes above, under the contracts of `establish_responder_no_panic`,
   `DhPublicValid`, `DhAgreeSymmetric`, `DhPublicBytesRoundTrip`, the two ciphertext-length laws and `DhCodecOf dh`, all
-  assumed, and the store premises and `FirstKemAgrees`.
+  assumed, and the store premises, `FirstKemAgrees` and the size rule's admission of the message (`hsize`).
 - `responder_first_frame_admissible`: with, in the second arm, `Session::invariant`, `CounterHeadroom` and `SessionRefines`
   at the parts' session, under the same and `OptionEqU64Shape` and `DecryptRatchetAgreements K`, assumed.
 - `first_send_responder_prepares`: the composition with the success arm of `established_encrypt_outcomes`, under the union of
-  its hypotheses and those above.
+  its hypotheses (the plaintext bound derived from the successful call) and those above, `hsize` on the bytes the send
+  returns.
 - `establish_initiator_for_secret`, `bundle_with_own`: every successful establishment output is the session of an
   `InitiatorSecretParts` record (the identity key, the zeroized encapsulated secret, the shared secret with its zeroized bytes
   and slices, the ratchet agreement, the `init_sender` and `Braid::initiator` calls, `verify_bundle`'s acceptance); no
@@ -5768,8 +5787,8 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
   (`last_resort_seen_for`) at least `MAX_LAST_RESORT_SEEN` (`LastResortRecordFull`); the record's loop returns the store's
   fields and whether some entry holds the fingerprint; no hypothesis.
 - `establish_responder_slot_refused`, `establish_responder_replay_refused_at`, `parts_of_steps`: the call refuses with the
-  store and the source as given when the KEM lookup or the replay check refuses after the earlier steps returned, and parts
-  exist when every step returned (the remaining steps under the contracts); no other hypothesis.
+  store and the source as given when the KEM lookup or the replay check refuses after the size check (`hsz`) and the earlier
+  steps returned, and parts exist when every step returned (the remaining steps under the contracts); no other hypothesis.
 - `first_frame_laws_model`, `modelFirstFrame_dhCodec`, `modelFirstFrame_dhAgree`, `modelFirstFrame_symmetric`,
   `basePoint_ne_zero`: one interpretation, `InterpO.modelFirstFrame` (the encrypt branch's joint model with an agreement that
   is symmetric and contributory on every key its `public_key` returns), satisfies the decrypt laws, the initiator and
@@ -5796,7 +5815,9 @@ named above. **Not shown here:** that the inner `decrypt_ratchet` succeeds on th
 (the next section shows it, under two further laws: the first message key agreeing on both sides in the model, by
 computation, and the AEAD round trip as a law); the responder's successor, its invariant and the draws on success (the next
 section relates the successor and pins the draws; the invariant is not shown); any later message in either direction; that `PrekeyStore::invariant` gives
-`PrekeyIdsDistinct`; the model's `establishResponder` equality. The reach shows only that the second arm is not about an empty
+`PrekeyIdsDistinct`; the model's `establishResponder` equality; that the initiator's first message passes the size rule
+(`hsize` is a hypothesis: the translation bounds the KEM ciphertext only by `KemCiphertextLenBound`, 65,536 bytes). The
+reach shows only that the second arm is not about an empty
 set under the assumptions it names; it does not show the inner receive accepts (the next section's reach does, under two
 further laws).
 
@@ -5847,7 +5868,8 @@ split secret's first half, and the initiator's root and chain are `kdf_rk` of it
 `kdf_rk` is related to the model's `kdfRk` under `HkdfAgrees` and the zeroizing round trip (`first_kdf_model`), both in
 the decrypt agreements.
 
-**The outcomes past the store.** On the initiator's initial message, at a store as in the section above and with the store
+**The outcomes past the store.** On the initiator's initial message, when it passes the size rule (`hsize`, as in the section
+above), at a store as in the section above and with the store
 bound of `establish_responder_no_panic` (`EstablishResponderHeadroom`), for a responder source whose trace is its oracle's
 and holds a draw, `establish_responder` (`responder_first_frame_outcomes`, and composed with the first send,
 `initiator_first_send_responder_outcomes`) either refuses as the store decides (the section above), or reaches the inner
@@ -5866,8 +5888,9 @@ is the failure of one premise of the success theorem: `DhAgreeContributory` for 
 oracles' records) for the second.
 
 **Success.** Under the two new laws as well (`responder_first_frame_succeeds`, and composed with the first send,
-`initiator_first_send_responder_receives`), on the bytes a successful first `encrypt` returned, `establish_responder` either
-refuses as the store decides, or **returns `Ok (session, bytes)` with the bytes equal to the plaintext the initiator
+`initiator_first_send_responder_receives`), on the bytes a successful first `encrypt` returned, when they pass the size rule
+(`hsize`, a hypothesis), `establish_responder` either refuses as the store decides, or **returns `Ok (session, bytes)` with
+the bytes equal to the plaintext the initiator
 encrypted**, takes exactly one draw from the responder's source, and commits the store: `ResponderCommit` of the bundle's
 KEM and one-time identifiers (on the one-time path no fingerprint; on the last-resort path the fingerprint of the
 initiator's shared secret). The initiator's source loses exactly its two draws. The session the call returns refines
@@ -5918,9 +5941,10 @@ refused is **not** shown: no AEAD authenticity law is assumed, and the bytes are
 - `establish_responder_commit_of_inner`, `establish_responder_refused_of_inner`: with parts in hand, the call returns the
   inner refusal with the store as given, or the inner success with the committed store; no hypothesis.
 - `responder_first_frame_outcomes`, `responder_first_frame_succeeds`: the whole call on the initiator's initial message, the
-  outcomes and the success above.
+  outcomes and the success above, when the message passes the size rule (`hsize`).
 - `initiator_first_send_responder_outcomes`, `initiator_first_send_responder_receives`: the same composed with the success
-  arm of `established_encrypt_outcomes`, with the initiator's two draws, the message key and the header source pinned.
+  arm of `established_encrypt_outcomes`, with the initiator's two draws, the message key and the header source pinned, and
+  `hsize` on the bytes the send returns.
 - `aeadRoundTrip_is`, `dhAgreeContributory_is`: the two laws at the real constants are the statements about the real
   functions; by `Iff.rfl`.
 - `first_receipt_laws_model`, `modelFirstReceipt_dhCodec`, `modelFirstReceipt_dhAgree`, `modelFirstReceipt_symmetric`,
@@ -5941,7 +5965,8 @@ refused is **not** shown: no AEAD authenticity law is assumed, and the bytes are
 store that published the bundle used, the responder's whole `establish_responder` call either refuses as the store decides
 or succeeds with the initiator's plaintext, one draw and the committed store, under the laws and premises named above and
 in the section above. Without the two new laws, the only other refusals are the two named. **Not shown:** that a tampered or
-foreign frame is refused (no AEAD authenticity law); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees` is a
+foreign frame is refused (no AEAD authenticity law); that the first message passes the size rule (`hsize` is a hypothesis,
+as in the section above); that ML-KEM decapsulation agrees on a run (`FirstKemAgrees` is a
 premise; by reading, a decapsulation failure returns another secret under implicit rejection and would, barring an HMAC collision,
 surface as `Aead`, not `Kem`, which is not shown); the responder successor's `Session::invariant` and its four counter ceilings here (the next section shows both); a second delivery
 of the same bytes here (the two sections on the first frame delivered a second time take it, on the same run); the responder's reply (its `encrypt`: two sections below), the initiator's receipt of it (three sections below) and any later message; the model's own `establishResponder` equality; the one-time path in a run; that the real
@@ -6008,8 +6033,9 @@ passes `Decoder::invariant` (`decoder_invariant_small`). The clauses about the f
 discharged from the prepare phase's parts, as at the prepared session.
 
 **Laws and premises.** None is added. The statements take the hypotheses of `initiator_first_send_responder_receives` (or of
-`responder_first_frame_succeeds`) except the store bound `EstablishResponderHeadroom`, which the call's success equation they
-add makes unnecessary. `DhPublicValid` and `OptionEqU64Shape` (already premises there) and `DivCeilValue` and the
+`responder_first_frame_succeeds`) except the store bound `EstablishResponderHeadroom` and the size rule's admission `hsize`,
+which the call's success equation they add makes unnecessary. `DhPublicValid` and `OptionEqU64Shape` (already premises
+there) and `DivCeilValue` and the
 header-length bound (fields of the responder's contracts) are what the invariant uses.
 
 - `decrypt_ratchet_ok_parts`: a successful `decrypt_ratchet` writes the Triple, the agreement candidate `Braid::receive`
@@ -6032,12 +6058,13 @@ header-length bound (fields of the responder's contracts) are what the invariant
   passes the invariant and meets the ceilings, under the laws above, the responder's oracle record, the view's codec relation
   and the per-run draw premise.
 - `responder_first_frame_successor`: at every successful return of `establish_responder` on the initiator's initial message,
-  under the hypotheses of `responder_first_frame_succeeds` without the store bound, the relation, the invariant and the
-  ceilings.
+  under the hypotheses of `responder_first_frame_succeeds` without the store bound and `hsize`, the relation, the invariant
+  and
+  the ceilings.
 - `initiator_first_send_responder_successor_hypotheses`, `initiator_first_send_responder_successor_admissible`,
   `initiator_first_send_responder_successor_counterHeadroom`: the same at every successful return of `establish_responder` on
   the bytes a successful first `encrypt` at an establishment output emitted, under the hypotheses of
-  `initiator_first_send_responder_receives` without the store bound.
+  `initiator_first_send_responder_receives` without the store bound and `hsize`.
 - `first_send_receive_successor_reachable`: the reach run of the section above (last-resort path, empty plaintext), at the
   real constants under the same laws, all assumed, now with the invariant and the ceilings at the responder's session.
 
@@ -6121,15 +6148,18 @@ output (`braid_send_noHeader`; the state's clone is the state), and the model's 
 layer's counted draw record holds (`braidSendTraceCounted_of_noHeader`). The model's Triple send from `receiverAfterFirst`
 succeeds with the fresh ratchet key, classical numbers 0 and 0, sparse epoch 0 and number 1 (`reply_send_key`), and the
 model's `encrypt` has one outcome there, the bare reply frame with no initial wrapper (`reply_model_step`: the responder's
-model session has no pending initial message). The generic encrypt route (`public_session_encrypt_of_send_contracts`) then
+model session has no pending initial message, and the plaintext is at most `maxPlaintextLen` bytes). The generic encrypt
+route (`public_session_encrypt_of_send_contracts`) then
 applies at every session related to `firstReceiptSession` that passes the invariant (`responder_reply_refines`), with the
 Triple condition records and the headroom record discharged from the model session and the invariant. On the run, the
 derivations of the two sections above are repeated with three equations the receipt derives kept in the conclusion instead of
 dropped (the model's root-key step from the responder's root and the initiator's `dh_out` gives the initiator's root and
 sending chain; the responder oracle's agreement of its draw with the initiator's ratchet key is the `dSend` the relation
 names; the two sessions' associated data are equal), and composed with the refinement, the model step and the walk of the
-call. No refusal occurs at this state: the terminal guard is false, the agreement's send there does not refuse, and the
-model's Triple send succeeds; the refusals `encrypt` can reach elsewhere in a session are not covered.
+call. No refusal occurs at this state for a plaintext of at most `MAX_PLAINTEXT_LEN` bytes (a longer one is refused as
+`PlaintextTooLong`, `UnitLifecycleSizeRule.encrypt_size_refusal`): the terminal guard is false, the agreement's send there
+does not refuse, and the model's Triple send succeeds; the refusals `encrypt` can reach elsewhere in a session are not
+covered.
 
 **Laws and premises.** None is added: no law and no per-run premise. The headline takes the hypotheses of
 `initiator_first_send_responder_successor_hypotheses`, with two boundary records at the responder's source: the full oracle
@@ -6137,8 +6167,9 @@ record `OracleOf` (in place of `DecryptOracleOf`, which it implies) and the Brai
 at the responder oracle's KEM. The encrypt route's other records (`TripleSendRefinementContracts`, `AeadSealBounded`,
 `DhCodecTotal`, `DhCodecOf`, `CodewordViewSendOf`, the three `zeroize` round trips) do not depend on the source and are
 hypotheses the initiator's first send already takes; `Ct1LenTotal` is a field of the responder's contracts. The plaintext
-bound `102 + (ptR.length + 48) ≤ Usize.max` is met by every plaintext of at most `2^32 - 151` bytes on a 32-bit target. The
-source state is free: there is no draw premise. At this state the agreement's send reads neither randomness nor its
+bound `102 + (ptR.length + 48) ≤ Usize.max` is met by every plaintext of at most `2^32 - 151` bytes on a 32-bit target; the
+headline also takes `ptR` at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`). The source state is free: there is no draw premise.
+At this state the agreement's send reads neither randomness nor its
 oracle's Braid KEM, so no fact relating the two parties' KEMs is needed; the Braid send record still carries the KEM
 agreement `KemAgreesFor` at the responder oracle's KEM, as the generic route takes it for every state, and whether it could
 be dropped here is not checked. The headline so takes `KemAgreesFor` at both parties' KEMs (the initiator's and the
@@ -6156,7 +6187,7 @@ relation between the two KEMs.
   `replierAfterSend`, `firstHeader` of the fresh key and `replyKey`; the reply frame does not read the oracle's draws; the
   model's `encrypt` at `firstReceiptSession` of a model session with no pending initial message returns the bare
   `replyFrame`, takes no draw and leaves the session with the Triple `replierAfterSend` and the agreement unchanged. Model
-  only, no hypothesis beyond the pending premise.
+  only, no hypothesis beyond the pending premise and the plaintext bound `hlen` (at most `maxPlaintextLen` bytes).
 - `encryptProviders_reply`, `encryptHeadroom_reply`, `oracleOf_with_draws`: the route's two Triple condition records at
   `firstReceiptSession`; `EncryptHeadroom` at a session that passes the invariant and holds no pending initial message, under
   `DhCodecTotal` and `Ct1LenTotal`; `OracleOf` of an oracle holds of it with any draws.
@@ -6172,7 +6203,8 @@ relation between the two KEMs.
   three equations above in addition.
 - `initiator_first_send_responder_replies`: under the hypotheses of `initiator_first_send_responder_successor_hypotheses` with
   the two records above, at every successful return of `establish_responder` on the bytes a successful first `encrypt` at an
-  establishment output emitted, for every plaintext `ptR` within the bound and every source state `rngR`: `encrypt` at the
+  establishment output emitted, for every plaintext `ptR` within the bound and of at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`)
+  and every source state `rngR`: `encrypt` at the
   returned session `sB'` returns `Ok` bytes `bytesR` and a session `sB''` and leaves `rngR` as given (no draw); `sB''` is `sB'`
   with only the Triple Ratchet replaced (the agreement unchanged, no pending initial message); `bytesR` is `replyFrame` at the
   responder's oracle, the initiator's associated data, the fresh ratchet key `oracleB.dhPublic dB` and `replyKey` (the
@@ -6189,10 +6221,14 @@ interpretation, a toy model, in the substitution sense of `LIMITATIONS.md`; the 
 records included, at the real constants under the laws.
 
 **What this establishes, and what it does not.** At the session the responder's whole `establish_responder` call returns on
-the initiator's first frame, the responder's `encrypt` of any plaintext within the bound returns the bare reply frame, takes no
+the initiator's first frame, the responder's `encrypt` of any plaintext within the bound and of at most `MAX_PLAINTEXT_LEN`
+bytes returns the bare reply frame, takes no
 draw, keeps the agreement and refines the model's step, under the premises of the section above and two boundary records at
 the responder's source, from every source state (the statement does not tie the source to the one `establish_responder`
-left; it holds for that one too, and the reach takes it). **Not shown:** the initiator's receipt of the reply (the next section takes it); a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `ChainExhausted` and
+left; it holds for that one too, and the reach takes it). **Not shown:** the initiator's receipt of the reply (the next
+section takes it); a refusal `encrypt` can reach (none occurs at
+this state below the plaintext bound; the size refusal above it is in the size-rule section; the terminal guard,
+`ChainExhausted` and
 `NoSendingChain`, reachable elsewhere in a session, are not covered); `Session::invariant` and the ceilings at `sB''` are not
 here (the section "`Session::encrypt` keeps `Session::invariant` where the agreement's send takes no draw" derives them on
 this run); a second
@@ -6260,8 +6296,9 @@ results take those bytes to the initiator, on the same run: its public `Session:
 receiving chain, the signed prekey's public key held as the peer key) and the agreement is at `KeysSampled` epoch 1. The
 model's receive of the reply's header there takes one Diffie-Hellman step and derives the key the responder sealed under when
 the reply's ratchet key is not the peer key (`reply_receive_key`), and otherwise takes no step and refuses `noReceivingChain`
-(`reply_receive_stale`). The model's public `decrypt` of the reply frame therefore has exactly the outcomes of
-`reply_receipt_model_outcomes`; the model agreement's receive at `keysSampled` of a message of type `none` leaves it as it
+(`reply_receive_stale`). The model's public `decrypt` of the reply frame, when it passes the size rule, therefore has exactly
+the outcomes of `reply_receipt_model_outcomes`; the model agreement's receive at `keysSampled` of a message of type `none`
+leaves it as it
 was. The bridges carry the run into the model's terms: the responder's fresh ratchet key from its draw
 (`fresh_public_of_draw`), the initiator oracle's agreement of the initiator's ratchet key with it, equal to the responder
 oracle's agreement `dSend` (`initiator_reply_agreement`, under `DhAgreeSymmetric`), the initiator's draw's agreement with it
@@ -6279,7 +6316,10 @@ and `DhAgreeContributory`, with the roles swapped, and `DhPublicValid` for the r
 `initiator_first_send_responder_replies`, they take two boundary records of existing kinds at the initiator's source,
 `DecryptRatchetContracts` and `DecryptRatchetAgreements` at the initiator oracle's KEM (the second also gives the
 `KemLenAgrees` and `ValidateEkAgrees` that `established_encrypt_successor_hypotheses` takes at `s'`), and the per-run premise
-that the initiator's source after its first send holds a draw. The success theorem adds only the per-run premise `hfreshB`:
+that the initiator's source after its first send holds a draw. Their reply plaintext bound is `hfitR` (`ptR` at most
+`MAX_RATCHET_FRAME_LEN - 150` = 1,048,560 bytes), which implies the reply's `hlenR` and gives the reply's size rule
+(`UnitLifecycleEstablishedEncrypt.reply_fits`, under `AeadSealBounded` and `DhCodecTotal`). The success theorem adds only
+the per-run premise `hfreshB`:
 the responder's fresh ratchet public key (`oracleB.dhPublic dB`) is not the peer key the initiator holds. It is a condition on
 the run, not a law: it fails exactly when the responder's draw gives the signed prekey's public key, and then the initiator
 refuses the reply (`first_send_reply_stale_reachable`); that it holds of a run with an honest random source is not shown, and
@@ -6296,7 +6336,8 @@ bytes there is a private key from 32 bytes whose public key's bytes differ from 
   back to its composite header and sealed ciphertext when the ratchet key is 32 canonical bytes; model only.
 - `reply_receipt_model_outcomes`: the model's public `decrypt` of a reply frame (sealed by any oracle under the key the
   receive derives on a fresh key) at a model session with the Triple `senderAfterFirst` and the agreement at `keysSampled`,
-  whose first agreement with the frame's ratchet key returns, is exactly one of `ceiling` (no draw),
+  whose first agreement with the frame's ratchet key returns and whose frame passes the size rule (`hsizeR`), is exactly one
+  of `ceiling` (no draw),
   `handshake nonContributoryAgreement` (the draw's agreement refused), the Triple refusal `noReceivingChain` (the ratchet key
   is the peer key), `aead` (the open refused), or the open's plaintext with `replyReceiptSession`; model only.
 - `fresh_public_of_draw`: for a draw of the responder's source, the private key `from_bytes` makes of the drawn bytes, its
@@ -6308,13 +6349,15 @@ bytes there is a private key from 32 bytes whose public key's bytes differ from 
 - `initiator_candidate_agreement`: every draw of the initiator's source agrees, in its oracle, with every key `public_key`
   returned; under `DhAgreeContributory`, the oracle record and the codec relation.
 - `first_send_model_session`: the model session the first send leaves, when the model's key generation answers at its two
-  draws, is the established one with the Triple `senderAfterFirst` and the agreement at `keysSampled` epoch 1; model only,
+  draws and the plaintext is at most `maxPlaintextLen` bytes (`hlen`), is the established one with the Triple
+  `senderAfterFirst` and the agreement at `keysSampled` epoch 1; model only,
   through the establishment's parts.
 - `replyAd_length_le`: the reply's associated data fits a slice; under `DhCodecTotal`.
-- `initiator_receives_reply_outcomes`: under the hypotheses of `initiator_first_send_responder_replies`, the two decrypt
-  records at the initiator's source and the draw premise, at every successful return of `establish_responder` on the bytes a
-  successful first `encrypt` at an establishment output emitted, for every plaintext `ptR` within the reply's bound and every
-  responder source state: the responder's `encrypt` at `sB'` returns `bytesR`, the reply frame under the key the initiator's
+- `initiator_receives_reply_outcomes`: under the hypotheses of `initiator_first_send_responder_replies` (`hlenR` replaced by
+  `hfitR`), the two decrypt records at the initiator's source and the draw premise, at every successful return of
+  `establish_responder` on the bytes a successful first `encrypt` at an establishment output emitted, for every plaintext
+  `ptR` within the reply's bound and of at most 1,048,560 bytes and every responder source state: the responder's `encrypt`
+  at `sB'` returns `bytesR`, the reply frame under the key the initiator's
   receiving chain derives (root `rootKey`, agreement `dSend`, sparse chain `k2`); the initiator's `decrypt` of `bytesR` at `s'`
   from `rng'` returns, takes exactly the draw, and is one of the four arms the model's step lists:
   `Handshake(NonContributoryAgreement)`, `Triple(Classical(NoReceivingChain))` (the reply's ratchet key is the peer key the
@@ -6377,7 +6420,8 @@ statement is the general analysis; its `Handshake` and `Aead` arms are excluded 
 exactly one reply received by the initiator on this route. **Not shown:** that a tampered or foreign reply frame is refused
 (no AEAD authenticity law is assumed; the excluded `Aead` arm is the responder's own seal failing to open; a frame with the
 reply's header and a ciphertext that carries no tag is refused under an assumed law in the section "the initiator's `decrypt`
-refuses a reply whose ciphertext was replaced"); a second message in either direction (a second reply, the
+refuses a reply whose ciphertext was replaced"); the receipt of a reply whose plaintext is one of the last fifteen lengths up
+to `MAX_PLAINTEXT_LEN` (`hfitR` excludes them); a second message in either direction (a second reply, the
 header's third chunk, the responder's first sampling send; the initiator's next send is the next section, under a condition
 on the session this receipt returns, and its emission of the header's second chunk uses no fact relating the two parties'
 Braid KEMs; by reading, completing the header (the responder's receipt of the initiator's later chunks) checks only its MAC
@@ -6467,8 +6511,9 @@ the chunk at index 0 already sent in the first frame, and the receipt cleared th
 the source as given and no output (`braid_send_keysSampled`); the walk names every call on that path, and none is an
 encapsulation, a decapsulation, a key generation or a draw. The model Triple's send from `initiatorAfterReply` succeeds
 with header `secondHeader` (the ratchet key the receipt installed, previous chain length 1, message number 0, sparse epoch
-0 and sparse number 2) and key `secondKey`, and the model's `encrypt` there has one outcome, the bare `secondFrame`
-(`second_model_step`). The encrypt route's two Triple condition records follow from `Session::invariant` and
+0 and sparse number 2) and key `secondKey`, and the model's `encrypt` there of a plaintext of at most `maxPlaintextLen` bytes
+has one outcome, the bare `secondFrame` (`second_model_step`). The encrypt route's two Triple condition records follow from
+`Session::invariant` and
 `CounterHeadroom` at every session whose model agreement send reads no draw (`encryptProviders_of_invariant`), and the
 generic route `public_session_encrypt_of_send_contracts` then relates the call to the model's step
 (`initiator_second_send_refines`). On the run, `initiator_receives_reply` gives `s''`, its relation and `rngA'`,
@@ -6477,7 +6522,8 @@ fixes the model session the receipt started from, with the header encoder at pos
 
 **Laws and premises.** No new law and no new per-run premise. Beyond the hypotheses of `initiator_receives_reply`, the
 headline takes the plaintext bound `102 + (ptS.length + 48) ≤ Usize.max` for the second plaintext `ptS`, which holds of
-every plaintext of at most `2^32 - 151` bytes on a 32-bit target. The encrypt records the second send uses are the ones the
+every plaintext of at most `2^32 - 151` bytes on a 32-bit target, and `ptS` at most `MAX_PLAINTEXT_LEN` bytes (`hlenS`).
+The encrypt records the second send uses are the ones the
 initiator's first send already takes, at the source the receipt left, and `Ct1LenTotal` from the initiator's decrypt
 record. **The code-level conclusions are conditional**: they are stated under the premises that `s''` passes
 `Session::invariant` and meets `CounterHeadroom`, as an implication inside the conclusion, and neither is shown here. No
@@ -6501,16 +6547,20 @@ initiator oracle's KEM, as the generic route takes it for every state, and wheth
   `initiatorAfterSecond`, `secondHeader candPub` and `secondKey`; no hypothesis.
 - `secondFrame_with_draws`: the second frame reads only the oracle's seal; no hypothesis.
 - `second_model_step`: the model's `encrypt` at `replyReceiptSession mA …`, when `mA`'s agreement is at `keysSampled` epoch 1,
-  for every codeword view, oracle and plaintext, reads no draw and returns the bare `secondFrame` (agreement type `hdr`, the
+  for every codeword view and oracle and every plaintext of at most `maxPlaintextLen` bytes (`hlen`), reads no draw and
+  returns the bare `secondFrame` (agreement type `hdr`, the
   encoder's next chunk, no initial wrapper), with the Triple `initiatorAfterSecond` and the encoder advanced; model only.
 - `first_send_model_session_encoder`: the model session the first send leaves, when the model's key generation answers at its
-  two draws, holds the header encoder of `headerSource` at position 1; model only, through the establishment's parts.
+  two draws and the plaintext is at most `maxPlaintextLen` bytes (`hlen`), holds the header encoder of `headerSource` at
+  position 1; model only, through the establishment's parts.
 - `initiator_second_send_refines`: at every session related to `replyReceiptSession mA …` (with `mA`'s agreement at
   `keysSampled` epoch 1 and its encoder live) that passes `Session::invariant` and meets `CounterHeadroom`, for every plaintext
   within the bound and every source state, the public `encrypt` returns and its result, session and draws refine the
   model's step; under the encrypt records, the oracle record, `DhCodecOf`, `CodewordViewSendOf`, three `zeroize` round trips,
   `Ct1LenTotal` and the trace equation.
-- `initiator_second_send_after_reply`: under the hypotheses of `initiator_receives_reply` and the bound on `ptS`, the receipt's
+- `initiator_second_send_after_reply`: under the hypotheses of `initiator_receives_reply` and the two bounds on `ptS`
+  (`hroomS`,
+  `hlenS`), the receipt's
   conjuncts hold except two (the two agreements `dSend` and `x`, the responder's `encrypt` of its reply, the initiator's
   `decrypt` of it returning `s''` and `rngA'`, the plaintext, the trace after the draw, no pending initial message at `s''`
   and the relation of `s''`), with the first send's key generation `(dk, ekSeed, ekVector)` kept; the two dropped are the
@@ -6532,7 +6582,8 @@ run; the section on the initiator's second message derives both on the same run 
 (`first_send_second_message_reachable`).
 
 **What this establishes, and what it does not.** On the run that ends in the initiator's receipt of the reply, the model's
-step for the initiator's next `encrypt` has one outcome (the second header chunk, no draw, no KEM operation), and, if the
+step for the initiator's next `encrypt`, of a plaintext of at most `MAX_PLAINTEXT_LEN` bytes, has one outcome (the second
+header chunk, no draw, no KEM operation), and, if the
 session the receipt returns passes `Session::invariant` and meets the four counter ceilings, the public `encrypt` there
 returns that frame, takes no draw and refines the step: exactly one further send by the initiator on this route, under
 that condition. **Not shown:** `Session::invariant` or `CounterHeadroom` at `s''` (the implication's premises; the section
@@ -6540,8 +6591,9 @@ on an in-order receive derives them at `s''`, and the section on the initiator's
 run; this section does not) or at `s'''` after the send, and a run at which the code-level part applies (both shown in
 that section, not here); the responder's receipt of this second message (shown, on the same run, in the section on
 that receipt), a second reply and its receipt, the header's third chunk, the responder's first sampling send and every later step, so no second
-exchange; a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `AgreementFailed`, `ChainExhausted`
-and `NoSendingChain` elsewhere are not covered); that the code's key pair after the call equals the one before (the send
+exchange; a refusal `encrypt` can reach (none occurs at this state below the plaintext bound, and the size refusal above it
+is in the size-rule section; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere are not
+covered); that the code's key pair after the call equals the one before (the send
 clones it; the relation holds through `KemCloneAgrees`); a restored copy of `s''`; the one-time path in a run; that the
 related model sessions hold only bytes the parties received (the responder's relation is at the view that attributes the
 received codeword); that `hfreshB` holds under an honest random source; that the real primitives meet the boundary records
@@ -6611,15 +6663,18 @@ The section "the initiator's `decrypt` of the responder's reply" shows that, on 
 the responder's receipt of it and the responder's reply, the initiator's public `Session::decrypt` at the session `s'` its
 first `encrypt` left, from the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`. These results take, on
 the same run, every frame that keeps the reply's first 102 bytes (its header) and carries in place of the reply's ciphertext
-bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and show that the same call, at the
-same `s'` from the same `rng'`, refuses it. Like every result here that takes the encrypt contract records or `OracleOf`, the result is conditional on the seal's totality
+bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data and that passes the size rule, and
+show that the same call, at the same `s'` from the same `rng'`, refuses it (a frame the size rule refuses is
+`Decode(TooLong)` with no effect, `UnitLifecycleSizeRule.decrypt_size_refusal`). Like every result here that takes the encrypt contract records or `OracleOf`, the result
+is conditional on the seal's totality
 contracts (`AeadSealBounded` and the seal clause of the oracle record `OracleOf`), which have no length premise and are false
 of the shipping seal by reading, from a plaintext of `2^30 - 16` bytes on a 32-bit target (a size reachable in principle) and `2^62 - 16` on 64-bit (formally only, at a size no real address space supplies; `LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (formally only, at sizes no real address space supplies). Because these contracts are stated for every length and are false of the shipping AEAD by reading, the result, as stated, says nothing about the shipping code at any length (the same row).
 
 **How, and its scope.** The bridge `open_none_of_not_tagged` turns the new law into a fact about the oracle the decrypt
 refinement reads: under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the oracle's open of bytes that
 carry no tag under the given MAC key and associated data is `none`. The model lemma `tampered_reply_model_refusal` shows that
-the model's public `decrypt` of the reply's header followed by any ciphertext, at the sender after its first message with
+the model's public `decrypt` of the reply's header followed by any ciphertext the size rule admits, at the sender after its
+first message with
 the agreement at `keysSampled`, takes the reply's steps (dispatch, decode, the agreement's receive, the first agreement, the
 draw, the draw's agreement, one Diffie-Hellman step on a fresh ratchet key) and refuses `aead` with the session as it was
 when that open is refused. `replyFrame_take` and `replyFrame_drop` split the reply frame into its 102-byte header and its
@@ -6672,17 +6727,19 @@ past `isize::MAX` (the seal's copy of `ad ‖ ct` into one allocation, which the
 - `tampered_reply_model_refusal`: the model's public `decrypt` of the reply's header (a fresh ratchet key of 32 canonical
   bytes) followed by any ciphertext, at a model session with the Triple `senderAfterFirst` and the agreement at `keysSampled`,
   whose first agreement with the ratchet key returns `dSend`, whose oracle's next draw agrees with it, and whose oracle's open
-  of that ciphertext under the receive's message key and the reply's associated data is refused, refuses `aead`, consumes the
-  draw and leaves the session as it was; model only.
+  of that ciphertext under the receive's message key and the reply's associated data is refused, and whose frame passes the
+  size rule (`hsizeT`), refuses `aead`, consumes the draw and leaves the session as it was; model only.
 - `initiator_refuses_tampered_reply`: under `AeadOpenChecksTag` and the hypotheses of `initiator_receives_reply`, at every
   successful return of `establish_responder` on the bytes a successful first `encrypt` at an establishment output emitted,
-  for every reply plaintext within the reply's bound and every responder source state: the responder's `encrypt` returns
+  for every reply plaintext within the reply's bound and of at most 1,048,560 bytes (`hfitR`) and every responder source
+  state: the responder's `encrypt` returns
   `bytesR`, the reply frame under the key the initiator's receiving chain derives; the initiator's `decrypt` of `bytesR` at
   `s'` from `rng'` returns `Ok` of the responder's plaintext and takes exactly the draw `dA`; the bytes of `bytesR` after its
   first 102 are not `NotTagged` under the reply's MAC key and associated data (this conjunct takes `AeadOpenChecksTag` and
   `AeadRoundTrip`, both hypotheses already), so the premise excludes the reply's own ciphertext; and for every slice `frame`
   whose bytes are the first 102 bytes of `bytesR` followed by bytes `cT` that are `NotTagged` under that MAC key and that
-  associated data, the same call on `frame` returns `Err(Aead)` with the session `s'` as it was and a source holding exactly
+  associated data, and that passes the size rule, the same call on `frame` returns `Err(Aead)` with the session `s'` as it
+  was and a source holding exactly
   the draws after `dA`. The premise names only the MAC key and the associated data, since the encryption key and the IV play
   no part in the tag.
 - `toyTag_length`, `toyTag_bytes`, `sealTagged_val`, `modelTagged_checksTag`, `modelTagged_roundTrip`,
@@ -6717,7 +6774,8 @@ premises are reached at the real constants under the laws by `first_send_reply_r
 **What this establishes, and what it does not.** On the run of the initiator's first send, the responder's receipt and its
 reply, under `AeadOpenChecksTag` and the reply receipt's premises, and conditional on the seal's totality contracts and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`) at the tampered ciphertext's length, the
 initiator's `decrypt` at `s'` from `rng'` accepts the reply and refuses with `Aead`, leaving the session as it was, every
-frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under the reply's MAC key and associated data.
+frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under the reply's MAC key and associated data and
+that passes the size rule.
 **Not shown:** that the shipping AEAD meets `AeadOpenChecksTag` (assumed, by reading, not proved; an independent verified
 implementation proves the same shape, a bad tag refused, of its own code and not of the shipping one); that a frame an
 attacker can produce meets `NotTagged` (the unforgeability of HMAC-SHA256, not stated); a frame whose tag verifies but whose
@@ -6731,7 +6789,8 @@ contributory law are kept); that the source the refusal leaves equals the one th
 of the draws after `dA`; equality of the source states is not shown); a run in which the tampered frame is refused and the
 honest reply then received (the refusal leaves the session as it was, but the receipt after it, from a source one draw
 further on, is not composed); tamper refusal on any other route (the responder's receipt of the first frame, a restored
-session, later messages); redelivery of the honest reply, here (its delivery a second time at the session the first receipt
+session, later messages); the route for a reply plaintext of the last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`
+excludes them); redelivery of the honest reply, here (its delivery a second time at the session the first receipt
 returns is refused by `initiator_repeated_reply_refused` in `UnitLifecycleInitiatorRepeatedReply`); that the real
 primitives meet the boundary records or the other laws (`AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`,
 `DhPublicValid`), or that ML-KEM decapsulation agrees on a run (`FirstKemAgrees`).
@@ -6859,14 +6918,16 @@ headline takes exactly the hypotheses of `initiator_first_send_responder_replies
   1, agreement epoch 1) has room for every `j` with `j + 2 < u32::MAX`. Model only.
 - `initiator_first_send_responder_reply_successor`: under the hypotheses of `initiator_first_send_responder_replies`, at
   every successful return of `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every reply
-  plaintext within that theorem's bound and every source state `rngR`: `encrypt` at the returned session `sB'` returns `Ok`
+  plaintext within that theorem's bounds (`hroomR`, `hlenR`) and every source state `rngR`: `encrypt` at the returned session
+  `sB'` returns `Ok`
   bytes and a session `sB''` and leaves `rngR` as given; `sB''` passes `Session::invariant`, meets `CounterHeadroom`, has
   room for every `j` with `j + 3 < u32::MAX` further operations, and refines the model session after the receipt with the
   Triple `replierAfterSend`; the key generation the model's ek vector comes from is in the same conclusion.
 - `initiator_first_send_responder_reply_admissible`: the same hypotheses, at every return `(Ok bytesR, sB'', rngR')` of that
   call: `sB''` passes `Session::invariant` and meets `CounterHeadroom`.
-- `established_encrypt_triple_invariant_via_preservation`: under the hypotheses of `established_encrypt_outcomes` and the
-  establishment's laws `DhPublicValid` and `OptionEqU64Shape`, at every successful first `encrypt` at a session
+- `established_encrypt_triple_invariant_via_preservation`: under the hypotheses of `established_encrypt_outcomes` (its
+  plaintext bound derived from the successful call) and the establishment's laws `DhPublicValid` and `OptionEqU64Shape`, at
+  every successful first `encrypt` at a session
   `establish_initiator_for` returned, the Triple after the call passes `Triple::invariant`, derived from the establishment's
   invariant through the bridge and the model's send with no shape of the Triple (`established_encrypt_successor_admissible`
   gets the same leaf by fixing the shape). The agreement's send there draws, so only the Triple leaf is re-derived.
@@ -7084,7 +7145,9 @@ constants only. **Not shown:** a receive that uses a stored key, skips a message
 store (outside `InOrder`), so reordered, delayed or dropped delivery is not covered; a receive with an agreement output (the
 sparse ratchet's `advance`, a new chain pair, `clearOldEpochs`), one that moves the agreement to another state (the header
 completing at `NoHeaderReceived`, a `ct1` chunk at `KeysSampled`), or one at any other agreement state; a header decoder
-holding more than one chunk before the call, and the two-chunk case on a run; any statement about the session a refused
+holding more than one chunk before the call, and the two-chunk case on a run; on the reply's run, a reply plaintext of the
+last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`, taken from `initiator_receives_reply`); any statement about the
+session a refused
 `decrypt` or `decrypt_ratchet` returns; that the relation after the call holds or that the model's step is an in-order
 step (hypotheses of the general step, supplied on the two runs by the decrypt refinement and by the model's own step
 there); that the ceilings are kept or refused at (false of the code, the section above); the budget at any session other
@@ -7183,14 +7246,16 @@ read through that step's one outcome; and the budget is the receipt's room for `
 send by the initiator, on this route.
 
 **Laws and premises.** No new law and no new per-run premise. The headline takes exactly the hypotheses of
-`initiator_second_send_after_reply`: those of `initiator_receives_reply` and the bound
-`102 + (ptS.length + 48) ≤ Usize.max` on the second plaintext, which holds of every plaintext of at most `2^32 - 151`
-bytes on a 32-bit target. The preservation step's record `KemCloneAgrees` is a field of the initiator's Braid send record,
+`initiator_second_send_after_reply`: those of `initiator_receives_reply` (the reply plaintext at most 1,048,560 bytes,
+`hfitR`), the bound `102 + (ptS.length + 48) ≤ Usize.max` on the second plaintext, which holds of every plaintext of at most
+`2^32 - 151` bytes on a 32-bit target, and `ptS` at most `MAX_PLAINTEXT_LEN` bytes (`hlenS`). The preservation step's
+record `KemCloneAgrees` is a field of the initiator's Braid send record,
 already a hypothesis. `CounterRoom` is internal. No premise names a platform width. The reach takes the laws of
 `first_send_reply_receipt_reachable`, `DhPublicNotConstant` included, and no other.
 
-- `initiator_sends_second_message`: under the hypotheses of `initiator_receives_reply` and the bound on `ptS`, and no
-  other, the conjuncts of `initiator_second_send_after_reply` other than its no-draw conjunct and its implication hold
+- `initiator_sends_second_message`: under the hypotheses of `initiator_receives_reply` and the two bounds on `ptS`
+  (`hroomS`, `hlenS`), and no other, the conjuncts of `initiator_second_send_after_reply` other than its no-draw conjunct
+  and its implication hold
   (the first send's key generation, the two agreements `dSend` and `x`, the responder's `encrypt` of its reply, the
   initiator's `decrypt` of it at `s'` from `rng'` returning `Ok ptA` with the bytes of `ptR`, `s''` and `rngA'`, the trace
   after the draw, no pending initial message at `s''`, the relation of `s''` to `replyReceiptSession`, and the model's
@@ -7217,14 +7282,17 @@ laws (assumed, not shown of the real primitives), a run at which every hypothesi
 code-level part applies.
 
 **What this establishes, and what it does not.** On the run that ends in the initiator's receipt of the reply, the
-initiator's next `encrypt` returns the bare second frame carrying the header's chunk at index 1, takes no draw and no KEM
+initiator's next `encrypt`, of a plaintext of at most `MAX_PLAINTEXT_LEN` bytes, returns the bare second frame carrying the
+header's chunk at index 1, takes no draw and no KEM
 operation, refines the model's step, and leaves a session that passes `Session::invariant` and meets the four ceilings;
 the condition the second-send section stated is discharged on that run. **Not shown:** the responder's receipt of this
 second message (shown, on the same run, in the section below), a second reply and its receipt, the header's third chunk, the responder's first sampling send and every
 later step, so no second exchange; that the budget at `s'''` is exact (room for every `j` with `j + 3 < u32::MAX` is what
 the composition derives, the preservation step charging a unit for the send although the clock does not move; more room
-is not claimed); a refusal `encrypt` can reach (none occurs at this state; the terminal guard, `AgreementFailed`,
-`ChainExhausted` and `NoSendingChain` elsewhere are not covered); that the code's key pair after the call equals the one
+is not claimed); a refusal `encrypt` can reach (none occurs at this state below the plaintext bound, and the size refusal
+above it is in the size-rule section; the terminal guard, `AgreementFailed`, `ChainExhausted` and `NoSendingChain` elsewhere
+are not covered); a reply plaintext of the last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`); that the code's key
+pair after the call equals the one
 before (the send clones it; the relation holds through `KemCloneAgrees`); the reply's bytes as `replyFrame` and the
 frame equation of `s''` against `s'` (conjuncts of `initiator_receives_reply` the statement does not carry); a restored
 copy of `s''` or `s'''`; the one-time path in a run (the reach takes the last-resort path only); that the related model
@@ -7309,8 +7377,10 @@ the reply keeps the agreement), the model step is an in-order receive step, and 
 model session. The scope is exactly the responder's next operation on this route, a `decrypt` of the initiator's second
 frame delivered in order.
 
-**Laws and premises.** No new law. The headlines take the hypotheses of `initiator_sends_second_message` and the per-run
-premise that the responder's source after its reply holds a draw `dB2`; the success headline adds the per-run premise
+**Laws and premises.** No new law. The headlines take the hypotheses of `initiator_sends_second_message`, with its `hlenS`
+replaced by the tighter `hfitS` (`ptS` at most `MAX_RATCHET_FRAME_LEN - 150` = 1,048,560 bytes, which gives the second
+frame the responder's size rule), and the per-run premise that the responder's source after its reply holds a draw `dB2`;
+the success headline adds the per-run premise
 `hfreshA`, that the public key of the initiator's draw `dA` (its new ratchet key) is not its first ratchet key.
 `hfreshA` is a condition on the run, not a law, and its failure is reached
 (`first_send_second_receipt_stale_reachable`). The records used are those the runs already take
@@ -7318,8 +7388,9 @@ premise that the responder's source after its reply holds a draw `dB2`; the succ
 responder oracle's KEM, `KemCloneAgrees` among them). No premise names a platform width. The reaches take the laws of
 `first_send_second_message_reachable`, `DhPublicNotConstant` included, and no other.
 
-- `responder_receives_second_message_two_outcomes`: under the hypotheses of `initiator_sends_second_message` and the draw
-  premise (placed first), the reply's `encrypt` at `sB'` returns `bytesR` and `sB''`, the initiator's `decrypt` of it
+- `responder_receives_second_message_two_outcomes`: under the hypotheses of `initiator_sends_second_message` (`hlenS`
+  replaced by `hfitS`) and the draw premise (placed first), the reply's `encrypt` at `sB'` returns `bytesR` and `sB''`, the
+  initiator's `decrypt` of it
   returns `Ok ptA` with the bytes of `ptR`, the initiator's second `encrypt` at `s''` returns `bytes2` (`secondFrame`, the
   header chunk at index 1) and leaves its source; `sB''` refines `replierSession`, keeps the agreement `sB'` held, passes
   `Session::invariant` and meets `CounterHeadroom`; and the responder's public `decrypt` of `bytes2` at `sB''` from `rngR`
@@ -7333,8 +7404,9 @@ responder oracle's KEM, `KemCloneAgrees` among them). No premise names a platfor
   of its draw with the new key, and `sB'''` passes `Session::invariant`, meets `CounterHeadroom` and has room for every `j`
   with `j + 3 < u32::MAX` further operations (`CounterRoom`).
 - `second_receipt_model_outcomes`, `second_receive_key`, `second_receive_stale`, `secondReceipt_inOrderStep`,
-  `modelCounterRoom_replier`: model only, every outcome of the model's public `decrypt` of the second frame at the
-  responder after its reply (`ceiling`, `handshake nonContributoryAgreement`, the stale `outOfOrder`, `aead`, or `ok` with
+  `modelCounterRoom_replier`: model only, every outcome of the model's public `decrypt` of the second frame, when it passes
+  the size rule (`hsizeS`), at the responder after its reply (`ceiling`, `handshake nonContributoryAgreement`, the stale
+  `outOfOrder`, `aead`, or `ok` with
   `secondReceiptSession`); the Triple receive on a new key and on the peer key; the in-order step; the budget.
 - `agreement_swap`, `second_codeword`, `established_responder_decoder_small`, `second_receipt_run_inputs`,
   `secondAd_length_le`, `secondFrame_messageType`, `secondFrame_decodeDetailed`: the swapped agreement under
@@ -7381,7 +7453,8 @@ related model sessions hold only bytes the parties received (the responder's rel
 received codewords); that the real primitives meet the boundary records or the laws (`KemCloneAgrees`, `AeadRoundTrip`,
 `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, `DhPublicNotConstant`), that ML-KEM decapsulation agrees on
 a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own `establishResponder`
-equality; that `Session::invariant` says a session is reachable (it is a predicate on fields).
+equality; that `Session::invariant` says a session is reachable (it is a predicate on fields); the route for a reply or
+second plaintext of the last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`, `hfitS`).
 
 **Compiler trust and pins.** `responder_receives_second_message_two_outcomes`, `responder_receives_second_message`,
 `second_receipt_reach_run`, `first_send_second_receipt_reachable` and `first_send_second_receipt_stale_reachable` list
@@ -7466,7 +7539,8 @@ send there returns the source it was given, the agreement as given, an empty mes
 encapsulation, decapsulation, key generation or draw (`braid_send_noHeader`, at any decoder). The model Triple's send
 from the responder after the receipt succeeds on the classical sending chain the receipt's Diffie-Hellman step derived
 (message number 0, previous chain length 1 for the reply) and the sparse chain the responder sends on at number 2, so the
-model's `encrypt` has one outcome, the bare second reply frame, with no draw and the agreement unchanged. The encrypt
+model's `encrypt` of a plaintext of at most `maxPlaintextLen` bytes has one outcome, the bare second reply frame, with no
+draw and the agreement unchanged. The encrypt
 route's providers come from `Session::invariant` and the four ceilings at `sB'''` (`encryptProviders_of_invariant`);
 `Session::invariant` and the ceilings after the call come from send preservation at `NoHeaderReceived`
 (`encrypt_keeps_invariant_no_draw`, one unit of the budget the receipt leaves at `sB'''`); the budget after the call is
@@ -7476,8 +7550,9 @@ this route, one `encrypt` at the session the receipt returns.
 
 **Laws and premises.** No new law and no new per-run premise. The headline takes the hypotheses of
 `responder_receives_second_message`, including its two per-run premises (the responder's source after its reply holds a
-draw `dB2`; `hfreshA`, the initiator's new ratchet key is not its first), and adds only the plaintext bound
-`102 + (ptR2.length + 48) ≤ Usize.max`, which holds of every plaintext of at most `2^32 - 151` bytes on a 32-bit target.
+draw `dB2`; `hfreshA`, the initiator's new ratchet key is not its first) and its size bounds `hfitR` and `hfitS`, and adds
+only the plaintext bounds `102 + (ptR2.length + 48) ≤ Usize.max`, which holds of every plaintext of at most `2^32 - 151`
+bytes on a 32-bit target, and `ptR2` at most `MAX_PLAINTEXT_LEN` bytes (`hlenR2`).
 The records used are those the reply already takes at the responder's source (`BraidSendRefinementContracts`, `OracleOf`,
 the source-free encrypt records), `Ct1LenTotal` from the responder's contracts and `KemCloneAgrees` from its
 `DecryptRatchetAgreements`. No fact relating the two parties' Braid KEMs is used by this step; the Braid send record
@@ -7485,8 +7560,9 @@ still carries `KemAgreesFor` at the responder oracle's KEM, as the generic route
 could be dropped here is not checked. No premise names a platform width. The reach takes the laws of
 `first_send_second_receipt_reachable` and no other.
 
-- `responder_sends_second_reply`: under the hypotheses of `responder_receives_second_message` (its draw premise and
-  `hfreshA` among them) and the plaintext bound on `ptR2` (placed first), the receipt's calls, plaintext equations, draw
+- `responder_sends_second_reply`: under the hypotheses of `responder_receives_second_message` (its draw premise, `hfreshA`,
+  `hfitR` and `hfitS` among them) and the two plaintext bounds on `ptR2` (placed first, `hlenR2` among them), the receipt's
+  calls, plaintext equations, draw
   equation and agreements `x` and `z` hold, `sB'''` passes `Session::invariant` and meets `CounterHeadroom`, and the
   public `Session::encrypt` of `ptR2` at `sB'''` from `rngR2` returns `Ok bytesR2` and `sB4` and leaves `rngR2` as it
   was (no draw); `sB4` is `sB'''` with only the Triple Ratchet written; `bytesR2` is `secondReplyFrame` (the responder's
@@ -7503,8 +7579,9 @@ could be dropped here is not checked. No premise names a platform width. The rea
   agreement at `NoHeaderReceived` (hypothesis-free).
 - `second_reply_send_key`, `second_reply_model_step`, `secondReplyFrame_with_draws`, `modelCounterRoom_secondReplier`:
   model only, the Triple's send from `responderAfterSecond` (header `secondHeader` of the new key, key `secondReplyKey`,
-  successor `responderAfterSecondSend`); the model's `encrypt` at the session after the receipt, with one outcome and no
-  draw; the frame reads only the oracle's seal; the budget after the send (clock 2, so every `k` with
+  successor `responderAfterSecondSend`); the model's `encrypt` at the session after the receipt of a plaintext of at most
+  `maxPlaintextLen` bytes (`hlen`), with one outcome and no draw; the frame reads only the oracle's seal; the budget after
+  the send (clock 2, so every `k` with
   `k + 3 < u32::MAX`).
 - `first_send_second_reply_reachable`: at the real constants under the laws of `first_send_second_receipt_reachable`,
   for every initiator identity, every 64-byte seed at whose bytes the model's key generation answers, every 32 further
@@ -7523,12 +7600,14 @@ to reach; the receipt's stale arm leaves `sB''` unchanged and is not followed he
 
 **What this establishes, and what it does not.** On the run that ends in the responder's receipt of the initiator's
 second message, under that receipt's two per-run premises (the responder's draw and `hfreshA`), the responder's next
-`encrypt` returns the bare second reply frame with no draw, writes only the Triple Ratchet, refines the model's step,
+`encrypt`, of a plaintext of at most `MAX_PLAINTEXT_LEN` bytes, returns the bare second reply frame with no draw, writes
+only the Triple Ratchet, refines the model's step,
 and leaves a session that passes `Session::invariant` and meets the four ceilings. The send takes no draw (and, by reading
 the generated code, no KEM operation; the walk of the agreement's send names none). **Not shown:** the initiator's `decrypt` of the second reply at
 its session after its second send, and every later step: the header's third chunk, the responder's first sampling send,
 and the responder's check of the completed encapsulation key, the first step at which both parties' KEMs act on one key
-pair; a refusal `encrypt` can reach (at this state none occurs: the terminal guard is false, the agreement's send at
+pair; a refusal `encrypt` can reach (at this state none occurs below the plaintext bound, and the size refusal above it is
+in the size-rule section: the terminal guard is false, the agreement's send at
 `NoHeaderReceived` does not refuse, the model's Triple send succeeds from message number 0 on the chain the receipt
 derived, the composite header is defined; the refusals reachable elsewhere in a session, the terminal guard,
 `AgreementFailed`, `ChainExhausted` and `NoSendingChain`, are not covered); that a tampered, foreign or replayed frame is
@@ -7541,7 +7620,8 @@ that the related model sessions hold only bytes the parties received (the respon
 attribute the received codewords); that the real primitives meet the boundary records or the laws (`KemCloneAgrees`,
 `AeadRoundTrip`, `DhAgreeContributory`, `DhAgreeSymmetric`, `DhPublicValid`, `DhPublicNotConstant`), that ML-KEM
 decapsulation agrees on a run (`FirstKemAgrees`), or `PrekeyIdsDistinct` from `PrekeyStore::invariant`; the model's own
-`establishResponder` equality; that `Session::invariant` says a session is reachable (it is a predicate on fields).
+`establishResponder` equality; that `Session::invariant` says a session is reachable (it is a predicate on fields); the
+route for a reply or second plaintext of the last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`, `hfitS`).
 
 **Compiler trust and pins.** `responder_sends_second_reply` and `first_send_second_reply_reachable` list `propext`,
 `Classical.choice`, `Quot.sound` and opaque constants of the unit, and no compiler-trust axiom; they apply the encrypt and
@@ -7743,7 +7823,8 @@ first call's parts take the last-resort path. **Exact effects:** the second call
 was given (the committed one) and the source it was given, and no session; it takes no draw.
 
 **Laws and premises.** No new law. The composed statement takes the hypotheses of `established_encrypt_outcomes` for the
-initiator's send, `ZeroizingArrayRoundTrip` and `DhPublicValid` (which read the decoded identifiers back), the store's
+initiator's send (its plaintext bound derived from the send's success), `ZeroizingArrayRoundTrip` and `DhPublicValid`
+(which read the decoded identifiers back), the store's
 `publish` and identity equations, the first call's success equation, and two premises on the run's shape: the bundle names
 the store's last-resort KEM key, and it names no one-time curve prekey. Both hold on the reach run. It takes none of the
 receipt's laws, `FirstKemAgrees` or `PrekeyIdsDistinct`: the first call's success is a hypothesis, and the refusal does not
@@ -7830,8 +7911,9 @@ four counter ceilings. A transport can deliver the same bytes twice. These resul
 run: the initiator's public `Session::decrypt` of the same reply bytes at `s''`.
 
 **How, and its scope.** The reply is a bare ratchet frame, so the public call passes it to the inner receive with no
-wrapper to strip. The general step `reply_again_refused_of_invariant` holds at every session that passes
-`Session::invariant`, meets `CounterHeadroom` and refines `replyReceiptSession` of a model session whose agreement is at
+wrapper to strip. The general step `reply_again_refused_of_invariant` holds, for a frame the size rule admits, at every
+session that passes `Session::invariant`, meets `CounterHeadroom` and refines `replyReceiptSession` of a model session
+whose agreement is at
 `keysSampled`: the public `decrypt` there refines the model's step (`decrypt_refines_ratchet_frame_of_counter_headroom`,
 with the run inputs the reply gives: it carries no agreement chunk, and at `keysSampled` the honest-chunk condition is
 empty), and the model's step on the reply frame draws the candidate key and its Triple receive refuses `outOfOrder`: the
@@ -7853,30 +7935,35 @@ Triple's receive, as the model's step does. The refusal is not free of the rando
 decrypt records `DecryptRatchetContracts` and `DecryptRatchetAgreements` at the initiator's source, the responder's
 `EstablishResponderContracts` and `DecryptRatchetAgreements`; the zeroizing round trips; `PrekeyIdsDistinct` and
 `FirstKemAgrees` of the store; the run's trace equations and draws; the success equations of the establishment, the first
-send and `establish_responder`; and the per-run premise `hfreshB` (the responder's fresh ratchet key is not the peer key
-the initiator held). It adds one per-run premise: the second delivery's source holds a draw. `DhAgreeContributory` is used
+send and `establish_responder`; the reply plaintext bound `hfitR` (at most `MAX_RATCHET_FRAME_LEN - 150` = 1,048,560
+bytes); and the per-run premise `hfreshB` (the responder's fresh ratchet key is not the peer key the initiator held). It adds
+one per-run premise: the second delivery's source holds a draw. `DhAgreeContributory` is used
 once more, for the agreements of `s''`'s ratchet key and of the second draw with the reply's ratchet key; without it the
 model and the code would refuse `handshake nonContributoryAgreement` instead. With no draw left the model refuses
 `ceiling`, and the statement does not cover that source. The general step takes the invariant, `CounterHeadroom` and the
-relation as hypotheses, with the decrypt records, the view's codec relation, `DhPublicValid` and `DhAgreeContributory`.
+relation as hypotheses, with the decrypt records, the view's codec relation, `DhPublicValid`, `DhAgreeContributory` and the
+size rule's admission of the frame (`hsize`).
 
 - `reply_again_receive_outOfOrder`, `reply_again_with_eviction`: the model Triple's receive of `firstHeader newPub` at
   `initiatorAfterReply` refuses `classical outOfOrder` whatever the agreements, the candidate key and the sparse output,
   and the session's receive with eviction refuses the same without evicting; model only, no hypothesis.
 - `reply_again_model_refused`: the model's public `decrypt` of the reply frame, at every codeword view, at
   `replyReceiptSession` of a model session whose agreement is at `keysSampled`, when the frame's ratchet key is 32
-  canonical bytes and the session's ratchet key and the draw `c` both agree with it, consumes `c`, refuses
+  canonical bytes, the frame passes the size rule (`hsizeR`) and the session's ratchet key and the draw `c` both agree with
+  it, consumes `c`, refuses
   `triple (classical outOfOrder)` and keeps the session; model only.
 - `reply_key_agreement`: every private key agrees, in a decrypt oracle, with a public key the boundary returned, under
   `DhAgreeContributory`.
 - `reply_again_refused_of_invariant`: at every session that passes `Session::invariant`, meets `CounterHeadroom` and
   refines `replyReceiptSession` of a model session whose agreement is at `keysSampled`, under the decrypt records, the
-  codec relation, `DhPublicValid` and `DhAgreeContributory`, for the reply frame on a key the boundary returned and a source
-  whose trace is the oracle's draws and holds a draw `c`: the model's public `decrypt` there, at every view, consumes `c`,
+  codec relation, `DhPublicValid` and `DhAgreeContributory`, for the reply frame on a key the boundary returned, when it
+  passes the size rule (`hsize`), and a source whose trace is the oracle's draws and holds a draw `c`: the model's public
+  `decrypt` there, at every view, consumes `c`,
   refuses `triple (classical outOfOrder)` and keeps the model session, and the translated `decrypt` returns
   `Triple(Classical(OutOfOrder))`, the session itself and a source whose trace is the rest after `c`.
 - `initiator_repeated_reply_refused`: on the run of the initiator's first send, the responder's receipt and its reply,
-  under the hypotheses of `initiator_receives_reply` and a second source whose trace holds a draw `dA2`: the responder's
+  under the hypotheses of `initiator_receives_reply` (`hfitR` among them) and a second source whose trace holds a draw
+  `dA2`: the responder's
   `encrypt` returns `bytesR`; the initiator's first `decrypt` of `bytesR` returns `Ok` of the responder's plaintext and
   `s''`, which passes `Session::invariant`, meets `CounterHeadroom` and refines `replyReceiptSession`; the model's public
   `decrypt` of the same bytes there, at every view, with the oracle holding `dA2` first, consumes `dA2`, refuses
@@ -7903,8 +7990,9 @@ only the session is left as it was); a delivery of the reply again at any other 
 send, after the responder's second message, on a restored copy of the session, or after a first receipt that refused,
 where `hfreshB` fails and the first receipt returns `s'`); on the run, a frame that differs from the reply in its bytes
 (a tampered reply at `s''`; the section on the tampered reply takes one at `s'` only; the general step is about every
-frame with the reply's header on that key and any sealed bytes after it, so a frame that keeps the header and changes
-the ciphertext is refused as out of order at every session its hypotheses hold of, but the composed statement takes only
+frame with the reply's header on that key and any sealed bytes after it that the size rule admits, so a frame that keeps
+the header and changes the ciphertext is refused as out of order at every session its hypotheses hold of (one the size rule
+refuses is `Decode(TooLong)` instead), but the composed statement takes only
 the reply's own bytes, and a frame with changed header bytes is not covered) and any other out-of-order delivery (a
 message that arrives after a later one of the same chain, delayed or dropped delivery, a receive that uses a stored
 skipped key); the arms an empty source or a refused agreement would give (`ceiling`, `handshake
@@ -7914,7 +8002,8 @@ call clones the agreement, which the decrypt records cover through `KemCloneAgre
 KEMs is used); that `Session::invariant` is kept by refused calls in general (here the session returned is `s''`
 itself); that `hfreshB` or the second draw holds of a run with an honest random source, or of a source with no state of
 its own, such as `OsRng`; that the real primitives meet the boundary records or the laws the run rests on; the one-time
-path in a run; the model's own `establishResponder` equality.
+path in a run; the model's own `establishResponder` equality; a reply plaintext of the last fifteen lengths up to
+`MAX_PLAINTEXT_LEN` (`hfitR`).
 
 **Compiler trust and pins.** `reply_again_refused_of_invariant`, `initiator_repeated_reply_refused` and
 `repeated_reply_refused_reachable` apply `decrypt_refines_ratchet_frame_of_counter_headroom` (the last two also
@@ -8048,9 +8137,10 @@ about an initial message, so `Session::decrypt` is still not proved end to end.
   session it leaves (with `pending_initial` cleared exactly on a success, as the model clears it) and the remaining
   trace. The frames `hframe` admits are a ratchet message, a message of fewer than two bytes, one with another
   version byte and one with an unknown type byte; on each the model's dispatch passes the message through unchanged. The
-  paths are those of the complete `decrypt_ratchet` refinement, reached through the public root. `hframe` is decidable from the message alone
+  paths are the size refusal of a frame the size rule refuses (`decrypt_frame_too_long_step_refines`) and those of the
+  complete `decrypt_ratchet` refinement, reached through the public root. `hframe` is decidable from the message alone
   and selects no branch: the proof derives the generated message type from it (`message_type_refines`). The proof joins
-  `UnitLifecycleT3.decrypt_passthrough_refines`, whose inner step is a hypothesis, with
+  `UnitLifecycleT3.decrypt_passthrough_refines`, whose inner step and size admission (`hsize`) are hypotheses, with
   `decrypt_ratchet_refines_complete`, which proves that step: the Braid KEM model is `oracle.braidKem`, the generated
   type and its equation come from `message_type_refines`, and the inner output is the one the complete theorem gives.
   Its boundary records are the restated ones described in the sections above: the three zeroize fields of the contract record
@@ -8170,6 +8260,133 @@ bounds derived (`decrypt_refines_ratchet_frame_of_counter_headroom`, `decrypt_fr
 axiom and statement pins.
 
 **The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
+## Proved (tier T3, session lifecycle: the message size bound at the three public entries, the refusals' effects and order, and the received maximum under an assumed open-length law, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleSizeRule.lean`.
+
+The message size bound (`message-format.md`, Message size) is enforced in the public implementation: `Session::encrypt`
+refuses a plaintext longer than `MAX_PLAINTEXT_LEN` (1,048,575 bytes) as `PlaintextTooLong` as its first step, and
+`Session::decrypt` and `establish_responder` refuse a frame the size rule refuses as `Decode(TooLong)` as theirs, through
+`check_frame_size`. The rule refuses a frame longer than `MAX_INITIAL_FRAME_LEN` (1,050,362 bytes), an initial frame whose
+ratchet message (located through the frame's own `kem_ciphertext_len`, with a checked `84 + kem_ciphertext_len`) is longer
+than `MAX_RATCHET_FRAME_LEN` (1,048,710 bytes), and any other frame longer than `MAX_RATCHET_FRAME_LEN`. The results below
+are about the translated checks and the translated entries; the ones about the rule and the refusals take no law, and the
+received maximum takes one assumed law. The lemmas they rest on are in `UnitLifecycleT1` (`check_frame_size_no_panic`),
+`UnitLifecycleT3` (`check_frame_size_refines`: the translated rule is the model's `frameTooLong` on every byte string;
+`decrypt_frame_too_long_refines`, `encrypt_plaintext_too_long_refines`) and `UnitLifecycleAtomicity`
+(`decrypt_refuses_long_frame`, `encrypt_refuses_long_plaintext`, `establish_responder_refuses_long_frame`, which take no
+hypothesis about any opaque operation).
+
+**How the earlier results changed.** The leading checks changed the translated bodies of the three entries. Every lifecycle
+result was repaired without a weakening: where a result states a public refinement witness and holds the session relation
+and the trace at the call, its statement is unchanged and its proof splits on the size rule; where it has a successful call,
+the size fact is derived from that call; and where it states an exact outcome past the check, it takes the size bound as a
+hypothesis (the frame passes the size rule, or the plaintext is at most `MAX_PLAINTEXT_LEN`), and the complement is the size
+refusal below, which holds with no other hypothesis. The responder's prepared parts carry the size rule's admission, the
+initial dispatch context carries it, and the encrypt and decrypt route evidence gain a size-refusal constructor. A run that
+delivers one party's encrypted message to the other takes, where the lengths allow, the size rule on that message from
+`UnitLifecycleEstablishedEncrypt.encrypt_ok_length_le` (a message `encrypt` returns is at most the plaintext plus 150 bytes,
+plus 65,770 with a pending initial message, under `AeadSealBounded` and `DhCodecTotal`); the routes that deliver a reply take
+the reply plaintext at most `MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560), fifteen lengths short of `MAX_PLAINTEXT_LEN`,
+because `AeadSealBounded` bounds the seal by the plaintext plus 48 bytes and not by its exact padded length; the routes that
+deliver the first message take the size rule on it as a hypothesis, because the translation sees the ML-KEM ciphertext's
+length only through `KemCiphertextLenBound` (at most 65,536 bytes).
+
+**Laws and premises.** One law, assumed: `Model.Lifecycle.AeadOpenLength`, the upper half of the AEAD's successful-open
+length property (`message-format.md`, Message size): an input (ciphertext followed by the 32-byte tag) that the oracle's open
+accepts opens to at most `input.length - 33` bytes, that is at most `C - 1` bytes for a ciphertext of `C` bytes (the property
+says `C - 16` to `C - 1`; the maximum needs only the upper half). It is a premise of the three received-maximum results only
+and is not shown of the shipping AEAD; the padding measurements are tested evidence that the shipping open behaves so, not a
+discharge (`LIMITATIONS.md`). The refinement results take the session relation and the trace equation at the call, as every T3
+result here does. No other law: the rule, the refusals' effects, their order and the nested bound hold at every
+interpretation of the opaque operations.
+
+- `check_frame_size_refuses_iff`: for every byte string, `check_frame_size` returns `Ok ()` or `Err(TooLong)` and nothing
+  else, and returns `Err(TooLong)` exactly when the frame is longer than `MAX_INITIAL_FRAME_LEN` or the ratchet message its
+  framing locates (`Model.Lifecycle.ratchetSpan`) is longer than `MAX_RATCHET_FRAME_LEN`.
+- `non_initial_limit`: a frame whose first two bytes do not make it an initial message passes `check_frame_size` exactly when
+  it is at most `MAX_RATCHET_FRAME_LEN` bytes: of 1,048,710 bytes it passes, of one byte more it is refused.
+- `decoded_span`: for a frame the initial-message decoder accepts, the span the size rule locates is the decoded ratchet
+  message's length, whatever `kem_ciphertext_len` the frame declares (the decoder-structure argument, through the model's
+  `decodeInitial_span`).
+- `decoded_initial_limit`: a frame the initial-message decoder accepts passes `check_frame_size` exactly when the whole frame
+  is at most `MAX_INITIAL_FRAME_LEN` bytes and its ratchet message at most `MAX_RATCHET_FRAME_LEN` bytes, for every declared
+  `kem_ciphertext_len`: a ratchet message at the bound is admitted, one byte over is refused.
+- `nested_too_long_refused`: such a frame whose ratchet message is longer than `MAX_RATCHET_FRAME_LEN` fails
+  `check_frame_size` with `TooLong` (the nested wrapper bypass is closed).
+- `encrypt_size_refusal`: `Session::encrypt` on a plaintext longer than `MAX_PLAINTEXT_LEN` returns `PlaintextTooLong` with
+  the session and the random source exactly as given, on every session (pending, established, or with a failed agreement).
+- `decrypt_size_refusal`: `Session::decrypt` on a frame the size rule refuses returns `Decode(TooLong)` with the session and
+  the source exactly as given, on every session and every such frame, an ordinary frame and an initial one alike.
+- `establish_responder_size_refusal`: `establish_responder` on a frame the size rule refuses returns `Decode(TooLong)` with the
+  prekey store (its signed, one-time and KEM prekeys and its record of last-resort messages) and the source exactly as given.
+- `encrypt_size_refusal_refines`, `decrypt_size_refusal_refines`: the model's step refuses `plaintextTooLong`, respectively
+  `decode tooLong`, with its session and oracle unchanged (no draw), and, under the session relation and the trace equation at
+  the call, the generated refusal refines that step.
+- `encrypt_on_failed_agreement`: on a session whose agreement reports failed, `encrypt` returns `PlaintextTooLong` above the
+  bound and `AgreementFailed` at or below it, with the session and the source unchanged either way.
+- `decrypt_initial_decode_refusal_order`: an initial frame the decoder refuses with a reason is refused by `decrypt` as
+  `Decode(TooLong)` when the size rule refuses it and with the decoder's reason otherwise, with no effect either way.
+- `decrypt_not_a_repeat_order`: an initial frame on a session with no establishment ephemeral is refused as `Decode(TooLong)`
+  when the size rule refuses it and as `NotARepeatedInitial` otherwise, with no effect either way.
+- `establish_responder_decode_refusal_order`: a frame the initial-message decoder refuses is refused by `establish_responder`
+  as `Decode(TooLong)` when the size rule refuses it and with the decoder's reason otherwise, with no effect either way.
+- `establish_responder_prekey_lookup_order`: a decoded frame naming a signed prekey the store's lookup refuses is refused as
+  `Decode(TooLong)` when the size rule refuses it and with the lookup's refusal otherwise: the size rule runs before any
+  prekey is looked up.
+- `decrypt_nested_too_long_refused`: an initial frame the decoder accepts whose ratchet message is longer than
+  `MAX_RATCHET_FRAME_LEN` is refused by `decrypt` as `Decode(TooLong)` with no effect, on every session, so also when it is a
+  genuine repeat of the session's establishment message and would otherwise reach the repeat path's inner receive.
+- `establish_responder_nested_too_long_refused`: the same at `establish_responder`, with the store and the source unchanged,
+  before any prekey lookup or decapsulation.
+- `ratchet_ok_plaintext_le_max`: under `AeadOpenLength`, a plaintext the inner receive returns on a ratchet message of at most
+  `MAX_RATCHET_FRAME_LEN` bytes is at most `MAX_PLAINTEXT_LEN` bytes, when its result refines the model's
+  (`MAX_RATCHET_FRAME_LEN - 135 = MAX_PLAINTEXT_LEN`, so the bound is exact, not loose).
+- `decrypt_ok_plaintext_le_max`: under `AeadOpenLength`, every plaintext the public `decrypt` returns is at most
+  `MAX_PLAINTEXT_LEN` bytes, an ordinary frame and a repeated initial frame alike, when its result refines the model's.
+- `establish_responder_ok_plaintext_le_max`: under `AeadOpenLength`, the plaintext the inner receive of a responder's
+  establishment returns is at most `MAX_PLAINTEXT_LEN` bytes, when its result refines the model's: the prepared parts carry the
+  size rule's admission, so the inner ratchet message is within `MAX_RATCHET_FRAME_LEN`.
+
+**Non-vacuity.** The refusals hold for every input past the bound, and such inputs exist at both platform widths: a byte
+string of 1,050,363 bytes fits a slice when `Usize.max` is at least `2^32 - 1`. The limits are stated as equivalences, so
+the admitted side is not empty either. The received maximum is non-vacuous only where the inner receive succeeds, which the
+reach theorems of the earlier sections exhibit under their named laws.
+
+**What this establishes, and what it does not.** In the translated public implementation, the three size refusals happen
+first, change nothing and draw nothing, refine the model's, and take precedence over the terminal, decode, not-a-repeat and
+prekey-lookup refusals; the nested bound holds on both receiving entries; and, under the assumed open-length law, no
+plaintext a receive returns is longer than `MAX_PLAINTEXT_LEN`. **Not shown:** that the AEAD has the open-length property
+(the received maximum is conditional on it; the padding measurements are tested evidence, not a discharge); that every message
+`encrypt` returns passes the size rule (proved only under `AeadSealBounded` for plaintexts of at most `MAX_RATCHET_FRAME_LEN -
+150` bytes, and for the first message of an establishment under `KemCiphertextLenBound` for plaintexts of at most
+`MAX_RATCHET_FRAME_LEN - 65,770` bytes); memory and time per call, allocation failure or abort, and the build profile; callers
+that reach the AEAD, the decoders or the ratchet without going through the three public entries; the AEAD, KEM and
+Diffie-Hellman laws the success results rest on, which stay assumed.
+
+**Compiler trust and pins.** `decrypt_size_refusal` applies `UnitLifecycleAtomicity.decrypt_refuses_long_frame` and
+`UnitLifecycleT3.check_frame_size_refuses` and lists the kernel's three axioms and opaque constants of the unit, and no
+compiler-trust axiom. Of the other 19 results, 5 rest on `propext`, `Classical.choice` and `Quot.sound` alone and 14 on those
+and opaque constants of the unit. Each of the 20 results carries an axiom pin and a statement pin. As for every statement
+pin, a printed pin is not the whole elaborated statement, and that the pinned statement is the right one is decided by
+reading. `check-size-rule-negatives.py` plants thirteen faults in a copy of the module, every one a change to a statement,
+and requires Lean to refuse each at the result whose statement it changes, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false): each of the four bounds one off (the
+outer bound in `check_frame_size_refuses_iff`, the ratchet bound in `non_initial_limit`, the nested bound in
+`nested_too_long_refused`, the sender's bound in `encrypt_size_refusal`); the nested check dropped (`decoded_initial_limit`
+claimed with the outer bound alone) and the span read as the whole frame (`decoded_span`); three refusals' effects changed
+(`decrypt_size_refusal` claimed to clear the pending initial message, `establish_responder_size_refusal` claimed to empty the
+last-resort record, `encrypt_size_refusal_refines` claimed to take a draw from the model's oracle, refused where it places
+the result of `UnitLifecycleT3`); the order swapped (`encrypt_on_failed_agreement`, `decrypt_initial_decode_refusal_order`);
+and the received maximum claimed one byte lower (`decrypt_ok_plaintext_le_max`) and without the open-length law
+(`ratchet_ok_plaintext_le_max`). None is labelled inside a composing proof, a projection or a statement-shape check: each
+result is proved directly or by one application. These are controls on the proofs; the checks in the Rust are held by the
+sixteen `MS-*` mutations of `tooling/gate-mutations.json` (each check removed, each bound one off, the nested check skipped or
+reading the wrong bytes, a check moved after the terminal check, the draw, the copy or the decode), each caught by a named
+test, which `mutate-gates.py --only MS-...` runs locally. An error that is not a refusal voids a run anywhere in
+the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one
+elsewhere in the copy is logged.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 

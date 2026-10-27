@@ -234,7 +234,8 @@ Every statement that names `export` or `import` is compiler-trusted for one fact
 re-translation removes it.
 At that established session the first `encrypt` is related to the model's step: the initial message wrapping the first
 ratchet frame, consuming two draws (and, for a model KEM whose key generation refuses, that refusal; the shipping key
-generation does not refuse, by reading, so no refusal the shipping `encrypt` can reach is covered), and the session a
+generation does not refuse, by reading, so of the refusals the shipping `encrypt` can reach only the size refusal of an
+oversized plaintext is covered, by its own result), and the session a
 successful send leaves passes `Session::invariant` and meets the ceilings. That is under the encrypt boundary records, the
 oracle record, three assumed laws (one new, that key generation reads the two draws the model counts; the establishment's
 ciphertext-length law; the ciphertext bound) and, for that session, six more assumptions; neither it nor the decrypt results
@@ -327,7 +328,17 @@ checked against the real functions. Its record's two KDF agreements are theorems
 `UnitLifecycleKdf.decrypt_ratchet_refines_complete_of_kdf` states the result without them.
 The same result is carried through the public `Session::decrypt` on frames that are not initial messages
 (`decrypt_refines_ratchet_frame`, on the same axioms), under the same hypotheses and one premise on the input, also in a
-form that takes `Session::invariant` and the four counter ceilings; no theorem covers an initial message.
+form that takes `Session::invariant` and the four counter ceilings; no refinement covers an initial message other than
+its size refusal (below).
+The message size bound (`message-format.md`, Message size) is enforced first at `encrypt`, `decrypt` and
+`establish_responder`, and the translated checks are proved to compute the model's size rule on every input; an input the
+bound refuses is refused with the session, the prekey store and the random source returned as given and no draw, refining
+the model's refusal, before the terminal, decode, not-a-repeat and prekey-lookup refusals, and an initial frame cannot
+carry a ratchet message over the bound, whatever KEM ciphertext length it declares (no law about an opaque operation, no
+compiler-trust axiom). That every plaintext a receive returns is at most `MAX_PLAINTEXT_LEN` bytes rests on one assumed
+law about the AEAD's open, not shown of the real AEAD; the AEAD's totality contracts are not restated for the lengths
+the bound allows, so the results that take them stay conditional on them. The earlier lifecycle results take the size
+bound as a hypothesis where they state an outcome past the checks.
 The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`). The Braid's four KEM refusals (key generation, both halves of encapsulation, decapsulation) are refined against the model's `Failed` transitions under agreements about the KEM wrapper that are assumed, not proved, and the state witnesses for those theorems additionally assume `KemDrawsSucceed` (the real key generation and first encapsulation each succeed for some random draw), which is tested only, by every Braid test that completes an agreement. The KEM wrapper refuses a restored encapsulation state whose coefficients lie outside the bound libcrux states, so the Braid fails closed; that is tested only (`GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, open), and no theorem relates a restored Braid state to the model.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.

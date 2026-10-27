@@ -106,10 +106,11 @@ apply to any run; `UnitLifecycleInitiatorSecondMessage` derives both on the same
 * The responder's receipt of this second message (shown, on the same run, in `UnitLifecycleResponderSecondReceipt`), a
   second reply and its receipt, the header's third chunk, the responder's first sampling send and every later step.  The
   statement covers exactly one further send by the initiator on this route, not a second exchange.
-* A refusal `encrypt` can reach: at this state none occurs (the terminal guard is false, the agreement's send at
-  `KeysSampled` does not refuse, the model's Triple send succeeds from message number 0 on the chain the receipt
-  derived, the composite header is defined); the refusals reachable elsewhere in a session (the terminal guard,
-  `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
+* A refusal `encrypt` can reach: the size refusal above `MAX_PLAINTEXT_LEN` holds on every session
+  (`UnitLifecycleSizeRule.encrypt_size_refusal`); below it, at this state none occurs (the terminal guard is false,
+  the agreement's send at `KeysSampled` does not refuse, the model's Triple send succeeds from message number 0 on the
+  chain the receipt derived, the composite header is defined); the refusals reachable elsewhere in a session (the
+  terminal guard, `AgreementFailed`, `ChainExhausted`, `NoSendingChain`) are not covered.
 * That the code's key pair after the call equals the one before: the send clones it and the relation holds through
   `KemCloneAgrees`; code-level equality is not checked.
 * A restored copy of `s''`; the one-time path in a run; that the related model sessions hold only bytes the parties
