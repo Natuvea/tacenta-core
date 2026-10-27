@@ -138,7 +138,7 @@ this section says in one place what is not proved.
   given; otherwise it reaches the inner receive at a session whose shared secret is the initiator's, where the invariant,
   the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
   (`DhAgreeSymmetric`), a hypothesis that the store's KEM key decapsulates the initiator's ciphertext to the
-  initiator's secret (`FirstKemAgrees`, the real decapsulation's result, which ML-KEM can fail to give with small probability; its status for `E2E-01` is undecided), and the
+  initiator's secret (`FirstKemAgrees`, the real decapsulation's result, which ML-KEM can fail to give with small probability; as stated it cannot remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes), and the
   establishment's, restore and decrypt laws named there; the composed statement lists no compiler-trust axiom. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
   shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists ("Proved (tier T3, session lifecycle:
   `establish_responder` on the frame the initiator's first `encrypt` emits ...)").
@@ -5726,7 +5726,7 @@ the parts' frame.
 
 **The law and the premises.** `DhAgreeSymmetric` (new, assumed; `LIMITATIONS.md`): for private keys `a`, `b` with public keys
 `pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` states the real decapsulation's result for this run's ciphertext; it is
-not stated for every run, since ML-KEM decapsulation of an honest ciphertext fails with small probability and the wrapper's implicit rejection then returns another secret. Its status for `E2E-01` is undecided (`GAP-REGISTER.md`).
+not stated for every run, since ML-KEM decapsulation of an honest ciphertext fails with small probability and the wrapper's implicit rejection then returns another secret. As stated it cannot remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes (`GAP-REGISTER.md`).
 `PrekeyIdsDistinct` is a named hypothesis about the store; it is what `PrekeyStore::invariant`'s identifier loop checks, but
 that the invariant gives it is not checked (the loop reads the pools through `IntoIterator for &Vec`, which the translation
 leaves opaque and no law describes). Reused: `DhPublicValid`, `DhPublicBytesRoundTrip` (the restore branch's law),
@@ -5791,7 +5791,7 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
 
 **What this establishes, and what it does not.** On the actual bytes the initiator's actual first `encrypt` returns, at a
 store that published the bundle used, every refusal of the responder's prepare phase other than the three the store decides
-is excluded, and the responder's shared secret is the initiator's, under the law, the run premise and the store hypothesis
+is excluded, and the responder's shared secret is the initiator's, under the law, the decapsulation hypothesis and the store hypothesis
 named above. **Not shown here:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext it returns
 (the next section shows it, under two further laws: the first message key agreeing on both sides in the model, by
 computation, and the AEAD round trip as a law); the responder's successor, its invariant and the draws on success (the next

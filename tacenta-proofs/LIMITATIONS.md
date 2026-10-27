@@ -2209,11 +2209,12 @@ and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
 
-### What closing `E2E-01` requires, by name
+### The hypotheses the current lifecycle theorems take, by name
 
 This section is an inventory, not a classification, and it is not complete. `GAP-REGISTER.md` row `E2E-01` states what
-closing requires; which of the hypotheses below may remain in final theorems is an open owner decision, and nothing here
-classes any of them as acceptable. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
+closing requires: its final theorems may take no assumption about what the shipping code or a primitive does, including
+a statement of what one call returns at the run's values; which of the other hypotheses may remain is an open owner
+decision, and nothing here classes any of them as acceptable. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
 statements of `Translation/UnitLifecycle*.lean` and of the fields of the records they name; the scan is a reading, not
 an elaborated enumeration. Binder names are local to each theorem and can be renamed. Some of the named propositions
 are already theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the key derivation's
@@ -2262,8 +2263,8 @@ translated code.
     `DhAgreeContributory` and `DhPublicNotConstant`.
   - About ML-KEM: `KemCiphertextLenOf`, `KemCiphertextLenBound`, `KemCiphertextLenTotal`, `KeyGenSizesOf`,
     `KeyGenSeededFor`, `KeyGenAnswers`, `FreshKeyPairRefines`, `LawGenerateSucceeds`, `KemDrawsSucceed` and
-    `FirstKemAgrees`. `FirstKemAgrees` states the real decapsulation's result for one ciphertext; its status for
-    `E2E-01` is undecided.
+    `FirstKemAgrees`. `FirstKemAgrees` states the real decapsulation's result for one ciphertext; as stated it cannot
+    remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes.
   - About the AEAD: `AeadRoundTrip` and `AeadOpenChecksTag`. `AeadRoundTrip` and the AEAD totality contracts are, as
     stated, false of the shipping AEAD by reading (the totality row); `AeadOpenChecksTag` is true of the shipping open
     by reading and not proved. Restating the false ones is tracked by `AEAD-LENGTH-CONTRACTS`.
@@ -2276,8 +2277,8 @@ translated code.
   `EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`, `EstablishResponderHeadroom`,
   `ReceiveHeadroom`, `CounterHeadroom`, `CounterRoom`; `EncodersLive`, `ChainCounterBounded`, `RetryRunBounds`,
   `RetryReceiveBounds`; `RestoredScope`, `CodecShape`, `SendsWithoutDraw`, `SameAgreementKind`, `KeepsAgreementState`,
-  `InOrder` and `InOrderReceiveStep`; `InitiatorSecretParts`, which `establish_initiator_for_secret` gives with no
-  hypothesis.
+  `InOrder` and `InOrderReceiveStep`; `InitiatorSecretParts`, which `establish_initiator_for_secret` gives from the call's
+  success, with no other hypothesis.
 - **The dispatch layer's evidence records.** `BraidReceiveEvidence`, `SessionDecryptEvidence`, the `InitialRatchet*`
   and `InitialAgreementRatchet*` evidence and route records, `EncryptRouteEvidence`, `EncryptTripleRouteEvidence`,
   `EncryptEndToEndEvidence`, `BraidSendTraceAgreement` and `BraidSendTraceAgreementCounted`
@@ -3009,7 +3010,7 @@ one hypothesis about the store are new:
 | Statement | Kind | Says | Used for | Model, and when it would be false |
 |---|---|---|---|---|
 | `DhAgreeSymmetric` | law, ASSUMED (`DhAgreeSymmetricShape` at the real constants) | for private keys `a`, `b` whose public keys are `pa`, `pb`, `PrivateKey::agree a pb` returns what `agree b pa` returns | the responder's four agreements are the initiator's, so the two shared secrets are equal and the responder's contributory checks pass (`shared_secret_symmetric`) | `InterpO.modelFirstFrame` (`modelFirstFrame_symmetric`), whose public key is the base point for every private key and whose agreement returns the public key it was given unless it is the zero key: a toy. True of the boundary by reading (`tacenta-core/boundary/src/dh.rs`, X25519 through x25519-dalek: both sides compute the u-coordinate of the product of the two clamped scalars and the base point, and the boundary refuses the all-zero output on both sides); not checked in Lean. It would be false of a DH whose two directions differ, of a boundary that clamped or validated on one side only, and of one that refused a non-contributory result on one side only |
-| `FirstKemAgrees` | hypothesis stating the real decapsulation's result for this run's ciphertext; not stated for every run; its status for `E2E-01` undecided | the KEM key pair the store holds under the identifier the bundle names decapsulates the initiator's ciphertext to the secret the initiator's encapsulation returned | the responder's decapsulated secret is the initiator's | holds in the reach's run (`first_send_responder_reachable`), from `FirstFrameSuccessShape`. Deliberately not a law: ML-KEM decapsulation of an honestly encapsulated ciphertext fails with a small probability (FIPS 203), and the wrapper's implicit rejection then returns another secret rather than an error, so a statement for every run would be false of the real primitive. Were it to fail, by reading the responder's inner receive would refuse `Aead`, not `Kem` (next paragraph); not shown |
+| `FirstKemAgrees` | hypothesis stating the real decapsulation's result for this run's ciphertext; not stated for every run; as stated it cannot remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes | the KEM key pair the store holds under the identifier the bundle names decapsulates the initiator's ciphertext to the secret the initiator's encapsulation returned | the responder's decapsulated secret is the initiator's | holds in the reach's run (`first_send_responder_reachable`), from `FirstFrameSuccessShape`. Deliberately not a law: ML-KEM decapsulation of an honestly encapsulated ciphertext fails with a small probability (FIPS 203), and the wrapper's implicit rejection then returns another secret rather than an error, so a statement for every run would be false of the real primitive. Were it to fail, by reading the responder's inner receive would refuse `Aead`, not `Kem` (next paragraph); not shown |
 | `PrekeyIdsDistinct` | hypothesis about the store, named | the identifiers the store holds (signed prekey, KEM key, previous ones, the one-time curve and KEM entries) are distinct and none is `ABSENT_ID` | the KEM lookup and the one-time lookup find the entries `publish` named (`u32_index` and `peek_one_time` return the first occurrence; `ABSENT_ID` names no key) | holds at the reach's store (`reachStore_distinct`). It is what `PrekeyStore::invariant`'s identifier loop checks (with the bound by `next_id`), but that the invariant gives it is not checked: the invariant reads the pools through `IntoIterator for &Vec`, which the translation leaves opaque and for which no law is in the tree. It would be false of a store holding a repeated identifier (then the lookup can find another entry than the one published) |
 
 One more statement is assumed for inhabitation only, as `ResponderSuccessShape` above; no result about every input takes it:
