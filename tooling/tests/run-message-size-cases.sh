@@ -2,10 +2,11 @@
 # The case runner for the message size bound's tests (tacenta-spec/protocol/message-format.md, Message size):
 # `tacenta-core/tests/message_size.rs` (the sender's rule and the size rule at the real constants, through the
 # public entries, with their effects), `message_size_preflight.rs` (the rule's arithmetic on length values, to
-# `usize::MAX`) and `message_size_alloc.rs` (a size refusal copies nothing). The rows `MS-*` of
+# `usize::MAX`), `message_size_alloc.rs` (a size refusal copies nothing) and `fuzz_frame_size_seeds.rs` (the
+# `frame_size_boundary` fuzz target's seeds through its entry, every branch of the rule taken). The rows `MS-*` of
 # `tooling/gate-mutations.json` edit `tacenta-core/lifecycle/src/lifecycle.rs` and
 # `tacenta-core/lifecycle/src/serialization/mod.rs` one at a time and run this, so that
-# `tooling/mutate-gates.py` shows which test each edit of the library breaks. CI runs the three test files
+# `tooling/mutate-gates.py` shows which test each edit of the library breaks. CI runs the four test files
 # themselves, in `cargo test --locked --workspace`; nothing in CI runs this runner or the mutations.
 #
 # It runs `cargo test --locked --test <file>` in `tacenta-core` for each file and prints, for each test that
@@ -20,7 +21,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
-files="message_size message_size_preflight message_size_alloc"
+files="message_size message_size_preflight message_size_alloc fuzz_frame_size_seeds"
 
 # The tests each file declares, one name per line. A function rather than arrays named after the files, since
 # the bash macOS ships (3.2) has no name references.
@@ -55,6 +56,9 @@ expected_tests() {
       ;;
     message_size_alloc)
       printf '%s\n' size_refusals_allocate_nothing_proportional_to_the_frame
+      ;;
+    fuzz_frame_size_seeds)
+      printf '%s\n' the_boundary_seeds_take_every_branch_of_the_size_rule
       ;;
   esac
 }

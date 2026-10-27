@@ -1,6 +1,6 @@
 # Coverage-guided fuzzing
 
-Seven libFuzzer targets over every decoder and state machine that reads bytes
+Eight libFuzzer targets over every decoder and state machine that reads bytes
 somebody else chose, and over the identity functions that judge a key somebody
 else chose.
 
@@ -15,6 +15,7 @@ else chose.
 | `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, the target sends after each message, and `Braid::invariant` is asserted after every receive and send; so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
 | `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`); `State::invariant` is asserted after every receive and send |
 | `identity_records` | `classify`, `lookup`, `identity_pair_digest` (in both argument orders), `verification_number` and `verification_number_grouped` on a fuzzed presented key and fuzzed records, and `sessions::establish_initiator` under a *known* or *first contact* expectation over an honest bundle whose identity key the input may replace; asserted: `lookup` agrees with `classify` record by record, the digest is order-independent, the number is 60 digits that grouping keeps, a malformed expectation is refused as `MalformedRecord` and only then, a refusal on the expectation draws nothing, the leaf's `UnexpectedIdentity` never reaches the caller, and a session is returned only for a key the expectation accepts. Three hand-built seeds (`seed-*.bin`) reach the leaf's success, a retired refusal over an empty record, and a substituted identity |
+| `frame_size_boundary` | the size rule (tacenta-spec/protocol/message-format.md, Message size) at its edges: a short input is expanded into a frame of up to `MAX_INITIAL_FRAME_LEN + 64` bytes (raw, prefix-and-fill, or a genuine repeat re-wrapped with a chosen KEM length and inner length; `frame_size_entry.rs`), which goes to `Session::decrypt` and `establish_responder`; asserted against the rule computed in the harness: a frame it refuses is refused by both as `Decode(TooLong)` with no random draw and the session and store bytes unchanged, and a frame it admits is refused by neither as too long. Its own campaign, below |
 
 The first three take bytes, and so does `identity_records`, which reads them
 as keys and records. `session_receive`, `braid_receive` and `triple_receive` drive state machines, which is the
@@ -91,7 +92,7 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: 4,110 files holding 2,657,779 bytes of
+in `corpus/<target>/`, which is committed: 4,146 files holding 2,659,194 bytes of
 content in all (`du` reports allocated blocks rather than content size).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it
@@ -113,6 +114,40 @@ cargo fuzz run wire_decoders artifacts/wire_decoders/crash-<hash>
 **A finding belongs in a unit test before it belongs in a fix**, pinned by
 value in the crate's own tests, so whoever changes that decoder next has the
 original input rather than a description of it.
+
+## The size rule's boundary campaign
+
+`frame_size_boundary` is a campaign of its own, separate from the fast
+small-input targets, whose runs and caps are unchanged. Its frames are a
+megabyte, so each run costs about 2 ms rather than microseconds.
+
+```sh
+# The fast campaign, as before (each target, 4,096-byte inputs):
+cargo fuzz run session_receive -- -max_len=4096
+# The boundary campaign: seeds at, one below and one above both bounds,
+# fifteen and sixteen bytes either side, and the nested cases.
+cargo fuzz run frame_size_boundary corpus/frame_size_boundary -- \
+  -max_len=1050432 -max_total_time=120
+# Regenerate its seeds and their manifest after changing the input layout:
+python3 frame_size_seeds.py
+```
+
+The input is a description of a frame (`frame_size_entry.rs`), so the seeds
+are a few dozen bytes and reach 1,050,363 bytes and beyond at any `-max_len`;
+the raised cap only lets the raw mode grow a frame that long as well. On an
+Apple M-series laptop a 120-second run from the 36 seeds made 69,168 runs at
+about 570 a second with a peak resident size of 408 MB and no finding (one run,
+2026-10-27, not a benchmark).
+
+**Raising `-max_len` does not show that the large inputs reach anything.**
+`../tests/fuzz_frame_size_seeds.rs` runs every committed seed through the same
+entry function with an ordinary `cargo test`, requires the branch that
+`frame_size_seeds.txt` names for each seed on both entries, and requires each
+branch to be taken at least once: refused by the outer bound, by the nested
+bound, by the ratchet bound, admitted at exactly a bound and passed to the
+decoder, and refused under the bounds as another decode failure. It reads the
+branch from each entry's result and the frame's own lengths; nothing in the
+library counts anything for it.
 
 ## In CI
 
