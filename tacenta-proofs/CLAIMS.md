@@ -6637,7 +6637,7 @@ of `tacenta-core/boundary/src/aead.rs`, and is not proved:
 
 - the open refuses fewer than 32 bytes;
 - it compares the full 32-byte tag with RustCrypto `Mac::verify_slice` before it decrypts;
-- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the bytes of `c` before the tag) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
+- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the bytes of `c` before the tag) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it, by reading and on a 64-bit target only formally, the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
   examples by `native_decide` in `tacenta-model`, not in any proof's base).
 
 It would be false of a truncated or short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of
