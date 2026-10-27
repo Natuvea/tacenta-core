@@ -533,7 +533,8 @@ theorem first_send_model_session_encoder {E : Type} {rcE : rand_core_1.RngCore E
 `initiator_receives_reply` (the run from the initiator's establishment through its first send, the responder's
 receipt and reply, and the initiator's receipt of the reply, with the per-run premises that the initiator's source
 after its first send holds a draw `dA` and that the responder's fresh ratchet key is not the peer key the initiator
-holds), and for every plaintext `ptS` of at most `Usize.max - 150` bytes: the receipt's conjuncts hold (the two
+holds), and for every plaintext `ptS` of at most `Usize.max - 150` and at most `MAX_PLAINTEXT_LEN` bytes: the
+receipt's conjuncts hold (the two
 agreements, the responder's `encrypt` of its reply, the initiator's `decrypt` of the reply returning `Ok ptA` and `s''`
 from `rng'` and leaving `rngA'`, whose trace is the rest after `dA`, no pending initial message at `s''`, and the
 relation of `s''`) except the reply's bytes as `replyFrame` and the frame equation of `s''` against `s'`, which follow

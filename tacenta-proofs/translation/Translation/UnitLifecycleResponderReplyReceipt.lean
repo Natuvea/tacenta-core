@@ -241,7 +241,8 @@ ratchet key returns `dSend`, and `mk` the key the receive derives on a fresh key
 * the open returns `y`: the step returns `y`, consumes the draw, and leaves `replyReceiptSession` (the agreement
   unchanged, no pending initial message).
 No other refusal (`agreementFailed`, the dispatch, `decode`, the first agreement, another Triple refusal) occurs.
-The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. -/
+The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. A
+frame the rule refuses is refused `decode tooLong` first, with no effect (`Model.Lifecycle.decrypt_frame_too_long`). -/
 theorem reply_receipt_model_outcomes (view : Model.Lifecycle.CodewordView)
     (oracleA oracleB : Model.Lifecycle.Oracle) (mA : Model.Lifecycle.Session)
     (a4 peer rkA cksA prk k1 k2 : Key) (e : Nat) (auth : Model.Braid.Auth) (dk ekVector : Model.Braid.Bytes)

@@ -145,7 +145,8 @@ consumes `c`, refuses `triple (classical outOfOrder)` and leaves the session as 
 frame is a ratchet message, so the dispatch passes it through; the agreement's receive at `keysSampled` of a message
 of type `none` is computed and discarded with the refusal.  No other refusal (`agreementFailed`, `decode`, either
 agreement, `ceiling`, another Triple refusal, `aead`) occurs under these premises.  Model only.
-The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. -/
+The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. A
+frame the rule refuses is refused `decode tooLong` first, with no effect (`Model.Lifecycle.decrypt_frame_too_long`). -/
 theorem reply_again_model_refused (view : Model.Lifecycle.CodewordView)
     (oracleA oracleB : Model.Lifecycle.Oracle) (mA : Model.Lifecycle.Session)
     (rkA prk k1 k2 dSend x newPub candPub c0 : Key) (e : Nat) (auth : Model.Braid.Auth)

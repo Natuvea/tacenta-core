@@ -8286,7 +8286,7 @@ size rule; where it has a successful call, the size fact is derived from that ca
 past the check, it takes a size hypothesis. For the size bound itself (the frame passes the size rule, or the plaintext is
 at most `MAX_PLAINTEXT_LEN`) the complement is the size refusal below, which holds with no other hypothesis. The exception
 is the reply bound `hfitR`/`hfitS` below, which is narrower than the size bound: its complement includes fifteen plaintext
-lengths that the code sends and the size rule admits and that no theorem here covers. The responder's prepared parts carry the size rule's admission, the
+lengths that the code sends and the size rule admits and that no route result here covers (each single call at those lengths is still related to the model's step by its own refinement result, under that result's premises; what is missing is the composed route statement). The responder's prepared parts carry the size rule's admission, the
 initial dispatch context carries it, and the encrypt and decrypt route evidence gain a size-refusal constructor. A run that
 delivers one party's encrypted message to the other takes, where the lengths allow, the size rule on that message from
 `UnitLifecycleEstablishedEncrypt.encrypt_ok_length_le` (a message `encrypt` returns is at most the plaintext plus 150 bytes,

@@ -66,7 +66,8 @@ The message size bound (message-format.md, Message size) at the three public ent
   65,770` bytes (`first_message_fits`, a helper: the first-message routes take the size rule on the frame instead,
   and are not limited by it);
 * the outcome of the reply routes for reply plaintexts of 1,048,561 to 1,048,575 bytes: they take `hfitR`/`hfitS`,
-  and the size refusals start above 1,048,575, so no theorem covers those fifteen lengths;
+  and the size refusals start above 1,048,575, so no route result covers those fifteen lengths (each single call
+  there is still related to the model's step by its own refinement result);
 * memory and time per call, allocation failure or abort, and the build profile;
 * callers that reach the AEAD, the decoders or the ratchet without going through the three public entries;
 * the AEAD, KEM and Diffie-Hellman laws the success results rest on, which stay assumed.

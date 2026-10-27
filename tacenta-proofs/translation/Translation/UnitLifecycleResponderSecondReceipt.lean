@@ -266,7 +266,8 @@ data) whose first agreement with the session's ratchet key returns `xB`: the ste
 * the open returns `y`: the step returns `y`, consumes the draw, and leaves `secondReceiptSession` (agreement
   `braid'`, no pending initial message).
 No other refusal occurs.
-The second frame passes the size rule (`hsizeS`), so the dispatch reaches the passthrough. -/
+The second frame passes the size rule (`hsizeS`), so the dispatch reaches the passthrough. A
+frame the rule refuses is refused `decode tooLong` first, with no effect (`Model.Lifecycle.decrypt_frame_too_long`). -/
 theorem second_receipt_model_outcomes (view viewA : Model.Lifecycle.CodewordView)
     (oracleB oracleA : Model.Lifecycle.Oracle) (mB : Model.Lifecycle.Session)
     (ec prk k1 k2 a4 d dSend newPub : Key)

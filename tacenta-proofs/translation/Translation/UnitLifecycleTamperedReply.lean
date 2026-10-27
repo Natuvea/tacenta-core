@@ -302,7 +302,8 @@ session's first agreement with `newPub` returns `dSend`, the oracle's next draw 
 is not the peer key the session holds, and the oracle's open of `cT` under the AEAD keys of the message key the
 receive derives and the reply's associated data is refused, the step refuses `aead`, consumes the draw and leaves the
 session as it was.
-The tampered frame passes the size rule (`hsizeT`), so the dispatch reaches the passthrough. -/
+The tampered frame passes the size rule (`hsizeT`), so the dispatch reaches the passthrough. A
+frame the rule refuses is refused `decode tooLong` first, with no effect (`Model.Lifecycle.decrypt_frame_too_long`). -/
 theorem tampered_reply_model_refusal (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle)
     (mA : Model.Lifecycle.Session) (a4 peer rkA cksA prk k1 k2 : Key) (e : Nat) (auth : Model.Braid.Auth)
     (dk ekVector : Model.Braid.Bytes) (enc : Model.Braid.Encoder)

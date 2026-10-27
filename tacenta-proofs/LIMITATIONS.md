@@ -4189,13 +4189,13 @@ stays conditional on them, as before this bound.
 `MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560; `hfitR`, and `hfitS` for the initiator's second message), fifteen lengths
 short of `MAX_PLAINTEXT_LEN`, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its
 exact padded length. For plaintexts of 1,048,561 to 1,048,575 bytes the shipping code encrypts (the tests above send the
-maximum), the frame (at most 1,048,710 bytes) passes the size rule and the receiver goes on, and **no theorem here covers
-those lengths**: neither the success statements, which take `hfitR`/`hfitS`, nor the size refusals, which start above
+maximum), the frame (at most 1,048,710 bytes) passes the size rule and the receiver goes on, and **no route result here
+covers those lengths**: neither the success statements, which take `hfitR`/`hfitS`, nor the size refusals, which start above
 1,048,575. The eleven results affected are `initiator_receives_reply` and its `_outcomes` and `_two_outcomes` forms,
 `initiator_receives_reply_successor`, `initiator_second_send_after_reply`, `initiator_sends_second_message`,
 `initiator_repeated_reply_refused`, `initiator_refuses_tampered_reply`, `responder_receives_second_message` and its
 `_two_outcomes` form, and `responder_sends_second_reply`. Their earlier statements are still true of the code at those
-lengths by reading, but are no longer proved there. An exact seal-length law would close the gap; none is assumed
+lengths by reading, but are no longer proved there; each single call at those lengths is still related to the model's step by its own refinement result, under that result's premises; what is missing is the composed route statement. An exact seal-length law would close the gap; none is assumed
 (`GAP-REGISTER.md`, row `SIZE-BOUND-REPLY-ROUTE-GAP`).
 
 **The first message.** A run that delivers the first message of an establishment takes the size rule on that message as a
@@ -4212,7 +4212,7 @@ initiator's second send and its joining, the repeated and the tampered reply, th
 message and its second reply) or `hlenR` (the reply itself and the send preservation at `NoHeaderReceived`); the
 initiator's second send takes `hlenS`, the responder's receipt of it `hfitS`, the responder's second reply `hlenR2`; the
 first-message routes take the size rule on the first frame (`hsize`, or the `hSize` field of the responder's prepared
-parts). `CLAIMS.md` lists each changed statement, and every one of these is met by the reaches' plaintexts at the real
+parts). `CLAIMS.md` names the changed route statements, and the diff of the change records every changed declaration; every one of these is met by the reaches' plaintexts at the real
 constants.
 
 **What the bound does not cover.** Memory and time per call, allocation failure and abort (the bound limits what a frame can
