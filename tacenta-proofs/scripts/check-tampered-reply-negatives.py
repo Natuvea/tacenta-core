@@ -7,9 +7,9 @@ source, refuses with `Aead` every frame that keeps the reply's first 102 bytes a
 HMAC-SHA256 tag under the reply's MAC key and associated data (the per-run premise `NotTagged`), leaves the session as
 it was and takes exactly one draw; under the assumed law `AeadOpenChecksTag` (the open accepts only bytes that carry
 the tag), which the module also shows holds in a toy model that binds the key and the associated data, is not implied
-by the round trip, and survives a toy seal that fails past `isize::MAX` bytes (the shipping seal fails from about half
-of that) where the earlier law `AeadOpenSealUnique` does not.  A proof that Lean accepts after the fact it rests on
-is removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to refuse
+by the round trip, and survives a toy seal that fails past `isize::MAX` bytes (by reading, the shipping seal fails from
+about half of that) where the earlier law `AeadOpenSealUnique` does not.  A proof that Lean accepts after the fact it
+rests on is removed would hold nothing, so this script makes one change to a copy of the module and requires Lean to refuse
 it, at a named place, with an error that names what the change removed.
 
 The proof that composes the run is `initiator_refuses_tampered_reply`.  What a run establishes is that each control is

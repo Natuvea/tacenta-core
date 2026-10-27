@@ -2211,18 +2211,20 @@ tested and translated, not proved end to end.
 
 ### What closing `E2E-01` requires, by name
 
-`GAP-REGISTER.md` row `E2E-01` states the test; this section only lists names and classifies them by it. A hypothesis
-may stay in a final theorem only if it is a fact about the particular run, a value the run supplies, and never if it
-mentions the result, behaviour, refusal or output of a shipping function or primitive; a scope premise is allowed only
-if its complement is covered by a theorem; everything else, premises on the session and store state included, must be
-derived by the final theorems, so a final theorem may not take `Session::invariant` or `PrekeyStore::invariant` as an
-underived premise. For this row, the items of `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`, (2), (3) and
-(6) of the first included, are met only through this test. The names below were
-taken from a text scan, at commit 34970e3a, of the hypotheses in the statements of `Translation/UnitLifecycle*.lean` and
-of the fields of the records those hypotheses name. The scan is a reading, not an elaborated enumeration, and it is not
-claimed complete; a name it missed, or one added later, is governed by the criterion, not by this list. Some are already
-theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the key derivation's translated code; those
-count as met.
+`GAP-REGISTER.md` row `E2E-01` states three rules; this section only classifies names by them. (R1) Run facts, values
+supplied from outside the code under proof (the random source's draws, and an adversary's or an honest peer's inputs),
+may stay in a final theorem, stated there and listed in `CLAIMS.md`. (R2) Scope premises, which restrict the inputs or
+results a theorem covers (an earlier call's result, size bounds), may stay only if a theorem that itself satisfies the
+rules covers the complement and states the outcome and effects there. (R3) Everything else must be a theorem: every
+general statement about what the code or a primitive does, including one restated over the model or the oracle, and the
+session and store invariants unless derived. A premise stated over the model or the oracle that is about a value the
+outside supplies is still R1. For this row, the items of `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY`,
+(2), (3) and (6) of the first included, are met only through these rules. The names below come from a text scan, at
+commit 34970e3a, of the hypotheses in the statements of `Translation/UnitLifecycle*.lean` and of the fields of the
+records they name; the scan is a reading, not an elaborated enumeration, and it is not claimed complete. A name it
+missed, or one added later, is governed by the rules, not by this list. The groups of contracts, laws and records
+that follow are R3. Some are already theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the
+key derivation's translated code; those count as met.
 
 - **The T1 contract records.**
   - `EncryptContracts`: `AeadSealBounded`, `MessageKeyMaterialRoundTrip`, `DhCodecTotal`, and the fields of
@@ -2276,57 +2278,101 @@ count as met.
   - About XEdDSA: `XeddsaSignTotal`.
   - About standard-library and wrapper operations: `OptionEqU64Shape`, `ZeroizingVecRoundTrip`, `OptionBranchSome`,
     `VecAsSlice` and `RetryBatchAgrees`.
-- **Premises on the store and the session state.** They count as met only when the final theorems derive them; a final
-  theorem may not take them, or `Session::invariant` and `PrekeyStore::invariant`, as underived premises.
+- **Session and store state (R3 unless derived).** A final theorem may not take these, or `Session::invariant` and
+  `PrekeyStore::invariant`, as underived premises.
   - The store premises `PrekeyIdsDistinct`, `OneTimeMatches` and `ReplayFingerprintSafe`.
   - The headroom and counter records `EncryptHeadroom`, `DecryptRatchetHeadroom`, `EstablishInitiatorHeadroom`,
     `EstablishResponderHeadroom`, `ReceiveHeadroom`, `CounterHeadroom` and `CounterRoom` (bound under names such as
     some `hroom` and some `hhead`).
   - `EncodersLive`, `ChainCounterBounded`, the run-bound records `RetryRunBounds` and `RetryReceiveBounds`, and the
     `retry` and `braidEpoch` fields of `DecryptRatchetRunInputs` and `DecryptRatchetRun`.
-  - Hypotheses of the refinement relations at the input state (`SessionRefines`, `StateRefines`).
+  - Hypotheses of the refinement relations at the input state (`SessionRefines`, `StateRefines`, bound as `hrel` and
+    others).
   - `InitiatorSecretParts`, which `establish_initiator_for_secret` already gives with no hypothesis.
-- **Scope premises.** Each is allowed only if its complement is covered by a theorem:
-  - `RestoredScope`, `CodecShape`, `SendsWithoutDraw`, `SameAgreementKind`, `KeepsAgreementState`, `InOrder` and
-    `InOrderReceiveStep`;
-  - the case splits `braidSendNeedsDraw ... = false` or `= true` (bound under names such as `hnoDraw`, `hneedsDraw` and
-    some `hdraw`), whose two cases cover each other;
-  - bounds on a caller's input: the plaintext-length bounds (some `hroom`, `hroomR`, `hroomS`, `hroomR2`), a bare
-    AEAD length bound on the caller's input, and `decrypt_refines_ratchet_frame`'s premise that the frame is not an
+- **Laws and evidence that must come from the code (R3).**
+  - The dispatch layer's evidence records (`BraidReceiveEvidence`, `SessionDecryptEvidence`, the `InitialRatchet*` and
+    `InitialAgreementRatchet*` evidence and route records, `EncryptRouteEvidence`, `EncryptTripleRouteEvidence`,
+    `EncryptEndToEndEvidence`, `BraidSendTraceAgreement` and `BraidSendTraceAgreementCounted`; `DISPATCH-EVIDENCE-VACUITY`).
+  - The general statements that the real `Braid::send` takes a given number of draws: `htraceNext` where it is
+    quantified over `Braid.send` (`public_encrypt_braid_failure_no_draw_of_contracts`), and the `hdraw` of
+    `public_encrypt_braid_failure_draw_of_contracts` and `encrypt_braid_failure_of_draw_send`.
+  - `FreshKeyPairRefines` (bound as `hfresh`) and `KemDrawsSucceed` (some `hdraw`).
+- **Scope premises (R2).** Each needs a theorem for the complement that satisfies the rules and states the outcome and
+  effects there.
+  - That an earlier call returned a given result: `h : establish_initiator_for ... = ok (Ok s, ...)`, `hcall`
+    (`Session::encrypt`), `hcallB` (`establish_responder`), `hpublish` (`PrekeyStore::publish`) and `hidentity`
+    (`Identity::public`). The complement is that call's other outcomes.
+  - `FirstKemAgrees`: the case in which the store's KEM key decapsulates the initiator's ciphertext to the initiator's
+    secret. ML-KEM decapsulation of an honest ciphertext can fail, so the complement is a theorem covering every other
+    decapsulation outcome, stating what the session does then. It does not by itself keep the row Open.
+  - Bounds on a caller's input: the plaintext-length bounds (some `hroom`, `hroomR`, `hroomS`, `hroomR2`), a bare AEAD
+    length bound on the caller's input, and `decrypt_refines_ratchet_frame`'s `hframe`, that the frame is not an
     initial message. Each needs a theorem for the inputs it excludes, for example a refusal the public implementation
     enforces.
-- **Laws and evidence that must come from the code.** These mention what a shipping function does, so by the test they
-  must be theorems:
-  - the dispatch layer's evidence records (`BraidReceiveEvidence`, `SessionDecryptEvidence`, the `InitialRatchet*` and
-    `InitialAgreementRatchet*` evidence and route records, `EncryptRouteEvidence`, `EncryptTripleRouteEvidence`,
-    `EncryptEndToEndEvidence`, `BraidSendTraceAgreement` and `BraidSendTraceAgreementCounted`; `DISPATCH-EVIDENCE-VACUITY`);
-  - the premises that the real `Braid::send` takes a given number of draws, in the same form as
-    `BraidSendTraceAgreement`'s `noDrawTrace` and `drawTrace`: the binder `htraceNext` where it is quantified over
-    `Braid.send` (`public_encrypt_braid_failure_no_draw_of_contracts`), the `hdraw` of
-    `public_encrypt_braid_failure_draw_of_contracts` and `encrypt_braid_failure_of_draw_send`, and the post-call trace
-    equalities `trace rngNext = ...`, where `rngNext` is the code's output source (the other `htraceNext`);
-  - `FreshKeyPairRefines` (bound as `hfresh`) and `KemDrawsSucceed` (some `hdraw`);
-  - `FirstKemAgrees`, which states the result of the real decapsulation. It cannot be a theorem for every run, since
-    ML-KEM decapsulation of an honest ciphertext can fail, so while a final theorem takes it the row stays Open; how that
-    step should be stated instead is not checked.
-- **Run premises: examples found by a text scan at commit 34970e3a, not a closed list and not an exemption.** They pass
-  the test as values the run supplies. Binder names are local to each theorem and can be renamed, so the names below are
-  examples only and confer nothing.
-  - The random-source premises before a call, that the source's trace agrees with its oracle's draws and holds the draws
-    a step takes: `htrace`, `htraceB`, `htraceHead`, `hdraws`, `hdrawA`, `hdrawA2`, `hdrawB`, `hdrawB2`, `hmodelDraw`,
-    `hrandomDraw`, the pre-call forms of `hdraw`, the `hhead` binders of the form `∃ draw rest, trace rng = draw :: rest`,
-    the one `hdr` in `tampered_reply_model_refusal`, `h` in `byte_random32`, and the `draw` fields of
-    `DecryptRatchetRunInputs` and `DecryptRatchetRun`. A source with no state of its own, such as `OsRng`, cannot
-    satisfy them, so a closure covers such a source only through the translation's faithfulness (ASM-16).
-  - The freshness of a peer's new ratchet key (`hfreshA`, `hfreshB`).
-  - `NotTagged`, a premise about an attacker's bytes.
-  - That the agreement chunks are honest ones: `HonestChunk`, `ConsistentChunkRun`, `IncomingChunkRefines` (bound
-    inline as some `hchunk`; one `hchunk` binds a length fact instead) and the `chunk` and `honest` fields of
-    `DecryptRatchetRunInputs` and `DecryptRatchetRun`. These state one condition, that a chunk is a codeword of one
-    source that fits the decoder it is fed to ("Per run", in the `decrypt_ratchet` section below, treats them as one
-    premise). It cannot be derived for an arbitrary input. On a spliced or adversarial chunk the model and the code
-    diverge ("Receiving refines only on an unspliced stream", above), so any closure covers only honest chunks until
-    that divergence is resolved.
+  - `RestoredScope`, `CodecShape`, `SendsWithoutDraw`, `SameAgreementKind`, `KeepsAgreementState`, `InOrder` and
+    `InOrderReceiveStep`, and the case splits `braidSendNeedsDraw ... = false` or `= true` (bound as `hnoDraw`,
+    `hneedsDraw` and some `hdraw`), whose two cases cover each other.
+- **Run facts (R1): examples, not a closed list.** Binder names are local to each theorem and can be renamed, so the
+  names below are examples only and confer nothing.
+  - The random source's draws: before a call (`htrace`, `htraceB`, `htraceHead`, `hdraws`, `hdrawB`, `hdrawB2`,
+    `hdrawA2`, the pre-call `hdraw`, the `hhead` of the form `∃ draw rest, trace rng = draw :: rest`, the `hdr` in
+    `tampered_reply_model_refusal`, `h` in `byte_random32`, and the `draw` fields of `DecryptRatchetRunInputs` and
+    `DecryptRatchetRun`), and the trace a call returned (`hdrawA`, and the six `htraceNext` of the form
+    `trace rngNext = ...` that are not quantified over `Braid.send`). `hmodelDraw` and `hrandomDraw` state draws
+    through the model and are R1 for the same reason. A source with no state of its own, such as `OsRng`, cannot supply
+    them, so a closure covers such a source only through the translation's faithfulness (ASM-16).
+  - A peer's inputs and their freshness: `hfreshA`, `hfreshB`; `NotTagged`, about an adversary's bytes; and the
+    premises that a frame is the honest peer's (`hpend`, `hmsg`, `hsrc`, `hsend`).
+  - Honest agreement chunks: `HonestChunk`, `ConsistentChunkRun`, `IncomingChunkRefines` (some `hchunk`; one binds a
+    length fact instead), `hcw : CodewordOf src c`, and the `chunk` and `honest` fields of `DecryptRatchetRunInputs`
+    and `DecryptRatchetRun`. `CodewordOf` is defined through the shipping `Encoder`, but here it specifies what the
+    honest peer supplies, a codeword of one source that fits the decoder; it is not a claim about the code under proof,
+    so these are R1. On a spliced or adversarial chunk the model and the code diverge ("Receiving refines only on an
+    unspliced stream", above), so any closure covers only honest chunks until that divergence is resolved.
+
+The classification of the route theorems' binders by these rules, from a text scan at commit 34970e3a (the theorems
+read: `responder_first_frame_admissible`, `first_send_responder_prepares`, `responder_first_frame_outcomes`,
+`initiator_first_send_responder_receives`, `initiator_first_send_responder_replies`, `initiator_receives_reply`,
+`initiator_refuses_tampered_reply`, `initiator_sends_second_message`, `initiator_repeated_reply_refused`,
+`responder_receives_second_message`, `responder_sends_second_reply`, `decrypt_refines_ratchet_frame`):
+
+| Hypothesis (binder or type) | Rule |
+|---|---|
+| `OracleOf`, `DecryptOracleOf` | R3 |
+| the contract records (`contracts`, `braid`, `triple`) | R3 |
+| `DecryptRatchetAgreements` | R3 |
+| `DhCodecOf`, `CodewordViewSendOf` | R3 |
+| the zeroize round trips (`hz80`, `hz32`, `hzKeys`) | R3 |
+| `KeyGenSeededFor`, `KeyGenSizesOf` | R3 |
+| `KemCiphertextLenOf`, `KemCiphertextLenBound` | R3 |
+| the X25519 laws (`hpub`, `hsym`, `hcon`, `DhPublicBytesRoundTrip`) | R3 |
+| `AeadRoundTrip`, `AeadOpenChecksTag` | R3 |
+| `OptionEqU64Shape` | R3 |
+| `FirstKemAgrees` (`hkem`) | R2 |
+| `PrekeyIdsDistinct` | R3 unless derived |
+| `EstablishResponderHeadroom` (`hhead`) | R3 unless derived |
+| `SessionRefines` (`hrel`) | R3 unless derived |
+| `DecryptRatchetHeadroom` | R3 unless derived |
+| `htrace` | R1 |
+| `htraceB`, `hdrawB`, `hdraws` | R1 |
+| `hdrawB2`, `hdrawA2` | R1 |
+| `hdrawA` | R1 (the trace a call returned) |
+| `hmodelDraw` | R1 |
+| `hrandomDraw` | R1 |
+| `hfreshA`, `hfreshB` | R1 |
+| `NotTagged` (`hnt`) | R1 |
+| `IncomingChunkRefines`, the `chunk` field, `ConsistentChunkRun` | R1 |
+| `HonestChunk` | R1 |
+| `hcw : CodewordOf src c` | R1 |
+| `h : establish_initiator_for ... = ok (Ok s, ...)` | R2 |
+| `hcall : Session.encrypt ... = ok (Ok bytes, ...)` | R2 |
+| `hcallB : establish_responder ... = ok (Ok ...)` | R2 |
+| `hpublish : PrekeyStore.publish storeB = ok bundle` | R2 |
+| `hidentity : Identity.public ourB = ok ...` | R2 |
+| `hroom`, `hroomR`, `hroomS`, `hroomR2` | R2 |
+| `hframe` | R2 |
+| `hpend`, `hmsg`, `hsrc`, `hsend` | R1 |
+| `hq : s = q.session` | definitional, none |
 
 The trusted base outside the theorems' hypotheses is not part of this criterion: the translation's faithfulness and the
 toolchain (ASM-16 in `tacenta-spec/threat-model/assumptions.md`, and "Trusted, not verified" and "The proofs are trusted by
@@ -3576,7 +3622,7 @@ record, `OracleOfGuarded`, whose KEM success clause is guarded by the oracle's `
 
 | Law | Statement | Status |
 |---|---|---|
-| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input the Lean statement quantifies over. As Lean propositions, the fields that take a slice (the two AEAD fields, and `XeddsaVerifyTotal` and `KemDecapsulateTotal` through their message and ciphertext) quantify over lengths up to `Usize.max`, which no Rust slice has; the three DH fields take fixed-size keys only. A field is false of the real functions only where they fail: the two AEAD fields at the lengths below and under memory exhaustion (by reading); for the other five no failing input is recorded. They are meant, and read here, over the inputs a Rust program can supply (at most `isize::MAX` bytes) with memory not counted; under that reading the two AEAD fields do not hold (below). Of the other five, none is known to fail there, and none is shown to hold: `DhCodecTotal`, `DhAgreeTotal` and `DhIdentityTotal` take fixed-size keys, so no length edge applies to them (by a reading of `tacenta-core/boundary/src/dh.rs`; x25519-dalek's internals were not read for this); `XeddsaVerifyTotal` streams the message through SHA-512, whose length counter is a `u128` (by a tool-assisted reading made for the maintainer, not checked further); and `KemDecapsulateTotal` at a key pair a program can restore is not checked, since `KeyPair::from_bytes` leaves the 1,536 bytes of `dk_PKE` unchecked (`tacenta-core/boundary/src/kem.rs`, the doc comment of `from_bytes`) and no reading of libcrux's `decapsulate` over out-of-range secret coefficients is recorded (the Braid's analogous case is not checked either, "The Session unit's primitive contracts are totality assumptions"). The convention matters most for the AEAD: on a 64-bit target its edges below need slices of 2 to 4 EiB, more than any real 64-bit address space supplies (general knowledge, not measured), so no real 64-bit call reaches them and there the defect is formal, a proposition the theorems assume that is false, not a fault a program can trigger; on a 32-bit target the seal's edge is a size a real program can reach in principle. `aead::encrypt` panics on a `Vec` capacity overflow once its padded ciphertext (`16 * (n / 16 + 1)` bytes for an `n`-byte plaintext) exceeds half of `isize::MAX`, because appending the 32-byte tag asks the standard library's `Vec` growth for twice the buffer's capacity: from a plaintext of `2^30 - 16` bytes on a 32-bit target, a length a real slice can have (by reading, an estimate: the panic is reached only where about 3 GiB of allocations, three regions of about 1 GiB each, fit; otherwise an allocation failure aborts first), and `2^62 - 16` on 64-bit. The growth rule was read in the standard library source of the nightly-2026-06-01 toolchain, and a stand-in allocator emulating the same calls behaved so on 64-bit under that toolchain and under stable 1.98.1; those runs were made outside the tree and cannot be reproduced from it, no test in the tree holds the edge, and the 32-bit figure is the same arithmetic, not run. `Vec`'s growth strategy is an implementation detail that the standard library does not document as a guarantee, and CI builds with an unpinned stable toolchain, so the edge is stated for the versions read, not by contract. The seal also panics where the associated data plus the padded ciphertext exceed `isize::MAX`. `aead::decrypt` panics, by reading of `sha2` 0.10.9, once the associated data plus the ciphertext before its tag reach `2^61 - 64` bytes on a 64-bit target built with overflow checks, a size no real address space supplies (with the 64-byte inner-pad block the hashed input reaches `2^61` bytes, whose bit length overflows a `u64`); no 32-bit input reaches that, and with overflow checks off the bit length wraps and the open returns. Because both AEAD fields are false as propositions over the lengths their statements quantify over, and fail even under the reading above (the open only in a build with overflow checks), a theorem that takes either of them, directly or through `EncryptContracts`, `DecryptRatchetContracts` (and so `EstablishResponderContracts`), `OracleOf` or `DecryptOracleOf`, is conditional on a proposition about the real functions that does not hold; as stated, it says nothing about the shipping code at any length, not only at the lengths where the AEAD fails. That includes the lifecycle T1 theorems for `encrypt`, `decrypt` and `establish_responder` and every result that takes `OracleOf` or `DecryptOracleOf`. Restating the two with length premises (for the seal, `|ad| + 2 * |plaintext| + 64 <= isize::MAX`; for the open, `sha2`'s bit-length bound) and deriving those premises from the lengths each call passes, where they follow, is planned and not done; the theorems as stated will be kept beside the restated ones. Today `Session::encrypt` refuses no plaintext by size and `Session::decrypt` no frame, so without a code change a bound on the plaintext, and on a 64-bit target a bound on a frame the theorem does not build, would remain a premise on the caller's input; such a bare premise does not meet `AEAD-LENGTH-CONTRACTS`'s acceptance, and under `E2E-01`'s test it is a scope premise, allowed only if its complement is covered by a theorem. The maintainer has decided (2026-10-26) that the public implementation is to enforce size bounds (a plaintext of at most 1,048,575 bytes, a ratchet frame of at most 1,048,710 bytes and an initial frame of at most 1,050,362 bytes), from which the premises could be derived; those bounds are in neither the specification nor the code yet, the change has not landed, and until it does a restatement would leave a bound on the caller's input that the code does not check. The AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
+| `DhCodecTotal`, `DhAgreeTotal`, `DhIdentityTotal`, `AeadSealBounded`, `AeadOpenTotal`, `KemDecapsulateTotal`, `XeddsaVerifyTotal` | the primitive returns on every input the Lean statement quantifies over. As Lean propositions, the fields that take a slice (the two AEAD fields, and `XeddsaVerifyTotal` and `KemDecapsulateTotal` through their message and ciphertext) quantify over lengths up to `Usize.max`, which no Rust slice has; the three DH fields take fixed-size keys only. A field is false of the real functions only where they fail: the two AEAD fields at the lengths below and under memory exhaustion (by reading); for the other five no failing input is recorded. They are meant, and read here, over the inputs a Rust program can supply (at most `isize::MAX` bytes) with memory not counted; under that reading the two AEAD fields do not hold (below). Of the other five, none is known to fail there, and none is shown to hold: `DhCodecTotal`, `DhAgreeTotal` and `DhIdentityTotal` take fixed-size keys, so no length edge applies to them (by a reading of `tacenta-core/boundary/src/dh.rs`; x25519-dalek's internals were not read for this); `XeddsaVerifyTotal` streams the message through SHA-512, whose length counter is a `u128` (by a tool-assisted reading made for the maintainer, not checked further); and `KemDecapsulateTotal` at a key pair a program can restore is not checked, since `KeyPair::from_bytes` leaves the 1,536 bytes of `dk_PKE` unchecked (`tacenta-core/boundary/src/kem.rs`, the doc comment of `from_bytes`) and no reading of libcrux's `decapsulate` over out-of-range secret coefficients is recorded (the Braid's analogous case is not checked either, "The Session unit's primitive contracts are totality assumptions"). The convention matters most for the AEAD: on a 64-bit target its edges below need slices of 2 to 4 EiB, more than any real 64-bit address space supplies (general knowledge, not measured), so no real 64-bit call reaches them and there the defect is formal, a proposition the theorems assume that is false, not a fault a program can trigger; on a 32-bit target the seal's edge is a size a real program can reach in principle. `aead::encrypt` panics on a `Vec` capacity overflow once its padded ciphertext (`16 * (n / 16 + 1)` bytes for an `n`-byte plaintext) exceeds half of `isize::MAX`, because appending the 32-byte tag asks the standard library's `Vec` growth for twice the buffer's capacity: from a plaintext of `2^30 - 16` bytes on a 32-bit target, a length a real slice can have (by reading, an estimate: the panic is reached only where about 3 GiB of allocations, three regions of about 1 GiB each, fit; otherwise an allocation failure aborts first), and `2^62 - 16` on 64-bit. The growth rule was read in the standard library source of the nightly-2026-06-01 toolchain, and a stand-in allocator emulating the same calls behaved so on 64-bit under that toolchain and under stable 1.98.1; those runs were made outside the tree and cannot be reproduced from it, no test in the tree holds the edge, and the 32-bit figure is the same arithmetic, not run. `Vec`'s growth strategy is an implementation detail that the standard library does not document as a guarantee, and CI builds with an unpinned stable toolchain, so the edge is stated for the versions read, not by contract. The seal also panics where the associated data plus the padded ciphertext exceed `isize::MAX`. `aead::decrypt` panics, by reading of `sha2` 0.10.9, once the associated data plus the ciphertext before its tag reach `2^61 - 64` bytes on a 64-bit target built with overflow checks, a size no real address space supplies (with the 64-byte inner-pad block the hashed input reaches `2^61` bytes, whose bit length overflows a `u64`); no 32-bit input reaches that, and with overflow checks off the bit length wraps and the open returns. Because both AEAD fields are false as propositions over the lengths their statements quantify over, and fail even under the reading above (the open only in a build with overflow checks), a theorem that takes either of them, directly or through `EncryptContracts`, `DecryptRatchetContracts` (and so `EstablishResponderContracts`), `OracleOf` or `DecryptOracleOf`, is conditional on a proposition about the real functions that does not hold; as stated, it says nothing about the shipping code at any length, not only at the lengths where the AEAD fails. That includes the lifecycle T1 theorems for `encrypt`, `decrypt` and `establish_responder` and every result that takes `OracleOf` or `DecryptOracleOf`. Restating the two with length premises (for the seal, `|ad| + 2 * |plaintext| + 64 <= isize::MAX`; for the open, `sha2`'s bit-length bound) and deriving those premises from the lengths each call passes, where they follow, is planned and not done; the theorems as stated will be kept beside the restated ones. Today `Session::encrypt` refuses no plaintext by size and `Session::decrypt` no frame, so without a code change a bound on the plaintext, and on a 64-bit target a bound on a frame the theorem does not build, would remain a premise on the caller's input; such a bare premise does not meet `AEAD-LENGTH-CONTRACTS`'s acceptance, and under `E2E-01`'s rules it is a scope premise, allowed only if its complement is covered by a theorem. The maintainer has decided (2026-10-26) that the public implementation is to enforce size bounds (a plaintext of at most 1,048,575 bytes, a ratchet frame of at most 1,048,710 bytes and an initial frame of at most 1,050,362 bytes), from which the premises could be derived; those bounds are in neither the specification nor the code yet, the change has not landed, and until it does a restatement would leave a bound on the caller's input that the code does not check. The AEAD seal also carries its length bound, 48 bytes over the plaintext | fields of the four contract records, already assumed by the lifecycle T1 theorems ("The Session unit's primitive contracts are totality assumptions", above). Their bodies and those of their seven shapes over an interpretation (`UnitSatisfiabilityJoint.lean`) carry `#print` pins in `UnitOracleJoint.lean`, so a change to the text of one, such as the 48 bytes, fails the build. `tacenta-core/tests/rng_fill_counts.rs` drives the functions the seven predicates name over edge and sampled inputs and checks the length bound; that is a test on the inputs it tries |
 | `SignFillsOnce64`, `KemShape` | `xeddsa::sign` fills one 64-byte buffer and touches the RNG nowhere else; `kem::encapsulate` refuses an invalid key before it reads the RNG and otherwise fills one 32-byte buffer | read from the source by the integration screen (`UnitLifecycleIntegrationScreen.lean`), not proved; tested on the shipped source by `tacenta-core/tests/rng_fill_counts.rs`, which counts every call of a counting random source and checks that a second source type with the same bytes gives the same result. The same test holds `GenerateFillsOnce64`. The test uses fixed inputs (four secrets and seven message lengths for `sign`, one key pair, seven wrong lengths and fifty sampled keys for `encapsulate`) and two random source types, where the laws are stated for every source type. It does not test the two view laws or the inputs at the failure edges the totality row records. It runs at the width of the machine that runs it: no CI job runs it or compiles it at 32 bits (the `armv7` job runs `cargo check --locked --workspace --target armv7-linux-androideabi`, which compiles no test target; its `i686` step runs `decrypt_premises` alone), so that it does not depend on the width of `usize` is by reading only |
 | `DhViewInjective` | the byte views of `dh::PrivateKey` and `dh::PublicKeyBytes` the caller chooses are injective | new; by reading, each real type has an injective view (its wrapped bytes), which also meets `DhCodecOf`; a result applies to a caller's view only if that view is injective |
 | `KemViewInjective` | the byte view of `kem::KeyPair` the caller chooses is injective | new; by reading, the real type has an injective view (its serialised bytes); a result applies to a caller's view only if that view is injective |
