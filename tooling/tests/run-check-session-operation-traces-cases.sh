@@ -13,6 +13,7 @@ make_case() {
   mkdir -p "$dst/tooling" "$dst/tacenta-test-vectors/traces"
   cp "$root/tooling/check-session-operation-traces.py" "$dst/tooling/"
   cp "$root/tacenta-test-vectors/traces/session-operation-trace.json" \
+    "$root/tacenta-test-vectors/traces/session-operation-trace-supplement.json" \
     "$dst/tacenta-test-vectors/traces/"
 }
 
@@ -68,4 +69,49 @@ path.write_text(json.dumps(data, indent=2) + '\n')
 PY
 expect_fail refused-changes-state 'a refused operation leaves store and session unchanged'
 
-echo 'check-session-operation-traces-cases: pass case and 3 refusal cases gave the expected result'
+# The supplement (schema version 2): its own rules, and version 1 stays closed to them.
+make_case supplement-claims-independence
+python3 - "$work/supplement-claims-independence/tacenta-test-vectors/traces/session-operation-trace-supplement.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data['provenance'] = 'Independently authored by a clean-room reader.'
+path.write_text(json.dumps(data, indent=2) + '\n')
+PY
+expect_fail supplement-claims-independence "supplement.provenance: must say 'Not independently authored'"
+
+make_case supplement-size-refusal-draws
+python3 - "$work/supplement-size-refusal-draws/tacenta-test-vectors/traces/session-operation-trace-supplement.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+for trace in data['traces']:
+    if trace['id'] == 'receive-ratchet-frame-too-long':
+        del trace['steps'][0]['effect']['random_draws']
+path.write_text(json.dumps(data, indent=2) + '\n')
+PY
+expect_fail supplement-size-refusal-draws 'a size refusal states random_draws none'
+
+make_case supplement-missing-control
+python3 - "$work/supplement-missing-control/tacenta-test-vectors/traces/session-operation-trace-supplement.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data['traces'] = [t for t in data['traces'] if t['id'] != 'control-plaintext-too-long-wrongly-accepted']
+path.write_text(json.dumps(data, indent=2) + '\n')
+PY
+expect_fail supplement-missing-control 'missing required trace(s): control-plaintext-too-long-wrongly-accepted'
+
+make_case version-one-gains-size-refusal
+python3 - "$work/version-one-gains-size-refusal/tacenta-test-vectors/traces/session-operation-trace.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+for trace in data['traces']:
+    if trace['id'] == 'braid-terminal-failure-persists-and-refuses':
+        trace['steps'][2]['expect']['refusal'] = 'PlaintextTooLong'
+path.write_text(json.dumps(data, indent=2) + '\n')
+PY
+expect_fail version-one-gains-size-refusal 'is not a source-named refusal'
+
+echo 'check-session-operation-traces-cases: pass case and 7 refusal cases gave the expected result'

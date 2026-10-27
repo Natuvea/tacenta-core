@@ -116,6 +116,17 @@ structural effects present. The operation reader, not this structural check,
 must evaluate the cases and controls before any runner claims coverage for
 them.
 
+A separately versioned supplement, [version 2](session-operation-trace-supplement.md),
+adds what version 1 cannot express about the message size bound: the sender's
+`PlaintextTooLong`, the size rule's refusals, `AgreementFailed` and
+`random_draws: none`. Version 1 and its corpus are unchanged. [The supplement's
+traces](traces/session-operation-trace-supplement.json) were added by the
+maintainer account with tool assistance and are **not independently authored**;
+the independent operation reader does not read them. The same structural check
+covers them, and `runners/rust/tests/operation_trace_supplement.rs` drives each
+one through `tacenta-core`, comparing outcomes, refusals, stored bytes and
+random-source calls, and requires its control to disagree.
+
 `conformance-manifest.md` records exactly which specifications, revisions, and
 components the vectors cover, and what is excluded. Peer interoperability is
 scoped to the bundle layer, and the manifest says what that means.

@@ -839,10 +839,10 @@ recorded decision or a target-closing slice:
 
   **Protected property:**
   The set of opaque primitive calls reachable from the five Session roots stays classified;
-  the committed operation-trace corpus keeps its required families and controls.
+  the committed operation-trace corpus keeps its required families and controls, and so does the size-bound supplement (`traces/session-operation-trace-supplement.json`, not independently authored), which `runners/rust/tests/operation_trace_supplement.rs` drives through `tacenta-core`.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-check-lifecycle-boundary-surface-cases.sh` (9 refusals and 2 acceptances, and since 2026-10-01 a refusal of a missing Session root, which the guard-removal run showed no case needed) and `tooling/tests/run-check-session-operation-traces-cases.sh` (a pass case and 3 refusals), in the `checks` job.
+  `tooling/tests/run-check-lifecycle-boundary-surface-cases.sh` (9 refusals and 2 acceptances, and since 2026-10-01 a refusal of a missing Session root, which the guard-removal run showed no case needed) and `tooling/tests/run-check-session-operation-traces-cases.sh` (a pass case and 7 refusals, four of them for the size-bound supplement), in the `checks` job.
 
   **Missing evidence:**
   The first pins the set of operations, not their call sites (its docstring says so).
