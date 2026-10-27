@@ -137,8 +137,8 @@ this section says in one place what is not proved.
   recorded, or a non-empty record whose count for the key has reached `MAX_LAST_RESORT_SEEN`, and only when the bundle names the last-resort key, with the store and the random source as
   given; otherwise it reaches the inner receive at a session whose shared secret is the initiator's, where the invariant,
   the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
-  (`DhAgreeSymmetric`), a premise about the run, that the store's KEM key decapsulates the initiator's ciphertext to the
-  initiator's secret (`FirstKemAgrees`; ML-KEM decapsulation can fail with small probability, so it is not a law), and the
+  (`DhAgreeSymmetric`), a hypothesis that the store's KEM key decapsulates the initiator's ciphertext to the
+  initiator's secret (`FirstKemAgrees`, the real decapsulation's result, which ML-KEM can fail to give with small probability; its status for `E2E-01` is undecided), and the
   establishment's, restore and decrypt laws named there; the composed statement lists no compiler-trust axiom. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
   shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists ("Proved (tier T3, session lifecycle:
   `establish_responder` on the frame the initiator's first `encrypt` emits ...)").
@@ -5725,8 +5725,8 @@ ratchet frame for some message key and chunk, and `establish_responder` on them 
 the parts' frame.
 
 **The law and the premises.** `DhAgreeSymmetric` (new, assumed; `LIMITATIONS.md`): for private keys `a`, `b` with public keys
-`pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` is a premise about the run, not a law: ML-KEM decapsulation of an
-honest ciphertext fails with small probability, and the wrapper's implicit rejection then returns another secret.
+`pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` states the real decapsulation's result for this run's ciphertext; it is
+not stated for every run, since ML-KEM decapsulation of an honest ciphertext fails with small probability and the wrapper's implicit rejection then returns another secret. Its status for `E2E-01` is undecided (`GAP-REGISTER.md`).
 `PrekeyIdsDistinct` is a named hypothesis about the store; it is what `PrekeyStore::invariant`'s identifier loop checks, but
 that the invariant gives it is not checked (the loop reads the pools through `IntoIterator for &Vec`, which the translation
 leaves opaque and no law describes). Reused: `DhPublicValid`, `DhPublicBytesRoundTrip` (the restore branch's law),
@@ -6655,7 +6655,7 @@ step, the key derivations), and the refusal is `Aead`, leaves the session as it 
 are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the oracle record `OracleOf` (whose open clause asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`, used here at the tampered ciphertext's length) included.
 
 It replaces an earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself). That law was false of the
-shipping functions wherever the reseal cannot return: from a padded ciphertext of half of `isize::MAX` (the seal's tag append),
+shipping functions wherever the reseal cannot return: from a padded ciphertext of half of `isize::MAX` (the seal's tag append; by reading, in principle on a 32-bit target and formally only on 64-bit),
 past `isize::MAX` (the seal's copy of `ad ‖ ct` into one allocation, which the open does not make) and under memory exhaustion. `AeadOpenSealUniqueShape` is kept only to state that difference
 (`taggedTop_checksTag_not_openSealUnique`).
 
@@ -6709,7 +6709,7 @@ tag (`tagMatches_append`), and the reply's own ciphertext (a conjunct of the hea
 
 `taggedLenient_roundTrip_not_checksTag` shows the law is not implied by the round trip.
 `taggedTop_checksTag_not_openSealUnique` shows it survives a seal that fails at long lengths, as the shipping
-one does (the toy fails past `isize::MAX`; the shipping seal fails from about half of that), where the earlier law does not, and `modelTagged_openSealUnique` shows the failing seal is what refutes it; the toy models the capacity edge only, and the law depends on neither that edge nor
+one does (the toy fails past `isize::MAX`; the shipping seal fails, by reading, from about half of that, in principle on a 32-bit target and formally only on 64-bit), where the earlier law does not, and `modelTagged_openSealUnique` shows the failing seal is what refutes it; the toy models the capacity edge only, and the law depends on neither that edge nor
 memory. None of these toy results assumes a width: each is stated for the symbolic `Usize.max`, and the two contrasts use
 only `2 ^ 32 - 1 ≤ Usize.max`, so they hold at both widths. The run's other
 premises are reached at the real constants under the laws by `first_send_reply_receipt_reachable`.
@@ -6722,7 +6722,7 @@ frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under 
 implementation proves the same shape, a bad tag refused, of its own code and not of the shipping one); that a frame an
 attacker can produce meets `NotTagged` (the unforgeability of HMAC-SHA256, not stated); a frame whose tag verifies but whose
 padding is refused (refused by the shipping open, by reading, but outside the premise); that the responder's `encrypt`
-returns `bytesR` for reply plaintexts from about half of `isize::MAX`, which the shipping seal does not (`AeadSealBounded` is assumed for
+returns `bytesR` for reply plaintexts from about half of `isize::MAX` (by reading; in principle on a 32-bit target, formally only on 64-bit), which the shipping seal does not (`AeadSealBounded` is assumed for
 every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (formally only, at sizes no real address space supplies), where the shipping open panics (the open clause of `OracleOf`, which implies `AeadOpenTotal`, is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
 epochs, agreement type or chunk), a frame shorter than the header, or a frame of another type (those reach other associated
 data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered frame's refusal when the reply's

@@ -49,8 +49,8 @@ ceilings follow from the construction, so the restated form applies to its inner
 off the code's session and not shown to be the model's own, for a frame meeting the caller's chunk premises with a draw left,
 with no input exhibited there at which the whole call succeeds; and on the bytes the first `encrypt` returns, at a store that
 published the bundle used, only the three refusals the store decides remain or the call reaches its inner receive with the
-initiator's shared secret, under an assumed X25519 symmetry law, a premise about the run that ML-KEM decapsulation returns
-the initiator's secret and a named hypothesis that the store's identifiers are distinct; past those refusals, two named
+initiator's shared secret, under an assumed X25519 symmetry law, a hypothesis that ML-KEM decapsulation returns
+the initiator's secret (its status for E2E-01 undecided) and a named hypothesis that the store's identifiers are distinct; past those refusals, two named
 refusals (a non-contributory agreement of the responder's fresh key, the AEAD refusing the initiator's seal) or success,
 and under two more assumed boundary laws (the AEAD round trip, which by reading is false of the shipping AEAD on a 64-bit target built with overflow checks for associated data of 2^61 bytes, a size no real 64-bit address space supplies, and contributory agreement), the model KEM's size law, a
 store bound and per-run premises on the responder's source, success with the initiator's plaintext, one draw and the committed store, with no compiler-trust axiom, and at the
