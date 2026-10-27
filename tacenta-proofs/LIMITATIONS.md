@@ -2213,8 +2213,10 @@ tested and translated, not proved end to end.
 
 This section is an inventory, not a classification, and it is not complete. `GAP-REGISTER.md` row `E2E-01` states what
 closing requires: its final theorems may take no assumption about what the shipping code or a primitive does, including
-a statement of what one call returns at the run's values; which of the other hypotheses may remain is an open owner
-decision, and nothing here classes any of them as acceptable. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
+a statement of what one call returns at the run's values, and an invariant or its content restated over the state unless
+the final theorems derive it; which of the other hypotheses may remain is an open owner decision, and nothing here
+classes any of them as acceptable. The labels "per-run premise" and "premise about the run" elsewhere in these documents
+describe how a hypothesis is used; they do not place it outside that exclusion. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
 statements of `Translation/UnitLifecycle*.lean` and of the fields of the records they name; the scan is a reading, not
 an elaborated enumeration. Binder names are local to each theorem and can be renamed. Some of the named propositions
 are already theorems, for example the session unit's `HmacAgrees` and `HkdfAgrees` from the key derivation's
@@ -3144,14 +3146,14 @@ oracle's KEM. At the initiator's `KeysSampled` agreement the translated `Braid::
 unless the message is a `Ct1` chunk (by reading the generated code; no theorem states it), and the model's receive likewise, so the receipt runs no encapsulation, decapsulation or
 key generation and needs no fact relating the two parties' KEMs (it does clone the key pair, under `KemCloneAgrees`);
 `DecryptRatchetAgreements` still carries `KemAgreesFor` at the initiator oracle's KEM, as the generic route takes it for every
-state, and whether it could be dropped here is not checked. One law, used only by a reach, and two premises about the run are
+state, and whether it could be dropped here is not checked. One law, used only by a reach, and two hypotheses are
 new:
 
 | Statement | Kind | Says | Used for | Model, and when it would be false |
 |---|---|---|---|---|
 | `DhPublicNotConstant` | law, ASSUMED (`DhPublicNotConstantShape` at the real constants) | for every 32 bytes `pa` there are 32 bytes from which `from_bytes` makes a private key whose public key's bytes are not `pa` | the reach chooses the responder's 32-byte source so that its fresh ratchet key is not the signed prekey's (`first_send_reply_receipt_reachable`); no headline takes it | `InterpO.modelReply` (`modelReply_notConstant`): the base point and the key `1` are their own toy public keys, and they differ. False in `InterpO.modelFirstReceipt` (`modelFirstReceipt_not_notConstant`), whose public key is the base point for every key. True of X25519 by reading (`tacenta-core/boundary/src/dh.rs`: the public key is the base point multiplied by the clamped scalar, so two scalars `s`, `t` with `s ≢ ±t` modulo the group order give different public keys, and the public key takes more than one value); not checked in Lean. It would be false of a `public_key` that ignores its argument or of a `from_bytes` that maps every input to one key |
 | initiator draw premise | premise about the run | the initiator's source after its first send holds a draw | the receipt's candidate draw (the refinement takes it); without it the model refuses `ceiling` | holds in the reach's run, whose initiator source is a 64-byte seed followed by 32 bytes. As for the responder's trace premise, a real `RngCore` does not run dry; the empty trace is a property of the trace interpretation |
-| `hfreshB` | hypothesis that the responder oracle's public key of its draw is not a given key, success theorem only; both outcomes are covered by `initiator_receives_reply_two_outcomes` | the responder oracle's public key of its draw is not the peer key the initiator holds (the bytes of the signed prekey) | the reply's ratchet key is fresh, so the initiator takes a Diffie-Hellman step and has a receiving chain | holds in the reach's run with the responder's source chosen by `DhPublicNotConstant`, and fails in `first_send_reply_stale_reachable`, whose responder draws its own signed prekey secret: there the initiator refuses `Triple(Classical(NoReceivingChain))` with its session unchanged. A condition on the run, not a law: it fails exactly when the responder's draw gives the signed prekey's public key. That it holds under an honest random source is not shown, and no probability is claimed |
+| `hfreshB` | hypothesis that the responder oracle's public key of its draw is not a given key, success theorem only; both outcomes are covered by `initiator_receives_reply_two_outcomes` | the responder oracle's public key of its draw is not the peer key the initiator holds (the bytes of the signed prekey) | the reply's ratchet key is fresh, so the initiator takes a Diffie-Hellman step and has a receiving chain | holds in the reach's run with the responder's source chosen by `DhPublicNotConstant`, and fails in `first_send_reply_stale_reachable`, whose responder draws its own signed prekey secret: there the initiator refuses `Triple(Classical(NoReceivingChain))` with its session unchanged. It states what the DH public-key function returns at the responder's draw, and fails exactly when that draw gives the signed prekey's public key. That it holds under an honest random source is not shown, and no probability is claimed |
 
 The laws of the premise lists hold together, with the reach's `DhPublicNotConstant`, in `InterpO.modelReply`
 (`reply_receipt_laws_model`, which proves every conjunct of `first_receipt_laws_model` again there): the first receipt's joint
